@@ -4,19 +4,27 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Models\Management\ManagementDayRoutine;
 use App\Models\Management\ManagementDayRoutineStep;
+use App\Models\Management\ManagementDayRoutineLog;
+use Carbon\Carbon;
 use Illuminate\Support\Str;
 
 Route::prefix('funki/routine')->group(function () {
 
-    // 1. Get all routines with steps
-    Route::get('/', function () {
-        $routines = ManagementDayRoutine::with(['steps' => function($q) {
-            $q->orderBy('position', 'asc');
-        }])
+    // 1. Get all routines with steps and today's log status
+    Route::get('/', function (Request $request) {
+        $date = $request->query('date', Carbon::now()->format('Y-m-d'));
+        $routines = ManagementDayRoutine::with([
+            'steps' => function($q) {
+                $q->orderBy('position', 'asc');
+            },
+            'logs' => function($q) use ($date) {
+                $q->whereDate('date', $date);
+            }
+        ])
         ->where('is_active', true)
         ->orderBy('start_time', 'asc')
         ->get();
-        return response()->json(['success' => true, 'data' => $routines]);
+        return response()->json(['success' => true, 'date' => $date, 'data' => $routines]);
     });
 
     // 2. Create routine
@@ -84,6 +92,62 @@ Route::prefix('funki/routine')->group(function () {
     Route::delete('/steps/{stepId}', function ($stepId) {
         ManagementDayRoutineStep::destroy($stepId);
         return response()->json(['success' => true]);
+    });
+
+    // 7. Toggle daily routine completion log
+    Route::post('/{routineId}/toggle-log', function (Request $request, $routineId) {
+        $routine = ManagementDayRoutine::with('steps')->findOrFail($routineId);
+        $date = $request->input('date', Carbon::now()->format('Y-m-d'));
+
+        $log = ManagementDayRoutineLog::where('day_routine_id', $routine->id)
+            ->whereDate('date', $date)
+            ->first();
+
+        if ($log && $log->is_completed) {
+            $log->update([
+                'is_completed' => false,
+                'completed_steps' => [],
+                'completed_at' => null,
+            ]);
+        } else {
+            $log = ManagementDayRoutineLog::updateOrCreate(
+                ['day_routine_id' => $routine->id, 'date' => $date],
+                [
+                    'is_completed' => true,
+                    'completed_steps' => $routine->steps->pluck('id')->map(fn($id) => (string) $id)->toArray(),
+                    'completed_at' => Carbon::now(),
+                ]
+            );
+        }
+
+        return response()->json(['success' => true, 'data' => $log]);
+    });
+
+    // 8. Toggle sick day for a date
+    Route::post('/toggle-sick-day', function (Request $request) {
+        $date = $request->input('date', Carbon::now()->format('Y-m-d'));
+        $routines = ManagementDayRoutine::where('is_active', true)->get();
+
+        $alreadySick = ManagementDayRoutineLog::whereDate('date', $date)
+            ->where('is_sick', true)
+            ->exists();
+
+        if ($alreadySick) {
+            ManagementDayRoutineLog::whereDate('date', $date)->update(['is_sick' => false]);
+        } else {
+            foreach ($routines as $routine) {
+                ManagementDayRoutineLog::updateOrCreate(
+                    ['day_routine_id' => $routine->id, 'date' => $date],
+                    ['is_sick' => true]
+                );
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'date' => $date,
+            'is_sick' => !$alreadySick,
+        ]);
     });
 
 });

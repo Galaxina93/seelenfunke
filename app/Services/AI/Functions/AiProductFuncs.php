@@ -548,8 +548,11 @@ trait AiProductFuncs
             $purchase = $product->purchase_price ?? 0;
             $laserCost = ($product->laser_runtime_minutes ?? 0) * ($product->electricity_wear_factor > 0 ? $product->electricity_wear_factor : 1);
             $packaging = $product->packaging_cost ?? 0;
-            $shipping = $product->shipping_cost > 0 ? $product->shipping_cost : 490;
-            $totalCost = $purchase + $laserCost + $packaging + $shipping;
+            $shipping = $product->shipping_cost > 0 ? $product->shipping_cost : (int) shop_setting('shipping_cost', 490);
+            $marketingPercent = $product->marketing_cost_percent ?? 15.00;
+            $marketingCost = $netPrice > 0 ? (int) round($netPrice * ($marketingPercent / 100)) : 0;
+            $paymentCost = $product->calculatePaymentFeeCents();
+            $totalCost = $purchase + $laserCost + $packaging + $shipping + $marketingCost + $paymentCost;
             $netMargin = $netPrice - $totalCost;
             $marginPercent = $netPrice > 0 ? round(($netMargin / $netPrice) * 100, 1) : 0;
 
@@ -574,6 +577,8 @@ trait AiProductFuncs
                     'laser_cost_eur' => round($laserCost / 100, 2),
                     'packaging_cost_eur' => round($packaging / 100, 2),
                     'shipping_cost_eur' => round($shipping / 100, 2),
+                    'marketing_cost_eur' => round($marketingCost / 100, 2),
+                    'payment_cost_eur' => round($paymentCost / 100, 2),
                     'calculated_total_costs_eur' => round($totalCost / 100, 2),
                     'calculated_net_margin_eur' => round($netMargin / 100, 2),
                     'calculated_margin_percent' => $marginPercent,

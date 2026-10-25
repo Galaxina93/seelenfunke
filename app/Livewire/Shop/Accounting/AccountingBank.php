@@ -53,7 +53,6 @@ class AccountingBank extends Component
 
     // Receipt Upload Properties
     public $quickUploadFile;
-    #[\Livewire\Attributes\Locked]
     public ?string $uploadingBankTxId = null;
 
     public function boot(): void

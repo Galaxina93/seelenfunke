@@ -301,7 +301,7 @@ class HolidayOfferAutopilotService
     {
         $netCents = (int) round($grossCents / (1 + ($taxRate / 100)));
         $marketingCostCents = (int) round($netCents * ($marketingPercent / 100));
-        $paymentFeeCents = (int) round(($grossCents * 0.025) + 30); // ~2,5 % + 0,30 € Stripe/PayPal Puffer
+        $paymentFeeCents = Product::computeStripeFeeCents($grossCents); // ~2,5 % + 0,30 € Stripe/PayPal Puffer
 
         $netProfitCents = $netCents - $directCostsCents - $marketingCostCents - $paymentFeeCents;
         $netMarginPercent = $netCents > 0 ? round(($netProfitCents / $netCents) * 100, 1) : 0.0;

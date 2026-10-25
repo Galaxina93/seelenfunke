@@ -437,7 +437,7 @@
                                                 <a href="{{ route('admin.accounting.receipt.show', ['path' => $path]) }}" target="_blank" class="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-400 active:border-[var(--theme-color)] active:text-[var(--theme-color)] transition-all shadow-sm dark:shadow-md">
                                                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
                                                 </a>
-                                                <button type="button" wire:click="deleteSpecialFile('{{ $special['id'] }}', {{ $index }})" wire:confirm="Beleg löschen?" class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform z-20">
+                                                <button type="button" wire:click="deleteSpecialFile('{{ $special['type'] }}', '{{ $special['id'] }}', {{ $index }})" wire:confirm="Beleg löschen?" class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform z-20">
                                                     <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
                                                 </button>
                                             </div>
@@ -451,9 +451,9 @@
                                             <label class="w-full cursor-pointer p-2.5 text-xs font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl shadow-inner hover:text-[var(--theme-color)] transition-colors flex items-center justify-center gap-2">
                                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                                                 Beleg hochladen
-                                                <input type="file" class="hidden" wire:model="quickUploadFile" wire:click="$set('uploadingMissingSpecialId', '{{ $special['id'] }}')">
+                                                <input type="file" class="hidden" wire:model.live="quickUploadFile" wire:loading.attr="disabled" wire:click="$set('uploadingMissingSpecialId', '{{ $special['type'] }}-{{ $special['id'] }}')">
                                             </label>
-                                            @if($uploadingMissingSpecialId === $special['id'])
+                                            @if($uploadingMissingSpecialId === ($special['type'] . '-' . $special['id']))
                                                 <div wire:loading wire:target="quickUploadFile" class="absolute inset-0 bg-gray-900 rounded-xl border border-[var(--theme-color-50)] flex items-center justify-center z-10 text-[var(--theme-color)]">
                                                     <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
                                                 </div>

@@ -80,14 +80,15 @@
 <table>
     <thead>
         <tr>
-            <th style="width: 25%;">Produkt</th>
-            <th style="width: 10%;">Brutto VK</th>
-            <th style="width: 10%;">Netto VK</th>
-            <th style="width: 10%;">EK Preis</th>
-            <th style="width: 10%;">Strom/Verschl.</th>
-            <th style="width: 12%;">Verpackung & Versand</th>
-            <th style="width: 10%; text-align: right;">Total Kosten</th>
-            <th style="width: 13%; text-align: right; background: #fef3c7;">Netto Gewinn</th>
+            <th style="width: 21%;">Produkt</th>
+            <th style="width: 9%;">Brutto VK</th>
+            <th style="width: 9%;">Netto VK</th>
+            <th style="width: 9%;">EK Preis</th>
+            <th style="width: 9%;">Strom/Verschl.</th>
+            <th style="width: 11%;">Verpackung & Versand</th>
+            <th style="width: 11%;">Marketing & Stripe</th>
+            <th style="width: 9%; text-align: right;">Total Kosten</th>
+            <th style="width: 12%; text-align: right; background: #fef3c7;">Netto Gewinn</th>
         </tr>
     </thead>
     <tbody>
@@ -101,6 +102,10 @@
                 <td>
                     VP: {{ number_format($tc['packaging_cost'], 2, ',', '.') }} €<br>
                     VS: {{ number_format($tc['shipping_cost'], 2, ',', '.') }} €
+                </td>
+                <td>
+                    Mkt: {{ number_format($tc['marketing_cost'] ?? 0, 2, ',', '.') }} €<br>
+                    Stripe: {{ number_format($tc['payment_cost'] ?? 0, 2, ',', '.') }} €
                 </td>
                 <td class="text-right" style="font-weight: bold; color: #4b5563;">{{ number_format($tc['total_cost'], 2, ',', '.') }} €</td>
                 <td class="text-right" style="background: #fffbeb;">

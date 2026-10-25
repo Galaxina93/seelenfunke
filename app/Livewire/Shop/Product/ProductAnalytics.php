@@ -57,7 +57,10 @@ class ProductAnalytics extends Component
 
     public function setTab(string $tab): void
     {
-        if (!in_array($tab, ['configurator', 'calculator', 'economy', 'lucid'], true)) {
+        if (in_array($tab, ['economy', 'lucid'], true)) {
+            $tab = 'economics';
+        }
+        if (!in_array($tab, ['configurator', 'calculator', 'economics'], true)) {
             return;
         }
         $this->activeTab = $tab;
@@ -78,7 +81,10 @@ class ProductAnalytics extends Component
             abort(403, 'Nur Administratoren haben Zugriff auf das Produkt Analytics.');
         }
 
-        if (!in_array($this->activeTab, ['configurator', 'calculator', 'economy', 'lucid'], true)) {
+        if (in_array($this->activeTab, ['economy', 'lucid'], true)) {
+            $this->activeTab = 'economics';
+        }
+        if (!in_array($this->activeTab, ['configurator', 'calculator', 'economics'], true)) {
             $this->activeTab = 'configurator';
         }
 
@@ -449,7 +455,11 @@ class ProductAnalytics extends Component
                 $marketingPercent = $product->marketing_cost_percent ?? 15.00;
                 $marketingCost = $netPrice > 0 ? (int) round($netPrice * ($marketingPercent / 100)) : 0;
 
-                $totalCost = $purchase + $laserCost + $packaging + $shipping + $marketingCost;
+                $stripeFeePercent = (float) shop_setting('stripe_fee_percent', 2.50);
+                $stripeFeeFixedCents = (int) shop_setting('stripe_fee_fixed_cents', 30);
+                $paymentCost = $product->calculatePaymentFeeCents();
+
+                $totalCost = $purchase + $laserCost + $packaging + $shipping + $marketingCost + $paymentCost;
                 $netMargin = $netPrice - $totalCost;
                 $marginPercent = $netPrice > 0 ? round(($netMargin / $netPrice) * 100, 1) : 0;
 
@@ -496,6 +506,9 @@ class ProductAnalytics extends Component
                     'shipping_cost' => $shipping / 100,
                     'marketing_cost' => $marketingCost / 100,
                     'marketing_percent' => $marketingPercent,
+                    'payment_cost' => $paymentCost / 100,
+                    'payment_fee_percent' => $stripeFeePercent,
+                    'payment_fee_fixed' => $stripeFeeFixedCents / 100,
                     'total_cost' => $totalCost / 100,
                     'net_margin' => $netMargin / 100,
                     'margin_percent' => $marginPercent,

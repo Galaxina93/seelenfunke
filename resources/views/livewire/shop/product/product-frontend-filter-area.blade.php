@@ -390,7 +390,8 @@
                                         </div>
 
                                         @if($resolvedMainImageUrl && $isAiCardImage)
-                                            <span class="pointer-events-none select-none absolute bottom-2.5 right-2.5 z-20 bg-black/55 backdrop-blur-sm text-white/90 text-[9px] font-semibold tracking-wider px-2 py-0.5 rounded-md border border-white/15 shadow-sm">
+                                            <span style="font-size: 7px; line-height: 1; padding: 2px 5px; background: rgba(0,0,0,0.36); color: rgba(255,255,255,0.68);"
+                                                  class="pointer-events-none select-none absolute bottom-2 right-2 z-20 backdrop-blur-sm font-normal tracking-normal rounded border border-white/10">
                                                 KI-generiert
                                             </span>
                                         @endif

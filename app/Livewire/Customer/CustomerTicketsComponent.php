@@ -272,7 +272,7 @@ class CustomerTicketsComponent extends Component
 
         $this->validate([
             'newSubject' => 'required|string|min:5|max:100',
-            'newCategory' => 'required|string|in:support,question,return,bug,order,product,other,allgemein,reklamation,widerruf',
+            'newCategory' => 'required|string|in:support,question,return,bug,order,product,other,general,allgemein,reklamation,widerruf',
             'newMessage' => 'required|string|min:10|max:5000',
             'attachments' => 'nullable|array|max:5',
             'attachments.*' => 'nullable|file|mimes:jpg,jpeg,png,webp,gif,pdf,txt,docx|max:5120',

@@ -45,7 +45,6 @@ class AccountingFixCosts extends Component
     public $newGroupType = 'expense';
     public $isCreatingGroup = false;
 
-    #[Locked]
     public ?string $uploadingMissingItemId = null;
 
     #[Rule('required|file|max:10240')]
@@ -73,7 +72,6 @@ class AccountingFixCosts extends Component
 
     #[Locked]
     public ?string $editingItemId = null;
-    #[Locked]
     public ?string $addingToGroupId = null;
     public ?string $targetGroupId = null;
     public $isRestoring = false;

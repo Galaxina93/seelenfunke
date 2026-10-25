@@ -66,7 +66,7 @@ class AiWorkspace extends Component
             if ($setting) {
                 $this->chatHeightPercent = $setting->chat_height_percent;
                 $this->autoApprovePlan = (bool) $setting->auto_approve_execution_plan;
-                if (!empty($setting->active_tab)) {
+                if (!empty($setting->active_tab) && in_array($setting->active_tab, ['workspace', 'chat', 'files', 'health', 'workflows', 'cronjobs'], true)) {
                     $this->activeTab = $setting->active_tab;
                 }
             }
@@ -122,7 +122,7 @@ class AiWorkspace extends Component
 
     public function updatedActiveTab($value)
     {
-        $allowedTabs = ['chat', 'tasks', 'files', 'health', 'plans', 'logs', 'settings'];
+        $allowedTabs = ['workspace', 'chat', 'files', 'health', 'workflows', 'cronjobs', 'tasks', 'plans', 'logs', 'settings'];
         if (!in_array($value, $allowedTabs, true)) {
             $this->activeTab = 'chat';
             $value = 'chat';

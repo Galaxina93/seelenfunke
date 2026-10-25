@@ -29,7 +29,7 @@
                 {{-- Zeile: Zwischensumme --}}
                 <div class="flex justify-between text-xs text-gray-600">
                     <span>Zwischensumme</span>
-                    <span>{{ number_format($totals['subtotal'] / 100, 2, ',', '.') }} €</span>
+                    <span class="whitespace-nowrap">{{ number_format($totals['subtotal'] / 100, 2, ',', '.') }}&nbsp;€</span>
                 </div>
 
                 {{-- Zeile: Versand --}}
@@ -38,7 +38,7 @@
                     @if($totals['shipping'] == 0)
                         <span class="text-green-600 font-bold">Kostenlos</span>
                     @else
-                        <span>{{ number_format($totals['shipping'] / 100, 2, ',', '.') }} €</span>
+                        <span class="whitespace-nowrap">{{ number_format($totals['shipping'] / 100, 2, ',', '.') }}&nbsp;€</span>
                     @endif
                 </div>
 
@@ -46,7 +46,7 @@
                 @if(isset($totals['discount_amount']) && $totals['discount_amount'] > 0)
                     <div class="flex justify-between text-xs text-green-600 font-medium">
                         <span>Rabatt</span>
-                        <span>-{{ number_format($totals['discount_amount'] / 100, 2, ',', '.') }} €</span>
+                        <span class="whitespace-nowrap">-{{ number_format($totals['discount_amount'] / 100, 2, ',', '.') }}&nbsp;€</span>
                     </div>
                 @endif
 
@@ -55,7 +55,7 @@
                 {{-- Zeile: Gesamtsumme --}}
                 <div class="flex justify-between items-center mb-1">
                     <span class="font-bold text-gray-900 text-sm">Gesamt</span>
-                    <span class="font-bold text-primary text-lg">{{ number_format($totals['total'] / 100, 2, ',', '.') }} €</span>
+                    <span class="font-bold text-primary text-lg whitespace-nowrap">{{ number_format($totals['total'] / 100, 2, ',', '.') }}&nbsp;€</span>
                 </div>
 
                 {{-- Zeile: MwSt (Detailliert oder Zusammengefasst) --}}

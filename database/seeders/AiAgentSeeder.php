@@ -362,6 +362,7 @@ SPRACHMELODIE: Deine Sprachmelodie ist stets freundlich, empathisch, hilfsbereit
 
                 'Hausarzt' => array_merge(
                     array_column(AIFunctionsRegistry::getAiHealthFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiRoutineFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiCommunicationFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name')

@@ -218,7 +218,8 @@
                                                      @if($tpl['is_ai_generated'] ?? true) data-is-ai-generated="true" @endif
                                                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
                                                 @if($tpl['is_ai_generated'] ?? true)
-                                                    <span class="pointer-events-none select-none absolute bottom-2 right-2 z-10 bg-black/55 backdrop-blur-sm text-white/90 text-[8px] font-semibold tracking-wider px-1.5 py-0.5 rounded border border-white/15 shadow-sm">
+                                                    <span style="font-size: 6.5px; line-height: 1; padding: 1.5px 4px; background: rgba(0,0,0,0.36); color: rgba(255,255,255,0.68);"
+                                                          class="pointer-events-none select-none absolute bottom-1.5 right-1.5 z-10 backdrop-blur-sm font-normal tracking-normal rounded border border-white/10">
                                                         KI-generiert
                                                     </span>
                                                 @endif

@@ -39,7 +39,6 @@ class AccountingVariableCosts extends Component
     public $categoryToDeleteName = '';
 
     // File Uploads (Direkt im Beleg-Feld)
-    #[\Livewire\Attributes\Locked]
     public ?string $uploadingMissingSpecialId = null;
 
     #[Rule('required|file|max:10240')]

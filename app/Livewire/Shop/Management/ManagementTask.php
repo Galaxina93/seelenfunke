@@ -26,7 +26,6 @@ class ManagementTask extends Component
 
     // File Attachments State
     public $taskFilesUpload;
-    #[\Livewire\Attributes\Locked]
     public ?string $uploadingTaskId = null;
 
     // Inline Creation State

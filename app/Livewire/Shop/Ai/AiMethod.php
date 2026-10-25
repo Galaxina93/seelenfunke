@@ -199,14 +199,18 @@ class AiMethod extends Component
             ],
             'Aufgaben & Systemsteuerung' => [
                 'icon' => 'bi-cpu',
-                'description' => 'Selbstregulation, Aufgabenverwaltung und Error-Handling.',
+                'description' => 'Selbstregulation, Aufgabenverwaltung, Tagesroutine & Habit-Tracker.',
                 'features' => [
-                    'Task Listen verwalten' => in_array('create_task', $toolNames),
-                    'System-Gesundheit prüfen' => in_array('get_system_health', $toolNames),
-                    'Fehler beheben (Auto-Heal)' => in_array('fix_system_errors', $toolNames),
-                    'Logbücher lesen' => in_array('get_system_logs', $toolNames),
-                    'Routinen prüfen' => in_array('get_day_routines', $toolNames),
-                    'Seiten-Navigation' => in_array('open_nav_item', $toolNames),
+                    'Task Listen verwalten' => in_array('task_create', $toolNames) || in_array('create_task', $toolNames),
+                    'System-Gesundheit prüfen' => in_array('system_get_health', $toolNames) || in_array('get_system_health', $toolNames),
+                    'Fehler beheben (Auto-Heal)' => in_array('system_fix_errors', $toolNames) || in_array('fix_system_errors', $toolNames),
+                    'Logbücher lesen' => in_array('system_manage_logs', $toolNames) || in_array('get_system_logs', $toolNames),
+                    'Routinen & Bio-Rhythmus prüfen' => in_array('routine_get_day_routines', $toolNames) || in_array('get_day_routines', $toolNames),
+                    'Routinen & Schritte abhaken' => in_array('routine_log_progress', $toolNames) && in_array('routine_log_step', $toolNames),
+                    'Routine-Auswertung & Funki-Score' => in_array('routine_get_evaluation', $toolNames),
+                    'Krankheits- & Genesungsmodus (Medizin-Funki)' => in_array('routine_set_sick_day', $toolNames),
+                    'Routinen & Schritte verwalten (CRUD)' => in_array('routine_create', $toolNames) && in_array('routine_update', $toolNames),
+                    'Seiten-Navigation' => in_array('system_open_nav_item', $toolNames) || in_array('open_nav_item', $toolNames),
                 ]
             ],
             'Wissen & Gedächtnis' => [

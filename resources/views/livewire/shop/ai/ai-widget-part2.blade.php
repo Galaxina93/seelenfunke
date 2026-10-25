@@ -1304,9 +1304,14 @@
                     }
                 }
 
-                const actionData = contextData.find(c => c.function === 'create_task' || c.function === 'complete_task' || c.function === 'delete_task');
+                const actionData = contextData.find(c =>
+                    c.function === 'create_task' || c.function === 'complete_task' || c.function === 'delete_task' ||
+                    c.function === 'task_create' || c.function === 'task_complete' || c.function === 'task_delete' ||
+                    c.function === 'routine_log_progress' || c.function === 'routine_log_step' || c.function === 'routine_set_sick_day' ||
+                    c.function === 'routine_create' || c.function === 'routine_update' || c.function === 'routine_delete' || c.function === 'routine_manage_steps'
+                );
                 if (!foundData && actionData && actionData.data && actionData.data.status === 'success') {
-                    title = 'System-Aktion';
+                    title = actionData.function && actionData.function.startsWith('routine_') ? 'Tagesroutine & Habit-Tracker' : 'System-Aktion';
                     foundData = true;
                     this.chartListData.push({
                         title: actionData.data.message || 'Aktion erfolgreich',
@@ -1359,9 +1364,32 @@
                     }
                 }
 
-                const routineData = contextData.find(c => c.function === 'get_day_routines');
+                const routineEvalData = contextData.find(c => c.function === 'routine_get_evaluation');
+                if (!foundData && routineEvalData && routineEvalData.data && routineEvalData.data.routine_breakdown) {
+                    const ev = routineEvalData.data.funki_evaluation || {};
+                    title = `Routine-Auswertung (${routineEvalData.data.period_label || 'Woche'}) · ${ev.pct ?? 0}% (${ev.speech || 'Status'})`;
+                    foundData = true;
+
+                    routineEvalData.data.routine_breakdown.forEach(rb => {
+                        chartLabels.push((rb.start_time ? rb.start_time + ' ' : '') + rb.title);
+                        chartDataset.push(rb.pct || 0);
+
+                        this.chartListData.push({
+                            title: `${rb.start_time || ''} ${rb.title}`,
+                            titleColor: rb.pct >= 76 ? 'text-emerald-400' : (rb.pct >= 51 ? 'text-amber-400' : 'text-rose-400'),
+                            badge: `${rb.pct}% · 🔥 ${rb.streak || 0}`,
+                            subtitle: rb.summary_text || `${rb.completed_count}/${rb.due_count} Tagen erledigt`
+                        });
+                    });
+                }
+
+                const routineData = contextData.find(c => c.function === 'routine_get_day_routines' || c.function === 'get_day_routines');
                 if (!foundData && routineData && routineData.data && routineData.data.routines) {
-                    title = 'Fokus-Routinen';
+                    const rDate = routineData.data.date || '';
+                    const rEval = routineData.data.funki_evaluation || {};
+                    title = rEval.speech
+                        ? `Tagesroutine ${rDate} · ${routineData.data.progress_pct_fair ?? 0}% (${rEval.speech})`
+                        : 'Fokus-Routinen';
                     foundData = true;
 
                     if (routineData.data.routines.length === 0) {
@@ -1374,20 +1402,24 @@
                     } else {
                         chartType = 'doughnut';
                         routineData.data.routines.forEach(r => {
-                            let rTitle = r.title || 'Unbenannt';
+                            let rTitle = (r.start_time ? r.start_time + ' ' : '') + (r.title || 'Unbenannt');
                             let duration = r.duration_minutes || 10;
                             chartLabels.push(rTitle);
                             chartDataset.push(duration);
 
                             let stepText = '';
                             if (r.steps && r.steps.length > 0) {
-                                stepText = r.steps.map(s => `• ${s.title}`).join('\n');
+                                stepText = r.steps.map(s => `${s.is_completed ? '✓' : '•'} ${s.title}`).join('\n');
                             }
+
+                            let statusBadge = r.is_sick
+                                ? '🤒 Krank'
+                                : (r.is_completed ? `✓ Erledigt · 🔥 ${r.streak || 0}` : `${duration} Min`);
 
                             this.chartListData.push({
                                 title: rTitle,
-                                titleColor: 'text-emerald-400',
-                                badge: duration + ' Min',
+                                titleColor: r.is_completed ? 'text-emerald-400' : (r.timeline_status === 'current' ? 'text-amber-400' : 'text-gray-300'),
+                                badge: statusBadge,
                                 subtitle: stepText
                             });
                         });

@@ -264,4 +264,27 @@ class AiWorkspaceTest extends TestCase
             ->get('/admin/ai/workspace/file?path=agenten/workspace/nonexistent_file_xyz.pdf');
         $notFoundResponse->assertStatus(404);
     }
+
+    /** @test */
+    public function test_can_switch_to_workspace_workflows_and_cronjobs_tabs()
+    {
+        $admin = Admin::first() ?? Admin::factory()->create();
+
+        $component = Livewire::actingAs($admin, 'admin')
+            ->test(AiWorkspace::class);
+
+        foreach (['workspace', 'chat', 'files', 'health', 'workflows', 'cronjobs'] as $tab) {
+            $component->set('activeTab', $tab)
+                ->assertSet('activeTab', $tab);
+
+            $this->assertDatabaseHas('ai_user_workspace_settings', [
+                'user_id' => $admin->id,
+                'active_tab' => $tab,
+            ]);
+        }
+
+        // Invalid tab falls back to chat
+        $component->set('activeTab', 'invalid-tab')
+            ->assertSet('activeTab', 'chat');
+    }
 }

@@ -55,6 +55,13 @@ class AiAgentService
             $allowedToolIdentifiers[] = 'calendar_delete_event';
         }
 
+        if (in_array('routine_get_day_routines', $allowedToolIdentifiers, true) && class_exists('\App\Services\AI\AIFunctionsRegistry')) {
+            $allowedToolIdentifiers = array_values(array_unique(array_merge(
+                $allowedToolIdentifiers,
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiRoutineFuncsSchema(), 'name')
+            )));
+        }
+
         // Extrahiere das Schema aus der globalen Registry
         $globalSchema = class_exists('\App\Services\AI\AIFunctionsRegistry')
             ? \App\Services\AI\AIFunctionsRegistry::getSchema()
@@ -111,6 +118,25 @@ class AiAgentService
                     $timeInfo .= "Master-Ziel: " . ($strat['ultimate_goal'] ?? '') . "\n";
                     $timeInfo .= "Aktuelle Phase: " . ($strat['current_phase']['name'] ?? '') . "\n";
                     $timeInfo .= "Direktive: Wenn die Chefin fragt 'Was muss ich jetzt tun?', gib ihr zuerst die glasklare, handfeste operative Priorität für heute. Nenne bei Fertigungsaufträgen EXAKT die echten Bestellnummern und Produkte aus der Datenbank (keine Fantasieprodukte!). Verknüpfe dies mit dem 10-Jahres-Ziel und spiegle transparent die realen Systemfinanzen wider.\n";
+                }
+
+                if (class_exists('\App\Services\AI\AIFunctionsRegistry')) {
+                    $routineSnapshot = \App\Services\AI\AIFunctionsRegistry::executeGetDayRoutines([]);
+                    if (($routineSnapshot['status'] ?? '') === 'success') {
+                        $funkiEval = $routineSnapshot['funki_evaluation'] ?? [];
+                        $currR = $routineSnapshot['current_active_routine'] ?? null;
+                        $nextR = $routineSnapshot['next_upcoming_routine'] ?? null;
+                        $timeInfo .= "\n[TAGESROUTINE & HABIT-TRACKER HEUTE ({$routineSnapshot['weekday']}, {$routineSnapshot['date']})]\n";
+                        $timeInfo .= "- Modus: {$routineSnapshot['weekend_note']}" . (!empty($routineSnapshot['is_sick_day']) ? " | 🤒 KRANKHEITSTAG AKTIV (Medizin-Funki: Serien geschützt!)" : "") . "\n";
+                        $timeInfo .= "- Fortschritt heute: {$routineSnapshot['completed_count']}/{$routineSnapshot['active_routines_count']} Routinen abgehakt (Fair-Score bis jetzt: {$routineSnapshot['progress_pct_fair']}% · Funki-Status: " . ($funkiEval['speech'] ?? 'Bereit') . ")\n";
+                        if ($currR) {
+                            $timeInfo .= "- Aktiver Routine-Block: {$currR['title']} ({$currR['time_window']} · Schritt: {$currR['current_step']} · " . ($currR['is_completed'] ? 'Bereits erledigt ✓' : 'Noch offen') . ")\n";
+                        }
+                        if ($nextR) {
+                            $timeInfo .= "- Nächster Routine-Block: {$nextR['start_time']} Uhr {$nextR['title']} ({$nextR['duration_minutes']} Min.)\n";
+                        }
+                        $timeInfo .= "- Deine Routine-Werkzeuge: Nutze `routine_get_day_routines` (Tagesübersicht), `routine_get_evaluation` (Wochen-/Monats-/Jahresauswertung & Coaching-Tipps), `routine_log_progress` (Routine/Tag abhaken), `routine_log_step` (Unterschritt abhaken), `routine_set_sick_day` (Krankheits-/Genesungsmodus), `routine_create`, `routine_update`, `routine_delete`, `routine_manage_steps`.\n";
+                    }
                 }
             } catch (\Exception $e) {
                 // Fallback falls der Service nicht erreichbar ist

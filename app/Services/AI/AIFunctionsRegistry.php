@@ -45,6 +45,11 @@ class AIFunctionsRegistry
         self::$globalContext = $context;
     }
 
+    public static function getGlobalContext(): array
+    {
+        return self::$globalContext;
+    }
+
     /**
      * Define all available functions the AI can call.
      * This acts as the "Remote Control" schema.
@@ -274,6 +279,12 @@ class AIFunctionsRegistry
                     $allowedTools[] = 'calendar_send_ics_email';
                     $allowedTools[] = 'calendar_update_event';
                     $allowedTools[] = 'calendar_delete_event';
+                }
+                if (in_array('routine_get_day_routines', $allowedTools, true)) {
+                    $allowedTools = array_merge(
+                        $allowedTools,
+                        array_column(self::getAiRoutineFuncsSchema(), 'name')
+                    );
                 }
                 if (!in_array($name, $allowedTools, true)) {
                     return [

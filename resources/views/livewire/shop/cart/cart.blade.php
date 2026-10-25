@@ -42,7 +42,7 @@
 
                         <div x-data="{ showText: false, showMotiv: false }" class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition hover:shadow-md w-full" wire:key="item-{{ $item->id }}">
 
-                            <div class="p-4 sm:p-6 flex flex-col sm:flex-row gap-6 items-center sm:items-start">
+                            <div class="p-4 sm:p-6 flex flex-col sm:flex-row gap-5 sm:gap-6 items-center sm:items-stretch">
                                 {{-- Produktbild / Snapshots --}}
                                 @php
                                     $fallbackImage = null;
@@ -72,35 +72,42 @@
                                     $frontUrl = resolve_snapshot_url($snapshotFront, $fallbackImage);
                                     $backUrl = resolve_snapshot_url($snapshotBack, null);
                                     $hasSnapshots = ($frontUrl && $frontUrl !== $fallbackImage) || $backUrl;
+                                    $hasBothSides = ($frontUrl && $frontUrl !== $fallbackImage) && $backUrl;
                                 @endphp
 
-                                <div class="flex flex-col sm:flex-row gap-3">
+                                <div class="flex flex-row gap-2.5 shrink-0 justify-center">
                                     @if($hasSnapshots)
                                         @if($frontUrl && $frontUrl !== $fallbackImage)
-                                            <div class="w-32 h-32 sm:w-40 sm:h-40 bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100 relative group cursor-pointer" @click="$dispatch('open-image-modal', '{{ $frontUrl }}')">
+                                            <div class="{{ $hasBothSides ? 'w-28 h-28 sm:w-32 sm:h-32' : 'w-32 h-32 sm:w-36 sm:h-36' }} bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100 relative group cursor-pointer" @click="$dispatch('open-image-modal', '{{ $frontUrl }}')">
                                                 <img src="{{ $frontUrl }}" @if($fallbackImage) onerror="this.onerror=null; this.src='{{ $fallbackImage }}';" @endif class="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform duration-700">
+                                                @if($hasBothSides)
+                                                    <span class="absolute bottom-1 left-1.5 right-1.5 text-center bg-black/55 backdrop-blur-xs text-white text-[9px] font-semibold uppercase tracking-wider py-0.5 rounded pointer-events-none">Vorderseite</span>
+                                                @endif
                                                 <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
-                                                    <svg class="w-8 h-8 sm:w-10 sm:h-10 text-white drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
+                                                    <svg class="w-8 h-8 text-white drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
                                                 </div>
                                             </div>
                                         @endif
                                         @if($backUrl)
-                                            <div class="w-32 h-32 sm:w-40 sm:h-40 bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100 relative group cursor-pointer" @click="$dispatch('open-image-modal', '{{ $backUrl }}')">
+                                            <div class="{{ $hasBothSides ? 'w-28 h-28 sm:w-32 sm:h-32' : 'w-32 h-32 sm:w-36 sm:h-36' }} bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100 relative group cursor-pointer" @click="$dispatch('open-image-modal', '{{ $backUrl }}')">
                                                 <img src="{{ $backUrl }}" class="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform duration-700">
+                                                @if($hasBothSides)
+                                                    <span class="absolute bottom-1 left-1.5 right-1.5 text-center bg-black/55 backdrop-blur-xs text-white text-[9px] font-semibold uppercase tracking-wider py-0.5 rounded pointer-events-none">Rückseite</span>
+                                                @endif
                                                 <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
-                                                    <svg class="w-8 h-8 sm:w-10 sm:h-10 text-white drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
+                                                    <svg class="w-8 h-8 text-white drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
                                                 </div>
                                             </div>
                                         @endif
                                     @else
-                                        <div class="w-32 h-32 sm:w-40 sm:h-40 bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100 relative group cursor-pointer" 
+                                        <div class="w-32 h-32 sm:w-36 sm:h-36 bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100 relative group cursor-pointer" 
                                             @if($fallbackImage)
                                             @click="$dispatch('open-image-modal', '{{ $fallbackImage }}')"
                                             @endif>
                                             @if($fallbackImage)
                                                 <img src="{{ $fallbackImage }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700">
                                                 <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
-                                                    <svg class="w-8 h-8 sm:w-10 sm:h-10 text-white drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
+                                                    <svg class="w-8 h-8 text-white drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
                                                 </div>
                                             @else
                                                 <div class="w-full h-full flex items-center justify-center text-gray-300">
@@ -117,46 +124,74 @@
                                     @endif
                                 </div>
 
-                                {{-- Details --}}
-                                <div class="flex-1 text-center sm:text-left min-w-0">
-                                    <h3 class="font-serif font-bold text-lg text-gray-900 mb-1 leading-tight truncate">
-                                        <a href="{{ route('product.show', $prod->slug) }}" class="hover:text-primary transition">{{ $prod->name }}</a>
-                                    </h3>
+                                {{-- Rechte Spalte der Produktkarte: Details oben + Aktionsleiste unten --}}
+                                <div class="flex-1 min-w-0 w-full flex flex-col justify-between gap-4">
+                                    {{-- Oberer Bereich: Titel & Lieferzeit links, Preise rechts --}}
+                                    <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3 text-center sm:text-left">
+                                        <div class="min-w-0 flex-1">
+                                            <h3 class="font-serif font-bold text-lg sm:text-xl text-gray-900 leading-snug break-words">
+                                                <a href="{{ route('product.show', $prod->slug) }}" class="hover:text-primary transition">{{ $prod->name }}</a>
+                                            </h3>
 
-                                    {{-- Anzeige der gewählten Variante --}}
-                                    @if(!empty($item->configuration['variant_name']))
-                                        <p class="text-[10px] font-black uppercase tracking-widest text-primary mb-2 drop-shadow-[0_0_5px_currentColor] truncate">
-                                            Ausführung: {{ $item->configuration['variant_name'] }}
-                                        </p>
-                                    @endif
-
-                                    <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-2 text-xs font-medium">
-                                        @if($type === 'physical')
-                                            @if($deliveryTime)
-                                                <span class="text-green-700 flex items-center gap-1">
-                                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                                    {{ $deliveryTime }}
-                                                </span>
+                                            {{-- Anzeige der gewählten Variante --}}
+                                            @if(!empty($item->configuration['variant_name']))
+                                                <p class="text-[11px] font-black uppercase tracking-widest text-primary mt-1 drop-shadow-[0_0_5px_currentColor]">
+                                                    Ausführung: {{ $item->configuration['variant_name'] }}
+                                                </p>
                                             @endif
-                                        @elseif($type === 'digital')
-                                            <span class="text-blue-600 flex items-center gap-1">
-                                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                                Sofort-Download
-                                            </span>
-                                        @elseif($type === 'service')
-                                            <span class="text-orange-600 flex items-center gap-1">
-                                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                                                Dienstleistung / Termin
-                                            </span>
-                                        @endif
+
+                                            <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-1.5 text-xs font-medium">
+                                                @if($type === 'physical')
+                                                    @if($deliveryTime)
+                                                        <span class="text-green-700 inline-flex items-center gap-1.5 bg-green-50/80 border border-green-100 px-2.5 py-1 rounded-lg">
+                                                            <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                            <span>{{ $deliveryTime }}</span>
+                                                        </span>
+                                                    @endif
+                                                @elseif($type === 'digital')
+                                                    <span class="text-blue-600 inline-flex items-center gap-1.5 bg-blue-50/80 border border-blue-100 px-2.5 py-1 rounded-lg">
+                                                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                                        <span>Sofort-Download</span>
+                                                    </span>
+                                                @elseif($type === 'service')
+                                                    <span class="text-orange-600 inline-flex items-center gap-1.5 bg-orange-50/80 border border-orange-100 px-2.5 py-1 rounded-lg">
+                                                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                                        <span>Dienstleistung / Termin</span>
+                                                    </span>
+                                                @endif
+                                            </div>
+                                        </div>
+
+                                        {{-- Preis-Block rechts oben (immer einzeilig mit geschütztem Leerzeichen) --}}
+                                        <div class="flex flex-col items-center sm:items-end shrink-0">
+                                            <div class="font-bold text-gray-900 text-xl whitespace-nowrap">
+                                                {{ number_format(($item->unit_price * $item->quantity) / 100, 2, ',', '.') }}&nbsp;€
+                                            </div>
+                                            <div class="text-xs text-gray-500 font-mono whitespace-nowrap mt-0.5">
+                                                Einzelpreis: {{ number_format($item->unit_price / 100, 2, ',', '.') }}&nbsp;€
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    @if(!empty($item->configuration) && is_array($item->configuration) && ($prod->isPersonalizable() ?? true))
-                                        <div class="mt-2">
-                                            <div class="flex flex-wrap gap-2 justify-center sm:justify-start mb-3">
+                                    {{-- Unterer Bereich: Mengensteuerung & Personalisierungs-Badges links, Bearbeiten/Löschen rechts --}}
+                                    <div class="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
+                                        <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2.5 w-full sm:w-auto">
+                                            @if($type === 'physical')
+                                                <div class="inline-flex items-center bg-gray-50 rounded-full border border-gray-200">
+                                                    <button wire:click="decrement('{{ $item->id }}')" class="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-primary transition font-bold text-lg cursor-pointer">-</button>
+                                                    <span class="w-8 text-center text-sm font-bold text-gray-900">{{ $item->quantity }}</span>
+                                                    <button wire:click="increment('{{ $item->id }}')" class="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-primary transition font-bold text-lg cursor-pointer">+</button>
+                                                </div>
+                                            @else
+                                                <div class="inline-flex items-center justify-center bg-gray-50 rounded-full border border-gray-200 px-3.5 py-1">
+                                                    <span class="text-sm font-bold text-gray-900">{{ $item->quantity }}x</span>
+                                                </div>
+                                            @endif
+
+                                            @if(!empty($item->configuration) && is_array($item->configuration) && ($prod->isPersonalizable() ?? true))
                                                 @if(!empty($item->configuration['texts']) || !empty($item->configuration['text']))
-                                                    <button type="button" @click="showText = !showText; showMotiv = false" class="inline-flex items-center gap-1 text-[10px] uppercase font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition cursor-pointer">
-                                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                                    <button type="button" @click="showText = !showText; showMotiv = false" class="inline-flex items-center gap-1.5 text-[11px] uppercase font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-lg transition cursor-pointer whitespace-nowrap">
+                                                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                                         Text
                                                     </button>
                                                 @endif
@@ -167,50 +202,27 @@
                                                     $totalMotivs = max($logoCount, $fileCount);
                                                 @endphp
                                                 @if($totalMotivs > 0)
-                                                    <button type="button" @click="showMotiv = !showMotiv; showText = false" class="inline-flex items-center gap-1 text-[10px] uppercase font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition cursor-pointer">
-                                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                    <button type="button" @click="showMotiv = !showMotiv; showText = false" class="inline-flex items-center gap-1.5 text-[11px] uppercase font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-lg transition cursor-pointer whitespace-nowrap">
+                                                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                                         Motiv ({{ $totalMotivs }})
                                                     </button>
                                                 @endif
-                                            </div>
+                                            @endif
                                         </div>
-                                    @endif
 
-                                    <p class="text-sm text-gray-500 font-mono">
-                                        Einzelpreis: {{ number_format($item->unit_price / 100, 2, ',', '.') }} €
-                                    </p>
-                                </div>
+                                        <div class="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-end">
+                                            @if($type === 'physical' && $prod->isPersonalizable())
+                                                <button wire:click="edit('{{ $item->id }}')" class="flex-1 sm:flex-none inline-flex justify-center items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-primary hover:border-primary transition whitespace-nowrap cursor-pointer">
+                                                    <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                    Bearbeiten
+                                                </button>
+                                            @endif
 
-                                {{-- Controls --}}
-                                <div class="flex flex-col items-center gap-4 shrink-0">
-                                    @if($type === 'physical')
-                                        <div class="flex items-center bg-gray-50 rounded-full border border-gray-200">
-                                            <button wire:click="decrement('{{ $item->id }}')" class="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-primary transition font-bold text-lg">-</button>
-                                            <span class="w-8 text-center text-sm font-bold text-gray-900">{{ $item->quantity }}</span>
-                                            <button wire:click="increment('{{ $item->id }}')" class="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-primary transition font-bold text-lg">+</button>
-                                        </div>
-                                    @else
-                                        <div class="flex items-center justify-center bg-gray-50 rounded-full border border-gray-200 px-4 py-1.5">
-                                            <span class="text-sm font-bold text-gray-900">{{ $item->quantity }}x</span>
-                                        </div>
-                                    @endif
-
-                                    <div class="font-bold text-gray-900 text-lg">
-                                        {{ number_format(($item->unit_price * $item->quantity) / 100, 2, ',', '.') }} €
-                                    </div>
-
-                                    <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                                        @if($type === 'physical' && $prod->isPersonalizable())
-                                            <button wire:click="edit('{{ $item->id }}')" class="flex-1 sm:flex-none inline-flex justify-center items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-primary hover:border-primary transition">
-                                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                                Bearbeiten
+                                            <button wire:click="remove('{{ $item->id }}')" class="flex-1 sm:flex-none inline-flex justify-center items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-red-600 shadow-sm hover:bg-red-50 hover:border-red-300 transition whitespace-nowrap cursor-pointer">
+                                                <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                                Löschen
                                             </button>
-                                        @endif
-
-                                        <button wire:click="remove('{{ $item->id }}')" class="flex-1 sm:flex-none inline-flex justify-center items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-red-600 shadow-sm hover:bg-red-50 hover:border-red-300 transition">
-                                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                            Löschen
-                                        </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -289,7 +301,7 @@
                             @if(!$isFree && $missing > 0)
                                 <div class="mb-6 bg-gray-50 p-3 rounded-xl border border-gray-200">
                                     <p class="text-xs text-gray-600 mb-2">
-                                        Noch <span class="font-bold text-primary">{{ number_format($missing / 100, 2, ',', '.') }} €</span> bis zum <span class="text-green-600 font-bold">kostenlosen Versand!</span>
+                                        Noch <span class="font-bold text-primary whitespace-nowrap">{{ number_format($missing / 100, 2, ',', '.') }}&nbsp;€</span> bis zum <span class="text-green-600 font-bold">kostenlosen Versand!</span>
                                     </p>
                                     <div class="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                                         <div class="bg-green-500 h-1.5 rounded-full transition-all duration-700 ease-out"

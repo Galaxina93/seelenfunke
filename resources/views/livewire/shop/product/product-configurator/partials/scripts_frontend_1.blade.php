@@ -524,7 +524,7 @@
                             if (draft.texts_back) this.$wire.texts_back = this.texts_back;
                             if (draft.logos_back) this.$wire.logos_back = this.logos_back;
                             if (typeof draft.notes !== 'undefined') this.$wire.notes = draft.notes;
-                            if (Array.isArray(draft.uploaded_files)) this.$wire.uploaded_files = draft.uploaded_files;
+                            if (Array.isArray(draft.uploaded_files)) this.$wire.restoreDraftFiles(draft.uploaded_files);
                         }
 
                         this.updateTexture();

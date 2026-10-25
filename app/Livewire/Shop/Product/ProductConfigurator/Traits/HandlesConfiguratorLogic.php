@@ -260,6 +260,22 @@ trait HandlesConfiguratorLogic
         }
     }
 
+    public function restoreDraftFiles(array $files): void
+    {
+        if ($this->context === 'preview') return;
+
+        $validFiles = [];
+        foreach (array_slice($files, 0, 10) as $file) {
+            if (!is_string($file) || str_contains($file, '..') || str_contains($file, "\0")) {
+                continue;
+            }
+            if (str_starts_with($file, 'bestellungen/cart-uploads/') && Storage::disk('public')->exists($file)) {
+                $validFiles[] = $file;
+            }
+        }
+        $this->uploaded_files = array_values(array_unique($validFiles));
+    }
+
     public function isLogoActive($path)
     {
         // Highlight in der UI nur, wenn es auf der *aktiven* Seite liegt

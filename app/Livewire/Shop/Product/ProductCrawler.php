@@ -25,7 +25,6 @@ class ProductCrawler extends Component
 
     // History Properties (V2)
     public $savedRuns = [];
-    #[\Livewire\Attributes\Locked]
     public $selectedRunId = null;
     public $historicalRunData = null;
     public $historicalTop3Data = null;

@@ -114,12 +114,13 @@ class ProductAnalyticsTest extends TestCase
         $indexB = array_search('Glasbläserei Süd', $labels);
         $this->assertGreaterThanOrEqual(1, $data[$indexB]);
 
-        // 5. Combined Data prüfen (Lieferantenname & Lieferzeit in Tabelle)
+        // 5. Combined Data prüfen (Lieferantenname, Lieferzeit & Stripe-Gebühr in Tabelle)
         $combinedData = ProductAnalytics::getCombinedAnalyticsData();
         $foundA1 = $combinedData->firstWhere('id', $prodA1->id);
         $this->assertNotNull($foundA1);
         $this->assertEquals('Holzmanufaktur Nord', $foundA1['supplier_name']);
         $this->assertEquals(5, $foundA1['delivery_days']);
+        $this->assertEquals(0.80, $foundA1['payment_cost']);
 
         $foundB1 = $combinedData->firstWhere('id', $prodB1->id);
         $this->assertNotNull($foundB1);

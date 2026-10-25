@@ -634,7 +634,8 @@ class AIController extends Controller
         if ($isAdminUser) {
             $voiceAllowedTools = array_merge($voiceAllowedTools, [
                 'calendar_get_events', 'calendar_create_event', 'calendar_send_ics_email', 'calendar_update_event', 'calendar_delete_event',
-                'routine_get_day_routines',
+                'routine_get_day_routines', 'routine_get_evaluation', 'routine_log_progress', 'routine_log_step', 'routine_set_sick_day',
+                'routine_create', 'routine_update', 'routine_delete', 'routine_manage_steps',
                 'email_send_message', 'mail_list_pending', 'mail_read',
                 'contact_search', 'contact_get_all',
             ]);

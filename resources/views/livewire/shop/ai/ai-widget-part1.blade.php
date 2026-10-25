@@ -130,14 +130,14 @@
          x-transition:leave="transition ease-in duration-150"
          x-transition:leave-start="opacity-100 translate-x-0 scale-100"
          x-transition:leave-end="opacity-0 translate-x-2 scale-95"
-         class="absolute right-[7.5rem] top-2 z-[100000] w-56 bg-gray-950/95 backdrop-blur-2xl border rounded-2xl p-3 shadow-[0_10px_40px_rgba(0,0,0,0.85)] pointer-events-auto text-left"
+         class="absolute right-[7.5rem] top-2 z-[100000] w-56 bg-white/95 dark:bg-gray-950/95 backdrop-blur-2xl border rounded-2xl p-3 shadow-xl dark:shadow-[0_10px_40px_rgba(0,0,0,0.85)] pointer-events-auto text-left transition-colors duration-300"
          :class="{
-             'border-emerald-500/40 shadow-[0_0_25px_rgba(16,185,129,0.2)]': getConnectionState() === 'live' || getConnectionState() === 'standby',
-             'border-amber-500/40 shadow-[0_0_25px_rgba(245,158,11,0.2)]': getConnectionState() === 'connecting' || getConnectionState() === 'slow',
-             'border-rose-500/50 shadow-[0_0_25px_rgba(244,63,94,0.25)]': getConnectionState() === 'offline'
+             'border-emerald-500/40 shadow-emerald-500/10 dark:shadow-[0_0_25px_rgba(16,185,129,0.2)]': getConnectionState() === 'live' || getConnectionState() === 'standby',
+             'border-amber-500/40 shadow-amber-500/10 dark:shadow-[0_0_25px_rgba(245,158,11,0.2)]': getConnectionState() === 'connecting' || getConnectionState() === 'slow',
+             'border-rose-500/50 shadow-rose-500/15 dark:shadow-[0_0_25px_rgba(244,63,94,0.25)]': getConnectionState() === 'offline'
          }">
         <!-- Tooltip Header -->
-        <div class="flex items-center justify-between border-b border-white/10 pb-2 mb-2">
+        <div class="flex items-center justify-between border-b border-gray-200 dark:border-white/10 pb-2 mb-2">
             <div class="flex items-center gap-2">
                 <span class="relative flex h-2.5 w-2.5 shrink-0">
                     <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
@@ -155,64 +155,64 @@
                 </span>
                 <span class="text-[10px] font-black uppercase tracking-wider"
                       :class="{
-                          'text-emerald-400': getConnectionState() === 'live' || getConnectionState() === 'standby',
-                          'text-amber-400': getConnectionState() === 'connecting' || getConnectionState() === 'slow',
-                          'text-rose-400': getConnectionState() === 'offline'
+                          'text-emerald-600 dark:text-emerald-400': getConnectionState() === 'live' || getConnectionState() === 'standby',
+                          'text-amber-600 dark:text-amber-400': getConnectionState() === 'connecting' || getConnectionState() === 'slow',
+                          'text-rose-600 dark:text-rose-400': getConnectionState() === 'offline'
                       }"
                       x-text="getConnectionLabel()"></span>
             </div>
             <!-- 4-Bar Signal Indicator -->
             <div class="flex items-end gap-0.5 h-3" title="Signalqualität">
                 <span class="w-1 rounded-sm transition-all duration-300 h-1"
-                      :class="getSignalBars() >= 1 ? (getConnectionState() === 'slow' ? 'bg-amber-400' : 'bg-emerald-400') : 'bg-gray-800'"></span>
+                      :class="getSignalBars() >= 1 ? (getConnectionState() === 'slow' ? 'bg-amber-400' : 'bg-emerald-400') : 'bg-gray-200 dark:bg-gray-800'"></span>
                 <span class="w-1 rounded-sm transition-all duration-300 h-1.5"
-                      :class="getSignalBars() >= 2 ? (getConnectionState() === 'slow' ? 'bg-amber-400' : 'bg-emerald-400') : 'bg-gray-800'"></span>
+                      :class="getSignalBars() >= 2 ? (getConnectionState() === 'slow' ? 'bg-amber-400' : 'bg-emerald-400') : 'bg-gray-200 dark:bg-gray-800'"></span>
                 <span class="w-1 rounded-sm transition-all duration-300 h-2.5"
-                      :class="getSignalBars() >= 3 ? 'bg-emerald-400' : 'bg-gray-800'"></span>
+                      :class="getSignalBars() >= 3 ? 'bg-emerald-400' : 'bg-gray-200 dark:bg-gray-800'"></span>
                 <span class="w-1 rounded-sm transition-all duration-300 h-3"
-                      :class="getSignalBars() >= 4 ? 'bg-emerald-400' : 'bg-gray-800'"></span>
+                      :class="getSignalBars() >= 4 ? 'bg-emerald-400' : 'bg-gray-200 dark:bg-gray-800'"></span>
             </div>
         </div>
 
         <!-- Telemetry Rows -->
         <div class="space-y-1.5 text-[10px]">
             <div class="flex items-center justify-between">
-                <span class="text-gray-400">Live-Ping:</span>
+                <span class="text-gray-500 dark:text-gray-400">Live-Ping:</span>
                 <div class="flex items-center gap-1.5">
                     <span class="font-mono font-bold"
                           :class="{
-                              'text-emerald-300': bridgeOnline && (pingMs === null || pingMs < 150),
-                              'text-amber-300': bridgeOnline && pingMs >= 150,
-                              'text-rose-400': !bridgeOnline
+                              'text-emerald-600 dark:text-emerald-300': bridgeOnline && (pingMs === null || pingMs < 150),
+                              'text-amber-600 dark:text-amber-300': bridgeOnline && pingMs >= 150,
+                              'text-rose-600 dark:text-rose-400': !bridgeOnline
                           }"
                           x-text="bridgeOnline ? (pingMs !== null ? pingMs + ' ms' : '...') : 'Offline'"></span>
                     <span class="text-[8px] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider"
                           :class="{
-                              'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30': bridgeOnline && (pingMs === null || pingMs < 150),
-                              'bg-amber-500/15 text-amber-400 border border-amber-500/30': bridgeOnline && pingMs >= 150,
-                              'bg-rose-500/15 text-rose-400 border border-rose-500/30': !bridgeOnline
+                              'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30': bridgeOnline && (pingMs === null || pingMs < 150),
+                              'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30': bridgeOnline && pingMs >= 150,
+                              'bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30': !bridgeOnline
                           }"
                           x-text="getPingQualityLabel()"></span>
                 </div>
             </div>
 
             <div class="flex items-center justify-between">
-                <span class="text-gray-400">Modus:</span>
-                <span class="text-gray-200 font-medium" x-text="isLiveMode ? 'WebSocket Duplex' : 'Standby (Bereit)'"></span>
+                <span class="text-gray-500 dark:text-gray-400">Modus:</span>
+                <span class="text-gray-800 dark:text-gray-200 font-medium" x-text="isLiveMode ? 'WebSocket Duplex' : 'Standby (Bereit)'"></span>
             </div>
 
             <div class="flex items-center justify-between">
-                <span class="text-gray-400">Audio-Bridge:</span>
-                <span class="font-mono text-gray-300" x-text="(bridgeVersion || 'v1.2') + (bridgeUptimeSec !== null ? ' · ' + formatBridgeUptime() : '')"></span>
+                <span class="text-gray-500 dark:text-gray-400">Audio-Bridge:</span>
+                <span class="font-mono text-gray-700 dark:text-gray-300" x-text="(bridgeVersion || 'v1.2') + (bridgeUptimeSec !== null ? ' · ' + formatBridgeUptime() : '')"></span>
             </div>
         </div>
 
         <!-- Tooltip Footer -->
-        <div class="mt-2.5 pt-2 border-t border-white/10 flex items-center justify-between text-[9px] text-gray-500">
+        <div class="mt-2.5 pt-2 border-t border-gray-200 dark:border-white/10 flex items-center justify-between text-[9px] text-gray-500">
             <span x-text="lastPingTime ? 'Check: ' + lastPingTime : 'Bereit'"></span>
             <button type="button"
                     @click.stop="checkBridgePing(true)"
-                    class="text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 cursor-pointer transition-colors">
+                    class="text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 dark:hover:text-emerald-300 font-semibold flex items-center gap-1 cursor-pointer transition-colors">
                 <span :class="pingChecking ? 'animate-spin' : ''">↻</span>
                 <span x-text="pingChecking ? 'Prüfe...' : 'Ping testen'"></span>
             </button>
@@ -220,9 +220,9 @@
     </div>
 
     <!-- DAS HAUPT-DOCK -->
-    <div x-show="!(isMobile && isMapFocus)" class="bg-black/95 backdrop-blur-xl border-l border-t border-b border-emerald-900/50 rounded-l-3xl shadow-[-10px_0_30px_rgba(16,185,129,0.15)] flex flex-col w-28 max-h-[80vh] overflow-y-auto pointer-events-auto custom-scrollbar transition-all duration-300 group/dock relative p-3">
+    <div x-show="!(isMobile && isMapFocus)" class="bg-white/95 dark:bg-black/95 backdrop-blur-xl border-l border-t border-b border-gray-200 dark:border-emerald-900/50 rounded-l-3xl shadow-[-8px_0_25px_rgba(0,0,0,0.08)] dark:shadow-[-10px_0_30px_rgba(16,185,129,0.15)] flex flex-col w-28 max-h-[80vh] overflow-y-auto pointer-events-auto custom-scrollbar transition-all duration-300 group/dock relative p-3">
         <div class="flex flex-col gap-3">
-            <div class="text-[10px] font-black uppercase tracking-widest text-emerald-500/50 border-b border-emerald-900/30 pb-3 mb-1 flex flex-col gap-2.5">
+            <div class="text-[10px] font-black uppercase tracking-widest text-emerald-600/70 dark:text-emerald-500/50 border-b border-gray-200 dark:border-emerald-900/30 pb-3 mb-1 flex flex-col gap-2.5">
                 <div class="flex flex-col gap-2.5">
                     <div class="leading-tight break-words break-all hyphens-auto flex flex-col gap-2 w-full">
                         <div class="flex items-center justify-between">
@@ -246,11 +246,11 @@
                                           }"></span>
                                 </span>
                                 <span class="text-[10px] font-black tracking-widest transition-colors"
-                                      :class="getConnectionState() === 'offline' ? 'text-rose-400' : 'text-emerald-400 group-hover/ping:text-emerald-300'">Live-AI</span>
+                                      :class="getConnectionState() === 'offline' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400 group-hover/ping:text-emerald-500 dark:group-hover/ping:text-emerald-300'">Live-AI</span>
                             </div>
                             <button type="button"
                                     @click.stop="createNewChatSession()" 
-                                    class="text-emerald-400 hover:text-white p-1 rounded hover:bg-emerald-950/60 transition-colors flex items-center justify-center cursor-pointer" 
+                                    class="text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-white p-1 rounded hover:bg-emerald-50 dark:hover:bg-emerald-950/60 transition-colors flex items-center justify-center cursor-pointer" 
                                     title="Neuen Chat erstellen">
                                 <x-heroicon-o-plus class="w-3.5 h-3.5" />
                             </button>
@@ -263,7 +263,7 @@
                                  :title="'Aktiver Agent: ' + (activeAgentName || 'Funkira')">
                                 <div class="absolute -inset-1 rounded-full blur-sm opacity-60 transition-all duration-300 group-hover/avatar:opacity-100 animate-pulse"
                                      :style="'background: ' + getHexColorStr(agentColor)"></div>
-                                <div class="relative w-10 h-10 rounded-full overflow-hidden border-2 bg-gray-900 flex items-center justify-center transition-all duration-300 group-hover/avatar:scale-105 shadow-[0_0_12px_rgba(0,0,0,0.8)]"
+                                <div class="relative w-10 h-10 rounded-full overflow-hidden border-2 bg-gray-100 dark:bg-gray-900 flex items-center justify-center transition-all duration-300 group-hover/avatar:scale-105 shadow-md dark:shadow-[0_0_12px_rgba(0,0,0,0.8)]"
                                      :style="'border-color: ' + getHexColorStr(agentColor)">
                                     <template x-if="activeAgentProfilePicture">
                                         <img :src="activeAgentProfilePicture" 
@@ -271,7 +271,7 @@
                                              class="w-full h-full object-cover">
                                     </template>
                                     <template x-if="!activeAgentProfilePicture">
-                                        <div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-black text-white font-bold text-[10px]">
+                                        <div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-800 dark:to-black text-gray-800 dark:text-white font-bold text-[10px]">
                                             <span x-text="activeAgentName ? activeAgentName.substring(0, 2).toUpperCase() : 'AI'"></span>
                                         </div>
                                     </template>
@@ -279,7 +279,7 @@
                                 <div @mouseenter="pingTooltipOpen = true"
                                      @mouseleave="pingTooltipOpen = false"
                                      @click.stop="checkBridgePing(true)"
-                                     class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-black transition-colors duration-300"
+                                     class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-black transition-colors duration-300"
                                      :class="{
                                          'bg-emerald-400 shadow-[0_0_6px_#34d399]': getConnectionState() === 'live' || getConnectionState() === 'standby',
                                          'bg-amber-400 shadow-[0_0_6px_#fbbf24]': getConnectionState() === 'connecting' || getConnectionState() === 'slow',
@@ -292,13 +292,13 @@
                         <div class="relative w-full">
                             <select wire:model.live="agentId" 
                                     @change="onAgentSelectChange($event.target.value)"
-                                    class="w-full bg-black/60 border border-emerald-900/60 rounded text-[9px] text-emerald-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 py-1 pl-1.5 pr-4 appearance-none cursor-pointer uppercase tracking-wider outline-none truncate"
+                                    class="w-full bg-gray-50 dark:bg-black/60 border border-gray-200 dark:border-emerald-900/60 rounded text-[9px] font-semibold text-gray-800 dark:text-emerald-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 py-1 pl-1.5 pr-4 appearance-none cursor-pointer uppercase tracking-wider outline-none truncate transition-colors"
                                     title="Agent auswählen">
                                 @foreach($availableAgents as $agent)
-                                    <option value="{{ $agent->id }}">{{ $agent->name }}</option>
+                                    <option value="{{ $agent->id }}" class="bg-white dark:bg-gray-900 text-gray-800 dark:text-emerald-400">{{ $agent->name }}</option>
                                 @endforeach
                             </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1 text-emerald-600">
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1 text-gray-500 dark:text-emerald-600">
                                 <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -309,16 +309,16 @@
                         <div class="relative w-full">
                             <select x-model="currentChatSessionId" 
                                     @change="switchChatSession($event.target.value)"
-                                    class="w-full bg-black/60 border border-emerald-900/60 rounded text-[9px] text-emerald-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 py-1 pl-1.5 pr-4 appearance-none cursor-pointer uppercase tracking-wider outline-none truncate" 
+                                    class="w-full bg-gray-50 dark:bg-black/60 border border-gray-200 dark:border-emerald-900/60 rounded text-[9px] font-semibold text-gray-800 dark:text-emerald-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 py-1 pl-1.5 pr-4 appearance-none cursor-pointer uppercase tracking-wider outline-none truncate transition-colors" 
                                     title="Chat Referenz">
                                 <template x-for="chat in chatSessions" :key="chat.id">
-                                    <option :value="chat.id" :selected="chat.id === currentChatSessionId" x-text="chat.title && chat.title.length > 14 ? chat.title.substring(0, 14) + '...' : (chat.title || 'Chat')"></option>
+                                    <option :value="chat.id" :selected="chat.id === currentChatSessionId" class="bg-white dark:bg-gray-900 text-gray-800 dark:text-emerald-400" x-text="chat.title && chat.title.length > 14 ? chat.title.substring(0, 14) + '...' : (chat.title || 'Chat')"></option>
                                 </template>
                                 @if(empty($this->chatSessions()))
-                                    <option value="">(Kein Chat)</option>
+                                    <option value="" class="bg-white dark:bg-gray-900 text-gray-800 dark:text-emerald-400">(Kein Chat)</option>
                                 @endif
                             </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1 text-emerald-600">
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1 text-gray-500 dark:text-emerald-600">
                                 <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -326,7 +326,7 @@
                         </div>
                     </div>
 
-                    <button x-show="continuousMode" @click="fullStop()" x-cloak class="text-rose-500 hover:text-rose-400 flex items-center justify-center gap-1.5 bg-rose-900/40 px-2 py-1.5 rounded-lg border border-rose-500/30 transition-colors w-full shadow-inner" title="Alles stoppen & Mikrofon aus">
+                    <button x-show="continuousMode" @click="fullStop()" x-cloak class="text-rose-600 dark:text-rose-500 hover:text-rose-700 dark:hover:text-rose-400 flex items-center justify-center gap-1.5 bg-rose-50 dark:bg-rose-900/40 px-2 py-1.5 rounded-lg border border-rose-200 dark:border-rose-500/30 transition-colors w-full shadow-inner" title="Alles stoppen & Mikrofon aus">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5 shrink-0">
                             <rect x="5" y="5" width="10" height="10" rx="1" />
                         </svg>
@@ -335,9 +335,9 @@
                 </div>
             </div>
 
-            <div class="flex flex-col gap-4 items-start border-b border-emerald-900/30 pb-4 mb-1">
+            <div class="flex flex-col gap-4 items-start border-b border-gray-200 dark:border-emerald-900/30 pb-4 mb-1">
                 @if($agentIsActive)
-                <button @click="$dispatch('open-funkira'); if(!isLiveMode) toggleLiveMode(); dockOpen = false" class="w-full text-[var(--theme-color)] hover:opacity-80 flex items-center justify-center gap-2 bg-[var(--theme-color-10)] px-3 py-2.5 rounded-xl border border-[var(--theme-color-30)] transition-all hover:scale-[1.02] shadow-[0_0_15px_var(--theme-color-10)]" style="--theme-color: #10b981; --theme-color-10: rgba(16,185,129,0.1); --theme-color-30: rgba(16,185,129,0.3);" title="Zentrum Öffnen">
+                <button @click="$dispatch('open-funkira'); if(!isLiveMode) toggleLiveMode(); dockOpen = false" class="w-full text-emerald-700 dark:text-[var(--theme-color)] hover:opacity-80 flex items-center justify-center gap-2 bg-[var(--theme-color-10)] px-3 py-2.5 rounded-xl border border-[var(--theme-color-30)] transition-all hover:scale-[1.02] shadow-[0_0_15px_var(--theme-color-10)]" style="--theme-color: #10b981; --theme-color-10: rgba(16,185,129,0.1); --theme-color-30: rgba(16,185,129,0.3);" title="Zentrum Öffnen">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
                         <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 110-12 6 6 0 010 12z"/>
                         <circle cx="10" cy="10" r="3"/>
@@ -351,7 +351,7 @@
                     <!-- Live Mode Button -->
                     <button @click.prevent="toggleLiveMode()" 
                             class="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border transition-all font-bold tracking-widest text-[10px] uppercase"
-                            :class="isLiveMode ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'"
+                            :class="isLiveMode ? 'bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-500/40 dark:border-emerald-500/50 shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-200'"
                             title="Live-AI (Echtzeit Sprachmodus)">
                         <x-heroicon-o-bolt class="w-4 h-4" /> Live
                     </button>
@@ -359,7 +359,7 @@
                     <!-- Interruption Mode Button -->
                     <button @click.prevent="$dispatch('toggle-voice-interruption')" 
                             class="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border transition-all font-bold tracking-widest text-[10px] uppercase"
-                            :class="allowVoiceInterruption ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'"
+                            :class="allowVoiceInterruption ? 'bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-500/40 dark:border-emerald-500/50 shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-200'"
                             title="KI Unterbrechen erlauben">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25Zm-1.72 6.97a.75.75 0 1 0-1.06 1.06L10.94 12l-1.72 1.72a.75.75 0 1 0 1.06 1.06L12 13.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L13.06 12l1.72-1.72a.75.75 0 1 0-1.06-1.06L12 10.94l-1.72-1.72Z" /></svg>
                         Stören
@@ -367,7 +367,7 @@
 
                     <!-- Clipboard Permission Button -->
                     <button x-show="clipboardNeedsPermission" x-cloak @click.prevent="readClipboard(true)" 
-                            class="w-full flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-xl border border-rose-500/50 bg-rose-500/20 text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.3)] animate-pulse hover:bg-rose-500/30 transition-all font-bold tracking-widest text-[9px] uppercase text-center mt-2"
+                            class="w-full flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-xl border border-rose-300 dark:border-rose-500/50 bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 shadow-sm dark:shadow-[0_0_15px_rgba(244,63,94,0.3)] animate-pulse hover:bg-rose-100 dark:hover:bg-rose-500/30 transition-all font-bold tracking-widest text-[9px] uppercase text-center mt-2"
                             title="Zwischenspeicher für die KI freigeben">
                         <x-heroicon-s-camera class="w-4 h-4" />
                         Erlauben

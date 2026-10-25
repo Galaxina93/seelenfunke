@@ -4,16 +4,6 @@
     <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl p-5 sm:p-6 lg:p-7 shadow-sm transition-colors duration-300">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-                <div class="flex items-center gap-2 mb-1.5">
-                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">
-                        <x-heroicon-o-cube class="w-3.5 h-3.5" />
-                        Produkt-Telemetrie & Analytics
-                    </span>
-                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        100% DSGVO-konform (Cookieless)
-                    </span>
-                </div>
                 <h1 class="text-2xl sm:text-3xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">
                     Produkt-, Konfigurator- & Rechner-Analyse
                 </h1>
@@ -619,7 +609,7 @@
                             <i class="solar-wallet-money-bold-duotone text-[var(--theme-color)] text-2xl"></i> Produkt-Performance & Wahre Zahlen
                         </h3>
                         <p class="text-[11px] font-medium text-gray-600 dark:text-gray-400 max-w-2xl leading-relaxed">
-                            Echte Netto-Margen inklusive Einkauf, Laser und Verpackung kombiniert mit der Verkaufsgeschwindigkeit und Logistik.
+                            Echte Netto-Margen inklusive Einkauf, Laser, Verpackung, Versand, Marketing und Stripe-Transaktionsgebühren kombiniert mit der Verkaufsgeschwindigkeit und Logistik.
                         </p>
                     </div>
                     <button wire:click.prevent="downloadFullReport" class="hidden sm:inline-flex items-center gap-2 bg-[var(--theme-color)] hover:bg-black/90 dark:hover:bg-white text-white dark:text-gray-900 px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all dark:shadow-[0_0_20px_var(--theme-color-30)] dark:hover:shadow-[0_0_30px_var(--theme-color-50)] group">
@@ -681,7 +671,7 @@
                                             </div>
                                             <div class="flex items-center gap-1 pl-1">
                                                 <span class="text-[8px] font-black uppercase tracking-tight px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-400 group-hover:text-[var(--theme-color)] group-hover:bg-[var(--theme-color-10)] transition-colors"
-                                                      x-text="open ? '–' : '+5'"></span>
+                                                      x-text="open ? '–' : '+6'"></span>
                                                 <svg class="w-3 h-3 text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200 transition-transform duration-300 ease-out"
                                                      :class="open ? 'rotate-180 text-[var(--theme-color)]' : ''"
                                                      fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -712,6 +702,10 @@
                                                 <span class="text-gray-500 flex items-center cursor-help" title="Geplante Marketing-Kosten ({{ $cd['marketing_percent'] }}% vom Netto).">Marketing <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
                                                 <span class="text-pink-600 dark:text-pink-500 font-mono">{{ number_format($cd['marketing_cost'], 2, ',', '.') }} €</span>
                                             </div>
+                                            <div class="flex justify-between items-center text-[10px] font-black">
+                                                <span class="text-gray-500 flex items-center cursor-help" title="Kalkulatorische Stripe-Zahlungsgebühr ({{ number_format($cd['payment_fee_percent'], 1, ',', '.') }}% vom Brutto-VK + {{ number_format($cd['payment_fee_fixed'], 2, ',', '.') }} € Fixgebühr für Kreditkarte, Klarna, Apple Pay).">Stripe <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
+                                                <span class="text-indigo-600 dark:text-indigo-400 font-mono">{{ number_format($cd['payment_cost'], 2, ',', '.') }} €</span>
+                                            </div>
                                             <div class="flex justify-between items-center text-[10px] font-black mt-1.5 pt-1.5 border-t border-gray-200 dark:border-gray-800/60">
                                                 <span class="text-gray-500 flex items-center cursor-help" title="Das Leergewicht der Versandverpackung (Karton, Luftpolster). Das finale Bruttogewicht für DHL setzt sich aus dem Netto-Produktgewicht und diesem Tara-Wert zusammen.">Tara <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
                                                 <span class="text-blue-500 dark:text-blue-400 font-mono">{{ $cd['packaging_weight'] !== null ? $cd['packaging_weight'] . ' g' : '-' }}</span>
@@ -732,7 +726,7 @@
                                         </span>
                                     </div>
                                     <div class="text-[16px] font-black text-gray-900 dark:text-white block mb-0.5 mt-2 flex justify-end items-center">
-                                        <span class="text-[10px] tracking-widest uppercase text-gray-500 mr-2 flex items-center cursor-help" title="Netto VK abzüglich ALLER anfallenden Kosten (EK, Laser, Material, Versand). Das ist der Betrag, der am Ende des Tages als Gewinn hängen bleibt.">
+                                        <span class="text-[10px] tracking-widest uppercase text-gray-500 mr-2 flex items-center cursor-help" title="Netto VK abzüglich ALLER anfallenden Kosten (EK, Laser, Material, Versand, Marketing, Stripe-Gebühr). Das ist der Betrag, der am Ende des Tages als Gewinn hängen bleibt.">
                                             Reingewinn <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:
                                         </span>
                                         {{ number_format($cd['net_margin'], 2, ',', '.') }} €

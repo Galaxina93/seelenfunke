@@ -298,13 +298,19 @@ class GeminiAgent implements AiProviderInterface
         $allowedIdentifiers = $this->agent->tools->pluck('identifier')->toArray();
         $allowedIdentifiers[] = 'system_get_current_time';
         $isEmployeeRestricted = AiAuthHelper::check() && !AiAuthHelper::isAdmin();
+        $globalCtx = AIFunctionsRegistry::getGlobalContext();
+        $isPublicCustomerSupport = !empty($globalCtx['__chat_id'])
+            || (AiAuthHelper::check() && AiAuthHelper::isCustomer() && !AiAuthHelper::isAdmin() && !AiAuthHelper::isEmployee());
 
-        $filteredSchema = array_values(array_filter($globalSchema, function ($t) use ($allowedIdentifiers, $isEmployeeRestricted) {
+        $filteredSchema = array_values(array_filter($globalSchema, function ($t) use ($allowedIdentifiers, $isEmployeeRestricted, $isPublicCustomerSupport) {
             $fnName = $t['function']['name'] ?? '';
             if ($fnName === '' || !in_array($fnName, $allowedIdentifiers, true)) {
                 return false;
             }
             if ($isEmployeeRestricted && AIFunctionsRegistry::isToolRestrictedForEmployee($fnName)) {
+                return false;
+            }
+            if ($isPublicCustomerSupport && !(str_starts_with($fnName, 'support_') || $fnName === 'system_get_current_time')) {
                 return false;
             }
             return true;
@@ -401,6 +407,11 @@ class GeminiAgent implements AiProviderInterface
         }
 
         $payload['model'] = $modelName;
+
+        if ($isPublicCustomerSupport) {
+            // Token-Guard: Im öffentlichen Kunden-Support begrenzen wir die maximale Antwortlänge strikt
+            $payload['max_tokens'] = 600;
+        }
 
         if (!empty($filteredSchema)) {
             // BUGFIX: Google's OpenAI API wrapper silently dies with HTTP 503 Service Unavailable
@@ -762,6 +773,7 @@ class GeminiAgent implements AiProviderInterface
                 }
 
                 // Execute every tool the AI asked for (now safely max 1)
+                $fastTrackResponses = [];
                 foreach ($message['tool_calls'] as $toolCall) {
                     $toolCallId = $toolCall['id'];
                     $functionName = $toolCall['function']['name'];
@@ -924,6 +936,11 @@ class GeminiAgent implements AiProviderInterface
                     }
 
 
+                    if (isset($result['_fast_track_response']) && is_string($result['_fast_track_response']) && trim($result['_fast_track_response']) !== '') {
+                        $fastTrackResponses[] = trim($result['_fast_track_response']);
+                        unset($result['_fast_track_response']);
+                    }
+
                     // --- SANITIZE FOR LLM TO PREVENT READING OUT LOUD ---
                     $llmResult = $result;
                     if ($functionName === 'get_tasks' && isset($llmResult['tasks'])) {
@@ -945,7 +962,15 @@ class GeminiAgent implements AiProviderInterface
                     ];
                 }
 
-
+                // Token-Spar-Fast-Track: Wenn das Tool bereits eine finale Antwort (z.B. Offtopic-Penalty oder Chat-Abschluss) liefert,
+                // brechen wir die Schleife sofort ab und sparen den kompletten zweiten LLM-Roundtrip!
+                if (!empty($fastTrackResponses)) {
+                    $finalFastTrack = implode("\n\n", $fastTrackResponses);
+                    if ($streamCallback) {
+                        $streamCallback(['type' => 'text_chunk', 'chunk' => $finalFastTrack]);
+                    }
+                    return $finalFastTrack;
+                }
 
                 // Since we added new tool results, loop back and ask the AI again
                 // so it can read the results and formulate a final answer.

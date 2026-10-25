@@ -4,6 +4,7 @@ namespace App\Services\AI;
 
 use App\Models\Management\ManagementCalendarEvent;
 use App\Models\Management\ManagementDayRoutine;
+use App\Models\Management\ManagementDayRoutineLog;
 use App\Models\Accounting\AccountingSpecialIssue;
 use App\Models\Accounting\AccountingCostItem;
 use App\Models\Accounting\AccountingInvoice;
@@ -43,7 +44,7 @@ class AiSupportService
             'icon' => 'sun'
         ];
 
-        // Alle Routinen für den Slider aufbereiten (inkl. Wochentag/Wochenende-Filter)
+        // Alle Routinen für den Slider aufbereiten (inkl. Wochentag/Wochenende-Filter & heutigem Tracking-Status)
         $isWeekend = $now->isWeekend();
         $allowedDayFilters = $isWeekend ? ['all', 'weekend'] : ['all', 'weekdays'];
         $allRoutines = ManagementDayRoutine::with('steps')
@@ -56,7 +57,36 @@ class AiSupportService
             ->orderBy('start_time', 'asc')
             ->get();
 
-        $sliderRoutines = $allRoutines->map(function ($routine) use ($now, &$currentFlow, &$options, $sleepMessage) {
+        $todayLogsMap = [];
+        $isTodaySick = false;
+        if (class_exists(ManagementDayRoutineLog::class) && \Illuminate\Support\Facades\Schema::hasTable('management_day_routine_logs')) {
+            $todayLogs = ManagementDayRoutineLog::whereDate('date', $now->toDateString())->get();
+            foreach ($todayLogs as $tLog) {
+                $todayLogsMap[$tLog->day_routine_id] = $tLog;
+                if ($tLog->is_sick) {
+                    $isTodaySick = true;
+                }
+            }
+        }
+
+        if ($isTodaySick) {
+            $currentFlow = [
+                'title' => 'Genesungs-Modus (Medizin-Funki)',
+                'step' => 'Schonen & Auskurieren',
+                'type' => 'sick',
+                'icon' => 'heart'
+            ];
+            $options[] = [
+                'score' => 450,
+                'title' => 'Medizin-Funki: Gute Besserung!',
+                'message' => 'Du bist heute im Krankheits-/Genesungs-Modus eingetragen. Deine 🔥 Routine-Serien sind eingefroren und geschützt. Gönn dir Ruhe, trink viel Tee und kurier dich aus!',
+                'action_label' => 'Routine öffnen',
+                'action_route' => 'admin.funki-routine',
+                'icon' => '❤️‍🩹'
+            ];
+        }
+
+        $sliderRoutines = $allRoutines->map(function ($routine) use ($now, &$currentFlow, &$options, $sleepMessage, $todayLogsMap, $isTodaySick) {
             $start = \Carbon\Carbon::parse($routine->start_time);
             $duration = $routine->duration_minutes ?: ($routine->type === 'sleep' ? 8 * 60 : 0);
             $end = $start->copy()->addMinutes($duration);
@@ -70,44 +100,49 @@ class AiSupportService
                 }
             }
 
+            $rLog = $todayLogsMap[$routine->id] ?? null;
+            $isCompletedToday = $rLog ? (bool) $rLog->is_completed : false;
+
             $status = 'future';
             if ($end->isPast()) {
                 $status = 'past';
             } elseif ($now->between($start, $end)) {
                 $status = 'current';
 
-                // --- Aktuellen Flow für die Hauptanzeige setzen ---
-                $currentFlow['title'] = $routine->title;
-                $currentFlow['type'] = $routine->type;
-                $currentFlow['icon'] = $routine->icon ?? 'clock';
+                if (!$isTodaySick) {
+                    // --- Aktuellen Flow für die Hauptanzeige setzen ---
+                    $currentFlow['title'] = $routine->title;
+                    $currentFlow['type'] = $routine->type;
+                    $currentFlow['icon'] = $routine->icon ?? 'clock';
 
-                $minutesPassed = $start->diffInMinutes($now);
-                $accumulated = 0;
-                $stepFound = false;
+                    $minutesPassed = $start->diffInMinutes($now);
+                    $accumulated = 0;
+                    $stepFound = false;
 
-                foreach ($routine->steps->sortBy('position') as $step) {
-                    if ($minutesPassed >= $accumulated && $minutesPassed < ($accumulated + $step->duration_minutes)) {
-                        $currentFlow['step'] = $step->title;
-                        $stepFound = true;
-                        break;
+                    foreach ($routine->steps->sortBy('position') as $step) {
+                        if ($minutesPassed >= $accumulated && $minutesPassed < ($accumulated + $step->duration_minutes)) {
+                            $currentFlow['step'] = $step->title;
+                            $stepFound = true;
+                            break;
+                        }
+                        $accumulated += $step->duration_minutes;
                     }
-                    $accumulated += $step->duration_minutes;
-                }
 
-                if (!$stepFound) {
-                    $currentFlow['step'] = 'Fokus-Phase';
-                }
+                    if (!$stepFound) {
+                        $currentFlow['step'] = 'Fokus-Phase';
+                    }
 
-                // Wenn es Pause/Sport/Essen ist, pushen wir es als aktive Handlungsoption (Score 300)
-                if (in_array($routine->type, ['food', 'sport', 'hygiene', 'break'])) {
-                    $options[] = [
-                        'score' => 300,
-                        'title' => $routine->title,
-                        'message' => "Dein Körper braucht das jetzt: " . $currentFlow['step'] . ". " . ($routine->message ?? "Schalte kurz ab und lade die Akkus auf."),
-                        'action_label' => 'Routine ansehen',
-                        'action_route' => 'admin.funki-routine',
-                        'icon' => $routine->icon ?? '🧘'
-                    ];
+                    // Wenn es Pause/Sport/Essen ist (und heute noch nicht abgehakt), pushen wir es als aktive Handlungsoption (Score 300)
+                    if (!$isCompletedToday && in_array($routine->type, ['food', 'sport', 'hygiene', 'break'])) {
+                        $options[] = [
+                            'score' => 300,
+                            'title' => $routine->title,
+                            'message' => "Dein Körper braucht das jetzt: " . $currentFlow['step'] . ". " . ($routine->message ?? "Schalte kurz ab und lade die Akkus auf."),
+                            'action_label' => 'Routine ansehen',
+                            'action_route' => 'admin.funki-routine',
+                            'icon' => $routine->icon ?? '🧘'
+                        ];
+                    }
                 }
 
                 // Wenn es ein aktiver Schlafenszeit-Block ist, pushen wir es mit absoluter Priorität (Score 2500)
@@ -129,6 +164,8 @@ class AiSupportService
                 'time_formatted' => $start->format('H:i') . ' - ' . $end->format('H:i'),
                 'icon' => $routine->icon ?? 'clock',
                 'status' => $status,
+                'is_completed' => $isCompletedToday,
+                'is_sick' => $isTodaySick,
             ];
         })->values()->toArray();
 

@@ -188,7 +188,7 @@
                     <form wire:submit.prevent="sendMessage" class="relative bg-gray-50 border border-gray-200 rounded-2xl focus-within:border-cyan-400 focus-within:ring-2 focus-within:ring-cyan-100 transition-all flex items-end">
                         <textarea wire:model="message" 
                                @keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); $wire.sendMessage() }"
-                               placeholder="Schreibe deine Nachricht..." maxlength="1000" rows="1"
+                               placeholder="Schreibe deine Nachricht..." maxlength="800" rows="1"
                                x-data="{ resize() { $el.style.height = '46px'; $el.style.height = $el.scrollHeight + 'px'; } }"
                                x-init="resize()"
                                @input="resize()"

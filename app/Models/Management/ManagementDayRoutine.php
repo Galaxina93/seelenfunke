@@ -25,4 +25,9 @@ class ManagementDayRoutine extends Model
     {
         return $this->hasMany(ManagementDayRoutineStep::class, 'day_routine_id')->orderBy('position');
     }
+
+    public function logs(): HasMany
+    {
+        return $this->hasMany(ManagementDayRoutineLog::class, 'day_routine_id');
+    }
 }

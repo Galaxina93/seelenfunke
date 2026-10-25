@@ -192,6 +192,23 @@
                                 <p class="text-[10px] font-medium text-gray-500 mt-2 px-1">Geplanter Anteil vom Netto-Umsatz.</p>
                             </div>
                         </div>
+
+                        <div class="p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-200/70 dark:border-indigo-900/40 flex items-start gap-3">
+                            <div class="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5">
+                                <x-heroicon-o-credit-card class="w-4 h-4" />
+                            </div>
+                            <div class="min-w-0 text-xs">
+                                <div class="font-bold text-gray-900 dark:text-white flex flex-wrap items-center gap-2">
+                                    <span>Stripe & Zahlungsgebühren (Automatisch in Unit Economics)</span>
+                                    <span class="px-2 py-0.5 rounded-md text-[10px] font-mono font-black bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                                        {{ number_format((float) shop_setting('stripe_fee_percent', 2.50), 1, ',', '.') }} % + {{ number_format(((int) shop_setting('stripe_fee_fixed_cents', 30)) / 100, 2, ',', '.') }} €
+                                    </span>
+                                </div>
+                                <p class="text-[11px] text-gray-600 dark:text-gray-400 mt-1 leading-relaxed">
+                                    Transaktionsgebühren (Kreditkarte, Klarna, Apple Pay) werden in der Produkt-Analyse („Wahre Zahlen“) und beim Angebots-Autopiloten automatisch vom Brutto-Verkaufspreis abgezogen.
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

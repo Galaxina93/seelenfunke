@@ -22,6 +22,9 @@ class AiFrontendSupportChat extends Component
     
     protected string $themingDepartment = 'Support';
 
+    public const FRIENDLY_UNAVAILABLE_MESSAGE = 'Aktuell stehe ich dir leider kurzzeitig nicht zur Verfügung. Bitte versuche es in wenigen Augenblicken erneut oder nutze unser [Kontaktformular](/kontakt), falls dein Anliegen dringend ist.';
+    public const MAX_MESSAGE_LENGTH = 800;
+
     #[Locked]
     public $chatId = null;
     public $message = '';
@@ -94,13 +97,7 @@ class AiFrontendSupportChat extends Component
                 $this->rating = $chat->rating ?? 0;
                 $this->feedbackText = $chat->feedback_text ?? '';
                 $this->ratingSubmitted = !empty($chat->rating);
-                
-                foreach ($chat->messages as $msg) {
-                    $this->messages[] = [
-                        'sender' => $msg->sender,
-                        'text' => $msg->message,
-                    ];
-                }
+                $this->messages = $this->sanitizeChatMessagesForView($chat->messages);
                 return; // Erfolgreich gemounted!
             }
         }
@@ -121,13 +118,7 @@ class AiFrontendSupportChat extends Component
                 $this->rating = $existing->rating ?? 0;
                 $this->feedbackText = $existing->feedback_text ?? '';
                 $this->ratingSubmitted = !empty($existing->rating);
-                
-                foreach ($existing->messages as $msg) {
-                    $this->messages[] = [
-                        'sender' => $msg->sender,
-                        'text' => $msg->message,
-                    ];
-                }
+                $this->messages = $this->sanitizeChatMessagesForView($existing->messages);
             }
         }
 
@@ -149,22 +140,192 @@ class AiFrontendSupportChat extends Component
         session()->put('ai_chat_privacy_accepted', true);
     }
 
+    public static function isTechnicalOrEmptyAiError(?string $content): bool
+    {
+        $trimmed = trim((string) $content);
+        if ($trimmed === '' || $trimmed === '[SKIP]') {
+            return true;
+        }
+
+        $technicalMarkers = [
+            'SYSTEM WARNUNG',
+            'API VERBINDUNGSABBRUCH',
+            'cURL TIMEOUT',
+            'SERVER ÜBERLASTET',
+            '[GEGENMASSNAHME]',
+            'Status Code HTTP',
+            'prepayment credits',
+            'ai.studio',
+            'statisches Rauschen',
+            'Systemintegrität gestört',
+            'Max Tool Depth Limit',
+            'Endlosschleife',
+            'Entschuldige, ich konnte keine Antwort generieren.',
+            'Ich bin aktuell leider offline.',
+        ];
+
+        foreach ($technicalMarkers as $marker) {
+            if (stripos($trimmed, $marker) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function sanitizeChatMessagesForView($dbMessages): array
+    {
+        $sanitized = [];
+        foreach ($dbMessages as $msg) {
+            $text = (string) $msg->message;
+            if ($msg->sender === 'ai' && self::isTechnicalOrEmptyAiError($text)) {
+                $text = self::FRIENDLY_UNAVAILABLE_MESSAGE;
+                if ($msg->message !== $text) {
+                    $msg->update(['message' => $text]);
+                }
+            }
+            $sanitized[] = [
+                'sender' => $msg->sender,
+                'text' => $text,
+            ];
+        }
+        return $sanitized;
+    }
+
+    protected function getEffectiveGuestMessageCount(): int
+    {
+        $currentCount = $this->chatId
+            ? SupportCustomerChatMessage::where('support_customer_chat_id', $this->chatId)
+                ->where('sender', 'customer')
+                ->count()
+            : 0;
+
+        $sessionGuestCount = (int) session('guest_support_msg_count', 0);
+
+        $cookieToken = request()->cookie('sf_chat_uuid');
+        $crossChatCount = 0;
+        if (is_string($cookieToken) && strlen(trim($cookieToken)) >= 8) {
+            $guestChatIds = SupportCustomerChat::where('session_token', trim($cookieToken))
+                ->whereNull('customer_id')
+                ->where('created_at', '>=', now()->subDay())
+                ->pluck('id');
+            if ($guestChatIds->isNotEmpty()) {
+                $crossChatCount = SupportCustomerChatMessage::whereIn('support_customer_chat_id', $guestChatIds)
+                    ->where('sender', 'customer')
+                    ->count();
+            }
+        }
+
+        return max($currentCount, $sessionGuestCount, $crossChatCount);
+    }
+
+    /**
+     * Lokaler 0-Token-Vorfilter vor dem LLM-Aufruf:
+     * Fängt Duplikate, Zeichen-Spam, Prompt-Injections, Beleidigungen und offensichtliche Token-Verschwendung
+     * direkt auf dem Server ab, vergibt Strafpunkte und spart 100 % der API-Tokens.
+     */
+    protected function evaluateLocalPreFlightGuard(
+        string $text,
+        SupportCustomerChat $chat,
+        SupportCustomerChatMessage $lastDbMsg
+    ): ?string {
+        $normalized = mb_strtolower(trim($text));
+        $customerMsgs = $chat->messages->where('sender', 'customer')->values();
+
+        // 1. Duplikat-Erkennung (Kunde schickt exakt dieselbe Nachricht direkt hintereinander)
+        if ($customerMsgs->count() >= 2) {
+            $prevCustomerMsg = $customerMsgs->get($customerMsgs->count() - 2);
+            $lastAiMsg = $chat->messages->where('sender', 'ai')->last();
+            if (
+                $prevCustomerMsg &&
+                mb_strtolower(trim($prevCustomerMsg->message)) === $normalized &&
+                $lastAiMsg &&
+                !self::isTechnicalOrEmptyAiError($lastAiMsg->message) &&
+                $lastAiMsg->message !== self::FRIENDLY_UNAVAILABLE_MESSAGE
+            ) {
+                $lastDbMsg->update(['severity' => 15, 'tag' => 'SPAM']);
+                return 'Ich habe deine Frage soeben bereits beantwortet. Falls noch ein konkretes Detail zu deiner Bestellung oder einem Produkt offen ist, formuliere dein Anliegen bitte kurz präziser.';
+            }
+        }
+
+        // 2. Zeichen-Flut / Tastatur-Smashing / Sinnlose Sonderzeichen ohne Buchstaben
+        $hasAlnum = preg_match('/[\p{L}\p{N}]/u', $normalized) === 1;
+        $hasRepeatedChars = preg_match('/(.)\1{7,}/u', $normalized) === 1;
+        $hasUnspacedGibberish = preg_match('/^[bcdfghjklmnpqrstvwxyzß]{10,}$/iu', $normalized) === 1;
+
+        if (!$hasAlnum || $hasRepeatedChars || $hasUnspacedGibberish) {
+            $lastDbMsg->update(['severity' => 25, 'tag' => 'SPAM']);
+            return 'Ich konnte deine Nachricht leider nicht zuordnen. Bitte beschreibe dein Anliegen zu unseren Produkten oder deiner Bestellung in einem kurzen, verständlichen Satz.';
+        }
+
+        // 3. Prompt-Injection / System-Manipulation / Schwere Beleidigung -> Sofortiger Auto-Close (90 Strafpunkte + 10 Basis = 100)
+        $isPromptInjection = preg_match(
+            '/(?:ignoriere|vergiss|überschreibe|umgehe|ignore|disregard|forget)\s+(?:alle\s+|all\s+|sämtliche\s+)?(?:vorherigen\s+|bisherigen\s+|previous\s+|prior\s+|deine\s+|obigen\s+)?(?:anweisungen|regeln|prompts?|instructions|rules|systemvorgaben)|\b(?:system\s*prompt|developer\s*mode|jailbreak|dan\s*mode)\b/iu',
+            $normalized
+        ) === 1;
+
+        $isSevereInsult = preg_match(
+            '/\b(?:hurensohn|arschloch|wichser|fotze|missgeburt|fick\s+dich|halt\s+die\s+fresse|scheiss\s*ki|drecks\s*ki|bastard)\b/iu',
+            $normalized
+        ) === 1;
+
+        if ($isPromptInjection || $isSevereInsult) {
+            $tag = $isPromptInjection ? 'PROMPT_INJECTION' : 'INSULT';
+            $result = \App\Services\AI\Functions\AiSupportFuncs::executePenalizeOfftopic([
+                '__chat_id' => $chat->id,
+                'severity' => 10,
+                'tag' => $tag,
+            ]);
+            return $result['_fast_track_response'] ?? 'Dieser Support-Chat wurde aufgrund eines Verstoßes gegen unsere Nutzungsrichtlinien geschlossen.';
+        }
+
+        // 4. Offensichtliche Token-Verschwendung / Themenfremde Generierungsaufträge (Gedichte, Witze, Code, Aufsätze, Mathe, Rezepte)
+        $isTokenWasteOrOfftopic = preg_match(
+            '/(?:schreib(?:e)?\s+(?:mir\s+)?(?:ein(?:en|e)?\s+)?(?:gedicht|aufsatz|geschichte|roman|lied|songtext|code|programm|skript|essay|märchen)|erzähl(?:e)?\s+(?:mir\s+)?(?:einen\s+)?witz|tokens?\s+(?:verschwenden|verballern|verbrennen|verbrauchen)|backrezept|kochrezept|rezept\s+für\s+(?:kuchen|pizza|pasta|pfannkuchen)|löse\s+(?:diese\s+)?(?:mathe|gleichung)|programmiere\s+mir)/iu',
+            $normalized
+        ) === 1;
+
+        if ($isTokenWasteOrOfftopic) {
+            $result = \App\Services\AI\Functions\AiSupportFuncs::executePenalizeOfftopic([
+                '__chat_id' => $chat->id,
+                'severity' => 7,
+                'tag' => 'PROVOCATION',
+            ]);
+            return $result['_fast_track_response'] ?? 'Ich bitte um Verständnis, dass ich ausschließlich für Fragen zu unseren Produkten und Bestellungen zur Verfügung stehe.';
+        }
+
+        return null;
+    }
+
     public function sendMessage()
     {
         if (!$this->hasAcceptedPrivacy) return;
 
-        $text = mb_substr(trim((string) $this->message), 0, 2000);
+        $text = mb_substr(trim((string) $this->message), 0, self::MAX_MESSAGE_LENGTH);
         if (empty($text)) return;
 
+        // --- TROLL COOLDOWN CHECK ---
+        $currentCustomerId = auth()->guard('customer')->id();
+        $cookieToken = request()->cookie('sf_chat_uuid');
+        $lockKey = 'support_troll_cooldown_' . ($currentCustomerId ?: ($cookieToken ?: request()->ip()));
+        if (\Illuminate\Support\Facades\Cache::get($lockKey)) {
+            $cooldownMsg = 'Da das Ausdauer-Limit durch wiederholte themenfremde Nachrichten überschritten wurde, ist der Live-Chat vorübergehend pausiert. Für dringende Bestellanliegen nutze bitte unser [Kontaktformular](/kontakt).';
+            $this->message = '';
+            $this->messages[] = ['sender' => 'system', 'text' => $cooldownMsg];
+            $this->isResolved = true;
+            $this->dispatch('message-received');
+            return;
+        }
+
         // --- RATE LIMITING ---
-        $throttleKey = 'support_chat_' . (auth()->guard('customer')->id() ?? request()->ip());
+        $throttleKey = 'support_chat_' . ($currentCustomerId ?? request()->ip());
         if (RateLimiter::tooManyAttempts($throttleKey, 10)) {
             $seconds = RateLimiter::availableIn($throttleKey);
             SystemSecurityService::logEvent(
                 'security:rate_limit_support_chat',
                 'WARNING',
                 'KI-Support-Chat Rate-Limit ausgelöst (Spam-Schutz).',
-                ['customer_id' => auth()->guard('customer')->id(), 'retry_after' => $seconds],
+                ['customer_id' => $currentCustomerId, 'retry_after' => $seconds],
                 'bot_defense'
             );
             $rateLimitMsg = "Du schreibst etwas zu schnell. Bitte warte {$seconds} Sekunden, bevor du eine neue Nachricht sendest.";
@@ -174,7 +335,6 @@ class AiFrontendSupportChat extends Component
         }
         RateLimiter::hit($throttleKey, 60);
 
-        $currentCustomerId = auth()->guard('customer')->id();
         $sessionChatId = session('current_chat_id');
         
         if ($this->chatId) {
@@ -214,12 +374,12 @@ class AiFrontendSupportChat extends Component
 
         if (!$this->chatId) {
             $chat = SupportCustomerChat::create([
-                'customer_id' => auth()->guard('customer')->id(),
-                'session_token' => request()->cookie('sf_chat_uuid'),
+                'customer_id' => $currentCustomerId,
+                'session_token' => $cookieToken,
                 'status' => 'open'
             ]);
             $this->chatId = $chat->id;
-            session(['current_chat_id' => $chat->id]); // <--- FIX: Chat ID persistent speichern!
+            session(['current_chat_id' => $chat->id]);
 
             $messageStr = "{$this->agentName} ist dem Chat beigetreten.";
             SupportCustomerChatMessage::create([
@@ -239,7 +399,7 @@ class AiFrontendSupportChat extends Component
 
         $this->messages[] = ['sender' => 'customer', 'text' => $text];
         
-        // --- FREEMIUM COUNTER LOGIC ---
+        // --- FREEMIUM COUNTER LOGIC (Cross-Chat geschützt) ---
         $isCustomer = auth()->guard('customer')->check();
         $isSystem = false;
         if (class_exists(\App\Models\System\SystemUser::class)) {
@@ -248,9 +408,15 @@ class AiFrontendSupportChat extends Component
         }
         $isGuest = !($isCustomer || $isSystem || auth()->check());
 
-        $userMsgCount = SupportCustomerChatMessage::where('support_customer_chat_id', $this->chatId)
-            ->where('sender', 'customer')
-            ->count();
+        if ($isGuest) {
+            session(['guest_support_msg_count' => ((int) session('guest_support_msg_count', 0)) + 1]);
+        }
+
+        $userMsgCount = $isGuest
+            ? $this->getEffectiveGuestMessageCount()
+            : SupportCustomerChatMessage::where('support_customer_chat_id', $this->chatId)
+                ->where('sender', 'customer')
+                ->count();
 
         if ($isGuest && $userMsgCount >= 3) {
             $leadText = "Möchtest du unseren Chat fortsetzen? Damit ich dir uneingeschränkt weiterhelfen und unseren bisherigen Verlauf sicher speichern kann, erstelle bitte kurz ein kostenloses Kundenkonto. Danach bin ich sofort wieder für dich da! ✨";
@@ -320,8 +486,27 @@ class AiFrontendSupportChat extends Component
             $isSystem = auth()->guard($sysGuard)->check();
         }
         $isGuest = !($currentCustomerId || $isSystem || auth()->check());
-        if ($isGuest && $chat->messages->where('sender', 'customer')->count() >= 3) {
+        if ($isGuest && $this->getEffectiveGuestMessageCount() >= 3) {
             $this->isTyping = false;
+            return;
+        }
+
+        // --- STUFE 1: LOKALER 0-TOKEN PRE-FLIGHT GUARD ---
+        $preFlightReply = $this->evaluateLocalPreFlightGuard((string) $lastDbMsg->message, $chat, $lastDbMsg);
+        if ($preFlightReply !== null) {
+            SupportCustomerChatMessage::create([
+                'support_customer_chat_id' => $this->chatId,
+                'sender' => 'ai',
+                'message' => $preFlightReply
+            ]);
+            $this->messages[] = ['sender' => 'ai', 'text' => $preFlightReply];
+
+            $chat->refresh();
+            if (in_array($chat->status, ['resolved', 'resolved_admin', 'resolved_auto', 'needs_employee'], true)) {
+                $this->isResolved = true;
+            }
+            $this->isTyping = false;
+            $this->dispatch('message-received');
             return;
         }
 
@@ -340,21 +525,31 @@ class AiFrontendSupportChat extends Component
             ]);
         }
 
-        $sysPrompt = \App\Services\AI\AiPromptService::getRichPrompt($supportAgent);
-
-        // --- AUSDAUER & CHAT-LIMIT MECHANIK (Weg B) ---
+        // --- STUFE 2: AUSDAUER & CHAT-LIMIT MECHANIK (inkl. Cross-Chat Straf-Gedächtnis) ---
         $customerMsgs = $chat->messages->where('sender', 'customer');
         $customerMsgCount = $customerMsgs->count();
-        $severitySum = $customerMsgs->sum('severity');
-        $chatWeight = ($customerMsgCount * 10) + $severitySum;
+        $severitySum = (int) $customerMsgs->sum('severity');
+        $carryOverPenalty = \App\Services\AI\Functions\AiSupportFuncs::getCarryOverPenaltyPoints($chat);
+        $chatWeight = ($customerMsgCount * 10) + $severitySum + $carryOverPenalty;
         
         if ($chatWeight >= 100) {
-            $customerId = auth()->guard('customer')->id() ?? $chat->customer_id;
+            $customerId = $currentCustomerId ?? $chat->customer_id;
 
-            if ($customerId) {
+            if ($severitySum + $carryOverPenalty >= 50) {
+                $abortMsg = 'Da unser Ausdauer-Limit durch wiederholte Abweichungen vom Thema erreicht wurde, habe ich diesen Support-Chat nun geschlossen. Ich bitte um Verständnis, dass ich ausschließlich für Produkt- und Bestellsupport zur Verfügung stehe.';
+                $newStatus = 'resolved_auto';
+                $topic = 'Spam / Offtopic / Troll';
+                $summary = "Der Chat wurde automatisch geschlossen, da das Ausdauer-Limit ({$chatWeight}/100) durch erhöhte Strafpunkte erreicht wurde.";
+            } elseif ($customerId) {
                 $abortMsg = "Ich merke, dass wir hier gerade an unsere technischen Grenzen stoßen. Um dir bestmöglich und schnellstmöglich zu helfen, habe ich unser Gespräch nun als offizielles Ticket markiert und an meine menschlichen Kollegen weitergeleitet. Sie werden sich den Verlauf in Kürze ansehen und sich bei dir melden!";
+                $newStatus = 'needs_employee';
+                $topic = 'Automatischer Abbruch (Chat-Limit)';
+                $summary = 'Das System hat diesen Chat automatisch eskaliert, da das Ausdauer-Limit (100 Punkte) durch eine hohe Anzahl von Nachrichten erreicht wurde. Eine manuelle Überprüfung durch das Team ist notwendig.';
             } else {
                 $abortMsg = "Ich merke, dass wir hier gerade an unsere technischen Grenzen stoßen. Da du als Gast unterwegs bist, kann ich leider kein automatisches Ticket für dich eröffnen. Bitte melde dich an oder kontaktiere den Support über das offizielle Kontaktformular.";
+                $newStatus = 'needs_employee';
+                $topic = 'Automatischer Abbruch (Chat-Limit)';
+                $summary = 'Das System hat diesen Gast-Chat beim Erreichen des Ausdauer-Limits (100 Punkte) beendet.';
             }
             
             SupportCustomerChatMessage::create([
@@ -365,12 +560,13 @@ class AiFrontendSupportChat extends Component
             $this->messages[] = ['sender' => 'system', 'text' => $abortMsg];
             
             $chat->update([
-                'status' => 'needs_employee',
-                'top_topic' => 'Automatischer Abbruch (Chat-Limit)',
-                'ai_summary' => 'Das System hat diesen Chat automatisch eskaliert, da das Ausdauer-Limit (100 Punkte) durch eine zu hohe Anzahl von Nachrichten oder negativen Severity-Werten erreicht wurde. Eine manuelle Überprüfung durch das Team ist notwendig.'
+                'status' => $newStatus,
+                'top_topic' => $topic,
+                'ai_confidence_score' => $newStatus === 'resolved_auto' ? 100 : 65,
+                'ai_summary' => $summary,
             ]);
 
-            if ($customerId) {
+            if ($customerId && $newStatus === 'needs_employee') {
                 $ticket = \App\Models\Support\SupportTicket::create([
                     'ticket_number' => 'TCK-' . strtoupper(\Illuminate\Support\Str::random(8)),
                     'customer_id'   => $customerId,
@@ -381,7 +577,7 @@ class AiFrontendSupportChat extends Component
                 ]);
 
                 $historyStr = "";
-                foreach($chat->messages as $m) {
+                foreach ($chat->messages as $m) {
                     $sender = $m->sender === 'customer' ? 'Kunde' : 'KI';
                     if ($m->sender === 'system') $sender = 'System';
                     $historyStr .= "[{$sender}] {$m->message}\n\n";
@@ -402,25 +598,46 @@ class AiFrontendSupportChat extends Component
             return; // Keine API-Kosten mehr verursachen
         }
         
+        $dynamicEndurancePrompt = null;
         if ($chatWeight >= 40) {
-            // Weicher Druck aufbauen
-            $sysPrompt .= "[SYSTEM WARNUNG - AUSDAUER-LIMIT FAST ERREICHT]\n";
-            $sysPrompt .= "Der Kunde hat bereits extrem viele Fragen gestellt (Auslastung: {$chatWeight}/100 Punkten). Dein oberstes Ziel ist es nun, dieses Gespräch extrem höflich, charmant und zielführend zum Abschluss zu bringen. Stelle KEINE Gegenfragen mehr, die den Chat unnötig verlängern könnten. Fasse dich kurz und weise charmant darauf hin, dass du das Anliegen bei Bedarf gerne als Ticket für einen menschlichen Mitarbeiter öffnest.\n\n";
+            // Weicher Druck aufbauen (wird via setDynamicSystemPrompt übergeben, OHNE den Basis-Systemprompt zu verdoppeln!)
+            $dynamicEndurancePrompt = "[SYSTEM WARNUNG - AUSDAUER-LIMIT FAST ERREICHT]\n"
+                . "Der Kunde hat bereits viele Fragen gestellt oder Strafpunkte gesammelt (Auslastung: {$chatWeight}/100 Punkten). "
+                . "Dein oberstes Ziel ist es nun, dieses Gespräch extrem höflich, charmant und zielführend zum Abschluss zu bringen. "
+                . "Stelle KEINE Gegenfragen mehr, die den Chat unnötig verlängern könnten. Fasse dich kurz und weise charmant darauf hin, dass du das Anliegen bei Bedarf gerne als Ticket für einen menschlichen Mitarbeiter öffnest.";
         }
 
-        $payloadMessages = [
-            ['role' => 'system', 'content' => $sysPrompt]
-        ];
+        // API-Optimierung: Kein doppelter System-Prompt in $payloadMessages (GeminiAgent::ask lädt AiPromptService::getRichPrompt bereits zentral!).
+        // Nur die letzten 5 validen Nachrichten (ohne System-Meldungen und ohne frühere Ausfall-Meldungen) anhängen.
+        $payloadMessages = [];
+        $recentMessages = $chat->messages
+            ->filter(function ($msg) {
+                if (!in_array($msg->sender, ['customer', 'ai'], true)) {
+                    return false;
+                }
+                if ($msg->sender === 'ai' && (self::isTechnicalOrEmptyAiError($msg->message) || $msg->message === self::FRIENDLY_UNAVAILABLE_MESSAGE)) {
+                    return false;
+                }
+                return true;
+            })
+            ->slice(-5);
 
-        // API-Optimierung: Nur die letzten 5 Nachrichten für Kontext anhängen (Token-Sparsamkeit, schnelle RT)
-        $recentMessages = $chat->messages->slice(-5);
         foreach ($recentMessages as $msg) {
             $role = ($msg->sender === 'ai') ? 'assistant' : 'user';
-            $payloadMessages[] = ['role' => $role, 'content' => $msg->message];
+            $payloadMessages[] = [
+                'role' => $role,
+                'content' => mb_substr((string) $msg->message, 0, self::MAX_MESSAGE_LENGTH)
+            ];
         }
+
+        $inferenceStart = microtime(true);
+        $hadTechnicalFailure = false;
 
         try {
             $apiService = \App\Services\AI\AiAgentFactory::make($supportAgent);
+            if ($dynamicEndurancePrompt && method_exists($apiService, 'setDynamicSystemPrompt')) {
+                $apiService->setDynamicSystemPrompt($dynamicEndurancePrompt);
+            }
             
             \App\Services\AI\AIFunctionsRegistry::setGlobalContext([
                 '__chat_id' => $this->chatId,
@@ -430,16 +647,30 @@ class AiFrontendSupportChat extends Component
             $response = $apiService->ask($payloadMessages, function($event) {
                 if (($event['type'] ?? '') === 'tool_call') {
                     $toolName = $event['tool'] ?? 'System';
-                    $html = '<div class="text-[10px] text-cyan-600 font-mono opacity-80 mt-1 flex items-center gap-1.5 animate-pulse"><svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Fühlt in die Datenbank: ' . htmlspecialchars($toolName) . '</div>';
+                    $html = '<div class="text-[10px] text-cyan-600 font-mono opacity-80 mt-1 flex items-center gap-1.5 animate-pulse"><svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Prüft Systemdaten...</div>';
                     $this->stream('thought_customer', $html, false);
                 } elseif (($event['type'] ?? '') === 'thought_html') {
                     $this->stream('thought_customer', $event['html'], false);
                 } elseif (($event['type'] ?? '') === 'text_chunk') {
-                    $this->stream('answer_customer', $event['chunk'], false);
+                    $chunk = (string) ($event['chunk'] ?? '');
+                    if (!self::isTechnicalOrEmptyAiError($chunk)) {
+                        $this->stream('answer_customer', $chunk, false);
+                    }
                 }
             });
 
-            $content = $response['response'] ?? 'Entschuldige, ich konnte keine Antwort generieren.';
+            $rawContent = (string) ($response['response'] ?? '');
+
+            if (self::isTechnicalOrEmptyAiError($rawContent)) {
+                $hadTechnicalFailure = true;
+                Log::warning('Support Chat AI Fallback aktiv (technische Warnung unterdrückt)', [
+                    'chat_id' => $this->chatId,
+                    'raw_response' => mb_substr($rawContent, 0, 500),
+                ]);
+                $content = self::FRIENDLY_UNAVAILABLE_MESSAGE;
+            } else {
+                $content = $rawContent;
+            }
 
             // Nachricht speichern
             SupportCustomerChatMessage::create([
@@ -451,7 +682,7 @@ class AiFrontendSupportChat extends Component
             $this->messages[] = ['sender' => 'ai', 'text' => $content];
             
             // Dispatch frontend events generated by tools (like system_visualize_data)
-            if (isset($response['events']) && is_array($response['events'])) {
+            if (!$hadTechnicalFailure && isset($response['events']) && is_array($response['events'])) {
                 foreach ($response['events'] as $event) {
                     if (isset($event['name'])) {
                         $this->dispatch($event['name'], $event['detail'] ?? []);
@@ -459,20 +690,41 @@ class AiFrontendSupportChat extends Component
                 }
             }
             
-        } catch (\Exception $e) {
-            $this->messages[] = ['sender' => 'ai', 'text' => 'Ich bin aktuell leider offline.'];
+        } catch (\Throwable $e) {
+            $hadTechnicalFailure = true;
             Log::error('Support Chat Error: ' . $e->getMessage());
+            SupportCustomerChatMessage::create([
+                'support_customer_chat_id' => $this->chatId,
+                'sender' => 'ai',
+                'message' => self::FRIENDLY_UNAVAILABLE_MESSAGE
+            ]);
+            $this->messages[] = ['sender' => 'ai', 'text' => self::FRIENDLY_UNAVAILABLE_MESSAGE];
         } finally {
             \App\Services\AI\AIFunctionsRegistry::setGlobalContext([]);
         }
+
+        $inferenceMs = (int) round((microtime(true) - $inferenceStart) * 1000);
 
         $chat->refresh();
         if (in_array($chat->status, ['resolved', 'resolved_admin', 'resolved_auto', 'needs_employee'])) {
             $this->isResolved = true;
         }
+
+        // Dynamische Telemetrie: Antwortzeit (gleitender Schnitt) & Confidence Score anhand von Chat-Verlauf berechnen
+        $updatedCustomerMsgs = $chat->messages->where('sender', 'customer');
+        $updatedWeight = ($updatedCustomerMsgs->count() * 10) + (int) $updatedCustomerMsgs->sum('severity');
+        $dynamicConfidence = match ($chat->status) {
+            'needs_employee' => 65,
+            'resolved_auto' => 100,
+            'resolved' => max(75, min(98, 100 - (int) round($updatedWeight * 0.25))),
+            default => $hadTechnicalFailure ? 50 : max(55, min(96, 95 - (int) round($updatedWeight * 0.35))),
+        };
+        $prevAvgMs = (int) ($chat->avg_response_time_ms ?? 0);
+        $newAvgMs = $prevAvgMs > 0 ? (int) round(($prevAvgMs + $inferenceMs) / 2) : $inferenceMs;
         
         $chat->update([
-            'ai_confidence_score' => 90 // Default static assignment, handled centrally via telemetry now if needed
+            'ai_confidence_score' => $dynamicConfidence,
+            'avg_response_time_ms' => $newAvgMs,
         ]);
 
         $this->isTyping = false;
@@ -562,9 +814,11 @@ class AiFrontendSupportChat extends Component
         }
         $isGuest = !($isCustomer || $isSystem || auth()->check());
         
-        $userMsgCount = SupportCustomerChatMessage::where('support_customer_chat_id', $this->chatId)
-            ->where('sender', 'customer')
-            ->count();
+        $userMsgCount = $isGuest
+            ? $this->getEffectiveGuestMessageCount()
+            : SupportCustomerChatMessage::where('support_customer_chat_id', $this->chatId)
+                ->where('sender', 'customer')
+                ->count();
         
         // Wenn 3 Nachrichten gesendet wurden, rendern wir den Input als gesperrt
         if ($isGuest && $userMsgCount >= 3) {
