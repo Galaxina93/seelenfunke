@@ -154,18 +154,17 @@
             SECTION 1: HERO (Dunkel & Edel mit warmem Manufaktur-Hintergrundbild)
             Fokus auf das Team und Technik.
         --}}
-        <section class="relative bg-gray-950 border-y border-gray-800/80 pt-32 pb-24 lg:pt-40 lg:pb-32 overflow-hidden" aria-label="Einführung Manufaktur">
+        <section class="relative bg-stone-950 border-y border-stone-800/80 pt-32 pb-24 lg:pt-40 lg:pb-32 overflow-hidden" aria-label="Einführung Manufaktur">
             {{-- Hintergrundbild: Wo Licht auf Materie trifft --}}
             <img src="{{ asset('shop/frontend/banners/manufaktur_licht_materie.webp') }}"
                  alt="Wo Licht auf Materie trifft – Laserstrahl trifft auf K9 Kristallglas in der Manufaktur"
                  loading="lazy"
                  decoding="async"
                  data-is-ai-generated="true"
-                 class="absolute inset-0 w-full h-full object-cover object-center opacity-85 pointer-events-none select-none transition-opacity duration-700">
+                 class="absolute inset-0 w-full h-full object-cover object-center pointer-events-none select-none">
 
-            {{-- Warmer Abdunklungs-Verlauf für optimalen Textkontrast --}}
-            <div class="absolute inset-0 bg-gradient-to-b from-gray-950/70 via-gray-950/45 to-gray-950/85 pointer-events-none" aria-hidden="true"></div>
-            <div class="absolute inset-0 bg-amber-500/10 blur-[110px] rounded-full w-[520px] h-[520px] mx-auto opacity-30 pointer-events-none" aria-hidden="true"></div>
+            {{-- Ruhiger, dezenter Abdunklungs-Verlauf für gute Sichtbarkeit des Hintergrundbildes --}}
+            <div class="absolute inset-0 bg-gradient-to-b from-stone-950/45 via-stone-950/25 to-stone-950/55 pointer-events-none" aria-hidden="true"></div>
 
             <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
                 <span class="text-primary font-bold tracking-[0.2em] uppercase text-xs sm:text-sm mb-4 block drop-shadow">
@@ -446,51 +445,79 @@
         </section>
 
         {{--
-            SECTION 4: ZERTIFIZIERUNG / FACTS
+            SECTION 4: ZERTIFIZIERUNG / FACTS (Dunkel, Matt & Ruhig über die Seite)
             Unternehmens-Kompetenznachweis
         --}}
-        <section class="py-16 bg-white" aria-labelledby="kompetenz-heading">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="bg-gradient-to-br from-stone-50 via-white to-stone-50 border border-gray-200/80 rounded-3xl p-8 md:p-12 text-center shadow-xl relative overflow-hidden">
-                    <div class="absolute -right-20 -bottom-20 w-80 h-80 bg-primary/10 rounded-full blur-3xl pointer-events-none" aria-hidden="true"></div>
-                    <div class="absolute -left-20 -top-20 w-80 h-80 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" aria-hidden="true"></div>
+        <section class="relative bg-stone-950 border-y border-stone-800/80 py-24 lg:py-32 overflow-hidden" aria-labelledby="kompetenz-heading">
+            {{-- Hintergrundbild: Geprüfte Sicherheitsstandards & Präzisionsoptik --}}
+            <img src="{{ asset('shop/frontend/banners/manufaktur_sicherheit_kompetenz.webp') }}"
+                 alt="Geprüfte Sicherheitsstandards – Laserschutzoptik, Messschraube und Kristallglas auf dunkler Werkbank"
+                 loading="lazy"
+                 decoding="async"
+                 data-is-ai-generated="true"
+                 class="absolute inset-0 w-full h-full object-cover object-center pointer-events-none select-none">
 
-                    <div class="relative z-10">
-                        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/15 text-primary-dark text-xs font-bold uppercase tracking-wider mb-4 shadow-sm">
-                            <svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            {{-- Dezenter, matter Verlauf, damit das Hintergrundbild klar erkennbar bleibt --}}
+            <div class="absolute inset-0 bg-gradient-to-b from-stone-950/50 via-stone-950/30 to-stone-950/60 pointer-events-none" aria-hidden="true"></div>
+
+            <div class="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-14 items-center">
+
+                    {{-- Linke Spalte: Text, Kompetenz-Kacheln & TROS-Accordion (7 Spalten) --}}
+                    <div class="lg:col-span-7 text-center lg:text-left">
+                        <span class="text-primary font-bold tracking-[0.2em] uppercase text-xs sm:text-sm mb-3 block drop-shadow">
                             Geprüfte Sicherheitsstandards
-                        </div>
+                        </span>
 
-                        <h2 id="kompetenz-heading" class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 mb-4">Unsere Kompetenz für Ihre Sicherheit</h2>
-                        <p class="text-gray-600 max-w-2xl mx-auto mb-8 text-base leading-relaxed">
+                        <h2 id="kompetenz-heading" class="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold text-white leading-tight mb-5 drop-shadow-lg">
+                            Unsere Kompetenz für Ihre <span class="text-primary">Sicherheit</span>.
+                        </h2>
+
+                        <p class="text-base sm:text-lg text-stone-200 mb-8 leading-relaxed drop-shadow max-w-2xl mx-auto lg:mx-0">
                             Wir arbeiten mit Hochleistungslasern der Klasse 4. Um höchste Qualität und Sicherheit zu gewährleisten,
-                            haben wir uns intensiv fortgebildet und prüfen lassen.
+                            haben wir uns intensiv fortgebildet und staatlich anerkannt prüfen lassen.
                         </p>
-                        <div class="flex justify-center gap-4 flex-wrap mb-8">
-                            <button @click="showCertModal = true" class="px-5 py-3 bg-white hover:bg-stone-50 active:bg-stone-100 rounded-xl border border-gray-300 hover:border-primary text-gray-800 font-bold flex items-center gap-2.5 transition-all duration-300 transform hover:-translate-y-0.5 shadow-sm cursor-pointer group">
-                                <svg class="w-5 h-5 text-primary transition-transform duration-300 group-hover:rotate-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                                </svg>
-                                <span>Zertifizierte Laserschutzbeauftragte</span>
-                                <svg class="w-4 h-4 text-gray-400 group-hover:text-primary transition-colors ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 text-left">
+                            <button type="button"
+                                    @click="showCertModal = true"
+                                    class="p-4 bg-primary hover:bg-[#b8955a] rounded-2xl border border-primary text-stone-950 shadow-sm transition-colors duration-200 cursor-pointer group flex items-center justify-between gap-3">
+                                <div class="flex items-center gap-3 min-w-0">
+                                    <div class="w-10 h-10 rounded-xl bg-stone-950/10 flex items-center justify-center shrink-0">
+                                        <svg class="w-5 h-5 text-stone-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                                        </svg>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <span class="block text-sm font-bold text-stone-950 truncate">Zertifizierte Laserschutzbeauftragte</span>
+                                        <span class="block text-xs text-stone-800 font-medium">Zertifikat ansehen • OStrV & TROS</span>
+                                    </div>
+                                </div>
+                                <svg class="w-4 h-4 text-stone-800 group-hover:text-stone-950 shrink-0 transition-transform duration-200 group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                                 </svg>
                             </button>
-                            <div class="px-5 py-3 bg-white rounded-xl border border-gray-300 text-gray-800 font-bold flex items-center gap-2.5 shadow-sm">
-                                <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                </svg>
-                                <span>Fachkunde nach TROS Laserstrahlung</span>
+
+                            <div class="p-4 bg-[#2B2318]/90 backdrop-blur-xs rounded-2xl border border-primary/50 text-stone-100 shadow-sm flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
+                                    <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                </div>
+                                <div class="min-w-0">
+                                    <span class="block text-sm font-bold text-stone-100 truncate">Fachkunde nach TROS Laserstrahlung</span>
+                                    <span class="block text-xs text-primary/90 font-medium">Industrieklasse 4 • ZFU-Nr. 7540225</span>
+                                </div>
                             </div>
                         </div>
 
-                        {{-- TROS Info als Accordion --}}
-                        <div x-data="{ open: false }" class="bg-white border border-gray-200 rounded-2xl max-w-3xl mx-auto shadow-sm overflow-hidden">
+                        {{-- TROS Info als mattes, ruhiges Accordion mit warmem Gold-Ton --}}
+                        <div x-data="{ open: false }" class="bg-[#2B2318]/90 backdrop-blur-xs border border-primary/45 rounded-2xl overflow-hidden shadow-sm">
                             <button @click="open = !open"
-                                    class="w-full px-6 py-4 flex items-center justify-between text-left focus:outline-none focus:bg-stone-50 hover:bg-stone-50 transition-colors gap-4 cursor-pointer">
-                                <strong class="text-gray-900 font-bold text-sm sm:text-base">Was bedeutet TROS? Oberfläche oder echtes Handwerk?</strong>
-                                <svg class="w-5 h-5 text-gray-400 transform transition-transform duration-300 flex-shrink-0"
+                                    class="w-full px-5 py-4 flex items-center justify-between text-left focus:outline-none hover:bg-primary/10 transition-colors gap-4 cursor-pointer">
+                                <span class="text-stone-100 font-medium text-sm">Was bedeutet TROS? Oberfläche oder echtes Handwerk?</span>
+                                <svg class="w-4 h-4 text-primary transform transition-transform duration-300 flex-shrink-0"
                                      :class="{'rotate-180': open}"
                                      fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -500,15 +527,65 @@
                             <div x-show="open"
                                  x-collapse
                                  x-cloak
-                                 class="px-6 pb-6 text-sm text-gray-600 text-left leading-relaxed">
-                                <div class="pt-3 border-t border-gray-100 mt-2">
-                                    Die Qualifikation nach <strong class="text-gray-900 font-bold">TROS</strong> <em>(Technische Regeln zur Arbeitsschutzverordnung zu künstlicher optischer Strahlung)</em> belegt unsere strikte Einhaltung der strengen deutschen Richtlinien im Umgang mit hochkomplexen Lasersystemen der Industrieklasse 4.
+                                 class="px-5 pb-5 text-xs sm:text-sm text-stone-200 text-left leading-relaxed">
+                                <div class="pt-3 border-t border-primary/25">
+                                    Die Qualifikation nach <strong class="text-primary font-semibold">TROS</strong> <em>(Technische Regeln zur Arbeitsschutzverordnung zu künstlicher optischer Strahlung)</em> belegt unsere strikte Einhaltung der strengen deutschen Richtlinien im Umgang mit hochkomplexen Lasersystemen der Industrieklasse 4.
                                     <br><br>
-                                    Diese staatlich anerkannte Fachkunde untermauert, dass wir unsere Produkte nicht einfach im Hobbykeller "bedrucken", sondern unter hochprofessionellen, sicheren Industriebedingungen veredeln. Für dich bedeutet das: Dein Unikat entsteht in einer rechtssicheren Manufaktur, bei der Arbeitsschutz, technische Präzision und tiefes Fachwissen die absolute Grundlage bilden.
+                                    Diese staatlich anerkannte Fachkunde untermauert, dass wir unsere Produkte nicht einfach im Hobbykeller „bedrucken“, sondern unter hochprofessionellen, sicheren Industriebedingungen veredeln. Für dich bedeutet das: Dein Unikat entsteht in einer rechtssicheren Manufaktur, bei der Arbeitsschutz, technische Präzision und tiefes Fachwissen die absolute Grundlage bilden.
                                 </div>
                             </div>
                         </div>
                     </div>
+
+                    {{-- Rechte Spalte: Das Zertifikat edel in Szene gesetzt mit dem "Unsere Kollektion" Hover-Licht- & Sterne-Effekt --}}
+                    <div class="lg:col-span-5 flex justify-center">
+                        <div onmouseenter="window.sfCardHoverEnter && window.sfCardHoverEnter(this)"
+                             onmouseleave="window.sfCardHoverLeave && window.sfCardHoverLeave(this)"
+                             @click="showCertModal = true"
+                             role="button"
+                             tabindex="0"
+                             @keydown.enter.prevent="showCertModal = true"
+                             aria-label="Zertifikat Laserschutzbeauftragte vergrößern"
+                             class="sf-card relative w-full max-w-[300px] sm:max-w-[330px] bg-[#FAF7F2] p-3.5 rounded-3xl shadow-2xl border-2 border-primary/55 cursor-pointer group select-none">
+
+                            {{-- Dezente goldene Eck-Akzente --}}
+                            <div class="absolute top-2 left-2 w-3 h-3 border-t-2 border-l-2 border-primary/60 rounded-tl-xs pointer-events-none"></div>
+                            <div class="absolute top-2 right-2 w-3 h-3 border-t-2 border-r-2 border-primary/60 rounded-tr-xs pointer-events-none"></div>
+
+                            {{-- Zertifikat-Bild mit Licht-Glanz (sf-card-sheen) & Funkel-Sternen (sf-card-sparkle) --}}
+                            <div class="relative rounded-2xl overflow-hidden bg-white border border-stone-200/80 aspect-[1/1.414] shadow-inner">
+                                <img src="{{ asset('shop/frontend/certificates/Laserschutzbeauftragte_Zertifikat_Alina_Steinhauer.webp') }}"
+                                     alt="Zertifikat Laserschutzbeauftragte – Alina Steinhauer"
+                                     loading="lazy"
+                                     class="sf-card-img w-full h-full object-cover object-top">
+
+                                {{-- Diagonaler Licht-Effekt wie bei "Unsere Kollektion" --}}
+                                <div class="sf-card-sheen pointer-events-none z-10" aria-hidden="true"></div>
+
+                                {{-- Schwebe-Sterne wie bei "Unsere Kollektion" --}}
+                                @for($sp = 1; $sp <= 6; $sp++)
+                                    <span class="sf-card-sparkle sf-card-sparkle-{{ $sp }} pointer-events-none absolute top-[20%] left-[20%] {{ $sp % 2 === 0 ? 'w-4 h-4 text-amber-400' : 'w-3.5 h-3.5 text-amber-300' }} drop-shadow-[0_0_6px_rgba(245,158,11,0.9)] z-20" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/></svg>
+                                    </span>
+                                @endfor
+                            </div>
+
+                            {{-- Edle Fußzeile unter dem Zertifikat --}}
+                            <div class="mt-3 px-1.5 flex items-center justify-between gap-2">
+                                <div class="text-left min-w-0">
+                                    <span class="block text-[10px] font-extrabold uppercase tracking-wider text-primary-dark truncate">Geprüftes Originalzertifikat</span>
+                                    <span class="block text-[11px] font-medium text-stone-600 truncate">Alina Steinhauer • OStrV / TROS</span>
+                                </div>
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-stone-950 text-[11px] font-bold shrink-0 group-hover:bg-[#b8955a] transition-colors">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"/>
+                                    </svg>
+                                    <span>Ansehen</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </section>
@@ -517,7 +594,7 @@
             SECTION 5: HERZENSPROJEKTE (Handwerk mit Herz & Soziales Engagement)
             Verbindung von Präzision mit regionaler Fürsorge
         --}}
-        <section id="herzensprojekte" class="py-24 bg-gradient-to-b from-white via-amber-500/5 to-white border-t border-gray-100 overflow-hidden" aria-labelledby="herzensprojekte-heading">
+        <section id="herzensprojekte" class="py-24 bg-gradient-to-b from-white via-amber-500/5 to-white overflow-hidden" aria-labelledby="herzensprojekte-heading">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
                 {{-- Header Badge & Title --}}
@@ -538,7 +615,7 @@
                 </div>
 
                 {{-- 3 Säulen unseres Engagements --}}
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
 
                     {{-- Säule 1 --}}
                     <div class="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 flex flex-col group">
@@ -583,48 +660,64 @@
                     </div>
 
                 </div>
+            </div>
+        </section>
 
-                {{-- Gründerin Zitat & Call to Action Banner --}}
-                <div class="bg-gradient-to-br from-stone-50 via-white to-amber-50/40 border border-gray-200/80 rounded-3xl p-8 sm:p-12 text-gray-900 shadow-xl relative overflow-hidden">
-                    <div class="absolute -right-20 -bottom-20 w-80 h-80 bg-primary/10 rounded-full blur-3xl pointer-events-none" aria-hidden="true"></div>
-                    <div class="absolute -left-20 -top-20 w-80 h-80 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" aria-hidden="true"></div>
+        {{--
+            SECTION 5B: UNSERE VISION & HALTUNG (Dunkel, Matt & Ruhig über die Seite)
+        --}}
+        <section class="relative bg-stone-950 border-y border-stone-800/80 py-24 lg:py-32 overflow-hidden" aria-label="Unsere Vision und Haltung">
+            {{-- Hintergrundbild: Unsere Vision & Haltung --}}
+            <img src="{{ asset('shop/frontend/banners/manufaktur_vision_haltung.webp') }}"
+                 alt="Unsere Vision & Haltung – Handgefertigtes Holz- und Kristallherz bei warmem Kerzenschein in der Manufaktur"
+                 loading="lazy"
+                 decoding="async"
+                 data-is-ai-generated="true"
+                 class="absolute inset-0 w-full h-full object-cover object-center pointer-events-none select-none">
 
-                    <div class="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-10">
-                        <div class="max-w-2xl">
-                            <span class="text-primary-dark font-bold tracking-wider uppercase text-xs mb-3 block">
-                                Unsere Vision & Haltung
-                            </span>
-                            <blockquote class="text-xl sm:text-2xl font-serif italic text-gray-800 mb-6 leading-relaxed">
-                                „Ich stehe mit ganzem Herzen dafür, meinen Kunden mit liebevoll handgefertigten Unikaten pure Freude zu schenken – und gleichzeitig soziale Fürsorge für Kinder aktiv zu leben. Ein Seelenfunke soll nicht nur im Zuhause unserer Kunden ein warmes Leuchten entfachen, sondern zeitgleich auch in Kinderaugen echte Begeisterung und ein Lächeln zaubern. Pure Freude beim Kunden und soziales Engagement für Kinder gehören für mich untrennbar zusammen.“
-                            </blockquote>
-                            <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary shadow-sm">
-                                    <img src="{{ asset('shop/projekt/about/gruender-profil-b.webp') }}" alt="Alina Steinhauer" class="w-full h-full object-cover">
-                                </div>
-                                <div>
-                                    <div class="font-bold text-sm text-gray-900">Alina Steinhauer</div>
-                                    <div class="text-xs text-gray-500 font-medium">Gründerin von Mein Seelenfunke</div>
-                                </div>
-                            </div>
+            {{-- Dezenter, matter Verlauf für gute Sichtbarkeit des Hintergrundbildes --}}
+            <div class="absolute inset-0 bg-gradient-to-b from-stone-950/50 via-stone-950/30 to-stone-950/60 pointer-events-none" aria-hidden="true"></div>
+
+            <div class="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <span class="text-primary font-bold tracking-[0.2em] uppercase text-xs sm:text-sm mb-4 block drop-shadow">
+                    Unsere Vision & Haltung
+                </span>
+
+                <blockquote class="text-lg sm:text-xl lg:text-2xl font-serif italic text-stone-100 mb-10 leading-relaxed drop-shadow">
+                    „Ich stehe mit ganzem Herzen dafür, meinen Kunden mit liebevoll handgefertigten Unikaten pure Freude zu schenken – und gleichzeitig soziale Fürsorge für Kinder aktiv zu leben. Ein Seelenfunke soll nicht nur im Zuhause unserer Kunden ein warmes Leuchten entfachen, sondern zeitgleich auch in Kinderaugen echte Begeisterung und ein Lächeln zaubern. Pure Freude beim Kunden und soziales Engagement für Kinder gehören für mich untrennbar zusammen.“
+                </blockquote>
+
+                <div class="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-10">
+                    <div class="flex items-center gap-3.5 text-left">
+                        <div class="w-11 h-11 rounded-full overflow-hidden border border-primary/60 shrink-0">
+                            <img src="{{ asset('shop/projekt/about/gruender-profil-b.webp') }}" alt="Alina Steinhauer" class="w-full h-full object-cover">
                         </div>
-
-                        <div class="shrink-0 flex flex-col items-center sm:items-start gap-4 text-center sm:text-left">
-                            <a href="{{ route('shop') }}" class="px-8 py-4 bg-gradient-to-r from-primary-light to-primary hover:brightness-105 active:scale-95 text-gray-900 font-bold rounded-xl shadow-md transition-all flex items-center gap-3 cursor-pointer">
-                                <span>Unikat gestalten & Gutes tun</span>
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                            </a>
-                            <span class="text-xs text-gray-500 font-medium">Jeder Einkauf stärkt lokale Kinder-Aktionen</span>
+                        <div>
+                            <div class="font-semibold text-sm text-white">Alina Steinhauer</div>
+                            <div class="text-xs text-stone-300">Gründerin von Mein Seelenfunke</div>
                         </div>
+                    </div>
+
+                    <div class="hidden sm:block w-px h-9 bg-white/15" aria-hidden="true"></div>
+
+                    <div class="flex flex-col items-center sm:items-start gap-1.5">
+                        <a href="{{ route('shop') }}"
+                           class="px-6 py-3 bg-primary hover:bg-[#b8955a] border border-primary text-stone-950 text-sm font-semibold rounded-xl shadow-sm transition-colors duration-200 flex items-center gap-2.5 cursor-pointer group whitespace-nowrap">
+                            <span>Unikat gestalten & Gutes tun</span>
+                            <svg class="w-4 h-4 text-stone-950 transition-transform duration-200 group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+                            </svg>
+                        </a>
+                        <span class="text-[11px] text-stone-300">Jeder Einkauf stärkt lokale Kinder-Aktionen</span>
                     </div>
                 </div>
 
                 {{-- Legal Transparency Notice --}}
-                <div class="mt-8 text-center">
-                    <p class="text-xs text-gray-400 max-w-3xl mx-auto leading-relaxed">
-                        <strong class="text-gray-500">Transparenzhinweis:</strong> Unsere Herzensprojekte sind eine freiwillige unternehmerische Initiative von Mein Seelenfunke (Cause-Related Marketing). Als Kunde tätigst du mit deinem Einkauf keine eigenständige Spende und erhältst keine steuerliche Spendenquittung. Die Zuwendungen an Kitas und regionale Kinderinitiativen finanzieren wir vollständig aus den erwirtschafteten Mitteln unseres Unternehmens.
+                <div class="mt-12 pt-6 border-t border-white/10">
+                    <p class="text-[11px] sm:text-xs text-gray-400/80 max-w-3xl mx-auto leading-relaxed">
+                        <strong class="text-gray-300 font-medium">Transparenzhinweis:</strong> Unsere Herzensprojekte sind eine freiwillige unternehmerische Initiative von Mein Seelenfunke (Cause-Related Marketing). Als Kunde tätigst du mit deinem Einkauf keine eigenständige Spende und erhältst keine steuerliche Spendenquittung. Die Zuwendungen an Kitas und regionale Kinderinitiativen finanzieren wir vollständig aus den erwirtschafteten Mitteln unseres Unternehmens.
                     </p>
                 </div>
-
             </div>
         </section>
 
@@ -633,17 +726,18 @@
 
     </x-sections.page-container>
 
-    <!-- Modal Backdrop -->
+    <!-- Modernes Zertifikat-Showcase Modal -->
     <div x-show="showCertModal"
+         @keydown.escape.window="showCertModal = false"
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0"
          x-transition:enter-end="opacity-100"
          x-transition:leave="transition ease-in duration-200"
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"
-         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+         class="fixed inset-0 flex items-center justify-center p-4 sm:p-6 bg-black/75 backdrop-blur-sm"
          x-cloak
-         style="display: none;">
+         style="display: none; z-index: 100000;">
 
         <!-- Modal Container -->
         <div @click.away="showCertModal = false"
@@ -654,30 +748,34 @@
              x-transition:leave="transition ease-in duration-200 transform scale-100 opacity-100"
              x-transition:leave-start="scale-100 opacity-100"
              x-transition:leave-end="scale-95 opacity-0"
-             class="relative w-full max-w-5xl h-[85vh] bg-white border border-gray-200 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+             style="max-height: 90vh;"
+             class="relative w-full max-w-3xl bg-[#FAF7F2] border border-primary/45 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
 
-            <!-- Modal Header -->
-            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-stone-50/80">
-                <div class="flex items-center gap-3">
-                    <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                    </svg>
-                    <div class="text-left">
-                        <h3 class="text-lg font-bold text-gray-900 leading-none">Laserschutzbeauftragte Zertifikat</h3>
-                        <span class="text-xs text-gray-500">Alina Steinhauer, ausgestellt nach OStrV & TROS Laserstrahlung</span>
+            <!-- Modal Header (Fixiert oben, schneidet niemals ab) -->
+            <div class="px-5 sm:px-6 py-4 border-b border-gray-200 flex items-center justify-between gap-4 bg-white shrink-0">
+                <div class="flex items-center gap-3.5 min-w-0">
+                    <div class="w-10 h-10 rounded-xl bg-primary/15 border border-primary/35 flex items-center justify-center shrink-0">
+                        <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                    </div>
+                    <div class="text-left min-w-0">
+                        <h3 class="text-base sm:text-lg font-serif font-bold text-gray-900 truncate">Zertifizierte Laserschutzbeauftragte</h3>
+                        <span class="block text-xs text-gray-500 truncate">Alina Steinhauer • Fachkunde gemäß OStrV & TROS Laserstrahlung</span>
                     </div>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2.5 shrink-0">
                     <a href="{{ asset('shop/frontend/certificates/Laserschutzbeauftragte_Zertifikat_Alina_Steinhauer.pdf') }}"
                        target="_blank"
-                       class="px-3 py-1.5 bg-white hover:bg-stone-100 text-gray-800 text-xs font-bold rounded-lg border border-gray-300 transition-colors flex items-center gap-1.5 shadow-sm">
+                       class="px-3.5 py-2 bg-primary hover:bg-[#b8955a] text-gray-900 text-xs font-bold rounded-xl border border-primary transition-colors flex items-center gap-1.5 shadow-sm">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                         </svg>
-                        <span>Vollbild / Herunterladen</span>
+                        <span class="hidden sm:inline">Original-PDF</span>
                     </a>
                     <button @click="showCertModal = false"
-                            class="p-1.5 bg-white hover:bg-stone-100 text-gray-500 hover:text-gray-900 rounded-lg border border-gray-300 transition-colors shadow-sm cursor-pointer">
+                            aria-label="Schließen"
+                            class="p-2 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-900 rounded-xl border border-gray-200 transition-colors cursor-pointer">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                         </svg>
@@ -685,16 +783,44 @@
                 </div>
             </div>
 
-            <!-- Modal Content (PDF Embed / Iframe) -->
-            <div class="flex-1 bg-stone-100 relative">
-                <iframe src="{{ asset('shop/frontend/certificates/Laserschutzbeauftragte_Zertifikat_Alina_Steinhauer.pdf') }}#toolbar=0"
-                        class="w-full h-full border-0"
-                        title="Laserschutzbeauftragte Zertifikat PDF">
-                    <div class="text-gray-500 p-8 text-center flex flex-col items-center justify-center h-full">
-                        <p class="mb-4">Ihr Browser unterstützt die direkte PDF-Vorschau nicht.</p>
-                        <a href="{{ asset('shop/frontend/certificates/Laserschutzbeauftragte_Zertifikat_Alina_Steinhauer.pdf') }}" target="_blank" class="px-4 py-2 bg-gradient-to-r from-primary-light to-primary text-gray-900 rounded-lg font-bold transition-all shadow-md">Zertifikat hier herunterladen</a>
+            <!-- Modal Content: Inszeniertes Zertifikat mit dem "Unsere Kollektion" Hover-Licht- & Sterne-Effekt -->
+            <div class="flex-1 overflow-y-auto p-5 sm:p-8">
+                <div onmouseenter="window.sfCardHoverEnter && window.sfCardHoverEnter(this)"
+                     onmouseleave="window.sfCardHoverLeave && window.sfCardHoverLeave(this)"
+                     class="sf-card relative w-full max-w-xl mx-auto bg-white p-3 sm:p-4 rounded-2xl shadow-xl border-2 border-primary/45">
+
+                    <div class="relative rounded-xl overflow-hidden border border-gray-200 bg-white">
+                        <img src="{{ asset('shop/frontend/certificates/Laserschutzbeauftragte_Zertifikat_Alina_Steinhauer.webp') }}"
+                             alt="Zertifikat Laserschutzbeauftragte – Alina Steinhauer"
+                             class="sf-card-img w-full h-auto block select-none">
+
+                        {{-- Diagonaler Licht-Effekt wie bei "Unsere Kollektion" --}}
+                        <div class="sf-card-sheen pointer-events-none z-10" aria-hidden="true"></div>
+
+                        {{-- Schwebe-Sterne wie bei "Unsere Kollektion" --}}
+                        @for($sp = 1; $sp <= 6; $sp++)
+                            <span class="sf-card-sparkle sf-card-sparkle-{{ $sp }} pointer-events-none absolute top-[20%] left-[20%] {{ $sp % 2 === 0 ? 'w-5 h-5 text-amber-400' : 'w-4 h-4 text-amber-300' }} drop-shadow-[0_0_6px_rgba(245,158,11,0.9)] z-20" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/></svg>
+                            </span>
+                        @endfor
                     </div>
-                </iframe>
+                </div>
+
+                {{-- Prüf- & Nachweis-Details --}}
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-xl mx-auto mt-5 text-left">
+                    <div class="bg-white px-4 py-3 rounded-xl border border-gray-200 shadow-sm">
+                        <span class="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Prüfinstitut</span>
+                        <span class="block text-xs font-bold text-gray-900 mt-0.5">Luminus Institut Bielefeld</span>
+                    </div>
+                    <div class="bg-white px-4 py-3 rounded-xl border border-gray-200 shadow-sm">
+                        <span class="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Staatliche Zulassung</span>
+                        <span class="block text-xs font-bold text-gray-900 mt-0.5">ZFU-Nr. 7540225 (OStrV / TROS)</span>
+                    </div>
+                    <div class="bg-white px-4 py-3 rounded-xl border border-gray-200 shadow-sm">
+                        <span class="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Zertifikats-ID</span>
+                        <span class="block text-xs font-mono font-bold text-gray-900 mt-0.5 truncate">S81XMGO9LBD1TMH74QRZ</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
