@@ -74,6 +74,31 @@
             .sf-rel-sparkle-5 { animation: sfRelSparkleFloatA 4.2s ease-in-out infinite 0.7s; transition-delay: 0.38s; }
             .sf-rel-sparkle-6 { animation: sfRelSparkleFloatB 3.6s ease-in-out infinite 1.6s; transition-delay: 0.46s; }
         </style>
+        <script>
+            window.sfRandomizeCardSparkles = window.sfRandomizeCardSparkles || function(cardEl, force) {
+                const now = performance.now();
+                if (!force && cardEl._sfLastLeave && (now - cardEl._sfLastLeave) < 500) {
+                    return;
+                }
+                const zones = [
+                    { top: [8, 28],  left: [8, 36] },
+                    { top: [8, 28],  left: [60, 88] },
+                    { top: [34, 62], left: [6, 30] },
+                    { top: [34, 62], left: [66, 90] },
+                    { top: [66, 88], left: [10, 42] },
+                    { top: [66, 88], left: [56, 88] },
+                ];
+                const rand = (min, max) => (min + Math.random() * (max - min)).toFixed(1) + '%';
+                cardEl.querySelectorAll('.sf-card-sparkle, .sf-rel-sparkle').forEach((svg, i) => {
+                    const z = zones[i % zones.length];
+                    svg.style.top = rand(z.top[0], z.top[1]);
+                    svg.style.left = rand(z.left[0], z.left[1]);
+                    svg.style.right = 'auto';
+                    svg.style.bottom = 'auto';
+                });
+                cardEl._sfSeeded = true;
+            };
+        </script>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 lg:gap-8">
             @foreach($relatedProducts as $relProduct)
                 @php
@@ -90,7 +115,9 @@
                     $ratingCount = (int) ($relProduct->approved_reviews_count ?? $relProduct->review_count ?? 0);
                 @endphp
 
-                <div class="group relative flex flex-col h-full bg-white rounded-[2rem] p-3 border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1.5 hover:border-[var(--theme-color-30)] transition-all duration-500 {{ $isSoldOut ? 'opacity-80' : '' }}">
+                <div onmouseenter="window.sfRandomizeCardSparkles && window.sfRandomizeCardSparkles(this, !this._sfSeeded)"
+                     onmouseleave="this._sfLastLeave = performance.now(); clearTimeout(this._sfTimer); this._sfTimer = setTimeout(() => window.sfRandomizeCardSparkles && window.sfRandomizeCardSparkles(this, true), 650)"
+                     class="group relative flex flex-col h-full bg-white rounded-[2rem] p-3 border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1.5 hover:border-[var(--theme-color-30)] transition-all duration-500 {{ $isSoldOut ? 'opacity-80' : '' }}">
 
                     {{-- Bild Container --}}
                     <div class="aspect-square bg-gray-50 rounded-3xl overflow-hidden mb-5 relative border border-gray-100">
