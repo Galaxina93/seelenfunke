@@ -95,7 +95,13 @@
             color-scheme: dark;
             caret-color: #E6C687;
         }
-        /* Dual-Tone High-Contrast I-Beam Cursor für dunkle Eingabefelder (verhindert unsichtbare Maus auf Windows) */
+        /* Dual-Tone High-Contrast I-Beam Cursor für helle & dunkle Eingabefelder (verhindert unsichtbare Maus auf Windows) */
+        html.light input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(:disabled),
+        html.light textarea:not(:disabled),
+        html.light [contenteditable="true"],
+        html.light .cursor-text {
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='24' viewBox='0 0 16 24'%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' stroke='%23111827' stroke-width='2.2' stroke-linecap='round' filter='drop-shadow(0 0 1.2px %23ffffff)'/%3E%3C/svg%3E") 8 12, text !important;
+        }
         html.dark input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(:disabled),
         html.dark textarea:not(:disabled),
         html.dark [contenteditable="true"],
@@ -307,7 +313,7 @@
             </div>
         @endif
 
-        <div class="{{ $guard !== 'customer' ? 'lg:pl-72' : '' }} transition-all duration-500 flex-1 flex flex-col">
+        <div class="{{ $guard !== 'customer' ? 'lg:pl-72' : '' }} transition-all duration-500 flex-1 flex flex-col min-w-0">
             @if($guard !== 'customer')
                 <div class="sticky top-0 z-40 flex h-16 items-center gap-x-4 border-b border-gray-200/80 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl px-4 shadow-sm dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)] sm:px-6 lg:px-8 w-full max-w-[100vw] transition-colors duration-300">
 
@@ -345,7 +351,7 @@
                 </div>
             @endif
 
-            <main class="{{ $guard !== 'customer' ? 'py-8 flex-1' : 'flex-1' }}">
+            <main class="{{ $guard !== 'customer' ? 'py-8 flex-1 min-w-0' : 'flex-1 min-w-0' }}">
                 @if($guard !== 'customer')
                     <div class="max-w-[1700px] w-full mx-auto px-4 sm:px-6 lg:px-8">
                         <div class="animate-fade-in-up" x-data x-init="setTimeout(() => $el.classList.remove('animate-fade-in-up'), 1000)">

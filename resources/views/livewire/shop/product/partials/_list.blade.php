@@ -197,7 +197,7 @@
                                 @endif
                             </div>
 
-                            <div class="min-w-0 flex-1">
+                            <div class="min-w-0 flex-1 select-none cursor-default">
                                 <div class="flex items-center gap-2.5 flex-wrap mb-1">
                                     <h3 class="font-serif text-base sm:text-lg font-bold text-gray-900 dark:text-white truncate">{{ $prod->name }}</h3>
                                     @if($prod->type === 'digital')
@@ -217,7 +217,7 @@
 
                                     {{-- Sternebewertung --}}
                                     <a href="{{ route('admin.product-control-reviews', ['filterStatus' => $pendingReviewsCount > 0 ? 'pending' : 'approved', 'search' => $prod->name]) }}"
-                                       class="inline-flex items-center gap-1.5 group/rating hover:opacity-90 transition-opacity"
+                                       class="inline-flex items-center gap-1.5 group/rating hover:opacity-90 transition-opacity cursor-pointer"
                                        title="{{ $ratingCount > 0 ? number_format($ratingAvg, 1, ',', '.') . ' von 5 Sternen (' . $ratingCount . ' freigegebene Bewertungen)' : 'Noch keine freigegebenen Bewertungen' }}">
                                         <div class="flex items-center">
                                             @for($i = 1; $i <= 5; $i++)
@@ -241,12 +241,14 @@
                                     </a>
 
                                     {{-- Verkäufe-Indikator --}}
-                                    <span class="inline-flex items-center gap-1 text-[10px] font-bold {{ $soldQty > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-gray-500' }}"
-                                          title="Verkaufte Einheiten: {{ $soldQty }} ({{ number_format($revenueCents / 100, 2, ',', '.') }} € Umsatz)">
+                                    <span class="relative group/sold inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold cursor-default select-none transition-colors {{ $soldQty > 0 ? 'bg-emerald-50/80 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200/70 dark:border-emerald-500/20' : 'text-gray-400 dark:text-gray-500' }}">
                                         <svg class="w-3.5 h-3.5 shrink-0 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
                                         </svg>
                                         <span>{{ $soldQty }}&times; verkauft</span>
+                                        <span class="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-900 dark:bg-gray-800 px-2.5 py-1 text-[10px] font-bold text-white shadow-lg opacity-0 group-hover/sold:opacity-100 transition-opacity duration-200 z-30">
+                                            Umsatz: {{ number_format($revenueCents / 100, 2, ',', '.') }} €
+                                        </span>
                                     </span>
                                 </div>
                             </div>
@@ -430,12 +432,12 @@
                             @endif
                         </div>
 
-                        <h3 class="font-serif {{ $currentLayout === 'medium' ? 'text-base mb-1' : 'text-lg md:text-xl mb-1.5' }} font-bold text-gray-900 dark:text-white truncate tracking-wide">{{ $prod->name }}</h3>
+                        <h3 class="font-serif {{ $currentLayout === 'medium' ? 'text-base mb-1' : 'text-lg md:text-xl mb-1.5' }} font-bold text-gray-900 dark:text-white truncate tracking-wide select-none cursor-default">{{ $prod->name }}</h3>
 
                         {{-- Sternebewertung & Verkäufe --}}
-                        <div class="flex flex-wrap items-center justify-between gap-2 {{ $currentLayout === 'medium' ? 'mb-2' : 'mb-3' }}">
+                        <div class="flex flex-wrap items-center justify-between gap-2 select-none cursor-default {{ $currentLayout === 'medium' ? 'mb-2' : 'mb-3' }}">
                             <a href="{{ route('admin.product-control-reviews', ['filterStatus' => $pendingReviewsCount > 0 ? 'pending' : 'approved', 'search' => $prod->name]) }}"
-                               class="inline-flex items-center gap-1.5 group/rating hover:opacity-90 transition-opacity"
+                               class="inline-flex items-center gap-1.5 group/rating hover:opacity-90 transition-opacity cursor-pointer"
                                title="{{ $ratingCount > 0 ? number_format($ratingAvg, 1, ',', '.') . ' von 5 Sternen (' . $ratingCount . ' freigegebene Bewertungen)' : 'Noch keine freigegebenen Bewertungen' }}">
                                 <div class="flex items-center">
                                     @for($i = 1; $i <= 5; $i++)
@@ -458,16 +460,18 @@
                                 @endif
                             </a>
 
-                            <span class="inline-flex items-center gap-1 text-[10px] font-bold {{ $soldQty > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-gray-500' }}"
-                                  title="Verkaufte Einheiten: {{ $soldQty }} ({{ number_format($revenueCents / 100, 2, ',', '.') }} € Umsatz)">
+                            <span class="relative group/sold inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold cursor-default select-none transition-colors {{ $soldQty > 0 ? 'bg-emerald-50/80 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200/70 dark:border-emerald-500/20' : 'text-gray-400 dark:text-gray-500' }}">
                                 <svg class="w-3.5 h-3.5 shrink-0 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
                                 </svg>
                                 <span>{{ $soldQty }}&times; verkauft</span>
+                                <span class="pointer-events-none absolute -top-8 right-0 whitespace-nowrap rounded-lg bg-gray-900 dark:bg-gray-800 px-2.5 py-1 text-[10px] font-bold text-white shadow-lg opacity-0 group-hover/sold:opacity-100 transition-opacity duration-200 z-30">
+                                    Umsatz: {{ number_format($revenueCents / 100, 2, ',', '.') }} €
+                                </span>
                             </span>
                         </div>
 
-                        <p class="{{ $currentLayout === 'medium' ? 'text-xs sm:text-sm mb-3.5' : 'text-sm md:text-base mb-6' }} text-[var(--theme-color)] font-mono font-bold dark:drop-shadow-[0_0_8px_rgba(197,160,89,0.5)]">{{ number_format($prod->price / 100, 2, ',', '.') }} €</p>
+                        <p class="{{ $currentLayout === 'medium' ? 'text-xs sm:text-sm mb-3.5' : 'text-sm md:text-base mb-6' }} text-[var(--theme-color)] font-mono font-bold dark:drop-shadow-[0_0_8px_rgba(197,160,89,0.5)] select-none cursor-default">{{ number_format($prod->price / 100, 2, ',', '.') }} €</p>
 
                         {{-- Lagerbestand Anzeige --}}
                         <div class="{{ $currentLayout === 'medium' ? 'mb-3.5' : 'mb-6' }} h-8 flex items-center gap-3"
