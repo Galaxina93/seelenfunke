@@ -47,13 +47,18 @@
                                 @php
                                     $fallbackImage = null;
                                     if (isset($prod)) {
-                                        $media = $prod->media_gallery ?? [];
-                                        $found = collect($media)->firstWhere('is_main', true)['path']
-                                            ?? collect($media)->firstWhere('type', 'image')['path']
-                                            ?? ($media[0]['path'] ?? $prod->preview_image_path ?? null);
-                                        if ($found) {
-                                            $cleanFound = ltrim(preg_replace('#^/?storage/#', '', $found), '/');
-                                            $fallbackImage = asset('storage/' . $cleanFound);
+                                        if (method_exists($prod, 'resolveConfigurationImageUrl')) {
+                                            $fallbackImage = $prod->resolveConfigurationImageUrl(is_array($item->configuration) ? $item->configuration : null);
+                                        }
+                                        if (!$fallbackImage) {
+                                            $media = $prod->media_gallery ?? [];
+                                            $found = collect($media)->firstWhere('is_main', true)['path']
+                                                ?? collect($media)->firstWhere('type', 'image')['path']
+                                                ?? ($media[0]['path'] ?? $prod->preview_image_path ?? null);
+                                            if ($found) {
+                                                $cleanFound = ltrim(preg_replace('#^/?storage/#', '', $found), '/');
+                                                $fallbackImage = asset('storage/' . $cleanFound);
+                                            }
                                         }
                                     }
 
@@ -135,7 +140,7 @@
 
                                             {{-- Anzeige der gewählten Variante --}}
                                             @if(!empty($item->configuration['variant_name']))
-                                                <p class="text-[11px] font-black uppercase tracking-widest text-primary mt-1 drop-shadow-[0_0_5px_currentColor]">
+                                                <p class="text-[11px] font-bold uppercase tracking-widest text-primary mt-1">
                                                     Ausführung: {{ $item->configuration['variant_name'] }}
                                                 </p>
                                             @endif

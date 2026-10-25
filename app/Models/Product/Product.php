@@ -465,9 +465,9 @@ class Product extends Model
 
     /**
      * Liefert die priorisierte Liste der Feiertags-/Anlass-Namen (aus ProductTemplate::holiday)
-     * passend zum aktuellen Feiertagsfenster bzw. zur aktiven Jahreszeit.
+     * passend zum aktuellen Feiertagsfenster bzw. zur aktiven Jahreszeit (oder zu einem historischen Kaufdatum $referenceDate).
      */
-    public static function resolvePreferredHolidayCandidates(?string $explicitHoliday = null): array
+    public static function resolvePreferredHolidayCandidates(?string $explicitHoliday = null, ?\Carbon\CarbonInterface $referenceDate = null): array
     {
         $candidates = [];
 
@@ -477,9 +477,9 @@ class Product extends Model
 
         try {
             $autopilot = app(\App\Services\Marketing\HolidayOfferAutopilotService::class);
-            $now = \Carbon\Carbon::now();
+            $now = $referenceDate ? \Carbon\Carbon::instance($referenceDate) : \Carbon\Carbon::now();
 
-            // 1. Prüfe aktives Angebotsfenster oder Feiertag bis inkl. Feiertags-Tag
+            // 1. Prüfe aktives Angebotsfenster oder Feiertag bis inkl. Feiertags-Tag zum Zeitpunkt $now
             foreach ($autopilot->getEventDefinitions() as $eventKey => $def) {
                 foreach ([$now->year, $now->year - 1, $now->year + 1] as $yr) {
                     $eventDate = $autopilot->getHolidayDate($eventKey, $yr);
@@ -510,8 +510,17 @@ class Product extends Model
                 }
             }
 
-            // 2. Fallback über die aktive Jahreszeit (aus /admin/configuration -> Jahreszeiten)
-            $seasonKey = app(\App\Services\ConfiguratorService::class)->getActiveSeasonKey();
+            // 2. Fallback über die aktive Jahreszeit (heute aus /admin/configuration, bei historischen Bestellungen aus dem Kaufmonat)
+            if ($referenceDate === null || $now->isSameDay(\Carbon\Carbon::now())) {
+                $seasonKey = app(\App\Services\ConfiguratorService::class)->getActiveSeasonKey();
+            } else {
+                $seasonKey = match ((int) $now->month) {
+                    3, 4, 5  => 'ostern',
+                    6, 7, 8  => 'sommer',
+                    9, 10    => 'herbst',
+                    default  => 'winter',
+                };
+            }
             $seasonFallback = match ($seasonKey) {
                 'ostern' => ['Ostern', 'Muttertag', 'Vatertag', 'Hochzeit'],
                 'sommer' => ['Hochzeit', 'Geburtstag', 'Vatertag', 'Muttertag'],
@@ -532,9 +541,9 @@ class Product extends Model
 
     /**
      * Findet die passende aktive Produktvorlage für das saisonale / Feiertags-Hauptbild.
-     * Optional kann nach einer spezifischen Produktvariante ($variantId) gefiltert werden.
+     * Optional kann nach einer spezifischen Produktvariante ($variantId) oder einem Referenzdatum ($referenceDate) gefiltert werden.
      */
-    public function resolveSeasonalTemplate(?string $explicitHoliday = null, array $excludeImagePaths = [], ?string $variantId = null): ?ProductTemplate
+    public function resolveSeasonalTemplate(?string $explicitHoliday = null, array $excludeImagePaths = [], ?string $variantId = null, ?\Carbon\CarbonInterface $referenceDate = null): ?ProductTemplate
     {
         if ($explicitHoliday === null && !$this->isAutoSeasonalMainImageEnabled()) {
             return null;
@@ -559,7 +568,7 @@ class Product extends Model
             }
         }
 
-        $candidates = self::resolvePreferredHolidayCandidates($explicitHoliday);
+        $candidates = self::resolvePreferredHolidayCandidates($explicitHoliday, $referenceDate);
 
         foreach ($candidates as $candidate) {
             $normCandidate = mb_strtolower(trim($candidate));
@@ -585,7 +594,7 @@ class Product extends Model
      * 2. Galeriebild unter "Medien" mit direkter Varianten-Zuweisung ("var:{variantId}")
      * 3. Galeriebild unter "Medien" mit Eigenschafts-Gruppen-Zuweisung ("attr:{Attribut}:{Wert}")
      */
-    public function resolveVariantImageMeta(?string $variantId, ?string $explicitHoliday = null): ?array
+    public function resolveVariantImageMeta(?string $variantId, ?string $explicitHoliday = null, ?\Carbon\CarbonInterface $referenceDate = null): ?array
     {
         if (!$variantId || trim($variantId) === '') {
             return null;
@@ -598,7 +607,7 @@ class Product extends Model
 
         // 1. Prüfe aktive Produktvorlage speziell für diese Variante
         if ($this->isAutoSeasonalMainImageEnabled()) {
-            $variantTemplate = $this->resolveSeasonalTemplate($explicitHoliday, [], $variantId);
+            $variantTemplate = $this->resolveSeasonalTemplate($explicitHoliday, [], $variantId, $referenceDate);
             if ($variantTemplate && !empty($variantTemplate->preview_image)) {
                 return [
                     'path'            => $variantTemplate->preview_image,
@@ -652,11 +661,11 @@ class Product extends Model
     /**
      * Liefert strukturierte Metadaten zum aufgelösten Hauptbild (Pfad, URL, KI-Kennzeichnung, Label).
      */
-    public function resolveMainImageMeta(?string $explicitHoliday = null, bool $allowSeasonal = true, array $excludeImagePaths = []): array
+    public function resolveMainImageMeta(?string $explicitHoliday = null, bool $allowSeasonal = true, array $excludeImagePaths = [], ?\Carbon\CarbonInterface $referenceDate = null): array
     {
         if ($allowSeasonal) {
             // 1. Prüfe aktive Produktvorlagen (ProductTemplate)
-            $seasonalTpl = $this->resolveSeasonalTemplate($explicitHoliday, $excludeImagePaths);
+            $seasonalTpl = $this->resolveSeasonalTemplate($explicitHoliday, $excludeImagePaths, null, $referenceDate);
             if ($seasonalTpl && !empty($seasonalTpl->preview_image)) {
                 return [
                     'path'            => $seasonalTpl->preview_image,
@@ -668,7 +677,7 @@ class Product extends Model
 
             // 2. Falls keine Vorlagen existieren (z. B. beim Geschenkgutschein): Prüfe saisonale Bilder in der media_gallery
             if ($this->isAutoSeasonalMainImageEnabled() && is_array($this->media_gallery) && count($this->media_gallery) > 0) {
-                $candidates = self::resolvePreferredHolidayCandidates($explicitHoliday);
+                $candidates = self::resolvePreferredHolidayCandidates($explicitHoliday, $referenceDate);
                 foreach ($candidates as $candidate) {
                     $normCandidate = mb_strtolower(trim($candidate));
                     foreach ($this->media_gallery as $media) {
@@ -735,17 +744,52 @@ class Product extends Model
     /**
      * Liefert den relativen Storage-Pfad des Hauptbildes (entweder saisonale Vorlage oder manuelles Galerie-Hauptbild).
      */
-    public function resolveMainImagePath(?string $explicitHoliday = null, bool $allowSeasonal = true, array $excludeImagePaths = []): ?string
+    public function resolveMainImagePath(?string $explicitHoliday = null, bool $allowSeasonal = true, array $excludeImagePaths = [], ?\Carbon\CarbonInterface $referenceDate = null): ?string
     {
-        return $this->resolveMainImageMeta($explicitHoliday, $allowSeasonal, $excludeImagePaths)['path'];
+        return $this->resolveMainImageMeta($explicitHoliday, $allowSeasonal, $excludeImagePaths, $referenceDate)['path'];
     }
 
     /**
      * Liefert die fertige, Cache-sichere öffentliche URL des Produkt-Hauptbildes.
      */
-    public function resolveMainImageUrl(?string $explicitHoliday = null, bool $allowSeasonal = true, array $excludeImagePaths = []): ?string
+    public function resolveMainImageUrl(?string $explicitHoliday = null, bool $allowSeasonal = true, array $excludeImagePaths = [], ?\Carbon\CarbonInterface $referenceDate = null): ?string
     {
-        return $this->resolveMainImageMeta($explicitHoliday, $allowSeasonal, $excludeImagePaths)['url'];
+        return $this->resolveMainImageMeta($explicitHoliday, $allowSeasonal, $excludeImagePaths, $referenceDate)['url'];
+    }
+
+    /**
+     * Ermittelt den relativen Bildpfad unter Berücksichtigung einer Artikel-Konfiguration
+     * (eingefrorenes Kaufbild 'purchased_image_path', gewählte Variante 'variant_id' oder saisonales Hauptbild zum Referenzdatum).
+     */
+    public function resolveConfigurationImagePath(?array $configuration = null, ?\Carbon\CarbonInterface $referenceDate = null): ?string
+    {
+        $conf = is_array($configuration) ? $configuration : [];
+
+        if (!empty($conf['purchased_image_path']) && is_string($conf['purchased_image_path'])) {
+            return $conf['purchased_image_path'];
+        }
+
+        $explicitHoliday = !empty($conf['purchased_holiday']) && is_string($conf['purchased_holiday'])
+            ? $conf['purchased_holiday']
+            : null;
+
+        if (!empty($conf['variant_id']) && is_string($conf['variant_id'])) {
+            $varMeta = $this->resolveVariantImageMeta($conf['variant_id'], $explicitHoliday, $referenceDate);
+            if (!empty($varMeta['path'])) {
+                return $varMeta['path'];
+            }
+        }
+
+        return $this->resolveMainImagePath($explicitHoliday, true, [], $referenceDate);
+    }
+
+    /**
+     * Ermittelt die fertige Bild-URL unter Berücksichtigung einer Artikel-Konfiguration.
+     */
+    public function resolveConfigurationImageUrl(?array $configuration = null, ?\Carbon\CarbonInterface $referenceDate = null): ?string
+    {
+        $path = $this->resolveConfigurationImagePath($configuration, $referenceDate);
+        return $path ? ProductTemplate::resolveImageUrl($path) : null;
     }
 
     /**

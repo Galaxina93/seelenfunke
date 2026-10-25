@@ -84,7 +84,9 @@ class AccountingInvoice extends Model
                     'total_price' => $item->unit_price * $item->quantity,
                     'configuration' => $item->configuration,
                     'type' => $item->product?->type ?? 'physical',
-                    'main_image' => $item->product && is_array($item->product->media_gallery) && count($item->product->media_gallery) > 0 ? $item->product->media_gallery[0]['path'] : ($item->product ? $item->product->preview_image_path : null)
+                    'main_image' => method_exists($item, 'resolveDisplayImagePath')
+                        ? $item->resolveDisplayImagePath()
+                        : ($item->product && is_array($item->product->media_gallery) && count($item->product->media_gallery) > 0 ? $item->product->media_gallery[0]['path'] : ($item->product ? $item->product->preview_image_path : null))
                 ];
             });
         }

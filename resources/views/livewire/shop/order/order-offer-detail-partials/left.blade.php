@@ -138,7 +138,10 @@
                                             $snapshotImg = $conf['snapshot_path'];
                                         }
                                     }
-                                    $imgPath = $snapshotImg ?? ($conf['preview_file'] ?? ($conf['logo_storage_path'] ?? ($item->product->preview_image_path ?? null)));
+                                    $fallbackDisplayImg = method_exists($item, 'resolveDisplayImagePath')
+                                        ? $item->resolveDisplayImagePath()
+                                        : ($item->product->preview_image_path ?? null);
+                                    $imgPath = $snapshotImg ?? ($conf['preview_file'] ?? ($conf['logo_storage_path'] ?? $fallbackDisplayImg));
                                 @endphp
                                 @if($imgPath)
                                     <img src="{{ asset('storage/'.$imgPath) }}" class="h-full w-full {{ $snapshotImg ? 'object-contain p-1' : 'object-cover' }} group-hover:scale-110 transition-transform duration-700">

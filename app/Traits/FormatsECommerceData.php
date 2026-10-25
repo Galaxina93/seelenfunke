@@ -89,12 +89,22 @@ trait FormatsECommerceData
                 }
             }
 
-            // Hauptbild des Artikels auflösen (falls kein Snapshot vorhanden ist)
+            // Hauptbild des Artikels auflösen (bevorzugt das beim Kauf eingefrorene / zum Bestelldatum passende Saison-/Variantenbild)
             $mainImage = null;
+            $refDate = $this->created_at ?? $this->invoice_date ?? null;
+            if (is_string($refDate)) {
+                try { $refDate = \Carbon\Carbon::parse($refDate); } catch (\Throwable $e) { $refDate = null; }
+            }
             if (is_object($item)) {
                 $mainImage = $item->main_image ?? null;
+                if (!$mainImage && method_exists($item, 'resolveDisplayImagePath')) {
+                    $mainImage = $item->resolveDisplayImagePath();
+                }
                 if (!$mainImage && isset($item->product) && $item->product) {
-                    if (!empty($item->product->media_gallery) && is_array($item->product->media_gallery)) {
+                    if (method_exists($item->product, 'resolveConfigurationImagePath')) {
+                        $mainImage = $item->product->resolveConfigurationImagePath(is_array($config) ? $config : null, $refDate instanceof \Carbon\CarbonInterface ? $refDate : null);
+                    }
+                    if (!$mainImage && !empty($item->product->media_gallery) && is_array($item->product->media_gallery)) {
                         $mainImage = collect($item->product->media_gallery)->firstWhere('is_main', true)['path'] 
                             ?? collect($item->product->media_gallery)->firstWhere('type', 'image')['path'] 
                             ?? ($item->product->media_gallery[0]['path'] ?? null);
@@ -104,7 +114,7 @@ trait FormatsECommerceData
                     }
                 }
             } elseif (is_array($item)) {
-                $mainImage = $item['main_image'] ?? null;
+                $mainImage = $item['main_image'] ?? ($config['purchased_image_path'] ?? null);
                 if (!$mainImage && !empty($item['product']['media_gallery']) && is_array($item['product']['media_gallery'])) {
                     $mainImage = collect($item['product']['media_gallery'])->firstWhere('is_main', true)['path'] 
                         ?? collect($item['product']['media_gallery'])->firstWhere('type', 'image')['path'] 

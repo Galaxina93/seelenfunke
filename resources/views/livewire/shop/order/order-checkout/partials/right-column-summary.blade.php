@@ -77,19 +77,25 @@
                 <ul role="list" class="divide-y divide-gray-200/80 text-sm font-medium text-gray-900">
                     @foreach($cart->items as $item)
                         @php
-                            $displayImage = null;
-                            if (!empty($item->product->media_gallery)) {
-                                foreach ($item->product->media_gallery as $media) {
-                                    if (($media['type'] ?? '') === 'image' && !empty($media['path'])) {
-                                        $displayImage = $media['path'];
-                                        break;
+                            $displayImageUrl = null;
+                            if ($item->product && method_exists($item->product, 'resolveConfigurationImageUrl')) {
+                                $displayImageUrl = $item->product->resolveConfigurationImageUrl(is_array($item->configuration) ? $item->configuration : null);
+                            }
+                            if (!$displayImageUrl) {
+                                $displayImage = null;
+                                if (!empty($item->product->media_gallery)) {
+                                    foreach ($item->product->media_gallery as $media) {
+                                        if (($media['type'] ?? '') === 'image' && !empty($media['path'])) {
+                                            $displayImage = $media['path'];
+                                            break;
+                                        }
                                     }
                                 }
+                                if (!$displayImage && !empty($item->product->preview_image_path)) {
+                                    $displayImage = $item->product->preview_image_path;
+                                }
+                                $displayImageUrl = $displayImage ? asset('storage/' . ltrim(preg_replace('#^/?storage/#', '', $displayImage), '/')) : null;
                             }
-                            if (!$displayImage && !empty($item->product->preview_image_path)) {
-                                $displayImage = $item->product->preview_image_path;
-                            }
-                            $displayImageUrl = $displayImage ? asset('storage/' . ltrim(preg_replace('#^/?storage/#', '', $displayImage), '/')) : null;
 
                             $snapshotFront = null;
                             $snapshotBack = null;

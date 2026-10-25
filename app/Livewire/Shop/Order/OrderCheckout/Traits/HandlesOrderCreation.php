@@ -67,98 +67,102 @@ trait HandlesOrderCreation
     }
 
     /**
+     * Entfernt einen ungültigen Gutschein außerhalb einer DB-Transaktion (damit das Update nicht durch ValidationException zurückgerollt wird)
+     * und aktualisiert sofort den Stripe PaymentIntent.
+     */
+    private function invalidateCartCoupon($cart, string $message): void
+    {
+        $cart->update(['coupon_code' => null]);
+        if (method_exists($this, 'createPaymentIntent')) {
+            $this->createPaymentIntent();
+        }
+        $this->dispatch('checkout-updated');
+
+        throw \Illuminate\Validation\ValidationException::withMessages([
+            'coupon' => $message
+        ]);
+    }
+
+    /**
      * Private Helper: Die eigentliche Order-Erstellung inkl. User-Logik
      */
     private function createOrderInDb()
     {
-        return DB::transaction(function () {
-            $cartService = app(CartService::class);
-            $cart = $cartService->getCart();
+        $cartService = app(CartService::class);
+        $cart = $cartService->getCart();
 
-            if (!$cart || $cart->items()->count() === 0) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'cart' => 'Dein Warenkorb ist leer. Bitte füge vor dem Abschluss Artikel hinzu.'
-                ]);
-            }
+        if (!$cart || $cart->items()->count() === 0) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'cart' => 'Dein Warenkorb ist leer. Bitte füge vor dem Abschluss Artikel hinzu.'
+            ]);
+        }
 
-            // [SICHERHEIT] Artikel-Verfügbarkeit & Lagerbestand vor Order-Erstellung prüfen
-            if (!session()->has('checkout_from_quote_id')) {
-                foreach ($cart->items as $item) {
-                    $product = $item->product;
-                    if (!$product || $product->status !== 'active') {
-                        throw \Illuminate\Validation\ValidationException::withMessages([
-                            'cart' => 'Ein Artikel in deinem Warenkorb ist derzeit nicht mehr verfügbar.'
-                        ]);
-                    }
-                    if ($product->type === 'physical' && $product->track_quantity && !$product->continue_selling_when_out_of_stock && $product->quantity > 0 && $product->quantity < $item->quantity) {
-                        throw \Illuminate\Validation\ValidationException::withMessages([
-                            'cart' => "Der Artikel '{$product->name}' ist leider nicht mehr in der gewünschten Menge auf Lager."
-                        ]);
-                    }
-                }
-            }
-
-            // [NEU] SICHERHEITSCHECK FÜR GUTSCHEINE
-            if ($cart->coupon_code) {
-                $coupon = \App\Models\Marketing\MarketingGiftVoucher::where('code', $cart->coupon_code)->first();
-                if (!$coupon) {
-                    $coupon = MarketingVoucher::where('code', $cart->coupon_code)->first();
-                }
-
-                // Wenn Gutschein nicht existiert oder nicht mehr gültig ist (z.B. Limit erreicht)
-                if (!$coupon || !$coupon->isValid()) {
-                    // Gutschein aus Cart entfernen
-                    $cart->update(['coupon_code' => null]);
-
-                    // Exception werfen, damit der Checkout abbricht und Livewire den Fehler anzeigt
+        // [SICHERHEIT] Artikel-Verfügbarkeit & Lagerbestand vor Order-Erstellung prüfen (außerhalb der Transaktion)
+        if (!session()->has('checkout_from_quote_id')) {
+            foreach ($cart->items as $item) {
+                $product = $item->product;
+                if (!$product || $product->status !== 'active') {
                     throw \Illuminate\Validation\ValidationException::withMessages([
-                        'coupon' => 'Der verwendete Gutschein ist leider nicht mehr gültig oder aufgebraucht.'
+                        'cart' => 'Ein Artikel in deinem Warenkorb ist derzeit nicht mehr verfügbar.'
                     ]);
                 }
-
-                // Referral-Sicherheitscheck gegen die eingegebene Checkout-E-Mail (Eigenwerbung & Neukundenschutz)
-                $authCustomer = Auth::guard('customer')->check() ? Auth::guard('customer')->user() : null;
-                $checkoutCustomerId = $authCustomer ? $authCustomer->id : null;
-                $referralCheck = app(\App\Services\ReferralService::class)->validateReferralCode($cart->coupon_code, $this->email, $checkoutCustomerId);
-                if ($referralCheck['is_referral'] && !$referralCheck['valid']) {
-                    $cart->update(['coupon_code' => null]);
+                if ($product->type === 'physical' && $product->track_quantity && !$product->continue_selling_when_out_of_stock && $product->quantity > 0 && $product->quantity < $item->quantity) {
                     throw \Illuminate\Validation\ValidationException::withMessages([
-                        'coupon' => $referralCheck['message']
+                        'cart' => "Der Artikel '{$product->name}' ist leider nicht mehr in der gewünschten Menge auf Lager."
                     ]);
                 }
+            }
+        }
 
-                // [SICHERHEIT] Persönliche Belohnungsgutscheine strikt an das verifizierte Kundenkonto UND die Checkout-E-Mail binden
-                if ($coupon instanceof \App\Models\Marketing\MarketingGiftVoucher && !empty($coupon->recipient_email) && str_starts_with($coupon->code, 'DANKE-')) {
-                    $recipientTarget = strtolower(trim($coupon->recipient_email));
-                    if (
-                        !$authCustomer
-                        || !$authCustomer->hasVerifiedEmail()
-                        || strtolower(trim((string) $authCustomer->email)) !== $recipientTarget
-                        || strtolower(trim((string) $this->email)) !== $recipientTarget
-                    ) {
-                        $cart->update(['coupon_code' => null]);
-                        throw \Illuminate\Validation\ValidationException::withMessages([
-                            'coupon' => 'Dieser persönliche Belohnungsgutschein ist an ein verifiziertes Kundenkonto gebunden und kann nur nach Anmeldung mit dieser E-Mail-Adresse eingelöst werden.'
-                        ]);
-                    }
-                }
+        // [SICHERHEITSCHECK FÜR GUTSCHEINE] Außerhalb der Transaktion prüfen, damit das Entfernen eines ungültigen Gutscheins nicht durch Rollback rückgängig gemacht wird
+        if ($cart->coupon_code) {
+            $coupon = \App\Models\Marketing\MarketingGiftVoucher::where('code', $cart->coupon_code)->first();
+            if (!$coupon) {
+                $coupon = MarketingVoucher::where('code', $cart->coupon_code)->first();
+            }
 
-                // [SICHERHEIT] Persönliche Belohnungsgutscheine (z.B. Gamification Meilensteine) strikt an das verifizierte Kundenkonto UND die Checkout-E-Mail binden
-                if ($coupon instanceof MarketingVoucher && !empty($coupon->recipient_email)) {
-                    $recipientTarget = strtolower(trim($coupon->recipient_email));
-                    if (
-                        !$authCustomer
-                        || !$authCustomer->hasVerifiedEmail()
-                        || strtolower(trim((string) $authCustomer->email)) !== $recipientTarget
-                        || strtolower(trim((string) $this->email)) !== $recipientTarget
-                    ) {
-                        $cart->update(['coupon_code' => null]);
-                        throw \Illuminate\Validation\ValidationException::withMessages([
-                            'coupon' => 'Dieser persönliche Belohnungsgutschein ist an ein verifiziertes Kundenkonto gebunden und kann nur nach Anmeldung mit dieser E-Mail-Adresse eingelöst werden.'
-                        ]);
-                    }
+            // Wenn Gutschein nicht existiert oder nicht mehr gültig ist (z.B. Limit erreicht)
+            if (!$coupon || !$coupon->isValid()) {
+                $this->invalidateCartCoupon($cart, 'Der verwendete Gutschein ist leider nicht mehr gültig oder aufgebraucht und wurde entfernt.');
+            }
+
+            // Referral-Sicherheitscheck gegen die eingegebene Checkout-E-Mail (Eigenwerbung & Neukundenschutz)
+            $authCustomer = Auth::guard('customer')->check() ? Auth::guard('customer')->user() : null;
+            $checkoutCustomerId = $authCustomer ? $authCustomer->id : null;
+            $referralCheck = app(\App\Services\ReferralService::class)->validateReferralCode($cart->coupon_code, $this->email, $checkoutCustomerId);
+            if ($referralCheck['is_referral'] && !$referralCheck['valid']) {
+                $this->invalidateCartCoupon($cart, $referralCheck['message'] . ' Der Gutschein wurde aus deiner Bestellübersicht entfernt.');
+            }
+
+            // [SICHERHEIT] Persönliche Belohnungsgutscheine strikt an das verifizierte Kundenkonto UND die Checkout-E-Mail binden
+            if ($coupon instanceof \App\Models\Marketing\MarketingGiftVoucher && !empty($coupon->recipient_email) && str_starts_with($coupon->code, 'DANKE-')) {
+                $recipientTarget = strtolower(trim($coupon->recipient_email));
+                if (
+                    !$authCustomer
+                    || !$authCustomer->hasVerifiedEmail()
+                    || strtolower(trim((string) $authCustomer->email)) !== $recipientTarget
+                    || strtolower(trim((string) $this->email)) !== $recipientTarget
+                ) {
+                    $this->invalidateCartCoupon($cart, 'Dieser persönliche Belohnungsgutschein ist an ein verifiziertes Kundenkonto gebunden und kann nur nach Anmeldung mit dieser E-Mail-Adresse eingelöst werden.');
                 }
             }
+
+            // [SICHERHEIT] Persönliche Belohnungsgutscheine (z.B. Gamification Meilensteine) strikt an das verifizierte Kundenkonto UND die Checkout-E-Mail binden
+            if ($coupon instanceof MarketingVoucher && !empty($coupon->recipient_email)) {
+                $recipientTarget = strtolower(trim($coupon->recipient_email));
+                if (
+                    !$authCustomer
+                    || !$authCustomer->hasVerifiedEmail()
+                    || strtolower(trim((string) $authCustomer->email)) !== $recipientTarget
+                    || strtolower(trim((string) $this->email)) !== $recipientTarget
+                ) {
+                    $this->invalidateCartCoupon($cart, 'Dieser persönliche Belohnungsgutschein ist an ein verifiziertes Kundenkonto gebunden und kann nur nach Anmeldung mit dieser E-Mail-Adresse eingelöst werden.');
+                }
+            }
+        }
+
+        return DB::transaction(function () use ($cartService, $cart) {
+            $cart->refresh();
 
             $targetCountry = $this->has_separate_shipping ? $this->shipping_country : $this->country;
             $totals = $cartService->calculateTotals($cart, $targetCountry);
@@ -323,9 +327,17 @@ trait HandlesOrderCreation
             }
 
             foreach($cart->items as $item) {
+                $itemConfig = is_array($item->configuration) ? $item->configuration : [];
+                if (empty($itemConfig['purchased_image_path']) && $item->product) {
+                    $resolvedPurchasedImg = $item->product->resolveConfigurationImagePath($itemConfig);
+                    if ($resolvedPurchasedImg) {
+                        $itemConfig['purchased_image_path'] = $resolvedPurchasedImg;
+                    }
+                }
 
-                $configFingerprint = !empty($item->configuration)
-                    ? hash('sha256', json_encode($item->configuration))
+                $finalConfiguration = !empty($itemConfig) ? $itemConfig : $item->configuration;
+                $configFingerprint = !empty($finalConfiguration)
+                    ? hash('sha256', json_encode($finalConfiguration))
                     : null;
 
                 $productTax = $item->product->tax_rate;
@@ -336,7 +348,7 @@ trait HandlesOrderCreation
                     'unit_price' => $item->unit_price,
                     'tax_rate' => $productTax !== null ? $productTax : shop_setting('default_tax_rate', 19.0),
                     'total_price' => $item->unit_price * $item->quantity,
-                    'configuration' => $item->configuration,
+                    'configuration' => $finalConfiguration,
                     'config_fingerprint' => $configFingerprint
                 ]);
             }

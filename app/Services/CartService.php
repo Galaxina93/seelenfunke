@@ -414,7 +414,7 @@ class CartService
             }
         }
 
-        foreach (['logo_path', 'snapshot_path', 'snapshot_back_path'] as $pathKey) {
+        foreach (['logo_path', 'snapshot_path', 'snapshot_back_path', 'purchased_image_path'] as $pathKey) {
             if (isset($configuration[$pathKey]) && is_string($configuration[$pathKey])) {
                 if (str_contains($configuration[$pathKey], '..') || str_contains($configuration[$pathKey], "\0")) {
                     unset($configuration[$pathKey]);

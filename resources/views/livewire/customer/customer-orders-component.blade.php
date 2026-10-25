@@ -118,28 +118,51 @@
 
                             <ul role="list" class="divide-y divide-gray-100 dark:divide-gray-800/50">
                                 @foreach($selectedOrder->items as $item)
+                                    @php
+                                        $itemProductUrl = ($item->product && !empty($item->product->slug)) ? route('product.show', $item->product->slug) : null;
+                                        $itemImageUrl = method_exists($item, 'resolveDisplayImageUrl') ? $item->resolveDisplayImageUrl() : null;
+                                        $type = $item->product->type ?? 'physical';
+                                    @endphp
                                     <li class="p-6 sm:p-8 flex flex-col sm:flex-row gap-6 sm:gap-8 hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
-                                        {{-- Produktbild --}}
-                                        <div class="h-32 w-32 flex-shrink-0 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-950 shadow-sm dark:shadow-lg relative group">
-                                            @if($item->product && !empty($item->product->media_gallery) && isset($item->product->media_gallery[0]))
-                                                <img src="{{ Storage::url($item->product->media_gallery[0]['path']) }}" class="h-full w-full object-cover object-center group-hover:scale-110 transition-transform duration-700">
-                                            @elseif($item->product && $item->product->preview_image_path)
-                                                <img src="{{ Storage::url($item->product->preview_image_path) }}" class="h-full w-full object-cover object-center group-hover:scale-110 transition-transform duration-700">
-                                            @else
-                                                <div class="h-full w-full flex items-center justify-center text-gray-400 dark:text-gray-700">
-                                                    <svg class="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                        {{-- Produktbild (verlinkt zum Produkt im Shop) --}}
+                                        @if($itemProductUrl)
+                                            <a href="{{ $itemProductUrl }}" title="Zum Produkt „{{ $item->product_name }}“ im Shop" class="block h-32 w-32 flex-shrink-0 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-950 shadow-sm dark:shadow-lg relative group hover:border-primary transition-colors">
+                                                @if($itemImageUrl)
+                                                    <img src="{{ $itemImageUrl }}" alt="{{ $item->product_name }}" class="h-full w-full object-cover object-center group-hover:scale-110 transition-transform duration-700">
+                                                @else
+                                                    <div class="h-full w-full flex items-center justify-center text-gray-400 dark:text-gray-700">
+                                                        <svg class="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                    </div>
+                                                @endif
+                                                <div class="absolute top-2 left-2 px-2.5 py-1 bg-black/80 backdrop-blur text-[9px] font-black uppercase tracking-widest text-white rounded-md border border-gray-700">
+                                                    {{ match($type) { 'digital' => 'Digital', 'service' => 'Service', default => 'Artikel' } }}
                                                 </div>
-                                            @endif
-                                            @php $type = $item->product->type ?? 'physical'; @endphp
-                                            <div class="absolute top-2 left-2 px-2.5 py-1 bg-black/80 backdrop-blur text-[9px] font-black uppercase tracking-widest text-white rounded-md border border-gray-700">
-                                                {{ match($type) { 'digital' => 'Digital', 'service' => 'Service', default => 'Artikel' } }}
+                                            </a>
+                                        @else
+                                            <div class="h-32 w-32 flex-shrink-0 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-950 shadow-sm dark:shadow-lg relative group">
+                                                @if($itemImageUrl)
+                                                    <img src="{{ $itemImageUrl }}" alt="{{ $item->product_name }}" class="h-full w-full object-cover object-center group-hover:scale-110 transition-transform duration-700">
+                                                @else
+                                                    <div class="h-full w-full flex items-center justify-center text-gray-400 dark:text-gray-700">
+                                                        <svg class="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                    </div>
+                                                @endif
+                                                <div class="absolute top-2 left-2 px-2.5 py-1 bg-black/80 backdrop-blur text-[9px] font-black uppercase tracking-widest text-white rounded-md border border-gray-700">
+                                                    {{ match($type) { 'digital' => 'Digital', 'service' => 'Service', default => 'Artikel' } }}
+                                                </div>
                                             </div>
-                                        </div>
+                                        @endif
 
                                         <div class="flex-1 flex flex-col justify-between">
                                             <div>
                                                 <div class="flex justify-between items-start mb-2">
-                                                    <h4 class="text-xl font-bold text-gray-900 dark:text-white tracking-tight">{{ $item->product_name }}</h4>
+                                                    <h4 class="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
+                                                        @if($itemProductUrl)
+                                                            <a href="{{ $itemProductUrl }}" class="hover:text-primary transition-colors">{{ $item->product_name }}</a>
+                                                        @else
+                                                            {{ $item->product_name }}
+                                                        @endif
+                                                    </h4>
                                                     <p class="text-xl font-serif font-bold text-primary ml-4 whitespace-nowrap">
                                                         {{ number_format(($item->total_price / 100), 2, ',', '.') }} €
                                                     </p>
@@ -671,12 +694,13 @@
 
                             <div x-ref="sliderContainer" class="flex gap-6 overflow-x-auto pb-6 scrollbar-hide snap-x relative z-0" style="scrollbar-width: none; -ms-overflow-style: none;">
                                 @foreach($o->items->take($limit) as $item)
+                                    @php
+                                        $sliderImageUrl = method_exists($item, 'resolveDisplayImageUrl') ? $item->resolveDisplayImageUrl() : null;
+                                    @endphp
                                     <div class="snap-start shrink-0 w-40 relative group/item cursor-pointer" wire:click="showOrder('{{ $o->id }}')">
                                         <div class="aspect-square rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 overflow-hidden relative mb-4 shadow-sm group-hover/item:shadow-[0_0_25px_rgba(197,160,89,0.3)] group-hover/item:border-primary/50 transition-all duration-500">
-                                            @if($item->product && !empty($item->product->media_gallery) && isset($item->product->media_gallery[0]))
-                                                <img src="{{ Storage::url($item->product->media_gallery[0]['path']) }}" class="w-full h-full object-cover transition-transform duration-700 group-hover/item:scale-110">
-                                            @elseif($item->product && $item->product->preview_image_path)
-                                                <img src="{{ Storage::url($item->product->preview_image_path) }}" class="w-full h-full object-cover transition-transform duration-700 group-hover/item:scale-110">
+                                            @if($sliderImageUrl)
+                                                <img src="{{ $sliderImageUrl }}" alt="{{ $item->product_name }}" class="w-full h-full object-cover transition-transform duration-700 group-hover/item:scale-110">
                                             @else
                                                 <div class="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-700"><svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></div>
                                             @endif
