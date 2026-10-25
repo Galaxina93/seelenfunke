@@ -60,9 +60,14 @@ class InvoiceDownloadController extends Controller
                 && (str_starts_with($storagePath, 'buchhaltung/invoices/') || str_starts_with($storagePath, 'invoices/'))
                 && !is_link(\Illuminate\Support\Facades\Storage::disk('local')->path($storagePath))
             ) {
-                // Selbstheilung für Gutschein-Rechnungen, deren Archiv-PDF vor dem Emoji-Font-Fix generiert wurde
-                $hasVoucherItem = $invoice->order && $invoice->order->items->contains(fn ($i) => !empty($i->configuration['is_gift_voucher']));
-                if ($hasVoucherItem) {
+                // Selbstheilung für Bestell-Rechnungen, deren Archiv-PDF vor dem letzten Template-Update generiert wurde
+                $templateMtime = max(
+                    @filemtime(resource_path('views/global/mails/invoice_pdf_template.blade.php')) ?: 0,
+                    @filemtime(resource_path('views/global/mails/partials/mail_item_list.blade.php')) ?: 0,
+                    @filemtime(resource_path('views/global/mails/partials/mail_price_list.blade.php')) ?: 0,
+                );
+                $pdfMtime = (int) @\Illuminate\Support\Facades\Storage::disk('local')->lastModified($storagePath);
+                if ($invoice->order && $invoice->order->items->isNotEmpty() && $pdfMtime < $templateMtime) {
                     $service->storePdf($invoice);
                 }
 

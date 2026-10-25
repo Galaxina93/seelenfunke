@@ -121,17 +121,22 @@
 
                     {{-- VISUELLE VORSCHAU DER KONFIGURATION ODER PRODUKTBILD --}}
                     @if(!empty($imgUrls))
-                        <table style="margin-top: 10px; margin-bottom: 10px; border-collapse: collapse;">
+                        @php
+                            $imgCount = count($imgUrls);
+                            $hasMultipleImgs = $imgCount > 1;
+                        @endphp
+                        <table cellpadding="0" cellspacing="0" border="0" style="margin-top: 10px; margin-bottom: 10px; border-collapse: collapse; width: {{ $imgCount * 92 }}px;">
                             <tr>
                             @foreach($imgUrls as $key => $imgUrl)
-                                <td style="padding-right: 10px; vertical-align: top;">
-                                    <table cellpadding="0" cellspacing="0" border="0" style="width: 80px; height: 80px; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #ffffff; border-collapse: separate; table-layout: fixed;">
-                                        <tr>
-                                            <td align="center" valign="middle" style="width: 80px; height: 80px; text-align: center; vertical-align: middle; padding: 2px;">
-                                                <img src="{{ $imgUrl }}" style="max-width: 76px; max-height: 76px; width: auto; height: auto; display: block; margin: 0 auto; border: 0;" alt="{{ $key === 'back' ? 'Rückseite' : 'Vorderseite' }}">
-                                            </td>
-                                        </tr>
-                                    </table>
+                                <td width="92" valign="top" style="width: 92px; padding-right: 12px; vertical-align: top;">
+                                    <div style="width: 80px; height: 80px; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #ffffff; padding: 2px; text-align: center;">
+                                        <img src="{{ $imgUrl }}" style="max-width: 74px; max-height: 74px; width: auto; height: auto; display: inline-block; margin: 0 auto; border: 0;" alt="{{ $key === 'back' ? 'Rückseite' : 'Vorderseite' }}">
+                                    </div>
+                                    @if($hasMultipleImgs)
+                                        <div style="width: 80px; text-align: center; font-size: 9px; color: #888888; margin-top: 3px;">
+                                            {{ $key === 'back' ? 'Rückseite' : 'Vorderseite' }}
+                                        </div>
+                                    @endif
                                 </td>
                             @endforeach
                             </tr>
