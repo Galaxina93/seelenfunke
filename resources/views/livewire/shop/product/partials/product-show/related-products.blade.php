@@ -7,9 +7,6 @@
     <section class="mt-20 pt-16 border-t border-gray-100 w-full clear-both">
         <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
             <div>
-                <span class="text-[var(--theme-color)] font-bold uppercase tracking-[0.2em] text-xs mb-2 block">
-                    {{ $crossSell['kicker'] }}
-                </span>
                 <h2 class="text-2xl sm:text-3xl font-serif font-bold text-gray-900">
                     {{ $crossSell['title'] }}
                 </h2>

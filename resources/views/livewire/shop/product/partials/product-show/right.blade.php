@@ -87,6 +87,35 @@
             </div>
         </div>
 
+        {{-- Sternebewertung mit Anker-Sprung zu den Bewertungen (direkt über dem Lagerbestand) --}}
+        @php
+            $detailRatingAvg = round((float) ($this->product->average_rating ?? 0), 1);
+            $detailRatingCount = (int) ($this->product->review_count ?? 0);
+        @endphp
+        <div class="mb-4">
+            <div class="inline-flex items-center gap-2.5">
+                <div class="flex items-center">
+                    @for($i = 1; $i <= 5; $i++)
+                        <svg class="w-4 h-4 shrink-0 {{ $i <= round($detailRatingAvg) ? 'text-amber-400' : 'text-gray-200' }}" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clip-rule="evenodd" />
+                        </svg>
+                    @endfor
+                </div>
+                @if($detailRatingCount > 0)
+                    <span class="text-xs font-bold text-gray-900">{{ number_format($detailRatingAvg, 1, ',', '.') }}</span>
+                @endif
+                <button type="button"
+                        @click="$dispatch('scroll-to-reviews')"
+                        class="text-xs font-semibold text-gray-500 hover:text-[var(--theme-color)] underline underline-offset-2 transition-colors cursor-pointer">
+                    @if($detailRatingCount > 0)
+                        ({{ $detailRatingCount }} {{ $detailRatingCount === 1 ? 'Bewertung' : 'Bewertungen' }})
+                    @else
+                        (0 Bewertungen)
+                    @endif
+                </button>
+            </div>
+        </div>
+
         <livewire:shop.system.system-delivery-display :product="$this->product" />
 
         {{-- Kurz-Beschreibung --}}

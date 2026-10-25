@@ -29,28 +29,28 @@
                         </span>
                     </div>
 
-                    {{-- Die Gutschein-Karte selbst (Bleibt dunkel-luxuriös für Kontrast und Wertigkeit) --}}
-                    <div class="w-full aspect-[1.586/1] bg-gradient-to-br from-gray-900 to-gray-800 border-2 border-primary/30 rounded-2xl p-6 relative flex flex-col justify-between shadow-xl overflow-hidden min-h-[260px]">
+                    {{-- Die Gutschein-Karte selbst (In edlem, hellem Creme-/Champagner-Farbton) --}}
+                    <div class="w-full aspect-[1.586/1] bg-gradient-to-br from-[#FAF7F2] via-[#FDFBF7] to-[#F3ECE0] border-2 border-primary/35 rounded-2xl p-6 relative flex flex-col justify-between shadow-md overflow-hidden min-h-[260px]">
                         {{-- Goldene Eckenverzierungen --}}
-                        <div class="absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 border-primary/50"></div>
-                        <div class="absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2 border-primary/50"></div>
-                        <div class="absolute bottom-2 left-2 w-4 h-4 border-b-2 border-l-2 border-primary/50"></div>
-                        <div class="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-primary/50"></div>
+                        <div class="absolute top-2.5 left-2.5 w-4 h-4 border-t-2 border-l-2 border-primary/60"></div>
+                        <div class="absolute top-2.5 right-2.5 w-4 h-4 border-t-2 border-r-2 border-primary/60"></div>
+                        <div class="absolute bottom-2.5 left-2.5 w-4 h-4 border-b-2 border-l-2 border-primary/60"></div>
+                        <div class="absolute bottom-2.5 right-2.5 w-4 h-4 border-b-2 border-r-2 border-primary/60"></div>
 
                         {{-- Logo im Hintergrund --}}
-                        <div class="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none select-none">
+                        <div class="absolute inset-0 flex items-center justify-center opacity-[0.04] pointer-events-none select-none">
                             <img src="{{ URL::to('/shop/projekt/logo/mein-seelenfunke-logo.svg') }}" class="w-64 h-auto" alt="Mein Seelenfunke Logo">
                         </div>
 
                         {{-- Header --}}
-                        <div class="flex justify-between items-start z-10">
+                        <div class="flex justify-between items-start gap-3 z-10">
                             <div>
-                                <p class="text-xs uppercase tracking-widest text-primary/80 font-semibold">Geschenkgutschein</p>
-                                <p class="text-[10px] text-gray-400 tracking-wider font-mono">SEELENFUNKE-XXXX-XXXX</p>
+                                <p class="text-xs uppercase tracking-widest text-primary font-bold">Geschenkgutschein</p>
+                                <p class="text-[10px] text-gray-500 tracking-wider font-mono mt-0.5">SEELENFUNKE-XXXX-XXXX</p>
                             </div>
-                            <div class="text-right">
-                                <span class="text-3xl sm:text-4xl font-serif font-bold text-primary">
-                                    {{ number_format($this->selectedAmount, 2, ',', '.') }} €
+                            <div class="text-right shrink-0">
+                                <span class="text-3xl sm:text-4xl font-serif font-bold text-primary whitespace-nowrap">
+                                    {{ number_format($this->selectedAmount, 2, ',', '.') }}&nbsp;€
                                 </span>
                             </div>
                         </div>
@@ -58,24 +58,24 @@
                         {{-- Body (Nachricht & Empfänger) --}}
                         <div class="my-4 z-10">
                             @if(trim((string) $recipientName) !== '')
-                                <p class="text-xs text-gray-400 mb-1">Für:</p>
-                                <p class="text-lg font-serif font-bold text-white tracking-wide truncate mb-2">{{ $recipientName }}</p>
+                                <p class="text-xs text-gray-500 mb-0.5">Für:</p>
+                                <p class="text-lg font-serif font-bold text-gray-900 tracking-wide truncate mb-2">{{ $recipientName }}</p>
                             @else
-                                <p class="text-xs text-gray-500 italic mb-3">Empfänger wird in Schritt 2 eingetragen...</p>
+                                <p class="text-xs text-gray-400 italic mb-3">Empfänger wird in Schritt 2 eingetragen...</p>
                             @endif
 
                             @if(trim((string) $personalMessage) !== '')
-                                <p class="text-xs text-gray-400 mb-1">Deine Nachricht:</p>
-                                <p class="text-sm font-sans italic text-gray-300 line-clamp-3 leading-relaxed">„{{ $personalMessage }}“</p>
+                                <p class="text-xs text-gray-500 mb-0.5">Deine Nachricht:</p>
+                                <p class="text-sm font-sans italic text-gray-700 line-clamp-3 leading-relaxed">„{{ $personalMessage }}“</p>
                             @else
-                                <p class="text-xs text-gray-500 italic">Persönliche Widmung (optional)...</p>
+                                <p class="text-xs text-gray-400 italic">Persönliche Widmung (optional)...</p>
                             @endif
                         </div>
 
                         {{-- Footer --}}
-                        <div class="flex justify-between items-end border-t border-gray-800/80 pt-3 z-10">
-                            <p class="text-[9px] text-gray-400">Einlösbar auf www.mein-seelenfunke.de</p>
-                            <p class="text-[9px] text-primary/80 font-bold uppercase tracking-wider">Mein Seelenfunke</p>
+                        <div class="flex justify-between items-end border-t border-primary/20 pt-3 z-10">
+                            <p class="text-[9px] text-gray-500">Einlösbar auf www.mein-seelenfunke.de</p>
+                            <p class="text-[9px] text-primary font-bold uppercase tracking-wider">Mein Seelenfunke</p>
                         </div>
                     </div>
 
@@ -468,53 +468,56 @@
                             </div>
                         @endif
 
-                        {{-- Finale Zusammenfassung & In den Warenkorb legen --}}
-                        <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 sm:p-6 space-y-5">
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs border-b border-gray-200/80 pb-4">
+                        {{-- Finale Zusammenfassung & In den Warenkorb legen (Luftig & über volle Breite) --}}
+                        <div class="bg-gray-50 border border-gray-200 rounded-2xl p-6 sm:p-7 space-y-6">
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs border-b border-gray-200/80 pb-5">
                                 <div>
-                                    <span class="text-gray-400 block uppercase tracking-wider text-[10px] font-bold">Gutscheinwert</span>
-                                    <span class="font-bold text-gray-900 text-sm">{{ number_format($this->selectedAmount, 2, ',', '.') }} €</span>
+                                    <span class="text-gray-400 block uppercase tracking-wider text-[10px] font-bold mb-1">Gutscheinwert</span>
+                                    <span class="font-bold text-gray-900 text-sm whitespace-nowrap">{{ number_format($this->selectedAmount, 2, ',', '.') }}&nbsp;€</span>
                                 </div>
                                 <div>
-                                    <span class="text-gray-400 block uppercase tracking-wider text-[10px] font-bold">Empfänger</span>
+                                    <span class="text-gray-400 block uppercase tracking-wider text-[10px] font-bold mb-1">Empfänger</span>
                                     <span class="font-bold text-gray-900 text-sm truncate block">{{ $recipientName ?: '—' }}</span>
                                 </div>
                                 <div>
-                                    <span class="text-gray-400 block uppercase tracking-wider text-[10px] font-bold">Zustellung</span>
-                                    <span class="font-bold text-gray-900 text-sm">
+                                    <span class="text-gray-400 block uppercase tracking-wider text-[10px] font-bold mb-1">Zustellung</span>
+                                    <span class="font-bold text-gray-900 text-sm whitespace-nowrap">
                                         {{ $deliveryMethod === 'post' ? 'Per Post (+ ' . number_format($this->postShippingCost, 2, ',', '.') . ' €)' : 'Per E-Mail (Gratis)' }}
                                     </span>
                                 </div>
                             </div>
 
-                            <div class="flex flex-col sm:flex-row justify-between items-center gap-5">
-                                <div class="text-center sm:text-left">
-                                    <p class="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-0.5">Gesamtsumme</p>
-                                    <div class="flex items-baseline gap-2 justify-center sm:justify-start">
-                                        <span class="text-3xl sm:text-4xl font-serif font-bold text-gray-900">{{ number_format($this->finalTotal, 2, ',', '.') }} €</span>
-                                        @if($this->shippingCost > 0)
-                                            <span class="text-xs text-gray-500">(inkl. Postversand)</span>
-                                        @else
-                                            <span class="text-xs text-emerald-600 font-semibold">(Versandkostenfrei)</span>
-                                        @endif
-                                    </div>
+                            {{-- Gesamtsumme Zeile (mit whitespace-nowrap gegen Zeilenumbruch beim €-Zeichen) --}}
+                            <div class="flex flex-wrap items-baseline justify-between gap-4">
+                                <div>
+                                    <p class="text-xs uppercase tracking-wider text-gray-500 font-bold">Gesamtsumme</p>
+                                    @if($this->shippingCost > 0)
+                                        <span class="text-xs text-gray-500">inkl. Postversand im edlen Umschlag</span>
+                                    @else
+                                        <span class="text-xs text-emerald-600 font-semibold">Versandkostenfrei per E-Mail</span>
+                                    @endif
                                 </div>
 
-                                <div class="flex flex-col-reverse sm:flex-row items-center gap-3 w-full sm:w-auto">
-                                    <button type="button"
-                                            wire:click="previousStep"
-                                            class="w-full sm:w-auto px-5 py-4 rounded-2xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-100 font-bold text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-                                        <span>Zurück</span>
-                                    </button>
+                                <span class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 whitespace-nowrap">
+                                    {{ number_format($this->finalTotal, 2, ',', '.') }}&nbsp;€
+                                </span>
+                            </div>
 
-                                    <button type="button"
-                                            wire:click="addToCart"
-                                            class="w-full sm:w-auto px-8 py-4 bg-primary text-white font-serif font-bold text-lg rounded-2xl hover:bg-primary/90 hover:scale-[1.02] active:scale-95 transition-all duration-300 shadow-md shadow-primary/15 flex items-center justify-center gap-3 cursor-pointer">
-                                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
-                                        <span>In den Warenkorb legen</span>
-                                    </button>
-                                </div>
+                            {{-- Aktions-Buttons: In den Warenkorb legen über die volle Breite --}}
+                            <div class="space-y-3 pt-1">
+                                <button type="button"
+                                        wire:click="addToCart"
+                                        class="w-full py-4 px-8 bg-primary text-white font-serif font-bold text-lg rounded-2xl hover:bg-primary/90 hover:scale-[1.01] active:scale-[0.99] transition-all duration-300 shadow-md shadow-primary/15 flex items-center justify-center gap-3 cursor-pointer whitespace-nowrap">
+                                    <svg class="w-6 h-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
+                                    <span>In den Warenkorb legen</span>
+                                </button>
+
+                                <button type="button"
+                                        wire:click="previousStep"
+                                        class="w-full py-3 px-5 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-900 font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer">
+                                    <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                                    <span>Zurück zu Schritt 2 (Personalisierung)</span>
+                                </button>
                             </div>
                         </div>
                     </div>

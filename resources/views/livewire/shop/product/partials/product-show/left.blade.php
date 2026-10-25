@@ -13,8 +13,21 @@
             const el = this.$refs.leftScrollContainer;
             if (!el) return;
             el.scrollBy({ top: Math.round(el.clientHeight * 0.55), behavior: 'smooth' });
+        },
+        scrollToReviews() {
+            const el = this.$refs.leftScrollContainer;
+            const target = document.getElementById('kundenbewertungen-desktop');
+            if (window.innerWidth >= 1024 && el && target) {
+                el.scrollTo({ top: Math.max(0, target.offsetTop - 24), behavior: 'smooth' });
+            } else {
+                const mobileTarget = document.getElementById('kundenbewertungen-mobile');
+                if (mobileTarget) {
+                    mobileTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
         }
      }"
+     @scroll-to-reviews.window="scrollToReviews()"
      x-init="
         $nextTick(() => {
             checkScroll();
@@ -293,21 +306,19 @@
         </div>
     </div>
 
-    {{-- Fließender Fade-Übergang unten + deutlich sichtbarer, kräftiger Scroll-Button (Desktop) --}}
+    {{-- Fließender Fade-Übergang unten + mittiger Scroll-Button mit Icon darunter ohne Border (Desktop) --}}
     <div x-show="canScrollDown"
          x-transition.opacity.duration.300ms
-         class="hidden lg:flex pointer-events-none absolute bottom-0 inset-x-0 h-32 bg-gradient-to-t from-white via-white/90 to-transparent z-20 items-end justify-center pb-3">
+         class="hidden lg:flex pointer-events-none absolute bottom-0 inset-x-0 h-32 bg-gradient-to-t from-white via-white/95 to-transparent z-20 items-end justify-center pb-2">
         <button type="button"
                 @click="scrollDownStep()"
                 aria-label="Weiter nach unten scrollen"
                 title="Weiter nach unten scrollen"
-                class="pointer-events-auto group inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-white hover:bg-[var(--theme-color)] text-gray-900 hover:text-white border-2 border-[var(--theme-color)] shadow-lg shadow-gray-900/15 hover:shadow-xl transition-all duration-300 cursor-pointer ring-4 ring-white/90">
-            <span class="text-xs font-extrabold uppercase tracking-wider">Mehr Details & Bewertungen</span>
-            <span class="w-7 h-7 rounded-full bg-[var(--theme-color-10)] group-hover:bg-white/20 flex items-center justify-center text-[var(--theme-color)] group-hover:text-white transition-colors">
-                <svg class="w-4 h-4 transition-transform duration-300 group-hover:translate-y-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-            </span>
+                class="pointer-events-auto group flex flex-col items-center justify-center gap-1 px-6 py-2 bg-transparent text-gray-800 hover:text-[var(--theme-color)] transition-all duration-300 cursor-pointer">
+            <span class="text-xs font-extrabold uppercase tracking-wider text-center">Mehr Details & Bewertungen</span>
+            <svg class="w-6 h-6 text-[var(--theme-color)] transition-transform duration-300 group-hover:translate-y-1 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
         </button>
     </div>
 
