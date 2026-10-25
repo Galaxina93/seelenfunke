@@ -113,6 +113,7 @@
         // NEU: Zieht den exakten, aufgeschlüsselten Tax Breakdown via Traits für 0% Produkte!
         $data['tax_breakdown'] = [];
         $data['express_cost'] = 0;
+        $data['shipping_label'] = 'Versand';
         if (method_exists($model, 'toFormattedArray')) {
             $summaryData = $model->toFormattedArray();
             if (!$isSmallBusiness && isset($summaryData['tax_breakdown']) && is_array($summaryData['tax_breakdown'])) {
@@ -124,6 +125,11 @@
             if($data['is_express']) {
                 $expressStr = $summaryData['express_price'] ?? '0,00';
                 $data['express_cost'] = (int)round((float)str_replace(['.', ','], ['', '.'], $expressStr) * 100);
+            }
+            if (!empty($summaryData['has_postal_voucher'])) {
+                $data['shipping_label'] = ($summaryData['shipping_label'] ?? '') === 'Versandkosten (✉️ Per Post im Umschlag)'
+                    ? 'Versand (✉️ Per Post im Umschlag)'
+                    : 'Versand (inkl. ✉️ Gutschein per Post)';
             }
         }
     }
@@ -142,6 +148,13 @@
         $data['tax_amount'] = $totals['tax'] ?? 0;
         $data['tax_breakdown'] = $totals['taxes_breakdown'] ?? [];
         $data['total'] = $totals['total'] ?? 0;
+        if (($totals['shipping_reason'] ?? null) === 'gift_voucher_only') {
+            $data['shipping_label'] = 'Versand (✉️ Per Post im Umschlag)';
+        } elseif (!empty($totals['has_postal_voucher'])) {
+            $data['shipping_label'] = 'Versand (inkl. ✉️ Gutschein per Post)';
+        } else {
+            $data['shipping_label'] = 'Versand';
+        }
     }
 
     $isGiftVoucher = false;
@@ -222,7 +235,7 @@
 
         {{-- 4. Versand --}}
         <div class="flex justify-between">
-            <span class="{{ $labelClass }}">Versand {{ $country ? "($country)" : '' }}</span>
+            <span class="{{ $labelClass }}">{{ $data['shipping_label'] ?? 'Versand' }} {{ $country ? "($country)" : '' }}</span>
             @if($data['shipping'] > 0)
                 <span class="{{ $valueClass }} whitespace-nowrap">{{ number_format($data['shipping'] / 100, 2, ',', '.') }}&nbsp;€</span>
             @else

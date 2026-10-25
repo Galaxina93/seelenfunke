@@ -97,8 +97,18 @@ class AccountingXmlInvoiceService
         }
 
         if ($invoice->shipping_cost > 0) {
+            $hasPostalVoucher = false;
+            if ($invoice->order && $invoice->order->items) {
+                foreach ($invoice->order->items as $orderItem) {
+                    $cfg = is_array($orderItem->configuration) ? $orderItem->configuration : [];
+                    if (!empty($cfg['is_gift_voucher']) && ($cfg['delivery_method'] ?? 'email') === 'post') {
+                        $hasPostalVoucher = true;
+                        break;
+                    }
+                }
+            }
             $allItems[] = [
-                'product_name' => 'Versandkosten',
+                'product_name' => $hasPostalVoucher ? 'Versandkosten (Gutschein per Post im Umschlag)' : 'Versandkosten',
                 'quantity' => 1,
                 'unit_price' => $invoice->shipping_cost, // in Cent
                 'tax_rate' => $isSmallBusiness ? 0 : shop_setting('default_tax_rate', 19.0)

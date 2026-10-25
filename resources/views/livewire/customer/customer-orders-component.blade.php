@@ -147,6 +147,25 @@
                                                 <p class="text-sm text-gray-500 dark:text-gray-400 font-medium">
                                                     {{ $item->quantity }}x je {{ number_format(($item->unit_price / 100), 2, ',', '.') }} €
                                                 </p>
+
+                                                @if(!empty($item->configuration['is_gift_voucher']))
+                                                    <div class="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
+                                                        @if(!empty($item->configuration['recipient_name']))
+                                                            <span class="px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 font-medium">
+                                                                <strong>Für:</strong> {{ $item->configuration['recipient_name'] }}
+                                                            </span>
+                                                        @endif
+                                                        @if(($item->configuration['delivery_method'] ?? 'email') === 'post')
+                                                            <span class="px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30 font-bold">
+                                                                ✉️ Per Post im Umschlag (+ 3,50 € Versand)
+                                                            </span>
+                                                        @else
+                                                            <span class="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30 font-bold">
+                                                                📧 Per E-Mail / PDF-Download (Versandkostenfrei)
+                                                            </span>
+                                                        @endif
+                                                    </div>
+                                                @endif
                                             </div>
 
                                             <div class="mt-6 flex flex-wrap items-center gap-4">

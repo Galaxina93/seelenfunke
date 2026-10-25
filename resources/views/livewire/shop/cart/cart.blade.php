@@ -140,8 +140,32 @@
                                                 </p>
                                             @endif
 
+                                            @if(!empty($item->configuration['is_gift_voucher']))
+                                                <div class="mt-1.5 space-y-1 text-xs text-gray-600">
+                                                    @if(!empty($item->configuration['recipient_name']))
+                                                        <p><span class="font-bold text-gray-800">Für:</span> {{ $item->configuration['recipient_name'] }}</p>
+                                                    @endif
+                                                    @if(!empty($item->configuration['message']))
+                                                        <p class="italic text-gray-500 line-clamp-2">„{{ $item->configuration['message'] }}“</p>
+                                                    @endif
+                                                </div>
+                                            @endif
+
                                             <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-1.5 text-xs font-medium">
-                                                @if($type === 'physical')
+                                                @if(!empty($item->configuration['is_gift_voucher']))
+                                                    @if(($item->configuration['delivery_method'] ?? 'email') === 'post')
+                                                        <span class="text-amber-800 inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg font-bold">
+                                                            <span>✉️ Per Post im Umschlag (+&nbsp;3,50&nbsp;€ Versand)</span>
+                                                        </span>
+                                                        <span class="text-blue-600 inline-flex items-center gap-1 bg-blue-50/80 border border-blue-100 px-2 py-1 rounded-lg">
+                                                            <span>+&nbsp;Sofort-PDF</span>
+                                                        </span>
+                                                    @else
+                                                        <span class="text-blue-600 inline-flex items-center gap-1.5 bg-blue-50/80 border border-blue-100 px-2.5 py-1 rounded-lg">
+                                                            <span>📧 Per E-Mail / PDF-Download (Versandfrei)</span>
+                                                        </span>
+                                                    @endif
+                                                @elseif($type === 'physical')
                                                     @if($deliveryTime)
                                                         <span class="text-green-700 inline-flex items-center gap-1.5 bg-green-50/80 border border-green-100 px-2.5 py-1 rounded-lg">
                                                             <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -287,6 +311,7 @@
                             $threshold = (int) shop_setting('shipping_free_threshold', 5000);
                             $currentValue = $totals['subtotal_gross'];
                             $hasPhysical = $items->contains(fn($i) => ($i->product->type ?? 'physical') === 'physical');
+                            $hasPostalVoucher = !empty($totals['has_postal_voucher']);
                             $missing = $totals['missing_for_free_shipping'];
                             $isFree = $totals['is_free_shipping'];
 
@@ -316,6 +341,11 @@
                                     <span class="text-xs font-bold uppercase tracking-wider">Kostenloser Versand aktiviert!</span>
                                 </div>
                             @endif
+                        @elseif(!$hasPhysical && $hasPostalVoucher)
+                            <div class="mb-6 flex items-center gap-2.5 text-amber-800 bg-amber-50 p-3 rounded-xl border border-amber-200 shadow-sm">
+                                <span class="text-base shrink-0">✉️</span>
+                                <span class="text-xs font-bold">Gutschein per Post im Umschlag (+&nbsp;3,50&nbsp;€)</span>
+                            </div>
                         @elseif(!$hasPhysical)
                             <div class="mb-6 flex items-center gap-2 text-blue-600 bg-blue-50 p-3 rounded-xl border border-blue-100 shadow-sm">
                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>

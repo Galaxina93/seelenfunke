@@ -819,6 +819,11 @@ class CartService
         $finalTotalGross = max(0, $totalBeforeDiscount - $discountAmount);
         $finalTotalTax = array_sum($taxesBreakdown);
 
+        $hasPostalVoucher = collect($cart->items)->contains(function ($ci) {
+            $cfg = is_array($ci->configuration) ? $ci->configuration : [];
+            return !empty($cfg['is_gift_voucher']) && ($cfg['delivery_method'] ?? 'email') === 'post';
+        });
+
         return [
             'subtotal_original' => $originalSubtotal,
             'subtotal_gross' => $subtotalGross,
@@ -829,6 +834,8 @@ class CartService
             'taxes_breakdown' => $taxesBreakdown,
             'shipping' => $shippingGross,
             'shipping_tax' => $shippingTaxAmount,
+            'shipping_reason' => $shippingResult['reason'] ?? null,
+            'has_postal_voucher' => $hasPostalVoucher,
             'express' => $expressGross,
             'express_tax' => $expressTaxAmount,
             'is_express' => $cart->is_express,

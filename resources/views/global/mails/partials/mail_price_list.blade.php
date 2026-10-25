@@ -83,7 +83,7 @@
 
         {{-- Versandkosten --}}
         <tr>
-            <td class="text-right" style="padding-bottom: 5px; color: #666; font-size: 13px; text-align: right;">Versandkosten:</td>
+            <td class="text-right" style="padding-bottom: 5px; color: #666; font-size: 13px; text-align: right;">{{ $data['shipping_label'] ?? 'Versandkosten' }}:</td>
             <td class="text-right" style="padding-bottom: 5px; color: #666; font-size: 13px; text-align: right;">
                 @if($shippingGross <= 0)
                     <span style="color: #16a34a; font-weight: bold;">Kostenlos</span>

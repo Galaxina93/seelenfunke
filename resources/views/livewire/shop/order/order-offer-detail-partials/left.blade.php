@@ -175,6 +175,22 @@
                                 {{-- Config Hints --}}
                                 @if(!empty($conf))
                                     <div class="mt-3 flex flex-wrap gap-2">
+                                        @if(!empty($conf['is_gift_voucher']))
+                                            @if(($conf['delivery_method'] ?? 'email') === 'post')
+                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-sm">
+                                                    ✉️ Per Post im Umschlag (+ 3,50 €)
+                                                </span>
+                                            @else
+                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30 shadow-sm">
+                                                    📧 Per E-Mail / PDF
+                                                </span>
+                                            @endif
+                                            @if(!empty($conf['recipient_name']))
+                                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[9px] font-bold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700">
+                                                    Für: {{ $conf['recipient_name'] }}
+                                                </span>
+                                            @endif
+                                        @endif
                                         @if(!empty($conf['text']))
                                             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700 shadow-sm">
                                                 <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -248,7 +264,9 @@
 
         {{-- 4. HINTERLEGTE DATEIEN & DOWNLOADS (ZUGEKLAPPT) (Nur für personalisierbare Produkte) --}}
         @php
-            $isPersonalizable = !isset($previewItem->product) || $previewItem->product->isPersonalizable() !== false;
+            $isPersonalizable = !isset($previewItem->product)
+                || $previewItem->product->isPersonalizable() !== false
+                || !empty($previewItem->configuration['is_gift_voucher']);
         @endphp
 
         @if($isPersonalizable)

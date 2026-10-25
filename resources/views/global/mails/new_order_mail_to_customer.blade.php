@@ -11,12 +11,21 @@
     @php
         $hasPhysical = false;
         $hasDigital = false;
+        $hasPostalVoucher = !empty($data['has_postal_voucher']);
         
         foreach($data['items'] ?? [] as $item) {
             $itemType = $item['type'] ?? 'physical';
+            $itemConf = $item['config'] ?? [];
             $isShippingOrExpress = str_contains(strtolower($item['name'] ?? ''), 'versand') || str_contains(strtolower($item['name'] ?? ''), 'express');
             
             if ($isShippingOrExpress) {
+                continue;
+            }
+
+            if (!empty($itemConf['is_gift_voucher']) && ($itemConf['delivery_method'] ?? 'email') === 'post') {
+                $hasPostalVoucher = true;
+                $hasPhysical = true;
+                $hasDigital = true;
                 continue;
             }
             
@@ -28,10 +37,12 @@
         }
     @endphp
 
-    @if($hasDigital && !$hasPhysical)
-        <p>Wir haben deine Bestellung <strong>#{{ $data['quote_number'] }}</strong> erhalten. Deine digitalen Produkte stehen ab sofort in deinem Kundenkonto zum Download bereit!</p>
+    @if($hasPostalVoucher)
+        <p>Wir haben deine Bestellung <strong>#{{ $data['quote_number'] }}</strong> erhalten. Wir bereiten deinen gedruckten Geschenkgutschein im edlen Umschlag (<strong>✉️ Per Post im Umschlag</strong>) nun mit viel Liebe für den Postversand vor. Zusätzlich steht dir das Gutschein-PDF bereits jetzt als Sofort-Download zur Verfügung!</p>
+    @elseif($hasDigital && !$hasPhysical)
+        <p>Wir haben deine Bestellung <strong>#{{ $data['quote_number'] }}</strong> erhalten. Deine digitalen Produkte stehen ab sofort zum Download bereit!</p>
     @elseif($hasDigital && $hasPhysical)
-        <p>Wir haben deine Bestellung <strong>#{{ $data['quote_number'] }}</strong> erhalten. Die digitalen Produkte stehen ab sofort in deinem Kundenkonto zum Download bereit, und deine physischen Schätze bereiten wir nun mit viel Liebe für dich vor.</p>
+        <p>Wir haben deine Bestellung <strong>#{{ $data['quote_number'] }}</strong> erhalten. Die digitalen Produkte stehen ab sofort zum Download bereit, und deine physischen Schätze bereiten wir nun mit viel Liebe für dich vor.</p>
     @else
         <p>Wir haben deine Bestellung <strong>#{{ $data['quote_number'] }}</strong> erhalten und bereiten diese nun mit viel Liebe für dich vor.</p>
     @endif

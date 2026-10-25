@@ -140,6 +140,24 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
                 Log::error("Kunden-Bestellbestätigung konnte nicht gesendet werden für {$this->order->order_number}: " . $customerEx->getMessage());
             }
 
+            // 2a-2. Separate Geschenkgutschein-E-Mails im Hintergrund-Job versenden (entlastet den Checkout-Request bei hohem Traffic von DomPDF & SMTP)
+            try {
+                $emailVouchers = \App\Models\Marketing\MarketingGiftVoucher::whereIn('order_item_id', $this->order->items->pluck('id'))
+                    ->where('is_active', true)
+                    ->where('delivery_method', 'email')
+                    ->get();
+
+                foreach ($emailVouchers as $voucher) {
+                    $recipientTarget = $voucher->recipient_email ?: $this->order->email;
+                    if (!empty($recipientTarget)) {
+                        Mail::to($recipientTarget)
+                            ->sendNow(new \App\Mail\NewGiftVoucherToCustomer($voucher));
+                    }
+                }
+            } catch (\Throwable $voucherMailEx) {
+                Log::error("Geschenkgutschein-E-Mail konnte nicht gesendet werden für {$this->order->order_number}: " . $voucherMailEx->getMessage());
+            }
+
             // Initialpasswort niemals an Admin-Sammelpostfach weiterleiten
             $mailData['customer_temporary_password'] = null;
             $mailData['customer_needs_password_change'] = false;

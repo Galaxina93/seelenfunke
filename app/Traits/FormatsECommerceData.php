@@ -180,11 +180,35 @@ trait FormatsECommerceData
 
         $dynamicDivisor = $isSmallBusiness ? 1.0 : (1 + ($maxTaxRate / 100));
 
-        // 5. Versandkosten-Logik (Zentrale Prüfung der Schwelle)
-        // Wir prüfen subtotal_price (Order) oder goodsGrossCents (berechnet) gegen die Schwelle
+        // 5. Versandkosten-Logik: Persistierten Versandpreis (z.B. 3,50 € für Gutschein per Post im Umschlag oder Auslands-/Standardversand) vorrangig nutzen!
         $calcBase = $this->subtotal_price ?? $goodsGrossCents;
-        $actualShippingGross = ($calcBase >= $shippingThreshold) ? 0 : ($this->shipping_price ?? $this->shipping_cost ?? 0);
+        $persistedShipping = $this->shipping_price ?? $this->shipping_cost ?? null;
+        if ($persistedShipping !== null) {
+            $actualShippingGross = (int) $persistedShipping;
+        } else {
+            $actualShippingGross = ($calcBase >= $shippingThreshold) ? 0 : 0;
+        }
         $shippingNettoCents  = (int)round($actualShippingGross / $dynamicDivisor);
+
+        // Prüfen, ob ein Geschenkgutschein "Per Post im Umschlag" enthalten ist (für präzise Ausweisung in Mail, Rechnung & Übersicht)
+        $hasPostalVoucher = false;
+        $hasStandardPhysical = false;
+        foreach ($items as $fmtItem) {
+            $fmtConf = is_array($fmtItem['config'] ?? null) ? $fmtItem['config'] : (is_object($fmtItem['config'] ?? null) ? (array) $fmtItem['config'] : []);
+            $isVoucher = !empty($fmtConf['is_gift_voucher']);
+            if ($isVoucher && ($fmtConf['delivery_method'] ?? 'email') === 'post') {
+                $hasPostalVoucher = true;
+            } elseif (!$isVoucher && ($fmtItem['type'] ?? 'physical') === 'physical') {
+                $hasStandardPhysical = true;
+            }
+        }
+
+        $shippingLabel = 'Versandkosten';
+        if ($hasPostalVoucher && !$hasStandardPhysical) {
+            $shippingLabel = 'Versandkosten (✉️ Per Post im Umschlag)';
+        } elseif ($hasPostalVoucher && $hasStandardPhysical) {
+            $shippingLabel = 'Versandkosten (inkl. ✉️ Gutschein per Post)';
+        }
 
         if ($actualShippingGross > 0 && !$isSmallBusiness) {
             $shippingTaxCents = $actualShippingGross - $shippingNettoCents;
@@ -259,10 +283,12 @@ trait FormatsECommerceData
             'items' => $items,
 
             // Formatiert für die Anzeige
-            'total_netto'    => number_format($totalNettoCents / 100, 2, ',', '.'),
-            'total_vat'      => number_format($taxAmountCents / 100, 2, ',', '.'),
-            'total_gross'    => number_format($grossTotalCents / 100, 2, ',', '.'),
-            'shipping_price' => number_format($actualShippingGross / 100, 2, ',', '.'),
+            'total_netto'         => number_format($totalNettoCents / 100, 2, ',', '.'),
+            'total_vat'           => number_format($taxAmountCents / 100, 2, ',', '.'),
+            'total_gross'         => number_format($grossTotalCents / 100, 2, ',', '.'),
+            'shipping_price'      => number_format($actualShippingGross / 100, 2, ',', '.'),
+            'shipping_label'      => $shippingLabel,
+            'has_postal_voucher'  => $hasPostalVoucher,
 
             // --- NEU: GUTSCHEINE UND RABATTE ---
             'volume_discount' => number_format(($this->volume_discount ?? 0) / 100, 2, ',', '.'),

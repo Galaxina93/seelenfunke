@@ -379,9 +379,7 @@ class OrderOrder extends Model
             return;
         }
 
-        $vouchersToEmail = [];
-
-        \Illuminate\Support\Facades\DB::transaction(function () use ($stripePaymentIntentId, &$vouchersToEmail) {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($stripePaymentIntentId) {
             // Lock the order row for update to prevent concurrent payment processing races
             $order = self::where('id', $this->id)->lockForUpdate()->first();
             if (
@@ -483,7 +481,7 @@ class OrderOrder extends Model
 
                         for ($i = 0; $i < $item->quantity; $i++) {
                             $code = \App\Models\Marketing\MarketingGiftVoucher::generateCode();
-                            $voucher = \App\Models\Marketing\MarketingGiftVoucher::create([
+                            \App\Models\Marketing\MarketingGiftVoucher::create([
                                 'code' => $code,
                                 'order_item_id' => $item->id,
                                 'initial_value' => $paidVoucherValue,
@@ -495,13 +493,6 @@ class OrderOrder extends Model
                                 'is_active' => true,
                                 'valid_until' => now()->addYears(3)->endOfYear(),
                             ]);
-
-                            if ($voucher->delivery_method === 'email') {
-                                $vouchersToEmail[] = [
-                                    'voucher' => $voucher,
-                                    'to' => $voucher->recipient_email ?: $order->email,
-                                ];
-                            }
                         }
                     }
                 }
@@ -532,16 +523,6 @@ class OrderOrder extends Model
             // --- DOKUMENTE & MAILS AN DEN BACKGROUND-WORKER ÜBERGEBEN ---
             \App\Jobs\ProcessOrderDocumentsAndMails::dispatch($order);
         });
-
-        // Gutschein-E-Mails erst nach erfolgreichem DB-Commit versenden (verhindert Geister-Mails bei Rollback & DB-Locks während SMTP/DomPDF)
-        foreach ($vouchersToEmail as $entry) {
-            try {
-                \Illuminate\Support\Facades\Mail::to($entry['to'])
-                    ->send(new \App\Mail\NewGiftVoucherToCustomer($entry['voucher']));
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error('Gift voucher email delivery failed: ' . $e->getMessage());
-            }
-        }
     }
 
     /**

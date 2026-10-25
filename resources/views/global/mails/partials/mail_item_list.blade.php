@@ -189,8 +189,39 @@
                             @endif
                         @endif
 
-                        {{-- HINWEIS FÜR STANDARD PRODUKTE --}}
-                        @if(isset($item['is_personalizable']) && $item['is_personalizable'] === false)
+                        {{-- GESCHENKGUTSCHEIN DETAILS (Empfänger, Widmung & Versandart) --}}
+                        @if(!empty($conf['is_gift_voucher']))
+                            @php
+                                $voucherDelivery = $conf['delivery_method'] ?? 'email';
+                                $voucherSurchargeCents = (int) ($conf['shipping_surcharge'] ?? shop_setting('shipping_cost_voucher', 350));
+                            @endphp
+                            <div style="margin-top: 4px; margin-bottom: 4px;">
+                                @if(!empty($conf['recipient_name']))
+                                    <div style="margin-bottom: 2px;"><strong style="color: #444;">Für:</strong> {{ $conf['recipient_name'] }}</div>
+                                @endif
+                                @if(!empty($conf['personal_message']))
+                                    <div style="margin-bottom: 2px;"><strong style="color: #444;">Persönliche Nachricht:</strong> „{{ $conf['personal_message'] }}“</div>
+                                @endif
+                                <div style="margin-top: 4px;">
+                                    <strong style="color: #444;">Zustellung:</strong>
+                                    @if($voucherDelivery === 'post')
+                                        <span style="color: #b45309; font-weight: bold;">
+                                            ✉️ Per Post im Umschlag (zzgl. {{ number_format($voucherSurchargeCents / 100, 2, ',', '.') }} € Versand)
+                                        </span>
+                                    @else
+                                        <span style="color: #047857; font-weight: bold;">
+                                            📧 Per E-Mail / PDF-Download (Versandkostenfrei)
+                                        </span>
+                                        @if(!empty($conf['recipient_email']))
+                                            <span style="color: #6b7280;">({{ $conf['recipient_email'] }})</span>
+                                        @endif
+                                    @endif
+                                </div>
+                            </div>
+                        @endif
+
+                        {{-- HINWEIS FÜR STANDARD PRODUKTE (Nicht bei Geschenkgutscheinen anzeigen) --}}
+                        @if(empty($conf['is_gift_voucher']) && isset($item['is_personalizable']) && $item['is_personalizable'] === false)
                              <div style="margin-top: 8px; font-style: italic; color: #166534; font-size: 10px;">
                                  ✓ Handgefertigter Standard-Artikel<br>
                                  <span style="font-size: 9px; color: #78716c;">(Keine Personalisierung durch Kunden vorgesehen.)</span>

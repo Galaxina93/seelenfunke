@@ -32,27 +32,18 @@
                 $threshold = (int) shop_setting('shipping_free_threshold', 5000);
                 $currentValue = $totals['subtotal_gross'];
 
-                // Ein Item benötigt physischen Versand, wenn es vom Typ physical ist oder ein postalisch versendeter Gutschein
-                $hasPhysical = $cart->items->contains(function($item) {
-                    $type = $item->product->type ?? 'physical';
-                    if ($type === 'physical') {
-                        return true;
-                    }
-                    $config = $item->configuration ?? [];
-                    if (!empty($config['is_gift_voucher']) && ($config['delivery_method'] ?? 'email') === 'post') {
-                        return true;
-                    }
-                    return false;
-                });
+                $hasStandardPhysical = $cart->items->contains(fn($item) => ($item->product->type ?? 'physical') === 'physical');
+                $hasPostalVoucher = !empty($totals['has_postal_voucher']);
+                $hasPhysical = $hasStandardPhysical || $hasPostalVoucher;
 
                 $percent = $threshold > 0 ? min(100, ($currentValue / $threshold) * 100) : 100;
                 $missing = $totals['missing_for_free_shipping'];
                 $isFree = $totals['is_free_shipping'];
 
-                if (!$hasPhysical) $percent = 100;
+                if (!$hasStandardPhysical) $percent = 100;
             @endphp
 
-            @if($country === 'DE' && $hasPhysical)
+            @if($country === 'DE' && $hasStandardPhysical)
                 <div class="mb-4 bg-gray-50 p-3.5 rounded-xl border border-gray-200">
                     @if($isFree)
                         <div class="flex items-center gap-2 text-green-600 font-bold text-sm animate-fade-in">
@@ -67,6 +58,11 @@
                             <div class="bg-primary h-2 rounded-full transition-all duration-500" style="width: {{ $percent }}%"></div>
                         </div>
                     @endif
+                </div>
+            @elseif(!$hasStandardPhysical && $hasPostalVoucher)
+                <div class="mb-4 bg-amber-50 p-3 rounded-xl border border-amber-200 text-amber-800 text-xs sm:text-sm flex items-center gap-2.5 shadow-2xs font-medium">
+                    <span class="text-base shrink-0">✉️</span>
+                    <span>Zustellung per Post im Umschlag (+&nbsp;3,50&nbsp;€) &amp; Sofort-PDF</span>
                 </div>
             @elseif(!$hasPhysical)
                 <div class="mb-4 bg-blue-50 p-3 rounded-xl border border-blue-100 text-blue-800 text-xs sm:text-sm flex gap-3 shadow-2xs">
@@ -193,11 +189,31 @@
                                         </p>
                                     @endif
 
+                                    @if(!empty($item->configuration['is_gift_voucher']))
+                                        <div class="mt-1 space-y-0.5 text-[11px] text-gray-600 font-normal">
+                                            @if(!empty($item->configuration['recipient_name']))
+                                                <p><span class="font-bold text-gray-800">Für:</span> {{ $item->configuration['recipient_name'] }}</p>
+                                            @endif
+                                        </div>
+                                    @endif
+
                                     {{-- Menge & Personalisierungs-Buttons in einer aufgeräumten Zeile --}}
                                     <div class="flex flex-wrap items-center gap-1.5 mt-2">
                                         <span class="inline-flex items-center text-[11px] font-bold text-gray-600 bg-gray-100 border border-gray-200/80 px-2 py-0.5 rounded-md whitespace-nowrap">
                                             {{ $item->quantity }}x
                                         </span>
+
+                                        @if(!empty($item->configuration['is_gift_voucher']))
+                                            @if(($item->configuration['delivery_method'] ?? 'email') === 'post')
+                                                <span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                                                    ✉️ Per Post (+&nbsp;3,50&nbsp;€)
+                                                </span>
+                                            @else
+                                                <span class="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">
+                                                    📧 Per E-Mail (Gratis)
+                                                </span>
+                                            @endif
+                                        @endif
 
                                         @if($hasTexts)
                                             <button type="button"
@@ -286,6 +302,7 @@
                 {{-- Lightbox Modal für Produktvorschau / Motive im Checkout --}}
                 <div x-show="imageModalOpen"
                      x-cloak
+                     style="display: none;"
                      class="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs"
                      @click.self="imageModalOpen = false"
                      @keydown.escape.window="imageModalOpen = false">
@@ -296,7 +313,9 @@
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                         <div class="flex items-center justify-center max-h-[75vh] overflow-auto p-2">
-                            <img :src="imageModalUrl" alt="Vorschau" class="max-w-full max-h-[70vh] object-contain rounded-lg">
+                            <template x-if="imageModalOpen && imageModalUrl">
+                                <img :src="imageModalUrl" alt="Vorschau" class="max-w-full max-h-[70vh] object-contain rounded-lg">
+                            </template>
                         </div>
                     </div>
                 </div>
@@ -317,8 +336,35 @@
             @endif
 
             <div class="mt-4 pt-4 border-t border-gray-100">
-                <x-shop.cost-summary :totals="$totals" :country="$country" :showTitle="false" />
+                <x-shop.cost-summary :totals="$totals" :country="$country" :showTitle="false">
+                    <button type="button" wire:click="removeCoupon" class="text-red-400 hover:text-red-600 transition cursor-pointer" title="Gutschein entfernen">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </x-shop.cost-summary>
             </div>
+
+            @if($errors->has('coupon') || $errors->has('cart') || $errors->has('payment'))
+                <div class="mt-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold space-y-1 animate-fade-in">
+                    @error('coupon')
+                        <div class="flex items-start gap-2">
+                            <svg class="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                            <span>{{ $message }}</span>
+                        </div>
+                    @enderror
+                    @error('cart')
+                        <div class="flex items-start gap-2">
+                            <svg class="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                            <span>{{ $message }}</span>
+                        </div>
+                    @enderror
+                    @error('payment')
+                        <div class="flex items-start gap-2">
+                            <svg class="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                            <span>{{ $message }}</span>
+                        </div>
+                    @enderror
+                </div>
+            @endif
 
             <div class="space-y-3 bg-gray-50/90 p-3.5 rounded-xl mt-4 border border-gray-150">
                 <div class="flex items-start">

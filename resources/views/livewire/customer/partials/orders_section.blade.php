@@ -171,8 +171,11 @@
                                 </div>
                             @endif
 
+                            @php
+                                $hasPostalVoucherOrder = $selectedOrder->items->contains(fn($i) => !empty($i->configuration['is_gift_voucher']) && ($i->configuration['delivery_method'] ?? 'email') === 'post');
+                            @endphp
                             <div class="flex justify-between text-sm text-gray-400 mb-3 font-medium">
-                                <span>Versandkosten</span>
+                                <span>{{ $hasPostalVoucherOrder ? 'Versandkosten (✉️ Per Post im Umschlag)' : 'Versandkosten' }}</span>
                                 @if($selectedOrder->shipping_price == 0)
                                     <span class="text-emerald-400 font-bold uppercase tracking-widest text-[10px] mt-1">Kostenlos</span>
                                 @else
