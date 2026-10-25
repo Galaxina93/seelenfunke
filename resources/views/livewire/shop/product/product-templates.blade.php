@@ -303,7 +303,7 @@
                             @endif
 
                             {{-- Vorschaubild --}}
-                            <div class="{{ $currentLayout === 'medium' ? 'h-48 rounded-2xl mb-4 mt-1.5' : 'aspect-square rounded-[1.5rem] mb-6 mt-2' }} bg-gray-100 dark:bg-gray-950 overflow-hidden relative border border-gray-200 dark:border-gray-800 dark:shadow-inner group-hover:border-gray-300 dark:group-hover:border-gray-700 transition-colors">
+                            <div class="{{ $currentLayout === 'medium' ? 'aspect-square rounded-2xl mb-4 mt-1.5' : 'aspect-square rounded-[1.5rem] mb-6 mt-2' }} bg-gray-100 dark:bg-gray-950 overflow-hidden relative border border-gray-200 dark:border-gray-800 dark:shadow-inner group-hover:border-gray-300 dark:group-hover:border-gray-700 transition-colors">
                                 @if(!empty($template->holiday))
                                     <div class="absolute top-3 left-3 z-10 pointer-events-none">
                                         <span class="px-2.5 py-1 rounded-full bg-gray-900/80 backdrop-blur-md text-white text-[9px] font-black uppercase tracking-widest border border-white/15 shadow-sm">

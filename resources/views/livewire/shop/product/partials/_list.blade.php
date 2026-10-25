@@ -399,7 +399,7 @@
                         </div>
 
                         {{-- Bild mit Schleifen --}}
-                        <div class="{{ $currentLayout === 'medium' ? 'h-48 rounded-2xl mb-4 mt-1.5' : 'aspect-square rounded-[1.5rem] mb-6 mt-2' }} bg-gray-100 dark:bg-gray-950 overflow-hidden relative border border-gray-200 dark:border-gray-800 dark:shadow-inner group-hover:border-gray-300 dark:group-hover:border-gray-700 transition-colors">
+                        <div class="{{ $currentLayout === 'medium' ? 'aspect-square rounded-2xl mb-4 mt-1.5' : 'aspect-square rounded-[1.5rem] mb-6 mt-2' }} bg-gray-100 dark:bg-gray-950 overflow-hidden relative border border-gray-200 dark:border-gray-800 dark:shadow-inner group-hover:border-gray-300 dark:group-hover:border-gray-700 transition-colors">
 
                             {{-- BLAUE SCHLEIFE: DIGITAL --}}
                             @if($prod->type === 'digital')
