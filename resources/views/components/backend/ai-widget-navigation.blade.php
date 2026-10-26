@@ -39,9 +39,9 @@
              @endif
          </select>
 
-         <select x-show="isMapFocus" x-model="activeMapStyle" @change="playAudio('click');" class="px-2 py-1.5 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md bg-black text-white border-emerald-900/50 hover:text-white focus:outline-none focus:border-[var(--theme-color)] appearance-none shadow-[0_0_15px_rgba(0,0,0,0.5)] w-full md:w-auto mb-2 md:mb-0 max-w-[120px]">
-             <template x-for="style in mapStyles" :key="style.id">
-                 <option :value="style.id" x-text="style.name" class="bg-black text-white"></option>
+         <select x-show="isMapFocus" wire:ignore x-model="activeMapStyle" @change="playAudio('click');" class="px-2 py-1.5 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md bg-black text-white border-emerald-900/50 hover:text-white focus:outline-none focus:border-[var(--theme-color)] appearance-none shadow-[0_0_15px_rgba(0,0,0,0.5)] w-full md:w-auto mb-2 md:mb-0 max-w-[120px]">
+             <template x-for="style in (mapStyles || [])" :key="style.id">
+                 <option :value="typeof style !== 'undefined' && style ? style.id : ''" x-text="typeof style !== 'undefined' && style ? style.name : ''" class="bg-black text-white"></option>
              </template>
          </select>
 

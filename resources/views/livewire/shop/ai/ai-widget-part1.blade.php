@@ -306,17 +306,20 @@
                         </div>
 
                         <!-- CHAT SESSIONS DROPDOWN -->
-                        <div class="relative w-full">
+                        <div class="relative w-full" wire:ignore>
                             <select x-model="currentChatSessionId" 
                                     @change="switchChatSession($event.target.value)"
                                     class="w-full bg-gray-50 dark:bg-black/60 border border-gray-200 dark:border-emerald-900/60 rounded text-[9px] font-semibold text-gray-800 dark:text-emerald-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 py-1 pl-1.5 pr-4 appearance-none cursor-pointer uppercase tracking-wider outline-none truncate transition-colors" 
                                     title="Chat Referenz">
-                                <template x-for="chat in chatSessions" :key="chat.id">
-                                    <option :value="chat.id" :selected="chat.id === currentChatSessionId" class="bg-white dark:bg-gray-900 text-gray-800 dark:text-emerald-400" x-text="chat.title && chat.title.length > 14 ? chat.title.substring(0, 14) + '...' : (chat.title || 'Chat')"></option>
+                                <template x-for="chat in (chatSessions || [])" :key="chat.id">
+                                    <option :value="typeof chat !== 'undefined' && chat ? chat.id : ''"
+                                            :selected="typeof chat !== 'undefined' && chat && chat.id === currentChatSessionId"
+                                            class="bg-white dark:bg-gray-900 text-gray-800 dark:text-emerald-400"
+                                            x-text="typeof chat !== 'undefined' && chat ? (chat.title && chat.title.length > 14 ? chat.title.substring(0, 14) + '...' : (chat.title || 'Chat')) : 'Chat'"></option>
                                 </template>
-                                @if(empty($this->chatSessions()))
+                                <template x-if="!chatSessions || chatSessions.length === 0">
                                     <option value="" class="bg-white dark:bg-gray-900 text-gray-800 dark:text-emerald-400">(Kein Chat)</option>
-                                @endif
+                                </template>
                             </select>
                             <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1 text-gray-500 dark:text-emerald-600">
                                 <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
