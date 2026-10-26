@@ -210,3 +210,24 @@ Sollte es in Zukunft zu Problemen beim Live-Call kommen, prüfe folgende Punkte:
 ### 6.3 Biometrische Authentifizierung beim Kaltstart
 * Der Authentifizierungsfluss beim Neustart der Android-App wurde verifiziert. Die biometrische Abfrage (BiometricPrompt / Fingerabdruck / Face Unlock) wird beim Kaltstart der App zuverlässig initiiert, um sensible Finanz- und Bestelldaten zu schützen.
 
+---
+
+## 7. Fokussiertes Startseiten-Cockpit (`getUltimateCommand()`) & High-Speed Parallelisierung (26. Oktober 2026)
+
+### 7.1 Integration von `getUltimateCommand()` ("Nächster Schritt" in einem Satz)
+In [AiApi.kt](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/data/api/AiApi.kt), [AiRepository.kt](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/data/repository/AiRepository.kt), [ZentrumViewModel.kt](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/ui/screens/ZentrumViewModel.kt) und [ZentrumScreen.kt](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/ui/screens/ZentrumScreen.kt) wurde der Backend-Endpunkt `GET /api/funki/command` (`AiSupportService::getUltimateCommand()`) angebunden:
+* **Fokus-Priorität 1 – Nächster Schritt (`UltimateCommandCard`):** Zeigt ganz oben auf der Startseite in einem prägnanten Satz (`recommendation.title` + `recommendation.message` inkl. aktuellem `flow.title`) an, was als Nächstes zu tun ist. Ein Klick auf die Kachel navigiert anhand von `recommendation.action_route` direkt in den passenden Bereich (`admin.orders` -> Bestellungen, `admin.tasks` -> Organizer Tab 0 „Aufgaben“, `admin.calender` -> Organizer Tab 1 „Kalender“, `admin.funki-routine` -> Organizer Tab 2 „Routine“, `admin.financial-*` -> Finanzen).
+* **Fokus-Priorität 2 – Verfügbares Monatsguthaben (`FinanceDashboardCard`):** Zeigt das im aktuellen Monat noch verfügbare Guthaben (`kpis.available`) prominent in Gold an (inkl. aufklappbarer Details zu Shop-Einnahmen, Fixkosten und variablen Kosten).
+* **Fokus-Priorität 3 – Schnelle Belegerfassung (`QuickEntryForm`):** Direkt unter dem Guthaben platziert für den sofortigen KI-Beleg-Scan per Kamera/Datei oder manuelle Schnellbuchungen.
+
+### 7.2 Präzises Sub-Tab Deep-Linking & High-Speed Parallelisierung
+* **Sub-Tab-genaue Verlinkung in den Organizer ([AppNavigation.kt](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/ui/navigation/AppNavigation.kt) & [OrganizerScreen.kt](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/ui/screens/OrganizerScreen.kt)):**
+  * Klick auf **To-do Liste & Operatives** -> öffnet zuverlässig **Organizer Tab 0 (`Aufgaben`)**.
+  * Klick auf **Anstehende Termine** -> öffnet **Organizer Tab 1 (`Kalender`)**.
+  * Klick auf **Routine** (oder das Routine-Badge) -> öffnet **Organizer Tab 2 (`Routine`)**.
+  * Durch Übergabe eines dedizierten `navTrigger`-Zählers und Entfernen der bisherigen `if (initialTab != 0)`-Sperre in `OrganizerScreen.kt` wechselt der `HorizontalPager` auch dann garantiert auf Tab `0` (`Aufgaben`), wenn zuvor der Kalender-Tab geöffnet war.
+* **Parallele API-Abfragen (`coroutineScope { async { ... } }`):** In [ZentrumViewModel.kt](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/ui/screens/ZentrumViewModel.kt), [FinanceViewModel.kt](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/ui/screens/FinanceViewModel.kt) und [OrganizerViewModel.kt](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/ui/screens/OrganizerViewModel.kt) werden alle Endpunkte parallel statt sequenziell geladen.
+* **Eliminierung globaler Theme-Rekompositionen ([Theme.kt](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/ui/theme/Theme.kt)):** `@Immutable AppThemeColors` mit gecachten Instanzen verhindert unnötige Rekompositionen.
+
+
+

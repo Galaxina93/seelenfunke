@@ -175,3 +175,22 @@ Eingegebene Zahlenstrings ersetzen Kommas durch Punkte, bevor sie geprüft oder 
 val amount = amountText.replace(',', '.').toDoubleOrNull()
 ```
 Dies stellt sicher, dass die Eingabeprüfung und das Abspeichern unabhängig vom lokalen Tastaturlayout des Nutzers funktionieren.
+
+---
+
+## 7. Fokussiertes Startseiten-Cockpit (`getUltimateCommand()`), Deep-Link-Fix & Parallele Datenpipeline
+
+### 7.1 Startseiten-Fokus (`ZentrumScreen.kt` & `ZentrumViewModel.kt`)
+Die Startseite (`ZentrumScreen`) konzentriert sich im aufgeräumten „Alle Kacheln“-Layout auf die drei wichtigsten Alltagsfunktionen:
+1. **Nächster Schritt (`getUltimateCommand()` via `GET /api/funki/command`):** Zeigt in einem Satz die aktuell wichtigste Handlungsempfehlung (`UltimateCommandCard`) und navigiert per Tap direkt zur passenden Ansicht (`action_route`).
+2. **Verfügbares Monatsguthaben (`FinanceDashboardCard`):** Sofortiger Überblick über das im aktuellen Monat verfügbare Budget (`kpis.available`).
+3. **Schnelle Belegerfassung (`QuickEntryForm`):** Direkter Zugriff auf den KI-Beleg-Scanner (Kamera/Datei) und manuelle Schnellbuchungen.
+
+### 7.2 Behebung des Organizer Sub-Tab Deep-Link-Bugs (`AppNavigation.kt` & `OrganizerScreen.kt`)
+* **Ursache:** In `OrganizerScreen.kt` verhinderte die Bedingung `if (initialTab != 0)` innerhalb von `LaunchedEffect(initialTab)`, dass der `HorizontalPager` beim Klick auf die **To-do Liste** (`initialTab = 0`) auf den Tab `Aufgaben` zurückscrollte, wenn zuvor der Tab `Kalender` (`1`) aktiv war. Zudem teilten sich Aufgaben-, Routine- und Kalender-Kachel denselben parameterlosen Callback.
+* **Lösung:** `onNavigateToOrganizer(subTab: Int)` übergibt nun explizit den Ziel-Sub-Tab (`0 = Aufgaben`, `1 = Kalender`, `2 = Routine`, `3 = Einkauf`, `4 = E-Mail`) zusammen mit einem inkrementierenden `organizerNavTrigger`. In `OrganizerScreen.kt` reagiert `LaunchedEffect(initialTab, navTrigger)` auf jede Navigation und scrollt den Pager zuverlässig auf den angeforderten Sub-Tab.
+
+### 7.3 Parallele Coroutine-Datenpipeline & Optimistische UI-Updates
+* **Parallele Initialisierung:** `ZentrumViewModel`, `FinanceViewModel` und `OrganizerViewModel` bündeln alle API-Aufrufe in einem `coroutineScope { async { ... } }`-Block. Dadurch reduziert sich die Ladezeit von der Summe aller Einzelanfragen ($\sum T_i$) auf die Dauer des langsamsten Einzel-Requests ($\max(T_i)$).
+* **Optimistisches Task-Toggling:** Beim Abhaken einer Aufgabe wird der UI-State sofort im Arbeitsspeicher aktualisiert (`< 16 ms`) und anschließend `getUltimateCommand()` im Hintergrund neu abgefragt, damit sich die „Nächster Schritt“-Empfehlung sofort anpasst.
+
