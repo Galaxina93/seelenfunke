@@ -3,11 +3,79 @@
     0%, 100% { box-shadow: 0 0 5px var(--theme-color), inset 0 0 5px var(--theme-color); border-color: var(--theme-color); }
     50% { box-shadow: 0 0 25px var(--theme-color), inset 0 0 10px var(--theme-color); border-color: var(--theme-color); }
 }
+@keyframes sf-chrono-rotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+@keyframes sf-chrono-rotate-rev {
+    0% { transform: rotate(360deg); }
+    100% { transform: rotate(0deg); }
+}
+@keyframes sf-energy-flow {
+    0% { stroke-dashoffset: 260; }
+    100% { stroke-dashoffset: 0; }
+}
+@keyframes sf-float-node {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-6px); }
+}
+@keyframes sf-wave-bob {
+    0%, 100% { transform: translateY(calc(var(--amp, 12px) * -1)); }
+    50% { transform: translateY(var(--amp, 12px)); }
+}
+@keyframes sf-bar-pulse {
+    0%, 100% { transform: scaleX(0.84); }
+    50% { transform: scaleX(1.14); }
+}
+@keyframes sf-core-breathe {
+    0%, 100% {
+        box-shadow: 0 0 40px rgba(197, 160, 89, 0.30), 0 0 85px rgba(197, 160, 89, 0.14), inset 0 0 30px rgba(0, 0, 0, 0.85);
+    }
+    50% {
+        box-shadow: 0 0 65px rgba(197, 160, 89, 0.52), 0 0 120px rgba(197, 160, 89, 0.24), inset 0 0 40px rgba(0, 0, 0, 0.9);
+    }
+}
+.sf-chrono-core-dial {
+    animation: sf-core-breathe 4s ease-in-out infinite;
+    will-change: transform, box-shadow;
+}
+.sf-spin-slow {
+    transform-origin: 150px 150px;
+    will-change: transform;
+    animation: sf-chrono-rotate 60s linear infinite;
+}
+.sf-spin-reverse {
+    transform-origin: 150px 150px;
+    will-change: transform;
+    animation: sf-chrono-rotate-rev 38s linear infinite;
+}
+.sf-wave-dot {
+    will-change: transform;
+    animation: sf-wave-bob 2.35s ease-in-out infinite;
+}
+.sf-freq-bar {
+    transform-origin: 150px 150px;
+    will-change: transform;
+    animation: sf-bar-pulse 2.7s ease-in-out infinite;
+}
+.sf-energy-stream {
+    stroke-dasharray: 28 232;
+    animation: sf-energy-flow 2.8s linear infinite;
+}
+.sf-floating-satellite {
+    will-change: transform;
+    animation: sf-float-node 4.5s ease-in-out infinite;
+}
+.sf-stage-height {
+    transition: height 650ms cubic-bezier(0.22, 1, 0.36, 1);
+}
 .hover-theme-pulse { cursor: pointer; transition: all 0.2s ease; }
 .hover-theme-pulse:hover, .active-theme-pulse { border-color: var(--theme-color) !important; z-index: 10; }
 html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: theme-pulse-glow 2s ease-in-out infinite; }
 </style>
-<div x-data="{ activeTab: null }" class="space-y-6">
+<div x-data="{ activeTab: null }"
+     x-init="$watch('activeTab', val => { if (val) { setTimeout(() => window.dispatchEvent(new Event('resize')), 80); setTimeout(() => window.dispatchEvent(new Event('resize')), 420); } })"
+     class="space-y-6">
 
     @php
         // --- 1. SHOP HEALTH ---
@@ -120,307 +188,1870 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
         $secOffset = $secDetails['offset'];
         $secText = $secDetails['text'];
         $blockedIpsCount = $secDetails['blockedIpsCount'];
+
+        // --- 5. KAPAZITÄTEN SCHWELLENWERTE (Drossel 1 & Speicher Warnung 1) ---
+        $shopLoad = (float) \Illuminate\Support\Facades\Cache::get('shop_capacity_percentage', 0);
+        $shopThreshold1 = (int) \Illuminate\Support\Facades\Cache::get(
+            'shop_capacity_threshold_1',
+            \App\Models\System\SystemSetting::where('key', 'shop_capacity_threshold_1')->value('value') ?? 60
+        );
+        $storageThreshold1 = (int) \Illuminate\Support\Facades\Cache::get(
+            'storage_capacity_threshold_1',
+            \App\Models\System\SystemSetting::where('key', 'storage_capacity_threshold_1')->value('value') ?? 70
+        );
+        $diskTotal = @disk_total_space(storage_path());
+        $diskFree = @disk_free_space(storage_path());
+        $storageUsedPct = ($diskTotal && $diskFree !== false && $diskTotal > 0)
+            ? round((($diskTotal - $diskFree) / $diskTotal) * 100, 1)
+            : (isset($storageData['percent_free']) ? (100 - (float) $storageData['percent_free']) : 0);
+
+        $capacityNeedsAttention = ($shopLoad >= $shopThreshold1) || ($storageUsedPct >= $storageThreshold1);
+
+        // --- 6. BESTELLUNGEN MOTIVATOR & ORBITAL-SATELLITEN (FOKUS-MODUS) ---
+        $totalOrdersCount = (int) ($stats['orders_total'] ?? 0);
+        $openOrdersCount = (int) ($healthChecks['open_orders']['count'] ?? 0);
+        $bEven = $stats['break_even_monthly'] ?? 0;
+        $currentRev = $stats['avg_revenue_monthly'] ?? 0;
+        $missing = max(0, $bEven - $currentRev);
+        $beColor = $missing > 0 ? 'text-red-500' : 'text-emerald-500';
+        $onlineCount = collect($systemHealth)->count() > 0 ? $this->getActiveSessionsCount() : 0;
+
+        $orbitalNodes = [];
+
+        // Farb-Direktive Fokus-Modus: Primärfarbe Seelenfunke Gold (#C5A059), nur Kritisch in Rot (#ef4444)
+        $sfGold = '#C5A059';
+        $sfCritical = '#ef4444';
+
+        if ($shopScore < 100) {
+            $isCrit = $shopScore < 50;
+            $orbitalNodes[] = [
+                'tab' => 'shop',
+                'sound' => $isCrit ? 'alert' : 'chart',
+                'title' => 'SHOP HEALTH',
+                'value' => $shopScore,
+                'unit' => 'SCORE',
+                'ring_pct' => max(8, $shopScore),
+                'color' => $isCrit ? $sfCritical : $sfGold,
+                'critical' => $isCrit,
+                'metric' => number_format($stats['shop_revenue'] ?? 0, 0, ',', '.') . ' € UMSATZ',
+                'status' => $shopScore >= 80 ? 'STABIL' : ($shopScore >= 50 ? 'OPTIMIERBAR' : 'KRITISCH · FOKUS NÖTIG'),
+            ];
+        }
+
+        if ($operativeScore < 100) {
+            $isCrit = $opHasErrors || $operativeScore < 50;
+            $orbitalNodes[] = [
+                'tab' => 'operative',
+                'sound' => $isCrit ? 'alert' : 'select',
+                'title' => 'OPERATIVER STATUS',
+                'value' => $operativeScore,
+                'unit' => 'SCORE',
+                'ring_pct' => max(8, $operativeScore),
+                'color' => $isCrit ? $sfCritical : $sfGold,
+                'critical' => $isCrit,
+                'metric' => $totalTodos . ' AUFGABEN',
+                'status' => strtoupper($opScoreText),
+            ];
+        }
+
+        if ($systemScore < 100) {
+            $isCrit = $sysErrors > 0 || $systemScore < 50;
+            $orbitalNodes[] = [
+                'tab' => 'system',
+                'sound' => $isCrit ? 'alert' : 'chart',
+                'title' => 'INFRASTRUKTUR',
+                'value' => $systemScore,
+                'unit' => 'SCORE',
+                'ring_pct' => max(8, $systemScore),
+                'color' => $isCrit ? $sfCritical : $sfGold,
+                'critical' => $isCrit,
+                'metric' => ($sysErrors + $sysWarnings) . ' WARNUNGEN',
+                'status' => strtoupper($sysText),
+            ];
+        }
+
+        if ($securityScore < 100) {
+            $isCrit = $securityScore < 50;
+            $orbitalNodes[] = [
+                'tab' => 'security',
+                'sound' => $isCrit ? 'alert' : 'chart',
+                'title' => 'SICHERHEIT & ABWEHR',
+                'value' => $securityScore,
+                'unit' => 'SCORE',
+                'ring_pct' => max(8, $securityScore),
+                'color' => $isCrit ? $sfCritical : $sfGold,
+                'critical' => $isCrit,
+                'metric' => ($failedLogins24h + $securityWarnings24h) . ' EREIGNISSE',
+                'status' => strtoupper($secText),
+            ];
+        }
+
+        if ($capacityNeedsAttention) {
+            $isCrit = $shopLoad >= 90 || $storageUsedPct >= 90;
+            $orbitalNodes[] = [
+                'tab' => 'capacities',
+                'sound' => $isCrit ? 'alert' : 'chart',
+                'title' => 'KAPAZITÄTEN',
+                'value' => $shopLoad . '%',
+                'unit' => 'LAST',
+                'ring_pct' => min(100, max(12, $shopLoad)),
+                'color' => $isCrit ? $sfCritical : $sfGold,
+                'critical' => $isCrit,
+                'metric' => 'SPEICHER: ' . (isset($storageData['percent_free']) ? $storageData['percent_free'] : round(100 - $storageUsedPct)) . '% FREI',
+                'status' => $shopLoad >= $shopThreshold1 ? 'DROSSEL AKTIV' : 'SPEICHER WARNUNG',
+            ];
+        }
+
+        // Gewinn & Traffic hängen immer als frei schwebende Telemetrie-Satelliten am Kern
+        $profitCrit = $missing > 0;
+        $orbitalNodes[] = [
+            'tab' => 'profit',
+            'sound' => 'chart',
+            'title' => 'GEWINN',
+            'value' => number_format($stats['avg_profit'] ?? 0, 0, ',', '.'),
+            'unit' => 'MTL. €',
+            'ring_pct' => $bEven > 0 ? min(100, max(15, round(($currentRev / $bEven) * 100))) : 100,
+            'color' => $profitCrit ? $sfCritical : $sfGold,
+            'critical' => $profitCrit,
+            'metric' => 'BREAK-EVEN',
+            'status' => $missing > 0 ? '-' . number_format($missing, 0, ',', '.') . ' € FEHLEND' : 'ERREICHT!',
+        ];
+
+        $orbitalNodes[] = [
+            'tab' => 'traffic',
+            'sound' => 'chart',
+            'title' => 'TRAFFIC & KUNDEN',
+            'value' => number_format($stats['frontend_unique_total'] ?? 0, 0, ',', '.'),
+            'unit' => 'BESUCHER',
+            'ring_pct' => 78,
+            'color' => $sfGold,
+            'critical' => false,
+            'metric' => number_format($stats['frontend_visits_total'] ?? 0, 0, ',', '.') . ' PAGEVIEWS',
+            'status' => '● ' . $onlineCount . ' NUTZER ONLINE',
+        ];
+
+        // Live Routine als freier Satellit im Fokus-Modus
+        $routineOpenCount = (int) ($healthChecks['routine']['count'] ?? 0);
+        $routineCrit = ($healthChecks['routine']['status'] ?? 'ok') === 'error';
+        $routineActiveTitle = isset($currentActiveRoutine) && $currentActiveRoutine
+            ? strtoupper(\Illuminate\Support\Str::limit($currentActiveRoutine->title, 20))
+            : 'KEIN AKTIVER BLOCK';
+        $orbitalNodes[] = [
+            'tab' => 'routine',
+            'sound' => 'select',
+            'title' => 'LIVE ROUTINE',
+            'value' => isset($currentActiveRoutine) && $currentActiveRoutine
+                ? \Carbon\Carbon::parse($currentActiveRoutine->start_time)->format('H:i')
+                : ($routineOpenCount > 0 ? $routineOpenCount : 'OK'),
+            'unit' => isset($currentActiveRoutine) && $currentActiveRoutine ? 'UHR' : ($routineOpenCount > 0 ? 'OFFEN' : 'TAG'),
+            'ring_pct' => $routineOpenCount > 0 ? max(25, 100 - ($routineOpenCount * 15)) : 100,
+            'color' => $routineCrit ? $sfCritical : $sfGold,
+            'critical' => $routineCrit,
+            'metric' => $routineActiveTitle,
+            'status' => $routineOpenCount > 0 ? $routineOpenCount . ' ROUTINE-TODOS OFFEN' : 'IM ZEITPLAN',
+        ];
+
+        // Kalender als freier Satellit im Fokus-Modus
+        $eventsCollection = isset($upcomingEvents) ? collect($upcomingEvents) : collect();
+        $eventsCount = $eventsCollection->count();
+        $nextEventObj = $eventsCollection->first();
+        $calendarCrit = $eventsCollection->contains(fn($e) => isset($e->start_date) && $e->start_date->isToday() && ($e->priority ?? '') === 'high');
+        $nextEventLabel = $nextEventObj
+            ? strtoupper(\Illuminate\Support\Str::limit($nextEventObj->title, 20))
+            : 'KEINE TERMINE';
+        $nextEventStatus = $nextEventObj && isset($nextEventObj->start_date)
+            ? ($nextEventObj->start_date->isToday() ? 'HEUTE · ' : ($nextEventObj->start_date->isTomorrow() ? 'MORGEN · ' : $nextEventObj->start_date->format('d.m.') . ' · ')) . ($nextEventObj->is_all_day ? 'GANZTÄGIG' : $nextEventObj->start_date->format('H:i') . ' UHR')
+            : 'KALENDER FREI';
+        $orbitalNodes[] = [
+            'tab' => 'calendar',
+            'sound' => 'select',
+            'title' => 'KALENDER',
+            'value' => $eventsCount,
+            'unit' => $eventsCount === 1 ? 'TERMIN' : 'TERMINE',
+            'ring_pct' => $eventsCount > 0 ? min(100, 35 + ($eventsCount * 15)) : 100,
+            'color' => $calendarCrit ? $sfCritical : $sfGold,
+            'critical' => $calendarCrit,
+            'metric' => $nextEventLabel,
+            'status' => $nextEventStatus,
+        ];
+
+        // --- SUB-SATELLITEN FÜR ALLE DRILL-DOWN TRANSFORMATIONEN IM FOKUS-MODUS ---
+        $opRouteMap = [
+            'inventory' => '/admin/products',
+            'special_issues' => '/admin/financial-variable-costs',
+            'leitung/contracts' => '/admin/financial-fix-costs',
+            'open_orders' => '/admin/orders',
+            'open_tickets' => '/admin/support-tickets',
+            'open_chats' => '/admin/support-chats',
+            'open_contact_requests' => '/admin/support-contact-form',
+            'open_mails' => '/admin/inbox',
+            'product_reviews' => '/admin/reviews',
+            'open_credits' => '/admin/credit-management',
+            'influencer_payouts' => '/admin/marketing/influencer',
+            'employee_payroll' => '/admin/employees',
+            'unassigned_tx' => '/admin/financial-banks',
+            'open_tasks' => '/admin/tasks',
+            'routine' => '/admin/routine',
+            'open_quotes' => '/admin/quote-requests',
+            'open_revocations' => '/admin/widerruf',
+            'open_losses' => '/admin/product-fracture',
+            'open_blog_posts' => '/admin/blog',
+            'open_abandoned_carts' => '/admin/shopping-carts',
+            'system_logs' => '/admin/global-logs',
+        ];
+
+        // 1. OPERATIVER STATUS SUB-NODES (Kategorien / Aufgaben aus To-do Liste & Operatives)
+        $operativeSubNodes = [];
+        foreach ($healthChecks as $hKey => $hCheck) {
+            if (($hCheck['count'] ?? 0) > 0) {
+                $isErr = ($hCheck['status'] ?? '') === 'error' || ($hCheck['count'] ?? 0) > 0;
+                $operativeSubNodes[] = [
+                    'url' => $opRouteMap[$hKey] ?? '/admin/dashboard',
+                    'sound' => 'action',
+                    'title' => strtoupper($hCheck['title'] ?? $hKey),
+                    'value' => $hCheck['count'],
+                    'unit' => 'OFFEN',
+                    'ring_pct' => min(100, max(22, ($hCheck['count'] ?? 1) * 18)),
+                    'color' => $isErr ? $sfCritical : $sfGold,
+                    'critical' => $isErr,
+                    'metric' => strtoupper(\Illuminate\Support\Str::limit($hCheck['message'] ?? '', 26)),
+                    'status' => 'DIREKT ÖFFNEN ↗',
+                ];
+            }
+        }
+        if (count($operativeSubNodes) === 0) {
+            foreach (['routine', 'open_orders', 'open_tickets', 'open_tasks', 'special_issues', 'product_reviews'] as $fallbackKey) {
+                if (isset($healthChecks[$fallbackKey])) {
+                    $hc = $healthChecks[$fallbackKey];
+                    $operativeSubNodes[] = [
+                        'url' => $opRouteMap[$fallbackKey] ?? '/admin/dashboard',
+                        'sound' => 'action',
+                        'title' => strtoupper($hc['title'] ?? $fallbackKey),
+                        'value' => 'OK',
+                        'unit' => 'CHECK',
+                        'ring_pct' => 100,
+                        'color' => $sfGold,
+                        'critical' => false,
+                        'metric' => strtoupper(\Illuminate\Support\Str::limit($hc['message'] ?? 'Alles erledigt', 26)),
+                        'status' => 'ERLEDIGT ✓',
+                    ];
+                }
+            }
+        }
+        $operativeSubNodes = array_slice($operativeSubNodes, 0, 8);
+
+        // 2. SHOP HEALTH SUB-NODES
+        $hasPendingInv = ($stats['pending_invoices']['sum'] ?? 0) > 0;
+        $totalDeducts = ($opErrorCount * 5) + $opWarningCount + ($sysErrors * 10) + ($sysWarnings * 2);
+        $shopSubNodes = [
+            [
+                'tab' => 'ecommerce',
+                'sound' => 'chart',
+                'title' => 'UMSATZRAHMEN',
+                'value' => (($stats['revenue_growth'] ?? 0) >= 0 ? '+' : '') . ($stats['revenue_growth'] ?? 0) . '%',
+                'unit' => 'TREND',
+                'ring_pct' => 85,
+                'color' => (($stats['revenue_growth'] ?? 0) < 0) ? $sfCritical : $sfGold,
+                'critical' => (($stats['revenue_growth'] ?? 0) < 0),
+                'metric' => number_format($stats['shop_revenue'] ?? 0, 0, ',', '.') . ' € UMSATZ',
+                'status' => 'WACHSTUMS-SÄULE',
+            ],
+            [
+                'tab' => 'profit',
+                'sound' => 'chart',
+                'title' => 'JAHRESPROGNOSE',
+                'value' => number_format(($stats['projected_year'] ?? 0) / 1000, 1, ',', '.') . 'k',
+                'unit' => 'JAHR €',
+                'ring_pct' => 82,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => number_format($stats['projected_year'] ?? 0, 0, ',', '.') . ' € HOCHRECHNUNG',
+                'status' => 'PROJEKTION',
+            ],
+            [
+                'tab' => 'profit',
+                'sound' => 'chart',
+                'title' => 'RENTABILITÄT',
+                'value' => ($stats['margin'] ?? 0) . '%',
+                'unit' => 'MARGE',
+                'ring_pct' => min(100, max(15, (int) ($stats['margin'] ?? 50))),
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => number_format($stats['avg_profit'] ?? 0, 0, ',', '.') . ' € MTL. GEWINN',
+                'status' => 'EFFIZIENZ-SÄULE',
+            ],
+            [
+                'tab' => 'profit',
+                'sound' => 'chart',
+                'title' => 'BREAK-EVEN',
+                'value' => number_format($bEven, 0, ',', '.'),
+                'unit' => 'ZIEL €',
+                'ring_pct' => $bEven > 0 ? min(100, max(15, round(($currentRev / $bEven) * 100))) : 100,
+                'color' => $missing > 0 ? $sfCritical : $sfGold,
+                'critical' => $missing > 0,
+                'metric' => $missing > 0 ? '-' . number_format($missing, 0, ',', '.') . ' € FEHLEND' : 'ERREICHT!',
+                'status' => 'GEWINN-KURVE ÖFFNEN ↗',
+            ],
+            [
+                'url' => '/admin/financial-banks',
+                'sound' => 'action',
+                'title' => 'OFFENE POSTEN',
+                'value' => $stats['pending_invoices']['count'] ?? 0,
+                'unit' => 'BELEGE',
+                'ring_pct' => $hasPendingInv ? 40 : 100,
+                'color' => $hasPendingInv ? $sfCritical : $sfGold,
+                'critical' => $hasPendingInv,
+                'metric' => number_format($stats['pending_invoices']['sum'] ?? 0, 0, ',', '.') . ' € OFFEN',
+                'status' => $hasPendingInv ? 'FORDERUNGEN OFFEN' : 'ALLES BEGLICHEN',
+            ],
+            [
+                'tab' => 'operative',
+                'sound' => 'select',
+                'title' => 'SCORE-ABZÜGE',
+                'value' => $totalDeducts > 0 ? '-' . $totalDeducts : '0',
+                'unit' => 'PUNKTE',
+                'ring_pct' => max(15, 100 - ($totalDeducts * 3)),
+                'color' => $totalDeducts > 0 ? $sfCritical : $sfGold,
+                'critical' => $totalDeducts > 0,
+                'metric' => 'OP. & SYSTEM STÖRFÄLLE',
+                'status' => $totalDeducts > 0 ? 'ZU DEN TODOS WECHSELN ↗' : 'KEINE ABZÜGE',
+            ],
+        ];
+
+        // 3. SYSTEM / INFRASTRUKTUR SUB-NODES
+        $systemSubNodes = [];
+        foreach ($systemGroups as $gName => $gInfo) {
+            $gTotal = count($gInfo['items']);
+            $gOk = 0;
+            $gErr = 0;
+            foreach ($gInfo['items'] as $sK) {
+                $st = $systemHealth[$sK]['status'] ?? 'connected';
+                if ($st === 'error' || $st === 'unavailable') {
+                    $gErr++;
+                } else {
+                    $gOk++;
+                }
+            }
+            $systemSubNodes[] = [
+                'tab' => 'system',
+                'sound' => $gErr > 0 ? 'alert' : 'select',
+                'title' => strtoupper($gName),
+                'value' => $gOk . '/' . $gTotal,
+                'unit' => 'ONLINE',
+                'ring_pct' => $gTotal > 0 ? round(($gOk / $gTotal) * 100) : 100,
+                'color' => $gErr > 0 ? $sfCritical : $sfGold,
+                'critical' => $gErr > 0,
+                'metric' => $gErr > 0 ? $gErr . ' DIENST(E) GESTÖRT' : 'ALLE DIENSTE STABIL',
+                'status' => $gErr > 0 ? 'PRÜFUNG UNTEN ↓' : '100% INTEGRITÄT',
+            ];
+        }
+
+        // 4. SECURITY SUB-NODES
+        $securitySubNodes = [
+            [
+                'tab' => 'security',
+                'sound' => 'select',
+                'title' => 'FEHL-LOGINS (24H)',
+                'value' => $failedLogins24h,
+                'unit' => 'VERSUCHE',
+                'ring_pct' => max(20, 100 - ($failedLogins24h * 3)),
+                'color' => $failedLogins24h >= 10 ? $sfCritical : $sfGold,
+                'critical' => $failedLogins24h >= 10,
+                'metric' => 'AUTHENTIFIZIERUNG',
+                'status' => $failedLogins24h >= 10 ? 'ERHÖHTE AKTIVITÄT' : 'NORMALBEREICH',
+            ],
+            [
+                'tab' => 'security',
+                'sound' => 'select',
+                'title' => 'WARNUNGEN (24H)',
+                'value' => $securityWarnings24h,
+                'unit' => 'ALARME',
+                'ring_pct' => max(20, 100 - ($securityWarnings24h * 10)),
+                'color' => $securityWarnings24h > 0 ? $sfCritical : $sfGold,
+                'critical' => $securityWarnings24h > 0,
+                'metric' => 'THREAT DETECTION',
+                'status' => $securityWarnings24h > 0 ? 'EREIGNISSE PRÜFEN ↓' : 'KEINE BEDROHUNGEN',
+            ],
+            [
+                'tab' => 'security',
+                'sound' => 'select',
+                'title' => 'BLOCKIERTE IPS',
+                'value' => $blockedIpsCount,
+                'unit' => 'SPERREN',
+                'ring_pct' => 100,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => 'AKTIVE FIREWALL-REGELN',
+                'status' => 'ABWEHR AKTIV',
+            ],
+            [
+                'url' => '/admin/global-logs',
+                'sound' => 'action',
+                'title' => 'SYSTEM LOGS',
+                'value' => $healthChecks['system_logs']['count'] ?? 0,
+                'unit' => 'LOGS',
+                'ring_pct' => (($healthChecks['system_logs']['count'] ?? 0) > 0) ? 45 : 100,
+                'color' => (($healthChecks['system_logs']['count'] ?? 0) > 0) ? $sfCritical : $sfGold,
+                'critical' => (($healthChecks['system_logs']['count'] ?? 0) > 0),
+                'metric' => 'GLOBALES LOGBUCH',
+                'status' => 'LOGS ÖFFNEN ↗',
+            ],
+        ];
+
+        // 5. CAPACITIES SUB-NODES
+        $capacitiesSubNodes = [
+            [
+                'tab' => 'capacities',
+                'sound' => 'select',
+                'title' => 'PRODUKTIONS-LAST',
+                'value' => $shopLoad . '%',
+                'unit' => 'AKTUELL',
+                'ring_pct' => min(100, max(12, $shopLoad)),
+                'color' => $shopLoad >= 90 ? $sfCritical : $sfGold,
+                'critical' => $shopLoad >= 90,
+                'metric' => 'MANUFAKTUR & GEWERKE',
+                'status' => $shopLoad >= $shopThreshold1 ? 'DROSSEL 1 ERREICHT' : 'FREIE KAPAZITÄT',
+            ],
+            [
+                'tab' => 'capacities',
+                'sound' => 'select',
+                'title' => 'DROSSEL-SCHWELLE 1',
+                'value' => $shopThreshold1 . '%',
+                'unit' => 'SCHWELLE',
+                'ring_pct' => $shopThreshold1,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => 'AUTO-REGULIERUNG',
+                'status' => 'SCHWELLENWERT',
+            ],
+            [
+                'tab' => 'capacities',
+                'sound' => 'select',
+                'title' => 'SERVER-SPEICHER',
+                'value' => round($storageUsedPct) . '%',
+                'unit' => 'BELEGT',
+                'ring_pct' => min(100, max(12, round($storageUsedPct))),
+                'color' => $storageUsedPct >= 90 ? $sfCritical : $sfGold,
+                'critical' => $storageUsedPct >= 90,
+                'metric' => round(100 - $storageUsedPct) . '% SPEICHER FREI',
+                'status' => $storageUsedPct >= $storageThreshold1 ? 'WARNUNG 1 AKTIV' : 'OPTIMAL',
+            ],
+            [
+                'tab' => 'capacities',
+                'sound' => 'select',
+                'title' => 'SPEICHER-WARNUNG 1',
+                'value' => $storageThreshold1 . '%',
+                'unit' => 'SCHWELLE',
+                'ring_pct' => $storageThreshold1,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => 'STORAGE-WÄCHTER',
+                'status' => 'WARNSCHWELLE',
+            ],
+        ];
+
+        // 6. GEWINN SUB-NODES (Begleiten den nach oben fliegenden Chrono-Kern über dem Chart)
+        $profitSubNodes = [
+            [
+                'tab' => 'profit',
+                'sound' => 'select',
+                'title' => 'MONATSUMSATZ (Ø)',
+                'value' => number_format($currentRev, 0, ',', '.'),
+                'unit' => 'MTL. €',
+                'ring_pct' => 85,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => 'DURCHSCHNITTLICH PRO MONAT',
+                'status' => 'UMSATZ-BASIS',
+            ],
+            [
+                'tab' => 'profit',
+                'sound' => 'select',
+                'title' => 'BREAK-EVEN ZIEL',
+                'value' => number_format($bEven, 0, ',', '.'),
+                'unit' => 'MTL. €',
+                'ring_pct' => $bEven > 0 ? min(100, max(15, round(($currentRev / $bEven) * 100))) : 100,
+                'color' => $missing > 0 ? $sfCritical : $sfGold,
+                'critical' => $missing > 0,
+                'metric' => 'KOSTENDECKUNGS-PUNKT',
+                'status' => $missing > 0 ? 'NOCH OFFEN' : 'ERREICHT ✓',
+            ],
+            [
+                'tab' => 'profit',
+                'sound' => 'select',
+                'title' => 'NETTOMARGE',
+                'value' => ($stats['margin'] ?? 0) . '%',
+                'unit' => 'QUOTE',
+                'ring_pct' => min(100, max(15, (int) ($stats['margin'] ?? 50))),
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => 'RENTABILITÄT VOM UMSATZ',
+                'status' => 'EFFIZIENZ',
+            ],
+            [
+                'tab' => 'shop',
+                'sound' => 'select',
+                'title' => $missing > 0 ? 'FEHLBETRAG' : 'GEWINN-PUFFER',
+                'value' => ($missing > 0 ? '-' : '+') . number_format($missing > 0 ? $missing : max(0, $currentRev - $bEven), 0, ',', '.'),
+                'unit' => 'MTL. €',
+                'ring_pct' => $missing > 0 ? 35 : 100,
+                'color' => $missing > 0 ? $sfCritical : $sfGold,
+                'critical' => $missing > 0,
+                'metric' => 'DIFFERENZ ZUM BREAK-EVEN',
+                'status' => 'SHOP HEALTH DETAILS ↗',
+            ],
+        ];
+
+        // 7. E-COMMERCE SUB-NODES
+        $abandonedCount = count($stats['abandoned_carts']['details'] ?? []);
+        $ecommerceSubNodes = [
+            [
+                'url' => '/admin/orders',
+                'sound' => 'action',
+                'title' => 'OFFENE ORDERS',
+                'value' => $openOrdersCount,
+                'unit' => 'OFFEN',
+                'ring_pct' => $openOrdersCount > 0 ? 50 : 100,
+                'color' => $openOrdersCount > 0 ? $sfCritical : $sfGold,
+                'critical' => $openOrdersCount > 0,
+                'metric' => 'VERSAND & PRODUKTION',
+                'status' => 'BESTELLUNGEN ÖFFNEN ↗',
+            ],
+            [
+                'url' => '/admin/shopping-carts',
+                'sound' => 'action',
+                'title' => 'WARENKÖRBE',
+                'value' => $abandonedCount,
+                'unit' => 'ABBRÜCHE',
+                'ring_pct' => 75,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => 'LIEGENGEBLIEBENE KÖRBE',
+                'status' => 'WARENKÖRBE ÖFFNEN ↗',
+            ],
+            [
+                'tab' => 'profit',
+                'sound' => 'chart',
+                'title' => 'CHAMPION UNIKAT',
+                'value' => number_format($stats['high_revenue_prod']['total'] ?? 0, 0, ',', '.') . '€',
+                'unit' => 'TOP',
+                'ring_pct' => 95,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => strtoupper(\Illuminate\Support\Str::limit($stats['high_revenue_prod']['product_name'] ?? 'Bestseller', 22)),
+                'status' => 'UMSÄTZE UNTEN ↓',
+            ],
+            [
+                'url' => '/admin/voucher',
+                'sound' => 'action',
+                'title' => 'GUTSCHEINE',
+                'value' => 'AKTIV',
+                'unit' => 'PROMO',
+                'ring_pct' => 100,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => 'KAMPAGNEN & RABATTE',
+                'status' => 'GUTSCHEINE ÖFFNEN ↗',
+            ],
+        ];
+
+        // 8. TRAFFIC & KUNDEN SUB-NODES
+        $totalDev = max(1, ($stats['desktop_visits'] ?? 0) + ($stats['mobile_visits'] ?? 0));
+        $mobPct = round((($stats['mobile_visits'] ?? 0) / $totalDev) * 100);
+        $trafficSubNodes = [
+            [
+                'tab' => 'traffic',
+                'sound' => 'select',
+                'title' => 'SEITENAUFRUFE',
+                'value' => number_format($stats['frontend_visits_total'] ?? 0, 0, ',', '.'),
+                'unit' => 'VIEWS',
+                'ring_pct' => 88,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => 'PAGEVIEWS IM ZEITRAUM',
+                'status' => 'ANALYSE UNTEN ↓',
+            ],
+            [
+                'tab' => 'traffic',
+                'sound' => 'select',
+                'title' => 'LIVE ONLINE',
+                'value' => $onlineCount,
+                'unit' => 'NUTZER',
+                'ring_pct' => 100,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => 'AKTIVE SITZUNGEN JETZT',
+                'status' => 'ECHTZEIT-PULS',
+            ],
+            [
+                'tab' => 'traffic',
+                'sound' => 'select',
+                'title' => 'MOBILE QUOTE',
+                'value' => $mobPct . '%',
+                'unit' => 'MOBIL',
+                'ring_pct' => $mobPct,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => 'SMARTPHONE & TABLET',
+                'status' => 'ENDGERÄTE-MIX',
+            ],
+            [
+                'url' => '/admin/marketing/tracking',
+                'sound' => 'action',
+                'title' => 'NEUKUNDEN & LINKS',
+                'value' => number_format($stats['total_new_customers_period'] ?? 0, 0, ',', '.'),
+                'unit' => 'NEU',
+                'ring_pct' => 85,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => 'VERIFIZIERTE REGISTRIERUNGEN',
+                'status' => 'TRACKING ÖFFNEN ↗',
+            ],
+        ];
+
+        // 9. LIVE ROUTINE SUB-NODES
+        $routineSubNodes = [
+            [
+                'url' => route('admin.routine'),
+                'sound' => 'action',
+                'title' => 'AKTIVER BLOCK',
+                'value' => isset($currentActiveRoutine) && $currentActiveRoutine ? \Carbon\Carbon::parse($currentActiveRoutine->start_time)->format('H:i') : 'FREI',
+                'unit' => isset($currentActiveRoutine) && $currentActiveRoutine ? 'START' : 'PAUSE',
+                'ring_pct' => 100,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => $routineActiveTitle,
+                'status' => isset($currentActiveRoutine) && $currentActiveRoutine ? ($currentActiveRoutine->duration_minutes . ' MINUTEN DAUER') : 'KEIN GEPLANTER BLOCK',
+            ],
+            [
+                'url' => route('admin.routine'),
+                'sound' => 'action',
+                'title' => 'TAGES-TODOS',
+                'value' => $routineOpenCount,
+                'unit' => $routineOpenCount > 0 ? 'OFFEN' : 'OK',
+                'ring_pct' => $routineOpenCount > 0 ? max(25, 100 - ($routineOpenCount * 15)) : 100,
+                'color' => $routineCrit ? $sfCritical : $sfGold,
+                'critical' => $routineCrit,
+                'metric' => $routineOpenCount > 0 ? $routineOpenCount . ' ROUTINE-SCHRITTE OFFEN' : 'TAGES-CHECK-IN ERLEDIGT',
+                'status' => 'JETZT ABHAKEN ↗',
+            ],
+            [
+                'tab' => 'operative',
+                'sound' => 'select',
+                'title' => 'OPERATIVER SCORE',
+                'value' => $operativeScore,
+                'unit' => 'SCORE',
+                'ring_pct' => max(10, $operativeScore),
+                'color' => ($opHasErrors || $operativeScore < 50) ? $sfCritical : $sfGold,
+                'critical' => ($opHasErrors || $operativeScore < 50),
+                'metric' => 'EINFLUSS AUF TAGES-SCORE',
+                'status' => 'ZUM OPERATIVEN STATUS ↗',
+            ],
+            [
+                'url' => route('admin.routine'),
+                'sound' => 'action',
+                'title' => 'ROUTINE-ZENTRUM',
+                'value' => 'GO',
+                'unit' => 'LINK',
+                'ring_pct' => 100,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => 'ALLE ROUTINEN VERWALTEN',
+                'status' => 'ROUTINE ÖFFNEN ↗',
+            ],
+        ];
+
+        // 10. KALENDER SUB-NODES
+        $calendarSubNodes = [];
+        foreach ($eventsCollection->take(5) as $ev) {
+            $isEvToday = isset($ev->start_date) && $ev->start_date->isToday();
+            $isEvTom = isset($ev->start_date) && $ev->start_date->isTomorrow();
+            $evDateLbl = $isEvToday ? 'HEUTE' : ($isEvTom ? 'MORGEN' : (isset($ev->start_date) ? $ev->start_date->format('d.m.') : 'TERMIN'));
+            $evTimeLbl = $ev->is_all_day ? 'GANZTAGS' : (isset($ev->start_date) ? $ev->start_date->format('H:i') : '');
+            $isEvCrit = $isEvToday && ($ev->priority ?? '') === 'high';
+            $calendarSubNodes[] = [
+                'url' => route('admin.calender'),
+                'sound' => 'action',
+                'title' => $evDateLbl . ($evTimeLbl ? ' · ' . $evTimeLbl : ''),
+                'value' => isset($ev->start_date) ? $ev->start_date->format('d.m') : '●',
+                'unit' => $evDateLbl,
+                'ring_pct' => 100,
+                'color' => $isEvCrit ? $sfCritical : $sfGold,
+                'critical' => $isEvCrit,
+                'metric' => strtoupper(\Illuminate\Support\Str::limit($ev->title ?? 'Termin', 22)),
+                'status' => strtoupper(\Illuminate\Support\Str::limit($ev->description ?: 'IM KALENDER ANSEHEN ↗', 24)),
+            ];
+        }
+        $calendarSubNodes[] = [
+            'url' => route('admin.calender'),
+            'sound' => 'action',
+            'title' => 'KALENDER-ZENTRUM',
+            'value' => $eventsCount,
+            'unit' => 'TOTAL',
+            'ring_pct' => 100,
+            'color' => $sfGold,
+            'critical' => false,
+            'metric' => 'TERMINPLANUNG & EVENTS',
+            'status' => 'KALENDER ÖFFNEN ↗',
+        ];
+
+        // 11. ZEITRAUM & FILTER EINSTELLUNGEN (ÜBER GOLDENES ZAHNRAD IM CHRONO-CORE)
+        $startCarbon = !empty($dateStart) ? \Carbon\Carbon::parse($dateStart) : now()->startOfMonth();
+        $endCarbon = !empty($dateEnd) ? \Carbon\Carbon::parse($dateEnd) : now()->endOfMonth();
+        $filterModeLabel = $filterType === 'business' ? 'Gewerbe' : ($filterType === 'private' ? 'Privat' : 'Alles');
+
+        $settingsSubNodes = [
+            // LINKE SEITE (4 ZEITRAUM-SATELLITEN)
+            [
+                'dateModel' => 'dateStart',
+                'sound' => 'select',
+                'title' => 'ZEITRAUM VON',
+                'value' => $startCarbon->format('d.m.'),
+                'unit' => $startCarbon->format('Y'),
+                'ring_pct' => 100,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => $startCarbon->format('d.m.Y'),
+                'status' => 'STARTDATUM WÄHLEN ✎',
+            ],
+            [
+                'dateModel' => 'dateEnd',
+                'sound' => 'select',
+                'title' => 'ZEITRAUM BIS',
+                'value' => $endCarbon->format('d.m.'),
+                'unit' => $endCarbon->format('Y'),
+                'ring_pct' => 100,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => $endCarbon->format('d.m.Y'),
+                'status' => 'ENDDATUM WÄHLEN ✎',
+            ],
+            [
+                'wireClick' => 'setCurrentMonth',
+                'sound' => 'action',
+                'title' => 'SCHNELLWAHL',
+                'value' => 'MONAT',
+                'unit' => now()->format('m/y'),
+                'ring_pct' => $rangeMode === 'current_month' ? 100 : 35,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => 'AKTUELLER MONAT',
+                'status' => $rangeMode === 'current_month' ? '● AKTIV AUSGEWÄHLT' : 'ZEITRAUM SETZEN ↗',
+            ],
+            [
+                'wireClick' => 'setWholeYear',
+                'sound' => 'action',
+                'title' => 'SCHNELLWAHL',
+                'value' => 'JAHR',
+                'unit' => now()->format('Y'),
+                'ring_pct' => $rangeMode === 'year' ? 100 : 35,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => 'GANZES JAHR',
+                'status' => $rangeMode === 'year' ? '● AKTIV AUSGEWÄHLT' : 'ZEITRAUM SETZEN ↗',
+            ],
+            // RECHTE SEITE (3 KUNDEN-FILTER SATELLITEN: ALLES / GEWERBE / PRIVAT)
+            [
+                'wireClick' => "\$set('filterType', 'all')",
+                'sound' => 'switch',
+                'title' => 'MODUS-SWITCH',
+                'value' => 'ALLE',
+                'unit' => '100%',
+                'ring_pct' => $filterType === 'all' ? 100 : 35,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => 'ALLES (B2C & B2B)',
+                'status' => $filterType === 'all' ? '● AKTIV AUSGEWÄHLT' : 'MODUS AKTIVIEREN ↗',
+            ],
+            [
+                'wireClick' => "\$set('filterType', 'business')",
+                'sound' => 'switch',
+                'title' => 'MODUS-SWITCH',
+                'value' => 'B2B',
+                'unit' => 'FIRMA',
+                'ring_pct' => $filterType === 'business' ? 100 : 35,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => 'GEWERBE',
+                'status' => $filterType === 'business' ? '● AKTIV AUSGEWÄHLT' : 'MODUS AKTIVIEREN ↗',
+            ],
+            [
+                'wireClick' => "\$set('filterType', 'private')",
+                'sound' => 'switch',
+                'title' => 'MODUS-SWITCH',
+                'value' => 'B2C',
+                'unit' => 'PRIVAT',
+                'ring_pct' => $filterType === 'private' ? 100 : 35,
+                'color' => $sfGold,
+                'critical' => false,
+                'metric' => 'PRIVAT',
+                'status' => $filterType === 'private' ? '● AKTIV AUSGEWÄHLT' : 'MODUS AKTIVIEREN ↗',
+            ],
+        ];
+
+        // --- ALLE ORBITAL-SZENEN (ROOT + DRILL-DOWNS + SETTINGS) ---
+        $orbitalScenes = [
+            'root' => [
+                'isRoot' => true,
+                'elevated' => false,
+                'coreTitle' => 'Bestellungen',
+                'coreValue' => number_format($totalOrdersCount, 0, ',', '.'),
+                'coreBadgeHtml' => ($openOrdersCount > 0 ? $openOrdersCount . ' Offen · ' : '') . '<span class="text-[#ffe39f]">' . number_format($stats['shop_revenue'] ?? 0, 0, ',', '.') . ' €</span>' . ($openOrdersCount > 0 ? '' : ' Umsatz'),
+                'coreClick' => "window.sfPlaySound && window.sfPlaySound('chart'); activeTab = 'ecommerce'",
+                'nodes' => $orbitalNodes,
+            ],
+            'settings' => [
+                'isRoot' => false,
+                'elevated' => false,
+                'coreTitle' => 'Zeitraum & Filter',
+                'coreValue' => $filterModeLabel,
+                'coreBadgeHtml' => '<span class="text-[#ffe39f]">' . $startCarbon->format('d.m.y') . ' – ' . $endCarbon->format('d.m.y') . '</span>',
+                'coreClick' => "window.sfPlaySound && window.sfPlaySound('back'); activeTab = null",
+                'nodes' => $settingsSubNodes,
+            ],
+            'operative' => [
+                'isRoot' => false,
+                'elevated' => false,
+                'coreTitle' => 'Operativer Status',
+                'coreValue' => $operativeScore,
+                'coreBadgeHtml' => '<span class="text-[#ffe39f]">' . $totalTodos . ' Aufgaben</span> · ' . e($opScoreText),
+                'coreClick' => "window.sfPlaySound && window.sfPlaySound('back'); activeTab = null",
+                'nodes' => $operativeSubNodes,
+            ],
+            'shop' => [
+                'isRoot' => false,
+                'elevated' => true,
+                'coreTitle' => 'Shop Health',
+                'coreValue' => $shopScore,
+                'coreBadgeHtml' => 'Ø <span class="text-[#ffe39f]">' . number_format($stats['avg_profit'] ?? 0, 0, ',', '.') . ' €</span> Mtl. Gewinn',
+                'coreClick' => "window.sfPlaySound && window.sfPlaySound('back'); activeTab = null",
+                'nodes' => $shopSubNodes,
+            ],
+            'system' => [
+                'isRoot' => false,
+                'elevated' => true,
+                'coreTitle' => 'Infrastruktur',
+                'coreValue' => $systemScore,
+                'coreBadgeHtml' => '<span class="text-[#ffe39f]">' . e($sysText) . '</span>',
+                'coreClick' => "window.sfPlaySound && window.sfPlaySound('back'); activeTab = null",
+                'nodes' => $systemSubNodes,
+            ],
+            'security' => [
+                'isRoot' => false,
+                'elevated' => true,
+                'coreTitle' => 'Sicherheit & Abwehr',
+                'coreValue' => $securityScore,
+                'coreBadgeHtml' => '<span class="text-[#ffe39f]">' . e($secText) . '</span>',
+                'coreClick' => "window.sfPlaySound && window.sfPlaySound('back'); activeTab = null",
+                'nodes' => $securitySubNodes,
+            ],
+            'capacities' => [
+                'isRoot' => false,
+                'elevated' => true,
+                'coreTitle' => 'Kapazitäten',
+                'coreValue' => $shopLoad . '%',
+                'coreBadgeHtml' => 'Speicher: <span class="text-[#ffe39f]">' . round(100 - $storageUsedPct) . '% frei</span>',
+                'coreClick' => "window.sfPlaySound && window.sfPlaySound('back'); activeTab = null",
+                'nodes' => $capacitiesSubNodes,
+            ],
+            'profit' => [
+                'isRoot' => false,
+                'elevated' => true,
+                'coreTitle' => 'Gewinn (Mtl.)',
+                'coreValue' => number_format($stats['avg_profit'] ?? 0, 0, ',', '.') . ' €',
+                'coreBadgeHtml' => $missing > 0 ? '<span class="text-red-400">-' . number_format($missing, 0, ',', '.') . ' €</span> bis Break-Even' : '<span class="text-[#ffe39f]">Break-Even erreicht!</span>',
+                'coreClick' => "window.sfPlaySound && window.sfPlaySound('back'); activeTab = null",
+                'nodes' => $profitSubNodes,
+            ],
+            'ecommerce' => [
+                'isRoot' => false,
+                'elevated' => true,
+                'coreTitle' => 'E-Commerce',
+                'coreValue' => number_format($totalOrdersCount, 0, ',', '.'),
+                'coreBadgeHtml' => '<span class="text-[#ffe39f]">' . number_format($stats['shop_revenue'] ?? 0, 0, ',', '.') . ' €</span> Umsatz',
+                'coreClick' => "window.sfPlaySound && window.sfPlaySound('back'); activeTab = null",
+                'nodes' => $ecommerceSubNodes,
+            ],
+            'traffic' => [
+                'isRoot' => false,
+                'elevated' => true,
+                'coreTitle' => 'Traffic & Kunden',
+                'coreValue' => number_format($stats['frontend_unique_total'] ?? 0, 0, ',', '.'),
+                'coreBadgeHtml' => '● <span class="text-[#ffe39f]">' . $onlineCount . ' Nutzer</span> online',
+                'coreClick' => "window.sfPlaySound && window.sfPlaySound('back'); activeTab = null",
+                'nodes' => $trafficSubNodes,
+            ],
+            'routine' => [
+                'isRoot' => false,
+                'elevated' => false,
+                'coreTitle' => 'Live Routine',
+                'coreValue' => isset($currentActiveRoutine) && $currentActiveRoutine ? \Carbon\Carbon::parse($currentActiveRoutine->start_time)->format('H:i') : ($routineOpenCount > 0 ? $routineOpenCount : 'OK'),
+                'coreBadgeHtml' => '<span class="text-[#ffe39f]">' . e($routineActiveTitle) . '</span>',
+                'coreClick' => "window.sfPlaySound && window.sfPlaySound('back'); activeTab = null",
+                'nodes' => $routineSubNodes,
+            ],
+            'calendar' => [
+                'isRoot' => false,
+                'elevated' => false,
+                'coreTitle' => 'Kalender',
+                'coreValue' => $eventsCount,
+                'coreBadgeHtml' => '<span class="text-[#ffe39f]">' . e($nextEventLabel) . '</span>',
+                'coreClick' => "window.sfPlaySound && window.sfPlaySound('back'); activeTab = null",
+                'nodes' => $calendarSubNodes,
+            ],
+        ];
+
+        // Gemeinsames Prozent-Koordinatensystem (0..100%) für SVG (0..1000) & HTML-Satelliten
+        $buildCoords = function (int $count, string $side): array {
+            $yPcts = match ($count) {
+                0 => [],
+                1 => [50],
+                2 => [28, 72],
+                3 => [17, 50, 83],
+                4 => [12, 37, 63, 88],
+                default => array_map(fn($i) => round(10 + ($i * (80 / max(1, $count - 1))), 1), range(0, $count - 1)),
+            };
+            $coords = [];
+            foreach ($yPcts as $yPct) {
+                $arcOffset = round((abs($yPct - 50) / 40) * 5.5, 1);
+                $xPct = $side === 'left' ? (27.5 + $arcOffset) : (72.5 - $arcOffset);
+                $coords[] = [
+                    'xPct' => $xPct,
+                    'yPct' => $yPct,
+                    'svgX' => $xPct * 10,
+                    'svgY' => $yPct * 10,
+                ];
+            }
+            return $coords;
+        };
+
+        // Vorberechnung aller Szenen inkl. winkelgenauer Andock-Segmente (Links = 90°..270°, Rechts = -90°..+90°)
+        $segCirc = round(2 * pi() * 140, 2);
+        $preparedScenes = [];
+        foreach ($orbitalScenes as $sceneKey => $scene) {
+            $sNodes = $scene['nodes'];
+            $sHalf = (int) ceil(count($sNodes) / 2);
+            $sLeftNodes = array_values(array_slice($sNodes, 0, $sHalf));
+            $sRightNodes = array_values(array_slice($sNodes, $sHalf));
+            $sLeftCoords = $buildCoords(count($sLeftNodes), 'left');
+            $sRightCoords = $buildCoords(count($sRightNodes), 'right');
+
+            $lCount = count($sLeftNodes);
+            $rCount = count($sRightNodes);
+            $leftPrepared = [];
+            $rightPrepared = [];
+            $dockSegments = [];
+
+            // Linke Satelliten: docken auf dem linken Halbkreis (von 270° oben gegen den Uhrzeigersinn bis 90° unten)
+            foreach ($sLeftNodes as $lIdx => $lNode) {
+                $lStepDeg = 180 / max(1, $lCount);
+                $centerAngleDeg = 270 - (($lIdx + 0.5) * $lStepDeg);
+                $segRot = round(270 - (($lIdx + 1) * $lStepDeg) + 3.5, 2);
+                $segLen = round(max(14, (($segCirc / 2) / max(1, $lCount)) - 11), 2);
+                $rad = deg2rad($centerAngleDeg);
+                $c1x = round(500 + cos($rad) * 115, 1);
+                $c1y = round(500 + sin($rad) * 115, 1);
+                $coord = $sLeftCoords[$lIdx];
+                $ex = $coord['svgX'];
+                $ey = $coord['svgY'];
+                $c2x = round($ex + 65, 1);
+
+                $leftPrepared[] = array_merge($lNode, [
+                    'coord' => $coord,
+                    'pathD' => "M 500 500 C {$c1x} {$c1y}, {$c2x} {$ey}, {$ex} {$ey}",
+                ]);
+                $dockSegments[] = [
+                    'rot' => $segRot,
+                    'len' => $segLen,
+                    'color' => $lNode['critical'] ? '#ef4444' : ($lIdx % 2 === 0 ? '#e5c178' : '#C5A059'),
+                ];
+            }
+
+            // Rechte Satelliten: docken auf dem rechten Halbkreis (von -90° oben im Uhrzeigersinn bis +90° unten)
+            foreach ($sRightNodes as $rIdx => $rNode) {
+                $rStepDeg = 180 / max(1, $rCount);
+                $centerAngleDeg = -90 + (($rIdx + 0.5) * $rStepDeg);
+                $segRot = round(-90 + ($rIdx * $rStepDeg) + 3.5, 2);
+                $segLen = round(max(14, (($segCirc / 2) / max(1, $rCount)) - 11), 2);
+                $rad = deg2rad($centerAngleDeg);
+                $c1x = round(500 + cos($rad) * 115, 1);
+                $c1y = round(500 + sin($rad) * 115, 1);
+                $coord = $sRightCoords[$rIdx];
+                $ex = $coord['svgX'];
+                $ey = $coord['svgY'];
+                $c2x = round($ex - 65, 1);
+
+                $rightPrepared[] = array_merge($rNode, [
+                    'coord' => $coord,
+                    'pathD' => "M 500 500 C {$c1x} {$c1y}, {$c2x} {$ey}, {$ex} {$ey}",
+                ]);
+                $dockSegments[] = [
+                    'rot' => $segRot,
+                    'len' => $segLen,
+                    'color' => $rNode['critical'] ? '#ef4444' : ($rIdx % 2 === 0 ? '#e5c178' : '#C5A059'),
+                ];
+            }
+
+            $preparedScenes[$sceneKey] = array_merge($scene, [
+                'showExpr' => $sceneKey === 'root' ? 'activeTab === null' : "activeTab === '{$sceneKey}'",
+                'leftNodes' => $leftPrepared,
+                'rightNodes' => $rightPrepared,
+                'allNodes' => array_merge($leftPrepared, $rightPrepared),
+                'dockSegments' => $dockSegments,
+            ]);
+        }
     @endphp
 
-    <!-- TOP ROW: THE 4 SCORES -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+    <!-- ===================================================================== -->
+    <!-- A. FOKUS-MODUS: ANIME.JS CHRONO-CORE & INTERAKTIVE ORBITAL-SZENEN     -->
+    <!-- ===================================================================== -->
+    <div x-show="focusMode"
+         x-transition.opacity.duration.300ms
+         class="relative w-full pt-2 pb-4 select-none overflow-visible">
 
-        <!-- 1. SHOP HEALTH SCORE -->
-        <div @click="activeTab = activeTab === 'shop' ? null : 'shop'"
-             class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 dark:shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
-             :class="activeTab === 'shop' ? 'active-theme-pulse' : 'border-gray-200 dark:border-gray-800'">
+        <!-- 1. DESKTOP ORBITAL-BÜHNE (>= 1024px): Persistenter Kern & überlappende Radial-Übergänge -->
+        <div :style="['shop', 'system', 'security', 'capacities', 'profit', 'ecommerce', 'traffic'].includes(activeTab) ? 'height: 510px;' : ''"
+             class="hidden lg:block relative w-full h-[680px] xl:h-[740px] sf-stage-height overflow-visible">
 
-            <div class="absolute top-4 right-4 z-10" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
-                <div class="text-gray-400 hover:text-gray-900 dark:hover:text-white cursor-help">
-                    <x-heroicon-o-information-circle class="w-5 h-5" />
+            <!-- SZENEN-LAYER: ENERGIESTRAHLEN & SATELLITEN (Überlappender Radial-Warp beim Öffnen & Zurückgehen) -->
+            @foreach($preparedScenes as $sceneKey => $scene)
+                <div x-show="{{ $scene['showExpr'] }}"
+                     @if($sceneKey !== 'root') x-cloak style="display: none;" @endif
+                     x-transition:enter="transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+                     x-transition:enter-start="opacity-0 scale-[0.86]"
+                     x-transition:enter-end="opacity-100 scale-100"
+                     x-transition:leave="transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] pointer-events-none"
+                     x-transition:leave-start="opacity-100 scale-100"
+                     x-transition:leave-end="opacity-0 scale-[0.86]"
+                     class="absolute inset-0 w-full h-full overflow-visible origin-center">
+
+                    <!-- SVG ENERGY BEAMS (GPU-optimiert ohne teuren Fullscreen-GaussianBlur) -->
+                    <svg class="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-visible" viewBox="0 0 1000 1000" preserveAspectRatio="none">
+                        <!-- Linke Energiestrahlen vom Zentrum (500, 500) durch das zugehörige Ring-Segment zum Satelliten -->
+                        @foreach($scene['leftNodes'] as $idx => $node)
+                            @php
+                                $c = $node['coord'];
+                                $ex = $c['svgX'];
+                                $ey = $c['svgY'];
+                                $pathD = $node['pathD'];
+                            @endphp
+                            <path d="{{ $pathD }}" fill="none" stroke="{{ $node['color'] }}" stroke-width="6" stroke-opacity="0.14" stroke-linecap="round" />
+                            <path d="{{ $pathD }}" fill="none" stroke="{{ $node['color'] }}" stroke-width="1.75" stroke-opacity="0.48" />
+                            <path d="{{ $pathD }}" fill="none" stroke="{{ $node['color'] }}" stroke-width="2.8" stroke-opacity="0.95" stroke-linecap="round" class="sf-energy-stream" style="animation-delay: -{{ $idx * 0.55 }}s;" />
+                            <circle r="3.4" fill="{{ $node['color'] }}">
+                                <animateMotion dur="{{ 2.6 + ($idx * 0.35) }}s" repeatCount="indefinite" path="{{ $pathD }}" />
+                            </circle>
+                            <circle cx="{{ $ex }}" cy="{{ $ey }}" r="4.5" fill="{{ $node['color'] }}" />
+                            <circle cx="{{ $ex }}" cy="{{ $ey }}" r="8.5" fill="none" stroke="{{ $node['color'] }}" stroke-opacity="0.38" stroke-width="1.2" />
+                        @endforeach
+
+                        <!-- Rechte Energiestrahlen vom Zentrum (500, 500) durch das zugehörige Ring-Segment zum Satelliten -->
+                        @foreach($scene['rightNodes'] as $idx => $node)
+                            @php
+                                $c = $node['coord'];
+                                $ex = $c['svgX'];
+                                $ey = $c['svgY'];
+                                $pathD = $node['pathD'];
+                            @endphp
+                            <path d="{{ $pathD }}" fill="none" stroke="{{ $node['color'] }}" stroke-width="6" stroke-opacity="0.14" stroke-linecap="round" />
+                            <path d="{{ $pathD }}" fill="none" stroke="{{ $node['color'] }}" stroke-width="1.75" stroke-opacity="0.48" />
+                            <path d="{{ $pathD }}" fill="none" stroke="{{ $node['color'] }}" stroke-width="2.8" stroke-opacity="0.95" stroke-linecap="round" class="sf-energy-stream" style="animation-delay: -{{ ($idx + 1) * 0.45 }}s;" />
+                            <circle r="3.4" fill="{{ $node['color'] }}">
+                                <animateMotion dur="{{ 2.7 + ($idx * 0.35) }}s" repeatCount="indefinite" path="{{ $pathD }}" />
+                            </circle>
+                            <circle cx="{{ $ex }}" cy="{{ $ey }}" r="4.5" fill="{{ $node['color'] }}" />
+                            <circle cx="{{ $ex }}" cy="{{ $ey }}" r="8.5" fill="none" stroke="{{ $node['color'] }}" stroke-opacity="0.38" stroke-width="1.2" />
+                        @endforeach
+                    </svg>
+
+                    <!-- LINKE SATELLITEN -->
+                    @foreach($scene['leftNodes'] as $idx => $node)
+                        @php
+                            $c = $node['coord'];
+                            $rCirc = 2 * pi() * 34;
+                            $rOffset = $rCirc - (($node['ring_pct'] / 100) * $rCirc);
+                            $soundType = $node['sound'] ?? 'select';
+                            if (isset($node['dateModel'])) {
+                                $clickJs = "window.sfPlaySound && window.sfPlaySound('{$soundType}'); const inp = \$el.querySelector('input[type=date]'); if (inp) { inp.showPicker ? inp.showPicker() : inp.focus(); }";
+                            } elseif (isset($node['wireClick'])) {
+                                $clickJs = "window.sfPlaySound && window.sfPlaySound('{$soundType}')";
+                            } elseif (isset($node['url'])) {
+                                $clickJs = "window.sfPlaySound && window.sfPlaySound('{$soundType}'); window.location.href = '{$node['url']}'";
+                            } else {
+                                $clickJs = "window.sfPlaySound && window.sfPlaySound('{$soundType}'); activeTab = '{$node['tab']}'";
+                            }
+                        @endphp
+                        <div style="left: {{ $c['xPct'] }}%; top: {{ $c['yPct'] }}%; transform: translate(-100%, -50%);"
+                             class="absolute z-20 pr-4">
+                            <div @mouseenter="window.sfPlaySound && window.sfPlaySound('hover')"
+                                 @if(isset($node['wireClick'])) wire:click.prevent="{{ $node['wireClick'] }}" @endif
+                                 @click="{{ $clickJs }}"
+                                 class="group cursor-pointer flex items-center justify-end gap-4 bg-transparent border-0 p-0 transition-transform duration-300 hover:scale-105 sf-floating-satellite"
+                                 style="animation-delay: -{{ $idx * 1.1 }}s;">
+
+                                <div class="text-right max-w-[195px] xl:max-w-[240px]">
+                                    <div class="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400 group-hover:text-[#C5A059] transition-colors truncate">
+                                        {{ $node['title'] }}
+                                    </div>
+                                    @if(isset($node['dateModel']))
+                                        <div class="mt-0.5 flex justify-end">
+                                            <input type="date"
+                                                   wire:model.live.blur="{{ $node['dateModel'] }}"
+                                                   @click.stop
+                                                   @change="window.sfPlaySound && window.sfPlaySound('action')"
+                                                   class="bg-transparent border-0 border-b border-[#C5A059]/60 focus:border-[#C5A059] focus:ring-0 p-0 pb-0.5 text-xs font-black uppercase tracking-widest text-gray-900 dark:text-white cursor-pointer text-right" />
+                                        </div>
+                                    @else
+                                        <div class="text-xs font-black uppercase tracking-widest text-gray-900 dark:text-white mt-0.5 truncate">
+                                            {{ $node['metric'] }}
+                                        </div>
+                                    @endif
+                                    <div class="text-[10px] font-black uppercase tracking-widest mt-0.5 truncate" style="color: {{ $node['color'] }};">
+                                        {{ $node['status'] }}
+                                    </div>
+                                </div>
+
+                                <div class="relative w-20 h-20 flex items-center justify-center shrink-0">
+                                    <svg class="w-full h-full overflow-visible" viewBox="0 0 84 84">
+                                        <circle cx="42" cy="42" r="39" fill="none" stroke="{{ $node['color'] }}" stroke-opacity="0.3" stroke-width="1" stroke-dasharray="2 4" />
+                                        <circle cx="42" cy="42" r="34" fill="none" stroke="currentColor" stroke-width="5" class="text-gray-200/70 dark:text-gray-800/90" />
+                                        <circle cx="42" cy="42" r="34" fill="none" stroke="{{ $node['color'] }}" stroke-width="5"
+                                                stroke-dasharray="{{ $rCirc }}" stroke-dashoffset="{{ $rOffset }}" stroke-linecap="round"
+                                                transform="rotate(-90 42 42)"
+                                                style="filter: drop-shadow(0 0 6px {{ $node['color'] }});"
+                                                class="transition-all duration-700" />
+                                    </svg>
+                                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                        <span class="text-base font-black leading-none tracking-tight text-gray-900 dark:text-white" style="text-shadow: 0 0 12px {{ $node['color'] }}55;">
+                                            {{ $node['value'] }}
+                                        </span>
+                                        <span class="text-[7px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 mt-0.5">
+                                            {{ $node['unit'] }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+
+                    <!-- RECHTE SATELLITEN -->
+                    @foreach($scene['rightNodes'] as $idx => $node)
+                        @php
+                            $c = $node['coord'];
+                            $rCirc = 2 * pi() * 34;
+                            $rOffset = $rCirc - (($node['ring_pct'] / 100) * $rCirc);
+                            $soundType = $node['sound'] ?? 'select';
+                            if (isset($node['dateModel'])) {
+                                $clickJs = "window.sfPlaySound && window.sfPlaySound('{$soundType}'); const inp = \$el.querySelector('input[type=date]'); if (inp) { inp.showPicker ? inp.showPicker() : inp.focus(); }";
+                            } elseif (isset($node['wireClick'])) {
+                                $clickJs = "window.sfPlaySound && window.sfPlaySound('{$soundType}')";
+                            } elseif (isset($node['url'])) {
+                                $clickJs = "window.sfPlaySound && window.sfPlaySound('{$soundType}'); window.location.href = '{$node['url']}'";
+                            } else {
+                                $clickJs = "window.sfPlaySound && window.sfPlaySound('{$soundType}'); activeTab = '{$node['tab']}'";
+                            }
+                        @endphp
+                        <div style="left: {{ $c['xPct'] }}%; top: {{ $c['yPct'] }}%; transform: translate(0%, -50%);"
+                             class="absolute z-20 pl-4">
+                            <div @mouseenter="window.sfPlaySound && window.sfPlaySound('hover')"
+                                 @if(isset($node['wireClick'])) wire:click.prevent="{{ $node['wireClick'] }}" @endif
+                                 @click="{{ $clickJs }}"
+                                 class="group cursor-pointer flex items-center justify-start gap-4 bg-transparent border-0 p-0 transition-transform duration-300 hover:scale-105 sf-floating-satellite"
+                                 style="animation-delay: -{{ ($idx + 0.5) * 1.1 }}s;">
+
+                                <div class="relative w-20 h-20 flex items-center justify-center shrink-0">
+                                    <svg class="w-full h-full overflow-visible" viewBox="0 0 84 84">
+                                        <circle cx="42" cy="42" r="39" fill="none" stroke="{{ $node['color'] }}" stroke-opacity="0.3" stroke-width="1" stroke-dasharray="2 4" />
+                                        <circle cx="42" cy="42" r="34" fill="none" stroke="currentColor" stroke-width="5" class="text-gray-200/70 dark:text-gray-800/90" />
+                                        <circle cx="42" cy="42" r="34" fill="none" stroke="{{ $node['color'] }}" stroke-width="5"
+                                                stroke-dasharray="{{ $rCirc }}" stroke-dashoffset="{{ $rOffset }}" stroke-linecap="round"
+                                                transform="rotate(-90 42 42)"
+                                                style="filter: drop-shadow(0 0 6px {{ $node['color'] }});"
+                                                class="transition-all duration-700" />
+                                    </svg>
+                                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                        <span class="text-base font-black leading-none tracking-tight text-gray-900 dark:text-white" style="text-shadow: 0 0 12px {{ $node['color'] }}55;">
+                                            {{ $node['value'] }}
+                                        </span>
+                                        <span class="text-[7px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 mt-0.5">
+                                            {{ $node['unit'] }}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div class="text-left max-w-[195px] xl:max-w-[240px]">
+                                    <div class="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400 group-hover:text-[#C5A059] transition-colors truncate">
+                                        {{ $node['title'] }}
+                                    </div>
+                                    @if(isset($node['dateModel']))
+                                        <div class="mt-0.5 flex justify-start">
+                                            <input type="date"
+                                                   wire:model.live.blur="{{ $node['dateModel'] }}"
+                                                   @click.stop
+                                                   @change="window.sfPlaySound && window.sfPlaySound('action')"
+                                                   class="bg-transparent border-0 border-b border-[#C5A059]/60 focus:border-[#C5A059] focus:ring-0 p-0 pb-0.5 text-xs font-black uppercase tracking-widest text-gray-900 dark:text-white cursor-pointer" />
+                                        </div>
+                                    @else
+                                        <div class="text-xs font-black uppercase tracking-widest text-gray-900 dark:text-white mt-0.5 truncate">
+                                            {{ $node['metric'] }}
+                                        </div>
+                                    @endif
+                                    <div class="text-[10px] font-black uppercase tracking-widest mt-0.5 truncate" style="color: {{ $node['color'] }};">
+                                        {{ $node['status'] }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
                 </div>
-                <div x-show="tooltip" x-transition.opacity.duration.200ms class="absolute top-full right-0 mt-2 w-56 p-4 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg dark:shadow-2xl text-left pointer-events-none" style="display: none;">
-                    <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-200 dark:border-gray-800 pb-2">Zusammensetzung</p>
-                    <ul class="text-xs text-gray-600 dark:text-gray-300 space-y-1.5">
-                        <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Break-Even:</span> <span class="text-emerald-500 dark:text-emerald-400">+30</span></li>
-                        <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Netto-Ziel:</span> <span class="text-emerald-500 dark:text-emerald-400">+20</span></li>
-                        <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Gewinn-Marge:</span> <span class="text-emerald-500 dark:text-emerald-400">+25</span></li>
-                        <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Umsatz-Trend:</span> <span class="text-emerald-500 dark:text-emerald-400">+15</span></li>
-                        <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Offene Posten:</span> <span class="text-emerald-500 dark:text-emerald-400">+10</span></li>
-                        <li class="flex justify-between items-center pt-1 mt-1 border-t border-gray-200 dark:border-gray-800"><span class="text-gray-500 dark:text-gray-400">Abzüge Op.:</span> <span class="text-red-500 dark:text-red-400">-5 / -1</span></li>
-                        <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Abzüge Sys.:</span> <span class="text-red-500 dark:text-red-400">-10 / -2</span></li>
-                    </ul>
+            @endforeach
+
+            <!-- ZENTRUM (DESKTOP): PERSISTENTER ANIME.JS SEELENFUNKE CHRONO-KERN AUF (50%, 50%) -->
+            <div style="left: 50%; top: 50%; transform: translate(-50%, -50%);"
+                 class="absolute z-30 flex items-center justify-center">
+                <!-- Äußere konzentrische Radar-Ringe -->
+                <div class="absolute w-[370px] h-[370px] rounded-full border border-dashed border-[#C5A059]/20 pointer-events-none"></div>
+                <div class="absolute w-[425px] h-[425px] rounded-full border border-[#C5A059]/10 pointer-events-none"></div>
+
+                <div @mouseenter="window.sfPlaySound && window.sfPlaySound('hover')"
+                     @click="if (activeTab === null) { window.sfPlaySound && window.sfPlaySound('chart'); activeTab = 'ecommerce'; } else { window.sfPlaySound && window.sfPlaySound('back'); activeTab = null; }"
+                     class="relative w-[310px] h-[310px] xl:w-[330px] xl:h-[330px] rounded-full bg-[#141417] sf-chrono-core-dial flex items-center justify-center cursor-pointer group transition-transform duration-500 hover:scale-[1.02]">
+
+                    <svg class="w-full h-full overflow-visible" viewBox="0 0 300 300">
+                        <defs>
+                            <radialGradient id="sfDialSurfaceMain" cx="50%" cy="50%" r="50%">
+                                <stop offset="0%" stop-color="#221e18" />
+                                <stop offset="72%" stop-color="#151518" />
+                                <stop offset="100%" stop-color="#0c0c0f" />
+                            </radialGradient>
+                            <radialGradient id="sfCenterReadabilityMain" cx="50%" cy="50%" r="50%">
+                                <stop offset="0%" stop-color="#0b0b0e" stop-opacity="0.93" />
+                                <stop offset="66%" stop-color="#101014" stop-opacity="0.80" />
+                                <stop offset="100%" stop-color="#151518" stop-opacity="0" />
+                            </radialGradient>
+                        </defs>
+
+                        <circle cx="150" cy="150" r="147" fill="#101013" stroke="#C5A059" stroke-opacity="0.35" stroke-width="1.5" />
+                        <circle cx="150" cy="150" r="134" fill="url(#sfDialSurfaceMain)" />
+
+                        <!-- LAYER 1: WINKELGENAUER SEGMENT-RING (Exakt dort Rot/Gold, wo die jeweilige Kachel andockt!) -->
+                        @foreach($preparedScenes as $sceneKey => $scene)
+                            <g x-show="{{ $scene['showExpr'] }}"
+                               @if($sceneKey !== 'root') x-cloak @endif
+                               x-transition.opacity.duration.350ms>
+                                @foreach($scene['dockSegments'] as $seg)
+                                    <circle cx="150" cy="150" r="140" fill="none"
+                                            stroke="{{ $seg['color'] }}"
+                                            stroke-width="3.6"
+                                            stroke-dasharray="{{ $seg['len'] }} {{ $segCirc }}"
+                                            stroke-linecap="round"
+                                            style="filter: drop-shadow(0 0 4px {{ $seg['color'] }});"
+                                            transform="rotate({{ $seg['rot'] }} 150 150)" />
+                                @endforeach
+                            </g>
+                        @endforeach
+
+                        <!-- LAYER 2: 120 feine Chronographen-Teilstriche in Seelenfunke Gold (Einmalig gerendert, 100% GPU) -->
+                        <g class="sf-spin-slow">
+                            @for($i = 0; $i < 120; $i++)
+                                @php
+                                    $angle = $i * 3;
+                                    $isMajor = ($i % 5 === 0);
+                                    $y1 = $isMajor ? 18 : 20;
+                                    $y2 = $isMajor ? 27 : 25;
+                                @endphp
+                                <line x1="150" y1="{{ $y1 }}" x2="150" y2="{{ $y2 }}"
+                                      stroke="{{ $isMajor ? '#e5c178' : '#9a7b3e' }}"
+                                      stroke-width="{{ $isMajor ? '1.3' : '0.8' }}"
+                                      stroke-opacity="{{ $isMajor ? '0.92' : '0.55' }}"
+                                      transform="rotate({{ $angle }} 150 150)" />
+                            @endfor
+                        </g>
+
+                        <!-- LAYER 3: Horizontale Laser-Frequenzlinien in Seelenfunke Gold (100% GPU CSS-Keyframes) -->
+                        <g>
+                            @for($b = 0; $b < 39; $b++)
+                                @php
+                                    $by = 62 + ($b * 4.5);
+                                    $normY = ($b - 19) / 19;
+                                    $envelope = cos($normY * 1.35) * (0.72 + 0.35 * sin(abs($normY) * 4.2));
+                                    $halfW = max(8, round(68 * abs($envelope)));
+                                @endphp
+                                <line x1="{{ 150 - $halfW }}"
+                                      y1="{{ $by }}"
+                                      x2="{{ 150 + $halfW }}"
+                                      y2="{{ $by }}"
+                                      stroke="#C5A059"
+                                      stroke-width="1.5"
+                                      stroke-opacity="0.38"
+                                      stroke-linecap="round"
+                                      class="sf-freq-bar"
+                                      style="animation-delay: -{{ round($b * 0.09, 2) }}s;" />
+                            @endfor
+                        </g>
+
+                        <!-- Horizontale Mittel-Achse -->
+                        <line x1="42" y1="150" x2="258" y2="150" stroke="#C5A059" stroke-width="1.6" stroke-opacity="0.75" />
+
+                        <!-- LAYER 4: 3 feine gegenläufige Champagner-Gold Orbital-Bögen -->
+                        <g class="sf-spin-reverse" opacity="0.9">
+                            <circle cx="150" cy="150" r="108" fill="none" stroke="#fff3d1" stroke-width="1.1" stroke-dasharray="95 600" stroke-linecap="round" transform="rotate(15 150 150)" />
+                            <circle cx="150" cy="150" r="113" fill="none" stroke="#e5c178" stroke-width="1.3" stroke-dasharray="120 600" stroke-linecap="round" transform="rotate(5 150 150)" />
+                            <circle cx="150" cy="150" r="118" fill="none" stroke="#C5A059" stroke-width="1.5" stroke-dasharray="145 600" stroke-linecap="round" transform="rotate(-5 150 150)" />
+                        </g>
+
+                        <!-- Dezente Glas-Reflexion oben links -->
+                        <path d="M 56 175 A 102 102 0 0 1 135 52 L 143 68 A 84 84 0 0 0 72 168 Z" fill="rgba(255,255,255,0.045)" />
+
+                        <!-- LAYER 5: GPU-animierte Sinus-Punktwelle (0% JS-Last, 120 FPS) -->
+                        <g>
+                            @for($w = 0; $w < 23; $w++)
+                                @php
+                                    $envAmp = round(4 + 14 * sin(($w / 22) * pi()), 1);
+                                @endphp
+                                <circle cx="{{ round(62 + ($w * (176 / 22)), 2) }}"
+                                        cy="150"
+                                        r="3.1"
+                                        fill="#e5c178"
+                                        class="sf-wave-dot"
+                                        style="--amp: {{ $envAmp }}px; animation-delay: -{{ round($w * 0.13, 2) }}s;" />
+                            @endfor
+                            <circle cx="66" cy="122" r="2.8" fill="#C5A059" class="sf-wave-dot" style="--amp: 5px; animation-delay: -0.4s;" />
+                            <circle cx="72" cy="122" r="2.8" fill="#e5c178" class="sf-wave-dot" style="--amp: -5px; animation-delay: -1.1s;" />
+                            <circle cx="56" cy="202" r="2.8" fill="#C5A059" class="sf-wave-dot" style="--amp: 6px; animation-delay: -0.8s;" />
+                            <circle cx="232" cy="104" r="2.8" fill="#e5c178" class="sf-wave-dot" style="--amp: 7px; animation-delay: -1.5s;" />
+                            <circle cx="222" cy="168" r="2.8" fill="#C5A059" class="sf-wave-dot" style="--amp: 5px; animation-delay: -0.3s;" />
+                            <circle cx="228" cy="168" r="2.8" fill="#e5c178" class="sf-wave-dot" style="--amp: -5px; animation-delay: -1.7s;" />
+                        </g>
+
+                        <!-- Sanfte zentrale Abdunklung für gestochen scharfe Lesbarkeit -->
+                        <circle cx="150" cy="150" r="84" fill="url(#sfCenterReadabilityMain)" />
+                    </svg>
+
+                    <!-- GOLDENES ZAHNRAD-SYMBOL MITTIG OBEN IM KREIS (Öffnet die fliegenden Zeitraum- & Filter-Einstellungen) -->
+                    <button type="button"
+                            @mouseenter="window.sfPlaySound && window.sfPlaySound('hover')"
+                            @click.stop="window.sfPlaySound && window.sfPlaySound(activeTab === 'settings' ? 'back' : 'select'); activeTab = (activeTab === 'settings' ? null : 'settings')"
+                            title="Zeitraum & Filter-Einstellungen öffnen"
+                            :class="activeTab === 'settings'
+                                ? 'bg-[#C5A059] text-gray-950 shadow-[0_0_22px_rgba(197,160,89,0.95)] scale-110'
+                                : 'bg-[#09090c]/90 text-[#e5c178] hover:bg-[#C5A059] hover:text-gray-950 shadow-[0_0_16px_rgba(197,160,89,0.45)]'"
+                            class="absolute top-4 left-1/2 -translate-x-1/2 z-30 pointer-events-auto w-9 h-9 rounded-full border border-[#C5A059] flex items-center justify-center transition-all duration-300 active:scale-90 group/gear">
+                        <x-heroicon-s-cog-6-tooth class="w-4.5 h-4.5 transition-transform duration-500 group-hover/gear:rotate-90" ::class="activeTab === 'settings' ? 'rotate-90' : ''" />
+                    </button>
+
+                    <!-- LAYER 6: ZENTRALE ANZEIGE IM HAUPTKREIS (Sanfter Crossfade & Scale beim Wechsel) -->
+                    @foreach($preparedScenes as $sceneKey => $scene)
+                        <div x-show="{{ $scene['showExpr'] }}"
+                             @if($sceneKey !== 'root') x-cloak style="display: none;" @endif
+                             x-transition:enter="transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                             x-transition:enter-start="opacity-0 scale-90 translate-y-1.5"
+                             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                             x-transition:leave="transition-all duration-200 ease-in"
+                             x-transition:leave-start="opacity-100 scale-100"
+                             x-transition:leave-end="opacity-0 scale-95 -translate-y-1.5"
+                             class="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-6 z-20">
+                            <span class="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.28em] text-[#f5dca0] drop-shadow-[0_2px_6px_rgba(0,0,0,1)] mb-1">
+                                {{ $scene['coreTitle'] }}
+                            </span>
+
+                            <span class="text-4xl sm:text-5xl xl:text-6xl font-serif font-black tracking-tight leading-none text-[#fffdf7] my-1"
+                                  style="text-shadow: 0 0 24px rgba(197, 160, 89, 0.95), 0 3px 10px rgba(0, 0, 0, 1);">
+                                {{ $scene['coreValue'] }}
+                            </span>
+
+                            <div class="mt-2 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#09090c]/95 border-2 border-[#C5A059] shadow-[0_0_20px_rgba(197,160,89,0.45)]">
+                                <span class="w-2 h-2 rounded-full bg-[#e5c178] animate-ping shrink-0"></span>
+                                <span class="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-white drop-shadow-[0_1px_3px_rgba(0,0,0,1)]">
+                                    {!! $scene['coreBadgeHtml'] !!}
+                                </span>
+                            </div>
+                        </div>
+                    @endforeach
+
+                    <!-- ZURÜCK-BUTTON IM HAUPTKREIS UNTEN MITTIG (Bei allen Drill-Down & Settings-Ansichten) -->
+                    <button type="button"
+                            x-show="activeTab !== null"
+                            x-cloak
+                            style="display: none;"
+                            x-transition:enter="transition-all duration-300 ease-out"
+                            x-transition:enter-start="opacity-0 translate-y-2 scale-90"
+                            x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                            x-transition:leave="transition-all duration-200 ease-in"
+                            x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+                            x-transition:leave-end="opacity-0 translate-y-2 scale-90"
+                            @mouseenter="window.sfPlaySound && window.sfPlaySound('hover')"
+                            @click.stop="window.sfPlaySound && window.sfPlaySound('back'); activeTab = null"
+                            title="Zurück zur Hauptansicht"
+                            class="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 pointer-events-auto group/back flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#09090c]/95 border border-[#C5A059] text-[#f5dca0] hover:bg-[#C5A059] hover:text-gray-950 transition-all duration-200 shadow-[0_0_16px_rgba(197,160,89,0.55)] active:scale-90">
+                        <x-heroicon-s-arrow-uturn-left class="w-3.5 h-3.5 transition-transform group-hover/back:-translate-x-0.5" />
+                        <span class="text-[9px] font-black uppercase tracking-widest">Zurück</span>
+                    </button>
                 </div>
             </div>
 
-            <h3 class="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-4">Shop Health</h3>
-
-            <div class="relative w-28 h-28 flex items-center justify-center shrink-0 mb-4">
-                <svg class="w-full h-full transform -rotate-90 overflow-visible" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="40" fill="transparent" stroke="currentColor" stroke-width="8" class="text-gray-200 dark:text-gray-800"></circle>
-                    <circle cx="50" cy="50" r="40" fill="transparent" stroke="{{ $shopStrokeColor }}" stroke-width="8" stroke-dasharray="{{ $circumference }}" stroke-dashoffset="{{ $shopOffset }}" stroke-linecap="round" class="transition-all duration-1000 ease-out dark:drop-shadow-[0_0_8px_currentColor]"></circle>
-                </svg>
-                <div class="absolute flex flex-col items-center justify-center">
-                    <span class="text-3xl font-black {{ $shopColorClass }} dark:drop-shadow-[0_0_10px_currentColor]">{{ $shopScore }}</span>
-                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">Score</span>
-                </div>
-            </div>
-
+            <!-- VERTIKALER ENERGIESTRAHL NACH UNTEN (Wenn ein Chart / Detailbereich unterhalb geöffnet ist) -->
+            <div x-show="['shop', 'system', 'security', 'capacities', 'profit', 'ecommerce', 'traffic'].includes(activeTab)"
+                 x-cloak
+                 style="display: none;"
+                 x-transition.opacity.duration.400ms
+                 class="absolute left-1/2 bottom-0 -translate-x-1/2 w-0.5 h-16 bg-gradient-to-b from-[#C5A059] via-[#C5A059]/60 to-transparent shadow-[0_0_12px_#C5A059] pointer-events-none z-10"></div>
         </div>
 
-        <!-- 2. OPERATIVER SCORE -->
-        <div @click="activeTab = activeTab === 'operative' ? null : 'operative'"
-             class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 dark:shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
-             :class="activeTab === 'operative' ? 'active-theme-pulse' : 'border-gray-200 dark:border-gray-800'">
+        <!-- 2. MOBILE & TABLET ANSICHT (< 1024px): Persistenter Kern & geschmeidige Satelliten-Liste -->
+        <div class="lg:hidden flex flex-col items-center w-full">
+            <div @click="if (activeTab === null) { window.sfPlaySound && window.sfPlaySound('chart'); activeTab = 'ecommerce'; } else { window.sfPlaySound && window.sfPlaySound('back'); activeTab = null; }"
+                 class="relative w-[290px] h-[290px] sm:w-[320px] sm:h-[320px] rounded-full bg-[#141417] sf-chrono-core-dial flex items-center justify-center cursor-pointer">
+                <svg class="w-full h-full overflow-visible" viewBox="0 0 300 300">
+                    <circle cx="150" cy="150" r="147" fill="#101013" stroke="#C5A059" stroke-opacity="0.35" stroke-width="1.5" />
+                    <circle cx="150" cy="150" r="134" fill="#151518" />
+                    @foreach($preparedScenes as $sceneKey => $scene)
+                        <g x-show="{{ $scene['showExpr'] }}" @if($sceneKey !== 'root') x-cloak style="display: none;" @endif>
+                            @foreach($scene['dockSegments'] as $seg)
+                                <circle cx="150" cy="150" r="140" fill="none"
+                                        stroke="{{ $seg['color'] }}"
+                                        stroke-width="3.5"
+                                        stroke-dasharray="{{ $seg['len'] }} {{ $segCirc }}"
+                                        stroke-linecap="round"
+                                        transform="rotate({{ $seg['rot'] }} 150 150)" />
+                            @endforeach
+                        </g>
+                    @endforeach
+                    <line x1="42" y1="150" x2="258" y2="150" stroke="#C5A059" stroke-width="1.5" stroke-opacity="0.6" />
+                    @for($w = 0; $w < 23; $w++)
+                        @php
+                            $envAmp = round(4 + 13 * sin(($w / 22) * pi()), 1);
+                        @endphp
+                        <circle cx="{{ round(62 + ($w * (176 / 22)), 2) }}"
+                                cy="150"
+                                r="3"
+                                fill="#e5c178"
+                                class="sf-wave-dot"
+                                style="--amp: {{ $envAmp }}px; animation-delay: -{{ round($w * 0.13, 2) }}s;" />
+                    @endfor
+                    <circle cx="150" cy="150" r="84" fill="url(#sfCenterReadabilityMain)" />
+                </svg>
 
-            <div class="absolute top-4 right-4 z-10" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
-                <div class="text-gray-400 hover:text-gray-900 dark:hover:text-white cursor-help">
-                    <x-heroicon-o-information-circle class="w-5 h-5" />
-                </div>
-                <div x-show="tooltip" x-transition.opacity.duration.200ms class="absolute top-full right-0 mt-2 w-56 p-4 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg dark:shadow-2xl text-left pointer-events-none" style="display: none;">
-                    <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-200 dark:border-gray-800 pb-2">Berechnung</p>
-                    <div class="text-xs text-gray-600 dark:text-gray-300 space-y-2">
-                        <p class="text-gray-500 dark:text-gray-400 text-[10px] leading-tight mb-2">Startwert: <span class="text-gray-900 dark:text-white">100 Punkte</span></p>
-                        <ul class="space-y-1.5">
-                            <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Pro offenes Todo:</span> <span class="text-red-500 dark:text-red-400">-1</span></li>
-                            <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Pro Warnung:</span> <span class="text-red-500 dark:text-red-400">-10</span></li>
-                            <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Pro Fehler:</span> <span class="text-red-500 dark:text-red-400">-25</span></li>
-                        </ul>
+                <!-- GOLDENES ZAHNRAD-SYMBOL MITTIG OBEN IM KREIS (MOBILE) -->
+                <button type="button"
+                        @click.stop="window.sfPlaySound && window.sfPlaySound(activeTab === 'settings' ? 'back' : 'select'); activeTab = (activeTab === 'settings' ? null : 'settings')"
+                        title="Zeitraum & Filter-Einstellungen öffnen"
+                        :class="activeTab === 'settings'
+                            ? 'bg-[#C5A059] text-gray-950 shadow-[0_0_18px_rgba(197,160,89,0.9)]'
+                            : 'bg-[#09090c]/90 text-[#e5c178] shadow-[0_0_12px_rgba(197,160,89,0.4)]'"
+                        class="absolute top-3.5 left-1/2 -translate-x-1/2 z-30 pointer-events-auto w-8 h-8 rounded-full border border-[#C5A059] flex items-center justify-center transition-all">
+                    <x-heroicon-s-cog-6-tooth class="w-4 h-4" ::class="activeTab === 'settings' ? 'rotate-90' : ''" />
+                </button>
+
+                @foreach($preparedScenes as $sceneKey => $scene)
+                    <div x-show="{{ $scene['showExpr'] }}"
+                         @if($sceneKey !== 'root') x-cloak style="display: none;" @endif
+                         x-transition.opacity.duration.300ms
+                         class="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-6 z-20">
+                        <span class="text-[10px] font-black uppercase tracking-[0.28em] text-[#f5dca0] drop-shadow-[0_2px_6px_rgba(0,0,0,1)] mb-1">
+                            {{ $scene['coreTitle'] }}
+                        </span>
+                        <span class="text-4xl sm:text-5xl font-serif font-black tracking-tight leading-none text-[#fffdf7] my-1"
+                              style="text-shadow: 0 0 22px rgba(197, 160, 89, 0.95), 0 3px 10px rgba(0, 0, 0, 1);">
+                            {{ $scene['coreValue'] }}
+                        </span>
+                        <div class="mt-2 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#09090c]/95 border-2 border-[#C5A059] shadow-[0_0_15px_rgba(197,160,89,0.4)]">
+                            <span class="w-2 h-2 rounded-full bg-[#e5c178] animate-ping shrink-0"></span>
+                            <span class="text-[10px] font-black uppercase tracking-widest text-white">
+                                {!! $scene['coreBadgeHtml'] !!}
+                            </span>
+                        </div>
                     </div>
+                @endforeach
+
+                <button type="button"
+                        x-show="activeTab !== null"
+                        x-cloak
+                        style="display: none;"
+                        @click.stop="window.sfPlaySound && window.sfPlaySound('back'); activeTab = null"
+                        class="absolute bottom-3.5 left-1/2 -translate-x-1/2 z-30 pointer-events-auto flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#09090c]/95 border border-[#C5A059] text-[#f5dca0] text-[9px] font-black uppercase tracking-widest shadow-[0_0_12px_rgba(197,160,89,0.5)]">
+                    <x-heroicon-s-arrow-uturn-left class="w-3 h-3" />
+                    <span>Zurück</span>
+                </button>
+            </div>
+
+            <div class="w-0.5 h-10 bg-gradient-to-b from-[#C5A059] to-[#C5A059]/30 shadow-[0_0_10px_#C5A059]"></div>
+
+            @foreach($preparedScenes as $sceneKey => $scene)
+                <div x-show="{{ $scene['showExpr'] }}"
+                     @if($sceneKey !== 'root') x-cloak style="display: none;" @endif
+                     x-transition:enter="transition-all duration-400 ease-out"
+                     x-transition:enter-start="opacity-0 translate-y-3"
+                     x-transition:enter-end="opacity-100 translate-y-0"
+                     class="relative w-full max-w-md space-y-6 px-3 pt-2">
+                    <div class="absolute left-12 top-4 bottom-4 w-px bg-gradient-to-b from-[#C5A059]/60 via-[#C5A059]/30 to-transparent pointer-events-none"></div>
+
+                    @foreach($scene['allNodes'] as $idx => $node)
+                        @php
+                            $rCirc = 2 * pi() * 30;
+                            $rOffset = $rCirc - (($node['ring_pct'] / 100) * $rCirc);
+                            $soundType = $node['sound'] ?? 'select';
+                            if (isset($node['dateModel'])) {
+                                $clickJs = "window.sfPlaySound && window.sfPlaySound('{$soundType}'); const inp = \$el.querySelector('input[type=date]'); if (inp) { inp.showPicker ? inp.showPicker() : inp.focus(); }";
+                            } elseif (isset($node['wireClick'])) {
+                                $clickJs = "window.sfPlaySound && window.sfPlaySound('{$soundType}')";
+                            } elseif (isset($node['url'])) {
+                                $clickJs = "window.sfPlaySound && window.sfPlaySound('{$soundType}'); window.location.href = '{$node['url']}'";
+                            } else {
+                                $clickJs = "window.sfPlaySound && window.sfPlaySound('{$soundType}'); activeTab = '{$node['tab']}'";
+                            }
+                        @endphp
+                        <div @if(isset($node['wireClick'])) wire:click.prevent="{{ $node['wireClick'] }}" @endif
+                             @click="{{ $clickJs }}"
+                             class="relative flex items-center gap-4 cursor-pointer bg-transparent p-0">
+                            <div class="relative w-18 h-18 flex items-center justify-center shrink-0 bg-gray-50/90 dark:bg-gray-950/90 rounded-full">
+                                <svg class="w-18 h-18 overflow-visible" viewBox="0 0 72 72">
+                                    <circle cx="36" cy="36" r="30" fill="none" stroke="currentColor" stroke-width="4.5" class="text-gray-200 dark:text-gray-800" />
+                                    <circle cx="36" cy="36" r="30" fill="none" stroke="{{ $node['color'] }}" stroke-width="4.5"
+                                            stroke-dasharray="{{ $rCirc }}" stroke-dashoffset="{{ $rOffset }}" stroke-linecap="round"
+                                            transform="rotate(-90 36 36)"
+                                            style="filter: drop-shadow(0 0 5px {{ $node['color'] }});" />
+                                </svg>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                    <span class="text-sm font-black text-gray-900 dark:text-white leading-none">{{ $node['value'] }}</span>
+                                    <span class="text-[6px] font-black uppercase tracking-widest text-gray-400 mt-0.5">{{ $node['unit'] }}</span>
+                                </div>
+                            </div>
+
+                            <div class="w-5 h-0.5 shrink-0 rounded-full" style="background: linear-gradient(90deg, {{ $node['color'] }}, transparent); box-shadow: 0 0 8px {{ $node['color'] }};"></div>
+
+                            <div class="flex-1 min-w-0">
+                                <div class="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400 truncate">{{ $node['title'] }}</div>
+                                @if(isset($node['dateModel']))
+                                    <input type="date"
+                                           wire:model.live.blur="{{ $node['dateModel'] }}"
+                                           @click.stop
+                                           @change="window.sfPlaySound && window.sfPlaySound('action')"
+                                           class="mt-0.5 bg-transparent border-0 border-b border-[#C5A059]/60 focus:border-[#C5A059] focus:ring-0 p-0 pb-0.5 text-xs font-black uppercase tracking-wider text-gray-900 dark:text-white cursor-pointer" />
+                                @else
+                                    <div class="text-xs font-black uppercase tracking-wider text-gray-900 dark:text-white mt-0.5 truncate">{{ $node['metric'] }}</div>
+                                @endif
+                                <div class="text-[10px] font-black uppercase tracking-wider mt-0.5 truncate" style="color: {{ $node['color'] }};">{{ $node['status'] }}</div>
+                            </div>
+                        </div>
+                    @endforeach
                 </div>
-            </div>
-
-            <h3 class="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-4">Operativer Status</h3>
-
-            <div class="relative w-28 h-28 flex items-center justify-center shrink-0 mb-4">
-                <svg class="w-full h-full transform -rotate-90 overflow-visible" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="40" fill="transparent" stroke="currentColor" stroke-width="8" class="text-gray-200 dark:text-gray-800"></circle>
-                    <circle cx="50" cy="50" r="40" fill="transparent" stroke="{{ $opStrokeColor }}" stroke-width="8" stroke-dasharray="{{ $circumference }}" stroke-dashoffset="{{ $opOffset }}" stroke-linecap="round" class="transition-all duration-1000 ease-out dark:drop-shadow-[0_0_8px_currentColor]"></circle>
-                </svg>
-                <div class="absolute flex flex-col items-center justify-center">
-                    <span class="text-3xl font-black {{ $opColorClass }} dark:drop-shadow-[0_0_10px_currentColor]">{{ $operativeScore }}</span>
-                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">Score</span>
-                </div>
-            </div>
-
-            <div class="mb-4">
-                @if($totalTodos > 0)
-                    <p class="text-[10px] font-bold uppercase tracking-widest mt-0.5 text-gray-500 dark:text-gray-400">
-                        <span class="text-gray-900 dark:text-white">{{ $totalTodos }}</span> Aufgaben
-                    </p>
-                    <p class="text-[10px] font-bold uppercase tracking-widest mt-1.5 {{ $opColorClass }} animate-pulse">{{ $opScoreText }}</p>
-                @else
-                    <p class="text-[10px] font-bold uppercase tracking-widest mt-0.5 text-gray-500 dark:text-gray-400">Keine Todos</p>
-                    <p class="text-[10px] font-bold uppercase tracking-widest mt-1.5 text-emerald-500">{{ $opScoreText }}</p>
-                @endif
-            </div>
-
-        </div>
-
-        <!-- 3. SYSTEM SCORE -->
-        <div @click="activeTab = activeTab === 'system' ? null : 'system'"
-             class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 dark:shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
-             :class="activeTab === 'system' ? 'active-theme-pulse' : 'border-gray-200 dark:border-gray-800'">
-
-            <div class="absolute top-4 right-4 text-[9px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2.5 py-1 rounded-full border border-gray-200 dark:border-gray-700">Live</div>
-
-            <h3 class="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-4">Infrastruktur</h3>
-
-            <div class="relative w-28 h-28 flex items-center justify-center shrink-0 mb-4">
-                <svg class="w-full h-full transform -rotate-90 overflow-visible" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="40" fill="transparent" stroke="currentColor" stroke-width="8" class="text-gray-200 dark:text-gray-800"></circle>
-                    <circle cx="50" cy="50" r="40" fill="transparent" stroke="{{ $sysStrokeColor }}" stroke-width="8" stroke-dasharray="{{ $circumference }}" stroke-dashoffset="{{ $sysOffset }}" stroke-linecap="round" class="transition-all duration-1000 ease-out dark:drop-shadow-[0_0_8px_currentColor]"></circle>
-                </svg>
-                <div class="absolute flex flex-col items-center justify-center">
-                    <span class="text-3xl font-black {{ $sysColorClass }} dark:drop-shadow-[0_0_10px_currentColor]">{{ $systemScore }}</span>
-                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">Score</span>
-                </div>
-            </div>
-
-            <div class="mb-4">
-                @if($sysErrors > 0 || $sysWarnings > 0)
-                    <p class="text-[10px] font-bold uppercase tracking-widest mt-0.5 text-gray-500 dark:text-gray-400">
-                        <span class="text-gray-900 dark:text-white">{{ $sysErrors + $sysWarnings }}</span> Warnungen
-                    </p>
-                    <p class="text-[10px] font-bold uppercase tracking-widest mt-1.5 {{ $sysColorClass }} animate-pulse">{{ $sysText }}</p>
-                @else
-                    <p class="text-[10px] font-bold uppercase tracking-widest mt-0.5 text-gray-500 dark:text-gray-400">Alle APIs stabil</p>
-                    <p class="text-[10px] font-bold uppercase tracking-widest mt-1.5 text-emerald-500">{{ $sysText }}</p>
-                @endif
-            </div>
-
-        </div>
-
-        <!-- 4. SECURITY SCORE -->
-        <div @click="activeTab = activeTab === 'security' ? null : 'security'"
-             class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 dark:shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
-             :class="activeTab === 'security' ? 'active-theme-pulse' : 'border-gray-200 dark:border-gray-800'">
-
-            <div class="absolute top-4 right-4 z-10" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
-                <div class="text-gray-400 hover:text-gray-900 dark:hover:text-white cursor-help">
-                    <x-heroicon-o-information-circle class="w-5 h-5" />
-                </div>
-                <div x-show="tooltip" x-transition.opacity.duration.200ms class="absolute top-full right-0 mt-2 w-56 p-4 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg dark:shadow-2xl text-left pointer-events-none" style="display: none;">
-                    <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-200 dark:border-gray-800 pb-2">Berechnung (Letzte 24h)</p>
-                    <div class="text-xs text-gray-600 dark:text-gray-300 space-y-2">
-                        <p class="text-gray-500 dark:text-gray-400 text-[10px] leading-tight mb-2">Startwert: <span class="text-gray-900 dark:text-white">100 Punkte</span></p>
-                        <ul class="space-y-1.5">
-                            <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Pro Brute-Force IP (&ge;3 Versuche):</span> <span class="text-red-500 dark:text-red-400">-15</span></li>
-                            <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Pro Sicherheits-Alarm:</span> <span class="text-red-500 dark:text-red-400">-10</span></li>
-                            <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Isolierte Fehl-Logins (max -20):</span> <span class="text-red-500 dark:text-red-400">-1</span></li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            <h3 class="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-4">Sicherheit & Abwehr</h3>
-
-            <div class="relative w-28 h-28 flex items-center justify-center shrink-0 mb-4">
-                <svg class="w-full h-full transform -rotate-90 overflow-visible" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="40" fill="transparent" stroke="currentColor" stroke-width="8" class="text-gray-200 dark:text-gray-800"></circle>
-                    <circle cx="50" cy="50" r="40" fill="transparent" stroke="{{ $secStrokeColor }}" stroke-width="8" stroke-dasharray="{{ $circumference }}" stroke-dashoffset="{{ $secOffset }}" stroke-linecap="round" class="transition-all duration-1000 ease-out dark:drop-shadow-[0_0_8px_currentColor]"></circle>
-                </svg>
-                <div class="absolute flex flex-col items-center justify-center">
-                    <span class="text-3xl font-black {{ $secColorClass }} dark:drop-shadow-[0_0_10px_currentColor]">{{ $securityScore }}</span>
-                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">Score</span>
-                </div>
-            </div>
-
-            <div class="mb-4">
-                @if($failedLogins24h > 0 || $securityWarnings24h > 0)
-                    <p class="text-[10px] font-bold uppercase tracking-widest mt-0.5 text-gray-500 dark:text-gray-400">
-                        <span class="text-gray-900 dark:text-white">{{ $failedLogins24h + $securityWarnings24h }}</span> Ereignisse (24h)
-                    </p>
-                    <p class="text-[10px] font-bold uppercase tracking-widest mt-1.5 {{ $secColorClass }} animate-pulse">{{ $secText }}</p>
-                @else
-                    <p class="text-[10px] font-bold uppercase tracking-widest mt-0.5 text-gray-500 dark:text-gray-400">0 Ereignisse</p>
-                    <p class="text-[10px] font-bold uppercase tracking-widest mt-1.5 text-purple-500 dark:text-purple-400">{{ $secText }}</p>
-                @endif
-            </div>
-
+            @endforeach
         </div>
     </div>
 
-    <!-- 2nd ROW: THE 4 BENTO WIDGETS -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
-        <!-- 4. SPEICHER & PRODUKTIONS-LAST -->
-        <div @click="activeTab = activeTab === 'capacities' ? null : 'capacities'"
-             class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 dark:shadow-xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
-             :class="activeTab === 'capacities' ? 'active-theme-pulse' : 'border-gray-200 dark:border-gray-800'">
-             
-             <h3 class="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-2.5">Kapazitäten</h3>
+    <!-- ===================================================================== -->
+    <!-- B. STANDARD-MODUS („ALLE KACHELN“): EXAKTES 4ER-GRID WIE IM SCREENSHOT -->
+    <!-- ===================================================================== -->
+    <div x-show="!focusMode" x-cloak style="display: none;" x-transition.opacity.duration.200ms>
+        <!-- TOP ROW: THE 4 SCORES (4 NEBENEINANDER) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
 
-            @php $shopLoad = \Illuminate\Support\Facades\Cache::get('shop_capacity_percentage', 0); @endphp
-            <div class="relative w-24 h-24 flex items-center justify-center shrink-0 mb-3 bg-gray-50 dark:bg-gray-950 rounded-2xl border border-gray-200 dark:border-gray-800">
-                <div class="absolute inset-0 flex flex-col items-center justify-center">
-                    <x-heroicon-s-cog class="w-6 h-6 {{ $shopLoad > 90 ? 'text-red-500 animate-spin-slow' : ($shopLoad > 70 ? 'text-orange-500' : 'text-emerald-500') }} mb-1 opacity-80" />
-                    <span class="text-base font-black text-gray-900 dark:text-white tracking-tighter leading-none">{{ $shopLoad }}%</span>
-                    <span class="text-[8px] font-bold text-gray-500 uppercase tracking-widest mt-0.5">Auslastung</span>
-                </div>
-            </div>
+            <!-- 1. SHOP HEALTH SCORE -->
+            <div @click="activeTab = activeTab === 'shop' ? null : 'shop'"
+                 class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 dark:shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
+                 :class="activeTab === 'shop' ? 'active-theme-pulse' : 'border-gray-200 dark:border-gray-800'">
 
-            <div class="mb-3">
-                <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">Speicherplatz</p>
-                <p class="text-[10px] font-black uppercase tracking-widest mt-1 text-blue-500">{{ isset($storageData['percent_free']) ? $storageData['percent_free'] . '% Frei' : 'N/A' }}</p>
-            </div>
-
-        </div>
-
-        <!-- 5. GEWINN-ENTWICKLUNG -->
-        <div @click="activeTab = activeTab === 'profit' ? null : 'profit'"
-             class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 dark:shadow-xl border flex flex-col items-center text-center relative overflow-visible group transition-colors duration-300 hover-theme-pulse"
-             :class="activeTab === 'profit' ? 'active-theme-pulse' : 'border-gray-200 dark:border-gray-800'">
-             
-             <div class="flex items-center justify-center gap-1.5 mb-2.5">
-                 <h3 class="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Gewinn</h3>
-                 @include('livewire.shop.master.master-analytics-partials.profit-breakdown-popover', ['positionClass' => 'bottom-full left-1/2 -translate-x-1/2 mb-3'])
-             </div>
-
-            @php
-                $bEven = $stats['break_even_monthly'] ?? 0;
-                $currentRev = $stats['avg_revenue_monthly'] ?? 0;
-                $missing = max(0, $bEven - $currentRev);
-                $beColor = $missing > 0 ? 'text-red-500' : 'text-emerald-500';
-            @endphp
-            <div class="relative w-24 h-24 flex items-center justify-center shrink-0 mb-3 bg-gray-50 dark:bg-gray-950 rounded-2xl border border-gray-200 dark:border-gray-800">
-                <div class="absolute inset-0 flex flex-col items-center justify-center">
-                    <x-heroicon-s-currency-euro class="w-6 h-6 text-emerald-400 mb-1 opacity-80 dark:drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
-                    <span class="text-base font-black text-gray-900 dark:text-white tracking-tighter leading-none">{{ number_format($stats['avg_profit'] ?? 0, 0, ',', '.') }}</span>
-                    <span class="text-[8px] font-bold text-gray-500 uppercase tracking-widest mt-0.5">Mtl. Gewinn</span>
-                </div>
-            </div>
-
-            <div class="mb-3">
-                <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">Break-Even</p>
-                @if($missing > 0)
-                    <p class="text-[10px] font-black uppercase tracking-widest mt-1 {{ $beColor }}">-{{ number_format($missing, 0, ',', '.') }} € fehlend</p>
-                @else
-                    <p class="text-[10px] font-black uppercase tracking-widest mt-1 {{ $beColor }}">Erreicht!</p>
-                @endif
-            </div>
-
-        </div>
-
-        <!-- 6. E-COMMERCE EINBLICKE -->
-        <div @click="activeTab = activeTab === 'ecommerce' ? null : 'ecommerce'"
-             class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 dark:shadow-xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
-             :class="activeTab === 'ecommerce' ? 'active-theme-pulse' : 'border-gray-200 dark:border-gray-800'">
-             
-             <h3 class="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-2.5">E-Commerce</h3>
-
-            <div class="relative w-24 h-24 flex items-center justify-center shrink-0 mb-3 bg-gray-50 dark:bg-gray-950 rounded-2xl border border-gray-200 dark:border-gray-800">
-                <div class="absolute inset-0 flex flex-col items-center justify-center">
-                    <x-heroicon-s-shopping-bag class="w-6 h-6 text-[#C5A059] mb-1 opacity-80" />
-                    <span class="text-base font-black text-gray-900 dark:text-white tracking-tighter leading-none">{{ number_format($stats['orders_total'] ?? 0, 0, ',', '.') }}</span>
-                    <span class="text-[8px] font-bold text-gray-500 uppercase tracking-widest mt-0.5">Insg. Orders</span>
-                </div>
-            </div>
-
-            <div class="mb-3">
-                <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">Verkäufe Detail</p>
-                <p class="text-[10px] font-black uppercase tracking-widest mt-1 text-[#C5A059]">Umsatz & Artikel</p>
-            </div>
-
-        </div>
-
-        <!-- 7. TRAFFIC & KUNDEN -->
-        <div @click="activeTab = activeTab === 'traffic' ? null : 'traffic'"
-             class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 dark:shadow-xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
-             :class="activeTab === 'traffic' ? 'active-theme-pulse' : 'border-gray-200 dark:border-gray-800'">
-             
-             <h3 class="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-2.5">Traffic & Kunden</h3>
-
-            @php $onlineCount = collect($systemHealth)->count() > 0 ? $this->getActiveSessionsCount() : 0; @endphp
-            <div class="relative w-24 h-24 flex items-center justify-center shrink-0 mb-3 bg-gray-50 dark:bg-gray-950 rounded-2xl border border-gray-200 dark:border-gray-800">
-                <div class="absolute inset-0 flex flex-col items-center justify-center">
-                    <x-heroicon-s-globe-alt class="w-6 h-6 text-blue-400 mb-1 opacity-80 dark:drop-shadow-[0_0_8px_rgba(96,165,250,0.5)]" />
-                    <span class="text-base font-black text-gray-900 dark:text-white tracking-tighter leading-none">{{ number_format($stats['frontend_unique_total'] ?? 0, 0, ',', '.') }}</span>
-                    <span class="text-[8px] font-bold text-gray-500 uppercase tracking-widest mt-0.5">Besucher</span>
-                </div>
-            </div>
-
-            <div class="mb-3 space-y-2">
-                <div>
-                    <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">Total Pageviews</p>
-                    <p class="text-[10px] font-black uppercase tracking-widest mt-0.5 text-blue-600 dark:text-blue-300">{{ number_format($stats['frontend_visits_total'] ?? 0, 0, ',', '.') }}</p>
-                </div>
-                <div>
-                    <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">Aktuell Online</p>
-                    <div class="flex items-center justify-center gap-1.5 mt-0.5">
-                        <span class="relative flex h-1.5 w-1.5">
-                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                            <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-                        </span>
-                        <p class="text-[10px] font-black uppercase tracking-widest text-emerald-500 dark:text-emerald-400">{{ $onlineCount }} Nutzer</p>
+                <div class="absolute top-4 right-4 z-10" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
+                    <div class="text-gray-400 hover:text-gray-900 dark:hover:text-white cursor-help">
+                        <x-heroicon-o-information-circle class="w-5 h-5" />
+                    </div>
+                    <div x-show="tooltip" x-transition.opacity.duration.200ms class="absolute top-full right-0 mt-2 w-56 p-4 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg dark:shadow-2xl text-left pointer-events-none" style="display: none;">
+                        <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-200 dark:border-gray-800 pb-2">Zusammensetzung</p>
+                        <ul class="text-xs text-gray-600 dark:text-gray-300 space-y-1.5">
+                            <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Break-Even:</span> <span class="text-emerald-500 dark:text-emerald-400">+30</span></li>
+                            <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Netto-Ziel:</span> <span class="text-emerald-500 dark:text-emerald-400">+20</span></li>
+                            <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Gewinn-Marge:</span> <span class="text-emerald-500 dark:text-emerald-400">+25</span></li>
+                            <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Umsatz-Trend:</span> <span class="text-emerald-500 dark:text-emerald-400">+15</span></li>
+                            <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Offene Posten:</span> <span class="text-emerald-500 dark:text-emerald-400">+10</span></li>
+                            <li class="flex justify-between items-center pt-1 mt-1 border-t border-gray-200 dark:border-gray-800"><span class="text-gray-500 dark:text-gray-400">Abzüge Op.:</span> <span class="text-red-500 dark:text-red-400">-5 / -1</span></li>
+                            <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Abzüge Sys.:</span> <span class="text-red-500 dark:text-red-400">-10 / -2</span></li>
+                        </ul>
                     </div>
                 </div>
+
+                <h3 class="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-4">Shop Health</h3>
+
+                <div class="relative w-28 h-28 flex items-center justify-center shrink-0 mb-4">
+                    <svg class="w-full h-full transform -rotate-90 overflow-visible" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="40" fill="transparent" stroke="currentColor" stroke-width="8" class="text-gray-200 dark:text-gray-800"></circle>
+                        <circle cx="50" cy="50" r="40" fill="transparent" stroke="{{ $shopStrokeColor }}" stroke-width="8" stroke-dasharray="{{ $circumference }}" stroke-dashoffset="{{ $shopOffset }}" stroke-linecap="round" class="transition-all duration-1000 ease-out dark:drop-shadow-[0_0_8px_currentColor]"></circle>
+                    </svg>
+                    <div class="absolute flex flex-col items-center justify-center">
+                        <span class="text-3xl font-black {{ $shopColorClass }} dark:drop-shadow-[0_0_10px_currentColor]">{{ $shopScore }}</span>
+                        <span class="text-[9px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">Score</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- 2. OPERATIVER SCORE -->
+            <div @click="activeTab = activeTab === 'operative' ? null : 'operative'"
+                 class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 dark:shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
+                 :class="activeTab === 'operative' ? 'active-theme-pulse' : 'border-gray-200 dark:border-gray-800'">
+
+                <div class="absolute top-4 right-4 z-10" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
+                    <div class="text-gray-400 hover:text-gray-900 dark:hover:text-white cursor-help">
+                        <x-heroicon-o-information-circle class="w-5 h-5" />
+                    </div>
+                    <div x-show="tooltip" x-transition.opacity.duration.200ms class="absolute top-full right-0 mt-2 w-56 p-4 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg dark:shadow-2xl text-left pointer-events-none" style="display: none;">
+                        <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-200 dark:border-gray-800 pb-2">Berechnung</p>
+                        <div class="text-xs text-gray-600 dark:text-gray-300 space-y-2">
+                            <p class="text-gray-500 dark:text-gray-400 text-[10px] leading-tight mb-2">Startwert: <span class="text-gray-900 dark:text-white">100 Punkte</span></p>
+                            <ul class="space-y-1.5">
+                                <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Pro offenes Todo:</span> <span class="text-red-500 dark:text-red-400">-1</span></li>
+                                <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Pro Warnung:</span> <span class="text-red-500 dark:text-red-400">-10</span></li>
+                                <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Pro Fehler:</span> <span class="text-red-500 dark:text-red-400">-25</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <h3 class="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-4">Operativer Status</h3>
+
+                <div class="relative w-28 h-28 flex items-center justify-center shrink-0 mb-4">
+                    <svg class="w-full h-full transform -rotate-90 overflow-visible" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="40" fill="transparent" stroke="currentColor" stroke-width="8" class="text-gray-200 dark:text-gray-800"></circle>
+                        <circle cx="50" cy="50" r="40" fill="transparent" stroke="{{ $opStrokeColor }}" stroke-width="8" stroke-dasharray="{{ $circumference }}" stroke-dashoffset="{{ $opOffset }}" stroke-linecap="round" class="transition-all duration-1000 ease-out dark:drop-shadow-[0_0_8px_currentColor]"></circle>
+                    </svg>
+                    <div class="absolute flex flex-col items-center justify-center">
+                        <span class="text-3xl font-black {{ $opColorClass }} dark:drop-shadow-[0_0_10px_currentColor]">{{ $operativeScore }}</span>
+                        <span class="text-[9px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">Score</span>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    @if($totalTodos > 0)
+                        <p class="text-[10px] font-bold uppercase tracking-widest mt-0.5 text-gray-500 dark:text-gray-400">
+                            <span class="text-gray-900 dark:text-white">{{ $totalTodos }}</span> Aufgaben
+                        </p>
+                        <p class="text-[10px] font-bold uppercase tracking-widest mt-1.5 {{ $opColorClass }} animate-pulse">{{ $opScoreText }}</p>
+                    @else
+                        <p class="text-[10px] font-bold uppercase tracking-widest mt-0.5 text-gray-500 dark:text-gray-400">Keine Todos</p>
+                        <p class="text-[10px] font-bold uppercase tracking-widest mt-1.5 text-emerald-500">{{ $opScoreText }}</p>
+                    @endif
+                </div>
+
+            </div>
+
+            <!-- 3. SYSTEM SCORE -->
+            <div @click="activeTab = activeTab === 'system' ? null : 'system'"
+                 class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 dark:shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
+                 :class="activeTab === 'system' ? 'active-theme-pulse' : 'border-gray-200 dark:border-gray-800'">
+
+                <div class="absolute top-4 right-4 text-[9px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2.5 py-1 rounded-full border border-gray-200 dark:border-gray-700">Live</div>
+
+                <h3 class="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-4">Infrastruktur</h3>
+
+                <div class="relative w-28 h-28 flex items-center justify-center shrink-0 mb-4">
+                    <svg class="w-full h-full transform -rotate-90 overflow-visible" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="40" fill="transparent" stroke="currentColor" stroke-width="8" class="text-gray-200 dark:text-gray-800"></circle>
+                        <circle cx="50" cy="50" r="40" fill="transparent" stroke="{{ $sysStrokeColor }}" stroke-width="8" stroke-dasharray="{{ $circumference }}" stroke-dashoffset="{{ $sysOffset }}" stroke-linecap="round" class="transition-all duration-1000 ease-out dark:drop-shadow-[0_0_8px_currentColor]"></circle>
+                    </svg>
+                    <div class="absolute flex flex-col items-center justify-center">
+                        <span class="text-3xl font-black {{ $sysColorClass }} dark:drop-shadow-[0_0_10px_currentColor]">{{ $systemScore }}</span>
+                        <span class="text-[9px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">Score</span>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    @if($sysErrors > 0 || $sysWarnings > 0)
+                        <p class="text-[10px] font-bold uppercase tracking-widest mt-0.5 text-gray-500 dark:text-gray-400">
+                            <span class="text-gray-900 dark:text-white">{{ $sysErrors + $sysWarnings }}</span> Warnungen
+                        </p>
+                        <p class="text-[10px] font-bold uppercase tracking-widest mt-1.5 {{ $sysColorClass }} animate-pulse">{{ $sysText }}</p>
+                    @else
+                        <p class="text-[10px] font-bold uppercase tracking-widest mt-0.5 text-gray-500 dark:text-gray-400">Alle APIs stabil</p>
+                        <p class="text-[10px] font-bold uppercase tracking-widest mt-1.5 text-emerald-500">{{ $sysText }}</p>
+                    @endif
+                </div>
+
+            </div>
+
+            <!-- 4. SECURITY SCORE -->
+            <div @click="activeTab = activeTab === 'security' ? null : 'security'"
+                 class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 dark:shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
+                 :class="activeTab === 'security' ? 'active-theme-pulse' : 'border-gray-200 dark:border-gray-800'">
+
+                <div class="absolute top-4 right-4 z-10" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
+                    <div class="text-gray-400 hover:text-gray-900 dark:hover:text-white cursor-help">
+                        <x-heroicon-o-information-circle class="w-5 h-5" />
+                    </div>
+                    <div x-show="tooltip" x-transition.opacity.duration.200ms class="absolute top-full right-0 mt-2 w-56 p-4 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg dark:shadow-2xl text-left pointer-events-none" style="display: none;">
+                        <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-200 dark:border-gray-800 pb-2">Berechnung (Letzte 24h)</p>
+                        <div class="text-xs text-gray-600 dark:text-gray-300 space-y-2">
+                            <p class="text-gray-500 dark:text-gray-400 text-[10px] leading-tight mb-2">Startwert: <span class="text-gray-900 dark:text-white">100 Punkte</span></p>
+                            <ul class="space-y-1.5">
+                                <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Pro Brute-Force IP (&ge;3 Versuche):</span> <span class="text-red-500 dark:text-red-400">-15</span></li>
+                                <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Pro Sicherheits-Alarm:</span> <span class="text-red-500 dark:text-red-400">-10</span></li>
+                                <li class="flex justify-between items-center"><span class="text-gray-500 dark:text-gray-400">Isolierte Fehl-Logins (max -20):</span> <span class="text-red-500 dark:text-red-400">-1</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <h3 class="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-4">Sicherheit & Abwehr</h3>
+
+                <div class="relative w-28 h-28 flex items-center justify-center shrink-0 mb-4">
+                    <svg class="w-full h-full transform -rotate-90 overflow-visible" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="40" fill="transparent" stroke="currentColor" stroke-width="8" class="text-gray-200 dark:text-gray-800"></circle>
+                        <circle cx="50" cy="50" r="40" fill="transparent" stroke="{{ $secStrokeColor }}" stroke-width="8" stroke-dasharray="{{ $circumference }}" stroke-dashoffset="{{ $secOffset }}" stroke-linecap="round" class="transition-all duration-1000 ease-out dark:drop-shadow-[0_0_8px_currentColor]"></circle>
+                    </svg>
+                    <div class="absolute flex flex-col items-center justify-center">
+                        <span class="text-3xl font-black {{ $secColorClass }} dark:drop-shadow-[0_0_10px_currentColor]">{{ $securityScore }}</span>
+                        <span class="text-[9px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">Score</span>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    @if($failedLogins24h > 0 || $securityWarnings24h > 0)
+                        <p class="text-[10px] font-bold uppercase tracking-widest mt-0.5 text-gray-500 dark:text-gray-400">
+                            <span class="text-gray-900 dark:text-white">{{ $failedLogins24h + $securityWarnings24h }}</span> Ereignisse (24h)
+                        </p>
+                        <p class="text-[10px] font-bold uppercase tracking-widest mt-1.5 {{ $secColorClass }} animate-pulse">{{ $secText }}</p>
+                    @else
+                        <p class="text-[10px] font-bold uppercase tracking-widest mt-0.5 text-gray-500 dark:text-gray-400">0 Ereignisse</p>
+                        <p class="text-[10px] font-bold uppercase tracking-widest mt-1.5 text-purple-500 dark:text-purple-400">{{ $secText }}</p>
+                    @endif
+                </div>
+
+            </div>
+        </div>
+
+        <!-- 2nd ROW: THE 4 BENTO WIDGETS (4 NEBENEINANDER) -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
+            <!-- 4. SPEICHER & PRODUKTIONS-LAST -->
+            <div @click="activeTab = activeTab === 'capacities' ? null : 'capacities'"
+                 class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 dark:shadow-xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
+                 :class="activeTab === 'capacities' ? 'active-theme-pulse' : 'border-gray-200 dark:border-gray-800'">
+                 
+                 <h3 class="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-2.5">Kapazitäten</h3>
+
+                <div class="relative w-24 h-24 flex items-center justify-center shrink-0 mb-3 bg-gray-50 dark:bg-gray-950 rounded-2xl border border-gray-200 dark:border-gray-800">
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <x-heroicon-s-cog class="w-6 h-6 {{ $shopLoad > 90 ? 'text-red-500 animate-spin-slow' : ($shopLoad >= $shopThreshold1 ? 'text-orange-500' : 'text-emerald-500') }} mb-1 opacity-80" />
+                        <span class="text-base font-black text-gray-900 dark:text-white tracking-tighter leading-none">{{ $shopLoad }}%</span>
+                        <span class="text-[8px] font-bold text-gray-500 uppercase tracking-widest mt-0.5">Auslastung</span>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">Speicherplatz</p>
+                    <p class="text-[10px] font-black uppercase tracking-widest mt-1 {{ $storageUsedPct >= $storageThreshold1 ? 'text-amber-500' : 'text-blue-500' }}">{{ isset($storageData['percent_free']) ? $storageData['percent_free'] . '% Frei' : round(100 - $storageUsedPct) . '% Frei' }}</p>
+                </div>
+
+            </div>
+
+            <!-- 5. GEWINN-ENTWICKLUNG -->
+            <div @click="activeTab = activeTab === 'profit' ? null : 'profit'"
+                 class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 dark:shadow-xl border flex flex-col items-center text-center relative overflow-visible group transition-colors duration-300 hover-theme-pulse"
+                 :class="activeTab === 'profit' ? 'active-theme-pulse' : 'border-gray-200 dark:border-gray-800'">
+                 
+                 <div class="flex items-center justify-center gap-1.5 mb-2.5">
+                     <h3 class="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Gewinn</h3>
+                     @include('livewire.shop.master.master-analytics-partials.profit-breakdown-popover', ['positionClass' => 'bottom-full left-1/2 -translate-x-1/2 mb-3'])
+                 </div>
+
+                <div class="relative w-24 h-24 flex items-center justify-center shrink-0 mb-3 bg-gray-50 dark:bg-gray-950 rounded-2xl border border-gray-200 dark:border-gray-800">
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <x-heroicon-s-currency-euro class="w-6 h-6 text-emerald-400 mb-1 opacity-80 dark:drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
+                        <span class="text-base font-black text-gray-900 dark:text-white tracking-tighter leading-none">{{ number_format($stats['avg_profit'] ?? 0, 0, ',', '.') }}</span>
+                        <span class="text-[8px] font-bold text-gray-500 uppercase tracking-widest mt-0.5">Mtl. Gewinn</span>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">Break-Even</p>
+                    @if($missing > 0)
+                        <p class="text-[10px] font-black uppercase tracking-widest mt-1 {{ $beColor }}">-{{ number_format($missing, 0, ',', '.') }} € fehlend</p>
+                    @else
+                        <p class="text-[10px] font-black uppercase tracking-widest mt-1 {{ $beColor }}">Erreicht!</p>
+                    @endif
+                </div>
+
+            </div>
+
+            <!-- 6. E-COMMERCE EINBLICKE -->
+            <div @click="activeTab = activeTab === 'ecommerce' ? null : 'ecommerce'"
+                 class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 dark:shadow-xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
+                 :class="activeTab === 'ecommerce' ? 'active-theme-pulse' : 'border-gray-200 dark:border-gray-800'">
+                 
+                 <h3 class="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-2.5">E-Commerce</h3>
+
+                <div class="relative w-24 h-24 flex items-center justify-center shrink-0 mb-3 bg-gray-50 dark:bg-gray-950 rounded-2xl border border-gray-200 dark:border-gray-800">
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <x-heroicon-s-shopping-bag class="w-6 h-6 text-[#C5A059] mb-1 opacity-80" />
+                        <span class="text-base font-black text-gray-900 dark:text-white tracking-tighter leading-none">{{ number_format($stats['orders_total'] ?? 0, 0, ',', '.') }}</span>
+                        <span class="text-[8px] font-bold text-gray-500 uppercase tracking-widest mt-0.5">Insg. Orders</span>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">Verkäufe Detail</p>
+                    <p class="text-[10px] font-black uppercase tracking-widest mt-1 text-[#C5A059]">Umsatz & Artikel</p>
+                </div>
+
+            </div>
+
+            <!-- 7. TRAFFIC & KUNDEN -->
+            <div @click="activeTab = activeTab === 'traffic' ? null : 'traffic'"
+                 class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 dark:shadow-xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
+                 :class="activeTab === 'traffic' ? 'active-theme-pulse' : 'border-gray-200 dark:border-gray-800'">
+                 
+                 <h3 class="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-2.5">Traffic & Kunden</h3>
+
+                <div class="relative w-24 h-24 flex items-center justify-center shrink-0 mb-3 bg-gray-50 dark:bg-gray-950 rounded-2xl border border-gray-200 dark:border-gray-800">
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <x-heroicon-s-globe-alt class="w-6 h-6 text-blue-400 mb-1 opacity-80 dark:drop-shadow-[0_0_8px_rgba(96,165,250,0.5)]" />
+                        <span class="text-base font-black text-gray-900 dark:text-white tracking-tighter leading-none">{{ number_format($stats['frontend_unique_total'] ?? 0, 0, ',', '.') }}</span>
+                        <span class="text-[8px] font-bold text-gray-500 uppercase tracking-widest mt-0.5">Besucher</span>
+                    </div>
+                </div>
+
+                <div class="mb-3 space-y-2">
+                    <div>
+                        <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">Total Pageviews</p>
+                        <p class="text-[10px] font-black uppercase tracking-widest mt-0.5 text-blue-600 dark:text-blue-300">{{ number_format($stats['frontend_visits_total'] ?? 0, 0, ',', '.') }}</p>
+                    </div>
+                    <div>
+                        <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">Aktuell Online</p>
+                        <div class="flex items-center justify-center gap-1.5 mt-0.5">
+                            <span class="relative flex h-1.5 w-1.5">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                            </span>
+                            <p class="text-[10px] font-black uppercase tracking-widest text-emerald-500 dark:text-emerald-400">{{ $onlineCount }} Nutzer</p>
+                        </div>
+                    </div>
+                </div>
+
             </div>
 
         </div>
-
     </div>
 
     <!-- MASTER DETAILS VIEW -->
-    <div x-show="activeTab !== null" x-collapse x-cloak class="mt-8">
-        <div class="bg-white/95 dark:bg-gray-900/90 backdrop-blur-xl rounded-[2.5rem] p-6 lg:p-10 dark:shadow-2xl border border-gray-200 dark:border-gray-800 relative z-20">
+    <div x-show="activeTab !== null && (!focusMode || !['operative', 'routine', 'calendar', 'settings'].includes(activeTab))"
+         :class="focusMode ? 'mt-0' : 'mt-8'"
+         x-transition:enter="transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+         x-transition:enter-start="opacity-0 translate-y-6 scale-[0.98]"
+         x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+         x-transition:leave="transition-all duration-250 ease-in"
+         x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+         x-transition:leave-end="opacity-0 translate-y-4 scale-[0.98]"
+         x-cloak
+         style="display: none;">
+        <div :class="focusMode ? 'bg-transparent border-0 shadow-none p-0' : 'bg-white/95 dark:bg-gray-900/90 backdrop-blur-xl rounded-[2.5rem] p-6 lg:p-10 dark:shadow-2xl border border-gray-200 dark:border-gray-800'"
+             class="relative z-20 transition-all duration-300">
 
             <!-- 1. SHOP DETAILS -->
-            <div x-show="activeTab === 'shop'" x-transition.opacity.duration.300ms class="space-y-6">
+            <div x-show="activeTab === 'shop'"
+                 x-cloak
+                 style="display: none;"
+                 x-transition:enter="transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                 x-transition:enter-start="opacity-0 translate-y-4"
+                 x-transition:enter-end="opacity-100 translate-y-0"
+                 class="space-y-6">
 
                 @if($opErrorCount > 0 || $opWarningCount > 0)
                     <div class="bg-red-500/10 dark:bg-red-950/20 rounded-xl p-5 border border-red-500/20 relative">
@@ -437,7 +2068,8 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                 <div class="flex flex-col gap-8 w-full">
 
                     <!-- KACHEL 1: FINANZIELLE GESUNDHEIT -->
-                    <div class="bg-white/80 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 lg:p-7 flex flex-col justify-between gap-6 shadow-sm">
+                    <div :class="focusMode ? 'bg-transparent border-0 shadow-none p-0' : 'bg-white/80 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 lg:p-7 shadow-sm'"
+                         class="flex flex-col justify-between gap-6">
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-200 dark:border-gray-800 pb-5">
                             <div>
                                 <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">Finanzielle Gesundheit</h2>
@@ -572,7 +2204,8 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                     </div>
 
                     <!-- KACHEL 2: 10-JAHRES FIRMENREISE & MEILENSTEINE (Gleiches Design!) -->
-                    <div class="bg-white/80 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 lg:p-7 flex flex-col justify-between shadow-sm">
+                    <div :class="focusMode ? 'bg-transparent border-0 shadow-none p-0' : 'bg-white/80 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 lg:p-7 shadow-sm'"
+                         class="flex flex-col justify-between">
                         @include('livewire.shop.master.master-analytics-partials.company-journey-tile')
                     </div>
 
@@ -581,7 +2214,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             </div>
 
             <!-- 2. OPERATIVE DETAILS -->
-            <div x-show="activeTab === 'operative'" x-transition.opacity.duration.300ms x-data="{ showAllOperative: false }">
+            <div x-show="activeTab === 'operative'" x-cloak style="display: none;" x-transition.opacity.duration.300ms x-data="{ showAllOperative: false }">
                 <div class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">To-do Liste & Operatives</h2>
@@ -604,8 +2237,11 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                         'open_mails' => 'Ungelesene E-Mails im Posteingang, die Aufmerksamkeit erfordern.',
                         'product_reviews' => 'Von Kunden eingereichte Produktbewertungen, die auf manuelle Freigabe warten.',
                         'open_credits' => 'Erstellte Gutschriften oder Stornos, die noch nicht per E-Mail an den Kunden verschickt wurden.',
+                        'influencer_payouts' => 'Offene Creator-Provisionen und angeforderte Gutschriften (§ 14 UStG), die unter /admin/marketing/influencer geprüft oder überwiesen werden müssen.',
+                        'employee_payroll' => 'Offene Lohn- und Gehaltsabrechnungen deiner Mitarbeiter, die unter /admin/employees (Leitung -> Mitarbeiter) per SEPA überwiesen werden müssen.',
                         'unassigned_tx' => 'Banktransaktionen, die noch keinem Auftrag und keiner Rechnung zugeordnet wurden.',
                         'open_tasks' => 'Allgemeine, systemübergreifende To-dos, die von Mitarbeitern noch offen sind.',
+                        'routine' => 'Täglicher Check-in für deine Tagesroutine (Mo–Fr). Sobald du heute deine erledigten Routinen abgehakt hast, gilt der Tag als eingecheckt; vergangene Tage verfallen automatisch um Mitternacht.',
                         'open_quotes' => 'Kunden-Anfragen für individuelle Spezial-Angebote, die noch nicht kalkuliert wurden.',
                         'open_revocations' => 'Kunden-Widerrufe, die noch nicht final bearbeitet oder gutgeschrieben wurden.',
                         'open_losses' => 'Transport-Schäden oder Bruch auf dem Transportweg, die auf Rückerstattung oder Nachsendung warten.',
@@ -648,8 +2284,11 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                                     'open_mails' => '/admin/inbox',
                                     'product_reviews' => '/admin/reviews',
                                     'open_credits' => '/admin/credit-management',
+                                    'influencer_payouts' => '/admin/marketing/influencer',
+                                    'employee_payroll' => '/admin/employees',
                                     'unassigned_tx' => '/admin/financial-banks',
                                     'open_tasks' => '/admin/tasks',
+                                    'routine' => '/admin/routine',
                                     'open_quotes' => '/admin/quote-requests',
                                     'open_revocations' => '/admin/widerruf',
                                     'open_losses' => '/admin/product-fracture',
@@ -725,7 +2364,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             </div>
 
             <!-- 3. SYSTEM DETAILS -->
-            <div x-show="activeTab === 'system'" x-transition.opacity.duration.300ms wire:init="checkSystemHealth">
+            <div x-show="activeTab === 'system'" x-cloak style="display: none;" x-transition.opacity.duration.300ms wire:init="checkSystemHealth">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-200 dark:border-gray-800 pb-6 mb-8">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">System & Infrastruktur</h2>
@@ -1108,7 +2747,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             </div>
 
             <!-- 4. SECURITY DETAILS -->
-            <div x-show="activeTab === 'security'" x-transition.opacity.duration.300ms>
+            <div x-show="activeTab === 'security'" x-cloak style="display: none;" x-transition.opacity.duration.300ms>
                 @php
                     $defStats = $this->securityDefenseStats;
                     $catCounts = $defStats['categories'] ?? [];
@@ -1480,8 +3119,13 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             </div>
 
             <!-- 4. CAPACITIES (SPEICHER & PRODUKTION) -->
-            <div x-show="activeTab === 'capacities'" x-transition.opacity.duration.300ms>
-                <div class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
+            <div x-show="activeTab === 'capacities'"
+                 x-cloak
+                 style="display: none;"
+                 x-transition:enter="transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                 x-transition:enter-start="opacity-0 translate-y-4"
+                 x-transition:enter-end="opacity-100 translate-y-0">
+                <div x-show="!focusMode" x-cloak style="display: none;" class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">Kapazitäten</h2>
                         <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Aktuelle Speicherauslastung und produzierende Shop-Gewerke.</p>
@@ -1495,8 +3139,13 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             </div>
 
             <!-- 5. PROFIT -->
-            <div x-show="activeTab === 'profit'" x-transition.opacity.duration.300ms>
-                <div class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
+            <div x-show="activeTab === 'profit'"
+                 x-cloak
+                 style="display: none;"
+                 x-transition:enter="transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                 x-transition:enter-start="opacity-0 translate-y-4"
+                 x-transition:enter-end="opacity-100 translate-y-0">
+                <div x-show="!focusMode" x-cloak style="display: none;" class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">Gewinn-Entwicklung</h2>
                         <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Darstellung der realen Shop-Umsätze gegenüber den Ausgaben, zur Kalkulation des Break-Even.</p>
@@ -1507,8 +3156,13 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             </div>
 
             <!-- 6. E-COMMERCE -->
-            <div x-show="activeTab === 'ecommerce'" x-transition.opacity.duration.300ms>
-                <div class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
+            <div x-show="activeTab === 'ecommerce'"
+                 x-cloak
+                 style="display: none;"
+                 x-transition:enter="transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                 x-transition:enter-start="opacity-0 translate-y-4"
+                 x-transition:enter-end="opacity-100 translate-y-0">
+                <div x-show="!focusMode" x-cloak style="display: none;" class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">E-Commerce Einblicke</h2>
                         <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Detaillierte Analyse zu Warenkörben, verlassenen Checkouts und Artikel-Statistiken.</p>
@@ -1519,8 +3173,13 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             </div>
 
             <!-- 7. TRAFFIC & KUNDEN -->
-            <div x-show="activeTab === 'traffic'" x-transition.opacity.duration.300ms>
-                <div class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
+            <div x-show="activeTab === 'traffic'"
+                 x-cloak
+                 style="display: none;"
+                 x-transition:enter="transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                 x-transition:enter-start="opacity-0 translate-y-4"
+                 x-transition:enter-end="opacity-100 translate-y-0">
+                <div x-show="!focusMode" x-cloak style="display: none;" class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">Traffic & Kunden</h2>
                         <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Web-Traffic, Kundenverhalten und Wachstumsstatistiken für optimale Performance.</p>
@@ -1537,6 +3196,85 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                 <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-800/80">
                     <h3 class="text-xl font-serif font-bold text-gray-900 dark:text-white mb-6">Kundengewinnung & Registrierungen</h3>
                     @include('livewire.shop.master.master-analytics-partials.customers')
+                </div>
+            </div>
+
+            <!-- 8. LIVE ROUTINE DETAIL (FOKUS-SATELLIT) -->
+            <div x-show="activeTab === 'routine'" x-cloak style="display: none;" x-transition.opacity.duration.300ms>
+                <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-gray-200 dark:border-gray-800 pb-6 mb-8">
+                    <div>
+                        <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">Live Routine & Tagesablauf</h2>
+                        <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Dein aktueller Routine-Block und offene Tages-Check-ins.</p>
+                    </div>
+                    <a href="{{ route('admin.routine') }}" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#C5A059] text-gray-950 text-xs font-black uppercase tracking-widest hover:brightness-110 transition-all shadow-[0_0_15px_rgba(197,160,89,0.3)]">
+                        Zur Routine-Verwaltung <x-heroicon-s-arrow-right class="w-4 h-4" />
+                    </a>
+                </div>
+
+                @if(isset($currentActiveRoutine) && $currentActiveRoutine)
+                    @php
+                        $startT = \Carbon\Carbon::parse($currentActiveRoutine->start_time)->format('H:i');
+                        $endT = \Carbon\Carbon::parse($currentActiveRoutine->start_time)->addMinutes($currentActiveRoutine->duration_minutes)->format('H:i');
+                    @endphp
+                    <div class="bg-gray-50 dark:bg-gray-950/90 rounded-2xl p-6 border border-[#C5A059]/40">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="text-xl font-black text-gray-900 dark:text-white">{{ $currentActiveRoutine->title }}</h4>
+                            <span class="bg-[#C5A059]/20 text-[#C5A059] border border-[#C5A059]/50 px-3 py-1 rounded-full text-xs font-bold">Aktiv ({{ $startT }} - {{ $endT }} Uhr)</span>
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{{ $currentActiveRoutine->message ?: 'Keine weiteren Details hinterlegt.' }}</p>
+                    </div>
+                @else
+                    <div class="bg-gray-50 dark:bg-gray-950/80 rounded-2xl p-8 border border-gray-200 dark:border-gray-800 text-center">
+                        <x-heroicon-o-clock class="w-12 h-12 text-[#C5A059] mx-auto mb-3 opacity-80" />
+                        <h4 class="text-lg font-bold text-gray-900 dark:text-white">Aktuell läuft kein zeitgebundener Block</h4>
+                        <p class="text-xs text-gray-500 mt-1">
+                            @if(($healthChecks['routine']['count'] ?? 0) > 0)
+                                Es sind noch {{ $healthChecks['routine']['count'] }} Routine-Schritte für heute offen.
+                            @else
+                                Alle fälligen Routine-Schritte für heute sind erledigt.
+                            @endif
+                        </p>
+                    </div>
+                @endif
+            </div>
+
+            <!-- 9. KALENDER DETAIL (FOKUS-SATELLIT) -->
+            <div x-show="activeTab === 'calendar'" x-cloak style="display: none;" x-transition.opacity.duration.300ms>
+                <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-gray-200 dark:border-gray-800 pb-6 mb-8">
+                    <div>
+                        <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">Kalender & Nächste Termine</h2>
+                        <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Deine anstehenden Termine und Ereignisse im Überblick.</p>
+                    </div>
+                    <a href="{{ route('admin.calender') }}" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#C5A059] text-gray-950 text-xs font-black uppercase tracking-widest hover:brightness-110 transition-all shadow-[0_0_15px_rgba(197,160,89,0.3)]">
+                        Zum Kalender <x-heroicon-s-arrow-right class="w-4 h-4" />
+                    </a>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    @forelse($upcomingEvents as $event)
+                        @php
+                            $isToday = $event->start_date->isToday();
+                            $isTomorrow = $event->start_date->isTomorrow();
+                            $dateLabel = $isToday ? 'Heute' : ($isTomorrow ? 'Morgen' : $event->start_date->format('d.m.'));
+                            $timeStr = $event->is_all_day ? 'Ganztägig' : $event->start_date->format('H:i');
+                            $colorClass = $event->priority === 'high' ? 'text-red-400 bg-red-500/10 border-red-500/30' : 'text-[#C5A059] bg-[#C5A059]/10 border-[#C5A059]/30';
+                        @endphp
+                        <div class="bg-gray-50 dark:bg-gray-950 rounded-xl p-4 border border-gray-200 dark:border-gray-800 flex items-start gap-4">
+                            <div class="flex flex-col items-center justify-center shrink-0 w-14 h-14 rounded-lg border {{ $colorClass }}">
+                                <span class="text-[10px] font-bold uppercase">{{ $dateLabel }}</span>
+                                <span class="{{ $event->is_all_day ? 'text-[8px] tracking-tight uppercase mt-0.5' : 'text-[13px]' }} font-black">{{ $timeStr }}</span>
+                            </div>
+                            <div class="flex-1 min-w-0 py-0.5">
+                                <h4 class="text-sm font-bold text-gray-900 dark:text-white truncate">{{ $event->title }}</h4>
+                                <p class="text-xs text-gray-500 truncate mt-1">{{ $event->description ?: 'Keine Beschreibung' }}</p>
+                            </div>
+                        </div>
+                    @empty
+                        <div class="col-span-full bg-gray-50 dark:bg-gray-950/80 rounded-2xl p-8 border border-gray-200 dark:border-gray-800 text-center">
+                            <x-heroicon-o-calendar-days class="w-10 h-10 text-[#C5A059] mx-auto mb-2 opacity-80" />
+                            <p class="text-sm font-bold text-gray-500">Keine anstehenden Termine</p>
+                        </div>
+                    @endforelse
                 </div>
             </div>
 

@@ -1,5 +1,6 @@
 <div class="w-full mb-8">
-    <div class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 dark:shadow-2xl border border-gray-200/80 dark:border-gray-800 flex flex-col relative group w-full transition-colors duration-300" wire:ignore>
+    <div :class="focusMode ? 'bg-transparent border-0 shadow-none p-0' : 'bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 dark:shadow-2xl border border-gray-200/80 dark:border-gray-800'"
+         class="flex flex-col relative group w-full transition-colors duration-300" wire:ignore>
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
             <div>
                 <h3 class="text-xs sm:text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">Gewinn-Entwicklung</h3>

@@ -1,11 +1,254 @@
-<div class="p-4 md:p-6 bg-transparent min-h-screen space-y-8 relative z-10">
-    <script src="{{ asset('vendor/chartjs/chart.umd.js') }}"></script>
+<div x-data="{ focusMode: true, dashboardReady: false }"
+     x-init="setTimeout(() => { dashboardReady = true; }, 520)"
+     class="p-4 md:p-6 bg-transparent min-h-screen relative z-10">
 
-    @include('livewire.shop.master.master-analytics-partials.header')
+    <!-- LADEBALKEN-ANIMATION BEIM SEITENSTART -->
+    <style>
+        @keyframes sfDashboardProgress {
+            0% { width: 0%; }
+            45% { width: 68%; }
+            85% { width: 92%; }
+            100% { width: 100%; }
+        }
+        .sf-dashboard-loader-bar {
+            width: 0%;
+            animation: sfDashboardProgress 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+    </style>
+    <div x-show="!dashboardReady"
+         x-transition:leave="transition-opacity duration-250 ease-out"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="flex flex-col items-center justify-center min-h-[75vh] w-full select-none">
+        <div class="relative w-16 h-16 mb-5 flex items-center justify-center">
+            <div class="absolute inset-0 rounded-full border border-[#C5A059]/30 animate-ping"></div>
+            <div class="relative w-14 h-14 rounded-full bg-[#141417] border border-[#C5A059]/80 shadow-[0_0_25px_rgba(197,160,89,0.45)] flex items-center justify-center">
+                <x-heroicon-s-sparkles class="w-6 h-6 text-[#C5A059] animate-pulse" />
+            </div>
+        </div>
+        <div class="text-[11px] font-black uppercase tracking-[0.28em] text-[#C5A059] mb-3">
+            Chrono-Core wird geladen
+        </div>
+        <div class="w-64 sm:w-80 h-2 bg-gray-200/80 dark:bg-gray-900/90 rounded-full overflow-hidden border border-[#C5A059]/35 p-[1px] shadow-inner">
+            <div class="h-full rounded-full bg-gradient-to-r from-[#8a6820] via-[#C5A059] to-[#f5dca0] shadow-[0_0_12px_#C5A059] sf-dashboard-loader-bar"></div>
+        </div>
+    </div>
 
-    @include('livewire.shop.master.master-analytics-partials.master_scores')
+    <!-- Basis-Sound aus /admin/tasks kombiniert mit futuristischem Seelenfunke Web-Audio-Synthesizer -->
+    <audio id="sfBaseTaskSound" src="{{ asset('shop/management/todo/sounds/todo_done.mp3') }}" preload="auto"></audio>
+    <script>
+        window.sfAudioCtx = null;
+        window.sfLastHoverSound = 0;
+        window.sfHoverStep = 0;
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        window.sfPlaySound = function(type = 'select') {
+            try {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!window.sfAudioCtx && AudioContextClass) {
+                    window.sfAudioCtx = new AudioContextClass();
+                }
+                const ctx = window.sfAudioCtx;
+                if (ctx && ctx.state === 'suspended') {
+                    ctx.resume();
+                }
+
+                // 1. HOVER: Feiner, kristalliner Star-Map Micro-Impuls mit leicht variierender Tonhöhe
+                if (type === 'hover') {
+                    const nowMs = Date.now();
+                    if (nowMs - window.sfLastHoverSound < 75 || !ctx) return;
+                    window.sfLastHoverSound = nowMs;
+                    window.sfHoverStep = (window.sfHoverStep + 1) % 5;
+
+                    const hoverFreqs = [987.77, 1108.73, 1174.66, 1318.51, 1479.98];
+                    const baseF = hoverFreqs[window.sfHoverStep];
+                    const now = ctx.currentTime;
+
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(baseF, now);
+                    osc.frequency.exponentialRampToValueAtTime(baseF * 1.45, now + 0.048);
+
+                    gain.gain.setValueAtTime(0.001, now);
+                    gain.gain.linearRampToValueAtTime(0.028, now + 0.01);
+                    gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.055);
+
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.06);
+                    return;
+                }
+
+                // 2. Basis-Sound aus /admin/tasks (todo_done.mp3) mit kontextabhängigem Pitch & Volume
+                const baseAudio = document.getElementById('sfBaseTaskSound');
+                if (baseAudio) {
+                    const clone = baseAudio.cloneNode(true);
+                    const rateMap = {
+                        select: 1.16,
+                        chart: 1.04,
+                        back: 0.86,
+                        action: 1.32,
+                        alert: 0.94,
+                        switch: 1.25
+                    };
+                    const volMap = {
+                        select: 0.40,
+                        chart: 0.42,
+                        back: 0.34,
+                        action: 0.46,
+                        alert: 0.44,
+                        switch: 0.32
+                    };
+                    clone.playbackRate = rateMap[type] || 1.15;
+                    clone.volume = volMap[type] || 0.40;
+                    clone.play().catch(() => {});
+                }
+
+                if (!ctx) return;
+                const now = ctx.currentTime;
+
+                // 3. BACK: Sanfter Reverse-Warp / De-Materialisierungs-Glide zurück zum Hauptkern
+                if (type === 'back') {
+                    const backNotes = [1318.51, 1108.73, 880, 587.33];
+                    backNotes.forEach((freq, idx) => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        const start = now + (idx * 0.042);
+                        const dur = 0.28;
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(freq, start);
+                        osc.frequency.exponentialRampToValueAtTime(freq * 0.75, start + dur);
+                        gain.gain.setValueAtTime(0.001, start);
+                        gain.gain.linearRampToValueAtTime(0.055, start + 0.015);
+                        gain.gain.exponentialRampToValueAtTime(0.0008, start + dur);
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.start(start);
+                        osc.stop(start + dur + 0.02);
+                    });
+                    return;
+                }
+
+                // 4. CHART: Hologramm-Entfaltung (Kern fliegt nach oben, Chart entfaltet sich)
+                if (type === 'chart') {
+                    // Sub-Bass Impuls für räumliche Tiefe
+                    const sub = ctx.createOscillator();
+                    const subGain = ctx.createGain();
+                    sub.type = 'sine';
+                    sub.frequency.setValueAtTime(146.83, now);
+                    sub.frequency.exponentialRampToValueAtTime(73.42, now + 0.35);
+                    subGain.gain.setValueAtTime(0.08, now);
+                    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+                    sub.connect(subGain);
+                    subGain.connect(ctx.destination);
+                    sub.start(now);
+                    sub.stop(now + 0.4);
+
+                    const chartNotes = [440, 554.37, 659.25, 880, 1108.73, 1318.51];
+                    chartNotes.forEach((freq, idx) => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        const start = now + (idx * 0.032);
+                        const dur = 0.38 + (idx * 0.04);
+                        osc.type = idx % 2 === 0 ? 'triangle' : 'sine';
+                        osc.frequency.setValueAtTime(freq * 0.97, start);
+                        osc.frequency.exponentialRampToValueAtTime(freq, start + 0.035);
+                        gain.gain.setValueAtTime(0.001, start);
+                        gain.gain.linearRampToValueAtTime(0.05, start + 0.018);
+                        gain.gain.exponentialRampToValueAtTime(0.0008, start + dur);
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.start(start);
+                        osc.stop(start + dur + 0.02);
+                    });
+                    return;
+                }
+
+                // 5. ACTION: Heller Portal-Bestätigungsklang beim Öffnen eines Direktlinks
+                if (type === 'action') {
+                    const actNotes = [783.99, 1174.66, 1567.98, 2349.32];
+                    actNotes.forEach((freq, idx) => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        const start = now + (idx * 0.028);
+                        const dur = 0.25 + (idx * 0.05);
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(freq, start);
+                        gain.gain.setValueAtTime(0.001, start);
+                        gain.gain.linearRampToValueAtTime(0.06, start + 0.012);
+                        gain.gain.exponentialRampToValueAtTime(0.0008, start + dur);
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.start(start);
+                        osc.stop(start + dur + 0.02);
+                    });
+                    return;
+                }
+
+                // 6. ALERT: Kritischer Satellit angeklickt (Tiefer Resonanz-Impuls + Gold-Chime)
+                if (type === 'alert') {
+                    const alertNotes = [293.66, 440, 587.33, 880, 1174.66];
+                    alertNotes.forEach((freq, idx) => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        const start = now + (idx * 0.035);
+                        const dur = 0.34 + (idx * 0.05);
+                        osc.type = idx < 2 ? 'triangle' : 'sine';
+                        osc.frequency.setValueAtTime(freq * 0.95, start);
+                        osc.frequency.exponentialRampToValueAtTime(freq, start + 0.04);
+                        gain.gain.setValueAtTime(0.001, start);
+                        gain.gain.linearRampToValueAtTime(0.065, start + 0.016);
+                        gain.gain.exponentialRampToValueAtTime(0.0008, start + dur);
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.start(start);
+                        osc.stop(start + dur + 0.02);
+                    });
+                    return;
+                }
+
+                // 7. SELECT / SWITCH: Orbital-Transformation in den Hauptkern
+                const notes = type === 'switch'
+                    ? [528, 792, 1056, 1584]
+                    : [587.33, 880, 1174.66, 1760];
+
+                notes.forEach((freq, idx) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    const start = now + (idx * 0.038);
+                    const dur = 0.36 + (idx * 0.06);
+
+                    osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
+                    osc.frequency.setValueAtTime(freq * 0.98, start);
+                    osc.frequency.exponentialRampToValueAtTime(freq, start + 0.04);
+
+                    gain.gain.setValueAtTime(0.001, start);
+                    gain.gain.linearRampToValueAtTime(idx === 3 ? 0.045 : 0.065, start + 0.018);
+                    gain.gain.exponentialRampToValueAtTime(0.0008, start + dur);
+
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(start);
+                    osc.stop(start + dur + 0.02);
+                });
+            } catch (e) {
+                // Audio blockiert oder nicht unterstützt
+            }
+        };
+    </script>
+
+    <div x-cloak
+         style="opacity: 0; pointer-events: none; max-height: 0; overflow: hidden;"
+         :style="dashboardReady ? 'opacity: 1; pointer-events: auto; max-height: none; overflow: visible;' : 'opacity: 0; pointer-events: none; max-height: 0; overflow: hidden;'"
+         :class="focusMode ? 'space-y-1' : 'space-y-8'"
+         class="transition-opacity duration-500 ease-out">
+
+        @include('livewire.shop.master.master-analytics-partials.header')
+
+        @include('livewire.shop.master.master-analytics-partials.master_scores')
+
+        <div x-show="!focusMode" x-cloak style="display: none;" x-transition.opacity.duration.200ms class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <!-- AKTIV ROUTINE -->
         <div class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 dark:shadow-2xl border border-gray-200/80 dark:border-gray-800 flex flex-col relative overflow-hidden group transition-colors duration-300">
             <div class="absolute top-0 right-0 p-4 opacity-5 dark:opacity-10">
@@ -87,6 +330,7 @@
                     </div>
                 @endforelse
             </div>
+        </div>
         </div>
     </div>
 

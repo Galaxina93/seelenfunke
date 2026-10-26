@@ -1,4 +1,5 @@
-<div class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] p-6 lg:p-8 dark:shadow-2xl border border-gray-200/80 dark:border-gray-800 relative w-full mt-6 transition-colors duration-300">
+<div :class="focusMode ? 'bg-transparent border-0 shadow-none p-0 mt-2' : 'bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] p-6 lg:p-8 dark:shadow-2xl border border-gray-200/80 dark:border-gray-800 mt-6'"
+     class="relative w-full transition-colors duration-300">
     <div class="flex items-center gap-3 mb-8 border-b border-gray-200 dark:border-gray-800 pb-4">
         <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20 dark:shadow-[0_0_15px_rgba(197,160,89,0.2)]">
             <x-heroicon-o-chart-pie class="w-6 h-6" />

@@ -1,5 +1,6 @@
-<div class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[1.5rem] md:rounded-[2.5rem] dark:shadow-2xl border border-gray-200/80 dark:border-gray-800 p-5 md:p-8 flex flex-col w-full overflow-hidden relative group transition-colors duration-300">
-    <div class="absolute top-0 right-0 w-full h-1 bg-gradient-to-l from-fuchsia-500 via-pink-400 to-transparent opacity-50"></div>
+<div :class="focusMode ? 'bg-transparent border-0 shadow-none p-0' : 'bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[1.5rem] md:rounded-[2.5rem] dark:shadow-2xl border border-gray-200/80 dark:border-gray-800 p-5 md:p-8'"
+     class="flex flex-col w-full overflow-hidden relative group transition-colors duration-300">
+    <div x-show="!focusMode" class="absolute top-0 right-0 w-full h-1 bg-gradient-to-l from-fuchsia-500 via-pink-400 to-transparent opacity-50"></div>
 
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>

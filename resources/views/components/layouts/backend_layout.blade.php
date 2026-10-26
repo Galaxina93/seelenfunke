@@ -19,7 +19,7 @@
     <script src="{{ mix('js/admin-bundle.js') }}" defer></script>
     <script src="{{ asset('vendor/chartjs/chart.umd.js') }}"></script>
     <script src="{{ asset('js/analytics-dashboards.js') }}"></script>
-    <script src="https://cdn.ckeditor.com/4.22.1/standard/ckeditor.js" integrity="sha384-IBDNY5TVKWr+u1841ldzW99oyOoUBpoGeouNuoXVwF0PBFR3v10dzwm09xNIEeiG" crossorigin="anonymous"></script>
+    <script src="https://cdn.ckeditor.com/4.22.1/standard/ckeditor.js" integrity="sha384-IBDNY5TVKWr+u1841ldzW99oyOoUBpoGeouNuoXVwF0PBFR3v10dzwm09xNIEeiG" crossorigin="anonymous" defer></script>
 
     @livewireStyles
 
@@ -78,6 +78,9 @@
     @include("components.layouts.partials.frontend-error-tracker")
 
     <style>
+        [x-cloak] {
+            display: none !important;
+        }
         html.dark {
             color-scheme: dark;
         }
@@ -265,14 +268,18 @@
     @endif
 
     @php
-        $isExternalEmployee = ($guard === 'employee' && auth('employee')->check() && method_exists(auth('employee')->user(), 'isInfluencer') && auth('employee')->user()->isInfluencer());
+        $isInfluencerEmployee = ($guard === 'employee' && auth('employee')->check() && method_exists(auth('employee')->user(), 'isInfluencer') && auth('employee')->user()->isInfluencer());
+        $isTaxAdvisorEmployee = ($guard === 'employee' && auth('employee')->check() && method_exists(auth('employee')->user(), 'isTaxAdvisor') && auth('employee')->user()->isTaxAdvisor());
+        $isExternalEmployee = ($guard === 'employee');
         $dashboardHomeUrl = $guard === 'customer'
             ? url('/dashboard')
-            : ($isExternalEmployee ? route('employee.influencer.dashboard') : url('/' . $guard . '/dashboard'));
+            : ($isInfluencerEmployee
+                ? route('employee.influencer.dashboard')
+                : ($isTaxAdvisorEmployee ? route('employee.tax-advisor.dashboard') : route('employee.dashboard')));
     @endphp
 
     <div x-data="{ open: false }" class="relative z-10 flex-1 flex flex-col">
-        @if($guard !== 'customer')
+        @if($guard !== 'customer' && !$isExternalEmployee)
             <div x-show="open" class="relative z-50 lg:hidden" role="dialog" aria-modal="true" style="display: none;">
                 <div x-show="open" x-transition:enter="transition-opacity ease-linear duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity ease-linear duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 bg-black/80 backdrop-blur-sm" @click="open = false" aria-hidden="true"></div>
 
@@ -320,34 +327,66 @@
             </div>
         @endif
 
-        <div class="{{ $guard !== 'customer' ? 'lg:pl-72' : '' }} transition-all duration-500 flex-1 flex flex-col min-w-0">
+        <div class="{{ ($guard !== 'customer' && !$isExternalEmployee) ? 'lg:pl-72' : '' }} transition-all duration-500 flex-1 flex flex-col min-w-0">
             @if($guard !== 'customer')
-                <div class="sticky top-0 z-40 flex h-16 items-center gap-x-4 border-b border-gray-200/80 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl px-4 shadow-sm dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)] sm:px-6 lg:px-8 w-full max-w-[100vw] transition-colors duration-300">
+                <div class="sticky top-0 z-40 flex {{ $isExternalEmployee ? 'h-20 lg:h-24' : 'h-16' }} items-center gap-x-4 border-b border-gray-200/80 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl px-4 shadow-sm dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)] sm:px-6 lg:px-8 w-full max-w-[100vw] transition-colors duration-300">
 
-                    <button @click="open = true" type="button" class="shrink-0 -m-2.5 p-2.5 text-gray-500 dark:text-gray-400 lg:hidden hover:text-primary transition-colors">
-                        <span class="sr-only">Menü öffnen</span>
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                        </svg>
-                    </button>
+                    @if($isExternalEmployee)
+                        <div class="shrink-0 flex items-center h-full mr-2 sm:mr-4">
+                            <a href="{{ $dashboardHomeUrl }}" wire:navigate class="flex items-center hover:opacity-90 transition-opacity py-1">
+                                <img src="{{ URL::to('/shop/projekt/logo/mein-seelenfunke-logo.svg') }}" class="h-12 sm:h-14 md:h-16 max-h-[58px] w-auto object-contain drop-shadow-[0_0_12px_rgba(197,160,89,0.35)]" alt="Mein Seelenfunke">
+                            </a>
+                        </div>
+                    @else
+                        <button @click="open = true" type="button" class="shrink-0 -m-2.5 p-2.5 text-gray-500 dark:text-gray-400 lg:hidden hover:text-primary transition-colors">
+                            <span class="sr-only">Menü öffnen</span>
+                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                            </svg>
+                        </button>
 
-                    <div class="shrink-0 h-6 w-px bg-gray-200 dark:bg-gray-700 lg:hidden" aria-hidden="true"></div>
+                        <div class="shrink-0 h-6 w-px bg-gray-200 dark:bg-gray-700 lg:hidden" aria-hidden="true"></div>
+                    @endif
 
                     <div class="flex flex-1 items-center justify-end md:justify-between min-w-0">
 
                         <div class="hidden md:block shrink-0 pr-4">
-                            <span class="flex items-center text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-[0.2em] drop-shadow-sm">
-                                @php
-                                    $breadcrumbData = \App\Services\Navigation\BackendNavigationService::getBreadcrumbs(request()->path(), $guard);
-                                    $crumbs = explode(' / ', $breadcrumbData['text']);
-                                @endphp
-                                @foreach($crumbs as $index => $crumb)
-                                    {{ $crumb }}
-                                    @if(!$loop->last)
-                                        <span class="text-primary mx-1">/</span>
+                            @if($isExternalEmployee)
+                                <nav class="flex items-center gap-2">
+                                    @if($isTaxAdvisorEmployee)
+                                        <a href="{{ route('employee.tax-advisor.dashboard') }}"
+                                           class="flex items-center gap-2 px-3.5 py-2 rounded-2xl text-xs font-bold tracking-wide bg-primary text-gray-900 shadow-xs">
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                            Steuerberater Cockpit
+                                        </a>
+                                    @elseif($isInfluencerEmployee)
+                                        <a href="{{ route('employee.influencer.dashboard') }}"
+                                           class="flex items-center gap-2 px-3.5 py-2 rounded-2xl text-xs font-bold tracking-wide bg-primary text-gray-900 shadow-xs">
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                                            Creator Cockpit
+                                        </a>
+                                    @else
+                                        <a href="{{ route('employee.dashboard') }}"
+                                           class="flex items-center gap-2 px-3.5 py-2 rounded-2xl text-xs font-bold tracking-wide bg-primary text-gray-900 shadow-xs">
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                                            Mitarbeiter Cockpit
+                                        </a>
                                     @endif
-                                @endforeach
-                            </span>
+                                </nav>
+                            @else
+                                <span class="flex items-center text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-[0.2em] drop-shadow-sm">
+                                    @php
+                                        $breadcrumbData = \App\Services\Navigation\BackendNavigationService::getBreadcrumbs(request()->path(), $guard);
+                                        $crumbs = explode(' / ', $breadcrumbData['text']);
+                                    @endphp
+                                    @foreach($crumbs as $index => $crumb)
+                                        {{ $crumb }}
+                                        @if(!$loop->last)
+                                            <span class="text-primary mx-1">/</span>
+                                        @endif
+                                    @endforeach
+                                </span>
+                            @endif
                         </div>
 
                         <div class="flex-1 flex justify-end min-w-0">
@@ -358,8 +397,8 @@
                 </div>
             @endif
 
-            <main class="{{ $guard !== 'customer' ? 'py-8 flex-1 min-w-0' : 'flex-1 min-w-0' }}">
-                @if($guard !== 'customer')
+            <main class="{{ ($guard !== 'customer' && !$isExternalEmployee) ? 'py-8 flex-1 min-w-0' : 'flex-1 min-w-0' }}">
+                @if($guard !== 'customer' && !$isExternalEmployee)
                     <div class="max-w-[1700px] w-full mx-auto px-4 sm:px-6 lg:px-8">
                         <div class="animate-fade-in-up" x-data x-init="setTimeout(() => $el.classList.remove('animate-fade-in-up'), 1000)">
                             @yield('content')

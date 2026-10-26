@@ -15,8 +15,9 @@
     $totalTrackingClicks = (int) ($sources['total_tracking_clicks'] ?? 0);
 @endphp
 
-<div class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[1.5rem] md:rounded-[2.5rem] dark:shadow-2xl border border-gray-200/80 dark:border-gray-800 p-5 md:p-8 flex flex-col w-full overflow-hidden relative group transition-colors duration-300">
-    <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-transparent opacity-50"></div>
+<div :class="focusMode ? 'bg-transparent border-0 shadow-none p-0' : 'bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[1.5rem] md:rounded-[2.5rem] dark:shadow-2xl border border-gray-200/80 dark:border-gray-800 p-5 md:p-8'"
+     class="flex flex-col w-full overflow-hidden relative group transition-colors duration-300">
+    <div x-show="!focusMode" class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-transparent opacity-50"></div>
 
     {{-- HEADER --}}
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">

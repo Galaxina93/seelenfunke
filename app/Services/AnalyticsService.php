@@ -32,8 +32,11 @@ class AnalyticsService
             'product_reviews' => $this->checkReviews(),
             'open_orders' => $this->checkOrders(),
             'open_credits' => $this->checkCredits(),
+            'influencer_payouts' => $this->checkInfluencerPayouts(),
+            'employee_payroll' => $this->checkEmployeePayroll(),
             'unassigned_tx' => $this->checkUnassignedTx(),
             'open_tasks' => $this->checkTasks(),
+            'routine' => $this->checkRoutine(),
             'open_quotes' => $this->checkQuotes(),
             'open_revocations' => $this->checkRevocations(),
             'open_losses' => $this->checkLosses(),
@@ -314,6 +317,91 @@ class AnalyticsService
         return ['status' => $status, 'icon' => 'document-minus', 'title' => 'Gutschriften', 'message' => $msg, 'count' => $cCount, 'data' => []];
     }
 
+    private function checkInfluencerPayouts(): ?array
+    {
+        if (
+            !class_exists(\App\Models\Marketing\MarketingInfluencerCommission::class)
+            || !class_exists(\App\Models\Marketing\MarketingInfluencerPayout::class)
+            || !\Illuminate\Support\Facades\Schema::hasTable('marketing_influencer_commissions')
+            || !\Illuminate\Support\Facades\Schema::hasTable('marketing_influencer_payouts')
+        ) {
+            return null;
+        }
+
+        $requestedQuery = \App\Models\Marketing\MarketingInfluencerPayout::where('status', 'requested');
+        $requestedCount = (clone $requestedQuery)->count();
+        $requestedCents = (int) (clone $requestedQuery)->sum('gross_amount_cents');
+
+        $openCommQuery = \App\Models\Marketing\MarketingInfluencerCommission::whereIn('status', ['pending', 'approved'])
+            ->whereNull('payout_id');
+        $openCommCount = (clone $openCommQuery)->count();
+        $openCommCents = (int) (clone $openCommQuery)->sum('commission_amount_cents');
+
+        $totalOpenItems = $requestedCount + $openCommCount;
+
+        if ($requestedCount > 0) {
+            $status = 'warning';
+            $msg = $requestedCount . ' Auszahlung(en) (' . number_format($requestedCents / 100, 2, ',', '.') . ' €) überweisen';
+            if ($openCommCents > 0) {
+                $msg .= ' • ' . number_format($openCommCents / 100, 2, ',', '.') . ' € in Prüfung/Freigegeben';
+            }
+        } elseif ($openCommCount > 0) {
+            $status = 'todo';
+            $msg = $openCommCount . ' Provision(en) (' . number_format($openCommCents / 100, 2, ',', '.') . ' €) offen';
+        } else {
+            $status = 'success';
+            $msg = 'Keine offenen Provisionen';
+        }
+
+        return [
+            'status' => $status,
+            'icon' => 'banknotes',
+            'title' => 'Influencer Provisionen',
+            'message' => $msg,
+            'count' => $totalOpenItems,
+            'data' => [
+                'requested_payouts_count' => $requestedCount,
+                'requested_payouts_cents' => $requestedCents,
+                'open_commissions_count' => $openCommCount,
+                'open_commissions_cents' => $openCommCents,
+            ],
+        ];
+    }
+
+    private function checkEmployeePayroll(): ?array
+    {
+        if (
+            !class_exists(\App\Models\Employee\EmployeePayslip::class)
+            || !\Illuminate\Support\Facades\Schema::hasTable('employee_payslips')
+        ) {
+            return null;
+        }
+
+        $openQuery = \App\Models\Employee\EmployeePayslip::where('status', 'open');
+        $openCount = (clone $openQuery)->count();
+        $openNetCents = (int) (clone $openQuery)->sum('net_payout_cents');
+
+        if ($openCount > 0) {
+            $status = 'warning';
+            $msg = $openCount . ' Lohnabrechnung(en) (' . number_format($openNetCents / 100, 2, ',', '.') . ' € Netto) überweisen';
+        } else {
+            $status = 'success';
+            $msg = 'Alle Löhne überwiesen';
+        }
+
+        return [
+            'status' => $status,
+            'icon' => 'identification',
+            'title' => 'Mitarbeiter Löhne',
+            'message' => $msg,
+            'count' => $openCount,
+            'data' => [
+                'open_payslips_count' => $openCount,
+                'open_payslips_net_cents' => $openNetCents,
+            ],
+        ];
+    }
+
     private function checkUnassignedTx(): ?array
     {
         if (!class_exists(\App\Models\Accounting\AccountingBankTransaction::class) || !\App\Services\AI\AiAuthHelper::isAdmin()) return null;
@@ -334,6 +422,113 @@ class AnalyticsService
         $msg = $openTasks > 0 ? $openTasks . ' Todos offen' : 'Alles erledigt';
         if ($totalTasks === 0) { $msg = 'Keine Aufgaben vorhanden'; $status = 'success'; }
         return ['status' => $status, 'icon' => 'check-circle', 'title' => 'Aufgaben', 'message' => $msg, 'count' => $openTasks, 'data' => []];
+    }
+
+    private function checkRoutine(): ?array
+    {
+        if (
+            !class_exists(\App\Models\Management\ManagementDayRoutine::class)
+            || !class_exists(\App\Models\Management\ManagementDayRoutineLog::class)
+            || !\Illuminate\Support\Facades\Schema::hasTable('management_day_routines')
+            || !\Illuminate\Support\Facades\Schema::hasTable('management_day_routine_logs')
+        ) {
+            return null;
+        }
+
+        $activeRoutines = \App\Models\Management\ManagementDayRoutine::query()
+            ->where('is_active', true)
+            ->where(function ($q) {
+                $q->whereIn('days_of_week', ['all', 'weekdays'])->orWhereNull('days_of_week');
+            })
+            ->get();
+
+        $totalRoutines = $activeRoutines->count();
+
+        if ($totalRoutines === 0) {
+            return [
+                'status' => 'success',
+                'icon' => 'clock',
+                'title' => 'Routine',
+                'message' => 'Keine aktiven Routinen hinterlegt',
+                'count' => 0,
+                'data' => [],
+            ];
+        }
+
+        $now = Carbon::now();
+
+        if ($now->isWeekend()) {
+            return [
+                'status' => 'success',
+                'icon' => 'clock',
+                'title' => 'Routine',
+                'message' => 'Wochenende – keine Routinen fällig',
+                'count' => 0,
+                'data' => [],
+            ];
+        }
+
+        $todayStr = $now->format('Y-m-d');
+        $todayLogs = \App\Models\Management\ManagementDayRoutineLog::query()
+            ->whereDate('date', $todayStr)
+            ->get();
+
+        $isSickToday = $todayLogs->contains(fn ($log) => (bool) $log->is_sick);
+
+        if ($isSickToday) {
+            return [
+                'status' => 'success',
+                'icon' => 'clock',
+                'title' => 'Routine',
+                'message' => 'Heute als Krankheitstag entschuldigt',
+                'count' => 0,
+                'data' => [],
+            ];
+        }
+
+        $activeRoutineIds = $activeRoutines->pluck('id')->all();
+        $relevantLogs = $todayLogs->whereIn('day_routine_id', $activeRoutineIds);
+
+        $completedCount = $relevantLogs->where('is_completed', true)->count();
+        $hasPartialSteps = $relevantLogs->contains(function ($log) {
+            return is_array($log->completed_steps) && count($log->completed_steps) > 0;
+        });
+
+        // Tages-Check-in Prinzip:
+        // 1. Vergangene Tage verfallen um 00:00 Uhr automatisch (bleiben niemals als offenes To-do stehen).
+        // 2. Sobald heute mindestens 1 Routine (oder Teilschritt) abgehakt wurde, gilt das tägliche Routine-Tracking als erledigt,
+        //    selbst wenn einzelne Routinen heute zeitlich nicht mehr geschafft werden.
+        $hasCheckedInToday = $completedCount > 0 || $hasPartialSteps;
+
+        if ($hasCheckedInToday) {
+            $msg = $completedCount >= $totalRoutines
+                ? "Heute komplett erledigt ({$completedCount}/{$totalRoutines})"
+                : "Heute eingecheckt ({$completedCount}/{$totalRoutines} erledigt)";
+
+            return [
+                'status' => 'success',
+                'icon' => 'clock',
+                'title' => 'Routine',
+                'message' => $msg,
+                'count' => 0,
+                'data' => [
+                    'completed_count' => $completedCount,
+                    'total_count' => $totalRoutines,
+                ],
+            ];
+        }
+
+        return [
+            'status' => 'todo',
+            'icon' => 'clock',
+            'title' => 'Routine',
+            'message' => "Heute noch Routine-Haken zu setzen (0/{$totalRoutines} erledigt)",
+            'count' => 1,
+            'data' => [
+                'completed_count' => 0,
+                'total_count' => $totalRoutines,
+            ],
+        ];
     }
 
     private function checkQuotes(): ?array
