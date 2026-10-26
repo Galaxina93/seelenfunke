@@ -70,10 +70,12 @@ Route::get('/system/cache/clear/{token}', function ($token) {
     return 'Cache erfolgreich geleert und optimiert.';
 });
 
-// --- 0. SEO & KI-Suchmaschinen Discovery (Sitemap & LLMs.txt) ---
+// --- 0. SEO & KI-Suchmaschinen Discovery (Sitemap, Google Shopping Feed, JSON Feed & LLMs.txt) ---
 Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('seo.sitemap');
 Route::get('/llms.txt', [SeoController::class, 'llmsTxt'])->name('seo.llms');
 Route::get('/llms-full.txt', [SeoController::class, 'llmsFullTxt'])->name('seo.llms.full');
+Route::get('/feed/google-shopping.xml', [SeoController::class, 'googleShoppingFeed'])->name('seo.google-shopping');
+Route::get('/feed/products.json', [SeoController::class, 'productsJsonFeed'])->name('seo.products-json');
 
 // --- 1. Shop ---
 Route::get('/warenkorb', Cart::class)->name('cart');
@@ -183,15 +185,24 @@ Route::get('/links', \App\Livewire\Frontend\Marketing\MarketingLinktreePage::cla
 Route::get('/t/{slug}', function (\Illuminate\Http\Request $request, string $slug) {
     $cleanSlug = preg_replace('/[^a-zA-Z0-9_\-]/', '', $slug);
     if ($cleanSlug === '' || !\Illuminate\Support\Facades\Schema::hasTable('marketing_tracking_links')) {
-        return redirect()->route('shop');
+        return redirect()->route('shop')->withHeaders(['X-Robots-Tag' => 'noindex, nofollow']);
     }
 
-    $trackingLink = \App\Models\Marketing\MarketingTrackingLink::where('slug', $cleanSlug)
+    $trackingLink = \App\Models\Marketing\MarketingTrackingLink::with('influencer')
+        ->where('slug', $cleanSlug)
         ->where('is_active', true)
         ->first();
 
     if (!$trackingLink) {
-        return redirect()->route('shop');
+        return redirect()->route('shop')->withHeaders(['X-Robots-Tag' => 'noindex, nofollow']);
+    }
+
+    // Falls der Kurzlink zu einem pausierten oder archivierten Influencer gehört -> keine Attribution, sauber zum Shop weiterleiten
+    if (!empty($trackingLink->influencer_id)) {
+        $inf = $trackingLink->influencer;
+        if (!$inf || !$inf->is_active || $inf->is_archived || $inf->is_pending_invitation) {
+            return redirect()->route('shop')->withHeaders(['X-Robots-Tag' => 'noindex, nofollow']);
+        }
     }
 
     $agent = strtolower((string) $request->userAgent());
@@ -202,29 +213,34 @@ Route::get('/t/{slug}', function (\Illuminate\Http\Request $request, string $slu
             $trackingLink->recordHit($request->ip(), $request->userAgent(), $request->headers->get('referer'));
             session()->put('attributed_tracking_link_id', $trackingLink->id);
 
-            if (!empty($trackingLink->influencer_id)) {
-                $trackingLink->loadMissing('influencer.defaultVoucher');
-                if ($trackingLink->influencer && $trackingLink->influencer->is_active) {
-                    $cookieMinutes = max(1, (int) ($trackingLink->influencer->cookie_days ?: 30)) * 1440;
-                    session([
-                        'seelenfunke_influencer_id' => $trackingLink->influencer_id,
-                        'seelenfunke_tracking_link_id' => $trackingLink->id,
-                    ]);
-                    \Illuminate\Support\Facades\Cookie::queue('seelenfunke_influencer_id', $trackingLink->influencer_id, $cookieMinutes);
-                    \Illuminate\Support\Facades\Cookie::queue('seelenfunke_tracking_link_id', $trackingLink->id, $cookieMinutes);
-                }
+            if (!empty($trackingLink->influencer_id) && $trackingLink->influencer) {
+                $cookieMinutes = max(1, (int) ($trackingLink->influencer->cookie_days ?: 30)) * 1440;
+                session([
+                    'seelenfunke_influencer_id' => $trackingLink->influencer_id,
+                    'seelenfunke_tracking_link_id' => $trackingLink->id,
+                ]);
+                \Illuminate\Support\Facades\Cookie::queue('seelenfunke_influencer_id', $trackingLink->influencer_id, $cookieMinutes);
+                \Illuminate\Support\Facades\Cookie::queue('seelenfunke_tracking_link_id', $trackingLink->id, $cookieMinutes);
             }
         } catch (\Throwable $e) {
             // Tracking-Fehler dürfen die Weiterleitung niemals blockieren
         }
     }
 
-    return redirect()->away($trackingLink->full_utm_url);
+    return redirect()->away($trackingLink->full_utm_url)->withHeaders([
+        'X-Robots-Tag' => 'noindex, nofollow',
+        'Referrer-Policy' => 'strict-origin-when-cross-origin',
+    ]);
 })->name('frontend.tracking.redirect')->middleware('throttle:120,1');
 
 // Influencer / Creator Onboarding (Magic Einladungslink)
 Route::get('/partner/einladung/{token}', \App\Livewire\Frontend\Marketing\InfluencerInvitationAccept::class)
     ->name('influencer.invitation')
+    ->middleware('throttle:30,1');
+
+// Mitarbeiter Onboarding & Digitaler Arbeitsvertrag (§ 2 NachwG / BEG IV)
+Route::get('/mitarbeiter/einladung/{token}', \App\Livewire\Frontend\Employee\EmployeeInvitationAccept::class)
+    ->name('employee.invitation')
     ->middleware('throttle:30,1');
 
 Route::get('/widerruf', function () {

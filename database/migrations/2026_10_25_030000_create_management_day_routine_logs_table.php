@@ -16,6 +16,7 @@ return new class extends Migration
                     ->onDelete('cascade');
                 $table->date('date')->index();
                 $table->boolean('is_completed')->default(true);
+                $table->boolean('is_sick')->default(false);
                 $table->json('completed_steps')->nullable();
                 $table->timestamp('completed_at')->nullable();
                 $table->string('note', 500)->nullable();

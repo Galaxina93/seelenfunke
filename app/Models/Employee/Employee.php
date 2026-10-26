@@ -79,6 +79,21 @@ class Employee extends Model implements Authenticatable
         return $this->hasOne(\App\Models\Marketing\MarketingInfluencer::class, 'employee_id');
     }
 
+    public function employmentContract(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(EmployeeContract::class, 'employee_id');
+    }
+
+    public function timeEntries(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(EmployeeTimeEntry::class, 'employee_id');
+    }
+
+    public function payslips(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(EmployeePayslip::class, 'employee_id');
+    }
+
     public function isInfluencer(): bool
     {
         return ($this->role ?? 'internal') === 'influencer';
@@ -92,5 +107,20 @@ class Employee extends Model implements Authenticatable
     public function isInternalEmployee(): bool
     {
         return !in_array($this->role ?? 'internal', ['influencer', 'tax_advisor'], true);
+    }
+
+    public function hasAiDataConsent(): bool
+    {
+        return (bool) ($this->profile?->ai_data_consent ?? false);
+    }
+
+    public function updateAiDataConsent(bool $consent, string $source = 'profile'): void
+    {
+        $profile = $this->profile ?: $this->profile()->create([]);
+        $profile->update([
+            'ai_data_consent' => $consent,
+            'ai_data_consent_at' => $consent ? now() : null,
+        ]);
+        $this->setRelation('profile', $profile->fresh());
     }
 }

@@ -100,5 +100,75 @@ class ProductSupplierSeeder extends Seeder
                 'dynamic_links' => [],
             ]
         );
+
+        // 5. HÄNDLER 5: HaoYiZF (Fuhao) – Temu (Seelen-Talisman Edelstahl-Barren)
+        ProductSupplier::updateOrCreate(
+            ['name' => 'HaoYiZF (Fuhao) - Temu'],
+            [
+                'company_name' => 'HaoYiZF / Fuhao Hardware Crafts',
+                'contact_person' => 'Temu Seller (PO-076-11149563187830774)',
+                'website' => 'https://www.temu.com/goods.html?_bg_fs=1&goods_id=606203291790930&sku_id=89857024078818',
+                'country' => 'China',
+                'country_code' => 'CN',
+                'lead_time_land_days' => 10,
+                'lead_time_air_days' => 7,
+                'shipping_method' => 'land',
+                'notes' => 'Reale Vorbestellung Beleg 15.10.2026: 2x 8er Pack (16 Stk.) Gold/Schwarz Edelstahl-Schlüsselanhänger (goods_id=606203291790930, sku_id=89857024078818). EK: 1,16 € netto / 1,48 € inkl. Einfuhrabgaben.',
+                'dynamic_links' => [
+                    [
+                        'title' => 'Temu Direkt-Nachbestellung (8er Set Gold)',
+                        'url' => 'https://www.temu.com/goods.html?_bg_fs=1&goods_id=606203291790930&parent_order_sn=PO-076-11149563187830774&_oak_order_sn=076-11149531730550774&_oak_goods_num=2&sku_id=89857024078818'
+                    ]
+                ],
+            ]
+        );
+
+        // 6. HÄNDLER 6: Thal-Versand / Amazon Business DE (Seelen-Pfote Hundemarken-Rohlinge)
+        ProductSupplier::updateOrCreate(
+            ['name' => 'Thal-Versand / Amazon Business DE'],
+            [
+                'company_name' => 'Thal-Versand e.K. / Amazon Business EU S.à r.l.',
+                'contact_person' => 'B2B Rohlinge & Eloxal-Marken',
+                'website' => 'https://www.amazon.de/s?k=Hundemarken+Rohlinge+Aluminium+Knochen+50+St%C3%BCck+Schwarz+Gravur',
+                'country' => 'Deutschland',
+                'country_code' => 'DE',
+                'lead_time_land_days' => 2,
+                'shipping_method' => 'land',
+                'notes' => '50er / 100er Pack eloxierte Aluminium Hundemarken Knochenform (38x25 mm) inkl. Schlüsselring. EK ca. 0,28 € pro Stück bei 50er Packung.',
+                'dynamic_links' => [
+                    [
+                        'title' => 'Amazon DE – 50x Alu-Knochen Rohlinge Schwarz',
+                        'url' => 'https://www.amazon.de/s?k=Hundemarken+Rohlinge+Aluminium+Knochen+50+St%C3%BCck+Schwarz+Gravur'
+                    ],
+                    [
+                        'title' => 'Thal-Versand Hundemarken Großhandel',
+                        'url' => 'https://www.thal-versand.de/'
+                    ]
+                ],
+            ]
+        );
+
+        // 7. HÄNDLER 7: Heavytool-Shop.de (150x Alu Schlüsselanhänger / Flaschenöffner auf Lager)
+        ProductSupplier::updateOrCreate(
+            ['name' => 'Heavytool-Shop.de'],
+            [
+                'company_name' => 'Schiebort & Shergill Trends of Trade GbR',
+                'contact_person' => 'Stephan Schiebort',
+                'street' => 'Heidener Straße',
+                'house_number' => '70',
+                'zip' => '46325',
+                'city' => 'Borken',
+                'country' => 'Deutschland',
+                'country_code' => 'DE',
+                'phone' => '+49 2861 8083448',
+                'email' => 'info@heavytool.de',
+                'website' => 'https://www.heavytool-shop.de/',
+                'vat_id' => 'DE264984487',
+                'lead_time_land_days' => 2,
+                'shipping_method' => 'land',
+                'notes' => 'Rechnung RE2026-85223 vom 03.01.2026: 150 Stk. Alu-Schlüsselanhänger mit Flaschenöffner (0,29 € / Stk. = 43,99 €). Bereits im Lagerbestand!',
+                'dynamic_links' => [],
+            ]
+        );
     }
 }

@@ -51,6 +51,8 @@ return new class extends Migration
                 $table->timestamp('email_verified_at')->nullable();
                 $table->timestamp('last_seen')->nullable();
                 $table->string('last_ip', 45)->nullable();
+                $table->boolean('ai_data_consent')->default(false)->comment('DSGVO-Einwilligung (Art. 6 Abs. 1 lit. a DSGVO) zum KI-Datenzugriff im Support');
+                $table->timestamp('ai_data_consent_at')->nullable()->comment('Zeitstempel der letzten DSGVO-Einwilligung für den KI-Datenzugriff');
                 $table->softDeletes();
                 $table->timestamps();
 
@@ -101,6 +103,8 @@ return new class extends Migration
                 $table->timestamp('last_seen')->nullable();
                 $table->string('last_ip', 45)->nullable();
                 $table->timestamp('cart_reminder_unsubscribed_at')->nullable()->comment('Zeitstempel, falls der Kunde dem Erhalt von Warenkorb-Erinnerungen widersprochen hat (Opt-Out nach § 7 UWG / DSGVO)');
+                $table->boolean('ai_data_consent')->default(false)->comment('DSGVO-Einwilligung (Art. 6 Abs. 1 lit. a DSGVO) zum KI-Datenzugriff im Support');
+                $table->timestamp('ai_data_consent_at')->nullable()->comment('Zeitstempel der letzten DSGVO-Einwilligung für den KI-Datenzugriff');
                 $table->softDeletes();
                 $table->timestamps();
 
@@ -149,6 +153,8 @@ return new class extends Migration
                 $table->timestamp('email_verified_at')->nullable();
                 $table->timestamp('last_seen')->nullable();
                 $table->string('last_ip', 45)->nullable();
+                $table->boolean('ai_data_consent')->default(false)->comment('DSGVO-Einwilligung (Art. 6 Abs. 1 lit. a DSGVO) zum KI-Datenzugriff im Support');
+                $table->timestamp('ai_data_consent_at')->nullable()->comment('Zeitstempel der letzten DSGVO-Einwilligung für den KI-Datenzugriff');
                 $table->softDeletes();
                 $table->timestamps();
 

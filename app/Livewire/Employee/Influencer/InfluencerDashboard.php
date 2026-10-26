@@ -2,7 +2,6 @@
 
 namespace App\Livewire\Employee\Influencer;
 
-use App\Livewire\Traits\WithDepartmentTheming;
 use App\Models\Marketing\MarketingInfluencer;
 use App\Models\Marketing\MarketingTrackingLink;
 use App\Models\Product\Product;
@@ -16,10 +15,6 @@ use Livewire\Component;
 #[Layout('components.layouts.backend_layout', ['guard' => 'employee'])]
 class InfluencerDashboard extends Component
 {
-    use WithDepartmentTheming;
-
-    public string $themingDepartment = 'Marketing';
-
     public string $activeTab = 'overview'; // overview, payouts, settings
 
     // Deep-Link Generator State
@@ -95,9 +90,14 @@ class InfluencerDashboard extends Component
         return $influencer;
     }
 
-    public function createProductTrackingLink(): void
+    public function createProductTrackingLink(InfluencerService $service): void
     {
         $influencer = $this->getInfluencer();
+
+        if (!$influencer->is_active || $influencer->is_archived) {
+            session()->flash('creator_error', 'Dein Creator-Konto ist aktuell pausiert. Neue Tracking-Kurzlinks können derzeit nicht angelegt werden.');
+            return;
+        }
 
         $this->validate([
             'newLinkTitle' => 'required|string|max:80',
@@ -106,39 +106,39 @@ class InfluencerDashboard extends Component
             'newLinkTitle.required' => 'Bitte gib eine kurze Bezeichnung ein (z.B. Instagram Story Kristall).',
         ]);
 
-        $targetUrl = '/shop';
-        $slugSuffix = Str::slug($this->newLinkTitle);
-
+        $product = null;
         if ($this->newLinkTargetProductSlug !== '') {
             $product = Product::where('slug', $this->newLinkTargetProductSlug)->where('status', 'active')->first();
-            if ($product) {
-                $targetUrl = '/produkt/' . $product->slug;
-                if ($slugSuffix === '') {
-                    $slugSuffix = $product->slug;
-                }
+            if (!$product || !$product->isPromotableByInfluencer()) {
+                session()->flash('creator_error', 'Dieses Produkt ist aktuell nicht für Creator-Kampagnen verfügbar (ausverkauft oder Wertgutschein).');
+                return;
             }
         }
 
-        $candidateSlug = Str::slug($influencer->slug . '-' . ($slugSuffix ?: strtolower(Str::random(4))));
-        if (MarketingTrackingLink::where('slug', $candidateSlug)->exists()) {
-            $candidateSlug .= '-' . strtolower(Str::random(3));
-        }
-
-        MarketingTrackingLink::create([
-            'influencer_id' => $influencer->id,
-            'name' => trim($this->newLinkTitle),
-            'slug' => $candidateSlug,
-            'target_url' => $targetUrl,
-            'channel' => 'referral',
-            'utm_source' => 'influencer',
-            'utm_medium' => $influencer->primary_channel ?: 'social',
-            'utm_campaign' => $candidateSlug,
-            'is_active' => true,
-        ]);
+        $link = $service->createOrGetProductTrackingLink($influencer, $product, trim($this->newLinkTitle));
 
         $this->newLinkTitle = '';
         $this->newLinkTargetProductSlug = '';
-        session()->flash('creator_success', "Neuer Kurzlink (/t/{$candidateSlug}) erfolgreich erstellt!");
+        session()->flash('creator_success', "Neuer Kurzlink (/t/{$link->slug}) erfolgreich erstellt!");
+    }
+
+    public function quickCreateProductLink(string $productSlug, InfluencerService $service): void
+    {
+        $influencer = $this->getInfluencer();
+
+        if (!$influencer->is_active || $influencer->is_archived) {
+            session()->flash('creator_error', 'Dein Creator-Konto ist aktuell pausiert. Neue Tracking-Kurzlinks können derzeit nicht angelegt werden.');
+            return;
+        }
+
+        $product = Product::where('slug', $productSlug)->where('status', 'active')->first();
+        if (!$product || !$product->isPromotableByInfluencer()) {
+            session()->flash('creator_error', 'Dieses Produkt ist aktuell nicht bewerbbar.');
+            return;
+        }
+
+        $link = $service->createOrGetProductTrackingLink($influencer, $product);
+        session()->flash('creator_success', "Produkt-Deep-Link (/t/{$link->slug}) für „{$product->name}“ ist bereit zum Kopieren!");
     }
 
     public function savePayoutAndTaxSettings(): void
@@ -152,7 +152,7 @@ class InfluencerDashboard extends Component
             'postal' => 'required|string|max:20',
             'city' => 'required|string|max:120',
             'country' => 'required|string|size:2',
-            'taxStatus' => 'required|in:small_business,standard_tax',
+            'taxStatus' => 'required|in:small_business,standard_tax,reverse_charge',
             'taxNumber' => 'required|string|max:100',
             'selfEmployedConfirmed' => 'accepted',
             'payoutMethod' => 'required|in:bank_transfer,paypal,shop_voucher',
@@ -218,7 +218,7 @@ class InfluencerDashboard extends Component
         }
 
         try {
-            $payout = $service->requestPayout($influencer, $chosenMethod);
+            $payout = $service->requestPayout($influencer, $chosenMethod, true);
             $this->activeTab = 'payouts';
             session()->flash(
                 'creator_success',
@@ -246,8 +246,14 @@ class InfluencerDashboard extends Component
         $approvedCents = (int) $influencer->commissions->where('status', 'approved')->whereNull('payout_id')->sum('commission_amount_cents');
         $paidCents = (int) $influencer->commissions->where('status', 'paid')->sum('commission_amount_cents');
 
+        $promotableProducts = $service->getPromotableProductsForInfluencer($influencer);
+
         $activeProducts = Schema::hasTable('products')
-            ? Product::where('status', 'active')->orderBy('name')->get(['id', 'name', 'slug'])
+            ? Product::where('status', 'active')
+                ->orderBy('name')
+                ->get(['id', 'name', 'slug', 'sku', 'type', 'status', 'track_quantity', 'quantity', 'continue_selling_when_out_of_stock'])
+                ->filter(fn (Product $product) => $product->isPromotableByInfluencer())
+                ->values()
             : collect();
 
         return view('livewire.employee.influencer.influencer-dashboard', [
@@ -261,7 +267,10 @@ class InfluencerDashboard extends Component
             'pendingCents' => $pendingCents,
             'approvedCents' => $approvedCents,
             'paidCents' => $paidCents,
+            'minPayoutCents' => InfluencerService::MIN_PAYOUT_CENTS,
             'activeProducts' => $activeProducts,
+            'promotableProducts' => $promotableProducts,
+            'defaultTaxRate' => (float) shop_setting('default_tax_rate', 19.0),
         ]);
     }
 }

@@ -15,7 +15,8 @@ class EmployeeProfile extends Model
         'id', 'employee_id', 'is_business', 'company_name', 'vat_id', 'internal_note',
         'photo_path', 'about', 'url', 'phone_number', 'street', 'house_number',
         'postal', 'city', 'country', 'two_factor_is_active', 'two_factor_secret',
-        'two_factor_recovery_codes', 'email_verified_at', 'last_seen', 'last_ip'
+        'two_factor_recovery_codes', 'email_verified_at', 'last_seen', 'last_ip',
+        'ai_data_consent', 'ai_data_consent_at'
     ];
 
     public $incrementing = false;
@@ -23,6 +24,8 @@ class EmployeeProfile extends Model
 
     protected $casts = [
         'is_business' => 'boolean',
+        'ai_data_consent' => 'boolean',
+        'ai_data_consent_at' => 'datetime',
     ];
 
     protected static function boot()

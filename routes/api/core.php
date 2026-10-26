@@ -3,7 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Models\System\SystemUserDevice;
-use App\Services\FunkiBotService;
+use App\Services\AI\AiSupportService;
 
 Route::get('/user', function (Request $request) {
     $user = $request->user();
@@ -37,7 +37,7 @@ Route::post('/device/register', function (Request $request) {
     return response()->json(['success' => true]);
 });
 
-Route::get('/funki/command', function (Request $request, FunkiBotService $bot) {
+Route::get('/funki/command', function (Request $request, AiSupportService $bot) {
     $user = $request->user();
     if (!$user instanceof \App\Models\Admin\Admin && !$user instanceof \App\Models\Employee\Employee) {
         abort(403, 'Nur für Administratoren und Mitarbeiter verfügbar.');

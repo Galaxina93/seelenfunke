@@ -161,6 +161,7 @@ return new class extends Migration
             $table->text('content');
             $table->json('media')->nullable();
             $table->string('status')->default('approved'); // approved, pending, rejected
+            $table->boolean('is_anonymous')->default(false);
             $table->timestamps();
         });
 
@@ -171,6 +172,7 @@ return new class extends Migration
             $table->string('name');
             $table->json('configuration')->nullable();
             $table->string('preview_image')->nullable();
+            $table->boolean('is_ai_generated')->default(true);
             $table->boolean('is_active')->default(true);
             $table->string('holiday')->nullable();
             $table->timestamps();

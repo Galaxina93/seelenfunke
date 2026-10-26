@@ -20,6 +20,88 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/calendar', \App\Livewire\Shop\Management\ManagementCalender::class)->name('admin.calendar');
 
     Route::get('/admin/contacts', \App\Livewire\Shop\Management\ManagementContacts::class)->name('admin.contacts');
+    Route::get('/admin/employees', \App\Livewire\Shop\Management\ManagementEmployees::class)->name('admin.employees');
+
+    Route::get('/admin/employees/contract/{contract}/pdf', function (\App\Models\Employee\EmployeeContract $contract) {
+        if (empty($contract->contract_pdf_path) || !\Illuminate\Support\Facades\Storage::disk('local')->exists((string) $contract->contract_pdf_path)) {
+            app(\App\Services\Employee\EmployeeHrService::class)->generateAndStoreContractPdf($contract);
+            $contract->refresh();
+        }
+        $path = (string) $contract->contract_pdf_path;
+        if ($path === '' || str_contains($path, '..') || str_contains($path, "\0") || !str_starts_with($path, 'buchhaltung/contracts/') || !\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+            abort(404);
+        }
+        $fullPath = \Illuminate\Support\Facades\Storage::disk('local')->path($path);
+        if (is_link($fullPath)) {
+            abort(403);
+        }
+        $cleanName = 'Arbeitsvertrag_' . preg_replace('/[^A-Za-z0-9_\-]/', '_', (string) $contract->contract_number) . '.pdf';
+        return response()->file($fullPath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $cleanName . '"',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    })->name('admin.employees.contract.pdf');
+
+    Route::get('/admin/employees/questionnaire/{contract}/pdf', function (\App\Models\Employee\EmployeeContract $contract) {
+        if (empty($contract->questionnaire_pdf_path) || !\Illuminate\Support\Facades\Storage::disk('local')->exists((string) $contract->questionnaire_pdf_path)) {
+            app(\App\Services\Employee\EmployeeHrService::class)->generateAndStoreQuestionnairePdf($contract);
+            $contract->refresh();
+        }
+        $path = (string) $contract->questionnaire_pdf_path;
+        if ($path === '' || str_contains($path, '..') || str_contains($path, "\0") || !str_starts_with($path, 'buchhaltung/contracts/') || !\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+            abort(404);
+        }
+        $fullPath = \Illuminate\Support\Facades\Storage::disk('local')->path($path);
+        if (is_link($fullPath)) {
+            abort(403);
+        }
+        $cleanName = 'Personalbogen_' . preg_replace('/[^A-Za-z0-9_\-]/', '_', (string) $contract->contract_number) . '.pdf';
+        return response()->file($fullPath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $cleanName . '"',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    })->name('admin.employees.questionnaire.pdf');
+
+    Route::get('/admin/employees/timesheet/{contract}/{year}/{month}/pdf', function (\App\Models\Employee\EmployeeContract $contract, int $year, int $month) {
+        $path = app(\App\Services\Employee\EmployeeHrService::class)->generateAndStoreTimesheetPdf($contract, $year, $month);
+        if (!$path || str_contains($path, '..') || str_contains($path, "\0") || !str_starts_with($path, 'buchhaltung/receipts/') || !\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+            abort(404);
+        }
+        $fullPath = \Illuminate\Support\Facades\Storage::disk('local')->path($path);
+        if (is_link($fullPath)) {
+            abort(403);
+        }
+        $cleanName = 'Stundenzettel_' . preg_replace('/[^A-Za-z0-9_\-]/', '_', (string) $contract->contract_number) . "_{$year}_{$month}.pdf";
+        return response()->file($fullPath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $cleanName . '"',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    })->name('admin.employees.timesheet.pdf');
+
+    Route::get('/admin/employees/payslip/{payslip}/pdf', function (\App\Models\Employee\EmployeePayslip $payslip) {
+        $path = (string) $payslip->effective_pdf_path;
+        if ($path === '' || !\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+            app(\App\Services\Employee\EmployeeHrService::class)->generateAndStorePayslipPdf($payslip);
+            $payslip->refresh();
+            $path = (string) $payslip->effective_pdf_path;
+        }
+        if ($path === '' || str_contains($path, '..') || str_contains($path, "\0") || !str_starts_with($path, 'buchhaltung/receipts/') || !\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+            abort(404);
+        }
+        $fullPath = \Illuminate\Support\Facades\Storage::disk('local')->path($path);
+        if (is_link($fullPath)) {
+            abort(403);
+        }
+        $cleanName = 'Lohnabrechnung_' . preg_replace('/[^A-Za-z0-9_\-]/', '_', (string) $payslip->payslip_number) . '.pdf';
+        return response()->file($fullPath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $cleanName . '"',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    })->name('admin.employees.payslip.pdf');
     Route::get('/admin/inbox', \App\Livewire\Shop\Management\ManagementEMails::class)->name('admin.inbox');
     Route::get('/admin/inbox/attachment/{id}', function ($id) {
         $attachment = \App\Models\Management\Mail\MailAttachment::findOrFail($id);
@@ -235,6 +317,37 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/marketing/linktree', \App\Livewire\Shop\Marketing\MarketingLinktree::class)->name('admin.marketing-linktree');
     Route::get('/admin/marketing/tracking', \App\Livewire\Shop\Marketing\MarketingTracking::class)->name('admin.marketing-tracking');
     Route::get('/admin/marketing/influencer', \App\Livewire\Shop\Marketing\MarketingInfluencer::class)->name('admin.marketing-influencer');
+
+    Route::get('/admin/marketing/influencer/payout/{payout}/pdf', function (\App\Models\Marketing\MarketingInfluencerPayout $payout) {
+        if (empty($payout->pdf_path) || !\Illuminate\Support\Facades\Storage::disk('local')->exists((string) $payout->pdf_path)) {
+            app(\App\Services\Marketing\InfluencerService::class)->generateCreditNotePdf($payout);
+            $payout->refresh();
+        }
+
+        $path = (string) $payout->pdf_path;
+        if (
+            $path === ''
+            || str_contains($path, '..')
+            || str_contains($path, "\0")
+            || !str_starts_with($path, 'buchhaltung/receipts/')
+            || !\Illuminate\Support\Facades\Storage::disk('local')->exists($path)
+        ) {
+            abort(404, 'Beleg nicht gefunden.');
+        }
+
+        $fullPath = \Illuminate\Support\Facades\Storage::disk('local')->path($path);
+        if (is_link($fullPath)) {
+            abort(403, 'Zugriff verweigert.');
+        }
+
+        $cleanName = 'Gutschrift_' . preg_replace('/[^A-Za-z0-9_-]/', '_', (string) $payout->credit_note_number) . '.pdf';
+
+        return response()->file($fullPath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $cleanName . '"',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    })->name('admin.influencer.payout.pdf');
 
 });
 

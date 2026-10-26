@@ -180,6 +180,8 @@ return new class extends Migration {
                 $table->string('from_name')->nullable();
                 $table->string('from_email');
                 $table->string('to_email');
+                $table->text('cc_email')->nullable();
+                $table->text('bcc_email')->nullable();
                 $table->longText('body_html')->nullable();
                 $table->longText('body_plain')->nullable();
                 $table->boolean('is_read')->default(false);
@@ -227,9 +229,144 @@ return new class extends Migration {
                 $table->timestamps();
             });
         }
+
+        // Personalakte, Arbeitsvertrag & Onboarding (Leitung -> Mitarbeiter)
+        if (!Schema::hasTable('employee_contracts')) {
+            Schema::create('employee_contracts', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('employee_id')->nullable()->index();
+                $table->string('invitation_label', 191)->nullable();
+                $table->string('job_title', 150)->default('Manufaktur- & Versand-Assistent/in');
+                $table->string('department', 100)->default('Produktion & Versand');
+                $table->string('employment_type', 40)->default('minijob')->index(); // minijob, part_time, full_time, working_student, short_term
+                $table->string('compensation_type', 30)->default('hourly'); // hourly, fixed_salary
+                $table->unsignedInteger('hourly_rate_cents')->default(1400);
+                $table->unsignedInteger('monthly_gross_cents')->default(54000);
+                $table->decimal('weekly_hours', 5, 2)->default(9.00);
+                $table->unsignedInteger('vacation_days_per_year')->default(20);
+                $table->unsignedInteger('vacation_days_taken')->default(0);
+                $table->date('start_date')->nullable();
+                $table->date('end_date')->nullable();
+                $table->boolean('is_fixed_term')->default(false);
+                $table->unsignedInteger('probation_months')->default(3);
+                $table->string('notice_period_text', 191)->default('4 Wochen zum 15. oder zum Ende eines Kalendermonats (§ 622 BGB)');
+                $table->string('work_location', 191)->default('Manufaktur Gifhorn / Mobiles Arbeiten nach Absprache');
+                $table->string('working_hours_schedule', 255)->nullable();
+
+                // Personalfragebogen / ELStAM / Sozialversicherung (sensible Felder im Model verschlüsselt)
+                $table->date('birth_date')->nullable();
+                $table->string('birth_place', 120)->nullable();
+                $table->string('nationality', 80)->default('Deutsch');
+                $table->text('tax_id')->nullable();
+                $table->string('tax_class', 20)->default('I');
+                $table->boolean('church_tax')->default(false);
+                $table->decimal('children_allowances', 3, 1)->default(0.0);
+                $table->text('social_security_number')->nullable();
+                $table->string('health_insurance_name', 150)->nullable();
+                $table->string('health_insurance_type', 30)->default('statutory'); // statutory, private, family
+                $table->boolean('rv_exemption_requested')->default(false);
+                $table->boolean('has_other_employment')->default(false);
+
+                // Bankverbindung für Gehaltsauszahlung (IBAN im Model verschlüsselt)
+                $table->string('account_holder', 191)->nullable();
+                $table->text('iban')->nullable();
+                $table->string('bic', 30)->nullable();
+                $table->string('bank_name', 150)->nullable();
+
+                // Digitale Unterschrift & Dokumente (§ 2 NachwG / BEG IV)
+                $table->string('signature_name', 191)->nullable();
+                $table->longText('signature_data')->nullable();
+                $table->timestamp('signed_at')->nullable();
+                $table->string('signed_ip_hash', 64)->nullable();
+                $table->string('contract_number', 60)->nullable()->unique();
+                $table->string('contract_pdf_path', 500)->nullable();
+                $table->string('questionnaire_pdf_path', 500)->nullable();
+
+                // Sicheres 2-Faktor-Onboarding (Einladungslink + 6-stelliger Verifizierungscode)
+                $table->string('invitation_token_hash', 64)->nullable()->unique();
+                $table->text('invitation_token_encrypted')->nullable();
+                $table->string('invitation_code_hash', 64)->nullable();
+                $table->text('invitation_code_encrypted')->nullable();
+                $table->timestamp('invitation_expires_at')->nullable();
+                $table->timestamp('invitation_accepted_at')->nullable();
+
+                $table->boolean('is_active')->default(true)->index();
+                $table->boolean('is_archived')->default(false)->index();
+                $table->text('internal_notes')->nullable();
+                $table->timestamps();
+                $table->softDeletes();
+
+                $table->foreign('employee_id')
+                    ->references('id')
+                    ->on('employees')
+                    ->nullOnDelete();
+            });
+        }
+
+        // Arbeitszeiterfassung (§ 17 MiLoG / § 4 ArbZG)
+        if (!Schema::hasTable('employee_time_entries')) {
+            Schema::create('employee_time_entries', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('contract_id')->index();
+                $table->uuid('employee_id')->nullable()->index();
+                $table->date('work_date')->index();
+                $table->timestamp('started_at')->nullable();
+                $table->timestamp('ended_at')->nullable();
+                $table->unsignedInteger('break_minutes')->default(0);
+                $table->unsignedInteger('net_minutes')->default(0);
+                $table->string('entry_type', 30)->default('work'); // work, vacation, sick
+                $table->string('activity_note', 255)->nullable();
+                $table->string('status', 30)->default('recorded')->index(); // running, recorded, approved
+                $table->boolean('arbzg_compliant')->default(true);
+                $table->timestamps();
+
+                $table->foreign('contract_id')
+                    ->references('id')
+                    ->on('employee_contracts')
+                    ->onDelete('cascade');
+            });
+        }
+
+        // Monatliche Lohn- & Gehaltsabrechnungen (§ 108 GewO Tresor & Buchhaltungs-Brücke)
+        if (!Schema::hasTable('employee_payslips')) {
+            Schema::create('employee_payslips', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('contract_id')->index();
+                $table->uuid('employee_id')->nullable()->index();
+                $table->string('payslip_number', 60)->unique();
+                $table->unsignedSmallInteger('period_year')->index();
+                $table->unsignedTinyInteger('period_month')->index();
+                $table->unsignedInteger('worked_minutes')->default(0);
+                $table->unsignedInteger('hourly_rate_cents_snapshot')->default(0);
+                $table->unsignedInteger('gross_amount_cents')->default(0);
+                $table->unsignedInteger('net_payout_cents')->default(0);
+                $table->unsignedInteger('employer_charges_cents')->default(0);
+                $table->unsignedInteger('total_employer_cost_cents')->default(0);
+                $table->string('tax_class_snapshot', 20)->nullable();
+                $table->string('pdf_path', 500)->nullable();
+                $table->string('timesheet_pdf_path', 500)->nullable();
+                $table->string('uploaded_external_pdf_path', 500)->nullable();
+                $table->uuid('accounting_special_issue_id')->nullable()->index();
+                $table->string('status', 30)->default('open')->index(); // open, paid, cancelled
+                $table->timestamp('approved_at')->nullable();
+                $table->timestamp('paid_at')->nullable();
+                $table->uuid('paid_by_admin_id')->nullable();
+                $table->string('notes', 255)->nullable();
+                $table->json('recipient_snapshot')->nullable();
+                $table->timestamps();
+
+                $table->foreign('contract_id')
+                    ->references('id')
+                    ->on('employee_contracts')
+                    ->onDelete('cascade');
+            });
+        }
     }
 
     public function down(): void {
+        Schema::dropIfExists('employee_payslips');
+        Schema::dropIfExists('employee_time_entries');
+        Schema::dropIfExists('employee_contracts');
         Schema::dropIfExists('mail_attachments');
         Schema::dropIfExists('mail_folders');
         Schema::dropIfExists('mail_rules');
