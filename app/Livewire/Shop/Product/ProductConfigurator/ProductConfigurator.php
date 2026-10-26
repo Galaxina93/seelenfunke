@@ -79,7 +79,7 @@ class ProductConfigurator extends Component
         }
 
         $this->product = ($product instanceof Product) ? $product : Product::findOrFail($product);
-        if (!in_array($context, ['template_admin', 'preview'], true) && !auth()->guard('admin')->check() && !auth()->guard('employee')->check() && $this->product->status !== 'active') {
+        if (!in_array($context, ['template_admin', 'preview'], true) && !auth()->guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && $this->product->status !== 'active') {
             abort(404);
         }
         $this->configSettings = $configService->mergeWithDefaults($this->product->configurator_settings ?? []);
@@ -911,7 +911,7 @@ class ProductConfigurator extends Component
                     $configData['product_id'] = $this->product->id;
                     $this->dispatch('calculator-save', data: $configData);
                 } elseif ($this->context === 'template_admin') {
-                    if (!auth()->guard('admin')->check() && !auth()->guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+                    if (!auth()->guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
                         abort(403);
                     }
                     $this->dispatch('save-template-data', configData: $configData, previewImagePath: $this->product->preview_image_path);

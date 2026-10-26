@@ -230,12 +230,33 @@ class ProductFrontendFilterArea extends Component
             ];
         }
 
+        $shopTitle = 'Unsere Kollektion – Personalisierte Geschenke & Lasergravur | Mein Seelenfunke';
+        $shopMetaDesc = 'Entdecke handveredelte Unikate mit präziser Lasergravur: K9-Kristallglas-Trophäen, Edelstahl-Schlüsselanhänger, Hundemarken & Kristallgläser – live im 3D-Konfigurator gestalten.';
+        $shopCanonical = route('shop');
+
+        if (!empty($this->filterHoliday)) {
+            $normH = mb_strtolower(trim((string) $this->filterHoliday));
+            $hLabel = $holidayLabels[$normH] ?? ucfirst($normH);
+            $shopTitle = "{$hLabel} Geschenke personalisiert mit Lasergravur | Mein Seelenfunke";
+            $shopMetaDesc = "Besondere Geschenke zu {$hLabel}: Handveredelte Unikate aus K9-Kristallglas, Edelstahl & Metall mit eigener Wunschgravur im 2D/3D-Konfigurator gestalten.";
+            $shopCanonical = route('shop', ['filterHoliday' => $normH]);
+        } elseif (!empty($this->filterCategory)) {
+            $selectedCat = $categories->firstWhere('id', (int) $this->filterCategory);
+            if ($selectedCat) {
+                $shopTitle = "{$selectedCat->name} – Personalisiert mit Lasergravur | Mein Seelenfunke";
+                $shopMetaDesc = "Entdecke personalisierbare Unikate in der Kategorie {$selectedCat->name} – individuell graviert in unserer deutschen Manufaktur in Gifhorn.";
+            }
+        } elseif ($this->filterSale) {
+            $shopTitle = 'Angebote & Reduzierte Geschenkideen mit Gravur | Mein Seelenfunke';
+            $shopMetaDesc = 'Sichere dir personalisierte Geschenke mit Lasergravur zum Aktionspreis – handveredelt in unserer Manufaktur in Gifhorn.';
+        }
+
         $shopSchema = [
             '@context' => 'https://schema.org',
             '@graph' => [
                 [
                     '@type' => 'BreadcrumbList',
-                    '@id' => route('shop') . '#breadcrumb',
+                    '@id' => $shopCanonical . '#breadcrumb',
                     'itemListElement' => [
                         [
                             '@type' => 'ListItem',
@@ -247,16 +268,16 @@ class ProductFrontendFilterArea extends Component
                             '@type' => 'ListItem',
                             'position' => 2,
                             'name' => 'Shop & Kollektion',
-                            'item' => route('shop'),
+                            'item' => $shopCanonical,
                         ],
                     ],
                 ],
                 [
                     '@type' => 'CollectionPage',
-                    '@id' => route('shop') . '#collection',
-                    'url' => route('shop'),
-                    'name' => 'Unsere Kollektion – Personalisierte Geschenke & Lasergravur | Mein Seelenfunke',
-                    'description' => 'Handveredelte Unikate aus K9-Kristallglas, Naturschiefer und Metall. Direkt im interaktiven 2D- & 3D-Online-Konfigurator personalisieren.',
+                    '@id' => $shopCanonical . '#collection',
+                    'url' => $shopCanonical,
+                    'name' => $shopTitle,
+                    'description' => $shopMetaDesc,
                     'isPartOf' => [
                         '@id' => url('/#website'),
                     ],
@@ -269,8 +290,6 @@ class ProductFrontendFilterArea extends Component
             ],
         ];
 
-        $shopMetaDesc = 'Entdecke handveredelte Unikate mit präziser Lasergravur: K9-Kristallglas-Trophäen, Glasfotos, Naturschiefer & Edelmetall – live im 2D/3D-Konfigurator gestalten.';
-
         return view('livewire.shop.product.product-frontend-filter-area', [
             'products' => $products,
             'categories' => $categories,
@@ -279,11 +298,15 @@ class ProductFrontendFilterArea extends Component
             'saleCount' => $saleCount,
             'heroBanner' => $heroBanner,
             'shopSchema' => $shopSchema,
-        ])->layout('components.layouts.frontend_layout', [
-            'meta_description' => $shopMetaDesc,
-            'og_description' => $shopMetaDesc,
-            'canonical' => route('shop'),
-        ]);
+        ])
+            ->title($shopTitle)
+            ->layout('components.layouts.frontend_layout', [
+                'title' => $shopTitle,
+                'meta_description' => $shopMetaDesc,
+                'og_title' => $shopTitle,
+                'og_description' => $shopMetaDesc,
+                'canonical' => $shopCanonical,
+            ]);
     }
 
     /**

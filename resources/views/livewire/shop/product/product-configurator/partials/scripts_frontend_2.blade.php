@@ -422,7 +422,9 @@
                             map: oldMap,
                             color: 0xffffff,
                             roughness: hasEnv ? 0.2 : 0.4,
-                            metalness: hasEnv ? 0.9 : 0.0
+                            metalness: hasEnv ? 0.9 : 0.0,
+                            alphaTest: oldMap ? 0.35 : 0.0,
+                            side: window.THREE.DoubleSide
                         });
                     } else {
                         child.material = new window.THREE.MeshStandardMaterial({
@@ -541,13 +543,20 @@
                     const drawW = scale;
                     const drawH = scale / aspect;
 
-                    // VISUELLER FILTER: Macht alle eingefügten Logos optisch weiß/silber für die "Lasergravur-Optik"
+                    // VISUELLER FILTER: Macht eingefügte Logos auf dunklem Grund weiß/silber und auf hellem Gold-Metall tief-anthrazit (Anlassgravur)
                     // Die Originaldatei (logo.url) bleibt schwarz für den XCS Export!
-                    if (this.config.material_type === 'metal') {
-                        ctx.shadowColor = 'rgba(0,0,0,0.6)';
-                        ctx.shadowBlur = cw <= 1024 ? 3 : 6;
+                    const isLightMetal = (this.config.material_type === 'metal' && this.config.isDarkSurface === false);
+                    if (isLightMetal) {
+                        ctx.shadowColor = 'rgba(255,248,210,0.55)';
+                        ctx.shadowBlur = cw <= 1024 ? 2 : 4;
+                        ctx.filter = 'brightness(0.10) opacity(0.92)';
+                    } else {
+                        if (this.config.material_type === 'metal') {
+                            ctx.shadowColor = 'rgba(0,0,0,0.6)';
+                            ctx.shadowBlur = cw <= 1024 ? 3 : 6;
+                        }
+                        ctx.filter = 'brightness(0) invert(1) opacity(0.92)';
                     }
-                    ctx.filter = 'brightness(0) invert(1) opacity(0.92)';
                     ctx.drawImage(img, -drawW/2, -drawH/2, drawW, drawH);
                     ctx.filter = 'none';
                     ctx.shadowBlur = 0;
@@ -602,14 +611,23 @@
                                 const fontSize = (item.size || 1) * (cw / 25);
                                 ctx.font = `bold ${fontSize}px ${fontMap[item.font] || 'Arial'}`;
 
-                                ctx.filter = 'grayscale(100%) brightness(1.5)';
-                                ctx.fillStyle = (this.config.material_type === 'wood') ? 'rgba(50,30,20,0.9)' : 'rgba(248,250,252,0.96)';
+                                const isLightMetal = (this.config.material_type === 'metal' && this.config.isDarkSurface === false);
+                                if (isLightMetal) {
+                                    ctx.filter = 'none';
+                                    ctx.fillStyle = 'rgba(20,18,14,0.93)';
+                                } else {
+                                    ctx.filter = 'grayscale(100%) brightness(1.5)';
+                                    ctx.fillStyle = (this.config.material_type === 'wood') ? 'rgba(50,30,20,0.9)' : 'rgba(248,250,252,0.96)';
+                                }
                                 ctx.textAlign = item.align || 'center';
                                 ctx.textBaseline = 'middle';
 
                                 if(this.config.material_type === 'glass') {
                                     ctx.shadowColor = 'rgba(255,255,255,0.8)';
                                     ctx.shadowBlur = cw <= 1024 ? 5 : 15;
+                                } else if(isLightMetal) {
+                                    ctx.shadowColor = 'rgba(255,248,210,0.6)';
+                                    ctx.shadowBlur = cw <= 1024 ? 2 : 5;
                                 } else if(this.config.material_type === 'metal') {
                                     ctx.shadowColor = 'rgba(0,0,0,0.65)';
                                     ctx.shadowBlur = cw <= 1024 ? 3 : 8;

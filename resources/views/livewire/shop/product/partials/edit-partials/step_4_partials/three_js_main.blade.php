@@ -542,7 +542,9 @@ child.material = new window.THREE.MeshStandardMaterial({
 map: oldMap,
 color: 0xffffff,
 roughness: hasEnv ? 0.2 : 0.4,
-metalness: hasEnv ? 0.9 : 0.0
+metalness: hasEnv ? 0.9 : 0.0,
+alphaTest: oldMap ? 0.35 : 0.0,
+side: window.THREE.DoubleSide
 });
 } else {
 child.material = new window.THREE.MeshStandardMaterial({

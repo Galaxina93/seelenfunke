@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\Attributes\On;
 use Livewire\WithFileUploads;
+use Livewire\WithPagination;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use App\Livewire\Traits\WithDepartmentTheming;
@@ -16,7 +17,7 @@ use App\Livewire\Traits\WithDepartmentTheming;
 #[Layout('components.layouts.backend_layout')]
 class ProductTemplates extends Component
 {
-    use WithFileUploads, WithDepartmentTheming;
+    use WithPagination, WithFileUploads, WithDepartmentTheming;
 
     public string $themingDepartment = 'Produkte';
 
@@ -59,15 +60,32 @@ class ProductTemplates extends Component
 
     public function setLayoutMode(string $mode): void
     {
-        if (in_array($mode, ['large', 'medium', 'list'], true)) {
+        if (in_array($mode, ['large', 'medium', 'list'], true) && $this->layoutMode !== $mode) {
             $this->layoutMode = $mode;
+            $this->resetPage();
         }
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedFilterProductId(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedFilterHoliday(): void
+    {
+        $this->resetPage();
     }
 
     public function toggleArchiveMode(): void
     {
         $this->showArchived = !$this->showArchived;
         $this->search = '';
+        $this->resetPage();
     }
 
     public function archiveTemplate($templateId): void
@@ -312,8 +330,14 @@ class ProductTemplates extends Component
             });
         }
 
+        $perPage = match ($this->layoutMode) {
+            'medium' => 16,
+            'list' => 20,
+            default => 12,
+        };
+
         $templates = ($this->viewMode === 'list')
-            ? $query->orderBy('created_at', 'desc')->get()
+            ? $query->orderBy('created_at', 'desc')->paginate($perPage)
             : collect();
 
         $products = Product::where('status', 'active')

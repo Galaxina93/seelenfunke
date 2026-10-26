@@ -401,6 +401,44 @@ class Product extends Model
         return !empty($this->digital_download_path);
     }
 
+    /**
+     * Zentrale Prüfung, ob es sich um einen Geschenkgutschein handelt (entweder über den Slug oder die Artikelkonfiguration).
+     */
+    public function isGiftVoucher(?array $configuration = null): bool
+    {
+        return ($this->slug === 'geschenkgutschein') || (!empty($configuration['is_gift_voucher']));
+    }
+
+    /**
+     * Zentrale Prüfung, ob das Produkt aktuell im automatischen Feiertags-/Aktions-Autopilot-Sale reduziert ist.
+     * Solche Artikel sind laut Shop-Regelwerk nicht mit zusätzlichen Rabattcodes kombinierbar.
+     */
+    public function isInAutopilotSale(): bool
+    {
+        return !empty($this->configurator_settings['autopilot_base_price'])
+            && (int) $this->compare_at_price > (int) $this->price;
+    }
+
+    /**
+     * Zentrale Prüfung, ob auf dieses Produkt ein prozentualer oder fester Rabattcode (inkl. Influencer-Follower-Code)
+     * im Warenkorb angewendet werden darf.
+     */
+    public function isDiscountableWithCoupon(?array $configuration = null): bool
+    {
+        return !$this->isGiftVoucher($configuration) && !$this->isInAutopilotSale();
+    }
+
+    /**
+     * Zentrale Prüfung, ob ein Produkt aktuell von Influencern/Creatorn beworben werden kann:
+     * Aktiv, kaufbar/auf Lager (isAvailable) und kein Geschenkgutschein.
+     */
+    public function isPromotableByInfluencer(): bool
+    {
+        return $this->status === 'active'
+            && $this->isAvailable()
+            && !$this->isGiftVoucher();
+    }
+
     // Relationship: Product belongs to many Categories
     public function categories()
     {
@@ -940,15 +978,14 @@ class Product extends Model
         }
 
         $additionalProperties = [];
-        if (is_array($this->attributes)) {
-            foreach ($this->attributes as $attrKey => $attrVal) {
-                if (is_scalar($attrVal) && trim((string) $attrVal) !== '') {
-                    $additionalProperties[] = [
-                        '@type' => 'PropertyValue',
-                        'name' => (string) $attrKey,
-                        'value' => (string) $attrVal,
-                    ];
-                }
+        $essentialAttributes = \App\Models\Marketing\MarketingLandingPage::extractEssentialAttributes($this);
+        foreach ($essentialAttributes as $attrKey => $attrVal) {
+            if (is_scalar($attrVal) && trim((string) $attrVal) !== '') {
+                $additionalProperties[] = [
+                    '@type' => 'PropertyValue',
+                    'name' => (string) $attrKey,
+                    'value' => (string) $attrVal,
+                ];
             }
         }
 
@@ -1064,12 +1101,16 @@ class Product extends Model
             ];
         }
 
+        $resolvedSku = $this->sku ?: ('MSF-' . strtoupper(substr((string) $this->id, 0, 8)));
+
         $productNode = [
             '@type' => 'Product',
             '@id' => $canonicalUrl . '#product',
             'name' => $this->name,
             'description' => trim(preg_replace('/\s+/', ' ', strip_tags((string) ($this->description ?: $this->short_description)))),
-            'sku' => $this->sku ?: ('MSF-' . strtoupper(substr((string) $this->id, 0, 8))),
+            'sku' => $resolvedSku,
+            'mpn' => $resolvedSku,
+            'isFamilyFriendly' => true,
             'url' => $canonicalUrl,
             'image' => $schemaImages,
             'brand' => [
@@ -1083,10 +1124,58 @@ class Product extends Model
             'offers' => $offersNode,
         ];
 
+        if ($this->width > 0) {
+            $productNode['width'] = [
+                '@type' => 'QuantitativeValue',
+                'value' => (float) $this->width,
+                'unitCode' => 'MMT',
+            ];
+        }
+        if ($this->height > 0) {
+            $productNode['height'] = [
+                '@type' => 'QuantitativeValue',
+                'value' => (float) $this->height,
+                'unitCode' => 'MMT',
+            ];
+        }
+        if ($this->length > 0) {
+            $productNode['depth'] = [
+                '@type' => 'QuantitativeValue',
+                'value' => (float) $this->length,
+                'unitCode' => 'MMT',
+            ];
+        }
+        if ($this->weight > 0) {
+            $productNode['weight'] = [
+                '@type' => 'QuantitativeValue',
+                'value' => (float) $this->weight,
+                'unitCode' => 'GRM',
+            ];
+        }
+
+        if (is_array($this->media_gallery)) {
+            foreach ($this->media_gallery as $media) {
+                if (is_array($media) && ($media['type'] ?? '') === 'video' && !empty($media['path'])) {
+                    $videoUrl = asset('storage/' . ltrim((string) $media['path'], '/'));
+                    $productNode['subjectOf'] = [
+                        '@type' => 'VideoObject',
+                        'name' => $media['alt'] ?? ($this->name . ' – Produktvideo & Lasergravur'),
+                        'description' => trim(preg_replace('/\s+/', ' ', strip_tags((string) ($this->short_description ?: $this->description)))),
+                        'thumbnailUrl' => [$mainImageUrl],
+                        'contentUrl' => $videoUrl,
+                        'uploadDate' => optional($this->updated_at ?? $this->created_at)->toAtomString() ?: now()->toAtomString(),
+                        'duration' => 'PT8S',
+                        'isFamilyFriendly' => true,
+                    ];
+                    break;
+                }
+            }
+        }
+
         if (!empty($additionalProperties)) {
             $productNode['additionalProperty'] = $additionalProperties;
-            if (!empty($this->attributes['Material'])) {
-                $productNode['material'] = (string) $this->attributes['Material'];
+            if (!empty($essentialAttributes['Material'])) {
+                $productNode['material'] = (string) $essentialAttributes['Material'];
             }
         }
 
@@ -1130,6 +1219,42 @@ class Product extends Model
             $productNode['review'] = $reviewNodes;
         }
 
+        $materialText = !empty($essentialAttributes['Material']) ? (string) $essentialAttributes['Material'] : 'hochwertigem Grundmaterial';
+        $dimText = ($this->width > 0 && $this->height > 0)
+            ? "{$this->width} × {$this->height}" . ($this->length > 0 ? " × {$this->length} mm" : ' mm') . ($this->weight > 0 ? " (Gewicht ca. {$this->weight} g)" : '')
+            : 'den in den Produkteigenschaften angegebenen Originalmaßen';
+
+        $faqNode = [
+            '@type' => 'FAQPage',
+            '@id' => $canonicalUrl . '#faq',
+            'mainEntity' => [
+                [
+                    '@type' => 'Question',
+                    'name' => "Welche genauen Maße und welches Material hat „{$this->name}“?",
+                    'acceptedAnswer' => [
+                        '@type' => 'Answer',
+                        'text' => "„{$this->name}“ besteht aus {$materialText} und besitzt die exakten Abmessungen von {$dimText}. Ein detailliertes technisches Maßblatt befindet sich auf der letzten Position der Produktbild-Galerie.",
+                    ],
+                ],
+                [
+                    '@type' => 'Question',
+                    'name' => "Ist die Lasergravur bei „{$this->name}“ im Preis inbegriffen?",
+                    'acceptedAnswer' => [
+                        '@type' => 'Answer',
+                        'text' => 'Ja, die individuelle Personalisierung im interaktiven 2D-Editor und 3D-Echtzeit-Konfigurator (Wunschtext, Schriftart, Motiv oder eigenes Logo) ist im angezeigten Preis von ' . number_format($this->price / 100, 2, ',', '.') . ' € bereits vollständig enthalten.',
+                    ],
+                ],
+                [
+                    '@type' => 'Question',
+                    'name' => 'Wie schnell erfolgt die Anfertigung und Lieferung?',
+                    'acceptedAnswer' => [
+                        '@type' => 'Answer',
+                        'text' => 'Jedes Unikat wird in unserer Manufaktur in Gifhorn (Deutschland) einzeln per Laser veredelt, handgeprüft und innerhalb von 1–3 Werktagen versichert per DHL versendet.',
+                    ],
+                ],
+            ],
+        ];
+
         return [
             '@context' => 'https://schema.org',
             '@graph' => [
@@ -1158,6 +1283,7 @@ class Product extends Model
                     ],
                 ],
                 $productNode,
+                $faqNode,
             ],
         ];
     }

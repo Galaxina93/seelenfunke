@@ -122,6 +122,9 @@
                 {{-- Video Anzeige --}}
                 <video x-show="activeType === 'video'"
                        :src="activeMedia"
+                       poster="{{ !empty($displayGallery[0]['url']) ? $displayGallery[0]['url'] : '' }}"
+                       preload="metadata"
+                       playsinline
                        controls
                        class="w-full h-full object-cover">
                 </video>
@@ -174,7 +177,7 @@
 
                                 @if(isset($media['type']) && $media['type'] === 'video')
                                     <div class="w-full h-full bg-gray-900 flex items-center justify-center text-white">
-                                        <video src="{{ $media['url'] }}" class="absolute inset-0 w-full h-full object-cover opacity-50"></video>
+                                        <video src="{{ $media['url'] }}" preload="metadata" muted playsinline class="absolute inset-0 w-full h-full object-cover opacity-50"></video>
                                         <svg class="w-6 h-6 relative z-10" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
                                     </div>
                                 @else

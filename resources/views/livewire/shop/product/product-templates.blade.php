@@ -30,7 +30,7 @@
                         {{ $showArchived ? 'Archivierte Design-Vorlagen verwalten oder wiederherstellen.' : 'Verwalte deine vorkonfigurierten Design-Vorlagen.' }}
                     </p>
                     <span class="px-3 py-1.5 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 dark:shadow-inner rounded-lg text-[10px] font-black uppercase tracking-widest text-gray-500">
-                        {{ count($templates ?? []) }} Vorlagen
+                        {{ $templates instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator ? $templates->total() : count($templates ?? []) }} Vorlagen
                     </span>
                 </div>
             </div>
@@ -379,6 +379,13 @@
                             </div>
                         </div>
                     @endforeach
+                </div>
+            @endif
+
+            {{-- PAGINIERUNG --}}
+            @if($templates instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator && $templates->hasPages())
+                <div class="mt-8 p-5 sm:p-6 bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-xl">
+                    {{ $templates->links() }}
                 </div>
             @endif
         @endif

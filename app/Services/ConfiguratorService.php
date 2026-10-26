@@ -24,8 +24,8 @@ class ConfiguratorService
             $previewImagePath = $packages[$pkgKey]['preview_image_path'];
         }
 
-        $fallbackDark = ($configSettings['material_type'] ?? '') === 'metal' || $pkgKey === 'seelen-anhaenger';
-        $fallbackTrans = ($configSettings['area_shape'] ?? '') === 'custom' || $pkgKey === 'seelen-anhaenger';
+        $fallbackDark = ($pkgKey !== 'seelen-talisman') && (($configSettings['material_type'] ?? '') === 'metal' || in_array($pkgKey, ['seelen-anhaenger', 'seelen-pfote-hundemarke'], true));
+        $fallbackTrans = ($configSettings['area_shape'] ?? '') === 'custom' || in_array($pkgKey, ['seelen-anhaenger', 'seelen-talisman', 'seelen-pfote-hundemarke'], true);
 
         if (!$previewImagePath) {
             return [
@@ -255,6 +255,28 @@ class ConfiguratorService
                 'default_background_theme'=> 'standard',
                 'material_type'           => 'glass',
                 'area_shape'              => 'rect',
+            ],
+            'seelen-talisman' => [
+                'key'                     => 'seelen-talisman',
+                'name'                    => 'Seelen-Talisman Paket (Gold-Edelstahl-Anhänger & Manufaktur)',
+                'description'             => 'Transparenter 2D Gold-Edelstahl Cutout + 3D Manufaktur-Holztisch inkl. Themen-Videos',
+                'preview_image_path'      => 'produkte/products/seelen-talisman/overlay.png',
+                'three_d_background_path' => 'produkte/products/seelen-talisman/header_bg.png',
+                'three_d_model_path'      => 'produkte/products/seelen-talisman/seelen_talisman_3d.glb',
+                'default_background_theme'=> 'standard',
+                'material_type'           => 'metal',
+                'area_shape'              => 'custom',
+            ],
+            'seelen-pfote-hundemarke' => [
+                'key'                     => 'seelen-pfote-hundemarke',
+                'name'                    => 'Seelen-Pfote Paket (Edelstahl-Knochen mit Pfoten-Durchbruch)',
+                'description'             => 'Transparenter 2D Edelstahl-Knochen Cutout (inkl. ausgestanzter Pfote) + 3D Manufaktur-Holztisch',
+                'preview_image_path'      => 'produkte/products/seelen-pfote-hundemarke/overlay.png',
+                'three_d_background_path' => 'produkte/products/seelen-pfote-hundemarke/header_bg.png',
+                'three_d_model_path'      => 'produkte/products/seelen-pfote-hundemarke/seelen_pfote_3d.glb',
+                'default_background_theme'=> 'standard',
+                'material_type'           => 'metal',
+                'area_shape'              => 'custom',
             ],
             'custom' => [
                 'key'                     => 'custom',

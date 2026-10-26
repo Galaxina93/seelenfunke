@@ -122,8 +122,14 @@
             {{-- NEU/ARCHIV BUTTONS --}}
             @if(!$showArchived)
                 <button wire:click="toggleArchiveMode"
-                        class="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-400 px-6 py-3.5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest dark:shadow-inner hover:bg-gray-50 dark:hover:bg-gray-900 hover:text-gray-900 dark:hover:text-white transition-all flex items-center justify-center gap-2 whitespace-nowrap">
+                        class="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-400 px-5 py-3.5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest dark:shadow-inner hover:bg-gray-50 dark:hover:bg-gray-900 hover:text-gray-900 dark:hover:text-white transition-all flex items-center justify-center gap-2 whitespace-nowrap">
                     Archiv öffnen
+                </button>
+                <button type="button" wire:click="openQuickAiModal"
+                        class="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-3.5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest shadow-sm hover:scale-[1.02] transition-all flex items-center justify-center gap-2 whitespace-nowrap"
+                        title="KI-Produkt per Knopfdruck vollautomatisch anlegen">
+                    <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    <span>KI-Produkt (1-Klick)</span>
                 </button>
                 <button wire:click="createDraft"
                         class="bg-[var(--theme-color)] border border-[var(--theme-color-50)] text-white dark:text-gray-900 px-6 py-3.5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest dark:shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:bg-black/90 dark:hover:bg-white hover:scale-[1.02] transition-all flex items-center justify-center gap-2 whitespace-nowrap">
@@ -198,8 +204,22 @@
                             </div>
 
                             <div class="min-w-0 flex-1 select-none cursor-default">
-                                <div class="flex items-center gap-2.5 flex-wrap mb-1">
-                                    <h3 class="font-serif text-base sm:text-lg font-bold text-gray-900 dark:text-white truncate">{{ $prod->name }}</h3>
+                                <div class="flex items-center gap-2.5 flex-wrap mb-1" x-data="{ copied: false }">
+                                    <div class="flex items-center gap-1.5 min-w-0 max-w-full">
+                                        <h3 class="font-serif text-base sm:text-lg font-bold text-gray-900 dark:text-white truncate">{{ $prod->name }}</h3>
+                                        <button type="button"
+                                                @click.stop="navigator.clipboard.writeText(@js($prod->name)); copied = true; setTimeout(() => copied = false, 2000)"
+                                                title="Produktnamen kopieren"
+                                                class="shrink-0 p-1 rounded-lg text-gray-400 hover:text-[var(--theme-color)] hover:bg-gray-100 dark:hover:bg-gray-800 transition-all cursor-pointer"
+                                                :class="copied ? '!text-emerald-500 !bg-emerald-50 dark:!bg-emerald-500/10' : ''">
+                                            <svg x-show="!copied" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                            </svg>
+                                            <svg x-show="copied" style="display: none;" class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        </button>
+                                    </div>
                                     @if($prod->type === 'digital')
                                         <span class="px-2.5 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 text-[9px] font-black uppercase tracking-widest">Digital</span>
                                     @elseif($prod->type === 'service')
@@ -303,23 +323,23 @@
                                 @endif
                             </div>
 
-                            {{-- Status Dropdown --}}
-                            <div class="relative" x-data="{ open: false }">
-                                <button @click="open = !open" @click.away="open = false" class="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-xl border flex items-center gap-1.5 transition-all {{ $prod->status == 'active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30' : 'bg-white dark:bg-gray-950 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-700' }}">
-                                    <span class="w-1.5 h-1.5 rounded-full {{ $prod->status == 'active' ? 'bg-emerald-500' : 'bg-gray-400' }}"></span>
-                                    {{ $prod->status == 'active' ? 'Aktiv' : 'Entwurf' }}
-                                    <svg class="w-3 h-3 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                </button>
+                            {{-- 1-Klick Sortiment-Switch --}}
+                            <button type="button"
+                                    wire:click="toggleAssortment('{{ $prod->id }}')"
+                                    title="Per Knopfdruck im Sortiment aktivieren / pausieren"
+                                    class="px-3.5 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-xl border flex items-center gap-2 transition-all {{ $prod->status == 'active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30 hover:bg-emerald-100' : 'bg-white dark:bg-gray-950 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-400' }}">
+                                <span class="w-2 h-2 rounded-full {{ $prod->status == 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400' }}"></span>
+                                <span>{{ $prod->status == 'active' ? 'Im Sortiment' : 'Pausiert' }}</span>
+                            </button>
 
-                                <div x-show="open" class="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-950 rounded-xl shadow-xl border border-gray-200 dark:border-gray-800 overflow-hidden z-30" style="display: none;" x-transition>
-                                    <button wire:click="updateStatus('{{ $prod->id }}', 'active'); open = false" class="w-full text-left px-4 py-2.5 text-[9px] font-black uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-900 text-emerald-700 dark:text-emerald-400 border-b border-gray-200 dark:border-gray-800 flex items-center gap-2">
-                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Aktiv
-                                    </button>
-                                    <button wire:click="updateStatus('{{ $prod->id }}', 'draft'); open = false" class="w-full text-left px-4 py-2.5 text-[9px] font-black uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-500 flex items-center gap-2">
-                                        <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Entwurf
-                                    </button>
-                                </div>
-                            </div>
+                            @if(!empty($prod->reorder_url))
+                                <a href="{{ $prod->reorder_url }}" target="_blank" rel="noopener noreferrer"
+                                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 hover:bg-blue-600 hover:text-white transition-all"
+                                   title="Rohlinge direkt beim Händler nachbestellen">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                                    <span>Kauflink</span>
+                                </a>
+                            @endif
 
                             {{-- Schritt-Status --}}
                             <span class="text-[10px] font-black uppercase tracking-widest {{ $isComplete ? 'text-[var(--theme-color)]' : 'text-red-500 dark:text-red-400' }}">
@@ -378,24 +398,15 @@
                             <div class="h-full transition-all duration-500 {{ $isComplete ? 'bg-[var(--theme-color)] dark:shadow-[0_0_10px_rgba(197,160,89,0.8)]' : 'bg-red-500 dark:shadow-[0_0_10px_rgba(239,68,68,0.8)]' }}" style="width: {{ $percentComplete }}%"></div>
                         </div>
 
-                        {{-- Status Switcher --}}
-                        <div class="absolute {{ $currentLayout === 'medium' ? 'top-4 right-4' : 'top-6 right-6' }} z-20"
-                             x-data="{ open: false }">
-                            <button @click="open = !open" @click.away="open = false"
-                                    class="{{ $currentLayout === 'medium' ? 'px-2.5 py-1.5 text-[8px]' : 'px-3.5 py-2 text-[9px]' }} font-black uppercase tracking-widest rounded-xl border shadow-sm flex items-center gap-2 transition-all backdrop-blur-md {{ $prod->status == 'active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30' : 'bg-white dark:bg-gray-950/80 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-700' }}">
+                        {{-- 1-Klick Sortiment Switcher --}}
+                        <div class="absolute {{ $currentLayout === 'medium' ? 'top-4 right-4' : 'top-6 right-6' }} z-20">
+                            <button type="button"
+                                    wire:click="toggleAssortment('{{ $prod->id }}')"
+                                    title="Per Knopfdruck im Sortiment aktivieren / pausieren"
+                                    class="{{ $currentLayout === 'medium' ? 'px-2.5 py-1.5 text-[8px]' : 'px-3.5 py-2 text-[9px]' }} font-black uppercase tracking-widest rounded-xl border shadow-sm flex items-center gap-2 transition-all backdrop-blur-md {{ $prod->status == 'active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30 hover:bg-emerald-100' : 'bg-white dark:bg-gray-950/80 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-400' }}">
                                 <span class="w-1.5 h-1.5 rounded-full {{ $prod->status == 'active' ? 'bg-emerald-500 dark:shadow-[0_0_8px_currentColor] animate-pulse' : 'bg-gray-400 dark:bg-gray-500' }}"></span>
-                                {{ $prod->status == 'active' ? 'Aktiv' : 'Entwurf' }}
-                                <svg class="w-3.5 h-3.5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                {{ $prod->status == 'active' ? 'Im Sortiment' : 'Pausiert' }}
                             </button>
-
-                            <div x-show="open" class="absolute right-0 mt-2 w-36 bg-white dark:bg-gray-950 rounded-2xl shadow-xl dark:shadow-[0_0_30px_rgba(0,0,0,0.8)] border border-gray-200 dark:border-gray-800 overflow-hidden z-30" style="display: none;" x-transition>
-                                <button wire:click="updateStatus('{{ $prod->id }}', 'active'); open = false" class="w-full text-left px-5 py-3.5 text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-900 text-emerald-700 dark:text-emerald-400 border-b border-gray-200 dark:border-gray-800 transition-colors flex items-center gap-2">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Aktiv
-                                </button>
-                                <button wire:click="updateStatus('{{ $prod->id }}', 'draft'); open = false" class="w-full text-left px-5 py-3.5 text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-500 transition-colors flex items-center gap-2">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500"></span> Entwurf
-                                </button>
-                            </div>
                         </div>
 
                         {{-- Bild mit Schleifen --}}
@@ -421,7 +432,7 @@
 
                             @php $prodCardMainUrl = $prod->resolveMainImageUrl(); @endphp
                             @if($prodCardMainUrl)
-                                <img src="{{ $prodCardMainUrl }}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80 group-hover:opacity-100">
+                                <img src="{{ $prodCardMainUrl }}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:opacity-100">
                             @elseif(!empty($prod->media_gallery[0]) && isset($prod->media_gallery[0]['type']) && $prod->media_gallery[0]['type'] == 'video')
                                 <video src="{{ asset('storage/'.$prod->media_gallery[0]['path']) }}" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"></video>
                             @else
@@ -432,7 +443,21 @@
                             @endif
                         </div>
 
-                        <h3 class="font-serif {{ $currentLayout === 'medium' ? 'text-base mb-1' : 'text-lg md:text-xl mb-1.5' }} font-bold text-gray-900 dark:text-white truncate tracking-wide select-none cursor-default">{{ $prod->name }}</h3>
+                        <div class="flex items-center gap-1.5 min-w-0 {{ $currentLayout === 'medium' ? 'mb-1' : 'mb-1.5' }}" x-data="{ copied: false }">
+                            <h3 class="font-serif {{ $currentLayout === 'medium' ? 'text-base' : 'text-lg md:text-xl' }} font-bold text-gray-900 dark:text-white truncate tracking-wide select-none cursor-default">{{ $prod->name }}</h3>
+                            <button type="button"
+                                    @click.stop="navigator.clipboard.writeText(@js($prod->name)); copied = true; setTimeout(() => copied = false, 2000)"
+                                    title="Produktnamen kopieren"
+                                    class="shrink-0 p-1 rounded-lg text-gray-400 hover:text-[var(--theme-color)] hover:bg-gray-100 dark:hover:bg-gray-800 transition-all cursor-pointer"
+                                    :class="copied ? '!text-emerald-500 !bg-emerald-50 dark:!bg-emerald-500/10' : ''">
+                                <svg x-show="!copied" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                                <svg x-show="copied" style="display: none;" class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </button>
+                        </div>
 
                         {{-- Sternebewertung & Verkäufe --}}
                         <div class="flex flex-wrap items-center justify-between gap-2 select-none cursor-default {{ $currentLayout === 'medium' ? 'mb-2' : 'mb-3' }}">
@@ -510,11 +535,11 @@
                                     @endif
                                 </div>
 
-                                {{-- Nachbestellen Link (Wenn kritisch oder 0 UND Link vorhanden) --}}
-                                @if($prod->quantity < $threshold && !empty($prod->reorder_url))
-                                    <a href="{{ $prod->reorder_url }}" target="_blank" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 dark:shadow-inner hover:bg-blue-600 dark:hover:bg-blue-500 hover:text-white hover:border-blue-600 transition-all z-10" title="Nachbestellen beim Lieferanten">
+                                {{-- Direkt-Kauflink beim Lieferanten --}}
+                                @if(!empty($prod->reorder_url))
+                                    <a href="{{ $prod->reorder_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 dark:shadow-inner hover:bg-blue-600 dark:hover:bg-blue-500 hover:text-white hover:border-blue-600 transition-all z-10" title="Rohlinge beim Lieferanten nachbestellen">
                                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-                                        Nachbestellen
+                                        Kauflink
                                     </a>
                                 @endif
 
@@ -568,5 +593,140 @@
                 @endforeach
             </div>
         @endif
+    @endif
+
+    {{-- ===================================================================== --}}
+    {{-- 1-KLICK KI-PRODUKT-ASSISTENT MODAL                                    --}}
+    {{-- ===================================================================== --}}
+    @if($showQuickAiModal)
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-[2.5rem] shadow-2xl max-w-2xl w-full p-6 sm:p-8 relative overflow-hidden max-h-[92vh] overflow-y-auto">
+                <div class="flex items-start justify-between gap-4 mb-5">
+                    <div>
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 text-[10px] font-black uppercase tracking-widest mb-2">
+                            ⚡ 1-Link KI-Produkt-Pipeline (Vollautomatisch)
+                        </span>
+                        <h2 class="text-xl sm:text-2xl font-serif font-bold text-gray-900 dark:text-white">Neues Produkt per Knopfdruck anlegen</h2>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Gib einfach nur den <strong>Link zum Rohling-Produkt</strong> an. Alle leeren Felder (Name, Maße, EK/VK, 3D-Animation, Overlay, Maßblatt-Bild &amp; Gravurzone) werden logisch von der KI errechnet.
+                        </p>
+                    </div>
+                    <button type="button" wire:click="closeQuickAiModal" class="p-2 rounded-xl text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                {{-- 1. EINZIGES PFLICHTFELD: ROHLING-KAUFLINK --}}
+                <div class="mb-5 p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-500/30">
+                    <div class="flex items-center justify-between gap-2 mb-1.5">
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-emerald-800 dark:text-emerald-300">
+                            1. Link zum Rohling-Produkt (Temu / Amazon / Großhandel) * <span class="text-emerald-600 dark:text-emerald-400 font-bold">(Einziges Pflichtfeld)</span>
+                        </label>
+                        <button type="button" wire:click="analyzeQuickAiUrl" class="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1">
+                            <span>✨ Werte vorab in Felder laden</span>
+                        </button>
+                    </div>
+                    <input type="url" wire:model="quickAiReorderUrl" placeholder="https://www.temu.com/de/... oder Händler-Link hier einfügen" class="w-full px-4 py-3 rounded-xl bg-white dark:bg-gray-950 border border-emerald-300 dark:border-emerald-500/40 text-xs font-mono text-gray-900 dark:text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20">
+                    @error('quickAiReorderUrl') <span class="text-[10px] text-red-500 font-bold mt-1 block">{{ $message }}</span> @enderror
+                    <p class="text-[10px] text-emerald-700/80 dark:text-emerald-400/80 mt-1.5">
+                        Die KI analysiert aus dem Link automatisch Originalbild (<code>top_gallery_url</code>), Gebindegröße, Stück-EK, optimale Marge, Geometrie und legt auf der letzten Galerie-Position das technische Maßblatt an.
+                    </p>
+                </div>
+
+                {{-- Geometrie-Modus / Schnellvorlagen (Optional) --}}
+                <div class="mb-4">
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2">Geometrie-Erkennung / Optionales Preset</label>
+                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                        <button type="button" wire:click="applyQuickAiPreset('auto')"
+                                class="p-2.5 rounded-2xl border text-left transition-all {{ $quickAiPreset === 'auto' ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
+                            <div class="text-[10px] font-black uppercase tracking-wider">🤖 KI-Auto</div>
+                            <div class="text-[9px] opacity-75 mt-0.5">Aus Link erkennen</div>
+                        </button>
+                        <button type="button" wire:click="applyQuickAiPreset('seelen-pfote-hundemarke')"
+                                class="p-2.5 rounded-2xl border text-left transition-all {{ $quickAiPreset === 'seelen-pfote-hundemarke' ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
+                            <div class="text-[10px] font-black uppercase tracking-wider">Hundemarke</div>
+                            <div class="text-[9px] opacity-75 mt-0.5">40x26 mm Knochen</div>
+                        </button>
+                        <button type="button" wire:click="applyQuickAiPreset('seelen-talisman')"
+                                class="p-2.5 rounded-2xl border text-left transition-all {{ $quickAiPreset === 'seelen-talisman' ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
+                            <div class="text-[10px] font-black uppercase tracking-wider">Edelstahl-Barren</div>
+                            <div class="text-[9px] opacity-75 mt-0.5">28x50 mm Talisman</div>
+                        </button>
+                        <button type="button" wire:click="applyQuickAiPreset('heavytool-opener')"
+                                class="p-2.5 rounded-2xl border text-left transition-all {{ $quickAiPreset === 'heavytool-opener' ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
+                            <div class="text-[10px] font-black uppercase tracking-wider">Alu-Öffner</div>
+                            <div class="text-[9px] opacity-75 mt-0.5">150 Stk. (0,29 € EK)</div>
+                        </button>
+                        <button type="button" wire:click="applyQuickAiPreset('bambus-pen')"
+                                class="p-2.5 rounded-2xl border text-left transition-all {{ $quickAiPreset === 'bambus-pen' ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
+                            <div class="text-[10px] font-black uppercase tracking-wider">Bambus-Stift</div>
+                            <div class="text-[9px] opacity-75 mt-0.5">24 Stk. (0,30 € EK)</div>
+                        </button>
+                    </div>
+                </div>
+
+                {{-- 2. OPTIONALE FELDER (Werden bei Leerfeld automatisch von der KI berechnet) --}}
+                <div class="mb-2 flex items-center justify-between">
+                    <span class="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                        2. Optionale Angaben (Wenn leer, werden alle Werte logisch von der KI errechnet)
+                    </span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Produktname <span class="font-normal opacity-70">(Optional)</span></label>
+                        <input type="text" wire:model="quickAiName" placeholder="Automatisch durch KI aus Link..." class="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-sm font-bold text-gray-900 dark:text-white outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Artikelnummer / SKU <span class="font-normal opacity-70">(Optional)</span></label>
+                        <input type="text" wire:model="quickAiSku" placeholder="Auto-SKU (z.B. STEEL-PAW-101)" class="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-sm font-mono font-bold text-gray-900 dark:text-white outline-none focus:border-emerald-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">VK Brutto (€) <span class="font-normal opacity-70">(Opt.)</span></label>
+                        <input type="text" wire:model="quickAiPrice" placeholder="KI (~90% Marge)" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Stück-EK (€) <span class="font-normal opacity-70">(Opt.)</span></label>
+                        <input type="text" wire:model="quickAiPurchasePrice" placeholder="KI aus Link" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-sm font-mono font-bold text-gray-900 dark:text-white outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Bestand <span class="font-normal opacity-70">(Opt.)</span></label>
+                        <input type="number" wire:model="quickAiQuantity" placeholder="Auto (Gebinde)" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-sm font-bold text-gray-900 dark:text-white outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Gewicht (g) <span class="font-normal opacity-70">(Opt.)</span></label>
+                        <input type="number" wire:model="quickAiWeight" placeholder="Auto (g)" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-sm font-bold text-gray-900 dark:text-white outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-3 mb-6">
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Breite (mm) <span class="font-normal opacity-70">(Opt.)</span></label>
+                        <input type="number" wire:model="quickAiWidth" placeholder="Auto (mm)" class="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Höhe (mm) <span class="font-normal opacity-70">(Opt.)</span></label>
+                        <input type="number" wire:model="quickAiHeight" placeholder="Auto (mm)" class="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Tiefe (mm) <span class="font-normal opacity-70">(Opt.)</span></label>
+                        <input type="number" step="0.1" wire:model="quickAiLength" placeholder="Auto (mm)" class="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
+                    <button type="button" wire:click="closeQuickAiModal" class="px-5 py-3 rounded-2xl border border-gray-200 dark:border-gray-800 text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">
+                        Abbrechen
+                    </button>
+                    <button type="button" wire:click="createQuickAiProduct" class="px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-2 transition-all">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                        <span>Produkt sofort verkaufsfertig anlegen</span>
+                    </button>
+                </div>
+            </div>
+        </div>
     @endif
 </div>
