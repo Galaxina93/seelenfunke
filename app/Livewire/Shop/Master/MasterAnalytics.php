@@ -62,6 +62,12 @@ class MasterAnalytics extends Component
     public $availableAgents = [];
     public $selectedAgentId = '';
 
+    // Live-Bestellungen Telemetrie (Counter & Sound ohne Seiten-Reload)
+    public int $lastKnownTotalOrders = 0;
+    public int $lastKnownGlobalOrders = 0;
+    public ?string $lastKnownOrderId = null;
+    public string $lastKnownOrdersSignature = '';
+
     public $infoTexts = [
         'trend' => 'Veränderung des Umsatzes im Vergleich zum vorherigen Zeitraum gleicher Länge.',
         'marge' => 'Verhältnis von Gewinn zu Umsatz. Zeigt, wie viel Prozent vom Umsatz als Gewinn verbleiben.',
@@ -1044,10 +1050,125 @@ class MasterAnalytics extends Component
     #[On('echo-private:shop,.AnalyticsUpdated')]
     public function refreshDashboardData()
     {
-        $this->loadStats(app(AnalyticsService::class));
+        $service = app(AnalyticsService::class);
+        if (!$this->processLiveOrderChanges($service)) {
+            $this->loadStats($service);
+        }
     }
 
-    public function loadStats(AnalyticsService $service)
+    public function checkLiveOrders(AnalyticsService $service): void
+    {
+        if (!$this->processLiveOrderChanges($service)) {
+            $this->skipRender();
+        }
+    }
+
+    protected function processLiveOrderChanges(AnalyticsService $service): bool
+    {
+        $snap = $this->getLiveOrderSnapshot();
+
+        $isNewOrder = ($snap['period_count'] > $this->lastKnownTotalOrders)
+            || ($snap['global_count'] > $this->lastKnownGlobalOrders)
+            || (
+                $snap['latest_id'] !== null
+                && $snap['latest_id'] !== $this->lastKnownOrderId
+                && $snap['global_count'] >= $this->lastKnownGlobalOrders
+                && $this->lastKnownGlobalOrders > 0
+            );
+
+        $hasAnyChange = $isNewOrder || ($snap['signature'] !== $this->lastKnownOrdersSignature);
+
+        if (!$hasAnyChange) {
+            return false;
+        }
+
+        $this->lastKnownTotalOrders = $snap['period_count'];
+        $this->lastKnownGlobalOrders = $snap['global_count'];
+        $this->lastKnownOrderId = $snap['latest_id'];
+        $this->lastKnownOrdersSignature = $snap['signature'];
+
+        $this->loadStats($service, false);
+
+        if ($isNewOrder) {
+            $this->dispatch(
+                'live-order-incoming',
+                ordersTotal: (int) ($this->stats['orders_total'] ?? $snap['period_count']),
+                orderNumber: $snap['latest_number']
+            );
+        }
+
+        return true;
+    }
+
+    protected function getLiveOrderSnapshot(): array
+    {
+        if (!class_exists(\App\Models\Order\OrderOrder::class)) {
+            return [
+                'period_count' => 0,
+                'global_count' => 0,
+                'open_count' => 0,
+                'paid_cents' => 0,
+                'latest_id' => null,
+                'latest_number' => null,
+                'signature' => '0|0|0|0|',
+            ];
+        }
+
+        $start = \Carbon\Carbon::parse($this->dateStart ?: now()->startOfYear())->startOfDay();
+        $end = \Carbon\Carbon::parse($this->dateEnd ?: now()->endOfYear())->endOfDay();
+        if ($start->gt($end)) {
+            [$start, $end] = [$end->copy()->startOfDay(), $start->copy()->endOfDay()];
+        }
+
+        $periodOrdersCount = ($this->filterType !== 'private')
+            ? \App\Models\Order\OrderOrder::whereBetween('created_at', [$start, $end])
+                ->whereNotIn('status', ['cancelled', 'refunded'])
+                ->count()
+            : 0;
+
+        $globalOrdersCount = \App\Models\Order\OrderOrder::whereNotIn('status', ['cancelled', 'refunded'])->count();
+        $openOrdersCount = \App\Models\Order\OrderOrder::whereIn('status', ['pending', 'processing'])->count();
+        $paidRevenueCents = ($this->filterType !== 'private')
+            ? (int) \App\Models\Order\OrderOrder::whereBetween('created_at', [$start, $end])
+                ->where('payment_status', 'paid')
+                ->whereNotIn('status', ['cancelled', 'refunded'])
+                ->sum('total_price')
+            : 0;
+
+        $latestOrder = \App\Models\Order\OrderOrder::whereNotIn('status', ['cancelled', 'refunded'])
+            ->latest('created_at')
+            ->first(['id', 'order_number']);
+
+        $latestOrderId = $latestOrder ? (string) $latestOrder->id : null;
+        $signature = implode('|', [
+            $periodOrdersCount,
+            $globalOrdersCount,
+            $openOrdersCount,
+            $paidRevenueCents,
+            (string) $latestOrderId,
+        ]);
+
+        return [
+            'period_count' => $periodOrdersCount,
+            'global_count' => $globalOrdersCount,
+            'open_count' => $openOrdersCount,
+            'paid_cents' => $paidRevenueCents,
+            'latest_id' => $latestOrderId,
+            'latest_number' => $latestOrder ? (string) $latestOrder->order_number : null,
+            'signature' => $signature,
+        ];
+    }
+
+    protected function syncLiveOrderSnapshot(): void
+    {
+        $snap = $this->getLiveOrderSnapshot();
+        $this->lastKnownTotalOrders = $snap['period_count'];
+        $this->lastKnownGlobalOrders = $snap['global_count'];
+        $this->lastKnownOrderId = $snap['latest_id'];
+        $this->lastKnownOrdersSignature = $snap['signature'];
+    }
+
+    public function loadStats(AnalyticsService $service, bool $syncOrderSnapshot = true)
 
     {
         $allLogins = $service->getAllLoginsCollection();
@@ -1057,6 +1178,10 @@ class MasterAnalytics extends Component
 
         $rawChecks = $service->getHealthChecks();
         $this->healthChecks = json_decode(json_encode($rawChecks), true);
+
+        if ($syncOrderSnapshot) {
+            $this->syncLiveOrderSnapshot();
+        }
 
         $this->dispatch('update-charts', stats: $this->stats);
     }

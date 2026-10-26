@@ -221,4 +221,49 @@ class MasterAnalyticsHealthFilterTest extends TestCase
         $expectedAvgProfit = $expectedProfit / max(1.0, $factor);
         $this->assertEqualsWithDelta($expectedAvgProfit, $stats['avg_profit'], 0.5);
     }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function live_incoming_order_updates_counter_and_dispatches_sound_event_without_page_reload()
+    {
+        $admin = Admin::factory()->create();
+        $customer = Customer::factory()->create();
+
+        $component = Livewire::actingAs($admin, 'admin')
+            ->test(MasterAnalytics::class);
+
+        $this->assertSame(0, (int) ($component->get('stats')['orders_total'] ?? 0));
+
+        // 1. Wenn keine neue Bestellung vorliegt, feuert checkLiveOrders kein Sound-Event
+        $component->call('checkLiveOrders')
+            ->assertNotDispatched('live-order-incoming');
+
+        // 2. Neue Bestellung geht live ein
+        OrderOrder::forceCreate([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'order_number' => 'SF-LIVE-1001',
+            'customer_id' => $customer->id,
+            'email' => 'live@example.com',
+            'billing_address' => [],
+            'shipping_address' => [],
+            'subtotal_price' => 4000,
+            'tax_amount' => 760,
+            'shipping_price' => 0,
+            'total_price' => 4760,
+            'status' => 'pending',
+            'payment_status' => 'paid',
+            'created_at' => now(),
+        ]);
+
+        // 3. Live-Check erkennt die neue Bestellung, aktualisiert den Bestellungen-Counter & Charts und triggert den Ton
+        $component->call('checkLiveOrders')
+            ->assertDispatched('live-order-incoming', ordersTotal: 1, orderNumber: 'SF-LIVE-1001')
+            ->assertDispatched('update-charts');
+
+        $this->assertSame(1, (int) ($component->get('stats')['orders_total'] ?? 0));
+        $this->assertSame(1, (int) ($component->get('healthChecks')['open_orders']['count'] ?? 0));
+
+        // 4. Ein weiterer Poll ohne neue Bestellung darf den Ton nicht erneut auslösen
+        $component->call('checkLiveOrders')
+            ->assertNotDispatched('live-order-incoming');
+    }
 }

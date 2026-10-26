@@ -15,7 +15,7 @@
 
     <!-- Header Row (In Focus Mode nur der Switch-Button rechts oben) -->
     <div class="w-full flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div x-show="!focusMode" x-cloak style="display: none;" x-transition.opacity.duration.250ms>
+        <div x-show="!focusMode" x-cloak x-transition.opacity.duration.250ms>
             <h1 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
                 <i class="solar-pulse-bold-duotone text-primary"></i>Datenanalysezentrum
             </h1>
@@ -33,7 +33,7 @@
                     class="px-4 py-2.5 rounded-xl border text-xs font-black uppercase tracking-widest flex items-center gap-2.5 transition-all duration-200 active:scale-95"
                     title="Zwischen Fokus-Ansicht (nur offene Punkte) und Vollansicht (alle Kacheln) wechseln">
                 <x-heroicon-s-sparkles x-show="focusMode" class="w-4 h-4 text-[#C5A059]" />
-                <x-heroicon-o-squares-2x2 x-show="!focusMode" x-cloak style="display: none;" class="w-4 h-4" />
+                <x-heroicon-o-squares-2x2 x-show="!focusMode" x-cloak class="w-4 h-4" />
                 <span x-text="focusMode ? 'Fokus-Modus' : 'Alle Kacheln'">Fokus-Modus</span>
             </button>
         </div>
@@ -42,7 +42,6 @@
     <!-- Filter Bar Row (Nur im Standard-Modus sichtbar; im Fokus-Modus über das goldene Zahnrad im Kreis erreichbar) -->
     <div x-show="!focusMode"
          x-cloak
-         style="display: none;"
          x-transition.opacity.duration.250ms
          class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md p-2 rounded-xl sm:rounded-2xl dark:shadow-2xl border border-gray-200/80 dark:border-gray-800 flex flex-col sm:flex-row flex-wrap items-center gap-4 w-full justify-between transition-colors duration-300">
         <div class="flex flex-1 items-center gap-3 px-2 w-full sm:w-auto">

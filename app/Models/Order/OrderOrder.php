@@ -69,7 +69,25 @@ class OrderOrder extends Model
 
     protected static function booted()
     {
+        static::created(function ($order) {
+            if (!app()->runningUnitTests()) {
+                try {
+                    broadcast(new \App\Events\OrderScopeUpdated($order, true));
+                } catch (\Throwable $e) {
+                    // WebSocket / Broadcaster optional
+                }
+            }
+        });
+
         static::updated(function ($order) {
+            if ($order->isDirty(['status', 'payment_status', 'total_price']) && !app()->runningUnitTests()) {
+                try {
+                    broadcast(new \App\Events\OrderScopeUpdated($order, false));
+                } catch (\Throwable $e) {
+                    // WebSocket / Broadcaster optional
+                }
+            }
+
             // 1. Synchronize "paid" status
             if ($order->isDirty('payment_status') && $order->payment_status === 'paid') {
                 $invoices = $order->invoices()->where('type', 'invoice')->whereIn('status', ['open', 'draft'])->get();

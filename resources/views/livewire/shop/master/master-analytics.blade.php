@@ -1,5 +1,24 @@
-<div x-data="{ focusMode: true, dashboardReady: false }"
-     x-init="setTimeout(() => { dashboardReady = true; }, 520)"
+<div wire:poll.5s="checkLiveOrders"
+     x-data="{
+        focusMode: true,
+        dashboardReady: Boolean(window.__sfDashboardReady),
+        orderIncomingPulse: false,
+        orderIncomingNumber: null
+     }"
+     x-init="if (!dashboardReady) { setTimeout(() => { dashboardReady = true; window.__sfDashboardReady = true; }, 520); }"
+     @live-order-incoming.window="
+        if (window.sfPlaySound) {
+            window.sfPlaySound('order');
+        }
+        orderIncomingNumber = ($event.detail && $event.detail.orderNumber) ? $event.detail.orderNumber : null;
+        orderIncomingPulse = true;
+        if (window.__sfOrderPulseTimer) {
+            clearTimeout(window.__sfOrderPulseTimer);
+        }
+        window.__sfOrderPulseTimer = setTimeout(() => {
+            orderIncomingPulse = false;
+        }, 4200);
+     "
      class="p-4 md:p-6 bg-transparent min-h-screen relative z-10">
 
     <!-- LADEBALKEN-ANIMATION BEIM SEITENSTART -->
@@ -13,6 +32,18 @@
         .sf-dashboard-loader-bar {
             width: 0%;
             animation: sfDashboardProgress 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+        .sf-dashboard-stage-hidden {
+            opacity: 0;
+            pointer-events: none;
+            max-height: 0;
+            overflow: hidden;
+        }
+        .sf-dashboard-stage-ready {
+            opacity: 1;
+            pointer-events: auto;
+            max-height: none;
+            overflow: visible;
         }
     </style>
     <div x-show="!dashboardReady"
@@ -41,6 +72,25 @@
         window.sfLastHoverSound = 0;
         window.sfHoverStep = 0;
 
+        // Entsperrt Web-Audio-Kontext & Basis-Sound automatisch bei der ersten Nutzer-Interaktion
+        if (!window.__sfAudioUnlockBound) {
+            window.__sfAudioUnlockBound = true;
+            const unlockAudio = () => {
+                try {
+                    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                    if (!window.sfAudioCtx && AudioContextClass) {
+                        window.sfAudioCtx = new AudioContextClass();
+                    }
+                    if (window.sfAudioCtx && window.sfAudioCtx.state === 'suspended') {
+                        window.sfAudioCtx.resume();
+                    }
+                } catch (e) {}
+            };
+            ['pointerdown', 'keydown', 'touchstart', 'click'].forEach((evtName) => {
+                document.addEventListener(evtName, unlockAudio, { passive: true });
+            });
+        }
+
         window.sfPlaySound = function(type = 'select') {
             try {
                 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -50,6 +100,67 @@
                 const ctx = window.sfAudioCtx;
                 if (ctx && ctx.state === 'suspended') {
                     ctx.resume();
+                }
+
+                // 0. LIVE-BESTELLUNG EINGEGANGEN: Goldene Seelenfunke Kassen- & Glocken-Fanfare
+                if (type === 'order') {
+                    const baseAudio = document.getElementById('sfBaseTaskSound');
+                    if (baseAudio) {
+                        const firstChime = baseAudio.cloneNode(true);
+                        firstChime.playbackRate = 1.08;
+                        firstChime.volume = 0.78;
+                        firstChime.play().catch(() => {});
+
+                        setTimeout(() => {
+                            try {
+                                const secondChime = baseAudio.cloneNode(true);
+                                secondChime.playbackRate = 1.35;
+                                secondChime.volume = 0.70;
+                                secondChime.play().catch(() => {});
+                            } catch (e) {}
+                        }, 185);
+                    }
+
+                    if (!ctx) return;
+                    const now = ctx.currentTime;
+
+                    // Warmer Sub-Bass Impuls
+                    const sub = ctx.createOscillator();
+                    const subGain = ctx.createGain();
+                    sub.type = 'sine';
+                    sub.frequency.setValueAtTime(261.63, now);
+                    sub.frequency.exponentialRampToValueAtTime(523.25, now + 0.35);
+                    subGain.gain.setValueAtTime(0.001, now);
+                    subGain.gain.linearRampToValueAtTime(0.11, now + 0.02);
+                    subGain.gain.exponentialRampToValueAtTime(0.0008, now + 0.45);
+                    sub.connect(subGain);
+                    subGain.connect(ctx.destination);
+                    sub.start(now);
+                    sub.stop(now + 0.48);
+
+                    // Aufsteigende Gold-Fanfare (C5 - E5 - G5 - C6 - E6 - G6) + kristalliner Glocken-Oberton (C7)
+                    const orderNotes = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98, 2093.00];
+                    orderNotes.forEach((freq, idx) => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        const isFinale = idx >= 5;
+                        const start = now + (idx * 0.055);
+                        const dur = isFinale ? 0.65 : (0.35 + (idx * 0.04));
+
+                        osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
+                        osc.frequency.setValueAtTime(freq * 0.99, start);
+                        osc.frequency.exponentialRampToValueAtTime(freq, start + 0.025);
+
+                        gain.gain.setValueAtTime(0.001, start);
+                        gain.gain.linearRampToValueAtTime(isFinale ? 0.085 : 0.075, start + 0.015);
+                        gain.gain.exponentialRampToValueAtTime(0.0008, start + dur);
+
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.start(start);
+                        osc.stop(start + dur + 0.03);
+                    });
+                    return;
                 }
 
                 // 1. HOVER: Feiner, kristalliner Star-Map Micro-Impuls mit leicht variierender Tonhöhe
@@ -239,16 +350,17 @@
     </script>
 
     <div x-cloak
-         style="opacity: 0; pointer-events: none; max-height: 0; overflow: hidden;"
-         :style="dashboardReady ? 'opacity: 1; pointer-events: auto; max-height: none; overflow: visible;' : 'opacity: 0; pointer-events: none; max-height: 0; overflow: hidden;'"
-         :class="focusMode ? 'space-y-1' : 'space-y-8'"
-         class="transition-opacity duration-500 ease-out">
+         :class="[
+             dashboardReady ? 'sf-dashboard-stage-ready' : 'sf-dashboard-stage-hidden',
+             focusMode ? 'space-y-1' : 'space-y-8'
+         ]"
+         class="sf-dashboard-stage-hidden transition-opacity duration-500 ease-out">
 
         @include('livewire.shop.master.master-analytics-partials.header')
 
         @include('livewire.shop.master.master-analytics-partials.master_scores')
 
-        <div x-show="!focusMode" x-cloak style="display: none;" x-transition.opacity.duration.200ms class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div x-show="!focusMode" x-cloak x-transition.opacity.duration.200ms class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <!-- AKTIV ROUTINE -->
         <div class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 dark:shadow-2xl border border-gray-200/80 dark:border-gray-800 flex flex-col relative overflow-hidden group transition-colors duration-300">
             <div class="absolute top-0 right-0 p-4 opacity-5 dark:opacity-10">

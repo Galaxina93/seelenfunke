@@ -1215,8 +1215,9 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
 
             <!-- SZENEN-LAYER: ENERGIESTRAHLEN & SATELLITEN (Überlappender Radial-Warp beim Öffnen & Zurückgehen) -->
             @foreach($preparedScenes as $sceneKey => $scene)
-                <div x-show="{{ $scene['showExpr'] }}"
-                     @if($sceneKey !== 'root') x-cloak style="display: none;" @endif
+                <div wire:key="orbital-scene-desktop-{{ $sceneKey }}"
+                     x-show="{{ $scene['showExpr'] }}"
+                     @if($sceneKey !== 'root') x-cloak @endif
                      x-transition:enter="transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
                      x-transition:enter-start="opacity-0 scale-[0.86]"
                      x-transition:enter-end="opacity-100 scale-100"
@@ -1412,10 +1413,30 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                 <!-- Äußere konzentrische Radar-Ringe -->
                 <div class="absolute w-[370px] h-[370px] rounded-full border border-dashed border-[#C5A059]/20 pointer-events-none"></div>
                 <div class="absolute w-[425px] h-[425px] rounded-full border border-[#C5A059]/10 pointer-events-none"></div>
+                <div x-show="orderIncomingPulse"
+                     x-cloak
+                     class="absolute w-[355px] h-[355px] rounded-full border-2 border-[#ffe39f] animate-ping pointer-events-none opacity-75"></div>
+
+                <!-- Live-Bestellung Toast-Impuls über dem Chrono-Core -->
+                <div x-show="orderIncomingPulse"
+                     x-cloak
+                     x-transition:enter="transition-all duration-300 ease-out"
+                     x-transition:enter-start="opacity-0 translate-y-3 scale-90"
+                     x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                     x-transition:leave="transition-all duration-300 ease-in"
+                     x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+                     x-transition:leave-end="opacity-0 -translate-y-2 scale-95"
+                     class="absolute -top-12 left-1/2 -translate-x-1/2 z-40 pointer-events-none whitespace-nowrap px-4 py-1.5 rounded-full bg-[#141417]/95 border-2 border-[#ffe39f] shadow-[0_0_30px_rgba(255,227,159,0.75)] flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span class="text-[10px] font-black uppercase tracking-[0.22em] text-[#ffe39f]">
+                        ✨ Neue Bestellung eingegangen
+                    </span>
+                </div>
 
                 <div @mouseenter="window.sfPlaySound && window.sfPlaySound('hover')"
                      @click="if (activeTab === null) { window.sfPlaySound && window.sfPlaySound('chart'); activeTab = 'ecommerce'; } else { window.sfPlaySound && window.sfPlaySound('back'); activeTab = null; }"
-                     class="relative w-[310px] h-[310px] xl:w-[330px] xl:h-[330px] rounded-full bg-[#141417] sf-chrono-core-dial flex items-center justify-center cursor-pointer group transition-transform duration-500 hover:scale-[1.02]">
+                     :class="orderIncomingPulse ? 'ring-4 ring-[#ffe39f]/90 shadow-[0_0_95px_rgba(255,227,159,0.85)] scale-[1.04]' : ''"
+                     class="relative w-[310px] h-[310px] xl:w-[330px] xl:h-[330px] rounded-full bg-[#141417] sf-chrono-core-dial flex items-center justify-center cursor-pointer group transition-all duration-500 hover:scale-[1.02]">
 
                     <svg class="w-full h-full overflow-visible" viewBox="0 0 300 300">
                         <defs>
@@ -1542,8 +1563,9 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
 
                     <!-- LAYER 6: ZENTRALE ANZEIGE IM HAUPTKREIS (Sanfter Crossfade & Scale beim Wechsel) -->
                     @foreach($preparedScenes as $sceneKey => $scene)
-                        <div x-show="{{ $scene['showExpr'] }}"
-                             @if($sceneKey !== 'root') x-cloak style="display: none;" @endif
+                        <div wire:key="orbital-core-desktop-{{ $sceneKey }}"
+                             x-show="{{ $scene['showExpr'] }}"
+                             @if($sceneKey !== 'root') x-cloak @endif
                              x-transition:enter="transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)]"
                              x-transition:enter-start="opacity-0 scale-90 translate-y-1.5"
                              x-transition:enter-end="opacity-100 scale-100 translate-y-0"
@@ -1555,7 +1577,8 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                                 {{ $scene['coreTitle'] }}
                             </span>
 
-                            <span class="text-4xl sm:text-5xl xl:text-6xl font-serif font-black tracking-tight leading-none text-[#fffdf7] my-1"
+                            <span :class="orderIncomingPulse ? 'scale-115 text-[#ffe39f]' : 'text-[#fffdf7]'"
+                                  class="text-4xl sm:text-5xl xl:text-6xl font-serif font-black tracking-tight leading-none my-1 transition-all duration-500"
                                   style="text-shadow: 0 0 24px rgba(197, 160, 89, 0.95), 0 3px 10px rgba(0, 0, 0, 1);">
                                 {{ $scene['coreValue'] }}
                             </span>
@@ -1573,7 +1596,6 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                     <button type="button"
                             x-show="activeTab !== null"
                             x-cloak
-                            style="display: none;"
                             x-transition:enter="transition-all duration-300 ease-out"
                             x-transition:enter-start="opacity-0 translate-y-2 scale-90"
                             x-transition:enter-end="opacity-100 translate-y-0 scale-100"
@@ -1593,7 +1615,6 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             <!-- VERTIKALER ENERGIESTRAHL NACH UNTEN (Wenn ein Chart / Detailbereich unterhalb geöffnet ist) -->
             <div x-show="['shop', 'system', 'security', 'capacities', 'profit', 'ecommerce', 'traffic'].includes(activeTab)"
                  x-cloak
-                 style="display: none;"
                  x-transition.opacity.duration.400ms
                  class="absolute left-1/2 bottom-0 -translate-x-1/2 w-0.5 h-16 bg-gradient-to-b from-[#C5A059] via-[#C5A059]/60 to-transparent shadow-[0_0_12px_#C5A059] pointer-events-none z-10"></div>
         </div>
@@ -1601,12 +1622,13 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
         <!-- 2. MOBILE & TABLET ANSICHT (< 1024px): Persistenter Kern & geschmeidige Satelliten-Liste -->
         <div class="lg:hidden flex flex-col items-center w-full">
             <div @click="if (activeTab === null) { window.sfPlaySound && window.sfPlaySound('chart'); activeTab = 'ecommerce'; } else { window.sfPlaySound && window.sfPlaySound('back'); activeTab = null; }"
-                 class="relative w-[290px] h-[290px] sm:w-[320px] sm:h-[320px] rounded-full bg-[#141417] sf-chrono-core-dial flex items-center justify-center cursor-pointer">
+                 :class="orderIncomingPulse ? 'ring-4 ring-[#ffe39f]/90 shadow-[0_0_75px_rgba(255,227,159,0.85)] scale-[1.03]' : ''"
+                 class="relative w-[290px] h-[290px] sm:w-[320px] sm:h-[320px] rounded-full bg-[#141417] sf-chrono-core-dial flex items-center justify-center cursor-pointer transition-all duration-500">
                 <svg class="w-full h-full overflow-visible" viewBox="0 0 300 300">
                     <circle cx="150" cy="150" r="147" fill="#101013" stroke="#C5A059" stroke-opacity="0.35" stroke-width="1.5" />
                     <circle cx="150" cy="150" r="134" fill="#151518" />
                     @foreach($preparedScenes as $sceneKey => $scene)
-                        <g x-show="{{ $scene['showExpr'] }}" @if($sceneKey !== 'root') x-cloak style="display: none;" @endif>
+                        <g x-show="{{ $scene['showExpr'] }}" @if($sceneKey !== 'root') x-cloak @endif>
                             @foreach($scene['dockSegments'] as $seg)
                                 <circle cx="150" cy="150" r="140" fill="none"
                                         stroke="{{ $seg['color'] }}"
@@ -1644,14 +1666,16 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                 </button>
 
                 @foreach($preparedScenes as $sceneKey => $scene)
-                    <div x-show="{{ $scene['showExpr'] }}"
-                         @if($sceneKey !== 'root') x-cloak style="display: none;" @endif
+                    <div wire:key="orbital-core-mobile-{{ $sceneKey }}"
+                         x-show="{{ $scene['showExpr'] }}"
+                         @if($sceneKey !== 'root') x-cloak @endif
                          x-transition.opacity.duration.300ms
                          class="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-6 z-20">
                         <span class="text-[10px] font-black uppercase tracking-[0.28em] text-[#f5dca0] drop-shadow-[0_2px_6px_rgba(0,0,0,1)] mb-1">
                             {{ $scene['coreTitle'] }}
                         </span>
-                        <span class="text-4xl sm:text-5xl font-serif font-black tracking-tight leading-none text-[#fffdf7] my-1"
+                        <span :class="orderIncomingPulse ? 'scale-110 text-[#ffe39f]' : 'text-[#fffdf7]'"
+                              class="text-4xl sm:text-5xl font-serif font-black tracking-tight leading-none my-1 transition-all duration-500"
                               style="text-shadow: 0 0 22px rgba(197, 160, 89, 0.95), 0 3px 10px rgba(0, 0, 0, 1);">
                             {{ $scene['coreValue'] }}
                         </span>
@@ -1667,7 +1691,6 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                 <button type="button"
                         x-show="activeTab !== null"
                         x-cloak
-                        style="display: none;"
                         @click.stop="window.sfPlaySound && window.sfPlaySound('back'); activeTab = null"
                         class="absolute bottom-3.5 left-1/2 -translate-x-1/2 z-30 pointer-events-auto flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#09090c]/95 border border-[#C5A059] text-[#f5dca0] text-[9px] font-black uppercase tracking-widest shadow-[0_0_12px_rgba(197,160,89,0.5)]">
                     <x-heroicon-s-arrow-uturn-left class="w-3 h-3" />
@@ -1678,8 +1701,9 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             <div class="w-0.5 h-10 bg-gradient-to-b from-[#C5A059] to-[#C5A059]/30 shadow-[0_0_10px_#C5A059]"></div>
 
             @foreach($preparedScenes as $sceneKey => $scene)
-                <div x-show="{{ $scene['showExpr'] }}"
-                     @if($sceneKey !== 'root') x-cloak style="display: none;" @endif
+                <div wire:key="orbital-list-mobile-{{ $sceneKey }}"
+                     x-show="{{ $scene['showExpr'] }}"
+                     @if($sceneKey !== 'root') x-cloak @endif
                      x-transition:enter="transition-all duration-400 ease-out"
                      x-transition:enter-start="opacity-0 translate-y-3"
                      x-transition:enter-end="opacity-100 translate-y-0"
@@ -1743,7 +1767,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
     <!-- ===================================================================== -->
     <!-- B. STANDARD-MODUS („ALLE KACHELN“): EXAKTES 4ER-GRID WIE IM SCREENSHOT -->
     <!-- ===================================================================== -->
-    <div x-show="!focusMode" x-cloak style="display: none;" x-transition.opacity.duration.200ms>
+    <div x-show="!focusMode" x-cloak x-transition.opacity.duration.200ms>
         <!-- TOP ROW: THE 4 SCORES (4 NEBENEINANDER) -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
 
@@ -1973,8 +1997,11 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
 
             <!-- 6. E-COMMERCE EINBLICKE -->
             <div @click="activeTab = activeTab === 'ecommerce' ? null : 'ecommerce'"
-                 class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 dark:shadow-xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
-                 :class="activeTab === 'ecommerce' ? 'active-theme-pulse' : 'border-gray-200 dark:border-gray-800'">
+                 class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 dark:shadow-xl border flex flex-col items-center text-center relative overflow-hidden group transition-all duration-300 hover-theme-pulse"
+                 :class="[
+                    activeTab === 'ecommerce' ? 'active-theme-pulse' : 'border-gray-200 dark:border-gray-800',
+                    orderIncomingPulse ? 'ring-2 ring-[#C5A059] shadow-[0_0_35px_rgba(197,160,89,0.65)] scale-[1.03]' : ''
+                 ]">
                  
                  <h3 class="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-2.5">E-Commerce</h3>
 
@@ -2039,15 +2066,13 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
          x-transition:leave="transition-all duration-250 ease-in"
          x-transition:leave-start="opacity-100 translate-y-0 scale-100"
          x-transition:leave-end="opacity-0 translate-y-4 scale-[0.98]"
-         x-cloak
-         style="display: none;">
+         x-cloak>
         <div :class="focusMode ? 'bg-transparent border-0 shadow-none p-0' : 'bg-white/95 dark:bg-gray-900/90 backdrop-blur-xl rounded-[2.5rem] p-6 lg:p-10 dark:shadow-2xl border border-gray-200 dark:border-gray-800'"
              class="relative z-20 transition-all duration-300">
 
             <!-- 1. SHOP DETAILS -->
             <div x-show="activeTab === 'shop'"
                  x-cloak
-                 style="display: none;"
                  x-transition:enter="transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
                  x-transition:enter-start="opacity-0 translate-y-4"
                  x-transition:enter-end="opacity-100 translate-y-0"
@@ -2214,7 +2239,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             </div>
 
             <!-- 2. OPERATIVE DETAILS -->
-            <div x-show="activeTab === 'operative'" x-cloak style="display: none;" x-transition.opacity.duration.300ms x-data="{ showAllOperative: false }">
+            <div x-show="activeTab === 'operative'" x-cloak x-transition.opacity.duration.300ms x-data="{ showAllOperative: false }">
                 <div class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">To-do Liste & Operatives</h2>
@@ -2364,7 +2389,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             </div>
 
             <!-- 3. SYSTEM DETAILS -->
-            <div x-show="activeTab === 'system'" x-cloak style="display: none;" x-transition.opacity.duration.300ms wire:init="checkSystemHealth">
+            <div x-show="activeTab === 'system'" x-cloak x-transition.opacity.duration.300ms wire:init="checkSystemHealth">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-200 dark:border-gray-800 pb-6 mb-8">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">System & Infrastruktur</h2>
@@ -2747,7 +2772,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             </div>
 
             <!-- 4. SECURITY DETAILS -->
-            <div x-show="activeTab === 'security'" x-cloak style="display: none;" x-transition.opacity.duration.300ms>
+            <div x-show="activeTab === 'security'" x-cloak x-transition.opacity.duration.300ms>
                 @php
                     $defStats = $this->securityDefenseStats;
                     $catCounts = $defStats['categories'] ?? [];
@@ -3121,11 +3146,10 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             <!-- 4. CAPACITIES (SPEICHER & PRODUKTION) -->
             <div x-show="activeTab === 'capacities'"
                  x-cloak
-                 style="display: none;"
                  x-transition:enter="transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
                  x-transition:enter-start="opacity-0 translate-y-4"
                  x-transition:enter-end="opacity-100 translate-y-0">
-                <div x-show="!focusMode" x-cloak style="display: none;" class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
+                <div x-show="!focusMode" x-cloak class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">Kapazitäten</h2>
                         <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Aktuelle Speicherauslastung und produzierende Shop-Gewerke.</p>
@@ -3141,11 +3165,10 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             <!-- 5. PROFIT -->
             <div x-show="activeTab === 'profit'"
                  x-cloak
-                 style="display: none;"
                  x-transition:enter="transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
                  x-transition:enter-start="opacity-0 translate-y-4"
                  x-transition:enter-end="opacity-100 translate-y-0">
-                <div x-show="!focusMode" x-cloak style="display: none;" class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
+                <div x-show="!focusMode" x-cloak class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">Gewinn-Entwicklung</h2>
                         <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Darstellung der realen Shop-Umsätze gegenüber den Ausgaben, zur Kalkulation des Break-Even.</p>
@@ -3158,11 +3181,10 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             <!-- 6. E-COMMERCE -->
             <div x-show="activeTab === 'ecommerce'"
                  x-cloak
-                 style="display: none;"
                  x-transition:enter="transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
                  x-transition:enter-start="opacity-0 translate-y-4"
                  x-transition:enter-end="opacity-100 translate-y-0">
-                <div x-show="!focusMode" x-cloak style="display: none;" class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
+                <div x-show="!focusMode" x-cloak class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">E-Commerce Einblicke</h2>
                         <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Detaillierte Analyse zu Warenkörben, verlassenen Checkouts und Artikel-Statistiken.</p>
@@ -3175,11 +3197,10 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             <!-- 7. TRAFFIC & KUNDEN -->
             <div x-show="activeTab === 'traffic'"
                  x-cloak
-                 style="display: none;"
                  x-transition:enter="transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
                  x-transition:enter-start="opacity-0 translate-y-4"
                  x-transition:enter-end="opacity-100 translate-y-0">
-                <div x-show="!focusMode" x-cloak style="display: none;" class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
+                <div x-show="!focusMode" x-cloak class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">Traffic & Kunden</h2>
                         <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Web-Traffic, Kundenverhalten und Wachstumsstatistiken für optimale Performance.</p>
@@ -3200,7 +3221,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             </div>
 
             <!-- 8. LIVE ROUTINE DETAIL (FOKUS-SATELLIT) -->
-            <div x-show="activeTab === 'routine'" x-cloak style="display: none;" x-transition.opacity.duration.300ms>
+            <div x-show="activeTab === 'routine'" x-cloak x-transition.opacity.duration.300ms>
                 <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-gray-200 dark:border-gray-800 pb-6 mb-8">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">Live Routine & Tagesablauf</h2>
@@ -3239,7 +3260,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             </div>
 
             <!-- 9. KALENDER DETAIL (FOKUS-SATELLIT) -->
-            <div x-show="activeTab === 'calendar'" x-cloak style="display: none;" x-transition.opacity.duration.300ms>
+            <div x-show="activeTab === 'calendar'" x-cloak x-transition.opacity.duration.300ms>
                 <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-gray-200 dark:border-gray-800 pb-6 mb-8">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">Kalender & Nächste Termine</h2>
