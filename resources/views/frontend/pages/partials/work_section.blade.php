@@ -72,7 +72,7 @@
                 </div>
 
                 <h3 class="mt-2 text-gray-900 text-3xl font-serif font-bold sm:text-4xl">
-                    Der <span class="text-primary">Seelen-Kristall</span>
+                    Der <span class="text-[#8a6820]">Seelen-Kristall</span>
                 </h3>
 
                 <p class="mt-4 text-gray-600 text-lg leading-relaxed">
@@ -192,8 +192,8 @@
                     <li class="group">
                         <a href="mailto:kontakt@mein-seelenfunke.de"
                            title="E-Mail an den Kundenservice senden"
-                           class="flex items-center gap-4 flex-row md:flex-row-reverse hover:text-primary transition-colors">
-                            <div class="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                           class="flex items-center gap-4 flex-row md:flex-row-reverse hover:text-[#8a6820] transition-colors">
+                            <div class="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-[#8a6820] group-hover:bg-primary group-hover:text-gray-900 transition-colors">
                                 <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" /></svg>
                             </div>
                             <span class="font-semibold">kontakt@mein-seelenfunke.de</span>
@@ -206,8 +206,8 @@
                            target="_blank"
                            rel="noopener noreferrer"
                            title="Mein Seelenfunke auf TikTok folgen"
-                           class="flex items-center gap-4 flex-row md:flex-row-reverse hover:text-primary transition-colors">
-                            <div class="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                           class="flex items-center gap-4 flex-row md:flex-row-reverse hover:text-[#8a6820] transition-colors">
+                            <div class="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-[#8a6820] group-hover:bg-primary group-hover:text-gray-900 transition-colors">
                                 {{-- TikTok Icon --}}
                                 <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" class="w-6 h-6"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>
                             </div>

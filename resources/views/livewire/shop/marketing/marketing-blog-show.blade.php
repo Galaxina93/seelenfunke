@@ -6,17 +6,17 @@
     @endpush
 
     {{-- 1. HEADER BILD (Hero) --}}
-    <div class="relative h-[450px] md:h-[600px] w-full bg-gray-900 overflow-hidden">
+    <div class="relative min-h-[460px] md:min-h-[580px] w-full bg-gray-900 overflow-hidden flex flex-col justify-end pt-28 md:pt-36 pb-16 md:pb-24 px-6 md:px-12">
         @if($post->header_image || $post->featured_image)
-            <img src="{{ asset('storage/' . ($post->header_image ?: $post->featured_image)) }}" alt="{{ $post->title }}" class="w-full h-full object-cover opacity-50 transition-transform duration-1000 hover:scale-105">
+            <img src="{{ asset('storage/' . ($post->header_image ?: $post->featured_image)) }}" alt="{{ $post->title }}" class="absolute inset-0 w-full h-full object-cover opacity-50 transition-transform duration-1000 hover:scale-105">
         @else
             <div class="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-900 opacity-90"></div>
         @endif
 
         {{-- Feiner Farbverlauf nach unten für fließenden Übergang --}}
-        <div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent"></div>
+        <div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-slate-900/25 to-slate-900/40"></div>
 
-        <div class="absolute inset-0 flex flex-col justify-end items-center text-center p-6 md:p-12 pb-16 md:pb-24">
+        <div class="relative z-10 flex flex-col items-center text-center w-full">
             <div class="max-w-4xl animate-fade-in-up">
                 @if($post->category)
                     <a href="{{ route('marketing/marketing/blog', ['kategorie' => $post->category->slug]) }}" class="inline-block px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md text-white text-[10px] font-black uppercase tracking-widest mb-6 border border-white/20 hover:bg-white/20 hover:border-white/40 transition-all shadow-[0_0_15px_rgba(0,0,0,0.2)]">
@@ -24,11 +24,11 @@
                     </a>
                 @endif
 
-                <h1 class="text-4xl md:text-5xl lg:text-7xl font-serif font-bold text-white leading-[1.1] mb-8 drop-shadow-xl tracking-tight">
+                <h1 class="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-white leading-[1.15] mb-8 drop-shadow-xl tracking-tight">
                     {{ $post->title }}
                 </h1>
 
-                <div class="flex items-center justify-center gap-4 text-white/80 text-xs font-medium uppercase tracking-wider">
+                <div class="flex flex-wrap items-center justify-center gap-4 text-white/80 text-xs font-medium uppercase tracking-wider">
                     <span class="flex items-center gap-2">
                         <svg class="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                         <span class="font-bold">{{ $post->author->name ?? 'Redaktion' }}</span>

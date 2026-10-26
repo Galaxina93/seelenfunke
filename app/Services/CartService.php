@@ -108,7 +108,7 @@ class CartService
      */
     public function addItem(Product $product, int $quantity = 1, ?array $configuration = null): void
     {
-        if ($product->status !== 'active' && !auth()->guard('admin')->check() && !auth()->guard('employee')->check()) {
+        if ($product->status !== 'active' && !auth()->guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
             return;
         }
 
@@ -156,7 +156,7 @@ class CartService
         if (!$item) return;
 
         // IDOR-Schutz: Kunden dürfen nur Artikel aus ihrem eigenen aktiven Warenkorb modifizieren
-        if (!auth()->guard('admin')->check() && !auth()->guard('employee')->check()) {
+        if (!auth()->guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
             $currentCart = $this->getCart();
             if ($item->cart_id !== $currentCart->id) {
                 \Illuminate\Support\Facades\Log::warning("Unberechtigter Zugriffsversuch auf fremdes CartItem {$itemId} aus Cart {$currentCart->id}");
@@ -207,7 +207,7 @@ class CartService
         if (!$item) return;
 
         // IDOR-Schutz: Kunden dürfen nur Artikel aus ihrem eigenen aktiven Warenkorb modifizieren
-        if (!auth()->guard('admin')->check() && !auth()->guard('employee')->check()) {
+        if (!auth()->guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
             $currentCart = $this->getCart();
             if ($item->cart_id !== $currentCart->id) {
                 \Illuminate\Support\Facades\Log::warning("Unberechtigter Mengen-Änderungsversuch auf fremdes CartItem {$itemId} aus Cart {$currentCart->id}");
@@ -246,7 +246,7 @@ class CartService
         $item = CartItem::find($itemId);
         if ($item) {
             // IDOR-Schutz: Kunden dürfen nur Artikel aus ihrem eigenen aktiven Warenkorb entfernen
-            if (!auth()->guard('admin')->check() && !auth()->guard('employee')->check()) {
+            if (!auth()->guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
                 $currentCart = $this->getCart();
                 if ($item->cart_id !== $currentCart->id) {
                     \Illuminate\Support\Facades\Log::warning("Unberechtigter Löschversuch auf fremdes CartItem {$itemId} aus Cart {$currentCart->id}");
@@ -307,10 +307,26 @@ class CartService
             $quoteItems = \App\Models\Order\OrderQuoteRequestItem::where('quote_request_id', $quoteId)
                 ->where('product_id', $product->id)
                 ->get();
-            
-            $matchingQuoteItem = $quoteItems->first(function ($qItem) use ($configuration) {
-                return json_encode($qItem->configuration) === json_encode($configuration);
+
+            $normalizeConfig = function (?array $cfg): array {
+                if (empty($cfg)) {
+                    return [];
+                }
+                unset($cfg['product_id'], $cfg['qty'], $cfg['totalPrice']);
+                ksort($cfg);
+                return $cfg;
+            };
+
+            $normalizedTarget = $normalizeConfig($configuration);
+
+            $matchingQuoteItem = $quoteItems->first(function ($qItem) use ($normalizeConfig, $normalizedTarget) {
+                $qCfg = is_array($qItem->configuration) ? $qItem->configuration : [];
+                return json_encode($normalizeConfig($qCfg)) === json_encode($normalizedTarget);
             });
+
+            if (!$matchingQuoteItem && empty($normalizedTarget) && $quoteItems->count() === 1) {
+                $matchingQuoteItem = $quoteItems->first();
+            }
 
             if ($matchingQuoteItem && $qty >= max(1, (int) $matchingQuoteItem->quantity)) {
                 return $matchingQuoteItem->unit_price;
@@ -437,6 +453,40 @@ class CartService
         return $maskedLocal . '@' . $domain;
     }
 
+    public function isInfluencerSelfRedemption(MarketingVoucher $coupon, ?string $checkEmail = null): bool
+    {
+        if (empty($coupon->influencer_id)) {
+            return false;
+        }
+
+        $inf = $coupon->relationLoaded('influencer') ? $coupon->influencer : $coupon->influencer()->with('employee')->first();
+        if (!$inf) {
+            return false;
+        }
+
+        if (Auth::guard('employee')->check() && (string) Auth::guard('employee')->id() === (string) $inf->employee_id) {
+            return true;
+        }
+
+        $candidateEmails = array_filter([
+            strtolower(trim((string) $checkEmail)),
+            Auth::guard('customer')->check() ? strtolower(trim((string) Auth::guard('customer')->user()?->email)) : '',
+            Auth::guard('employee')->check() ? strtolower(trim((string) Auth::guard('employee')->user()?->email)) : '',
+        ]);
+
+        if (empty($candidateEmails)) {
+            return false;
+        }
+
+        $infEmails = array_filter([
+            strtolower(trim((string) $inf->email)),
+            strtolower(trim((string) $inf->paypal_email)),
+            strtolower(trim((string) $inf->employee?->email)),
+        ]);
+
+        return !empty(array_intersect($candidateEmails, $infEmails));
+    }
+
     public function applyCoupon(string $code): array
     {
         // 1. Zuerst prüfen, ob es sich um einen Wertgutschein handelt
@@ -468,13 +518,12 @@ class CartService
             foreach ($cart->items as $item) {
                 $product = $item->product;
                 if (!$product) continue;
-                $isGiftVoucher = ($product->slug === 'geschenkgutschein') || (!empty($item->configuration['is_gift_voucher']));
-                if (!$isGiftVoucher) {
+                if (!$product->isGiftVoucher(is_array($item->configuration) ? $item->configuration : null)) {
                     $nonVoucherSubtotal += $item->unit_price * $item->quantity;
                 }
             }
 
-            if ($nonVoucherSubtotal <= 0) {
+            if ($cart->items->isNotEmpty() && $nonVoucherSubtotal <= 0) {
                 return [
                     'success' => false,
                     'message' => 'Gutscheine können nicht für den Kauf weiterer Geschenkgutscheine eingelöst werden.'
@@ -499,6 +548,14 @@ class CartService
 
         if (!$coupon || !$coupon->isValid()) {
             return ['success' => false, 'message' => 'Gutschein ist ungültig oder abgelaufen.'];
+        }
+
+        // [SICHERHEIT] Eigenbestellungs-Sperre für Influencer-Rabattcodes
+        if (!empty($coupon->influencer_id) && $this->isInfluencerSelfRedemption($coupon, $buyerEmail)) {
+            return [
+                'success' => false,
+                'message' => 'Eigenbestellungen mit dem eigenen Creator-Rabattcode sind nicht zulässig.'
+            ];
         }
 
         // [SICHERHEIT] Persönliche Belohnungsgutscheine an das verifizierte Kundenkonto binden
@@ -527,13 +584,12 @@ class CartService
         foreach ($cart->items as $item) {
             $product = $item->product;
             if (!$product) continue;
-            $isGiftVoucher = ($product->slug === 'geschenkgutschein') || (!empty($item->configuration['is_gift_voucher']));
-            $isAutopilotSale = !empty($product->configurator_settings['autopilot_base_price']) && (int) $product->compare_at_price > (int) $product->price;
-            if ($isAutopilotSale) {
+            $itemConfig = is_array($item->configuration) ? $item->configuration : null;
+            if ($product->isInAutopilotSale()) {
                 $hasAutopilotSaleItems = true;
                 continue;
             }
-            if (!$isGiftVoucher) {
+            if ($product->isDiscountableWithCoupon($itemConfig)) {
                 $discountableSubtotal += $item->unit_price * $item->quantity;
             }
         }
@@ -554,7 +610,7 @@ class CartService
         if ($coupon->min_order_value && $discountableSubtotal < $coupon->min_order_value) {
             return [
                 'success' => false,
-                'message' => 'Mindestbestellwert von ' . number_format($coupon->min_order_value / 100, 2, ',', '.') . ' € für rabattfähige Artikel nicht erreicht.'
+                'message' => 'Mindestbestellwert von ' . number_format($coupon->min_order_value / 100, 2, ',', '.') . ' € für rabattfähige Artikel nicht erreicht (Versandkosten werden nicht berücksichtigt, es zählt nur der reine Warenwert).'
             ];
         }
 
@@ -714,8 +770,7 @@ class CartService
                 foreach ($cart->items as $item) {
                     $product = $item->product;
                     if (!$product) continue;
-                    $isGiftVoucher = ($product->slug === 'geschenkgutschein') || (!empty($item->configuration['is_gift_voucher']));
-                    if (!$isGiftVoucher) {
+                    if (!$product->isGiftVoucher(is_array($item->configuration) ? $item->configuration : null)) {
                         $nonVoucherSubtotal += $item->unit_price * $item->quantity;
                     }
                 }
@@ -747,15 +802,17 @@ class CartService
                     $personalCouponAllowed = $effectiveBuyerEmail !== null && $effectiveBuyerEmail === strtolower(trim($coupon->recipient_email));
                 }
 
+                if ($coupon && !empty($coupon->influencer_id) && $this->isInfluencerSelfRedemption($coupon, $activeCustomer?->email)) {
+                    $personalCouponAllowed = false;
+                }
+
                 if ($coupon && $coupon->isValid() && $personalCouponAllowed) {
                     // Rabattfähigen Warenwert berechnen (ohne Geschenkgutscheine & ohne bereits im Autopilot-Sale reduzierte Artikel)
                     $discountableSubtotal = 0;
                     foreach ($cart->items as $item) {
                         $product = $item->product;
                         if (!$product) continue;
-                        $isGiftVoucher = ($product->slug === 'geschenkgutschein') || (!empty($item->configuration['is_gift_voucher']));
-                        $isAutopilotSale = !empty($product->configurator_settings['autopilot_base_price']) && (int) $product->compare_at_price > (int) $product->price;
-                        if (!$isGiftVoucher && !$isAutopilotSale) {
+                        if ($product->isDiscountableWithCoupon(is_array($item->configuration) ? $item->configuration : null)) {
                             $discountableSubtotal += $item->unit_price * $item->quantity;
                         }
                     }

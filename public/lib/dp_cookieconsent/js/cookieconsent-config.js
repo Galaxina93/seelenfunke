@@ -32,7 +32,7 @@ CookieConsent.run({
                 consentModal: {
                     title: "Cookies für dein Erlebnis",
                     description:
-                        "Wir verwenden Cookies, um den Besuch unserer Website attraktiv zu gestalten und Zugriffe zu analysieren. Einige Cookies sind essenziell, andere helfen uns, diese Website und Ihr Erlebnis zu verbessern.",
+                        '<span style="display:block;margin-bottom:2px;">Wir verwenden Cookies, um den Besuch unserer Website attraktiv zu gestalten und Zugriffe zu analysieren.</span><span style="display:block;">Einige Cookies sind essenziell, andere helfen uns, diese Website und Ihr Erlebnis zu verbessern.</span>',
                     acceptAllBtn: "Alle akzeptieren",
                     acceptNecessaryBtn: "Nur notwendige Cookies",
                     showPreferencesBtn: "Einstellungen",

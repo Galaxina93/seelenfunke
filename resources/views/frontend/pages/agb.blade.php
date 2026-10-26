@@ -263,6 +263,34 @@
                             </p>
                         </div>
 
+                        {{-- §10 Seelenfunke Creator Partnerprogramm (B2B-Kooperationsbedingungen) --}}
+                        <div id="creator-partnerprogramm" class="scroll-mt-28 bg-amber-50/40 border border-primary/20 rounded-2xl p-6 sm:p-8 shadow-xs">
+                            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                                <h3 class="font-bold text-lg text-gray-900">10. Seelenfunke Creator Partnerprogramm (B2B-Kooperations- & Affiliate-Bedingungen)</h3>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-primary/15 text-primary-dark border border-primary/25">
+                                    Nur für Creator / B2B (§ 14 BGB)
+                                </span>
+                            </div>
+                            <p>
+                                (1) <strong>Geltungsbereich & Unternehmerstatus (§ 14 BGB):</strong> Die nachfolgenden besonderen Bedingungen gelten ausschließlich für Teilnehmerinnen und Teilnehmer („Creator“ / „Partner“) am <em>Seelenfunke Creator Partnerprogramm</em>. Die Teilnahme richtet sich ausschließlich an unbeschränkt geschäftsfähige natürliche oder juristische Personen, die bei Abschluss der Kooperationsvereinbarung in Ausübung ihrer gewerblichen oder selbstständigen beruflichen Tätigkeit handeln (<strong>Unternehmer im Sinne des § 14 BGB</strong>). Durch die Teilnahme wird <strong>kein Arbeitsverhältnis, kein Handelsvertreterverhältnis (§ 84 HGB) und keine Gesellschaft</strong> begründet; der Creator handelt frei, weisungsungebunden und auf eigenes unternehmerisches Risiko.
+                            </p>
+                            <p class="mt-2">
+                                (2) <strong>Eigenverantwortliche Versteuerung & Gutschriftsverfahren (§ 14 Abs. 2 S. 2 UStG):</strong> Der Creator versichert, sämtliche aus dem Partnerprogramm erzielten Einnahmen (Provisionen sowie ggf. unentgeltlich überlassene Produkte/PR-Samples nach § 37b EStG bzw. als Betriebseinnahmen) eigenverantwortlich gegenüber dem zuständigen Finanzamt zu erklären und zu versteuern. Die Abrechnung der Provisionen erfolgt im steuerlichen <strong>Gutschriftsverfahren gemäß § 14 Abs. 2 Satz 2 UStG</strong> durch den Anbieter auf Basis der vom Creator im Creator-Cockpit hinterlegten Steuerdaten (Steuernummer / USt-IdNr. sowie Wahl zwischen Kleinunternehmerregelung gem. § 19 UStG, Regelbesteuerung mit dem im Shop gültigen gesetzlichen Umsatzsteuersatz oder Reverse-Charge im EU-Ausland). Der Creator verpflichtet sich, Änderungen seines steuerlichen Status oder seiner Unternehmensdaten unverzüglich im Creator-Cockpit zu aktualisieren; für Schäden oder Steuernachforderungen aufgrund unzutreffender Angaben haftet der Creator im Innenverhältnis vollumfänglich.
+                            </p>
+                            <p class="mt-2">
+                                (3) <strong>Provisionsentstehung, Netto-Bemessungsgrundlage & Eigenkauf-Sperre:</strong> Ein Provisionsanspruch entsteht ausschließlich für solche Bestellungen von Endkunden im Online-Shop des Anbieters, die nachweislich über den dem Creator persönlich zugewiesenen, aktiven Tracking-Link oder Rabattcode vermittelt wurden, vollständig bezahlt sind und nicht widerrufen, storniert oder rückabgewickelt wurden. Die Berechnung der prozentualen Provision erfolgt stets auf Basis des <strong>Netto-Warenwerts</strong> (abzüglich Umsatzsteuer, Versandkosten und eingelöster Rabatte/Gutscheine). <strong>Eigenkäufe des Creators</strong> (Bestellungen unter eigenem Namen, eigener E-Mail-Adresse, eigener Zahlungs- oder Lieferadresse) sowie Bestellungen im eigenen Haushalt sind von der Provisionsvergütung strikt ausgeschlossen und werden vom System automatisch herausgefiltert.
+                            </p>
+                            <p class="mt-2">
+                                (4) <strong>Freigabefrist (Clearing), Mindestauszahlung & Auszahlungsabwicklung:</strong> Vermittelte Provisionen werden zunächst als vorgemerktes Guthaben („In Prüfung“) erfasst und erst nach vollständigem Zahlungseingang, Versand und Ablauf etwaiger Storno-/Reklamationsfristen zur Auszahlung freigegeben. Bei Stornierung, Rücktritt oder Zahlungsausfall des Endkunden entfällt der Provisionsanspruch rückwirkend. Die selbstständige Auszahlungsanforderung freigegebener Guthaben im Creator-Cockpit ist ab Erreichen des Mindestauszahlungsbetrags von <strong>20,00 € Netto</strong> per SEPA-Überweisung, PayPal oder als Shop-Gutschein (+20 % Bonus) möglich; bei Beendigung der Partnerschaft wird ein etwaiges verbleibendes Restguthaben auch unterhalb der Mindestgrenze abgerechnet.
+                            </p>
+                            <p class="mt-2">
+                                (5) <strong>Werbekennzeichnungspflicht & Markenrichtlinien:</strong> Der Creator verpflichtet sich, sämtliche Veröffentlichungen, Beiträge, Stories und Videos, die im Zusammenhang mit Produkten, Tracking-Links oder Rabattcodes von Mein Seelenfunke stehen, im Einklang mit den gesetzlichen Vorgaben (insbesondere <strong>§ 5a Abs. 4 UWG</strong> sowie <strong>§ 22 Medienstaatsvertrag – MStV</strong>) eindeutig, transparent und auf den ersten Blick erkennbar als <strong>„Werbung“</strong> oder <strong>„Anzeige“</strong> zu kennzeichnen. Irreführende Aussagen über Produkteigenschaften, künstliches Cookie-Dropping, Suchmaschinen-Markenbieten (Brand-Bidding auf „Mein Seelenfunke“) oder die Verbreitung rechtswidriger Inhalte sind untersagt.
+                            </p>
+                            <p class="mt-2">
+                                (6) <strong>Laufzeit, Kündigung & Sperrung bei Missbrauch:</strong> Die Teilnahme am Creator Partnerprogramm läuft auf unbestimmte Zeit und kann von beiden Parteien jederzeit ordentlich in Textform (oder durch Deaktivierung des Creator-Zugangs) beendet werden. Das Recht zur außerordentlichen fristlosen Kündigung aus wichtigem Grund – insbesondere bei Verstoß gegen die Werbekennzeichnungspflicht, Manipulationsversuchen oder Falschangaben zum Unternehmer-/Steuerstatus – bleibt unberührt.
+                            </p>
+                        </div>
+
                     </div>
                 </div>
 
@@ -334,6 +362,26 @@
                                             <svg class="w-3.5 h-3.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                                         </a>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Hinweis für Seelenfunke Creator Partnerprogramm (B2B-Ausschluss des Verbraucherwiderrufsrechts) --}}
+                        <div id="widerruf-creator-partnerprogramm" class="scroll-mt-28 bg-amber-50 border-l-4 border-primary p-6 rounded-r-xl shadow-sm">
+                            <div class="flex items-start gap-4">
+                                <div class="flex-shrink-0 mt-1 text-primary-dark">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-gray-900 text-lg">Hinweis für Teilnehmer am „Seelenfunke Creator Partnerprogramm“ (B2B / § 14 BGB)</h3>
+                                    <p class="text-gray-800 mt-2 text-sm leading-relaxed">
+                                        Das gesetzliche Verbraucher-Widerrufsrecht gemäß §§ 312g, 355 BGB gilt ausschließlich für <strong>Verbraucher im Sinne des § 13 BGB</strong>. Da die Teilnahme am <em>Seelenfunke Creator Partnerprogramm</em> ausschließlich selbstständigen Creatorn, Freiberuflern und Gewerbetreibenden vorbehalten ist, die bei Registrierung und Abschluss der Kooperationsvereinbarung als <strong>Unternehmer im Sinne des § 14 BGB</strong> auf eigene Rechnung handeln, besteht für den Kooperations- und Affiliate-Vertrag <strong>kein gesetzliches Verbraucher-Widerrufsrecht</strong>.
+                                    </p>
+                                    <p class="text-gray-700 mt-2 text-xs leading-relaxed">
+                                        Unabhängig davon kann die Teilnahme am Creator Partnerprogramm gemäß <a href="#creator-partnerprogramm" class="font-bold text-primary hover:text-primary-dark underline underline-offset-2">§ 10 Abs. 6 unserer AGB</a> jederzeit ordentlich und ohne Einhaltung einer Mindestvertragslaufzeit beendet werden.
+                                    </p>
                                 </div>
                             </div>
                         </div>

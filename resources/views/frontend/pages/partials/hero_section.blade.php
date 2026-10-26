@@ -1,18 +1,15 @@
 @php
-    $verifiedUsersCount = 0;
-    try {
-        if (\Illuminate\Support\Facades\Schema::hasTable('customer_profiles')) {
-            $verifiedUsersCount += \Illuminate\Support\Facades\DB::table('customer_profiles')->whereNotNull('email_verified_at')->count();
+    $verifiedUsersCount = \Illuminate\Support\Facades\Cache::remember('universe_verified_users_count', 3600, function () {
+        $count = 0;
+        try {
+            $count += \Illuminate\Support\Facades\DB::table('customer_profiles')->whereNotNull('email_verified_at')->count();
+            $count += \Illuminate\Support\Facades\DB::table('admin_profiles')->whereNotNull('email_verified_at')->count();
+            $count += \Illuminate\Support\Facades\DB::table('employee_profiles')->whereNotNull('email_verified_at')->count();
+        } catch (\Exception $e) {
+            $count = 0;
         }
-        if (\Illuminate\Support\Facades\Schema::hasTable('admin_profiles')) {
-            $verifiedUsersCount += \Illuminate\Support\Facades\DB::table('admin_profiles')->whereNotNull('email_verified_at')->count();
-        }
-        if (\Illuminate\Support\Facades\Schema::hasTable('employee_profiles')) {
-            $verifiedUsersCount += \Illuminate\Support\Facades\DB::table('employee_profiles')->whereNotNull('email_verified_at')->count();
-        }
-    } catch (\Exception $e) {
-        $verifiedUsersCount = 0;
-    }
+        return $count;
+    });
 
     // Basis-Sterne (150) + echte Nutzer als reiner Integer-Wert für JS
     $totalStars = (int)(150 + $verifiedUsersCount);
@@ -21,7 +18,7 @@
 <section id="home"
          class="relative pt-16 overflow-hidden text-white bg-gray-950"
          x-data
-         x-init="setTimeout(() => { if(window.startUniverseEngine) window.startUniverseEngine($el, {{ $totalStars }}) }, 100)"
+         x-init="setTimeout(() => { if(window.startUniverseEngine) window.startUniverseEngine($el, {{ $totalStars }}) }, 350)"
          aria-label="Mein Seelenfunke - Personalisierte Geschenke">
 
     {{-- INTERAKTIVES UNIVERSUM CANVAS --}}
@@ -30,11 +27,11 @@
     {{-- Zartes Overlay für bessere Lesbarkeit des Textes --}}
     <div class="absolute inset-0 bg-gradient-to-b from-gray-950/40 to-gray-950/90 z-0 pointer-events-none"></div>
 
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-32 md:py-48 relative z-10">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-28 md:py-48 relative z-10">
         <div class="text-center">
 
             {{-- Hauptüberschrift --}}
-            <h1 class="text-3xl md:text-6xl font-serif font-bold mb-6 floating-animation leading-tight">
+            <h1 class="text-4xl sm:text-5xl md:text-6xl font-serif font-bold mb-6 leading-tight">
                 <span class="text-primary">Ein Funke, der bleibt.</span><br>
                 Personalisierte Unikate für die Ewigkeit.
             </h1>
@@ -49,7 +46,7 @@
             <div class="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
                 {{-- Button 1: Hauptaktion (Zum Shop) --}}
                 <a href="{{ route('shop') }}"
-                   class="bg-primary text-white px-8 py-4 rounded-full font-semibold text-lg hover:bg-white hover:text-primary-dark transition-all transform hover:scale-105 shadow-lg shadow-primary/30 pulse-button"
+                   class="bg-primary text-gray-900 px-8 py-4 rounded-full font-bold text-lg hover:bg-white hover:text-primary-dark transition-all transform hover:scale-105 shadow-lg shadow-primary/30"
                    aria-label="Jetzt personalisieren">
                     Sortiment öffnen
                 </a>

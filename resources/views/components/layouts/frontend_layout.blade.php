@@ -49,11 +49,16 @@
         'cart.reminder.unsubscribe',
         'newsletter.verify',
         'emergency.index',
+        'influencer.invitation',
+        'frontend.tracking.redirect',
     ];
     $defaultRobots = in_array($currentRouteName, $noindexRoutes, true)
         ? 'noindex, nofollow'
         : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
     $resolvedRobots = $robots ?: ($sectionRobots ?: $defaultRobots);
+    $resolvedReferrerPolicy = $currentRouteName === 'influencer.invitation'
+        ? 'no-referrer'
+        : 'strict-origin-when-cross-origin';
 
     $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
     $founderName = shop_setting('owner_proprietor', 'Alina Steinhauer');
@@ -160,6 +165,7 @@
     <meta name="description" content="{{ $resolvedDescription }}">
     <meta name="keywords" content="Personalisierte Geschenke, Lasergravur, Glasfoto, K9 Kristallglas, Trophäe gravieren, Schieferplatte graviert, 3D Konfigurator, Gifhorn, Braunschweig, Wolfsburg, Hannover, Fotogeschenk, Unikat, Mein Seelenfunke">
     <meta name="robots" content="{{ $resolvedRobots }}">
+    <meta name="referrer" content="{{ $resolvedReferrerPolicy }}">
     <meta name="author" content="{{ $companyName }} – {{ $founderName }}">
     <meta name="geo.region" content="DE-NI">
     <meta name="geo.placename" content="{{ $city }}">
@@ -179,9 +185,11 @@
     <meta name="twitter:description" content="{{ $resolvedOgDescription }}">
     <meta name="twitter:image" content="{{ $resolvedOgImage }}">
 
-    {{-- Canonical & Machine-Readable Discovery (Sitemap & AI Search LLMs.txt) --}}
+    {{-- Canonical & Machine-Readable Discovery (Sitemap, Google Shopping Feed & AI Search LLMs.txt) --}}
     <link rel="canonical" href="{{ $resolvedCanonical }}">
     <link rel="sitemap" type="application/xml" title="Sitemap" href="{{ url('/sitemap.xml') }}">
+    <link rel="alternate" type="application/rss+xml" title="{{ $companyName }} – Google Shopping Product Feed" href="{{ url('/feed/google-shopping.xml') }}">
+    <link rel="alternate" type="application/json" title="{{ $companyName }} – Structured Product Catalog JSON" href="{{ url('/feed/products.json') }}">
     <link rel="alternate" type="text/plain" title="LLMs.txt – AI Search Summary" href="{{ url('/llms.txt') }}">
     <link rel="alternate" type="text/plain" title="LLMs-Full.txt – AI Full Product & Shop Knowledge" href="{{ url('/llms-full.txt') }}">
 
@@ -203,15 +211,10 @@
 
     <!-- cookieconsent -->
     <link rel="stylesheet" href="{{ asset('lib/dp_cookieconsent/css/cookieconsent.css') }}" media="print" onload="this.media='all'">
-    <link rel="modulepreload" href="{{ asset('lib/dp_cookieconsent/js/cookieconsent.umd.js') }}">
-    <script type="module" src="{{ asset('lib/dp_cookieconsent/js/cookieconsent-config.js') }}"></script>
-
-    {{-- Swiper --}}
-    <link href="{{ asset('components/swiper/swiper-bundle.min.css') }}" rel="stylesheet" media="print" onload="this.media='all'">
-    <script src="{{ asset('components/swiper/swiper-bundle.min.js') }}" defer></script>
+    <script type="module" src="{{ asset('lib/dp_cookieconsent/js/cookieconsent-config.js') }}" defer></script>
 
     {{-- Scripts --}}
-    <script src="{{ asset('js/app.js') }}" defer></script>
+    <script src="{{ mix('js/app.js') }}" defer></script>
 
     {{-- Livewire --}}
     @livewireStyles
@@ -280,9 +283,9 @@
                 \Illuminate\Support\Facades\Cookie::queue(\Illuminate\Support\Facades\Cookie::forget('seelenfunke_coupon'));
             }
         } else {
-            // Regulärer Gutschein: Gültigkeit prüfen
+            // Regulärer Gutschein: Gültigkeit & Eigenbestellungs-Sperre prüfen
             $voucher = \App\Models\Marketing\MarketingVoucher::where('code', $activeReferralCoupon)->where('is_active', true)->first();
-            if ($voucher && $voucher->isValid()) {
+            if ($voucher && $voucher->isValid() && !app(\App\Services\CartService::class)->isInfluencerSelfRedemption($voucher, $buyerEmail)) {
                 $showReferralBanner = true;
                 $bannerHtml = 'Dein Gutscheincode <strong>' . e($activeReferralCoupon) . '</strong> ist aktiviert und wird im Warenkorb automatisch abgezogen!';
             } else {

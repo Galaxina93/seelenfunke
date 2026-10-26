@@ -2,20 +2,17 @@
     <div class="contact-item">
 
         @php
-            $verifiedUsersCount = 0;
-            try {
-                if (\Illuminate\Support\Facades\Schema::hasTable('customer_profiles')) {
-                    $verifiedUsersCount += \Illuminate\Support\Facades\DB::table('customer_profiles')->whereNotNull('email_verified_at')->count();
+            $verifiedUsersCount = \Illuminate\Support\Facades\Cache::remember('universe_verified_users_count', 3600, function () {
+                $count = 0;
+                try {
+                    $count += \Illuminate\Support\Facades\DB::table('customer_profiles')->whereNotNull('email_verified_at')->count();
+                    $count += \Illuminate\Support\Facades\DB::table('admin_profiles')->whereNotNull('email_verified_at')->count();
+                    $count += \Illuminate\Support\Facades\DB::table('employee_profiles')->whereNotNull('email_verified_at')->count();
+                } catch (\Exception $e) {
+                    $count = 0;
                 }
-                if (\Illuminate\Support\Facades\Schema::hasTable('admin_profiles')) {
-                    $verifiedUsersCount += \Illuminate\Support\Facades\DB::table('admin_profiles')->whereNotNull('email_verified_at')->count();
-                }
-                if (\Illuminate\Support\Facades\Schema::hasTable('employee_profiles')) {
-                    $verifiedUsersCount += \Illuminate\Support\Facades\DB::table('employee_profiles')->whereNotNull('email_verified_at')->count();
-                }
-            } catch (\Exception $e) {
-                $verifiedUsersCount = 0;
-            }
+                return $count;
+            });
 
             // Basis-Sterne + echte Nutzer (als sicherer Integer)
             $totalStars = (int)(150 + $verifiedUsersCount);
@@ -24,7 +21,7 @@
         <section id="contact"
                  class="bg-stone-50 border-t border-gray-200 py-24 relative overflow-hidden"
                  x-data
-                 x-init="setTimeout(() => { if(window.startUniverseEngine) window.startUniverseEngine($el, {{ $totalStars }}) }, 100)"
+                 x-init="setTimeout(() => { if(window.startUniverseEngine) window.startUniverseEngine($el, {{ $totalStars }}) }, 400)"
                  aria-label="Kontaktformular und Kontaktdaten">
 
             {{-- Du brauchst keine id="contact-canvas" mehr! --}}
@@ -106,7 +103,7 @@
                     {{-- RECHTE SPALTE: Formular --}}
                     <div class="bg-white border border-gray-200/80 p-8 sm:p-10 rounded-3xl shadow-xl relative">
 
-                        <h4 class="text-2xl font-serif font-bold text-gray-900 mb-8">Nachricht senden</h4>
+                        <h3 class="text-2xl font-serif font-bold text-gray-900 mb-8">Nachricht senden</h3>
 
                         <form wire:submit.prevent="sending" class="space-y-6" aria-label="Kontaktformular">
 
@@ -164,7 +161,7 @@
                                            class="w-5 h-5 rounded border-gray-300 bg-white text-primary focus:ring-primary focus:ring-offset-white cursor-pointer">
                                 </div>
                                 <label for="checkbox-2" class="text-sm text-gray-600 leading-relaxed cursor-pointer">
-                                    Ich habe die <a href="/datenschutz" target="_blank" title="Datenschutzerklärung lesen" class="text-primary font-semibold hover:text-primary-dark transition-colors underline decoration-primary/50 underline-offset-4">Datenschutzbestimmungen</a> gelesen und erkenne diese ausdrücklich an.
+                                    Ich habe die <a href="/datenschutz" target="_blank" title="Datenschutzerklärung lesen" class="text-[#8a6820] font-semibold hover:text-primary-dark transition-colors underline decoration-[#8a6820]/60 underline-offset-4">Datenschutzbestimmungen</a> gelesen und erkenne diese ausdrücklich an.
                                 </label>
                             </div>
 
@@ -175,7 +172,7 @@
                                         class="w-full flex justify-center items-center gap-2 py-4 px-6 rounded-xl text-sm font-bold uppercase tracking-widest transition-all duration-300 transform shadow-md
                                         {{ $data_protection
                                             ? 'bg-gradient-to-r from-primary-light to-primary text-gray-900 hover:brightness-105 active:scale-95 cursor-pointer hover:-translate-y-0.5'
-                                            : 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-60' }}">
+                                            : 'bg-gray-200 text-gray-600 cursor-not-allowed' }}">
 
                                     <svg wire:loading wire:target="sending" class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

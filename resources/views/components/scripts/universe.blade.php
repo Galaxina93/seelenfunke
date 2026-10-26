@@ -20,12 +20,13 @@
         let planets = [];
         let meteors = [];
         let dust = [];
+        const isMobile = width < 768;
 
         const config = {
-            starsCount: userCount,
-            planetsCount: userCount > 0 ? 2 : 0,
-            dustCount: userCount > 0 ? 30 : 0,
-            meteorsCount: userCount > 0 ? 8 : 0,
+            starsCount: isMobile ? Math.min(userCount, 45) : userCount,
+            planetsCount: userCount > 0 ? (isMobile ? 1 : 2) : 0,
+            dustCount: userCount > 0 ? (isMobile ? 10 : 30) : 0,
+            meteorsCount: userCount > 0 ? (isMobile ? 3 : 8) : 0,
             colors: {
                 gold: 'rgba(197, 160, 89,',
                 white: 'rgba(255, 255, 255,',
@@ -113,8 +114,15 @@
             spawnMeteor(true);
         }
 
-        // RENDER LOOP
+        // RENDER LOOP (pausiert automatisch außerhalb des Viewports)
+        let isVisible = true;
+        let rafId = null;
+
         const loop = () => {
+            if (!isVisible) {
+                rafId = null;
+                return;
+            }
             ctx.clearRect(0, 0, width, height);
 
             planets.forEach(p => {
@@ -168,10 +176,12 @@
                 ctx.beginPath();
                 ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
                 ctx.fillStyle = `${config.colors.gold}${d.alpha})`;
-                ctx.shadowBlur = d.r * 2;
-                ctx.shadowColor = `${config.colors.gold}${d.alpha})`;
+                if (!isMobile) {
+                    ctx.shadowBlur = d.r * 2;
+                    ctx.shadowColor = `${config.colors.gold}${d.alpha})`;
+                }
                 ctx.fill();
-                ctx.shadowBlur = 0;
+                if (!isMobile) ctx.shadowBlur = 0;
             });
 
             for (let i = meteors.length - 1; i >= 0; i--) {
@@ -200,15 +210,30 @@
                 ctx.beginPath();
                 ctx.arc(m.x, m.y, m.size, 0, Math.PI * 2);
                 ctx.fillStyle = `${m.color}${m.alpha + 0.3})`;
-                ctx.shadowBlur = m.size * 3;
-                ctx.shadowColor = `${m.color}${m.alpha})`;
+                if (!isMobile) {
+                    ctx.shadowBlur = m.size * 3;
+                    ctx.shadowColor = `${m.color}${m.alpha})`;
+                }
                 ctx.fill();
-                ctx.shadowBlur = 0;
+                if (!isMobile) ctx.shadowBlur = 0;
             }
 
-            requestAnimationFrame(loop);
+            rafId = requestAnimationFrame(loop);
         };
-        loop();
+
+        if ('IntersectionObserver' in window) {
+            const io = new IntersectionObserver(entries => {
+                entries.forEach(entry => {
+                    isVisible = entry.isIntersecting;
+                    if (isVisible && !rafId) {
+                        rafId = requestAnimationFrame(loop);
+                    }
+                });
+            }, { rootMargin: '100px' });
+            io.observe(container);
+        } else {
+            rafId = requestAnimationFrame(loop);
+        }
 
         // KUGELSICHER: Passt das Canvas exakt an, sobald die Section fertig gezeichnet ist
         const resizeObserver = new ResizeObserver(entries => {

@@ -391,11 +391,7 @@
                 <article onmouseenter="window.sfCardHoverEnter && window.sfCardHoverEnter(this)"
                          onmouseleave="window.sfCardHoverLeave && window.sfCardHoverLeave(this)"
                          onclick="if(!event.target.closest('a, button')) window.location.href='{{ $tile['shop_url'] }}'"
-                         onkeydown="if((event.key === 'Enter' || event.key === ' ') && !event.target.closest('a, button')) { event.preventDefault(); window.location.href='{{ $tile['shop_url'] }}'; }"
-                         role="link"
-                         tabindex="0"
-                         aria-label="{{ $tile['title'] }} – Jetzt im Shop entdecken"
-                         class="sf-card bg-white rounded-2xl shadow-lg border-2 border-primary overflow-hidden group relative z-10 flex flex-col cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
+                         class="sf-card bg-white rounded-2xl shadow-lg border-2 border-primary overflow-hidden group relative z-10 flex flex-col cursor-pointer">
                     <figure class="overflow-hidden relative bg-gray-900" style="aspect-ratio: 10 / 9;">
                         @if($tile['sale_badge'])
                             <div class="absolute top-3 left-3 bg-red-600/95 backdrop-blur-sm text-white text-[9px] font-black px-2.5 py-1 rounded-full z-20 shadow-md uppercase tracking-wider">
@@ -405,7 +401,10 @@
 
                         <img src="{{ $tile['image'] }}"
                              alt="{{ $tile['alt'] }}"
+                             width="500"
+                             height="450"
                              loading="lazy"
+                             decoding="async"
                              @if(!empty($tile['is_ai_generated'])) data-is-ai-generated="true" @endif
                              class="sf-card-img w-full h-full object-cover object-center block">
 
@@ -472,7 +471,10 @@
                     <figure class="overflow-hidden relative bg-gray-900" style="aspect-ratio: 10 / 9;">
                         <img src="{{ $tile['image'] }}"
                              alt="{{ $tile['alt'] }}"
+                             width="500"
+                             height="450"
                              loading="lazy"
+                             decoding="async"
                              class="w-full h-full object-cover object-center block grayscale-[0.5]">
                     </figure>
                     <div class="bg-gray-700 px-5 py-4 relative">
@@ -507,7 +509,10 @@
                     <figure class="overflow-hidden relative bg-gray-900" style="aspect-ratio: 10 / 9;">
                         <img src="{{ $tile['image'] }}"
                              alt="{{ $tile['alt'] }}"
+                             width="500"
+                             height="450"
                              loading="lazy"
+                             decoding="async"
                              class="w-full h-full object-cover object-center block">
                     </figure>
 

@@ -3,7 +3,7 @@
         <div class="grid md:grid-cols-2 gap-x-12 gap-y-16 items-center">
 
             <div class="fade-in">
-                <div class="text-primary font-serif font-semibold mb-2 inline-block tracking-wider uppercase text-sm">
+                <div class="text-[#8a6820] font-serif font-semibold mb-2 inline-block tracking-wider uppercase text-sm">
                     Full-Service Manufaktur
                 </div>
                 <h2 id="carefree-heading" class="text-3xl md:text-4xl font-bold text-gray-900 mb-6 font-serif">
@@ -18,7 +18,7 @@
                 </p>
 
                 {{-- Highlight Box --}}
-                <p class="text-white text-lg mb-10 leading-relaxed bg-gradient-to-r from-primary to-primary-dark p-6 rounded-xl shadow-lg border-l-4 border-white/30">
+                <p class="text-white text-lg mb-10 leading-relaxed bg-gradient-to-r from-[#6e5218] to-primary-dark p-6 rounded-xl shadow-lg border-l-4 border-white/30">
                     <strong>Unser Anspruch:</strong> Sie bestellen bequem vom Schreibtisch oder Sofa aus und wir sorgen dafür, dass beim Auspacken Begeisterung entsteht.
                 </p>
 

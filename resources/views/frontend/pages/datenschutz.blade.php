@@ -31,18 +31,25 @@
                     <p class="mt-2">
                         Wenn Sie unsere Website besuchen, erfasst Mittwald verschiedene personenbezogene Daten (insbesondere IP-Adressen in Form von Server-Logfiles). Mittwald speichert diese Daten, um den Betrieb der Website technisch zu ermöglichen, die Sicherheit zu gewährleisten und die Stabilität unseres Online-Angebots zu verbessern.
                     </p>
-                    <p class="mt-4">
-                        <strong>Einsatz von Künstlicher Intelligenz (Google Cloud / Gemini API)</strong><br>
-                        Zur Optimierung unseres Kundenservices und zur Automatisierung interner Prozesse (z. B. Bestellabwicklung, Ticket-Bearbeitung) setzen wir eigens implementierte KI-Modelle ein. Für die Verarbeitung der KI-Anfragen nutzen wir die <strong>Google Cloud (Vertex AI / Gemini API)</strong> von Google Ireland Limited, Gordon House, Barrow Street, Dublin 4, Irland.
-                    </p>
-                    <p class="mt-2">
-                        Ihre Daten, die beispielsweise durch Support-Anfragen (Tickets), E-Mails oder Bestellungen an uns übermittelt werden, werden von der KI <strong>strikt nur für interne Zwecke</strong> unserer Manufaktur verarbeitet. Google Cloud agiert hierbei als Auftragsverarbeiter unter den strengen Enterprise-Bedingungen. Ihre Daten werden <strong>nicht</strong> verwendet, um öffentliche Modelle von Google zu trainieren.
-                    </p>
-                    <p class="mt-4 text-sm text-gray-500">
-                        <strong>Rechtsgrundlage:</strong> Die Verwendung des Web-Hostings sowie des KI-Hostings erfolgt auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO. Wir haben ein berechtigtes Interesse an einer sicheren Bereitstellung unserer Website sowie der zügigen KI-gestützten Bearbeitung von Kundenanfragen. Sofern die KI zur Erfüllung eines Vertrages eingesetzt wird, ist Art. 6 Abs. 1 lit. b DSGVO die zusätzliche Rechtsgrundlage.
-                        <br><br>
-                        <strong>Auftragsverarbeitung:</strong> Wir haben mit Mittwald sowie mit Google entsprechende Verträge über Auftragsverarbeitung (AVV) bzw. Data Processing Addendums (DPA) geschlossen. Diese gewährleisten die Einhaltung der europäischen DSGVO.
-                    </p>
+                    <div id="ki-support-datenzugriff" class="scroll-mt-28 mt-6 pt-5 border-t border-gray-100">
+                        <p>
+                            <strong>Einsatz von Künstlicher Intelligenz (Google Cloud / Gemini API) & KI-Support-Assistent („Funkira“)</strong><br>
+                            Zur Optimierung unseres Kundenservices und zur Automatisierung interner Prozesse (z. B. Bestellabwicklung, Ticket-Bearbeitung) setzen wir eigens implementierte KI-Modelle ein. Für die Verarbeitung der KI-Anfragen nutzen wir die <strong>Google Cloud (Vertex AI / Gemini API)</strong> von Google Ireland Limited, Gordon House, Barrow Street, Dublin 4, Irland.
+                        </p>
+                        <p class="mt-2">
+                            Ihre Daten, die beispielsweise durch Support-Anfragen (Tickets), E-Mails oder Bestellungen an uns übermittelt werden, werden von der KI <strong>strikt nur für interne Zwecke</strong> unserer Manufaktur verarbeitet. Google Cloud agiert hierbei als Auftragsverarbeiter unter den strengen Enterprise-Bedingungen. Ihre Daten werden <strong>nicht</strong> verwendet, um öffentliche Modelle von Google zu trainieren.
+                        </p>
+                        <p class="mt-3">
+                            <strong>Zugriff des KI-Support-Assistenten auf Kundenkonto- & Bestelldaten (Opt-in & Widerruf):</strong><br>
+                            Sofern Sie unseren digitalen KI-Support-Assistenten („Funkira“) im Online-Shop nutzen möchten, damit dieser Ihnen bei Fragen zu Ihren Bestellungen, Lieferstatus, Rechnungen, Reklamationen oder Support-Tickets automatisiert Auskunft geben kann, erfolgt der Zugriff der KI auf Ihre personenbezogenen Konto- und Bestelldaten ausschließlich auf Grundlage Ihrer <strong>ausdrücklichen Einwilligung gemäß Art. 6 Abs. 1 lit. a, Art. 7 DSGVO</strong>.
+                            Sie können diese Einwilligung bereits bei der Registrierung, direkt vor Nutzung des Support-Chats oder jederzeit in Ihren <strong>Profileinstellungen</strong> erteilen und dort ebenso jederzeit mit einem Klick und mit Wirkung für die Zukunft <strong>widerrufen (deaktivieren)</strong>. Bei deaktivierter Einwilligung ist der technische Zugriff der KI auf Ihre persönlichen Bestell-, Rechnungs- und Kontodaten vollständig gesperrt.
+                        </p>
+                        <p class="mt-4 text-sm text-gray-500">
+                            <strong>Rechtsgrundlage:</strong> Der individuelle Zugriff des KI-Support-Assistenten auf Ihre persönlichen Konto- und Bestelldaten im Frontend-Chat erfolgt auf Grundlage Ihrer jederzeit widerruflichen Einwilligung nach Art. 6 Abs. 1 lit. a DSGVO. Die allgemeine Verwendung des Web-Hostings sowie interner administrativer Systeme erfolgt auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einer sicheren Bereitstellung unserer Website sowie einer effizienten Auftragsabwicklung) bzw. Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung).
+                            <br><br>
+                            <strong>Auftragsverarbeitung:</strong> Wir haben mit Mittwald sowie mit Google entsprechende Verträge über Auftragsverarbeitung (AVV) bzw. Data Processing Addendums (DPA inkl. EU-Standardvertragsklauseln gemäß Art. 28, 46 DSGVO) geschlossen. Diese gewährleisten die strikte Einhaltung des europäischen Datenschutzrechts.
+                        </p>
+                    </div>
                 </div>
 
                 <div>

@@ -1,6 +1,42 @@
+@php
+    $calcSchema = [
+        '@context' => 'https://schema.org',
+        '@graph' => [
+            [
+                '@type' => 'BreadcrumbList',
+                '@id' => route('calculator') . '#breadcrumb',
+                'itemListElement' => [
+                    ['@type' => 'ListItem', 'position' => 1, 'name' => 'Startseite', 'item' => route('home')],
+                    ['@type' => 'ListItem', 'position' => 2, 'name' => 'B2B Projekt-Kalkulator', 'item' => route('calculator')],
+                ],
+            ],
+            [
+                '@type' => 'WebApplication',
+                '@id' => route('calculator') . '#webapp',
+                'name' => 'Mein Seelenfunke B2B & Projekt-Kalkulator für Lasergravuren',
+                'url' => route('calculator'),
+                'applicationCategory' => 'BusinessApplication',
+                'operatingSystem' => 'All',
+                'description' => 'Interaktiver Sofort-Kalkulator für individuelle Lasergravuren, Trophäen, Mitarbeitergeschenke und Serienfertigungen inklusive Staffelrabatten und Express-Option.',
+                'offers' => [
+                    '@type' => 'Offer',
+                    'price' => '0.00',
+                    'priceCurrency' => 'EUR',
+                    'description' => 'Kostenlose Online-Projektkalkulation & Sofort-Angebot',
+                ],
+                'provider' => [
+                    '@id' => url('/#organization'),
+                ],
+            ],
+        ],
+    ];
+@endphp
 <x-layouts.frontend_layout
     title="B2B & Projekt-Kalkulator für Lasergravur & Großbestellungen | Mein Seelenfunke"
     meta_description="Kalkuliere individuelle Lasergravuren, Pokale, Mitarbeitergeschenke und Serienfertigungen sofort online – inklusive Staffelrabatten & Express-Option.">
+    @push('structured_data')
+        <script type="application/ld+json">{!! json_encode($calcSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
+    @endpush
     <x-sections.page-container>
 
         <section class="bg-white py-20 sm:py-20 md:py-24">

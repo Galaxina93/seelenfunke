@@ -33,7 +33,7 @@
                         <span class="text-xs font-bold text-gray-400 uppercase ml-2 tracking-tighter">Rabatt</span>
                     </div>
 
-                    {{-- Copy Button mit stabilisiertem Layout und Glow-Effekt --}}
+                    {{-- Copy Button: Mattes Gold ohne Schwarz-Hover und ohne Glow-Effekt --}}
                     <div x-data="{
                                     copied: false,
                                     copyCode() {
@@ -56,25 +56,23 @@
                                     }
                                 }"
                          @click="copyCode()"
-                         class="relative overflow-hidden bg-gray-50 hover:bg-gray-900 rounded-xl min-h-[54px] px-4 flex justify-between items-center cursor-pointer transition-all duration-300 border border-gray-100 group/code"
-                         {{-- Glow-Effekt bei Erfolg --}}
-                         :class="copied ? 'bg-green-50 border-green-300 ring-2 ring-green-100' : ''">
+                         class="relative overflow-hidden bg-[#F7F1E5] hover:bg-[#EDE2CC] rounded-xl min-h-[54px] px-4 flex justify-between items-center cursor-pointer transition-colors duration-200 border border-[#E2D2B5] shadow-none group/code"
+                         :class="copied ? '!bg-[#E8DEC8] !border-[#C5A059]' : ''">
 
                         {{-- Text-Bereich --}}
-                        <span class="font-mono font-bold text-gray-900 group-hover/code:text-primary transition-colors tracking-widest uppercase truncate mr-2"
-                              :class="copied ? 'text-green-600' : ''"
+                        <span class="font-mono font-bold text-[#8C6D32] group-hover/code:text-[#6E5423] transition-colors tracking-widest uppercase truncate mr-2"
                               x-text="copied ? 'KOPIERT!' : '{{ $voucher->code }}'">
                         </span>
 
                         {{-- Icon-Container: shrink-0 verhindert das Abschneiden --}}
                         <div class="flex-shrink-0 flex items-center justify-center w-6 h-6">
                             {{-- Standard Copy Icon --}}
-                            <svg x-show="!copied" class="w-5 h-5 text-gray-300 group-hover/code:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <svg x-show="!copied" class="w-5 h-5 text-[#B5945B] group-hover/code:text-[#8C6D32] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2" />
                             </svg>
 
                             {{-- Erfolg Check Icon --}}
-                            <svg x-show="copied" x-cloak class="w-6 h-6 text-green-600 animate-fade-in" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                            <svg x-show="copied" x-cloak class="w-5 h-5 text-[#8C6D32]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                         </div>

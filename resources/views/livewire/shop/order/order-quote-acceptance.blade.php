@@ -307,10 +307,16 @@
                                     </div>
                                 @endif
                                 
-                                @php
-                                    $hasAvailableVouchers = \App\Livewire\Shop\Marketing\MarketingVoucherSlider::hasAvailableVouchers();
-                                @endphp
-                                <form wire:submit.prevent="applyCoupon" class="flex items-stretch gap-2 w-full" @voucher-code-selected.window="$wire.set('couponCodeInput', $event.detail.code)">
+                                <style>
+                                    @keyframes voucherGiftSpinOnce {
+                                        0% { transform: rotate(0deg); }
+                                        100% { transform: rotate(360deg); }
+                                    }
+                                    .voucher-gift-btn:hover .voucher-gift-icon {
+                                        animation: voucherGiftSpinOnce 0.55s cubic-bezier(0.4, 0, 0.2, 1) 1 forwards;
+                                    }
+                                </style>
+                                <form wire:submit.prevent="applyCoupon" class="flex items-center gap-2 w-full" @voucher-code-selected.window="$wire.set('couponCodeInput', $event.detail.code)">
                                     <div class="flex-1 min-w-0 relative">
                                         <input wire:model="couponCodeInput" type="text" placeholder="Code eingeben" 
                                                class="w-full h-full text-base border-gray-300 rounded-lg shadow-sm focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)] focus:ring-opacity-50 uppercase placeholder:normal-case font-mono @error('couponCodeInput') border-red-500 @enderror">
@@ -326,14 +332,8 @@
                                             @click.stop="$dispatch('toggle-vouchers')"
                                             title="Verfügbare Gutscheine & Rabatte anzeigen"
                                             aria-label="Verfügbare Gutscheine & Rabatte anzeigen"
-                                            class="shrink-0 relative px-3.5 py-2.5 rounded-lg border border-amber-300/80 bg-gradient-to-br from-amber-50 to-amber-100/70 text-[#B88728] hover:from-primary hover:to-primary-dark hover:text-white hover:border-primary transition-all duration-300 shadow-sm hover:shadow-[0_0_15px_rgba(197,160,89,0.5)] flex items-center justify-center group cursor-pointer">
-                                        @if($hasAvailableVouchers)
-                                            <span class="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                                                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary border border-white"></span>
-                                            </span>
-                                        @endif
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 transition-transform duration-300 group-hover:scale-110">
+                                            class="voucher-gift-btn shrink-0 p-1.5 bg-transparent border-0 shadow-none text-[#B5945B] hover:text-[#967843] transition-colors flex items-center justify-center cursor-pointer focus:outline-none">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="voucher-gift-icon w-6 h-6">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H4.5a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/>
                                         </svg>
                                     </button>

@@ -158,7 +158,7 @@
                             <label class="flex items-start gap-3 cursor-pointer group">
                                 <input type="checkbox" wire:model.live="privacyChecked" class="mt-0.5 w-4 h-4 text-cyan-500 rounded border-gray-300 focus:ring-cyan-500">
                                 <span class="text-[11px] text-gray-600 leading-relaxed group-hover:text-gray-900 transition-colors">
-                                    Ich willige ein, dass meine Eingaben zur Bearbeitung an das <strong>Seelenfunke Agent System (unter Nutzung von Google Gemini, USA)</strong> übermittelt werden. Diese Einwilligung ist freiwillig und kann jederzeit widerrufen werden. Es gelten die <a href="/agb" target="_blank" class="text-cyan-600 underline font-bold">AGB</a> und die <a href="/datenschutz" target="_blank" class="text-cyan-600 underline font-bold">Datenschutzerklärung</a>.
+                                    Ich willige gemäß Art. 6 Abs. 1 lit. a DSGVO ein, dass meine Eingaben sowie (falls eingeloggt) meine Konto-, Bestell- und Ticketdaten zur Bearbeitung meiner Support-Anfrage durch das <strong>Seelenfunke KI-Support-System (unter Nutzung von Google Cloud / Gemini)</strong> verarbeitet werden dürfen. Diese Einwilligung ist freiwillig und kann jederzeit in den Profileinstellungen widerrufen werden. Es gelten die <a href="/agb" target="_blank" class="text-cyan-600 underline font-bold">AGB</a> und die <a href="/datenschutz#ki-support-datenzugriff" target="_blank" class="text-cyan-600 underline font-bold">Datenschutzerklärung</a>.
                                 </span>
                             </label>
                         </div>

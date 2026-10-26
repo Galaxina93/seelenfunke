@@ -10,11 +10,11 @@
 
         {{-- HEADLINE --}}
         <div class="text-center mb-20 fade-in">
-            <span class="inline-block px-4 py-1.5 mb-4 text-xs font-bold tracking-widest text-primary uppercase bg-primary/10 rounded-full">
+            <span class="inline-block px-4 py-1.5 mb-4 text-xs font-bold tracking-widest text-[#8a6820] uppercase bg-primary/10 rounded-full">
                 Häufige Fragen
             </span>
             <h2 id="faq-heading" class="text-3xl md:text-5xl font-serif font-bold text-gray-900 mb-6 text-serif">
-                Alles, was du über deinen <span class="text-primary italic">Seelenfunken</span> wissen musst
+                Alles, was du über deinen <span class="text-[#8a6820] italic">Seelenfunken</span> wissen musst
             </h2>
             <div class="w-24 h-1 bg-primary/30 mx-auto rounded-full mb-8 text-serif" aria-hidden="true"></div>
             <p class="text-xl text-gray-600 leading-relaxed max-w-2xl mx-auto text-serif">
@@ -92,10 +92,31 @@
                     </p>
                     <a href="{{ url('/versand') }}"
                        title="Übersicht der Versandkosten und Lieferzeiten"
-                       class="inline-flex items-center gap-1.5 text-primary font-bold hover:underline">
+                       class="inline-flex items-center gap-1.5 text-[#8a6820] font-bold hover:underline">
                         Alle Details zur Lieferung & EU-Versand ansehen
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
                     </a>
+                </div>
+            </details>
+
+            {{-- FRAGE: Edelstahl, Hundemarken & 3D-Konfigurator --}}
+            <details class="group bg-white rounded-3xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-gray-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden transition-all duration-300 open:ring-2 open:ring-primary/20">
+                <summary class="flex cursor-pointer items-center justify-between gap-4 p-8 text-gray-900 transition-colors hover:bg-gray-50/50">
+                    <div class="flex items-center gap-4 text-serif">
+                        <div class="hidden sm:flex h-10 w-10 items-center justify-center rounded-xl bg-primary/5 text-primary" aria-hidden="true">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                        </div>
+                        <h3 class="text-lg md:text-xl font-bold font-serif m-0">Wie haltbar ist die Lasergravur auf Edelstahl-Schlüsselanhängern & Hundemarken?</h3>
+                    </div>
+                    <div class="ml-4 flex-shrink-0" aria-hidden="true">
+                        <span class="relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white transition-all duration-300 group-open:rotate-180 group-open:bg-primary group-open:text-white group-open:border-primary shadow-sm text-serif">
+                            <svg class="w-6 h-6 transition-transform group-open:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                            <svg class="w-6 h-6 hidden group-open:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg>
+                        </span>
+                    </div>
+                </summary>
+                <div class="px-8 pb-8 sm:pl-20 text-gray-600 leading-relaxed border-t border-gray-50 pt-4 text-serif">
+                    Unsere Schlüsselanhänger (wie <a href="{{ route('product.show', 'seelen-talisman') }}" class="text-[#8a6820] font-bold hover:underline">Der Seelen-Talisman</a>) und Hundemarken (<a href="{{ route('product.show', 'seelen-pfote-hundemarke') }}" class="text-[#8a6820] font-bold hover:underline">Die Seelen-Pfote</a>) bestehen aus <strong>massivem, rostfreiem Edelstahl</strong> bzw. eloxiertem Metall. Durch die Faserlaser-Veredelung ist die Gravur dauerhaft mit dem Metall verbunden, <strong>100 % wasserfest, rostfrei und abriebfest</strong> – und im <strong>interaktiven 2D- & 3D-Konfigurator</strong> auf Vorder- und Rückseite ohne Aufpreis gestaltbar.
                 </div>
             </details>
 
@@ -126,8 +147,8 @@
 
         {{-- Footer Text --}}
         <div class="mt-20 text-center bg-white p-10 rounded-[2.5rem] shadow-sm border border-gray-50 text-serif">
-            <h4 class="text-lg font-bold text-gray-900 mb-2">Noch etwas unklar?</h4>
-            <p class="text-gray-500 mb-6">
+            <h3 class="text-lg font-bold text-gray-900 mb-2">Noch etwas unklar?</h3>
+            <p class="text-gray-600 mb-6">
                 Schreib uns einfach eine Nachricht. Wir antworten meist innerhalb weniger Stunden.
             </p>
             <a href="mailto:kontakt@mein-seelenfunke.de"
@@ -172,7 +193,15 @@
             "@type": "Answer",
             "text": "Innerhalb Deutschlands versenden wir ab einem Bestellwert von {{ number_format($freeThreshold / 100, 2, ',', '.') }} € versandkostenfrei. Darunter beträgt die Pauschale {{ number_format($shippingCost / 100, 2, ',', '.') }} €. Die Fertigung dauert ca. 1–3 Werktage."
                   }
-                }
+                },
+        {
+          "@type": "Question",
+          "name": "Wie haltbar ist die Lasergravur auf Edelstahl-Schlüsselanhängern & Hundemarken?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Unsere Schlüsselanhänger (Der Seelen-Talisman) und Hundemarken (Die Seelen-Pfote) bestehen aus massivem, rostfreiem Edelstahl bzw. eloxiertem Metall. Die Faserlaser-Gravur ist dauerhaft im Metall verankert, 100 % wasserfest, rostfrei und abriebfest sowie im 2D/3D-Konfigurator beidseitig ohne Aufpreis gestaltbar."
+          }
+        }
     @if($expressPercent > 0)
         ,{
           "@type": "Question",

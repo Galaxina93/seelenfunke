@@ -18,7 +18,7 @@ mix.js('resources/js/app.js', 'public/js')
         require('tailwindcss'),
     ])
     .sass('resources/css/bootstrap.scss', 'public/css')
-    .sourceMaps();
+    .sourceMaps(false);
 
 if (mix.inProduction()) {
     mix.version();

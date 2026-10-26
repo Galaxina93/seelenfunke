@@ -22,7 +22,7 @@
 
             {{-- Header Bereich --}}
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center mb-12">
-                <h2 class="text-3xl md:text-4xl font-serif font-bold text-primary dark:text-primary-400 mb-4">
+                <h2 class="text-3xl md:text-4xl font-serif font-bold text-[#8a6820] dark:text-primary mb-4">
                     Was unsere Kunden sagen
                 </h2>
 
@@ -37,13 +37,13 @@
                         {{-- Goldene Sterne --}}
                         <div class="flex text-yellow-400 space-x-1">
                             @for($i = 0; $i < 5; $i++)
-                                <svg class="w-6 h-6 {{ $i < round($reviewsData['rating']) ? 'fill-current' : 'text-gray-200 dark:text-gray-600' }}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <svg class="w-6 h-6 {{ $i < round($reviewsData['rating']) ? 'fill-current' : 'text-gray-200 dark:text-gray-600' }}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                     <path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.005Z" clip-rule="evenodd" />
                                 </svg>
                             @endfor
                         </div>
 
-                        <span class="text-gray-400 dark:text-gray-500 text-sm font-medium ml-3 border-l border-gray-200 dark:border-gray-600 pl-3">
+                        <span class="text-gray-600 dark:text-gray-300 text-sm font-medium ml-3 border-l border-gray-200 dark:border-gray-600 pl-3">
                             {{ $reviewsData['total_ratings'] ?? 0 }} Rezensionen
                         </span>
                     </div>
@@ -51,7 +51,10 @@
             </div>
 
             {{-- Reviews Marquee --}}
-            @if(!empty($reviewsData['produkte/reviews']))
+            @php
+                $reviewItems = $reviewsData['reviews'] ?? $reviewsData['produkte/reviews'] ?? [];
+            @endphp
+            @if(!empty($reviewItems))
 
                 {{-- Container mit Fade-Effekt links und rechts --}}
                 <div class="relative w-full">
@@ -67,7 +70,7 @@
 
                         {{-- Wir loopen 2x durch die Daten, um einen nahtlosen Übergang zu schaffen --}}
                         @for ($k = 0; $k < 2; $k++)
-                            @foreach($reviewsData['produkte/reviews'] as $review)
+                            @foreach($reviewItems as $review)
                                 {{-- Einzelne Karte (Zweiter Durchlauf für Screenreader & Crawler ausgeblendet) --}}
                                 <div class="flex-shrink-0 w-[300px] md:w-[400px] mx-4" @if($k === 1) aria-hidden="true" data-nosnippet @endif>
                                     <div class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-sm hover:shadow-lg transition-shadow duration-300 border border-gray-100 dark:border-gray-700 flex flex-col h-full relative group cursor-default">
@@ -102,7 +105,7 @@
                                                             </svg>
                                                         @endfor
                                                     </div>
-                                                    <span class="text-gray-400 font-light truncate">{{ \Carbon\Carbon::createFromTimestamp($review['time'])->diffForHumans() }}</span>
+                                                    <span class="text-gray-600 dark:text-gray-400 font-light truncate">{{ \Carbon\Carbon::createFromTimestamp($review['time'])->diffForHumans() }}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -133,8 +136,8 @@
 
             @else
                 <div class="flex flex-col items-center justify-center py-12 text-center">
-                    <x-heroicon-o-chat-bubble-left-ellipsis class="w-12 h-12 text-gray-300 mb-3" />
-                    <p class="text-gray-500">Momentan können keine Bewertungen geladen werden.</p>
+                    <x-heroicon-o-chat-bubble-left-ellipsis class="w-12 h-12 text-gray-400 mb-3" />
+                    <p class="text-gray-600">Momentan können keine Bewertungen geladen werden.</p>
                 </div>
             @endif
 

@@ -226,13 +226,13 @@
             <div class="pt-6 flex flex-col items-center gap-4">
                 <a href="{{ route('calculator') }}"
                    title="Angebot für personalisierte Geschenke online berechnen"
-                   class="inline-flex items-center gap-3 bg-primary text-white px-10 py-5 rounded-full font-bold text-lg shadow-[0_0_25px_rgba(201,166,107,0.3)] hover:bg-white hover:text-primary-dark transition-all transform hover:scale-105 hover:shadow-[0_0_40px_rgba(255,255,255,0.5)]">
+                   class="inline-flex items-center gap-3 bg-primary text-gray-900 px-10 py-5 rounded-full font-bold text-lg shadow-[0_0_25px_rgba(201,166,107,0.3)] hover:bg-white hover:text-primary-dark transition-all transform hover:scale-105 hover:shadow-[0_0_40px_rgba(255,255,255,0.5)]">
                     <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                     </svg>
                     Jetzt Angebot berechnen
                 </a>
-                <p class="text-xs text-gray-500 uppercase tracking-widest font-semibold opacity-80">
+                <p class="text-xs text-gray-300 uppercase tracking-widest font-semibold">
                     Unverbindlich & Sofort
                 </p>
             </div>

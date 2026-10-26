@@ -354,7 +354,7 @@ class OrderQuoteAcceptance extends Component
         $goodsGross = $this->quote->gross_total - $shippingCost - $expressCost;
 
         if ($coupon->min_order_value && $goodsGross < $coupon->min_order_value) {
-            $this->addError('couponCodeInput', 'Mindestbestellwert von ' . number_format($coupon->min_order_value / 100, 2, ',', '.') . '€ nicht erreicht.');
+            $this->addError('couponCodeInput', 'Mindestbestellwert von ' . number_format($coupon->min_order_value / 100, 2, ',', '.') . ' € für rabattfähige Artikel nicht erreicht (Versandkosten werden nicht berücksichtigt, es zählt nur der reine Warenwert).');
             return;
         }
 

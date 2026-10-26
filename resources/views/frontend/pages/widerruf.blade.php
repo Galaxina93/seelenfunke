@@ -45,6 +45,34 @@
                 </div>
             </div>
 
+            {{-- Infobox: Seelenfunke Creator Partnerprogramm (B2B / § 14 BGB) --}}
+            <div id="creator-partnerprogramm" class="scroll-mt-28 bg-amber-50/80 border border-primary/30 rounded-2xl p-6 sm:p-8 shadow-xs">
+                <div class="flex flex-col sm:flex-row items-start gap-5">
+                    <div class="flex-shrink-0 w-12 h-12 rounded-2xl bg-primary text-white flex items-center justify-center font-bold text-xl shadow-md">
+                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                    </div>
+                    <div class="space-y-3 flex-1 text-left">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <h2 class="text-base sm:text-lg font-bold text-gray-900">
+                                Hinweis für das „Seelenfunke Creator Partnerprogramm“
+                            </h2>
+                            <span class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider bg-primary/15 text-primary-dark px-2.5 py-0.5 rounded-full border border-primary/25">
+                                B2B-Kooperation (§ 14 BGB)
+                            </span>
+                        </div>
+                        <p class="text-sm text-gray-800 leading-relaxed">
+                            Das gesetzliche Verbraucher-Widerrufsrecht (§§ 312g, 355 BGB) gilt ausschließlich für Verbraucher (§ 13 BGB). Da die Teilnahme am <strong>Seelenfunke Creator Partnerprogramm</strong> ausschließlich selbstständigen Creatorn, Freiberuflern und Gewerbetreibenden vorbehalten ist, die als <strong>Unternehmer im Sinne des § 14 BGB</strong> auf eigene Rechnung handeln, besteht für den Abschluss der Creator-Kooperationsvereinbarung kein Verbraucher-Widerrufsrecht. Sie können Ihre Teilnahme am Partnerprogramm jedoch jederzeit formfrei und ohne Mindestlaufzeit gemäß § 10 Abs. 6 unserer AGB beenden.
+                        </p>
+                        <div class="pt-1">
+                            <a href="{{ route('agb') }}#creator-partnerprogramm" class="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-dark underline underline-offset-4 transition-colors">
+                                <svg class="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                <span>Zu § 10 Seelenfunke Creator Partnerprogramm in den AGB</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="text-center pb-24 space-y-3">
                 <div>
                     <a href="{{ route('widerruf.pdf') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-gray-700 hover:text-primary transition-colors">

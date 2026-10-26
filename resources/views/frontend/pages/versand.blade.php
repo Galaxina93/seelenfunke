@@ -1,6 +1,34 @@
+@php
+    $shippingSchema = [
+        '@context' => 'https://schema.org',
+        '@graph' => [
+            [
+                '@type' => 'BreadcrumbList',
+                '@id' => route('versand') . '#breadcrumb',
+                'itemListElement' => [
+                    ['@type' => 'ListItem', 'position' => 1, 'name' => 'Startseite', 'item' => route('home')],
+                    ['@type' => 'ListItem', 'position' => 2, 'name' => 'Lieferung & Versand', 'item' => route('versand')],
+                ],
+            ],
+            [
+                '@type' => 'WebPage',
+                '@id' => route('versand') . '#webpage',
+                'url' => route('versand'),
+                'name' => 'Lieferung, Versandkosten & Fertigungszeiten | Mein Seelenfunke',
+                'description' => 'Alle Informationen zu bruchsicherem DHL-Versand, Lieferzeiten für personalisierte Geschenke und Express-Fertigung aus unserer Manufaktur in Gifhorn.',
+                'isPartOf' => [
+                    '@id' => url('/#website'),
+                ],
+            ],
+        ],
+    ];
+@endphp
 <x-layouts.frontend_layout
     title="Lieferung, Versandkosten & Fertigungszeiten | Mein Seelenfunke"
     meta_description="Alle Informationen zu bruchsicherem DHL-Versand, Lieferzeiten für personalisierte Geschenke und unserem Express-Fertigungsservice aus Gifhorn.">
+    @push('structured_data')
+        <script type="application/ld+json">{!! json_encode($shippingSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
+    @endpush
 
     <x-sections.page-container>
 
