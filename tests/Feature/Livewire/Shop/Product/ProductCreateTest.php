@@ -343,4 +343,46 @@ class ProductCreateTest extends TestCase
             ->assertSet('layoutMode', 'list')
             ->assertSee('Ansichts-Testprodukt');
     }
+
+    #[Test]
+    public function it_toggles_assortment_and_creates_quick_ai_product_per_knopfdruck()
+    {
+        $product = Product::create([
+            'name' => 'Sortiment-Test',
+            'slug' => 'sortiment-test',
+            'sku' => 'SORT-001',
+            'status' => 'active',
+            'type' => 'physical',
+            'price' => 1990,
+            'completion_step' => 4,
+        ]);
+
+        Livewire::test(ProductCreate::class)
+            ->call('toggleAssortment', $product->id);
+
+        $this->assertEquals('draft', $product->fresh()->status);
+
+        Livewire::test(ProductCreate::class)
+            ->call('toggleAssortment', $product->id);
+
+        $this->assertEquals('active', $product->fresh()->status);
+
+        // Create a turnkey AI product per 1-click
+        Livewire::test(ProductCreate::class)
+            ->call('openQuickAiModal')
+            ->assertSet('showQuickAiModal', true)
+            ->set('quickAiName', 'Der Seelen-Talisman Test')
+            ->set('quickAiSku', 'STEEL-TEST-99')
+            ->set('quickAiPrice', '19.90')
+            ->set('quickAiPurchasePrice', '1.16')
+            ->call('createQuickAiProduct')
+            ->assertSet('showQuickAiModal', false);
+
+        $created = Product::where('sku', 'STEEL-TEST-99')->first();
+        $this->assertNotNull($created);
+        $this->assertEquals('active', $created->status);
+        $this->assertEquals(4, $created->completion_step);
+        $this->assertEquals(1990, $created->price);
+        $this->assertEquals(116, $created->purchase_price);
+    }
 }

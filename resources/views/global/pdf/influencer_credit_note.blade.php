@@ -239,7 +239,7 @@
         @endif
         @if($payout->tax_rate > 0)
             <tr>
-                <td>zzgl. {{ $payout->tax_rate }} % Umsatzsteuer:</td>
+                <td>zzgl. {{ rtrim(rtrim(number_format((float) $payout->tax_rate, 2, ',', '.'), '0'), ',') }} % Umsatzsteuer:</td>
                 <td style="text-align: right;">{{ number_format($payout->tax_amount_cents / 100, 2, ',', '.') }} €</td>
             </tr>
         @else

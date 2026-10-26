@@ -37,7 +37,7 @@ class SendAbandonedCartRemindersTest extends TestCase
             'customer_id' => $customer->id,
         ]);
 
-        $product = Product::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'name' => 'Test', 'slug' => 'test-' . uniqid(), 'price' => 1000]);
+        $product = Product::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'name' => 'Test', 'slug' => 'test-' . uniqid(), 'price' => 1000, 'status' => 'active']);
         CartItem::create(['cart_id' => $cart->id, 'product_id' => $product->id, 'quantity' => 1, 'unit_price' => 100]);
         
         \Illuminate\Support\Facades\DB::table('carts')->where('id', $cart->id)->update(['updated_at' => now()->subHours(4)]);
@@ -65,7 +65,7 @@ class SendAbandonedCartRemindersTest extends TestCase
             'customer_id' => $customer->id,
         ]);
 
-        $product = Product::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'name' => 'Test', 'slug' => 'test-' . uniqid(), 'price' => 1000]);
+        $product = Product::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'name' => 'Test', 'slug' => 'test-' . uniqid(), 'price' => 1000, 'status' => 'active']);
         CartItem::create(['cart_id' => $cart->id, 'product_id' => $product->id, 'quantity' => 1, 'unit_price' => 100]);
         
         \Illuminate\Support\Facades\DB::table('carts')->where('id', $cart->id)->update(['updated_at' => now()->subHours(4)]);
@@ -88,7 +88,7 @@ class SendAbandonedCartRemindersTest extends TestCase
             'customer_id' => $customer->id,
             'reminder_email_sent_at' => now()->subHour()
         ]);
-        $product = Product::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'name' => 'Test', 'slug' => 'test-' . uniqid(), 'price' => 1000]);
+        $product = Product::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'name' => 'Test', 'slug' => 'test-' . uniqid(), 'price' => 1000, 'status' => 'active']);
         CartItem::create(['cart_id' => $cart->id, 'product_id' => $product->id, 'quantity' => 1, 'unit_price' => 100]);
         \Illuminate\Support\Facades\DB::table('carts')->where('id', $cart->id)->update(['updated_at' => now()->subHours(4)]);
 
@@ -109,7 +109,7 @@ class SendAbandonedCartRemindersTest extends TestCase
             'session_id' => 'ghi',
             'customer_id' => $customer->id,
         ]);
-        $product = Product::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'name' => 'Test', 'slug' => 'test-' . uniqid(), 'price' => 1000]);
+        $product = Product::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'name' => 'Test', 'slug' => 'test-' . uniqid(), 'price' => 1000, 'status' => 'active']);
         CartItem::create(['cart_id' => $cart->id, 'product_id' => $product->id, 'quantity' => 1, 'unit_price' => 100]);
         \Illuminate\Support\Facades\DB::table('carts')->where('id', $cart->id)->update(['updated_at' => now()->subHours(2)]);
 
@@ -148,7 +148,7 @@ class SendAbandonedCartRemindersTest extends TestCase
             'session_id' => 'mno',
             'customer_id' => null,
         ]);
-        $product = Product::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'name' => 'Test', 'slug' => 'test-' . uniqid(), 'price' => 1000]);
+        $product = Product::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'name' => 'Test', 'slug' => 'test-' . uniqid(), 'price' => 1000, 'status' => 'active']);
         CartItem::create(['cart_id' => $cart->id, 'product_id' => $product->id, 'quantity' => 1, 'unit_price' => 100]);
         \Illuminate\Support\Facades\DB::table('carts')->where('id', $cart->id)->update(['updated_at' => now()->subHours(4)]);
 

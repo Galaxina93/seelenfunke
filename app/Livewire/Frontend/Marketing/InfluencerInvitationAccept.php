@@ -175,6 +175,14 @@ class InfluencerInvitationAccept extends Component
 
     public function nextToStepThree(): void
     {
+        try {
+            $this->rateLimit(6);
+        } catch (TooManyRequestsException $e) {
+            throw ValidationException::withMessages([
+                'email' => "Zu viele Prüfversuche. Bitte warte {$e->secondsUntilAvailable} Sekunden.",
+            ]);
+        }
+
         if (!$this->isCodeVerified) {
             $this->step = 1;
             return;
@@ -200,6 +208,9 @@ class InfluencerInvitationAccept extends Component
     {
         $cleanSlug = Str::slug($this->slug ?: ltrim($this->handle, '@'));
         $this->slug = $cleanSlug;
+        $this->email = mb_strtolower(trim($this->email));
+
+        $neutralEmailError = 'Diese E-Mail-Adresse kann für die Creator-Registrierung nicht verwendet werden. Bitte nutze eine andere geschäftliche E-Mail-Adresse.';
 
         $this->validate([
             'firstName' => 'required|string|max:100',
@@ -209,6 +220,11 @@ class InfluencerInvitationAccept extends Component
                 'email',
                 'max:150',
                 Rule::unique('employees', 'email')->ignore($this->existingEmployeeId),
+                function ($attribute, $value, $fail) use ($neutralEmailError) {
+                    if (\App\Models\System\SystemUser::isEmailTakenAcrossGuards((string) $value, 'employee', $this->existingEmployeeId)) {
+                        $fail($neutralEmailError);
+                    }
+                },
             ],
             'password' => 'required|string|min:8|confirmed',
             'primaryChannel' => 'required|in:instagram,tiktok,youtube,pinterest,blog',
@@ -225,7 +241,7 @@ class InfluencerInvitationAccept extends Component
             'firstName.required' => 'Bitte gib deinen Vornamen ein.',
             'lastName.required' => 'Bitte gib deinen Nachnamen ein.',
             'email.required' => 'Bitte gib deine E-Mail-Adresse für den Login ein.',
-            'email.unique' => 'Mit dieser E-Mail-Adresse existiert bereits ein Konto.',
+            'email.unique' => $neutralEmailError,
             'password.required' => 'Bitte wähle ein sicheres Passwort (mind. 8 Zeichen).',
             'password.min' => 'Dein Passwort muss mindestens 8 Zeichen lang sein.',
             'password.confirmed' => 'Die beiden Passwörter stimmen nicht überein.',
@@ -260,7 +276,7 @@ class InfluencerInvitationAccept extends Component
             'postal' => 'required|string|max:20',
             'city' => 'required|string|max:100',
             'country' => 'required|string|max:5',
-            'taxStatus' => 'required|in:small_business,standard_tax',
+            'taxStatus' => 'required|in:small_business,standard_tax,reverse_charge',
             'taxNumber' => 'required|string|min:6|max:80',
             'payoutMethod' => 'required|in:bank_transfer,paypal,shop_voucher',
             'selfEmployedConfirmed' => 'accepted',
@@ -334,6 +350,8 @@ class InfluencerInvitationAccept extends Component
 
     public function render()
     {
-        return view('livewire.frontend.marketing.influencer-invitation-accept');
+        return view('livewire.frontend.marketing.influencer-invitation-accept', [
+            'defaultTaxRate' => (float) shop_setting('default_tax_rate', 19.0),
+        ]);
     }
 }

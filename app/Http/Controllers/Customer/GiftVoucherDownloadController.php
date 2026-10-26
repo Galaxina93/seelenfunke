@@ -21,10 +21,10 @@ class GiftVoucherDownloadController extends Controller
         $voucher->loadMissing('orderItem.order');
         $item = $voucher->orderItem;
 
-        // 1. Check if user is logged in as admin or employee
+        // 1. Check if user is logged in as admin or internal employee
         $isAdminOrEmployee = AiAuthHelper::isAdmin()
             || Auth::guard('admin')->check()
-            || Auth::guard('employee')->check();
+            || AiAuthHelper::isEmployee();
 
         if (!$isAdminOrEmployee) {
             $authorized = false;
@@ -46,6 +46,16 @@ class GiftVoucherDownloadController extends Controller
                         && strcasecmp(trim((string) $voucher->recipient_email), trim((string) $user->email)) === 0;
 
                     if ($isBuyer || $isRecipient) {
+                        $authorized = true;
+                    }
+                }
+
+                // 2c. Logged-in Influencer who received this specific voucher as a Creator payout (+20% bonus)
+                $employeeUser = Auth::guard('employee')->user();
+                if (!$authorized && $employeeUser && $employeeUser->isInfluencer()) {
+                    $isCreatorRecipient = !empty($voucher->recipient_email)
+                        && strcasecmp(trim((string) $voucher->recipient_email), trim((string) $employeeUser->email)) === 0;
+                    if ($isCreatorRecipient) {
                         $authorized = true;
                     }
                 }

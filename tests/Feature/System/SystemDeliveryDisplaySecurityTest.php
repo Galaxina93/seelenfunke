@@ -34,6 +34,12 @@ class SystemDeliveryDisplaySecurityTest extends TestCase
 
     public function test_customer_can_submit_valid_feedback(): void
     {
+        \App\Models\Delivery\DeliverySetting::query()->delete();
+        \App\Models\Delivery\DeliverySetting::create([
+            'is_vacation_mode' => true,
+            'is_sick_mode' => false,
+        ]);
+
         $customer = Customer::factory()->create();
 
         Livewire::actingAs($customer, 'customer')

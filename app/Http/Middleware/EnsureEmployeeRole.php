@@ -23,14 +23,22 @@ class EnsureEmployeeRole
 
         $currentRole = (string) ($employee->role ?: 'internal');
 
-        if (empty($allowedRoles) || in_array($currentRole, $allowedRoles, true)) {
+        if (
+            empty($allowedRoles)
+            || in_array($currentRole, $allowedRoles, true)
+            || (in_array('internal', $allowedRoles, true) && $employee->isInternalEmployee())
+        ) {
             return $next($request);
         }
 
         if ($currentRole === 'influencer') {
-            return redirect()->route('employee.influencer.dashboard');
+            return response()->redirectToRoute('employee.influencer.dashboard');
         }
 
-        return redirect()->route('employee.dashboard');
+        if ($currentRole === 'tax_advisor') {
+            return response()->redirectToRoute('employee.tax-advisor.dashboard');
+        }
+
+        return response()->redirectToRoute('employee.dashboard');
     }
 }

@@ -71,13 +71,13 @@ class AntigravityArchitectureTest extends TestCase
 
     public function test_multi_replace_file_executes_correctly()
     {
-        $testFile = storage_path('app/test_dummy_file.php');
+        $testFile = base_path('tests/Feature/Services/AI/test_dummy_file.php');
         file_put_contents($testFile, "<?php\n\nfunction old() {\n    return 1;\n}\n");
 
         // Need the plan to bypass guardrail if we invoked via AIFunctionsRegistry
         // But we can call the direct method AiSystemFuncs::executeMultiReplaceFile to just unit-test the replace logic
         $result = AiSystemFuncs::executeMultiReplaceFile([
-            'file_path' => 'storage/app/test_dummy_file.php',
+            'file_path' => 'tests/Feature/Services/AI/test_dummy_file.php',
             'chunks' => [
                 [
                     'search_content' => "function old() {\n    return 1;\n}",

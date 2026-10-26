@@ -5,6 +5,7 @@ namespace App\Livewire\Auth;
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerProfile;
 use App\Models\System\SystemBlockedIp;
+use App\Models\System\SystemUser;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Auth\Events\Registered;
@@ -25,6 +26,7 @@ class AuthRegister extends Component
         }
 
         $this->sessionToken = $sessionToken ?? request()->cookie('sf_chat_uuid');
+        $this->ai_data_consent = (bool) session('ai_chat_privacy_accepted', false);
     }
 
     public $firstname = '';
@@ -43,6 +45,7 @@ class AuthRegister extends Component
     public $birthday = '';
 
     public $terms = false;
+    public $ai_data_consent = false;
 
     #[Locked]
     public $passwordRules = [
@@ -57,7 +60,19 @@ class AuthRegister extends Component
         return [
             'firstname' => 'required|string|max:255',
             'lastname' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:customers|indisposable',
+            'email' => [
+                'required',
+                'string',
+                'email',
+                'max:255',
+                'unique:customers',
+                'indisposable',
+                function ($attribute, $value, $fail) {
+                    if (SystemUser::isEmailTakenAcrossGuards((string) $value)) {
+                        $fail('Diese E-Mail-Adresse wird bereits verwendet.');
+                    }
+                },
+            ],
             'password' => ['required', 'string', 'min:8', 'regex:/[0-9]/', 'regex:/[A-Z]/', 'same:password_confirmation'],
             'street' => 'required|string|max:255',
             'house_number' => 'required|string|max:20',
@@ -66,7 +81,8 @@ class AuthRegister extends Component
             'country' => 'required|string|size:2',
             'is_business' => 'required|boolean',
             'birthday' => 'nullable|date',
-            'terms' => 'accepted'
+            'terms' => 'accepted',
+            'ai_data_consent' => 'boolean',
         ];
     }
 
@@ -146,6 +162,7 @@ class AuthRegister extends Component
             return;
         }
 
+        $this->email = mb_strtolower(trim((string) $this->email));
         $this->validatePasswordRules();
         $this->validate();
 
@@ -162,6 +179,8 @@ class AuthRegister extends Component
             'password' => Hash::make($this->password),
         ]);
 
+        $hasAiConsent = (bool) $this->ai_data_consent;
+
         $customer->profile()->update([
             'street' => $this->street,
             'house_number' => $this->house_number,
@@ -170,7 +189,14 @@ class AuthRegister extends Component
             'country' => $this->country,
             'is_business' => $this->is_business,
             'birthday' => $this->birthday ?: null,
+            'ai_data_consent' => $hasAiConsent,
+            'ai_data_consent_at' => $hasAiConsent ? now() : null,
         ]);
+
+        if ($hasAiConsent) {
+            session()->put('ai_chat_privacy_accepted', true);
+            $customer->updateAiDataConsent(true, 'registration');
+        }
 
         // Chat Session Guest-Ascension Migration
         if (is_string($this->sessionToken) && strlen(trim($this->sessionToken)) >= 16) {

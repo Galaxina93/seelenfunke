@@ -785,6 +785,7 @@ class GiftVoucherTest extends TestCase
             'last_name' => 'Schmidt',
             'password' => bcrypt('secret'),
         ]);
+        $recipient->profile()->update(['email_verified_at' => now()]);
 
         $voucher = MarketingGiftVoucher::create([
             'code' => 'DANKE-REWARD-1234',

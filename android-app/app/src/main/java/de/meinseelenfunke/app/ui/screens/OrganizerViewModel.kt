@@ -53,68 +53,84 @@ class OrganizerViewModel : ViewModel() {
 
     fun loadAllOrganizerData(showLoading: Boolean = true) {
         viewModelScope.launch {
-            if (showLoading) {
+            if (showLoading && _uiState.value !is OrganizerUiState.Success) {
                 _uiState.value = OrganizerUiState.Loading
             }
             try {
                 var errorMsg: String? = null
-                
-                repository.getTaskLists()
-                    .onSuccess { _taskLists.value = it }
-                    .onFailure { 
-                        android.util.Log.e("OrganizerViewModel", "TaskLists load failed", it)
-                        errorMsg = "Task-Listen konnten nicht geladen werden: " + it.localizedMessage 
-                    }
-                
-                repository.getTasks()
-                    .onSuccess { _tasks.value = it }
-                    .onFailure { 
-                        android.util.Log.e("OrganizerViewModel", "Tasks load failed", it)
-                        if (errorMsg == null) errorMsg = "Aufgaben konnten nicht geladen werden: " + it.localizedMessage 
-                    }
-                
-                repository.getRoutines()
-                    .onSuccess { 
-                        _routines.value = it 
-                        android.util.Log.d("OrganizerViewModel", "Routines loaded successfully: ${it.size} items")
-                    }
-                .onFailure { 
-                    android.util.Log.e("OrganizerViewModel", "Routines load failed", it)
-                    if (errorMsg == null) errorMsg = "Routinen konnten nicht geladen werden: " + it.localizedMessage 
-                }
-            
-            repository.getShoppingItems()
-                .onSuccess { _shoppingItems.value = it }
-                .onFailure { 
-                    android.util.Log.e("OrganizerViewModel", "Shopping items load failed", it)
-                    if (errorMsg == null) errorMsg = "Einkaufsliste konnte nicht geladen werden: " + it.localizedMessage 
-                }
-            
-            repository.getCalendarEvents()
-                .onSuccess { _calendarEvents.value = it }
-                .onFailure { 
-                    android.util.Log.e("OrganizerViewModel", "Calendar events load failed", it)
-                    if (errorMsg == null) errorMsg = "Kalender konnte nicht geladen werden: " + it.localizedMessage 
+
+                kotlinx.coroutines.coroutineScope {
+                    val listsDef = async { repository.getTaskLists() }
+                    val tasksDef = async { repository.getTasks() }
+                    val routinesDef = async { repository.getRoutines() }
+                    val shoppingDef = async { repository.getShoppingItems() }
+                    val calDef = async { repository.getCalendarEvents() }
+
+                    listsDef.await()
+                        .onSuccess { _taskLists.value = it }
+                        .onFailure {
+                            android.util.Log.e("OrganizerViewModel", "TaskLists load failed", it)
+                            errorMsg = "Task-Listen konnten nicht geladen werden: " + it.localizedMessage
+                        }
+
+                    tasksDef.await()
+                        .onSuccess { _tasks.value = it }
+                        .onFailure {
+                            android.util.Log.e("OrganizerViewModel", "Tasks load failed", it)
+                            if (errorMsg == null) errorMsg = "Aufgaben konnten nicht geladen werden: " + it.localizedMessage
+                        }
+
+                    routinesDef.await()
+                        .onSuccess {
+                            _routines.value = it
+                            android.util.Log.d("OrganizerViewModel", "Routines loaded successfully: ${it.size} items")
+                        }
+                        .onFailure {
+                            android.util.Log.e("OrganizerViewModel", "Routines load failed", it)
+                            if (errorMsg == null) errorMsg = "Routinen konnten nicht geladen werden: " + it.localizedMessage
+                        }
+
+                    shoppingDef.await()
+                        .onSuccess { _shoppingItems.value = it }
+                        .onFailure {
+                            android.util.Log.e("OrganizerViewModel", "Shopping items load failed", it)
+                            if (errorMsg == null) errorMsg = "Einkaufsliste konnte nicht geladen werden: " + it.localizedMessage
+                        }
+
+                    calDef.await()
+                        .onSuccess { _calendarEvents.value = it }
+                        .onFailure {
+                            android.util.Log.e("OrganizerViewModel", "Calendar events load failed", it)
+                            if (errorMsg == null) errorMsg = "Kalender konnte nicht geladen werden: " + it.localizedMessage
+                        }
                 }
 
-            if (errorMsg != null) {
-                _uiState.value = OrganizerUiState.Error(errorMsg!!)
-            } else {
-                _uiState.value = OrganizerUiState.Success
+                if (errorMsg != null && _taskLists.value.isEmpty() && _tasks.value.isEmpty()) {
+                    _uiState.value = OrganizerUiState.Error(errorMsg!!)
+                } else {
+                    _uiState.value = OrganizerUiState.Success
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("OrganizerViewModel", "Exception in loadAllOrganizerData", e)
+                _uiState.value = OrganizerUiState.Error(
+                    e.localizedMessage ?: "Fehler beim Laden des Organizers."
+                )
             }
-        } catch (e: Exception) {
-            android.util.Log.e("OrganizerViewModel", "Exception in loadAllOrganizerData", e)
-            _uiState.value = OrganizerUiState.Error(
-                e.localizedMessage ?: "Fehler beim Laden des Organizers."
-            )
         }
     }
-}
 
     // --- Tasks actions ---
     fun toggleTask(id: String) {
+        val current = _tasks.value
+        val target = current.find { it.id == id }
+        if (target != null) {
+            val nextCompleted = !target.is_completed
+            _tasks.value = current.map { if (it.id == id) it.copy(is_completed = nextCompleted) else it }
+        }
         viewModelScope.launch {
-            repository.toggleTask(id).onSuccess {
+            repository.toggleTask(id).onSuccess { updated ->
+                _tasks.value = _tasks.value.map { if (it.id == id) updated else it }
+            }.onFailure {
                 loadAllOrganizerData(showLoading = false)
             }
         }

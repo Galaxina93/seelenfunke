@@ -173,6 +173,11 @@ class AuthLogin extends Component
                 return;
             }
 
+            if ($this->guard === 'employee' && method_exists($loggedInUser, 'isTaxAdvisor') && $loggedInUser->isTaxAdvisor()) {
+                $this->redirect(route('employee.tax-advisor.dashboard'));
+                return;
+            }
+
             $this->redirect(route($this->guard . '.dashboard'));
             return;
         }

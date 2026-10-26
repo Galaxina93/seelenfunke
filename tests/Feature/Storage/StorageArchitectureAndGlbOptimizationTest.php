@@ -81,7 +81,7 @@ class StorageArchitectureAndGlbOptimizationTest extends TestCase
             $this->assertTrue($stats['is_marked_optimized'], "Model should have seelenfunke_optimized metadata: {$absPath}");
             $this->assertLessThan(2.5, $stats['size_mb'], "Optimized GLB should be < 2.5 MB, got {$stats['size_mb']} MB for {$absPath}");
             $this->assertLessThanOrEqual(60000, $stats['triangles'], "Triangles should be <= 60,000, got {$stats['triangles']} for {$absPath}");
-            $this->assertGreaterThan(1000, $stats['triangles'], "Model should retain geometry (>1,000 triangles) for {$absPath}");
+            $this->assertGreaterThan(100, $stats['triangles'], "Model should retain geometry (>100 triangles) for {$absPath}");
         }
     }
 

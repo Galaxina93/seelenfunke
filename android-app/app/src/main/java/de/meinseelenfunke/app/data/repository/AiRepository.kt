@@ -8,6 +8,7 @@ import de.meinseelenfunke.app.data.api.ChatMessage
 import de.meinseelenfunke.app.data.api.ChatRequest
 import de.meinseelenfunke.app.data.api.ChatResponse
 import de.meinseelenfunke.app.data.api.CameraSnapshotResponse
+import de.meinseelenfunke.app.data.api.UltimateCommandResponse
 import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.util.AppLogger
 import de.meinseelenfunke.app.util.ImageUtils
@@ -157,6 +158,17 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             AppLogger.error(serviceLocator.context, "AiRepo", "getAgents failed", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getUltimateCommand(): Result<UltimateCommandResponse> {
+        return try {
+            val response = serviceLocator.getAiApi().getUltimateCommand()
+            Result.success(response)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            AppLogger.error(serviceLocator.context, "AiRepo", "getUltimateCommand failed", e)
             Result.failure(e)
         }
     }

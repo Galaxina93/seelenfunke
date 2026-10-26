@@ -32,6 +32,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -139,7 +140,39 @@ fun AppNavigation(
 
         NavHost(
             navController = navController,
-            startDestination = startDestination
+            startDestination = startDestination,
+            enterTransition = {
+                androidx.compose.animation.fadeIn(
+                    animationSpec = androidx.compose.animation.core.tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                ) + androidx.compose.animation.scaleIn(
+                    initialScale = 0.94f,
+                    animationSpec = androidx.compose.animation.core.tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                )
+            },
+            exitTransition = {
+                androidx.compose.animation.fadeOut(
+                    animationSpec = androidx.compose.animation.core.tween(200)
+                ) + androidx.compose.animation.scaleOut(
+                    targetScale = 0.96f,
+                    animationSpec = androidx.compose.animation.core.tween(200)
+                )
+            },
+            popEnterTransition = {
+                androidx.compose.animation.fadeIn(
+                    animationSpec = androidx.compose.animation.core.tween(240, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                ) + androidx.compose.animation.scaleIn(
+                    initialScale = 0.96f,
+                    animationSpec = androidx.compose.animation.core.tween(240, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                )
+            },
+            popExitTransition = {
+                androidx.compose.animation.fadeOut(
+                    animationSpec = androidx.compose.animation.core.tween(200)
+                ) + androidx.compose.animation.scaleOut(
+                    targetScale = 0.92f,
+                    animationSpec = androidx.compose.animation.core.tween(200)
+                )
+            }
         ) {
             composable(Screen.Login.route) {
                 LoginScreen(
@@ -210,8 +243,8 @@ fun MainTabbedScreen(
         )
     }
     var organizerInitialTab by remember { mutableIntStateOf(0) }
+    var organizerNavTrigger by remember { mutableIntStateOf(0) }
     var isFirstLoad by remember { mutableStateOf(true) }
-    var isInitialTargetPagePass by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
         if (ServiceLocator.authRepository.isLoggedIn()) {
@@ -227,11 +260,13 @@ fun MainTabbedScreen(
                 2 -> Screen.Organizer
                 3 -> Screen.Chat
                 4 -> Screen.Settings
+                5 -> Screen.Finances
                 else -> Screen.Zentrum
             }
             val resolvedIndex = bottomNavItems.indexOf(targetScreen).coerceAtLeast(0)
             if (targetScreen == Screen.Organizer) {
                 organizerInitialTab = de.meinseelenfunke.app.util.NavigationBridge.organizerSubTab
+                organizerNavTrigger++
             }
             coroutineScope.launch {
                 pagerState.scrollToPage(resolvedIndex)
@@ -248,11 +283,13 @@ fun MainTabbedScreen(
                     2 -> Screen.Organizer
                     3 -> Screen.Chat
                     4 -> Screen.Settings
+                    5 -> Screen.Finances
                     else -> Screen.Zentrum
                 }
                 val resolvedIndex = bottomNavItems.indexOf(targetScreen).coerceAtLeast(0)
                 if (targetScreen == Screen.Organizer) {
                     organizerInitialTab = de.meinseelenfunke.app.util.NavigationBridge.organizerSubTab
+                    organizerNavTrigger++
                 }
                 coroutineScope.launch {
                     pagerState.animateScrollToPage(resolvedIndex)
@@ -271,17 +308,6 @@ fun MainTabbedScreen(
     LaunchedEffect(pagerState.currentPage) {
         if (isFirstLoad) {
             isFirstLoad = false
-        }
-    }
-
-    LaunchedEffect(pagerState.targetPage) {
-        if (isInitialTargetPagePass) {
-            isInitialTargetPagePass = false
-            return@LaunchedEffect
-        }
-        val organizerIndex = bottomNavItems.indexOf(Screen.Organizer)
-        if (pagerState.targetPage != organizerIndex) {
-            organizerInitialTab = 0
         }
     }
 
@@ -319,40 +345,67 @@ fun MainTabbedScreen(
     ) { innerPadding ->
         HorizontalPager(
             state = pagerState,
+            beyondBoundsPageCount = 1,
             modifier = Modifier.padding(innerPadding)
         ) { page ->
-            when (bottomNavItems[page]) {
-                Screen.Zentrum -> ZentrumScreen(
-                    onNavigateToLiveChat = onNavigateToLiveChat,
-                    onNavigateToFinances = {
-                        coroutineScope.launch {
-                            val financesIndex = bottomNavItems.indexOf(Screen.Finances)
-                            if (financesIndex >= 0) pagerState.animateScrollToPage(financesIndex)
-                        }
-                    },
-                    onNavigateToOrganizer = {
-                        organizerInitialTab = 2 // Redirect to Routinen tab
-                        coroutineScope.launch {
-                            val organizerIndex = bottomNavItems.indexOf(Screen.Organizer)
-                            if (organizerIndex >= 0) pagerState.animateScrollToPage(organizerIndex)
-                        }
-                    },
-                    onLogout = onLogout
-                )
-                Screen.Finances -> FinanceScreen(
-                    isPageVisible = pagerState.currentPage == page
-                )
-                Screen.Organizer -> OrganizerScreen(
-                    initialTab = organizerInitialTab,
-                    onTabScrollCompleted = {},
-                    isPageVisible = pagerState.currentPage == page
-                )
-                Screen.Chat -> ChatScreen(
-                    onLogout = onLogout
-                )
-                Screen.Settings -> SettingsScreen()
-                Screen.Orders -> OrdersTabContent()
-                else -> {}
+            val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction)
+            val absOffset = kotlin.math.abs(pageOffset).coerceIn(0f, 1f)
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier.graphicsLayer {
+                    val scale = 1f - (absOffset * 0.035f)
+                    scaleX = scale
+                    scaleY = scale
+                    alpha = 1f - (absOffset * 0.22f)
+                }
+            ) {
+                when (bottomNavItems[page]) {
+                    Screen.Zentrum -> ZentrumScreen(
+                        onNavigateToLiveChat = onNavigateToLiveChat,
+                        onNavigateToFinances = {
+                            coroutineScope.launch {
+                                val financesIndex = bottomNavItems.indexOf(Screen.Finances)
+                                if (financesIndex >= 0) pagerState.animateScrollToPage(financesIndex)
+                            }
+                        },
+                        onNavigateToOrganizer = { subTab ->
+                            organizerInitialTab = subTab.coerceIn(0, 4)
+                            organizerNavTrigger++
+                            coroutineScope.launch {
+                                val organizerIndex = bottomNavItems.indexOf(Screen.Organizer)
+                                if (organizerIndex >= 0) pagerState.animateScrollToPage(organizerIndex)
+                            }
+                        },
+                        onNavigateToOrders = {
+                            coroutineScope.launch {
+                                val ordersIndex = bottomNavItems.indexOf(Screen.Orders)
+                                if (ordersIndex >= 0) pagerState.animateScrollToPage(ordersIndex)
+                            }
+                        },
+                        onNavigateToSettings = {
+                            coroutineScope.launch {
+                                val settingsIndex = bottomNavItems.indexOf(Screen.Settings)
+                                if (settingsIndex >= 0) pagerState.animateScrollToPage(settingsIndex)
+                            }
+                        },
+                        onLogout = onLogout,
+                        isPageVisible = pagerState.currentPage == page
+                    )
+                    Screen.Finances -> FinanceScreen(
+                        isPageVisible = pagerState.currentPage == page
+                    )
+                    Screen.Organizer -> OrganizerScreen(
+                        initialTab = organizerInitialTab,
+                        navTrigger = organizerNavTrigger,
+                        onTabScrollCompleted = {},
+                        isPageVisible = pagerState.currentPage == page
+                    )
+                    Screen.Chat -> ChatScreen(
+                        onLogout = onLogout
+                    )
+                    Screen.Settings -> SettingsScreen()
+                    Screen.Orders -> OrdersTabContent()
+                    else -> {}
+                }
             }
         }
     }

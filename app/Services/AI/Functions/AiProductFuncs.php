@@ -395,13 +395,16 @@ trait AiProductFuncs
             $status = $args['status'] ?? 'pending';
             $limit = isset($args['limit']) ? min((int)$args['limit'], 50) : 15;
 
-            $query = ProductReview::with(['product', 'customer'])->latest();
+            $query = ProductReview::with(['product', 'customer.profile'])->latest();
 
             if (!empty($status)) {
                 $query->where('status', $status);
             }
 
             $reviews = $query->take($limit)->get()->map(function ($r) {
+                $hasConsent = !$r->is_anonymous && \App\Services\AI\AiAuthHelper::hasCustomerAiConsent($r->customer, $r->customer_id);
+                $rawName = $r->customer ? trim($r->customer->first_name . ' ' . $r->customer->last_name) : '';
+
                 return [
                     'id' => $r->id,
                     'status' => $r->status,
@@ -409,7 +412,8 @@ trait AiProductFuncs
                     'title' => $r->title,
                     'content' => $r->content,
                     'product_name' => $r->product ? $r->product->name : 'Unbekanntes Produkt',
-                    'customer_name' => $r->customer ? trim($r->customer->first_name . ' ' . $r->customer->last_name) : 'Gast/Anonym',
+                    'customer_name' => \App\Services\AI\AiAuthHelper::sanitizeCustomerName($rawName, $hasConsent),
+                    'gdpr_ai_consent' => $hasConsent,
                     'created_at' => $r->created_at->format('Y-m-d H:i')
                 ];
             });

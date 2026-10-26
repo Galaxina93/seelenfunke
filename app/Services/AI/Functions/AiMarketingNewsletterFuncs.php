@@ -148,7 +148,16 @@ trait AiMarketingNewsletterFuncs
             $query->where('email', 'like', '%' . $escaped . '%');
         }
 
-        $subs = $query->limit(50)->get(['id', 'email', 'is_verified', 'created_at']);
+        $subs = $query->limit(50)->get(['id', 'email', 'is_verified', 'created_at'])->map(function ($s) {
+            $hasConsent = \App\Services\AI\AiAuthHelper::hasCustomerAiConsent(null, null, $s->email);
+            return [
+                'id' => $s->id,
+                'email' => $hasConsent ? $s->email : 'Anonyme Person ([E-Mail DSGVO-geschützt])',
+                'gdpr_ai_consent' => $hasConsent,
+                'is_verified' => (bool) $s->is_verified,
+                'created_at' => $s->created_at ? $s->created_at->format('Y-m-d H:i') : null,
+            ];
+        });
         return [
             'status' => 'success',
             'count' => $subs->count(),

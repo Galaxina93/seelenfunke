@@ -160,6 +160,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun OrganizerScreen(
     initialTab: Int = 0,
+    navTrigger: Int = 0,
     onTabScrollCompleted: () -> Unit = {},
     isPageVisible: Boolean = true,
     viewModel: OrganizerViewModel = viewModel(),
@@ -175,12 +176,10 @@ fun OrganizerScreen(
 
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
-    val pagerState = androidx.compose.runtime.key(initialTab) {
-        rememberPagerState(
-            initialPage = initialTab,
-            pageCount = { 5 }
-        )
-    }
+    val pagerState = rememberPagerState(
+        initialPage = initialTab.coerceIn(0, 4),
+        pageCount = { 5 }
+    )
     var isFirstLoad by remember { mutableStateOf(true) }
 
     LaunchedEffect(pagerState.currentPage) {
@@ -189,11 +188,12 @@ fun OrganizerScreen(
         }
     }
 
-    LaunchedEffect(initialTab) {
-        if (initialTab != 0) {
-            pagerState.scrollToPage(initialTab)
-            onTabScrollCompleted()
+    LaunchedEffect(initialTab, navTrigger) {
+        val target = initialTab.coerceIn(0, 4)
+        if (pagerState.currentPage != target) {
+            pagerState.scrollToPage(target)
         }
+        onTabScrollCompleted()
     }
 
     LaunchedEffect(isPageVisible) {

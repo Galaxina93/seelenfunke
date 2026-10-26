@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use PragmaRX\Google2FA\Google2FA;
@@ -46,6 +47,8 @@ class AuthProfileDropdown extends Component
     public string $country = 'DE';
     public $isBusiness = 0;
     public string $birthday = '';
+    public bool $aiDataConsent = false;
+    public ?string $aiDataConsentAt = null;
 
     public string $newPassword = '';
     public string $currentPassword = '';
@@ -120,6 +123,47 @@ class AuthProfileDropdown extends Component
 
         // Benachrichtigt das Dashboard über die Änderungen, damit die Meldung sofort verschwindet
         $this->dispatch('profile-updated');
+        $this->dispatch('ai-privacy-consent-updated', accepted: $this->aiDataConsent);
+    }
+
+    public function updatedAiDataConsent($value): void
+    {
+        if (!$this->user) {
+            return;
+        }
+
+        $consent = (bool) $value;
+        if (method_exists($this->user, 'updateAiDataConsent')) {
+            $this->user->updateAiDataConsent($consent, 'profile_toggle');
+        } elseif ($this->user->profile) {
+            $this->user->profile->update([
+                'ai_data_consent' => $consent,
+                'ai_data_consent_at' => $consent ? now() : null,
+            ]);
+        }
+
+        if ($consent) {
+            session()->put('ai_chat_privacy_accepted', true);
+            $this->aiDataConsentAt = now()->format('d.m.Y H:i');
+        } else {
+            session()->forget('ai_chat_privacy_accepted');
+            $this->aiDataConsentAt = null;
+        }
+
+        $this->dispatch('ai-privacy-consent-updated', accepted: $consent);
+    }
+
+    #[On('ai-privacy-consent-updated')]
+    public function syncAiConsentFromEvent(): void
+    {
+        if (!$this->user) {
+            return;
+        }
+        $this->user->load('profile');
+        $this->aiDataConsent = (bool) ($this->user->profile->ai_data_consent ?? false);
+        $this->aiDataConsentAt = !empty($this->user->profile->ai_data_consent_at)
+            ? \Carbon\Carbon::parse($this->user->profile->ai_data_consent_at)->format('d.m.Y H:i')
+            : null;
     }
 
     public function updatePassword(): void

@@ -98,8 +98,10 @@ class CartTest extends TestCase
     #[Test]
     public function it_toggles_the_edit_modal_state()
     {
+        $item = $this->createCartAndItem();
+
         Livewire::test(Cart::class)
-            ->call('edit', 'random-item-id')
-            ->assertSet('editingItemId', 'random-item-id');
+            ->call('edit', $item->id)
+            ->assertSet('editingItemId', $item->id);
     }
 }

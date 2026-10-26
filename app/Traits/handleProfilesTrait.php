@@ -85,6 +85,11 @@ trait handleProfilesTrait
             $this->isBusiness = $this->user->profile->is_business ?? 0;
             $this->birthday = $this->user->profile->birthday ? \Carbon\Carbon::parse($this->user->profile->birthday)->format('Y-m-d') : '';
         }
+
+        $this->aiDataConsent = (bool) ($this->user->profile->ai_data_consent ?? false);
+        $this->aiDataConsentAt = !empty($this->user->profile->ai_data_consent_at)
+            ? \Carbon\Carbon::parse($this->user->profile->ai_data_consent_at)->format('d.m.Y H:i')
+            : null;
     }
 
     protected function saveUserProfileData($data): void
@@ -93,16 +98,31 @@ trait handleProfilesTrait
             abort(403, 'Bitte ändere zuerst dein temporäres Passwort.');
         }
 
+        $this->email = mb_strtolower(trim((string) $this->email));
+
         $table = match($this->guard) {
             'admin' => 'admins',
             'employee' => 'employees',
             default => 'customers',
         };
 
+        $currentGuard = $this->guard;
+        $currentUserId = (string) $this->user->id;
+
         $rules = [
             'firstName' => 'required|string|max:100',
             'lastName' => 'required|string|max:100',
-            'email' => 'required|email|max:191|unique:' . $table . ',email,' . $this->user->id,
+            'email' => [
+                'required',
+                'email',
+                'max:191',
+                'unique:' . $table . ',email,' . $this->user->id,
+                function ($attribute, $value, $fail) use ($currentGuard, $currentUserId) {
+                    if (\App\Models\System\SystemUser::isEmailTakenAcrossGuards((string) $value, $currentGuard, $currentUserId)) {
+                        $fail('Diese E-Mail-Adresse ist bereits einem bestehenden Konto zugeordnet.');
+                    }
+                },
+            ],
             'phoneNumber' => 'nullable|string|max:50',
             'about' => 'nullable|string|max:1000',
             'url' => ['nullable', 'string', 'max:255', 'not_regex:/^\s*(javascript|data|vbscript):/i'],
@@ -111,6 +131,7 @@ trait handleProfilesTrait
             'postal' => 'nullable|string|max:20',
             'city' => 'nullable|string|max:100',
             'country' => 'nullable|string|max:2',
+            'aiDataConsent' => 'boolean',
         ];
 
         if ($this->guard === 'customer') {
@@ -138,6 +159,7 @@ trait handleProfilesTrait
             $oldData['is_business'] = $this->user->profile->is_business;
             $oldData['birthday'] = $this->user->profile->birthday;
         }
+        $oldData['ai_data_consent'] = (bool) ($this->user->profile->ai_data_consent ?? false);
 
         $emailChanged = $this->user->email !== $validatedData['email'];
         $this->user->first_name = $validatedData['firstName'];
@@ -177,7 +199,23 @@ trait handleProfilesTrait
             $this->user->profile->birthday = $validatedData['birthday'] ?: null;
         }
 
+        $newAiConsent = (bool) ($this->aiDataConsent ?? false);
+        if ((bool) ($this->user->profile->ai_data_consent ?? false) !== $newAiConsent) {
+            $this->user->profile->ai_data_consent = $newAiConsent;
+            $this->user->profile->ai_data_consent_at = $newAiConsent ? now() : null;
+        }
+
         $this->user->profile->save();
+
+        if ($newAiConsent) {
+            session()->put('ai_chat_privacy_accepted', true);
+            $this->aiDataConsentAt = $this->user->profile->ai_data_consent_at
+                ? \Carbon\Carbon::parse($this->user->profile->ai_data_consent_at)->format('d.m.Y H:i')
+                : now()->format('d.m.Y H:i');
+        } else {
+            session()->forget('ai_chat_privacy_accepted');
+            $this->aiDataConsentAt = null;
+        }
 
         // Erfasse den Zustand NACH dem Update für das Delta
         $newData = [
@@ -197,6 +235,7 @@ trait handleProfilesTrait
             $newData['is_business'] = $this->user->profile->is_business;
             $newData['birthday'] = $this->user->profile->birthday;
         }
+        $newData['ai_data_consent'] = (bool) $this->user->profile->ai_data_consent;
 
         $changes = [];
         foreach ($oldData as $key => $oldVal) {

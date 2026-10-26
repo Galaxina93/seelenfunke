@@ -22,9 +22,15 @@
                             <input type="email" wire:model="loginEmail" class="block w-full rounded-lg bg-gray-50 border-gray-300 shadow-sm focus:bg-white focus:border-primary focus:ring-primary sm:text-sm px-4 py-2.5">
                             @error('loginEmail') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
-                        <div>
+                        <div x-data="{ showPw: false }">
                             <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Passwort</label>
-                            <input type="password" wire:model="loginPassword" class="block w-full rounded-lg bg-gray-50 border-gray-300 shadow-sm focus:bg-white focus:border-primary focus:ring-primary sm:text-sm px-4 py-2.5">
+                            <div class="relative">
+                                <input :type="showPw ? 'text' : 'password'" wire:model="loginPassword" class="block w-full rounded-lg bg-gray-50 border-gray-300 shadow-sm focus:bg-white focus:border-primary focus:ring-primary sm:text-sm pl-4 pr-10 py-2.5">
+                                <button type="button" @click="showPw = !showPw" tabindex="-1" class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-primary focus:outline-none">
+                                    <x-heroicon-o-eye x-show="!showPw" class="w-4 h-4" />
+                                    <x-heroicon-o-eye-slash x-show="showPw" x-cloak class="w-4 h-4 text-primary" />
+                                </button>
+                            </div>
                             @error('loginPassword') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
                     </div>

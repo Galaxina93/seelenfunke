@@ -945,8 +945,13 @@ class FunkiraLiveViewModel : ViewModel() {
             var subTab = 0
             when {
                 url.contains("zentrum", ignoreCase = true) -> targetTab = 0
-                url.contains("finance", ignoreCase = true) || url.contains("shop", ignoreCase = true) -> targetTab = 1
-                url.contains("organizer", ignoreCase = true) || url.contains("kalender", ignoreCase = true) || url.contains("aufgabe", ignoreCase = true) -> {
+                url.contains("order", ignoreCase = true) || url.contains("bestellung", ignoreCase = true) -> targetTab = 1
+                url.contains("finance", ignoreCase = true) || url.contains("finanz", ignoreCase = true) || url.contains("shop", ignoreCase = true) -> targetTab = 5
+                url.contains("email", ignoreCase = true) || url.contains("mail", ignoreCase = true) -> {
+                    targetTab = 2
+                    subTab = 4
+                }
+                url.contains("organizer", ignoreCase = true) || url.contains("kalender", ignoreCase = true) || url.contains("aufgabe", ignoreCase = true) || url.contains("routine", ignoreCase = true) || url.contains("einkauf", ignoreCase = true) -> {
                     targetTab = 2
                     subTab = when {
                         url.contains("routine", ignoreCase = true) -> 2

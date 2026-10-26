@@ -444,7 +444,7 @@ class AIController extends Controller
 
     public function saveCameraSnapshot(Request $request)
     {
-        if (!\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee() && !auth('admin')->check() && !auth('employee')->check()) {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee() && !auth('admin')->check()) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
         }
 

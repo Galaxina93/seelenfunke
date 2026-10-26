@@ -72,4 +72,19 @@ class Admin extends Model implements Authenticatable
         return $this->hasOne(AdminProfile::class);
     }
 
+    public function hasAiDataConsent(): bool
+    {
+        return (bool) ($this->profile?->ai_data_consent ?? false);
+    }
+
+    public function updateAiDataConsent(bool $consent, string $source = 'profile'): void
+    {
+        $profile = $this->profile ?: $this->profile()->create([]);
+        $profile->update([
+            'ai_data_consent' => $consent,
+            'ai_data_consent_at' => $consent ? now() : null,
+        ]);
+        $this->setRelation('profile', $profile->fresh());
+    }
+
 }

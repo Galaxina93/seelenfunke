@@ -1947,7 +1947,7 @@ class DeepSecurityScanRegressionTest extends TestCase
         $trichter = new \App\Services\AI\Workspace\DateitrichterService();
         $this->assertNull($trichter->processSingleFile('shop/test_logo.txt'));
         $this->assertTrue(\Illuminate\Support\Facades\Storage::disk('workspace')->exists('shop/test_logo.txt'));
-        \Illuminate\Support\Facades\Storage::disk('workspace')->delete('shop/test_logo.txt');
+        \Illuminate\Support\Facades\Storage::disk('workspace')->deleteDirectory('shop');
 
         // 2. FileDownloadService::downloadMailAttachment must block paths outside mail-attachments directories
         $admin = \App\Models\Admin\Admin::create([

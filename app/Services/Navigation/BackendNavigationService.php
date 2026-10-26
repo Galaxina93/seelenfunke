@@ -32,6 +32,7 @@ class BackendNavigationService
                         'children' => [
                             ['id' => 'inbox', 'title' => 'E-Mail', 'route' => '/admin/inbox', 'icon' => 'envelope-open'],
                             ['id' => 'contacts', 'title' => 'Kontakte', 'route' => '/admin/contacts', 'icon' => 'users'],
+                            ['id' => 'employees', 'title' => 'Mitarbeiter', 'route' => '/admin/employees', 'icon' => 'identification'],
                             ['id' => 'routine', 'title' => 'Routine', 'route' => '/admin/routine', 'icon' => 'arrow-path'],
                             ['id' => 'tasks', 'title' => 'Aufgaben', 'route' => '/admin/tasks', 'icon' => 'check-circle'],
                             ['id' => 'shopping', 'title' => 'Einkaufsliste', 'route' => '/admin/shopping', 'icon' => 'shopping-cart'],

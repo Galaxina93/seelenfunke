@@ -49,9 +49,9 @@ class LandingPageView extends Component
 
         $this->landingPage = $landingPage;
 
-        // Security check: Draft landing pages or inactive products must not be publicly visible to customers/guests
+        // Security check: Draft landing pages or inactive products must not be publicly visible to customers/guests/external partners
         $isStaff = auth()->guard('admin')->check()
-            || auth()->guard('employee')->check()
+            || \App\Services\AI\AiAuthHelper::isEmployee()
             || \App\Services\AI\AiAuthHelper::isAdmin();
 
         if (!$isStaff) {
@@ -220,6 +220,9 @@ class LandingPageView extends Component
 
         // 9. Cross-Selling Empfehlungen
         $crossSell = $product->resolveCrossSellProducts(4);
+
+        // Relation auf dem Public-Model entfernen, damit Livewires wire:snapshot keine internen Product-Attribute serialisiert
+        $this->landingPage->unsetRelation('product');
 
         return view('livewire.landing.landing-page-view', [
             'product'          => $product,

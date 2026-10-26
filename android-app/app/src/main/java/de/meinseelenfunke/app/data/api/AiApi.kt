@@ -85,7 +85,32 @@ data class ChatHistoryResponse(
     val messages: List<ChatHistoryItem>
 )
 
+data class CommandFlow(
+    val title: String?,
+    val step: String?,
+    val type: String?,
+    val icon: String?
+)
+
+data class CommandRecommendation(
+    val score: Int = 0,
+    val title: String?,
+    val message: String?,
+    val action_label: String?,
+    val action_route: String?,
+    val icon: String?
+)
+
+data class UltimateCommandResponse(
+    val flow: CommandFlow?,
+    val recommendation: CommandRecommendation?,
+    val alternatives: List<CommandRecommendation>? = emptyList()
+)
+
 interface AiApi {
+    @GET("funki/command")
+    suspend fun getUltimateCommand(): UltimateCommandResponse
+
     @POST("ai/chat")
     suspend fun chat(@Body request: ChatRequest): ChatResponse
 

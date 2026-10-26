@@ -32,7 +32,7 @@ class FileDownloadService
 
     public function downloadProductAnalyticsFullReportPdf()
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
             abort(403, 'Zugriff verweigert.');
         }
 
@@ -59,7 +59,7 @@ class FileDownloadService
 
     public function downloadProductAnalyticsLucidPdf()
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
             abort(403, 'Zugriff verweigert.');
         }
 
@@ -80,7 +80,7 @@ class FileDownloadService
 
     public function downloadNicheCrawlerPdf($runId = null)
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
             abort(403, 'Zugriff verweigert.');
         }
 
@@ -175,7 +175,10 @@ class FileDownloadService
 
     public function downloadTaxExport($filename)
     {
-        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        $employeeUser = Auth::guard('employee')->user();
+        $isTaxAdvisor = $employeeUser && method_exists($employeeUser, 'isTaxAdvisor') && $employeeUser->isTaxAdvisor();
+
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !$isTaxAdvisor) {
             abort(403, 'Unautorisierter Zugriff auf Steuerexporte.');
         }
 
@@ -206,7 +209,6 @@ class FileDownloadService
         $item = ($itemId instanceof OrderOrderItem) ? $itemId : OrderOrderItem::findOrFail($itemId);
 
         $isAdminOrEmployee = \Illuminate\Support\Facades\Auth::guard('admin')->check()
-            || \Illuminate\Support\Facades\Auth::guard('employee')->check()
             || \App\Services\AI\AiAuthHelper::isAdmin()
             || \App\Services\AI\AiAuthHelper::isEmployee();
         $isCustomerOwner = false;

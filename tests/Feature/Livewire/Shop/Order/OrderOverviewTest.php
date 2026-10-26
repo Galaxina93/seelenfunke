@@ -32,7 +32,7 @@ class OrderOverviewTest extends TestCase
             'password' => bcrypt('password')
         ]);
         
-        $this->actingAs($admin);
+        $this->actingAs($admin, 'admin');
         
         // Dummy Customer erstellen
         $this->customer = \App\Models\Customer\Customer::create([

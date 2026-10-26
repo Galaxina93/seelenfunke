@@ -33,7 +33,9 @@ class AppServiceProvider extends ServiceProvider
         if (class_exists(\Livewire\Livewire::class)) {
             \Livewire\Livewire::addPersistentMiddleware([
                 \App\Http\Middleware\EnforcePasswordChange::class,
+                \App\Http\Middleware\EnsureEmployeeRole::class,
             ]);
+            \Livewire\Livewire::componentHook(\App\Livewire\Hooks\EmployeeRoleIsolationHook::class);
         }
         // 1. Füge die Morph Map hinzu
         Relation::enforceMorphMap([

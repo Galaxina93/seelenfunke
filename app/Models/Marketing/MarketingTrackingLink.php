@@ -52,11 +52,12 @@ class MarketingTrackingLink extends Model
     }
 
     /**
-     * Die aufgelöste Ziel-URL inkl. UTM-Parametern & Tracking-ID für die Weiterleitung
+     * Die aufgelöste, garantiert interne Ziel-URL inkl. UTM-Parametern & Tracking-ID für die Weiterleitung.
+     * Schützt /t/{slug} zu 100 % vor Open-Redirect-Schwachstellen auf externe Domains.
      */
     public function getFullUtmUrlAttribute(): string
     {
-        $base = MarketingLinktree::resolveEnvironmentUrl((string) ($this->target_url ?: '/shop'));
+        $base = self::resolveInternalTargetUrl((string) ($this->target_url ?: '/shop'));
 
         $params = array_filter([
             'utm_source' => $this->utm_source,
@@ -68,6 +69,51 @@ class MarketingTrackingLink extends Model
         $separator = str_contains($base, '?') ? '&' : '?';
 
         return $base . $separator . http_build_query($params);
+    }
+
+    /**
+     * Stellt sicher, dass Kurzlinks (/t/{slug}) ausschließlich auf interne Shop-Pfade weiterleiten
+     * und niemals für externe Open-Redirects oder Phishing missbraucht werden können.
+     */
+    public static function resolveInternalTargetUrl(string $rawUrl): string
+    {
+        $rawUrl = trim($rawUrl);
+        if ($rawUrl === '') {
+            return url('/shop');
+        }
+
+        if (str_starts_with($rawUrl, '/')) {
+            if (str_starts_with($rawUrl, '//') || str_starts_with($rawUrl, '/\\')) {
+                return url('/shop');
+            }
+            return MarketingLinktree::resolveEnvironmentUrl($rawUrl);
+        }
+
+        $parsed = parse_url($rawUrl);
+        $scheme = strtolower($parsed['scheme'] ?? '');
+        $host = strtolower($parsed['host'] ?? '');
+        if (!in_array($scheme, ['http', 'https'], true) || $host === '') {
+            return url('/shop');
+        }
+
+        $appHost = strtolower((string) parse_url((string) config('app.url'), PHP_URL_HOST));
+        $internalHosts = array_filter([
+            'mein-seelenfunke.de',
+            'www.mein-seelenfunke.de',
+            'seelenfunke.de',
+            'www.seelenfunke.de',
+            'stage.mein-seelenfunke.de',
+            'stage.seelenfunke.de',
+            'localhost',
+            '127.0.0.1',
+            $appHost,
+        ]);
+
+        if (!in_array($host, $internalHosts, true)) {
+            return url('/shop');
+        }
+
+        return MarketingLinktree::resolveEnvironmentUrl($rawUrl);
     }
 
     /**

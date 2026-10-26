@@ -186,4 +186,37 @@ class Customer extends Model implements Authenticatable, MustVerifyEmail
     {
         return hash_hmac('sha256', $this->id . '|' . $this->email, config('app.key'));
     }
+
+    /**
+     * Prüft, ob der Kunde dem DSGVO-konformen KI-Datenzugriff (Art. 6 Abs. 1 lit. a DSGVO) zugestimmt hat.
+     */
+    public function hasAiDataConsent(): bool
+    {
+        return (bool) ($this->profile?->ai_data_consent ?? false);
+    }
+
+    /**
+     * Aktualisiert die DSGVO-Einwilligung für den KI-Datenzugriff im Profil inkl. Nachweis-Log (Art. 7 Abs. 1 DSGVO).
+     */
+    public function updateAiDataConsent(bool $consent, string $source = 'profile'): void
+    {
+        $profile = $this->profile ?: $this->profile()->create([]);
+        $profile->update([
+            'ai_data_consent' => $consent,
+            'ai_data_consent_at' => $consent ? now() : null,
+        ]);
+        $this->setRelation('profile', $profile->fresh());
+
+        if (class_exists(\App\Models\System\SystemLog::class)) {
+            \App\Models\System\SystemLog::create([
+                'type' => 'system',
+                'action_id' => $consent ? 'gdpr:ai_consent_granted' : 'gdpr:ai_consent_revoked',
+                'title' => $consent ? 'DSGVO KI-Datenzugriff erteilt' : 'DSGVO KI-Datenzugriff widerrufen',
+                'message' => sprintf('Kundenkonto [%s] hat die KI-Datenzugriffs-Freigabe über [%s] %s.', substr((string) $this->id, 0, 8), $source, $consent ? 'erteilt' : 'deaktiviert'),
+                'status' => 'success',
+                'started_at' => now(),
+                'finished_at' => now(),
+            ]);
+        }
+    }
 }

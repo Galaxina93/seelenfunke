@@ -1,17 +1,18 @@
 package de.meinseelenfunke.app.ui.theme
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
+@Immutable
 data class AppThemeColors(
     val isDark: Boolean,
     val bgGradient: List<Color>,
@@ -30,25 +31,43 @@ data class AppThemeColors(
     val glowColor: Color
 )
 
-val LocalAppColors = staticCompositionLocalOf {
-    AppThemeColors(
-        isDark = true,
-        bgGradient = CosmicDarkGradient,
-        cardBackground = Slate900,
-        cardBorder = GlassWhite20,
-        textPrimary = Slate50,
-        textSecondary = Slate300,
-        textMuted = Slate400,
-        primaryGold = Gold,
-        glassSurface = GlassWhite10,
-        glassBorder = GlassBorderDark,
-        inputBackground = Color(0x221E293B),
-        inputBorder = GlassWhite20,
-        topBarBackground = Slate900.copy(alpha = 0.95f),
-        bottomBarBackground = SpaceBlack.copy(alpha = 0.95f),
-        glowColor = GoldGlow
-    )
-}
+private val DarkAppThemeColors = AppThemeColors(
+    isDark = true,
+    bgGradient = CosmicDarkGradient,
+    cardBackground = Slate900,
+    cardBorder = GlassWhite20,
+    textPrimary = Slate50,
+    textSecondary = Slate300,
+    textMuted = Slate400,
+    primaryGold = Gold,
+    glassSurface = GlassWhite10,
+    glassBorder = GlassBorderDark,
+    inputBackground = Color(0x221E293B),
+    inputBorder = GlassWhite20,
+    topBarBackground = Slate900.copy(alpha = 0.95f),
+    bottomBarBackground = SpaceBlack.copy(alpha = 0.95f),
+    glowColor = GoldGlow
+)
+
+private val LightAppThemeColors = AppThemeColors(
+    isDark = false,
+    bgGradient = CosmicLightGradient,
+    cardBackground = PureWhite,
+    cardBorder = Slate200,
+    textPrimary = Slate900,
+    textSecondary = Slate600,
+    textMuted = Slate500,
+    primaryGold = Gold,
+    glassSurface = Color(0x0DC5A059),
+    glassBorder = GlassBorderLight,
+    inputBackground = Slate100,
+    inputBorder = Slate200,
+    topBarBackground = PureWhite.copy(alpha = 0.95f),
+    bottomBarBackground = PureWhite.copy(alpha = 0.95f),
+    glowColor = Color(0x1AC5A059)
+)
+
+val LocalAppColors = staticCompositionLocalOf { DarkAppThemeColors }
 
 object AppTheme {
     val colors: AppThemeColors
@@ -99,74 +118,9 @@ fun SeelenfunkeTheme(
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
-
-    val animatedCardBg = animateColorAsState(
-        targetValue = if (darkTheme) Slate900 else PureWhite,
-        animationSpec = tween(350), label = "cardBg"
-    ).value
-
-    val animatedCardBorder = animateColorAsState(
-        targetValue = if (darkTheme) GlassWhite20 else Slate200,
-        animationSpec = tween(350), label = "cardBorder"
-    ).value
-
-    val animatedTextPrimary = animateColorAsState(
-        targetValue = if (darkTheme) Slate50 else Slate900,
-        animationSpec = tween(350), label = "textPrimary"
-    ).value
-
-    val animatedTextSecondary = animateColorAsState(
-        targetValue = if (darkTheme) Slate300 else Slate600,
-        animationSpec = tween(350), label = "textSecondary"
-    ).value
-
-    val animatedTextMuted = animateColorAsState(
-        targetValue = if (darkTheme) Slate400 else Slate500,
-        animationSpec = tween(350), label = "textMuted"
-    ).value
-
-    val animatedGlassSurface = animateColorAsState(
-        targetValue = if (darkTheme) GlassWhite10 else Color(0x0DC5A059),
-        animationSpec = tween(350), label = "glassSurface"
-    ).value
-
-    val animatedGlassBorder = animateColorAsState(
-        targetValue = if (darkTheme) GlassBorderDark else GlassBorderLight,
-        animationSpec = tween(350), label = "glassBorder"
-    ).value
-
-    val animatedInputBg = animateColorAsState(
-        targetValue = if (darkTheme) Color(0x221E293B) else Slate100,
-        animationSpec = tween(350), label = "inputBg"
-    ).value
-
-    val animatedTopBarBg = animateColorAsState(
-        targetValue = if (darkTheme) Slate900.copy(alpha = 0.95f) else PureWhite.copy(alpha = 0.95f),
-        animationSpec = tween(350), label = "topBarBg"
-    ).value
-
-    val animatedBottomBarBg = animateColorAsState(
-        targetValue = if (darkTheme) SpaceBlack.copy(alpha = 0.95f) else PureWhite.copy(alpha = 0.95f),
-        animationSpec = tween(350), label = "bottomBarBg"
-    ).value
-
-    val appThemeColors = AppThemeColors(
-        isDark = darkTheme,
-        bgGradient = if (darkTheme) CosmicDarkGradient else CosmicLightGradient,
-        cardBackground = animatedCardBg,
-        cardBorder = animatedCardBorder,
-        textPrimary = animatedTextPrimary,
-        textSecondary = animatedTextSecondary,
-        textMuted = animatedTextMuted,
-        primaryGold = Gold,
-        glassSurface = animatedGlassSurface,
-        glassBorder = animatedGlassBorder,
-        inputBackground = animatedInputBg,
-        inputBorder = if (darkTheme) GlassWhite20 else Slate200,
-        topBarBackground = animatedTopBarBg,
-        bottomBarBackground = animatedBottomBarBg,
-        glowColor = if (darkTheme) GoldGlow else Color(0x1AC5A059)
-    )
+    val appThemeColors = remember(darkTheme) {
+        if (darkTheme) DarkAppThemeColors else LightAppThemeColors
+    }
 
     CompositionLocalProvider(LocalAppColors provides appThemeColors) {
         MaterialTheme(

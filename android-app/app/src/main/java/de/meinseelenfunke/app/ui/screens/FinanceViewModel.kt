@@ -7,6 +7,8 @@ import de.meinseelenfunke.app.data.api.FinanceKpis
 import de.meinseelenfunke.app.data.api.FinanceSpecialIssue
 import de.meinseelenfunke.app.data.repository.FinanceRepository
 import de.meinseelenfunke.app.di.ServiceLocator
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -100,43 +102,46 @@ class FinanceViewModel : ViewModel() {
             try {
                 var errorMsg: String? = null
 
-                // Fetch KPIs
-                financeRepository.getKpis()
-                    .onSuccess { _kpis.value = it }
-                    .onFailure { 
-                        android.util.Log.e("FinanceViewModel", "KPIs load failed", it)
-                        errorMsg = "KPIs konnten nicht geladen werden: " + it.localizedMessage
-                    }
+                coroutineScope {
+                    val kpisDef = async { financeRepository.getKpis() }
+                    val catsDef = async { financeRepository.getCategories() }
+                    val varDef = async { financeRepository.getVariableItems() }
+                    val fixedDef = async { financeRepository.getFixedGroups() }
 
-                // Fetch categories
-                financeRepository.getCategories()
-                    .onSuccess { list -> _categories.value = list.ifEmpty { DEFAULT_CATEGORIES } }
-                    .onFailure {
-                        android.util.Log.e("FinanceViewModel", "Categories load failed", it)
-                        _categories.value = DEFAULT_CATEGORIES
-                    }
+                    kpisDef.await()
+                        .onSuccess { _kpis.value = it }
+                        .onFailure {
+                            android.util.Log.e("FinanceViewModel", "KPIs load failed", it)
+                            errorMsg = "KPIs konnten nicht geladen werden: " + it.localizedMessage
+                        }
 
-                // Fetch variable cost entries
-                financeRepository.getVariableItems()
-                    .onSuccess { list ->
-                        _variableItems.value = list.sortedWith(
-                            compareByDescending { parseDate(it.execution_date) }
-                        )
-                    }
-                    .onFailure { 
-                        android.util.Log.e("FinanceViewModel", "Variable items load failed", it)
-                        if (errorMsg == null) errorMsg = "Variable Kosten konnten nicht geladen werden: " + it.localizedMessage
-                    }
+                    catsDef.await()
+                        .onSuccess { list -> _categories.value = list.ifEmpty { DEFAULT_CATEGORIES } }
+                        .onFailure {
+                            android.util.Log.e("FinanceViewModel", "Categories load failed", it)
+                            _categories.value = DEFAULT_CATEGORIES
+                        }
 
-                // Fetch fixed cost groups
-                financeRepository.getFixedGroups()
-                    .onSuccess { _fixedGroups.value = it }
-                    .onFailure { 
-                        android.util.Log.e("FinanceViewModel", "Fixed groups load failed", it)
-                        if (errorMsg == null) errorMsg = "Fixkosten konnten nicht geladen werden: " + it.localizedMessage
-                    }
+                    varDef.await()
+                        .onSuccess { list ->
+                            _variableItems.value = list.sortedWith(
+                                compareByDescending { parseDate(it.execution_date) }
+                            )
+                        }
+                        .onFailure {
+                            android.util.Log.e("FinanceViewModel", "Variable items load failed", it)
+                            if (errorMsg == null) errorMsg = "Variable Kosten konnten nicht geladen werden: " + it.localizedMessage
+                        }
 
-                if (errorMsg != null) {
+                    fixedDef.await()
+                        .onSuccess { _fixedGroups.value = it }
+                        .onFailure {
+                            android.util.Log.e("FinanceViewModel", "Fixed groups load failed", it)
+                            if (errorMsg == null) errorMsg = "Fixkosten konnten nicht geladen werden: " + it.localizedMessage
+                        }
+                }
+
+                if (errorMsg != null && _kpis.value == null) {
                     _uiState.value = FinanceUiState.Error(errorMsg!!)
                 } else {
                     _uiState.value = FinanceUiState.Success

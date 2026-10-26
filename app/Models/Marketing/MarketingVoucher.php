@@ -44,6 +44,7 @@ class MarketingVoucher extends Model
     public function scopeCurrent($query)
     {
         return $query->where('is_active', true)
+            ->whereNull('influencer_id')
             ->where(function ($q) {
                 $q->whereNull('recipient_email')
                   ->orWhere('recipient_email', '');
@@ -66,6 +67,13 @@ class MarketingVoucher extends Model
     {
         if (!$this->is_active) return false;
         if ($this->usage_limit !== null && $this->used_count >= $this->usage_limit) return false;
+
+        if (!empty($this->influencer_id)) {
+            $inf = $this->relationLoaded('influencer') ? $this->influencer : $this->influencer()->first();
+            if (!$inf || !$inf->is_active || $inf->is_archived) {
+                return false;
+            }
+        }
 
         $now = now();
         if ($this->valid_from && $now->lt($this->valid_from)) return false;

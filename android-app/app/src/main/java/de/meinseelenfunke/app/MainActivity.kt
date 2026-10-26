@@ -61,6 +61,11 @@ class MainActivity : FragmentActivity() {
             val manager = getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
             manager.cancel(1003)
             de.meinseelenfunke.app.util.NavigationBridge.triggerWakeWord()
+        } else if (intent?.getStringExtra("navigate_to") == "email") {
+            if (intent.hasExtra("email_id")) {
+                de.meinseelenfunke.app.util.NavigationBridge.pendingEmailId = intent.getStringExtra("email_id")
+            }
+            de.meinseelenfunke.app.util.NavigationBridge.triggerNavigation(tabIndex = 2, subTab = 4)
         } else if (intent?.hasExtra("open_tab") == true) {
             val tab = intent.getIntExtra("open_tab", 0)
             val subTab = intent.getIntExtra("open_subtab", 0)

@@ -162,6 +162,10 @@ class AiFrontendSupportChatTest extends TestCase
             'email' => 'max@example.com',
             'password' => bcrypt('password')
         ]);
+        $customer->profile()->update([
+            'ai_data_consent' => true,
+            'ai_data_consent_at' => now(),
+        ]);
         $this->actingAs($customer, 'customer');
         Session::put('ai_chat_privacy_accepted', true);
 

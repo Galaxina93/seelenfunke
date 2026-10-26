@@ -70,12 +70,18 @@ class ProductReviewSecurityTest extends TestCase
         $customer = $this->createCustomerWithPaidOrder($product);
         Auth::guard('customer')->login($customer);
 
-        Livewire::test(\App\Livewire\Shop\Product\ProductReviews::class, ['product' => $product])
+        $component = Livewire::test(\App\Livewire\Shop\Product\ProductReviews::class, ['product' => $product])
             ->set('rating', 5)
             ->set('title', 'Toller Artikel')
-            ->set('content', 'Dies ist eine sehr gute Bewertung für das Produkt!')
-            ->set('existingMedia', ['system/important_file.txt'])
-            ->call('submitReview')
+            ->set('content', 'Dies ist eine sehr gute Bewertung für das Produkt!');
+
+        try {
+            $component->set('existingMedia', ['system/important_file.txt']);
+        } catch (\Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException $e) {
+            // Expected when existingMedia is #[Locked]
+        }
+
+        $component->call('submitReview')
             ->assertHasNoErrors();
 
         $review = ProductReview::where('product_id', $product->id)->first();

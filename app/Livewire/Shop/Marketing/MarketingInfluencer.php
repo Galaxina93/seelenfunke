@@ -218,6 +218,7 @@ class MarketingInfluencer extends Component
         ];
 
         if (!$isPendingSlot) {
+            $this->email = mb_strtolower(trim($this->email));
             $rules['firstName'] = 'required|string|max:120';
             $rules['lastName'] = 'required|string|max:120';
             $rules['email'] = [
@@ -225,6 +226,11 @@ class MarketingInfluencer extends Component
                 'email',
                 'max:191',
                 Rule::unique('employees', 'email')->ignore($existingEmployeeId),
+                function ($attribute, $value, $fail) use ($existingEmployeeId) {
+                    if (\App\Models\System\SystemUser::isEmailTakenAcrossGuards((string) $value, 'employee', $existingEmployeeId)) {
+                        $fail('Diese E-Mail-Adresse ist bereits einem bestehenden Konto (Kunde, Mitarbeiter oder Admin) zugeordnet.');
+                    }
+                },
             ];
             $rules['handle'] = 'required|string|max:100';
             $rules['slug'] = [
@@ -276,20 +282,16 @@ class MarketingInfluencer extends Component
         session()->flash('influencer_saved', 'Neuer 14-Tage Einladungs-Link & Sicherheitscode generiert!');
     }
 
-    public function toggleActive(string $id): void
+    public function toggleActive(string $id, InfluencerService $service): void
     {
         $inf = MarketingInfluencerModel::with(['defaultVoucher', 'trackingLinks'])->findOrFail($id);
         $newState = !$inf->is_active;
         $inf->update(['is_active' => $newState]);
 
-        $effectiveActive = $newState && !$inf->is_archived;
-        if ($inf->defaultVoucher) {
-            $inf->defaultVoucher->update(['is_active' => $effectiveActive]);
-        }
-        $inf->trackingLinks()->update(['is_active' => $effectiveActive]);
+        $service->syncInfluencerActiveState($inf->fresh());
     }
 
-    public function toggleArchive(string $id): void
+    public function toggleArchive(string $id, InfluencerService $service): void
     {
         $inf = MarketingInfluencerModel::with(['defaultVoucher', 'trackingLinks'])->findOrFail($id);
         $newArchiveState = !$inf->is_archived;
@@ -298,11 +300,7 @@ class MarketingInfluencer extends Component
             'is_active' => $newArchiveState ? false : true,
         ]);
 
-        $effectiveActive = !$newArchiveState;
-        if ($inf->defaultVoucher) {
-            $inf->defaultVoucher->update(['is_active' => $effectiveActive]);
-        }
-        $inf->trackingLinks()->update(['is_active' => $effectiveActive]);
+        $service->syncInfluencerActiveState($inf->fresh());
 
         session()->flash(
             'influencer_saved',
@@ -312,17 +310,10 @@ class MarketingInfluencer extends Component
         );
     }
 
-    public function deleteInfluencer(string $id): void
+    public function deleteInfluencer(string $id, InfluencerService $service): void
     {
-        $inf = MarketingInfluencerModel::with('employee')->findOrFail($id);
-        $inf->trackingLinks()->update(['is_active' => false]);
-        if ($inf->defaultVoucher) {
-            $inf->defaultVoucher->update(['is_active' => false]);
-        }
-        if ($inf->employee) {
-            $inf->employee->delete();
-        }
-        $inf->delete();
+        $inf = MarketingInfluencerModel::with(['employee', 'defaultVoucher', 'trackingLinks'])->findOrFail($id);
+        $result = $service->deleteOrArchiveInfluencer($inf);
 
         if ($this->editingInfluencerId === $id) {
             $this->resetForm();
@@ -331,7 +322,7 @@ class MarketingInfluencer extends Component
             $this->closeInviteModal();
         }
 
-        session()->flash('influencer_saved', 'Eintrag wurde gelöscht.');
+        session()->flash('influencer_saved', $result['message']);
     }
 
     public function approveCommissionsForInfluencer(string $id, InfluencerService $service): void

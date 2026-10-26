@@ -27,4 +27,14 @@ class CustomerFactory extends Factory
             'remember_token' => Str::random(10),
         ];
     }
+
+    public function configure(): static
+    {
+        return $this->afterCreating(function (\App\Models\Customer\Customer $customer) {
+            $customer->profile()->update([
+                'ai_data_consent' => true,
+                'ai_data_consent_at' => now(),
+            ]);
+        });
+    }
 }

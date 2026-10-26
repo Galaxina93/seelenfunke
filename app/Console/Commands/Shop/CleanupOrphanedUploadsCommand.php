@@ -31,8 +31,8 @@ class CleanupOrphanedUploadsCommand extends Command
      */
     public function handle(CartFileCleanupService $cleanupService): int
     {
-        $hours = max(1, (int) $this->option('hours'));
-        $cartDays = max(1, (int) $this->option('cart-days'));
+        $hours = max(0, (int) $this->option('hours'));
+        $cartDays = max(0, (int) $this->option('cart-days'));
         $isDryRun = (bool) $this->option('dry-run');
 
         $this->info("=== BEREINIGUNG VERWAISTER UPLOADS & WARENKÖRBE ===");

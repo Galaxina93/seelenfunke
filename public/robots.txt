@@ -1,7 +1,28 @@
-# Mein Seelenfunke – Robots & AI Search Policy
+# Mein Seelenfunke – Robots & AI Search Policy (RFC 9309 + GEO / LLMs.txt)
 User-agent: *
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: GPTBot
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: ClaudeBot
+User-agent: Claude-Web
+User-agent: anthropic-ai
+User-agent: Google-Extended
+User-agent: Googlebot
+User-agent: Bingbot
+User-agent: Applebot-Extended
 Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /sitemap.xml
+Allow: /feed/google-shopping.xml
+Allow: /feed/products.json
 Disallow: /admin
+Disallow: /employee
+Disallow: /customer
+Disallow: /partner/einladung/
+Disallow: /t/
 Disallow: /warenkorb
 Disallow: /checkout
 Disallow: /system/
@@ -10,40 +31,6 @@ Disallow: /invoice/
 Disallow: /digital-product/
 Disallow: /angebot/
 Disallow: /notfall
-
-# Explizite Freigabe für KI-Suchmaschinen & Generative Answer Engines (GEO)
-User-agent: OAI-SearchBot
-Allow: /
-
-User-agent: ChatGPT-User
-Allow: /
-
-User-agent: GPTBot
-Allow: /
-
-User-agent: PerplexityBot
-Allow: /
-
-User-agent: ClaudeBot
-Allow: /
-
-User-agent: Claude-Web
-Allow: /
-
-User-agent: anthropic-ai
-Allow: /
-
-User-agent: Google-Extended
-Allow: /
-
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Applebot-Extended
-Allow: /
 
 Sitemap: https://mein-seelenfunke.de/sitemap.xml
 # AI / LLM Context Discovery

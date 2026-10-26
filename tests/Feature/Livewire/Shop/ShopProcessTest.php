@@ -133,7 +133,9 @@ class ShopProcessTest extends TestCase
         // which the user wants automated anyway, to complete the cycle.
         
         // Alternativ: Backend-Abschluss simulieren (das ist der Fokus des Users)
-        \Livewire\Livewire::test(\App\Livewire\Shop\Order\OrderOverview::class)
+        $admin = \App\Models\Admin\Admin::factory()->create();
+        \Livewire\Livewire::actingAs($admin, 'admin')
+            ->test(\App\Livewire\Shop\Order\OrderOverview::class)
             ->call('markAsPaid', $order->id);
 
         $order->refresh();

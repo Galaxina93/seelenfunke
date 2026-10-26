@@ -77,7 +77,7 @@ class AccountingVariableCostsSecurityTest extends TestCase
 
         Livewire::actingAs($adminA, 'admin')
             ->test(AccountingVariableCosts::class)
-            ->set('categoryToDeleteId', $catB1->id)
+            ->call('deleteCategory', $catB1->id)
             ->set('targetCategoryId', $catB2->id)
             ->call('confirmDeleteCategory');
 

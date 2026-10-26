@@ -27,12 +27,13 @@ class AiScoutFuncsSecurityTest extends TestCase
         $this->assertStringContainsString('mindestens 2 Zeichen', $resShort['message']);
 
         // 2. Wildcard query does not match all customers
-        Customer::create([
+        $c1 = Customer::create([
             'first_name' => 'Max_Mustermann',
             'last_name' => 'Schmidt',
             'email' => 'max_test@example.com',
             'password' => bcrypt('secret123'),
         ]);
+        $c1->updateAiDataConsent(true, 'test');
 
         Customer::create([
             'first_name' => 'MaxXMustermann',

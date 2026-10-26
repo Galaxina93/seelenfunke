@@ -115,6 +115,10 @@ trait handleTwoFactorTrait
                 return redirect(route('employee.influencer.dashboard'));
             }
 
+            if ($guard === 'employee' && method_exists($user, 'isTaxAdvisor') && $user->isTaxAdvisor()) {
+                return redirect(route('employee.tax-advisor.dashboard'));
+            }
+
             return redirect(route($guard . '.dashboard'));
         }
 

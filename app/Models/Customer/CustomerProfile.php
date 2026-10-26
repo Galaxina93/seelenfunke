@@ -17,7 +17,7 @@ class CustomerProfile extends Model
         'birthday', 'photo_path', 'about', 'url', 'phone_number', 'street',
         'house_number', 'postal', 'city', 'country', 'two_factor_is_active',
         'two_factor_secret', 'two_factor_recovery_codes', 'email_verified_at', 'last_seen', 'last_ip',
-        'cart_reminder_unsubscribed_at'
+        'cart_reminder_unsubscribed_at', 'ai_data_consent', 'ai_data_consent_at'
     ];
 
     public $incrementing = false;
@@ -27,6 +27,8 @@ class CustomerProfile extends Model
         'is_business' => 'boolean',
         'birthday' => 'date',
         'cart_reminder_unsubscribed_at' => 'datetime',
+        'ai_data_consent' => 'boolean',
+        'ai_data_consent_at' => 'datetime',
     ];
 
     protected static function boot()

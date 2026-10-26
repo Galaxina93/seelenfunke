@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Marketing\MarketingBlogPost;
 use App\Models\Marketing\MarketingLandingPage;
 use App\Models\Product\Product;
+use App\Models\Product\ProductTemplate;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -12,7 +14,7 @@ use Illuminate\Support\Str;
 class SeoController extends Controller
 {
     /**
-     * Dynamische XML-Sitemap (/sitemap.xml) inkl. Google Image Sitemap Extension.
+     * Dynamische XML-Sitemap (/sitemap.xml) inkl. Google Image & Google Video Sitemap Extensions.
      */
     public function sitemap(): Response
     {
@@ -20,7 +22,7 @@ class SeoController extends Controller
             ['loc' => route('home'), 'changefreq' => 'daily', 'priority' => '1.0'],
             ['loc' => route('shop'), 'changefreq' => 'daily', 'priority' => '0.95'],
             ['loc' => route('manufacture'), 'changefreq' => 'monthly', 'priority' => '0.85'],
-            ['loc' => route('marketing/marketing/blog'), 'changefreq' => 'weekly', 'priority' => '0.80'],
+            ['loc' => route('marketing/marketing/blog'), 'changefreq' => 'weekly', 'priority' => '0.85'],
             ['loc' => route('calculator'), 'changefreq' => 'weekly', 'priority' => '0.80'],
             ['loc' => route('contact'), 'changefreq' => 'monthly', 'priority' => '0.75'],
             ['loc' => route('versand'), 'changefreq' => 'monthly', 'priority' => '0.65'],
@@ -32,6 +34,15 @@ class SeoController extends Controller
             ['loc' => route('agb'), 'changefreq' => 'yearly', 'priority' => '0.30'],
             ['loc' => route('widerruf'), 'changefreq' => 'yearly', 'priority' => '0.30'],
         ];
+
+        $occasionSlugs = ['weihnachten', 'ostern', 'hochzeit', 'geburtstag', 'valentinstag', 'muttertag', 'vatertag', 'halloween'];
+        foreach ($occasionSlugs as $occ) {
+            $staticUrls[] = [
+                'loc' => route('shop', ['filterHoliday' => $occ]),
+                'changefreq' => 'weekly',
+                'priority' => '0.80',
+            ];
+        }
 
         $products = collect();
         if (Schema::hasTable('products')) {
@@ -58,7 +69,7 @@ class SeoController extends Controller
 
         $xml = [];
         $xml[] = '<?xml version="1.0" encoding="UTF-8"?>';
-        $xml[] = '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">';
+        $xml[] = '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1" xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">';
 
         foreach ($staticUrls as $item) {
             $xml[] = '  <url>';
@@ -73,19 +84,65 @@ class SeoController extends Controller
             $lastmod = optional($product->updated_at ?? $product->created_at)->toAtomString() ?: now()->toAtomString();
             $mainImgUrl = $product->resolveMainImageUrl(null, false) ?: $product->resolveMainImageUrl();
 
+            $imageEntries = [];
+            $videoEntries = [];
+
+            if (!empty($mainImgUrl)) {
+                $imageEntries[$mainImgUrl] = [
+                    'loc' => $mainImgUrl,
+                    'title' => $product->name,
+                    'caption' => Str::limit(strip_tags((string) ($product->short_description ?: $product->description)), 180),
+                ];
+            }
+
+            foreach ($product->media_gallery ?? [] as $media) {
+                if (!is_array($media) || empty($media['path'])) {
+                    continue;
+                }
+                $mType = $media['type'] ?? 'image';
+                if ($mType === 'video') {
+                    $vUrl = asset('storage/' . ltrim((string) $media['path'], '/'));
+                    $videoEntries[$vUrl] = [
+                        'content_loc' => $vUrl,
+                        'thumbnail_loc' => $mainImgUrl ?: asset('shop/projekt/logo/mein-seelenfunke-logo.png'),
+                        'title' => ($media['alt'] ?? ($product->name . ' – Produktvideo & Lasergravur')),
+                        'description' => Str::limit(strip_tags((string) ($product->short_description ?: $product->description)), 200),
+                    ];
+                } else {
+                    $imgUrl = ProductTemplate::resolveImageUrl($media['path']);
+                    if ($imgUrl && !isset($imageEntries[$imgUrl])) {
+                        $imageEntries[$imgUrl] = [
+                            'loc' => $imgUrl,
+                            'title' => $media['alt'] ?? $product->name,
+                            'caption' => $media['alt'] ?? Str::limit(strip_tags((string) $product->short_description), 180),
+                        ];
+                    }
+                }
+            }
+
             $xml[] = '  <url>';
             $xml[] = '    <loc>' . e($loc) . '</loc>';
             $xml[] = '    <lastmod>' . e($lastmod) . '</lastmod>';
             $xml[] = '    <changefreq>weekly</changefreq>';
             $xml[] = '    <priority>0.90</priority>';
-            if (!empty($mainImgUrl)) {
+            foreach ($imageEntries as $img) {
                 $xml[] = '    <image:image>';
-                $xml[] = '      <image:loc>' . e($mainImgUrl) . '</image:loc>';
-                $xml[] = '      <image:title>' . e($product->name) . '</image:title>';
-                if (!empty($product->short_description)) {
-                    $xml[] = '      <image:caption>' . e(Str::limit(strip_tags($product->short_description), 180)) . '</image:caption>';
+                $xml[] = '      <image:loc>' . e($img['loc']) . '</image:loc>';
+                $xml[] = '      <image:title>' . e($img['title']) . '</image:title>';
+                if (!empty($img['caption'])) {
+                    $xml[] = '      <image:caption>' . e($img['caption']) . '</image:caption>';
                 }
                 $xml[] = '    </image:image>';
+            }
+            foreach ($videoEntries as $vid) {
+                $xml[] = '    <video:video>';
+                $xml[] = '      <video:thumbnail_loc>' . e($vid['thumbnail_loc']) . '</video:thumbnail_loc>';
+                $xml[] = '      <video:title>' . e($vid['title']) . '</video:title>';
+                $xml[] = '      <video:description>' . e($vid['description']) . '</video:description>';
+                $xml[] = '      <video:content_loc>' . e($vid['content_loc']) . '</video:content_loc>';
+                $xml[] = '      <video:duration>8</video:duration>';
+                $xml[] = '      <video:family_friendly>yes</video:family_friendly>';
+                $xml[] = '    </video:video>';
             }
             $xml[] = '  </url>';
         }
@@ -166,6 +223,8 @@ class SeoController extends Controller
         $lines[] = "- **Versand (DE):** {$shippingCost} € versicherter DHL-Versand (ab {$freeThreshold} € Bestellwert versandkostenfrei). Express-Fertigung verfügbar.";
         $lines[] = '- **Mindestbestellmenge:** Keine Mindestbestellmenge (Einzelstücke ab 1 Stück sowie Mengenrabatte/Staffelpreise für Vereine, Hochzeiten und Firmenkunden).';
         $lines[] = '- **Vollständige Wissensdatenbank:** [' . url('/llms-full.txt') . '](' . url('/llms-full.txt') . ')';
+        $lines[] = '- **Strukturierter Produktkatalog (JSON):** [' . url('/feed/products.json') . '](' . url('/feed/products.json') . ')';
+        $lines[] = '- **Google Merchant Center Feed (XML):** [' . url('/feed/google-shopping.xml') . '](' . url('/feed/google-shopping.xml') . ')';
         $lines[] = '';
         $lines[] = '## Wichtige Seiten & Einstiegspunkte';
         $lines[] = '- [Startseite](' . route('home') . '): Überblick über Manufaktur, Materialien, Kundenstimmen und häufige Fragen.';
@@ -182,8 +241,9 @@ class SeoController extends Controller
         } else {
             foreach ($products as $product) {
                 $url = route('product.show', $product->slug);
-                $price = number_format($product->price / 100, 2, ',', '.') . ' €';
-                $compare = ($product->compare_at_price && $product->compare_at_price > $product->price)
+                $grossCents = (int) $product->gross_price;
+                $price = number_format($grossCents / 100, 2, ',', '.') . ' €';
+                $compare = ($product->compare_at_price && $product->compare_at_price > $grossCents)
                     ? ' (Statt ' . number_format($product->compare_at_price / 100, 2, ',', '.') . ' €)'
                     : '';
                 $pers = $product->isPersonalizable() ? 'Personalisierbar im 2D/3D-Konfigurator' : 'Sofort bestellbar';
@@ -231,6 +291,10 @@ class SeoController extends Controller
             ? Product::where('status', 'active')->with(['categories', 'tierPrices', 'reviews' => fn ($q) => $q->where('status', 'approved')])->orderBy('name')->get()
             : collect();
 
+        $blogPosts = Schema::hasTable('marketing_blog_posts')
+            ? MarketingBlogPost::published()->latest('published_at')->take(15)->get()
+            : collect();
+
         $lines = [];
         $lines[] = "# {$companyName} – Vollständige Produkt- & Manufaktur-Dokumentation (LLMs-Full)";
         $lines[] = '';
@@ -248,7 +312,8 @@ class SeoController extends Controller
 
         foreach ($products as $product) {
             $url = route('product.show', $product->slug);
-            $price = number_format($product->price / 100, 2, ',', '.') . ' €';
+            $grossCents = (int) $product->gross_price;
+            $price = number_format($grossCents / 100, 2, ',', '.') . ' €';
             $lines[] = '';
             $lines[] = "### {$product->name}";
             $lines[] = "- **URL:** {$url}";
@@ -256,7 +321,7 @@ class SeoController extends Controller
                 $lines[] = "- **SKU / Artikelnummer:** {$product->sku}";
             }
             $lines[] = "- **Basispreis:** {$price} (inkl. MwSt., inkl. individueller Lasergravur)";
-            if ($product->compare_at_price && $product->compare_at_price > $product->price) {
+            if ($product->compare_at_price && $product->compare_at_price > $grossCents) {
                 $lines[] = '- **Regulärer Vergleichspreis:** ' . number_format($product->compare_at_price / 100, 2, ',', '.') . ' €';
             }
             $lines[] = '- **Verfügbarkeit:** ' . ($product->isAvailable() ? 'Auf Lager / Sofort bestellbar' : 'Derzeit nicht auf Lager');
@@ -270,7 +335,7 @@ class SeoController extends Controller
                 $lines[] = "- **Lieferzeit:** {$product->delivery_time_label}";
             }
 
-            $attrs = is_array($product->attributes) ? $product->attributes : [];
+            $attrs = MarketingLandingPage::extractEssentialAttributes($product);
             if (!empty($attrs)) {
                 $attrParts = [];
                 foreach ($attrs as $k => $v) {
@@ -322,8 +387,18 @@ class SeoController extends Controller
             }
         }
 
+        if ($blogPosts->isNotEmpty()) {
+            $lines[] = '';
+            $lines[] = '## 3. Magazin & Ratgeber-Wissen';
+            foreach ($blogPosts as $post) {
+                $postUrl = route('blog.show', $post->slug);
+                $summary = Str::limit(trim(preg_replace('/\s+/', ' ', strip_tags((string) ($post->excerpt ?: $post->content)))), 240);
+                $lines[] = "- **[{$post->title}]({$postUrl})**" . ($summary ? ": {$summary}" : '');
+            }
+        }
+
         $lines[] = '';
-        $lines[] = '## 3. Häufig gestellte Fragen (FAQ)';
+        $lines[] = '## 4. Häufig gestellte Fragen (FAQ)';
         $lines[] = '- **Wie lange dauert die Anfertigung und der Versand?** Jedes Stück wird individuell nach Bestellung gefertigt. Die reguläre Fertigungs- und Lieferzeit beträgt in der Regel 3 bis 5 Werktage innerhalb Deutschlands. Für eilige Geschenke gibt es im Checkout eine Express-Option.';
         $lines[] = '- **Welche Materialien werden graviert?** Wir veredeln optisch reines K9-Kristallglas, echten Naturschiefer, eloxiertes Aluminium, Edelstahl sowie ausgewählte Hölzer.';
         $lines[] = '- **Was kostet die Personalisierung?** Die individuelle Lasergravur (Texte, Motive, eigenes Logo und Vorder-/Rückseitengravur bei Glas) ist im angezeigten Produktpreis bereits vollständig enthalten – keine versteckten Zusatzkosten.';
@@ -335,5 +410,194 @@ class SeoController extends Controller
             'Content-Type' => 'text/plain; charset=UTF-8',
             'Cache-Control' => 'public, max-age=3600',
         ]);
+    }
+
+    /**
+     * Google Merchant Center & Google Shopping Produkt-Feed (/feed/google-shopping.xml)
+     * nach dem offiziellen RSS 2.0 + xmlns:g="http://base.google.com/ns/1.0" Standard.
+     */
+    public function googleShoppingFeed(): Response
+    {
+        $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
+        $shippingCostCents = (int) shop_setting('shipping_cost', 490);
+        $freeThresholdCents = (int) shop_setting('shipping_free_threshold', 5000);
+
+        $products = Schema::hasTable('products')
+            ? Product::where('status', 'active')->with('categories')->orderBy('name')->get()
+            : collect();
+
+        $xml = [];
+        $xml[] = '<?xml version="1.0" encoding="UTF-8"?>';
+        $xml[] = '<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">';
+        $xml[] = '  <channel>';
+        $xml[] = '    <title>' . e($companyName . ' – Produktfeed (Personalisierte Geschenke & Lasergravur)') . '</title>';
+        $xml[] = '    <link>' . e(url('/')) . '</link>';
+        $xml[] = '    <description>' . e('Handveredelte Unikate mit hochpräziser Lasergravur und Live-3D-Konfigurator aus der Manufaktur ' . $companyName . ' in Gifhorn.') . '</description>';
+
+        foreach ($products as $product) {
+            $id = $product->sku ?: ('MSF-' . strtoupper(substr((string) $product->id, 0, 8)));
+            $link = route('product.show', $product->slug);
+            $mainImg = $product->resolveMainImageUrl(null, false)
+                ?: ($product->resolveMainImageUrl() ?: asset('shop/projekt/logo/mein-seelenfunke-logo.png'));
+
+            $additionalImages = [];
+            foreach ($product->media_gallery ?? [] as $media) {
+                if (!is_array($media) || ($media['type'] ?? 'image') !== 'image' || empty($media['path'])) {
+                    continue;
+                }
+                $u = ProductTemplate::resolveImageUrl($media['path']);
+                if ($u && $u !== $mainImg && !in_array($u, $additionalImages, true)) {
+                    $additionalImages[] = $u;
+                }
+            }
+
+            $grossCents = (int) $product->gross_price;
+            $compareCents = (int) ($product->compare_at_price ?? 0);
+            $hasSale = $compareCents > $grossCents;
+
+            $regularPriceFormatted = number_format(($hasSale ? $compareCents : $grossCents) / 100, 2, '.', '') . ' EUR';
+            $salePriceFormatted = $hasSale ? (number_format($grossCents / 100, 2, '.', '') . ' EUR') : null;
+
+            $shipPriceCents = (!$product->isPhysical() || $grossCents >= $freeThresholdCents) ? 0 : $shippingCostCents;
+            $shipPriceFormatted = number_format($shipPriceCents / 100, 2, '.', '') . ' EUR';
+
+            $desc = trim(preg_replace('/\s+/', ' ', strip_tags((string) ($product->description ?: $product->short_description))));
+            $catString = $product->categories->isNotEmpty()
+                ? $product->categories->pluck('name')->implode(' > ')
+                : 'Personalisierte Geschenke > Lasergravur';
+
+            $xml[] = '    <item>';
+            $xml[] = '      <g:id>' . e($id) . '</g:id>';
+            $xml[] = '      <g:title>' . e(Str::limit($product->name . ' – Personalisiert mit Lasergravur', 150)) . '</g:title>';
+            $xml[] = '      <g:description>' . e(Str::limit($desc, 4500)) . '</g:description>';
+            $xml[] = '      <g:link>' . e($link) . '</g:link>';
+            $xml[] = '      <g:image_link>' . e($mainImg) . '</g:image_link>';
+            foreach (array_slice($additionalImages, 0, 10) as $addImg) {
+                $xml[] = '      <g:additional_image_link>' . e($addImg) . '</g:additional_image_link>';
+            }
+            $xml[] = '      <g:condition>new</g:condition>';
+            $xml[] = '      <g:availability>' . ($product->isAvailable() ? 'in_stock' : 'out_of_stock') . '</g:availability>';
+            $xml[] = '      <g:price>' . e($regularPriceFormatted) . '</g:price>';
+            if ($salePriceFormatted) {
+                $xml[] = '      <g:sale_price>' . e($salePriceFormatted) . '</g:sale_price>';
+            }
+            $xml[] = '      <g:brand>' . e($product->brand ?: $companyName) . '</g:brand>';
+            $xml[] = '      <g:mpn>' . e($id) . '</g:mpn>';
+            $xml[] = '      <g:identifier_exists>false</g:identifier_exists>';
+            $xml[] = '      <g:google_product_category>536</g:google_product_category>';
+            $xml[] = '      <g:product_type>' . e($catString) . '</g:product_type>';
+            if ($product->width > 0) {
+                $xml[] = '      <g:product_width>' . e((string) $product->width) . ' mm</g:product_width>';
+            }
+            if ($product->height > 0) {
+                $xml[] = '      <g:product_height>' . e((string) $product->height) . ' mm</g:product_height>';
+            }
+            if ($product->length > 0) {
+                $xml[] = '      <g:product_length>' . e((string) $product->length) . ' mm</g:product_length>';
+            }
+            if ($product->weight > 0) {
+                $xml[] = '      <g:shipping_weight>' . e((string) ($product->weight + (int) ($product->packaging_weight ?? 15))) . ' g</g:shipping_weight>';
+            }
+            $xml[] = '      <g:custom_label_0>' . ($product->isPersonalizable() ? '3D-Konfigurator Personalisierbar' : 'Standard') . '</g:custom_label_0>';
+            $xml[] = '      <g:shipping>';
+            $xml[] = '        <g:country>DE</g:country>';
+            $xml[] = '        <g:service>DHL Paket versichert</g:service>';
+            $xml[] = '        <g:price>' . e($shipPriceFormatted) . '</g:price>';
+            $xml[] = '      </g:shipping>';
+            $xml[] = '    </item>';
+        }
+
+        $xml[] = '  </channel>';
+        $xml[] = '</rss>';
+
+        return response(implode("\n", $xml), 200, [
+            'Content-Type' => 'application/xml; charset=UTF-8',
+            'Cache-Control' => 'public, max-age=3600',
+        ]);
+    }
+
+    /**
+     * Strukturierter JSON-Produktkatalog (/feed/products.json) für KI-Shopping-Assistenten,
+     * Preisvergleichsportale und automatisierte Katalog-Indexierung.
+     */
+    public function productsJsonFeed(): JsonResponse
+    {
+        $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
+
+        $products = Schema::hasTable('products')
+            ? Product::where('status', 'active')
+                ->with(['categories', 'tierPrices', 'reviews' => fn ($q) => $q->where('status', 'approved')])
+                ->orderBy('name')
+                ->get()
+            : collect();
+
+        $items = $products->map(function (Product $product) {
+            $grossCents = (int) $product->gross_price;
+            $images = [];
+            $videoUrl = null;
+            $dimensionSheetUrl = null;
+
+            foreach ($product->media_gallery ?? [] as $m) {
+                if (!is_array($m) || empty($m['path'])) {
+                    continue;
+                }
+                if (($m['type'] ?? 'image') === 'video') {
+                    $videoUrl = asset('storage/' . ltrim((string) $m['path'], '/'));
+                } else {
+                    $u = ProductTemplate::resolveImageUrl($m['path']);
+                    if ($u) {
+                        $images[] = $u;
+                        if (str_contains((string) $m['path'], '-dimensions.jpg')) {
+                            $dimensionSheetUrl = $u;
+                        }
+                    }
+                }
+            }
+
+            return [
+                'id' => $product->sku ?: $product->slug,
+                'slug' => $product->slug,
+                'name' => $product->name,
+                'url' => route('product.show', $product->slug),
+                'landing_page_url' => route('landing-page', $product->slug),
+                'price_eur' => round($grossCents / 100, 2),
+                'compare_at_price_eur' => $product->compare_at_price ? round($product->compare_at_price / 100, 2) : null,
+                'currency' => 'EUR',
+                'in_stock' => $product->isAvailable(),
+                'is_personalizable_3d' => $product->isPersonalizable(),
+                'dimensions_mm' => [
+                    'width' => $product->width,
+                    'height' => $product->height,
+                    'depth' => $product->length,
+                ],
+                'weight_grams' => $product->weight,
+                'short_description' => $product->short_description,
+                'description' => trim(preg_replace('/\s+/', ' ', strip_tags((string) $product->description))),
+                'attributes' => MarketingLandingPage::extractEssentialAttributes($product),
+                'categories' => $product->categories->pluck('name')->values()->all(),
+                'tier_pricing' => $product->tierPrices->map(fn ($tp) => [
+                    'min_quantity' => (int) $tp->qty,
+                    'discount_percent' => (float) $tp->percent,
+                ])->values()->all(),
+                'rating' => [
+                    'average' => $product->reviews->count() > 0 ? round($product->reviews->avg('rating'), 1) : null,
+                    'count' => $product->reviews->count(),
+                ],
+                'main_image_url' => $product->resolveMainImageUrl(null, false) ?: $product->resolveMainImageUrl(),
+                'dimension_sheet_image_url' => $dimensionSheetUrl,
+                'gallery_images' => $images,
+                'promo_video_url' => $videoUrl,
+            ];
+        })->values();
+
+        return response()->json([
+            'shop' => $companyName,
+            'url' => url('/'),
+            'generated_at' => now()->toAtomString(),
+            'product_count' => $items->count(),
+            'products' => $items,
+        ], 200, [
+            'Cache-Control' => 'public, max-age=3600',
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 }

@@ -121,7 +121,7 @@ class MarketingVoucher extends Component
 
     public function editManualCoupon($id)
     {
-        $v = VoucherModel::where('mode', 'manual')->whereNull('recipient_email')->findOrFail($id);
+        $v = VoucherModel::where('mode', 'manual')->whereNull('recipient_email')->whereNull('influencer_id')->findOrFail($id);
         $this->manualId = $v->id;
         $this->manual_code = $v->code;
         $this->manual_type = $v->type;
@@ -169,7 +169,7 @@ class MarketingVoucher extends Component
         ];
 
         if ($this->manualId) {
-            $existingManual = VoucherModel::where('mode', 'manual')->whereNull('recipient_email')->findOrFail($this->manualId);
+            $existingManual = VoucherModel::where('mode', 'manual')->whereNull('recipient_email')->whereNull('influencer_id')->findOrFail($this->manualId);
             $payload['valid_from'] = $existingManual->valid_from ?? now();
             $existingManual->update($payload);
         } else {
@@ -183,7 +183,7 @@ class MarketingVoucher extends Component
 
     public function deleteManualCoupon($id)
     {
-        VoucherModel::where('mode', 'manual')->whereNull('recipient_email')->findOrFail($id)->delete();
+        VoucherModel::where('mode', 'manual')->whereNull('recipient_email')->whereNull('influencer_id')->findOrFail($id)->delete();
         session()->flash('success', 'Gutschein gelöscht.');
     }
 
@@ -222,7 +222,7 @@ class MarketingVoucher extends Component
             ->get();
 
         $manualCoupons = $this->voucherSectionMode === 'manual'
-            ? VoucherModel::where('mode', 'manual')->whereNull('recipient_email')->latest()->paginate(10)
+            ? VoucherModel::where('mode', 'manual')->whereNull('recipient_email')->whereNull('influencer_id')->latest()->paginate(10)
             : [];
 
         $giftVouchers = [];

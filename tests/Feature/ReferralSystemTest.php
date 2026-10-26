@@ -197,6 +197,7 @@ class ReferralSystemTest extends TestCase
             'last_name' => 'Stone',
             'password' => bcrypt('secret123'),
         ]);
+        $customer->profile()->update(['email_verified_at' => now()]);
 
         MarketingGiftVoucher::create([
             'code' => 'DANKE-TEST12',
@@ -225,6 +226,7 @@ class ReferralSystemTest extends TestCase
             'last_name' => 'Stone',
             'password' => bcrypt('secret123'),
         ]);
+        $alina->profile()->update(['email_verified_at' => now()]);
 
         $thief = \App\Models\Customer\Customer::create([
             'email' => 'thief@example.com',
@@ -232,6 +234,7 @@ class ReferralSystemTest extends TestCase
             'last_name' => 'Actor',
             'password' => bcrypt('secret123'),
         ]);
+        $thief->profile()->update(['email_verified_at' => now()]);
 
         $voucher = MarketingGiftVoucher::create([
             'code' => 'DANKE-7K9M-4X2B',

@@ -564,7 +564,9 @@ class OrderOrder extends Model
             }
 
             // --- DOKUMENTE & MAILS AN DEN BACKGROUND-WORKER ÜBERGEBEN ---
-            \App\Jobs\ProcessOrderDocumentsAndMails::dispatch($order);
+            if ($order->invoices()->where('type', 'invoice')->doesntExist()) {
+                \App\Jobs\ProcessOrderDocumentsAndMails::dispatch($order);
+            }
         });
     }
 

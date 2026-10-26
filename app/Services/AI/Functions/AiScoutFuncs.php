@@ -78,7 +78,7 @@ trait AiScoutFuncs
         }
 
         try {
-            $leaders = CustomerGamification::with('customer')
+            $leaders = CustomerGamification::with('customer.profile')
                 ->orderBy('total_xp', 'desc')
                 ->take(5)->get();
 
@@ -88,10 +88,13 @@ trait AiScoutFuncs
 
             $formatted = [];
             foreach ($leaders as $idx => $l) {
-                $cName = $l->customer ? ($l->customer->first_name . ' ' . substr($l->customer->last_name, 0, 1) . '.') : 'Unbekannt';
+                $hasConsent = \App\Services\AI\AiAuthHelper::hasCustomerAiConsent($l->customer, $l->customer_id);
+                $rawName = $l->customer ? ($l->customer->first_name . ' ' . substr((string) $l->customer->last_name, 0, 1) . '.') : '';
+                $cName = \App\Services\AI\AiAuthHelper::sanitizeCustomerName($rawName, $hasConsent);
                 $formatted[] = [
                     'rank' => $idx + 1,
                     'customer' => $cName,
+                    'gdpr_ai_consent' => $hasConsent,
                     'level' => $l->current_level,
                     'xp' => number_format($l->total_xp, 0, ',', '.') . ' XP',
                     'title' => $l->title ?? 'Novize'
@@ -118,9 +121,12 @@ trait AiScoutFuncs
 
             $escapedTerm = addcslashes($term, '%_\\');
 
-            $customers = Customer::where('first_name', 'like', "%{$escapedTerm}%")
-                ->orWhere('last_name', 'like', "%{$escapedTerm}%")
-                ->orWhere('email', 'like', "%{$escapedTerm}%")
+            $customers = Customer::with('profile')
+                ->where(function ($q) use ($escapedTerm) {
+                    $q->where('first_name', 'like', "%{$escapedTerm}%")
+                      ->orWhere('last_name', 'like', "%{$escapedTerm}%")
+                      ->orWhere('email', 'like', "%{$escapedTerm}%");
+                })
                 ->take(5)->get();
 
             if ($customers->isEmpty()) {
@@ -129,6 +135,12 @@ trait AiScoutFuncs
 
             $formatted = [];
             foreach ($customers as $c) {
+                $hasConsent = \App\Services\AI\AiAuthHelper::hasCustomerAiConsent($c);
+                $orders = \App\Models\Order\OrderOrder::where('customer_id', $c->id)
+                    ->orderBy('created_at', 'desc')
+                    ->take(5)
+                    ->get(['order_number', 'status', 'payment_status', 'total_price', 'created_at']);
+
                 $orderCount = \App\Models\Order\OrderOrder::where('customer_id', $c->id)->count();
                 $spentCents = (int) \App\Models\Order\OrderOrder::where('customer_id', $c->id)
                     ->where(function($q) {
@@ -140,11 +152,19 @@ trait AiScoutFuncs
                 $fullName = trim(($c->first_name ?? '') . ' ' . ($c->last_name ?? '')) ?: 'Kunde';
 
                 $formatted[] = [
-                    'name' => $fullName,
-                    'email' => $c->email,
+                    'name' => \App\Services\AI\AiAuthHelper::sanitizeCustomerName($fullName, $hasConsent),
+                    'email' => \App\Services\AI\AiAuthHelper::sanitizeCustomerEmail($c->email, $hasConsent),
+                    'gdpr_ai_consent' => $hasConsent,
+                    'gdpr_notice' => $hasConsent ? null : 'Dieser Kunde hat den DSGVO-Haken für die KI-Datenverarbeitung nicht gesetzt. Personenbezogene Daten sind daher als "Anonyme Person" geschützt; sachliche Bestellinformationen sind unten abrufbar.',
                     'registered_since' => $c->created_at ? $c->created_at->format('d.m.Y') : '-',
                     'total_orders' => $orderCount,
-                    'total_spent' => number_format($spentCents / 100, 2, ',', '.') . ' €'
+                    'total_spent' => number_format($spentCents / 100, 2, ',', '.') . ' €',
+                    'recent_orders' => $orders->map(fn($o) => [
+                        'order_number' => $o->order_number,
+                        'status' => $o->status,
+                        'payment_status' => $o->payment_status,
+                        'total' => number_format(($o->total_price ?? 0) / 100, 2, ',', '.') . ' €',
+                    ])->toArray(),
                 ];
             }
 

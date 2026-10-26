@@ -58,7 +58,21 @@ class AiFrontendSupportChat extends Component
             $supportAgent = \App\Models\Ai\AiAgent::where('name', 'Funki')->where('is_active', true)->first();
         }
 
-        $this->hasAcceptedPrivacy = session()->get('ai_chat_privacy_accepted', false);
+        $authUser = $this->resolveCurrentAuthenticatedUser();
+        if ($authUser) {
+            $authUser->load('profile');
+            $hasProfileConsent = (bool) ($authUser->profile?->ai_data_consent ?? false);
+            $this->hasAcceptedPrivacy = $hasProfileConsent;
+            $this->privacyChecked = $hasProfileConsent;
+            if ($hasProfileConsent) {
+                session()->put('ai_chat_privacy_accepted', true);
+            } else {
+                session()->forget('ai_chat_privacy_accepted');
+            }
+        } else {
+            $this->hasAcceptedPrivacy = (bool) session()->get('ai_chat_privacy_accepted', false);
+            $this->privacyChecked = $this->hasAcceptedPrivacy;
+        }
 
         if ($supportAgent) {
             $this->agentName = $supportAgent->name;
@@ -134,10 +148,55 @@ class AiFrontendSupportChat extends Component
         }
     }
 
+    protected function resolveCurrentAuthenticatedUser(): ?object
+    {
+        foreach (['customer', 'employee', 'admin'] as $guard) {
+            if (auth()->guard($guard)->check()) {
+                return auth()->guard($guard)->user();
+            }
+        }
+
+        return null;
+    }
+
     public function acceptPrivacy()
     {
         $this->hasAcceptedPrivacy = true;
+        $this->privacyChecked = true;
         session()->put('ai_chat_privacy_accepted', true);
+
+        // Wenn der Nutzer eingeloggt ist, DSGVO-Bestätigung direkt im Benutzerprofil speichern
+        $authUser = $this->resolveCurrentAuthenticatedUser();
+        if ($authUser) {
+            if (method_exists($authUser, 'updateAiDataConsent')) {
+                $authUser->updateAiDataConsent(true, 'frontend_support_chat');
+            } elseif ($authUser->profile) {
+                $authUser->profile->update([
+                    'ai_data_consent' => true,
+                    'ai_data_consent_at' => now(),
+                ]);
+            }
+
+            $this->dispatch('profile-updated');
+            $this->dispatch('ai-privacy-consent-updated', accepted: true);
+        }
+    }
+
+    #[On('ai-privacy-consent-updated')]
+    public function handlePrivacyConsentUpdated($accepted = null): void
+    {
+        $authUser = $this->resolveCurrentAuthenticatedUser();
+        if ($authUser) {
+            $authUser->load('profile');
+            $hasConsent = (bool) ($authUser->profile?->ai_data_consent ?? false);
+            $this->hasAcceptedPrivacy = $hasConsent;
+            $this->privacyChecked = $hasConsent;
+            if ($hasConsent) {
+                session()->put('ai_chat_privacy_accepted', true);
+            } else {
+                session()->forget('ai_chat_privacy_accepted');
+            }
+        }
     }
 
     public static function isTechnicalOrEmptyAiError(?string $content): bool
@@ -299,6 +358,17 @@ class AiFrontendSupportChat extends Component
 
     public function sendMessage()
     {
+        $authUser = $this->resolveCurrentAuthenticatedUser();
+        if ($authUser) {
+            $authUser->loadMissing('profile');
+            if (!($authUser->profile?->ai_data_consent ?? false)) {
+                $this->hasAcceptedPrivacy = false;
+                $this->privacyChecked = false;
+                session()->forget('ai_chat_privacy_accepted');
+                return;
+            }
+        }
+
         if (!$this->hasAcceptedPrivacy) return;
 
         $text = mb_substr(trim((string) $this->message), 0, self::MAX_MESSAGE_LENGTH);

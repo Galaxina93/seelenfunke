@@ -93,6 +93,7 @@ class CheckoutAuthSecurityTest extends TestCase
             'last_name' => 'Mustermann',
             'password' => bcrypt('correct-password'),
         ]);
+        $customer->profile()->update(['email_verified_at' => now()]);
 
         $product = Product::create([
             'name' => 'Artikel',

@@ -94,23 +94,29 @@ class AiPromptService
             // 1. Customer Context
             if ($isCustomer) {
                 $customerUser = $user instanceof Customer ? $user : Auth::guard('customer')->user();
-                $firstName = $customerUser->first_name;
-                $systemPromptText .= "🔥 WICHTIG: Der eingeloggte Kunde heißt '{$firstName}'. Nutze seinen Vornamen (mit 'Du'), aber bleibe formell.\n";
+                $hasAiConsent = $customerUser && method_exists($customerUser, 'hasAiDataConsent') && $customerUser->hasAiDataConsent();
+
+                if ($hasAiConsent) {
+                    $firstName = $customerUser->first_name;
+                    $systemPromptText .= "🔥 WICHTIG: Der eingeloggte Kunde heißt '{$firstName}' (DSGVO-KI-Freigabe aktiv). Nutze seinen Vornamen (mit 'Du'), aber bleibe formell.\n";
+                } else {
+                    $systemPromptText .= "🔥 WICHTIG (DSGVO-SCHUTZ): Der eingeloggte Kunde hat der KI-Verarbeitung personenbezogener Daten noch NICHT zugestimmt. Du siehst ihn als 'Anonyme Person (Keine DSGVO-KI-Freigabe)'. Dir werden kein Klarname, keine E-Mail und keine Wohnadresse übermittelt. Sachliche Bestelldaten (Bestellnummer, Status, Artikel, Beträge) darfst du anonymisiert nennen.\n";
+                }
                 
-                if (class_exists(OrderOrder::class)) {
+                if (class_exists(OrderOrder::class) && $customerUser) {
                     $orders = OrderOrder::where('customer_id', $customerUser->id)
                                     ->orderBy('created_at', 'desc')
                                     ->take(3)
                                     ->get();
                     if ($orders->count() > 0) {
-                        $systemPromptText .= "Der Kunde hat folgende letzten Bestellungen im System:\n";
+                        $systemPromptText .= "Folgende letzten Bestellungen sind diesem Konto zugeordnet:\n";
                         foreach ($orders as $o) {
                              $orderCents = (int) ($o->total_price ?? $o->grand_total ?? 0);
                              $systemPromptText .= "- Bestellnummer: {$o->order_number} (Status: {$o->status}, Preis: " . number_format($orderCents / 100, 2, ',', '.') ." €)\n";
                         }
-                        $systemPromptText .= "WICHTIG: Wenn der Kunde Fragen zum Inhalt einer dieser Bestellungen oder zum Tracking hat, rufe ZWINGEND zuerst das Werkzeug 'support_get_order_details' oder 'support_get_tracking_link' mit der Nummer auf!\n";
+                        $systemPromptText .= "WICHTIG: Wenn Fragen zum Inhalt einer dieser Bestellungen oder zum Tracking bestehen, rufe ZWINGEND zuerst das Werkzeug 'support_get_order_details' oder 'support_get_tracking_link' mit der Nummer auf!\n";
                     } else {
-                        $systemPromptText .= "Info für dich: Dieser Kunde hat bisher noch KEINE getätigten Bestellungen in seinem Konto.\n";
+                        $systemPromptText .= "Info für dich: Dieses Konto hat bisher noch KEINE getätigten Bestellungen.\n";
                     }
                 }
                 $systemPromptText .= "\n";
@@ -162,6 +168,11 @@ class AiPromptService
                                  "Wir verkaufen hauptsächlich Lasergravur-Artikel, Schmuck und Deko aus unserer Manufaktur.\n" .
                                  "WICHTIG: Erfinde NIEMALS Produkte. Wenn ein Kunde nach einem Produkt sucht, benutze immer dein 'support_get_product_info' Werkzeug!\n\n";
         }
+
+        $systemPromptText .= "\n[DSGVO-KUNDENSCHUTZ-REGEL FÜR ALLE KI-AGENTEN]\n" .
+                             "Personenbezogene Kundendaten (Name, E-Mail-Adresse, Wohnadresse, Telefonnummer) unterliegen dem DSGVO-Einwilligungsvorbehalt (Art. 6 Abs. 1 lit. a DSGVO). " .
+                             "Hat ein Kunde den DSGVO-Haken zur KI-Datenverarbeitung nicht gesetzt (oder als Gast bestellt), liefert das System die Personendaten automatisch anonymisiert als 'Anonyme Person (Keine DSGVO-KI-Freigabe)' zurück, während sachliche Bestell-, Artikel-, Status-, Bewertungs- und Umsatzzahlen vollständig einsehbar bleiben. " .
+                             "Gib diese Informationen im Gespräch entsprechend aus (z. B.: 'Die anonyme Person (ohne DSGVO-KI-Freigabe) hat folgende Bestellung #... mit Status ... aufgegeben').\n";
         
         return $systemPromptText;
     }

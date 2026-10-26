@@ -191,7 +191,7 @@ trait AiOrderFuncs
             return $denied;
         }
         try {
-            $query = OrderOrder::with(['items', 'customer', 'invoices']);
+            $query = OrderOrder::with(['items', 'customer.profile', 'invoices']);
             
             $hasFilters = false;
 
@@ -252,12 +252,24 @@ trait AiOrderFuncs
             $orders = $query->take($limit)->get();
 
             if ($orders->isEmpty()) {
-                return ['status' => 'success', 'message' => 'Keine passende Bestellung gefunden.'];
+                $hint = !empty($args['customer_name'])
+                    ? 'Keine passende Bestellung gefunden (oder der gesuchte Kunde hat keine DSGVO-KI-Freigabe erteilt, sodass Bestellungen nur anonymisiert über die Bestellnummer abrufbar sind).'
+                    : 'Keine passende Bestellung gefunden.';
+                return ['status' => 'success', 'message' => $hint];
             }
 
             $formatted = [];
             foreach ($orders as $o) {
-                $customerName = $o->customer ? $o->customer->first_name . ' ' . $o->customer->last_name : 'Gast';
+                $billing = $o->billing_address ?? [];
+                $shipping = $o->shipping_address ?? [];
+
+                $hasConsent = \App\Services\AI\AiAuthHelper::hasCustomerAiConsent($o->customer, $o->customer_id, $o->email);
+                $rawCustomerName = $o->customer
+                    ? trim($o->customer->first_name . ' ' . $o->customer->last_name)
+                    : trim(($billing['first_name'] ?? '') . ' ' . ($billing['last_name'] ?? ''));
+
+                $customerName = \App\Services\AI\AiAuthHelper::sanitizeCustomerName($rawCustomerName, $hasConsent);
+                $customerEmail = \App\Services\AI\AiAuthHelper::sanitizeCustomerEmail($o->email, $hasConsent);
                 
                 $itemsDetail = [];
                 if ($o->items) {
@@ -271,9 +283,6 @@ trait AiOrderFuncs
                         ];
                     }
                 }
-
-                $billing = $o->billing_address ?? [];
-                $shipping = $o->shipping_address ?? [];
                 
                 $addressDeviation = false;
                 if (!empty($billing) && !empty($shipping)) {
@@ -299,7 +308,9 @@ trait AiOrderFuncs
                     'payment_method' => $o->payment_method,
                     'customer' => [
                         'name' => $customerName,
-                        'email' => $o->email,
+                        'email' => $customerEmail,
+                        'gdpr_ai_consent' => $hasConsent,
+                        'gdpr_notice' => $hasConsent ? null : 'Anonyme Person (Keine DSGVO-KI-Freigabe durch den Kunden). Personenbezogene Daten sind geschützt, sachliche Bestelldaten sind einsehbar.',
                     ],
                     'cost_overview' => [
                         'subtotal' => number_format($o->subtotal_price / 100, 2, ',', '.') . ' €',
@@ -309,8 +320,8 @@ trait AiOrderFuncs
                         'total' => number_format($o->total_price / 100, 2, ',', '.') . ' €'
                     ],
                     'address_info' => [
-                        'billing' => $billing,
-                        'shipping' => $shipping,
+                        'billing' => \App\Services\AI\AiAuthHelper::sanitizeCustomerAddress($billing, $hasConsent),
+                        'shipping' => !empty($shipping) ? \App\Services\AI\AiAuthHelper::sanitizeCustomerAddress($shipping, $hasConsent) : [],
                         'has_deviation' => $addressDeviation
                     ],
                     'items_count' => count($itemsDetail),
@@ -560,8 +571,8 @@ trait AiOrderFuncs
             return $denied;
         }
         try {
-            $reviews = ProductReview::with('product')
-                ->where('is_approved', false)
+            $reviews = ProductReview::with(['product', 'customer.profile'])
+                ->where('status', 'pending')
                 ->orderBy('created_at', 'desc')->take(5)->get();
 
             if ($reviews->isEmpty()) {
@@ -570,12 +581,16 @@ trait AiOrderFuncs
 
             $formatted = [];
             foreach ($reviews as $r) {
+                $hasConsent = !$r->is_anonymous && \App\Services\AI\AiAuthHelper::hasCustomerAiConsent($r->customer, $r->customer_id);
+                $rawName = $r->customer ? trim($r->customer->first_name . ' ' . $r->customer->last_name) : ($r->customer_name ?: '');
+
                 $formatted[] = [
                     'product_name' => $r->product ? $r->product->name : 'Unbekannt',
                     'rating' => $r->rating . '/5 Sterne',
-                    'comment' => \Illuminate\Support\Str::limit($r->comment, 80),
-                    'customer' => $r->customer_name ?: 'Gast',
-                    'date' => $r->created_at->format('d.m.Y')
+                    'comment' => \Illuminate\Support\Str::limit($r->content ?? $r->comment ?? '', 80),
+                    'customer' => \App\Services\AI\AiAuthHelper::sanitizeCustomerName($rawName, $hasConsent),
+                    'gdpr_ai_consent' => $hasConsent,
+                    'date' => $r->created_at ? $r->created_at->format('d.m.Y') : ''
                 ];
             }
 

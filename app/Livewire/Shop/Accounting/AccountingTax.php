@@ -180,210 +180,22 @@ class AccountingTax extends Component
         })->sortByDesc('date')->values()->toArray();
     }
 
-    // --- DYNAMISCHE DATEN-ERMITTLUNG ---
+    // --- DYNAMISCHE DATEN-ERMITTLUNG (Zentralisiert via FinancialService) ---
     public function getMonthData($month)
     {
         $month = max(1, min(12, (int) $month));
         $this->selectedYear = max(2000, min(2100, (int) ($this->selectedYear ?: date('Y'))));
         $adminId = auth()->guard('admin')->id();
-        $startDate = Carbon::createFromDate($this->selectedYear, $month, 1)->startOfMonth();
-        $endDate = $startDate->copy()->endOfMonth();
-        $now = Carbon::now();
 
-        $isFutureMonth = $startDate->isFuture();
-        $isPastMonth = $endDate->isPast();
-        $deadline = Carbon::createFromDate($this->selectedYear, $month, 10)->addMonth();
+        $financialService = app(\App\Services\FinancialService::class);
+        $data = $financialService->getUstvaMonthData(
+            $adminId,
+            $month,
+            (int) $this->selectedYear,
+            (string) $this->submissionType
+        );
 
-        // 1. UMSÄTZE (Einnahmen dynamisch splitten)
-        $orders = OrderOrder::whereYear('created_at', $this->selectedYear)
-            ->whereMonth('created_at', $month)
-            ->where('payment_status', 'paid')
-            ->get();
-
-        $creditNotes = \App\Models\Accounting\AccountingInvoice::with('order')->whereYear('invoice_date', $this->selectedYear)
-            ->whereMonth('invoice_date', $month)
-            ->whereIn('type', ['credit_note', 'cancellation'])
-            ->whereIn('status', ['paid', 'cancelled'])
-            ->get();
-
-        $taxService = app(\App\Services\Tax\TaxSettingService::class);
-        $isYearSmallBusiness = $taxService->isSmallBusinessForYear((int)$this->selectedYear);
-        $isMidyearSwitch = $taxService->isMidyearSwitch((int)$this->selectedYear);
-        $switchDate = $taxService->getMidyearSwitchDate();
-
-        $revenueGross = 0;
-        $vatCollected = 0;
-        $retroactiveVatCollected = 0;
-        $igErwerbTax = 0;
-        $paragraph13bTax = 0;
-
-        foreach ($orders as $order) {
-            $total = $order->total_price / 100;
-            $tax = $order->tax_amount / 100;
-
-            if ($isYearSmallBusiness) {
-                $tax = 0;
-            } elseif ($tax == 0 && ($isMidyearSwitch || $order->is_small_business)) {
-                // § 19 UStG Ganzjahres-Prinzip: Bei unterjährigem Wechsel rückwirkend MwSt aus Brutto herausrechnen
-                $rate = (float)shop_setting('default_tax_rate', 19.0);
-                $net = $total / (1 + ($rate / 100));
-                $tax = $total - $net;
-                $retroactiveVatCollected += $tax;
-            }
-
-            $revenueGross += $total;
-
-            if (isset($order->is_reverse_charge) && $order->is_reverse_charge) {
-                $paragraph13bTax += $tax;
-            } elseif (isset($order->is_ig_erwerb) && $order->is_ig_erwerb) {
-                $igErwerbTax += $tax;
-            } else {
-                $vatCollected += $tax;
-            }
-        }
-
-        // GUTSCHRIFTEN VERRECHNEN (Negativ-Beträge verringern das ELSTER-Volumen)
-        foreach ($creditNotes as $cn) {
-            $total = -abs($cn->total / 100);
-            $tax = -abs($cn->tax_amount / 100);
-
-            if ($isYearSmallBusiness) {
-                $tax = 0;
-            } elseif ($tax == 0 && ($isMidyearSwitch || $cn->is_small_business)) {
-                $rate = (float)shop_setting('default_tax_rate', 19.0);
-                $net = $total / (1 + ($rate / 100));
-                $tax = $total - $net; // negativ
-                $retroactiveVatCollected += $tax;
-            }
-
-            $revenueGross += $total;
-
-            if ($cn->order && isset($cn->order->is_reverse_charge) && $cn->order->is_reverse_charge) {
-                $paragraph13bTax += $tax;
-            } elseif ($cn->order && isset($cn->order->is_ig_erwerb) && $cn->order->is_ig_erwerb) {
-                $igErwerbTax += $tax;
-            } else {
-                $vatCollected += $tax;
-            }
-        }
-
-        $revenueNet = $revenueGross - ($vatCollected + $igErwerbTax + $paragraph13bTax);
-        $totalTax = $vatCollected + $igErwerbTax + $paragraph13bTax;
-
-        // 2. AUSGABEN (Gewerblich Variabel & Fix)
-        $businessSpecials = AccountingSpecialIssue::where('admin_id', $adminId)
-            ->where('is_business', true)
-            ->whereBetween('execution_date', [$startDate, $endDate])
-            ->get();
-
-        $businessFixed = collect();
-        $groups = AccountingGroup::with('items')->where('admin_id', $adminId)->get();
-        foreach ($groups as $group) {
-            if ($group->type === 'income') {
-                continue;
-            }
-            foreach ($group->items as $item) {
-                if ($item->is_business == 1 || $item->is_business === true) {
-                    $paymentDate = Carbon::parse($item->first_payment_date);
-                    $startMonth = $paymentDate->month;
-                    $startYear = $paymentDate->year;
-                    $interval = max(1, (int) ($item->interval_months ?: 1));
-
-                    if ($item->last_payment_date && $startDate->gt(Carbon::parse($item->last_payment_date)->endOfMonth())) {
-                        continue;
-                    }
-
-                    if ($startDate->greaterThanOrEqualTo(Carbon::createFromDate($startYear, $startMonth, 1)->startOfMonth())) {
-                        $diff = ($month - $startMonth) + (($this->selectedYear - $startYear) * 12);
-                        if ($diff >= 0 && ($diff % $interval) === 0) {
-                            $businessFixed->push($item);
-                        }
-                    }
-                }
-            }
-        }
-
-        $totalExpensesGross = abs($businessSpecials->sum('amount')) + abs($businessFixed->sum('amount'));
-
-        // 3. VORSTEUER DYNAMISCH BERECHNEN (Keine starren 19% mehr!)
-        $vatPaid = 0;
-        $expensesNet = 0;
-
-        foreach ($businessSpecials as $s) {
-            $rate = $s->tax_rate ?? (float)shop_setting('default_tax_rate', 19.0); // Falls leer, Fallback 19%
-            $amt = abs($s->amount);
-
-            if ($rate > 0) {
-                $net = $amt / (1 + ($rate / 100));
-                $vatPaid += $amt - $net;
-                $expensesNet += $net;
-            } else {
-                $expensesNet += $amt; // 0% Steuer (z.B. Porto)
-            }
-        }
-
-        foreach ($businessFixed as $f) {
-            $rate = $f->tax_rate ?? (float)shop_setting('default_tax_rate', 19.0);
-            $amt = abs($f->amount);
-
-            if ($rate > 0) {
-                $net = $amt / (1 + ($rate / 100));
-                $vatPaid += $amt - $net;
-                $expensesNet += $net;
-            } else {
-                $expensesNet += $amt;
-            }
-        }
-
-        if ($isYearSmallBusiness) {
-            // Als Kleinunternehmer kein Vorsteuerabzug (§ 19 Abs. 1 Satz 4 UStG)
-            $vatPaid = 0;
-            $expensesNet = $totalExpensesGross;
-        }
-
-        // Finale Zahllast Berechnung
-        $zahllast = $totalTax - $vatPaid;
-        $profit = $revenueNet - $expensesNet;
-
-        // 4. READINESS & MISSING DATA
-        $progress = 0;
-        $missingReceiptItems = collect();
-
-        foreach ($businessSpecials as $s) {
-            if (empty($s->file_paths)) {
-                $missingReceiptItems->push(['id' => $s->id, 'type' => 'variable', 'title' => $s->title, 'date' => Carbon::parse($s->execution_date)->format('d.m.Y'), 'amount' => abs($s->amount)]);
-            }
-        }
-        foreach ($businessFixed as $f) {
-            if (empty($f->contract_file_path)) {
-                $missingReceiptItems->push(['id' => $f->id, 'type' => 'fixed', 'title' => $f->name, 'date' => 'Wiederkehrend', 'amount' => abs($f->amount)]);
-            }
-        }
-
-        $missingReceiptsCount = $missingReceiptItems->count();
-        $totalBusinessItems = $businessSpecials->count() + $businessFixed->count();
-
-        $taxId = shop_setting('owner_tax_id', '');
-        $proprietor = shop_setting('owner_proprietor', '');
-
-        // Erweiterte Readiness Checklist für ERiC API
-        $checklist = [
-            'buchhaltung/receipts' => [
-                'name' => '100% Belege verbucht (' . $totalBusinessItems . ' Transaktionen)',
-                'passed' => $missingReceiptsCount === 0,
-                'description' => 'Nur eine vollständige Belegablage garantiert eine rechtssichere Vorsteuerermittlung (Kz 66). Fehlende Belege blockieren den Export.'
-            ],
-            'tax_id' => [
-                'name' => 'Gültige Steuernummer hinterlegt',
-                'passed' => !empty($taxId) && strlen($taxId) > 8,
-                'description' => "Ohne gültige Steuernummer kann das Finanzamt die XML nicht verarbeiten. (Aktuell: " . ($taxId ?: 'Fehlt') . ")"
-            ],
-            'proprietor' => [
-                'name' => 'Vor- und Nachname des Inhabers',
-                'passed' => !empty($proprietor),
-                'description' => 'Ein Pflichtfeld für das ERiC-Schema. Der Vor- und Nachname muss in den System-Einstellungen hinterlegt sein.'
-            ],
-        ];
+        $checklist = $data['checklist'];
 
         // Laufzeit-Prüfung, ob das konfigurierte Software-Zertifikat existiert!
         if ($this->authMethod === 'software') {
@@ -392,82 +204,33 @@ class AccountingTax extends Component
             $isAbs = str_starts_with($tresorPath, '/');
             $fullPath = $isAbs ? $tresorPath : base_path($tresorPath);
             $fullCertPath = $fullPath . DIRECTORY_SEPARATOR . $this->selectedCertName;
-            
-            // Wenn man auf Senden drückt und das Zertifikat fehlt ODER es ist nicht "Test" und kein Passwort angegeben.
+
             $certExists = !empty($this->selectedCertName) && file_exists($fullCertPath);
-            
+
             $checklist['cert_file'] = [
                 'name' => 'Software-Zertifikat (.pfx) gewählt & geprüft',
                 'passed' => $certExists,
-                'description' => "Das Zertifikat '" . ($this->selectedCertName ?: 'NICHT GEWÄHLT') . "' " . ($certExists ? "wurde erfolgreich im Tresor ({$tresorPath}) gefunden." : "fehlt im Tresor oder ist nicht gewählt!")
+                'description' => "Das Zertifikat '" . ($this->selectedCertName ?: 'NICHT GEWÄHLT') . "' " . ($certExists ? "wurde erfolgreich im Tresor ({$tresorPath}) gefunden." : "fehlt im Tresor oder ist nicht gewählt!"),
             ];
         }
 
         $allChecklistPassed = collect($checklist)->every(fn($item) => $item['passed']);
-
-        if ($isFutureMonth) {
-            $progress = 0;
-            $status = 'future';
-        } else {
-            if ($totalBusinessItems > 0) {
-                $progress += (($totalBusinessItems - $missingReceiptsCount) / $totalBusinessItems) * 70;
-            } else {
-                $progress += 70;
-            }
-
-            if ($taxId && $proprietor) {
-                $progress += 30; // 30% der Progressbar sind die Stammdaten
-            }
-
-            if ($isPastMonth) {
-                $status = $allChecklistPassed ? 'ready' : 'missing_data';
-            } else {
-                $status = 'in_progress';
-            }
+        $status = $data['status'];
+        if (!$data['is_future'] && $data['is_past']) {
+            $status = $allChecklistPassed ? 'ready' : 'missing_data';
         }
 
-            $isTestCert = in_array($this->selectedCertName, ['test-soft-pse.pfx', 'test-softorg-pse.pfx', 'test-softidnr-pse.pfx']) || str_contains($this->selectedCertName, 'bescheid');
-            $hasValidSoftwareAuth = $this->authMethod === 'software' && ($isTestCert || $this->hasEnvPassword || strlen($this->certPassword) >= 3);
-            
-            return [
-                'month_name' => $startDate->locale('de')->monthName,
-                'month_number' => str_pad($month, 2, '0', STR_PAD_LEFT),
-                'year' => $this->selectedYear,
-                'revenue_gross' => $revenueGross,
-                'revenue_net' => $revenueNet,
-                'vat_collected' => $vatCollected,
-                'retroactive_vat_collected' => $retroactiveVatCollected,
-                'is_small_business_year' => $isYearSmallBusiness,
-                'is_midyear_switch' => $isMidyearSwitch,
-                'switch_date' => $switchDate,
-                'ig_erwerb_tax' => $igErwerbTax,
-                'paragraph_13b_tax' => $paragraph13bTax,
-                'total_tax' => $totalTax,
-                'expenses_gross' => $totalExpensesGross,
-                'expenses_net' => $expensesNet,
-                'vat_paid' => $vatPaid,
-                'zahllast' => $zahllast,
-                'profit' => $profit,
-                'progress' => min(100, round($progress)),
-                'missing_receipts_count' => $missingReceiptsCount,
-                'missing_items' => $missingReceiptItems,
-                'checklist' => $checklist,
-                'all_checklist_passed' => $allChecklistPassed,
-                'is_ready_for_transmit' => $status === 'ready' && (
-                    $hasValidSoftwareAuth || ($this->authMethod === 'hardware' && strlen($this->hardwarePin) >= 6)
-                ),
-            'status' => $status,
-            'order_count' => $orders->count(),
-            'expense_count' => $totalBusinessItems,
-            'raw_orders' => $orders,
-            'raw_credits' => $creditNotes,
-            'raw_specials' => $businessSpecials,
-            'raw_fixed' => $businessFixed,
-            'is_future' => $isFutureMonth,
-            'is_past' => $isPastMonth,
-            'deadline' => $deadline,
-            'submission_type' => $this->submissionType
-        ];
+        $isTestCert = in_array($this->selectedCertName, ['test-soft-pse.pfx', 'test-softorg-pse.pfx', 'test-softidnr-pse.pfx']) || str_contains($this->selectedCertName, 'bescheid');
+        $hasValidSoftwareAuth = $this->authMethod === 'software' && ($isTestCert || $this->hasEnvPassword || strlen($this->certPassword) >= 3);
+
+        $data['checklist'] = $checklist;
+        $data['all_checklist_passed'] = $allChecklistPassed;
+        $data['status'] = $status;
+        $data['is_ready_for_transmit'] = $status === 'ready' && (
+            $hasValidSoftwareAuth || ($this->authMethod === 'hardware' && strlen($this->hardwarePin) >= 6)
+        );
+
+        return $data;
     }
 
     public function uploadMissingReceipt($itemId, $type)
@@ -542,136 +305,23 @@ class AccountingTax extends Component
 
         $monthStr = $data['month_number'];
         $yearStr = $data['year'];
-        
-        $tresorPath = env('ERIC_TRESOR_PATH', 'storage/app/buchhaltung/erictresor');
-        $isAbs = str_starts_with($tresorPath, '/');
-        $fullTresor = $isAbs ? $tresorPath : base_path($tresorPath);
-        $tempDir = $fullTresor . "/exports/temp_export_{$monthStr}_{$yearStr}";
 
-        if (File::exists($tempDir)) File::deleteDirectory($tempDir);
-        File::makeDirectory($tempDir, 0755, true);
-        $this->addLog('info', "Temporäres Verzeichnis im Tresor erstellt: {$tempDir}");
+        $financialService = app(\App\Services\FinancialService::class);
+        $result = $financialService->generateDatevExportZip($data);
 
-        // DATEV CSV
-        $csvPath = $tempDir . "/EXTF_Buchungsstapel_{$monthStr}_{$yearStr}.csv";
-        $csvContent = $this->buildDatevCsv($data);
-        File::put($csvPath, mb_convert_encoding($csvContent, 'Windows-1252', 'UTF-8'));
+        $this->addLog('info', "Temporäres Verzeichnis im Tresor erstellt: {$result['temp_dir']}");
         $this->addLog('success', 'DATEV EXTF CSV-Datei kompiliert.');
-
-        // PDF REPORT
-        $pdfPath = $tempDir . "/UStVA_Auswertung_{$monthStr}_{$yearStr}.pdf";
-        $data['company'] = [
-            'name' => shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')),
-            'owner' => shop_setting('owner_proprietor', 'Alina Steinhauer'),
-            'street' => trim(shop_setting('company_street', shop_setting('owner_street', 'Musterstraße 1')) . ' ' . shop_setting('company_street_number', '')),
-            'city' => trim(shop_setting('company_zip', '') . ' ' . shop_setting('company_city', shop_setting('owner_city', '12345 Musterstadt'))),
-            'tax_id' => shop_setting('owner_tax_id', 'XX/XXX/XXXXX'),
-            'ust_id' => shop_setting('owner_ust_id', 'DE XXXXXXXXX'),
-        ];
-        $pdf = Pdf::loadView('global.pdf.ustva_report', ['data' => $data])
-            ->setOptions(['isRemoteEnabled' => false]);
-        $pdf->save($pdfPath);
         $this->addLog('success', 'Rechtssicheres PDF-Steuerprotokoll generiert.');
-
-        // BELEGE
-        $receiptsDir = $tempDir . "/Belege";
-        if (!File::exists($receiptsDir)) File::makeDirectory($receiptsDir, 0755, true);
-
-        $copyCount = 0;
-        foreach ($data['raw_specials'] as $special) {
-            if (!empty($special->file_paths)) {
-                foreach ($special->file_paths as $idx => $path) {
-                    if (!is_string($path) || $path === '' || str_contains($path, '..') || str_contains($path, "\0")) {
-                        continue;
-                    }
-                    $source = str_starts_with($path, 'buchhaltung/') ? storage_path('app/' . $path) : storage_path('app/buchhaltung/' . $path);
-                    if (File::exists($source)) {
-                        $ext = pathinfo($source, PATHINFO_EXTENSION);
-                        File::copy($source, $receiptsDir . "/Ausgabe_" . date('Y-m-d', strtotime($special->execution_date)) . "_" . Str::slug($special->title) . "_{$idx}.{$ext}");
-                        $copyCount++;
-                    }
-                }
-            }
-        }
-        foreach ($data['raw_fixed'] as $fixed) {
-            if (!empty($fixed->contract_file_path)) {
-                $path = $fixed->contract_file_path;
-                if (!is_string($path) || $path === '' || str_contains($path, '..') || str_contains($path, "\0")) {
-                    continue;
-                }
-                $source = str_starts_with($path, 'buchhaltung/') ? storage_path('app/' . $path) : storage_path('app/buchhaltung/' . $path);
-                if (File::exists($source)) {
-                    $ext = pathinfo($source, PATHINFO_EXTENSION);
-                    File::copy($source, $receiptsDir . "/Fixkosten_" . Str::slug($fixed->name) . ".{$ext}");
-                    $copyCount++;
-                }
-            }
-        }
-        $this->addLog('info', "{$copyCount} Belege in Export-Ordner kopiert.");
-
-        // ZIPPEN
-        $zipName = "TaxExport_{$yearStr}_{$monthStr}.zip";
-        $zipPath = storage_path("app/buchhaltung/tax_exports/{$zipName}");
-        if (!File::exists(storage_path('app/buchhaltung/tax_exports'))) File::makeDirectory(storage_path('app/buchhaltung/tax_exports'), 0755, true);
-
-        $zip = new ZipArchive;
-        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {
-            if (File::exists($csvPath)) {
-                $zip->addFile($csvPath, basename($csvPath));
-            }
-            if (File::exists($pdfPath)) {
-                $zip->addFile($pdfPath, basename($pdfPath));
-            }
-            if (File::exists($receiptsDir)) {
-                $files = File::files($receiptsDir);
-                foreach ($files as $file) {
-                    $zip->addFile($file->getPathname(), 'Belege/' . $file->getFilename());
-                }
-            }
-            $zip->close();
-        }
+        $this->addLog('info', "{$result['copy_count']} Belege in Export-Ordner kopiert.");
         $this->addLog('success', 'Archiv erfolgreich komprimiert und verschlüsselt.');
 
-        File::deleteDirectory($tempDir);
         $this->loadArchivedExports();
         session()->flash('success', "Steuer-Export (Zip) für $monthStr/$yearStr erfolgreich erstellt.");
     }
 
     private function buildDatevCsv($data)
     {
-        $csv = '"EXTF";700;21;"Buchungsstapel";9;"";"";"";"";"";"1";"";"";"";"";"";"";"";"";"";"";"";"";"";""' . "\n";
-        $csv .= '"Umsatz (ohne Soll/Haben-Kz)";"Soll/Haben-Kennzeichen";"Konto";"Gegenkonto (ohne BU-Schlüssel)";"Belegdatum";"Belegfeld 1";"Buchungstext"' . "\n";
-
-        foreach ($data['raw_orders'] as $order) {
-            $amount = number_format($order->total_price / 100, 2, ',', '');
-            $date = $order->created_at->format('dm');
-            $safeOrderNo = preg_replace('/^[=+\-@]/', "'$0", str_replace(['"', ';', "\r", "\n"], '', (string) $order->order_number));
-            $csv .= '"'.$amount.'";"S";"1200";"8400";"'.$date.'";"'.$safeOrderNo.'";"Bestellung '.$safeOrderNo.'"' . "\n";
-        }
-        
-        foreach ($data['raw_credits'] ?? [] as $credit) {
-            $amount = number_format(abs($credit->total / 100), 2, ',', '');
-            $date = ($credit->invoice_date ?? $credit->created_at ?? now())->format('dm');
-            $safeCreditNo = preg_replace('/^[=+\-@]/', "'$0", str_replace(['"', ';', "\r", "\n"], '', (string) $credit->invoice_number));
-            $csv .= '"'.$amount.'";"H";"1200";"8400";"'.$date.'";"'.$safeCreditNo.'";"Gutschrift / Storno '.$safeCreditNo.'"' . "\n";
-        }
-
-        foreach ($data['raw_specials'] ?? [] as $special) {
-            $amount = number_format(abs($special->amount), 2, ',', '');
-            $date = Carbon::parse($special->execution_date)->format('dm');
-            $safeTitle = preg_replace('/^[=+\-@]/', "'$0", str_replace(['"', ';', "\r", "\n"], '', (string) $special->title));
-            $safeBeleg = preg_replace('/^[=+\-@]/', "'$0", str_replace(['"', ';', "\r", "\n"], '', (string) ($special->invoice_number ?? 'Beleg')));
-            $csv .= '"'.$amount.'";"H";"4900";"1200";"'.$date.'";"'.$safeBeleg.'";"'.$safeTitle.'"' . "\n";
-        }
-
-        foreach ($data['raw_fixed'] ?? [] as $fixed) {
-            $amount = number_format(abs($fixed->amount), 2, ',', '');
-            $date = "28" . str_pad((string) ($data['month_number'] ?? '01'), 2, '0', STR_PAD_LEFT);
-            $safeName = preg_replace('/^[=+\-@]/', "'$0", str_replace(['"', ';', "\r", "\n"], '', (string) $fixed->name));
-            $csv .= '"'.$amount.'";"H";"4900";"1200";"'.$date.'";"Fixkosten";"'.$safeName.'"' . "\n";
-        }
-
-        return $csv;
+        return app(\App\Services\FinancialService::class)->buildDatevCsv($data);
     }
 
     // --- NATIVE ELSTER API INTEGRATION (ERiC) ---

@@ -20,10 +20,10 @@ class DigitalProductDownloadController extends Controller
         // 1. Fetch item with order and product
         $item = OrderOrderItem::with(['order', 'product'])->findOrFail($itemId);
 
-        // 2. Authorization check
+        // 2. Authorization check (nur Admin oder interner Mitarbeiter, keine externen Partner/Influencer)
         $isAdminOrEmployee = AiAuthHelper::isAdmin()
             || auth()->guard('admin')->check()
-            || auth()->guard('employee')->check();
+            || AiAuthHelper::isEmployee();
 
         $customerUser = auth()->guard('customer')->user();
         $isVerifiedCustomerOwner = AiAuthHelper::isCustomer()

@@ -146,6 +146,11 @@ class MasterAnalyticsHealthFilterTest extends TestCase
         $admin = Admin::factory()->create();
 
         // 1. Setup Cost Items: 1000 € fixed business income, -500 € fixed business expense
+        $incomeGroup = \App\Models\Accounting\AccountingGroup::create([
+            'admin_id' => $admin->id,
+            'name' => 'Test Income Group',
+            'type' => 'income',
+        ]);
         $group = \App\Models\Accounting\AccountingGroup::create([
             'admin_id' => $admin->id,
             'name' => 'Test Group',
@@ -154,7 +159,7 @@ class MasterAnalyticsHealthFilterTest extends TestCase
 
         \App\Models\Accounting\AccountingCostItem::forceCreate([
             'id' => \Illuminate\Support\Str::uuid(),
-            'accounting_group_id' => $group->id,
+            'accounting_group_id' => $incomeGroup->id,
             'name' => 'Fixed Income Test',
             'amount' => 1000.00,
             'interval_months' => 1,

@@ -60,13 +60,87 @@ class MarketingBlogIndex extends Component
             });
         }
 
+        $posts = $query->paginate(9);
+        $categories = MarketingBlogCategory::whereIn('id', MarketingBlogPost::published()->whereNotNull('blog_category_id')->pluck('blog_category_id'))->orderBy('name')->get();
+
+        $blogTitle = 'Magazin, Geschenk-Ratgeber & Lasergravur-Inspiration | Mein Seelenfunke';
+        $blogMetaDesc = 'Inspiration, Geschenkideen, Ratgeber zur Lasergravur auf K9-Kristallglas & Edelstahl sowie Einblicke hinter die Kulissen der Manufaktur Mein Seelenfunke.';
+        $canonicalUrl = route('marketing/marketing/blog');
+
+        if (!empty($this->categorySlug)) {
+            $activeCat = $categories->firstWhere('slug', $this->categorySlug);
+            if ($activeCat) {
+                $blogTitle = "{$activeCat->name} – Magazin & Ratgeber | Mein Seelenfunke";
+                $blogMetaDesc = "Alle Beiträge, Ratgeber und Hintergrundberichte in der Kategorie {$activeCat->name} aus der Manufaktur Mein Seelenfunke in Gifhorn.";
+                $canonicalUrl = route('marketing/marketing/blog', ['kategorie' => $activeCat->slug]);
+            }
+        }
+
+        $blogPostItems = [];
+        foreach ($posts->items() as $post) {
+            $imgPath = $post->header_image ?: $post->featured_image;
+            $blogPostItems[] = [
+                '@type' => 'BlogPosting',
+                'headline' => $post->title,
+                'url' => route('blog.show', $post->slug),
+                'datePublished' => optional($post->published_at ?? $post->created_at)->toAtomString(),
+                'author' => [
+                    '@type' => 'Person',
+                    'name' => $post->display_author ?: shop_setting('owner_proprietor', 'Alina Steinhauer'),
+                ],
+                'image' => $imgPath ? asset('storage/' . ltrim($imgPath, '/')) : asset('shop/projekt/logo/mein-seelenfunke-logo.png'),
+            ];
+        }
+
+        $blogIndexSchema = [
+            '@context' => 'https://schema.org',
+            '@graph' => [
+                [
+                    '@type' => 'BreadcrumbList',
+                    '@id' => $canonicalUrl . '#breadcrumb',
+                    'itemListElement' => [
+                        [
+                            '@type' => 'ListItem',
+                            'position' => 1,
+                            'name' => 'Startseite',
+                            'item' => route('home'),
+                        ],
+                        [
+                            '@type' => 'ListItem',
+                            'position' => 2,
+                            'name' => 'Magazin & Ratgeber',
+                            'item' => $canonicalUrl,
+                        ],
+                    ],
+                ],
+                [
+                    '@type' => 'Blog',
+                    '@id' => route('marketing/marketing/blog') . '#blog',
+                    'url' => $canonicalUrl,
+                    'name' => $blogTitle,
+                    'description' => $blogMetaDesc,
+                    'inLanguage' => 'de-DE',
+                    'publisher' => [
+                        '@id' => url('/#organization'),
+                    ],
+                    'blogPost' => $blogPostItems,
+                ],
+            ],
+        ];
+
         return view('livewire.shop.marketing.marketing-blog-index', [
-            'posts' => $query->paginate(9),
-            'categories' => MarketingBlogCategory::whereIn('id', MarketingBlogPost::published()->whereNotNull('blog_category_id')->pluck('blog_category_id'))->orderBy('name')->get(), // Nur Kategorien mit veröffentlichten Posts
+            'posts' => $posts,
+            'categories' => $categories,
             'categorySlug' => $this->categorySlug,
-        ])->layout('components.layouts.frontend_layout', [
-            'meta_description' => 'Inspiration, Geschenkideen, Ratgeber zur Lasergravur und spannende Einblicke hinter die Kulissen der Manufaktur Mein Seelenfunke.',
-            'canonical' => route('marketing/marketing/blog'),
-        ]);
+            'blogIndexSchema' => $blogIndexSchema,
+        ])
+            ->title($blogTitle)
+            ->layout('components.layouts.frontend_layout', [
+                'title' => $blogTitle,
+                'meta_description' => $blogMetaDesc,
+                'og_title' => $blogTitle,
+                'og_description' => $blogMetaDesc,
+                'canonical' => $canonicalUrl,
+            ]);
     }
 }

@@ -30,6 +30,11 @@ use InvalidArgumentException;
 class InfluencerService
 {
     /**
+     * Gesetzlicher & buchhalterischer Mindestauszahlungsbetrag für Creator-Selbstabrufe: 20,00 € Netto (2000 Cents).
+     */
+    public const MIN_PAYOUT_CENTS = 2000;
+
+    /**
      * Erzeugt mit 1 Klick einen neuen Einladungs-Slot inklusive Einladungslink (/partner/einladung/{token})
      * und 6-stelligem Sicherheits-Verifizierungscode für die Schritt-für-Schritt Selbstregistrierung.
      */
@@ -160,6 +165,13 @@ class InfluencerService
             $email = strtolower(trim((string) ($data['email'] ?? '')));
             $password = (string) ($data['password'] ?? '');
 
+            $employee = $influencer->employee;
+            if ($email !== '' && \App\Models\System\SystemUser::isEmailTakenAcrossGuards($email, 'employee', $employee?->id)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'email' => 'Diese E-Mail-Adresse ist bereits einem bestehenden Konto (Kunde, Mitarbeiter oder Admin) zugeordnet und kann nicht erneut verwendet werden.',
+                ]);
+            }
+
             $rawHandle = trim((string) ($data['handle'] ?? ''));
             $handle = str_starts_with($rawHandle, '@') ? $rawHandle : '@' . ltrim($rawHandle, '@');
 
@@ -175,7 +187,6 @@ class InfluencerService
             $channel = strtolower(trim((string) ($data['primary_channel'] ?? $influencer->primary_channel ?: 'instagram')));
             $profileUrl = !empty($data['profile_url']) ? trim((string) $data['profile_url']) : null;
 
-            $employee = $influencer->employee;
             if ($employee) {
                 $employee->update([
                     'first_name' => $firstName ?: $employee->first_name,
@@ -209,7 +220,7 @@ class InfluencerService
                 ]);
             }
 
-            $taxStatus = in_array($data['tax_status'] ?? 'small_business', ['small_business', 'standard_tax'], true)
+            $taxStatus = in_array($data['tax_status'] ?? 'small_business', ['small_business', 'standard_tax', 'reverse_charge'], true)
                 ? $data['tax_status']
                 : 'small_business';
 
@@ -336,6 +347,97 @@ class InfluencerService
             }
             $influencer->defaultVoucher->update($updateData);
         }
+
+        $this->syncInfluencerActiveState($influencer);
+    }
+
+    /**
+     * Synchronisiert den Aktiv-Status aller Tracking-Links und Rabattcodes eines Influencers
+     * (z.B. beim Pausieren, Reaktivieren oder Archivieren).
+     */
+    public function syncInfluencerActiveState(MarketingInfluencer $influencer): void
+    {
+        $effectiveActive = (bool) $influencer->is_active && !(bool) $influencer->is_archived;
+
+        if (Schema::hasTable('marketing_tracking_links')) {
+            MarketingTrackingLink::where('influencer_id', $influencer->id)
+                ->update(['is_active' => $effectiveActive]);
+        }
+
+        if (Schema::hasTable('marketing_vouchers')) {
+            MarketingVoucher::where('influencer_id', $influencer->id)
+                ->update(['is_active' => $effectiveActive]);
+        }
+    }
+
+    /**
+     * Löscht oder archiviert einen Influencer GoBD-konform (§ 147 AO):
+     * - Besitzt der Creator bereits Provisionen, Gutschriften oder eingelöste Codes, wird er NIEMALS
+     *   hart gelöscht, sondern revisionssicher archiviert und alle Codes/Links deaktiviert.
+     * - Besitzt der Creator keinerlei Buchungen/Einlösungen (z.B. offene Einladung oder ungenutzter Test-Slot),
+     *   werden alle verknüpften Links, Codes, Profile und der Account rückstandsfrei entfernt.
+     */
+    public function deleteOrArchiveInfluencer(MarketingInfluencer $influencer): array
+    {
+        return DB::transaction(function () use ($influencer) {
+            $hasCommissions = Schema::hasTable('marketing_influencer_commissions')
+                && $influencer->commissions()->exists();
+            $hasPayouts = Schema::hasTable('marketing_influencer_payouts')
+                && $influencer->payouts()->exists();
+            $hasUsedVouchers = Schema::hasTable('marketing_vouchers')
+                && MarketingVoucher::where('influencer_id', $influencer->id)->where('used_count', '>', 0)->exists();
+
+            if ($hasCommissions || $hasPayouts || $hasUsedVouchers) {
+                $influencer->update([
+                    'is_active' => false,
+                    'is_archived' => true,
+                    'invitation_token_hash' => null,
+                    'invitation_token_encrypted' => null,
+                    'invitation_code_hash' => null,
+                    'invitation_code_encrypted' => null,
+                    'invitation_expires_at' => null,
+                ]);
+
+                $this->syncInfluencerActiveState($influencer);
+
+                $label = $influencer->handle ?: ($influencer->invitation_label ?: 'Creator');
+                return [
+                    'action' => 'archived',
+                    'message' => "Creator {$label} besitzt bereits Buchungen oder eingelöste Gutscheine und wurde zur Wahrung der GoBD-Aufbewahrungspflicht archiviert statt gelöscht. Alle Links und Codes wurden sofort deaktiviert.",
+                ];
+            }
+
+            $wasInvited = $influencer->is_pending_invitation;
+            $label = $influencer->handle ?: ($influencer->invitation_label ?: 'Creator');
+            $employee = $influencer->employee;
+
+            $influencer->update([
+                'default_tracking_link_id' => null,
+                'default_voucher_id' => null,
+            ]);
+
+            if (Schema::hasTable('marketing_tracking_links')) {
+                MarketingTrackingLink::where('influencer_id', $influencer->id)->delete();
+            }
+
+            if (Schema::hasTable('marketing_vouchers')) {
+                MarketingVoucher::where('influencer_id', $influencer->id)->delete();
+            }
+
+            $influencer->delete();
+
+            if ($employee) {
+                $employee->profile()?->delete();
+                $employee->delete();
+            }
+
+            return [
+                'action' => 'deleted',
+                'message' => $wasInvited
+                    ? 'Offene Einladung rückstandsfrei gelöscht.'
+                    : "Creator {$label} inklusive ungenutzter Links und Codes rückstandsfrei gelöscht.",
+            ];
+        });
     }
 
     /**
@@ -372,6 +474,12 @@ class InfluencerService
                 $influencer = MarketingInfluencer::with(['employee', 'defaultVoucher', 'defaultTrackingLink'])->findOrFail($influencerId);
                 $employee = $influencer->employee;
 
+                if ($email !== '' && \App\Models\System\SystemUser::isEmailTakenAcrossGuards($email, 'employee', $employee?->id)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'email' => 'Diese E-Mail-Adresse ist bereits einem bestehenden Konto (Kunde, Mitarbeiter oder Admin) zugeordnet.',
+                    ]);
+                }
+
                 if ($employee && ($firstName !== '' || $email !== '')) {
                     $employee->update([
                         'first_name' => $firstName ?: $employee->first_name,
@@ -395,6 +503,12 @@ class InfluencerService
                     'internal_notes' => $data['internal_notes'] ?? $influencer->internal_notes,
                 ]);
             } else {
+                if ($email !== '' && \App\Models\System\SystemUser::isEmailTakenAcrossGuards($email, 'employee', null)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'email' => 'Diese E-Mail-Adresse ist bereits einem bestehenden Konto (Kunde, Mitarbeiter oder Admin) zugeordnet.',
+                    ]);
+                }
+
                 $rawToken = Str::random(48);
                 $rawCode = str_pad((string) random_int(100000, 999999), 6, '0', STR_PAD_LEFT);
 
@@ -556,7 +670,7 @@ class InfluencerService
                     ->whereNotNull('influencer_id')
                     ->first();
 
-                if ($voucher && $voucher->influencer && $voucher->influencer->is_active) {
+                if ($voucher && $voucher->influencer && $voucher->influencer->is_active && !$voucher->influencer->is_archived) {
                     $couponInfluencer = $voucher->influencer;
                     $matchedVoucherCode = $voucher->code;
                 }
@@ -567,7 +681,7 @@ class InfluencerService
             $cookieTrackingLinkId = session('seelenfunke_tracking_link_id') ?: request()?->cookie('seelenfunke_tracking_link_id');
 
             if ($cookieInfluencerId) {
-                $candidate = MarketingInfluencer::where('id', $cookieInfluencerId)->where('is_active', true)->first();
+                $candidate = MarketingInfluencer::where('id', $cookieInfluencerId)->where('is_active', true)->where('is_archived', false)->first();
                 if ($candidate) {
                     $linkInfluencer = $candidate;
                     $matchedTrackingLinkId = $cookieTrackingLinkId ?: $candidate->default_tracking_link_id;
@@ -585,11 +699,11 @@ class InfluencerService
                         ->whereNotNull('influencer_id')
                         ->first();
 
-                    if ($trk && $trk->influencer && $trk->influencer->is_active) {
+                    if ($trk && $trk->influencer && $trk->influencer->is_active && !$trk->influencer->is_archived) {
                         $linkInfluencer = $trk->influencer;
                         $matchedTrackingLinkId = $trk->id;
                     } else {
-                        $bySlug = MarketingInfluencer::where('slug', $campaignSlug)->where('is_active', true)->first();
+                        $bySlug = MarketingInfluencer::where('slug', $campaignSlug)->where('is_active', true)->where('is_archived', false)->first();
                         if ($bySlug) {
                             $linkInfluencer = $bySlug;
                             $matchedTrackingLinkId = $bySlug->default_tracking_link_id;
@@ -599,14 +713,15 @@ class InfluencerService
             }
 
             $finalInfluencer = $couponInfluencer ?: $linkInfluencer;
-            if (!$finalInfluencer || !$finalInfluencer->is_active) {
+            if (!$finalInfluencer || !$finalInfluencer->is_active || $finalInfluencer->is_archived) {
                 return null;
             }
 
             // Eigenkauf-Schutz: Influencer darf keine Provision für eigene Bestellungen erhalten
             $influencerEmail = strtolower(trim((string) ($finalInfluencer->employee?->email ?? '')));
+            $influencerPaypalEmail = strtolower(trim((string) ($finalInfluencer->paypal_email ?? '')));
             $buyerEmail = strtolower(trim((string) ($order->email ?? '')));
-            if ($influencerEmail !== '' && $buyerEmail !== '' && $influencerEmail === $buyerEmail) {
+            if ($buyerEmail !== '' && ($buyerEmail === $influencerEmail || ($influencerPaypalEmail !== '' && $buyerEmail === $influencerPaypalEmail))) {
                 Log::warning("Influencer-Provision abgelehnt (Eigenkauf): {$buyerEmail} für Order {$order->order_number}.");
                 return null;
             }
@@ -618,28 +733,23 @@ class InfluencerService
                 $attributionSource = 'coupon';
             }
 
-            // Netto-Warenwert (ohne Versand- und Expresskosten, nach Abzug von Rabatten) berechnen
+            // Netto-Warenwert (ohne Versand- und Expresskosten, nach Abzug von Rabatten) über den zentralen PriceCalcService berechnen
             $grossMerchandiseCents = max(
                 0,
                 (int) $order->subtotal_price - (int) $order->discount_amount - (int) $order->volume_discount
             );
 
-            if ((bool) $order->is_small_business || (int) $order->tax_amount === 0) {
-                $netMerchandiseCents = $grossMerchandiseCents;
-            } else {
-                $defaultTaxRate = (float) shop_setting('default_tax_rate', 19.0);
-                $netMerchandiseCents = (int) round($grossMerchandiseCents / (1 + ($defaultTaxRate / 100)));
-            }
+            $effectiveTaxRate = ((bool) $order->is_small_business || (int) $order->tax_amount === 0)
+                ? 0.0
+                : (float) shop_setting('default_tax_rate', 19.0);
+
+            $netMerchandiseCents = app(\App\Services\PriceCalcService::class)->getNetFromGross($grossMerchandiseCents, $effectiveTaxRate);
 
             if ($netMerchandiseCents <= 0) {
                 return null;
             }
 
-            if ($finalInfluencer->commission_type === 'fixed_cents') {
-                $commissionCents = min($netMerchandiseCents, (int) $finalInfluencer->commission_value);
-            } else {
-                $commissionCents = (int) round($netMerchandiseCents * ((int) $finalInfluencer->commission_value / 100));
-            }
+            $commissionCents = $this->calculateCommissionFromNetCents($finalInfluencer, $netMerchandiseCents);
 
             if ($commissionCents <= 0) {
                 return null;
@@ -717,8 +827,9 @@ class InfluencerService
 
     /**
      * Erstellt eine Auszahlungsanforderung inkl. rechtssicherer Gutschriftsnummer (PROV-YYYY-XXXX).
+     * Bei Selbstabruf durch den Creator ($enforceMinimum = true) gilt der Mindestauszahlungsbetrag von 20,00 € Netto.
      */
-    public function requestPayout(MarketingInfluencer $influencer, ?string $chosenMethod = null): MarketingInfluencerPayout
+    public function requestPayout(MarketingInfluencer $influencer, ?string $chosenMethod = null, bool $enforceMinimum = false): MarketingInfluencerPayout
     {
         $influencer->loadMissing('employee.profile');
 
@@ -726,7 +837,7 @@ class InfluencerService
             throw new InvalidArgumentException('Bitte vervollständige zuerst deine Adresse, Steuernummer, Selbstständigkeits-Bestätigung und Auszahlungsdaten.');
         }
 
-        return DB::transaction(function () use ($influencer, $chosenMethod) {
+        return DB::transaction(function () use ($influencer, $chosenMethod, $enforceMinimum) {
             $commissions = MarketingInfluencerCommission::where('influencer_id', $influencer->id)
                 ->where('status', 'approved')
                 ->whereNull('payout_id')
@@ -736,6 +847,12 @@ class InfluencerService
             $netCents = (int) $commissions->sum('commission_amount_cents');
             if ($netCents <= 0) {
                 throw new InvalidArgumentException('Aktuell sind keine freigegebenen Provisionen zur Auszahlung verfügbar.');
+            }
+
+            if ($enforceMinimum && $netCents < self::MIN_PAYOUT_CENTS) {
+                $minFormatted = number_format(self::MIN_PAYOUT_CENTS / 100, 2, ',', '.');
+                $currentFormatted = number_format($netCents / 100, 2, ',', '.');
+                throw new InvalidArgumentException("Der Mindestauszahlungsbetrag von {$minFormatted} € Netto ist noch nicht erreicht (aktuell freigegeben: {$currentFormatted} €).");
             }
 
             $method = in_array($chosenMethod, ['bank_transfer', 'paypal', 'shop_voucher'], true)
@@ -751,7 +868,8 @@ class InfluencerService
                 $bonusCents = (int) round($netCents * 0.20);
                 $grossCents = $netCents + $bonusCents;
             } else {
-                $taxRate = $influencer->tax_status === 'standard_tax' ? 19 : 0;
+                $defaultShopTaxRate = (float) shop_setting('default_tax_rate', 19.0);
+                $taxRate = $influencer->tax_status === 'standard_tax' ? $defaultShopTaxRate : 0.0;
                 $taxCents = $taxRate > 0 ? (int) round($netCents * ($taxRate / 100)) : 0;
                 $grossCents = $netCents + $taxCents;
             }
@@ -892,6 +1010,11 @@ class InfluencerService
         });
     }
 
+    public function generateCreditNotePdf(MarketingInfluencerPayout $payout): ?string
+    {
+        return $this->generateAndStoreCreditNotePdf($payout);
+    }
+
     /**
      * Erzeugt das PDF der Provisions-Gutschrift (§ 14 Abs. 2 S. 2 UStG) und legt es revisionssicher
      * im Buchhaltungs-Verzeichnis `buchhaltung/receipts/` ab.
@@ -932,6 +1055,7 @@ class InfluencerService
         $prefix = "PROV-{$year}-";
 
         $lastNumber = MarketingInfluencerPayout::where('credit_note_number', 'like', $prefix . '%')
+            ->lockForUpdate()
             ->orderByDesc('credit_note_number')
             ->value('credit_note_number');
 
@@ -956,5 +1080,209 @@ class InfluencerService
 
         $writer = new Writer($renderer);
         return $writer->writeString($payload);
+    }
+
+    /**
+     * Zentrale Provisionsberechnung auf Basis eines Netto-Warenwerts in Cent.
+     * Wird sowohl bei echten Bestellungen (processOrderCommission) als auch für die Live-Produktvorschau im Creator-Cockpit genutzt.
+     */
+    public function calculateCommissionFromNetCents(MarketingInfluencer $influencer, int $netMerchandiseCents): int
+    {
+        if ($netMerchandiseCents <= 0) {
+            return 0;
+        }
+
+        if ($influencer->commission_type === 'fixed_cents') {
+            return min($netMerchandiseCents, max(0, (int) $influencer->commission_value));
+        }
+
+        return (int) round($netMerchandiseCents * (max(0, (int) $influencer->commission_value) / 100));
+    }
+
+    /**
+     * Berechnet für ein einzelnes Produkt zentral und dynamisch alle relevanten Creator-Kennzahlen
+     * unter Berücksichtigung von Produktsteuer, Kleinunternehmer-Status, Follower-Rabatt, Autopilot-Sale-Sperre
+     * und individuellem Provisionssatz.
+     */
+    public function calculateProductPromotionPreview(\App\Models\Product\Product $product, MarketingInfluencer $influencer): array
+    {
+        $priceCalc = app(\App\Services\PriceCalcService::class);
+        $grossPriceCents = (int) $product->gross_price;
+        $compareAtGrossCents = (int) ($product->compare_at_price ?? 0);
+        $isAutopilotSale = $product->isInAutopilotSale();
+        $isCouponCompatible = $product->isDiscountableWithCoupon();
+
+        $followerDiscountPercent = ($isCouponCompatible && (int) $influencer->follower_discount_percent > 0)
+            ? (int) $influencer->follower_discount_percent
+            : 0;
+
+        // Exakt identische Rundungsformel wie CartService::calculateTotals()
+        $followerDiscountCents = $followerDiscountPercent > 0
+            ? (int) round($grossPriceCents * ($followerDiscountPercent / 100))
+            : 0;
+
+        $followerFinalGrossCents = max(0, $grossPriceCents - $followerDiscountCents);
+        $effectiveTaxRate = (float) $product->tax_rate;
+        $netBasisCents = $priceCalc->getNetFromGross($followerFinalGrossCents, $effectiveTaxRate);
+        $estimatedCommissionCents = $this->calculateCommissionFromNetCents($influencer, $netBasisCents);
+
+        $salesForMinPayout = $estimatedCommissionCents > 0
+            ? (int) ceil(self::MIN_PAYOUT_CENTS / $estimatedCommissionCents)
+            : null;
+
+        $voucherCode = $influencer->defaultVoucher?->code ?: ('CODE' . $influencer->follower_discount_percent);
+        $cookieDays = max(1, (int) ($influencer->cookie_days ?: 30));
+
+        $highlights = [];
+        if ($product->isPersonalizable() || $product->three_d_active) {
+            $highlights[] = 'Live-Personalisierung / 3D (Ideal für Story-Video)';
+        }
+        if ($salesForMinPayout !== null && $salesForMinPayout <= 4) {
+            $highlights[] = "Nur {$salesForMinPayout}x für 20 € Auszahlung";
+        }
+        if ((int) ($product->paid_sales_count ?? 0) >= 3) {
+            $highlights[] = 'Shop-Bestseller';
+        }
+        if ($product->track_quantity && !$product->continue_selling_when_out_of_stock && $product->quantity > 0 && $product->quantity <= 5) {
+            $highlights[] = "Nur noch {$product->quantity} auf Lager";
+        }
+
+        if ($isCouponCompatible) {
+            $finalEuro = number_format($followerFinalGrossCents / 100, 2, ',', '.');
+            $commEuro = number_format($estimatedCommissionCents / 100, 2, ',', '.');
+            $reasonText = $followerDiscountPercent > 0
+                ? "Voller Doppel-Vorteil: Dein Code {$voucherCode} (-{$followerDiscountPercent} % → {$finalEuro} €) + dein Kurzlink sind hier voll kombinierbar. Du erhältst +{$commEuro} € Netto-Provision pro Verkauf."
+                : "Sofort über deinen Kurzlink bewerbbar: Du erhältst +{$commEuro} € Netto-Provision pro Verkauf.";
+        } else {
+            $origEuro = number_format($compareAtGrossCents / 100, 2, ',', '.');
+            $saleEuro = number_format($grossPriceCents / 100, 2, ',', '.');
+            $commEuro = number_format($estimatedCommissionCents / 100, 2, ',', '.');
+            $reasonText = "Aktions-Unikat (im Shop bereits von {$origEuro} € auf {$saleEuro} € reduziert): Nicht mit zusätzlichem Rabattcode kombinierbar – bewirb dieses Produkt direkt über deinen Kurzlink ({$cookieDays} Tage Cookie-Tracking) für +{$commEuro} € Provision.";
+        }
+
+        $targetPath = '/produkt/' . $product->slug;
+        $existingLink = $influencer->relationLoaded('trackingLinks')
+            ? $influencer->trackingLinks->firstWhere('target_url', $targetPath)
+            : $influencer->trackingLinks()->where('target_url', $targetPath)->first();
+
+        return [
+            'product_id' => $product->id,
+            'name' => $product->name,
+            'slug' => $product->slug,
+            'category_name' => $product->relationLoaded('categories') ? ($product->categories->first()?->name ?? 'Manufaktur-Unikat') : 'Manufaktur-Unikat',
+            'image_url' => $product->resolveMainImageUrl() ?: asset('shop/projekt/logo/mein-seelenfunke-logo.png'),
+            'shop_url' => url($targetPath),
+            'gross_price_cents' => $grossPriceCents,
+            'compare_at_gross_cents' => $compareAtGrossCents,
+            'is_autopilot_sale' => $isAutopilotSale,
+            'is_coupon_compatible' => $isCouponCompatible,
+            'follower_discount_percent' => $followerDiscountPercent,
+            'follower_discount_cents' => $followerDiscountCents,
+            'follower_final_gross_cents' => $followerFinalGrossCents,
+            'effective_tax_rate' => $effectiveTaxRate,
+            'net_basis_cents' => $netBasisCents,
+            'estimated_commission_cents' => $estimatedCommissionCents,
+            'sales_for_min_payout' => $salesForMinPayout,
+            'mode' => $isCouponCompatible ? 'code_and_link' : 'link_only',
+            'mode_badge' => $isCouponCompatible ? 'Code + Kurzlink aktiv' : 'Aktions-Deal • Nur Kurzlink',
+            'highlights' => $highlights,
+            'reason_text' => $reasonText,
+            'existing_short_url' => $existingLink?->short_url,
+            'existing_link_clicks' => (int) ($existingLink?->clicks_count ?? 0),
+        ];
+    }
+
+    /**
+     * Liefert alle aktuell vom Influencer bewerbbaren Produkte (aktiv, auf Lager, keine Geschenkgutscheine),
+     * angereichert um die zentrale Provisions- und Rabatt-Vorschau, sortiert nach Relevanz.
+     */
+    public function getPromotableProductsForInfluencer(MarketingInfluencer $influencer): \Illuminate\Support\Collection
+    {
+        if (!Schema::hasTable('products')) {
+            return collect();
+        }
+
+        $influencer->loadMissing(['defaultVoucher', 'trackingLinks']);
+
+        $products = \App\Models\Product\Product::where('status', 'active')
+            ->with([
+                'categories',
+                'templates' => fn ($q) => $q->where('is_active', true),
+            ])
+            ->withCount([
+                'orderItems as paid_sales_count' => function ($q) {
+                    $q->whereHas('order', function ($oq) {
+                        $oq->where('payment_status', 'paid')
+                            ->whereNotIn('status', ['cancelled', 'refunded']);
+                    });
+                },
+            ])
+            ->orderBy('name')
+            ->get();
+
+        return $products
+            ->filter(fn (\App\Models\Product\Product $product) => $product->isPromotableByInfluencer())
+            ->map(fn (\App\Models\Product\Product $product) => $this->calculateProductPromotionPreview($product, $influencer))
+            ->sortByDesc(function (array $item) {
+                // Priorisiere Produkte, bei denen Code + Link gleichzeitig greifen, danach Provisionshöhe
+                $compatibilityScore = $item['is_coupon_compatible'] ? 1000000 : 0;
+                return $compatibilityScore + (int) $item['estimated_commission_cents'];
+            })
+            ->values();
+    }
+
+    /**
+     * Erstellt oder liefert einen produktbezogenen Kurz-Tracking-Link (/t/{slug}-{product}) für den Creator.
+     */
+    public function createOrGetProductTrackingLink(
+        MarketingInfluencer $influencer,
+        ?\App\Models\Product\Product $product = null,
+        ?string $customTitle = null
+    ): MarketingTrackingLink {
+        $targetUrl = '/shop';
+        $slugSuffix = $customTitle ? Str::slug($customTitle) : '';
+        $linkName = trim((string) $customTitle);
+
+        if ($product && $product->isPromotableByInfluencer()) {
+            $targetUrl = '/produkt/' . $product->slug;
+
+            if ($customTitle === null || trim($customTitle) === '') {
+                $existing = MarketingTrackingLink::where('influencer_id', $influencer->id)
+                    ->where('target_url', $targetUrl)
+                    ->first();
+
+                if ($existing) {
+                    return $existing;
+                }
+            }
+
+            if ($slugSuffix === '') {
+                $slugSuffix = $product->slug;
+            }
+            if ($linkName === '') {
+                $linkName = 'Produkt-Link: ' . Str::limit($product->name, 55, '');
+            }
+        }
+
+        if ($linkName === '') {
+            $linkName = 'Story-Link ' . $influencer->handle;
+        }
+
+        $candidateSlug = Str::slug(($influencer->slug ?: 'creator') . '-' . ($slugSuffix ?: strtolower(Str::random(4))));
+        if (MarketingTrackingLink::where('slug', $candidateSlug)->exists()) {
+            $candidateSlug .= '-' . strtolower(Str::random(3));
+        }
+
+        return MarketingTrackingLink::create([
+            'influencer_id' => $influencer->id,
+            'name' => $linkName,
+            'slug' => $candidateSlug,
+            'target_url' => $targetUrl,
+            'channel' => 'referral',
+            'utm_source' => 'influencer',
+            'utm_medium' => $influencer->primary_channel ?: 'social',
+            'utm_campaign' => $candidateSlug,
+            'is_active' => (bool) $influencer->is_active && !(bool) $influencer->is_archived,
+        ]);
     }
 }

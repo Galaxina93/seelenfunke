@@ -232,4 +232,37 @@ class SeoAndAiSearchTest extends TestCase
         $emergencyResponse->assertStatus(200);
         $emergencyResponse->assertSee('<meta name="robots" content="noindex, nofollow">', false);
     }
+
+    public function test_robots_txt_and_tracking_redirect_enforce_ai_geo_and_open_redirect_security(): void
+    {
+        $robots = file_get_contents(public_path('robots.txt'));
+        $this->assertStringContainsString('User-agent: OAI-SearchBot', $robots);
+        $this->assertStringContainsString('User-agent: PerplexityBot', $robots);
+        $this->assertStringContainsString('Allow: /llms.txt', $robots);
+        $this->assertStringContainsString('Allow: /llms-full.txt', $robots);
+        $this->assertStringContainsString('Disallow: /admin', $robots);
+        $this->assertStringContainsString('Disallow: /employee', $robots);
+        $this->assertStringContainsString('Disallow: /partner/einladung/', $robots);
+        $this->assertStringContainsString('Disallow: /t/', $robots);
+
+        $link = \App\Models\Marketing\MarketingTrackingLink::create([
+            'name' => 'Phishing Test Link',
+            'slug' => 'evil-redirect-test',
+            'target_url' => 'https://evil.example.com/phishing',
+            'utm_source' => 'instagram',
+            'utm_medium' => 'social',
+            'utm_campaign' => 'test',
+            'is_active' => true,
+        ]);
+
+        // Open Redirect muss auf die eigene Domain (/shop) neutralisiert werden
+        $this->assertEquals(url('/shop'), \App\Models\Marketing\MarketingTrackingLink::resolveInternalTargetUrl($link->target_url));
+
+        $redirectRes = $this->get('/t/evil-redirect-test');
+        $redirectRes->assertRedirect();
+        $this->assertStringStartsWith(url('/'), (string) $redirectRes->headers->get('Location'));
+        $this->assertStringNotContainsString('evil.example.com', (string) $redirectRes->headers->get('Location'));
+        $redirectRes->assertHeader('X-Robots-Tag', 'noindex, nofollow');
+        $redirectRes->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    }
 }

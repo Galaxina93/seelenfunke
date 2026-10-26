@@ -278,19 +278,25 @@ trait AiSupportFuncs
         ];
     }
 
-    private static function fetchChatHistory($chatId)
+    private static function fetchChatHistory($chatId, bool $redactForAiIfNoConsent = false)
     {
         $chatHistoryStr = "";
         try {
             $customerName = 'Kunde';
-            $chat = \App\Models\Support\SupportCustomerChat::find($chatId);
-            if ($chat && $chat->customer_id) {
-                $customer = \App\Models\Customer\Customer::find($chat->customer_id);
+            $hasConsent = true;
+            $namesToMask = [];
+            $chat = \App\Models\Support\SupportCustomerChat::with('customer.profile')->find($chatId);
+            if ($chat) {
+                $customer = $chat->customer;
+                $hasConsent = \App\Services\AI\AiAuthHelper::hasCustomerAiConsent($customer, $chat->customer_id);
                 if ($customer) {
-                    $customerName = trim($customer->first_name . ' ' . $customer->last_name);
-                    if (empty($customerName)) {
-                        $customerName = 'Kunde';
-                    }
+                    $namesToMask = array_filter([$customer->first_name, $customer->last_name, $customer->email]);
+                    $rawName = trim($customer->first_name . ' ' . $customer->last_name);
+                    $customerName = ($redactForAiIfNoConsent && !$hasConsent)
+                        ? 'Anonyme Person (Keine DSGVO-KI-Freigabe)'
+                        : ($rawName ?: 'Kunde');
+                } elseif ($redactForAiIfNoConsent) {
+                    $customerName = 'Anonyme Person (Gast / Keine DSGVO-KI-Freigabe)';
                 }
             }
 
@@ -299,15 +305,21 @@ trait AiSupportFuncs
             if ($messages->count() > 0) {
                 $chatHistoryStr .= "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
                 $chatHistoryStr .= "💬 URSPRÜNGLICHER CHAT-VERLAUF:\n";
+                if ($redactForAiIfNoConsent && !$hasConsent) {
+                    $chatHistoryStr .= "[DSGVO-SCHUTZ AKTIV: Anonyme Person ohne DSGVO-KI-Freigabe]\n";
+                }
                 $chatHistoryStr .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
                 
                 foreach ($messages as $msg) {
                     $senderIcon = $msg->sender === 'ai' ? '🤖' : ($msg->sender === 'system' ? '⚙️' : '👤');
                     $resolvedName = $msg->sender === 'ai' ? 'Funki (KI)' : ($msg->sender === 'system' ? 'System' : $customerName);
                     $time = $msg->created_at ? $msg->created_at->format('d.m.Y H:i') : 'Unbekannt';
+                    $msgBody = ($redactForAiIfNoConsent && !$hasConsent)
+                        ? \App\Services\AI\AiAuthHelper::redactPiiText((string) $msg->message, false, $namesToMask)
+                        : (string) $msg->message;
                     
                     $chatHistoryStr .= "{$senderIcon} {$resolvedName} [{$time}]:\n";
-                    $chatHistoryStr .= "{$msg->message}\n\n";
+                    $chatHistoryStr .= "{$msgBody}\n\n";
                 }
             }
         } catch (\Exception $e) {
@@ -470,6 +482,7 @@ trait AiSupportFuncs
 
             $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
             if (!$customerId) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Der Kunde ist nicht eingeloggt.'];
+            if ($consentError = self::ensureCustomerAiConsent((string) $customerId)) return $consentError;
 
             $tickets = SupportTicket::where('customer_id', $customerId)->where('status', '!=', 'closed')->orderBy('created_at', 'desc')->take(3)->get();
             if ($tickets->isEmpty()) {
@@ -492,6 +505,19 @@ trait AiSupportFuncs
         return !empty($args['__chat_id']);
     }
 
+    private static function ensureCustomerAiConsent(string $customerId): ?array
+    {
+        $customer = \App\Models\Customer\Customer::with('profile')->find($customerId);
+        if (!$customer || !$customer->hasAiDataConsent()) {
+            return [
+                'status' => 'error',
+                'message' => 'HINTERGRUND-INFO FÜR KI (DSGVO-SPERRE): Der Kunde hat den KI-Datenzugriff auf persönliche Kontodaten in seinen Profileinstellungen deaktiviert oder noch nicht bestätigt (Art. 6 Abs. 1 lit. a DSGVO). Du hast aktuell keinen Zugriff auf seine Bestell-, Konto- oder Ticketdaten. Weise den Kunden freundlich darauf hin, dass er den Haken "DSGVO-Freigabe: KI-Support-Zugriff auf meine Kontodaten erlauben" in seinen Profileinstellungen oder im Chat aktivieren kann.'
+            ];
+        }
+
+        return null;
+    }
+
     public static function executeGetTicketStatus(array $args)
     {
         try {
@@ -506,6 +532,7 @@ trait AiSupportFuncs
                 if (!$customerId) {
                     return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt.'];
                 }
+                if ($consentError = self::ensureCustomerAiConsent((string) $customerId)) return $consentError;
                 $query->where('customer_id', $customerId);
             }
 
@@ -531,9 +558,12 @@ trait AiSupportFuncs
             if (empty($identifier)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Suchbegriff fehlt.'];
 
             $idEsc = addcslashes($identifier, '%_\\');
-            $query = OrderOrder::where(function($q) use ($idEsc) {
+            $query = OrderOrder::with('customer.profile')->where(function($q) use ($idEsc) {
                 $q->where('order_number', 'LIKE', "%{$idEsc}%")
-                  ->orWhere('email', 'LIKE', "%{$idEsc}%");
+                  ->orWhere(function($sub) use ($idEsc) {
+                      $sub->where('email', 'LIKE', "%{$idEsc}%")
+                          ->whereHas('customer.profile', fn($p) => $p->where('ai_data_consent', true));
+                  });
             });
 
             if (self::isPublicSupportChatContext($args) || !\App\Services\AI\AiAuthHelper::isAdmin()) {
@@ -541,6 +571,7 @@ trait AiSupportFuncs
                 if (!$customerId) {
                     return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt. Bitte den Kunden höflich, sich einzuloggen.'];
                 }
+                if ($consentError = self::ensureCustomerAiConsent((string) $customerId)) return $consentError;
                 $query->where('customer_id', $customerId);
             }
 
@@ -550,8 +581,13 @@ trait AiSupportFuncs
                 return ['status' => 'not_found', 'data' => null];
             }
 
+            $hasConsent = \App\Services\AI\AiAuthHelper::hasCustomerAiConsent($order->customer, $order->customer_id, $order->email);
+            $rawName = $order->customer ? trim($order->customer->first_name . ' ' . $order->customer->last_name) : '';
+
             return ['status' => 'success', 'data' => [
                 'order_number' => $order->order_number,
+                'customer_name' => \App\Services\AI\AiAuthHelper::sanitizeCustomerName($rawName, $hasConsent),
+                'gdpr_ai_consent' => $hasConsent,
                 'created_at' => $order->created_at->format('Y-m-d H:i:s'),
                 'status' => $order->status,
                 'total_price' => $order->total_price ? $order->total_price / 100 : 0
@@ -571,6 +607,7 @@ trait AiSupportFuncs
 
             $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
             if (!$customerId) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde nicht eingeloggt.'];
+            if ($consentError = self::ensureCustomerAiConsent((string) $customerId)) return $consentError;
 
             $orders = OrderOrder::where('customer_id', $customerId)->latest()->take(5)->get();
             if ($orders->isEmpty()) {
@@ -766,19 +803,24 @@ trait AiSupportFuncs
             if (empty($orderNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bestellnummer fehlt.'];
 
             $orderEsc = addcslashes($orderNumber, '%_\\');
-            $query = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderEsc}%")->with('items');
+            $query = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderEsc}%")->with(['items', 'customer.profile']);
 
             if (self::isPublicSupportChatContext($args) || !\App\Services\AI\AiAuthHelper::isAdmin()) {
                 $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
                 if (!$customerId) {
                     return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt. Bitte den Kunden höflich, sich einzuloggen.'];
                 }
+                if ($consentError = self::ensureCustomerAiConsent((string) $customerId)) return $consentError;
                 $query->where('customer_id', $customerId);
             }
 
             $order = $query->latest()->first();
 
             if (!$order) return ['status' => 'not_found', 'data' => null];
+
+            $hasConsent = \App\Services\AI\AiAuthHelper::hasCustomerAiConsent($order->customer, $order->customer_id, $order->email);
+            $rawName = $order->customer ? trim($order->customer->first_name . ' ' . $order->customer->last_name) : '';
+            $namesToMask = $order->customer ? array_filter([$order->customer->first_name, $order->customer->last_name, $order->customer->email]) : [];
 
             $itemsData = [];
             foreach ($order->items as $item) {
@@ -801,6 +843,9 @@ trait AiSupportFuncs
                         }
                     }
                     $configStr = empty($details) ? "Personalisierung hinterlegt (ohne lesbaren Text)" : implode(' | ', $details);
+                    if (!$hasConsent) {
+                        $configStr = \App\Services\AI\AiAuthHelper::redactPiiText($configStr, false, $namesToMask);
+                    }
                 }
                 $itemsData[] = [
                     'quantity' => $item->quantity,
@@ -812,6 +857,8 @@ trait AiSupportFuncs
                 'status' => 'success',
                 'data' => [
                     'order_number' => $order->order_number,
+                    'customer_name' => \App\Services\AI\AiAuthHelper::sanitizeCustomerName($rawName, $hasConsent),
+                    'gdpr_ai_consent' => $hasConsent,
                     'status' => $order->status,
                     'items' => $itemsData
                 ]
@@ -836,6 +883,7 @@ trait AiSupportFuncs
                 if (!$customerId) {
                     return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt.'];
                 }
+                if ($consentError = self::ensureCustomerAiConsent((string) $customerId)) return $consentError;
                 $query->where('customer_id', $customerId);
             }
 
@@ -875,6 +923,7 @@ trait AiSupportFuncs
             }
             $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
             if (!$customerId) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde ist nicht eingeloggt.'];
+            if ($consentError = self::ensureCustomerAiConsent((string) $customerId)) return $consentError;
 
             $stats = \App\Models\Customer\CustomerGamification::where('customer_id', $customerId)->first();
             if (!$stats || !$stats->is_active) {
@@ -906,6 +955,7 @@ trait AiSupportFuncs
             if (!$customerId) {
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde nicht eingeloggt.'];
             }
+            if ($consentError = self::ensureCustomerAiConsent((string) $customerId)) return $consentError;
 
             $customer = \App\Models\Customer\Customer::with(['profile'])->find($customerId);
             $orders = \App\Models\Order\OrderOrder::where('customer_id', $customerId)->get();
@@ -1035,6 +1085,7 @@ trait AiSupportFuncs
                 if (!$customerId) {
                     return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt.'];
                 }
+                if ($consentError = self::ensureCustomerAiConsent((string) $customerId)) return $consentError;
                 $query->where('customer_id', $customerId);
             }
 
@@ -1087,6 +1138,7 @@ trait AiSupportFuncs
             if (!$customerId) {
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde muss sich erst einloggen, um ein Reklamationsticket zu öffnen. Bitte ihn darum.'];
             }
+            if ($consentError = self::ensureCustomerAiConsent((string) $customerId)) return $consentError;
 
             $orderEsc = addcslashes($orderNumber, '%_\\');
             $order = OrderOrder::where('order_number', 'LIKE', "%{$orderEsc}%")->where('customer_id', $customerId)->first();
@@ -1164,6 +1216,7 @@ trait AiSupportFuncs
             if (!$customerId) {
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde muss sich zum Ändern einloggen.'];
             }
+            if ($consentError = self::ensureCustomerAiConsent((string) $customerId)) return $consentError;
 
             $orderEsc = addcslashes($orderNumber, '%_\\');
             $order = OrderOrder::where('order_number', 'LIKE', "%{$orderEsc}%")->where('customer_id', $customerId)->first();
@@ -1240,6 +1293,7 @@ trait AiSupportFuncs
                 if (!$customerId) {
                     return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt.'];
                 }
+                if ($consentError = self::ensureCustomerAiConsent((string) $customerId)) return $consentError;
                 $query->where('customer_id', $customerId);
             }
 
@@ -1387,17 +1441,22 @@ trait AiSupportFuncs
             $chatId = $args['chat_id'] ?? null;
             if (!$chatId) return ['status' => 'error', 'message' => 'Chat-ID fehlt.'];
 
-            $chat = SupportCustomerChat::find($chatId);
+            $chat = SupportCustomerChat::with('customer.profile')->find($chatId);
             if (!$chat) return ['status' => 'error', 'message' => 'Chat nicht gefunden.'];
 
-            $history = self::fetchChatHistory($chatId);
+            $hasConsent = \App\Services\AI\AiAuthHelper::hasCustomerAiConsent($chat->customer, $chat->customer_id);
+            $rawName = $chat->customer ? trim($chat->customer->first_name . ' ' . $chat->customer->last_name) : '';
+            $namesToMask = $chat->customer ? array_filter([$chat->customer->first_name, $chat->customer->last_name, $chat->customer->email]) : [];
+            $history = self::fetchChatHistory($chatId, true);
             
             return [
                 'status' => 'success',
                 'data' => [
                     'id' => $chat->id,
+                    'customer' => \App\Services\AI\AiAuthHelper::sanitizeCustomerName($rawName, $hasConsent),
+                    'gdpr_ai_consent' => $hasConsent,
                     'top_topic' => $chat->top_topic,
-                    'summary' => $chat->ai_summary,
+                    'summary' => \App\Services\AI\AiAuthHelper::redactPiiText((string) $chat->ai_summary, $hasConsent, $namesToMask),
                     'rating' => $chat->rating,
                     'history' => $history
                 ]
@@ -1489,7 +1548,7 @@ trait AiSupportFuncs
             if (empty($term)) return ['status' => 'error', 'message' => 'Suchbegriff fehlt.'];
 
             $termEsc = addcslashes($term, '%_\\');
-            $tickets = \App\Models\Support\SupportTicket::with('customer')
+            $tickets = \App\Models\Support\SupportTicket::with('customer.profile')
                 ->where(function ($query) use ($termEsc) {
                     $query->where('ticket_number', 'LIKE', "%{$termEsc}%")
                         ->orWhere('subject', 'LIKE', "%{$termEsc}%")
@@ -1504,16 +1563,22 @@ trait AiSupportFuncs
                 ->get();
 
             if ($tickets->isEmpty()) {
-                return ['status' => 'success', 'message' => 'Keine Tickets gefunden.'];
+                return ['status' => 'success', 'message' => 'Keine Tickets gefunden (oder der gesuchte Kunde hat keine DSGVO-KI-Freigabe erteilt).'];
             }
 
             $result = [];
             foreach ($tickets as $ticket) {
+                $hasConsent = \App\Services\AI\AiAuthHelper::hasCustomerAiConsent($ticket->customer, $ticket->customer_id);
+                $rawCustomer = $ticket->customer
+                    ? trim($ticket->customer->first_name . ' ' . $ticket->customer->last_name . ' (' . $ticket->customer->email . ')')
+                    : '';
+
                 $result[] = [
                     'ticket_number' => $ticket->ticket_number,
                     'status' => $ticket->status,
                     'subject' => $ticket->subject,
-                    'customer' => $ticket->customer ? $ticket->customer->email : 'Unbekannt',
+                    'customer' => \App\Services\AI\AiAuthHelper::sanitizeCustomerName($rawCustomer, $hasConsent),
+                    'gdpr_ai_consent' => $hasConsent,
                     'date' => $ticket->updated_at->format('Y-m-d H:i')
                 ];
             }

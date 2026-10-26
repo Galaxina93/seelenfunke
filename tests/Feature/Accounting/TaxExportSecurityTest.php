@@ -37,6 +37,9 @@ class TaxExportSecurityTest extends TestCase
     #[\PHPUnit\Framework\Attributes\Test]
     public function it_allows_valid_tax_export_file_download()
     {
+        $admin = Admin::factory()->create();
+        $this->actingAs($admin, 'admin');
+
         $service = new FileDownloadService();
 
         $dir = storage_path('app/buchhaltung/tax_exports');

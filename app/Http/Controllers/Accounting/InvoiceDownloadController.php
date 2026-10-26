@@ -20,10 +20,14 @@ class InvoiceDownloadController extends Controller
         // Security Gate: Darf der User das sehen?
         $isAuthorized = false;
 
-        // 1. Admin darf alle Rechnungen einsehen; Mitarbeiter dürfen nur freigegebene Shop-Bestellrechnungen (order_id !== null, kein Entwurf) einsehen
+        // 1. Admin darf alle Rechnungen einsehen; Steuerberater dürfen alle freigegebenen Rechnungen (kein Entwurf) einsehen; interne Mitarbeiter nur Shop-Bestellrechnungen
         $isAdmin = \App\Services\AI\AiAuthHelper::isAdmin() || auth()->guard('admin')->check();
-        $isEmployee = \App\Services\AI\AiAuthHelper::isEmployee() || auth()->guard('employee')->check();
+        $isEmployee = \App\Services\AI\AiAuthHelper::isEmployee();
+        $employeeUser = auth()->guard('employee')->user();
+        $isTaxAdvisor = $employeeUser && method_exists($employeeUser, 'isTaxAdvisor') && $employeeUser->isTaxAdvisor();
         if ($isAdmin) {
+            $isAuthorized = true;
+        } elseif ($isTaxAdvisor && $invoice->status !== 'draft') {
             $isAuthorized = true;
         } elseif ($isEmployee && $invoice->order_id !== null && $invoice->status !== 'draft') {
             $isAuthorized = true;

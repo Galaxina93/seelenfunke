@@ -75,8 +75,10 @@ class CartFileCleanupService
      */
     public function cleanupOrphanedFiles(int $olderThanHours = 48, bool $dryRun = false): array
     {
-        $olderThanHours = max(1, $olderThanHours);
-        $cutoffTimestamp = now()->subHours($olderThanHours)->timestamp;
+        $olderThanHours = max(0, $olderThanHours);
+        $cutoffTimestamp = $olderThanHours === 0
+            ? (now()->timestamp + 60)
+            : now()->subHours($olderThanHours)->timestamp;
         $disk = Storage::disk('public');
 
         $scannedCount = 0;
@@ -163,25 +165,25 @@ class CartFileCleanupService
         int $exportDays = 7,
         int $chatUploadDays = 30
     ): array {
-        $tempHours = max(1, $tempHours);
-        $exportDays = max(1, $exportDays);
-        $chatUploadDays = max(1, $chatUploadDays);
+        $tempCutoff = $tempHours <= 0 ? (now()->timestamp + 60) : now()->subHours($tempHours)->timestamp;
+        $exportCutoff = $exportDays <= 0 ? (now()->timestamp + 60) : now()->subDays($exportDays)->timestamp;
+        $chatCutoff = $chatUploadDays <= 0 ? (now()->timestamp + 60) : now()->subDays($chatUploadDays)->timestamp;
         $rules = [
             // Temp Zone (local disk -> storage/app/temp/*)
-            ['disk' => 'local', 'dir' => 'temp/livewire-tmp', 'cutoff' => now()->subHours($tempHours)->timestamp],
-            ['disk' => 'local', 'dir' => 'temp/mail-attachments', 'cutoff' => now()->subHours($tempHours)->timestamp],
-            ['disk' => 'local', 'dir' => 'temp/backup-temp', 'cutoff' => now()->subHours($tempHours)->timestamp],
+            ['disk' => 'local', 'dir' => 'temp/livewire-tmp', 'cutoff' => $tempCutoff],
+            ['disk' => 'local', 'dir' => 'temp/mail-attachments', 'cutoff' => $tempCutoff],
+            ['disk' => 'local', 'dir' => 'temp/backup-temp', 'cutoff' => $tempCutoff],
             // AI Exports Zone (public disk -> storage/app/public/agenten/exports/*)
-            ['disk' => 'public', 'dir' => 'agenten/exports/dossiers', 'cutoff' => now()->subDays($exportDays)->timestamp],
-            ['disk' => 'public', 'dir' => 'agenten/exports/holidays', 'cutoff' => now()->subDays($exportDays)->timestamp],
-            ['disk' => 'public', 'dir' => 'agenten/exports/maps', 'cutoff' => now()->subDays($exportDays)->timestamp],
-            ['disk' => 'public', 'dir' => 'agenten/exports/places', 'cutoff' => now()->subDays($exportDays)->timestamp],
-            ['disk' => 'public', 'dir' => 'agenten/exports/reports', 'cutoff' => now()->subDays($exportDays)->timestamp],
+            ['disk' => 'public', 'dir' => 'agenten/exports/dossiers', 'cutoff' => $exportCutoff],
+            ['disk' => 'public', 'dir' => 'agenten/exports/holidays', 'cutoff' => $exportCutoff],
+            ['disk' => 'public', 'dir' => 'agenten/exports/maps', 'cutoff' => $exportCutoff],
+            ['disk' => 'public', 'dir' => 'agenten/exports/places', 'cutoff' => $exportCutoff],
+            ['disk' => 'public', 'dir' => 'agenten/exports/reports', 'cutoff' => $exportCutoff],
             // Ephemeral AI Chat Uploads (both local & public)
-            ['disk' => 'local', 'dir' => 'agenten/ai-chat-uploads', 'cutoff' => now()->subDays($chatUploadDays)->timestamp],
-            ['disk' => 'public', 'dir' => 'agenten/ai-chat-uploads', 'cutoff' => now()->subDays($chatUploadDays)->timestamp],
-            ['disk' => 'local', 'dir' => 'agenten/workspace/chat-medien', 'cutoff' => now()->subDays($chatUploadDays)->timestamp],
-            ['disk' => 'public', 'dir' => 'agenten/workspace/chat-medien', 'cutoff' => now()->subDays($chatUploadDays)->timestamp],
+            ['disk' => 'local', 'dir' => 'agenten/ai-chat-uploads', 'cutoff' => $chatCutoff],
+            ['disk' => 'public', 'dir' => 'agenten/ai-chat-uploads', 'cutoff' => $chatCutoff],
+            ['disk' => 'local', 'dir' => 'agenten/workspace/chat-medien', 'cutoff' => $chatCutoff],
+            ['disk' => 'public', 'dir' => 'agenten/workspace/chat-medien', 'cutoff' => $chatCutoff],
         ];
 
         $scanned = 0;

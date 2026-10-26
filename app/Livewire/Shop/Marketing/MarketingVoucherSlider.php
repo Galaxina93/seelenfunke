@@ -31,6 +31,7 @@ class MarketingVoucherSlider extends Component
 
         $hasManual = MarketingVoucher::where('mode', 'manual')
             ->whereNull('recipient_email')
+            ->whereNull('influencer_id')
             ->where('title', 'not like', 'Freunde-Empfehlung%')
             ->where('code', 'not like', 'FUNKI-%')
             ->when(!empty($referralVoucherIds), fn($q) => $q->whereNotIn('id', $referralVoucherIds))
@@ -83,9 +84,10 @@ class MarketingVoucherSlider extends Component
     {
         $referralVoucherIds = MarketingReferral::whereNotNull('voucher_id')->pluck('voucher_id')->all();
 
-        // 1. Lade alle öffentlichen manuellen Gutscheine (keine Freunde-Empfehlung Codes und keine persönlichen Belohnungen)
+        // 1. Lade alle öffentlichen manuellen Gutscheine (keine Freunde-Empfehlung Codes, keine Influencer-Codes und keine persönlichen Belohnungen)
         $manualVouchers = MarketingVoucher::where('mode', 'manual')
             ->whereNull('recipient_email')
+            ->whereNull('influencer_id')
             ->where('title', 'not like', 'Freunde-Empfehlung%')
             ->where('code', 'not like', 'FUNKI-%')
             ->when(!empty($referralVoucherIds), fn($q) => $q->whereNotIn('id', $referralVoucherIds))

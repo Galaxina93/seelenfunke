@@ -83,7 +83,13 @@ class OrderShoppingCartsTest extends TestCase
         
         $admin = Admin::factory()->create();
         $customer = Customer::factory()->create(['email' => 'test@example.com']);
+        \App\Models\Marketing\MarketingNewsletterSubscriber::create([
+            'email' => $customer->email,
+            'is_verified' => true,
+        ]);
         $cart = Cart::create(['session_id' => '123', 'customer_id' => $customer->id]);
+        $product = Product::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'name' => 'Test', 'slug' => 'test-' . uniqid(), 'price' => 1000, 'status' => 'active']);
+        CartItem::create(['cart_id' => $cart->id, 'product_id' => $product->id, 'quantity' => 1, 'unit_price' => 1000]);
         
         Livewire::actingAs($admin, 'admin')
             ->test(OrderShoppingCarts::class)

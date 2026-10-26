@@ -10,7 +10,7 @@ class RevocationFileController extends Controller
 {
     public function download(OrderRevocation $revocation, $fileName)
     {
-        if (!AiAuthHelper::isAdmin() && !AiAuthHelper::isEmployee() && !auth()->guard('admin')->check() && !auth()->guard('employee')->check()) {
+        if (!AiAuthHelper::isAdmin() && !AiAuthHelper::isEmployee() && !auth()->guard('admin')->check()) {
             abort(403, 'Zugriff verweigert.');
         }
 

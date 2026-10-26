@@ -25,7 +25,7 @@ class SystemBlockedIp extends Model
      */
     public static function isBlocked(?string $ip): bool
     {
-        if (empty($ip) || in_array($ip, ['127.0.0.1', '::1'], true)) {
+        if (empty($ip)) {
             return false;
         }
 

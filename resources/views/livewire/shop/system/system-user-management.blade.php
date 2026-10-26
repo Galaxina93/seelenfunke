@@ -481,6 +481,11 @@
                                     <div class="flex justify-end gap-2 mt-1">
                                         @if(!$showArchive)
                                             <div class="opacity-100 xl:opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                                                @if(($user['user_type'] ?? '') === 'employee' && !in_array($user['role'] ?? 'internal', ['influencer', 'tax_advisor'], true))
+                                                    <a href="/admin/employees" class="p-2.5 bg-gray-50 dark:bg-gray-950 border border-indigo-500/30 text-indigo-400 hover:text-indigo-300 hover:border-indigo-500/60 rounded-xl transition-all shadow-sm dark:shadow-inner" title="Zur Personalakte & Lohnabrechnung (Leitung -> Mitarbeiter)">
+                                                        <x-heroicon-m-identification class="w-4 h-4" />
+                                                    </a>
+                                                @endif
                                                 @if(!empty($profile['two_factor_is_active']))
                                                     <button type="button" wire:confirm="Möchtest du die 2-Faktor-Authentifizierung für '{{ $user['first_name'] }} {{ $user['last_name'] }}' ({{ $user['email'] }}) wirklich deaktivieren?" wire:click="disable2FaForUser('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-2.5 bg-gray-50 dark:bg-gray-950 border border-amber-500/30 text-amber-500 hover:text-amber-400 hover:border-amber-500/60 rounded-xl transition-all shadow-sm dark:shadow-inner" title="2FA deaktivieren (Support-Reset)">
                                                         <x-heroicon-s-key class="w-4 h-4" />

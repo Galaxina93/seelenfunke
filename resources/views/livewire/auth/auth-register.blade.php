@@ -145,17 +145,32 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="pt-6 space-y-6">
-                            <div>
-                                <div class="flex items-start gap-3">
-                                    <div class="flex items-center h-5">
-                                        <input wire:model.live="terms" id="terms" type="checkbox" required aria-required="true" class="w-5 h-5 rounded border-gray-300 bg-white text-primary focus:ring-primary/30 cursor-pointer">
+                        <div class="pt-6 space-y-5">
+                            <div class="space-y-4">
+                                <div>
+                                    <div class="flex items-start gap-3">
+                                        <div class="flex items-center h-5 mt-0.5">
+                                            <input wire:model.live="terms" id="terms" type="checkbox" required aria-required="true" class="w-5 h-5 rounded border-gray-300 bg-white text-primary focus:ring-primary/30 cursor-pointer">
+                                        </div>
+                                        <label for="terms" class="text-xs sm:text-sm text-gray-600 leading-relaxed cursor-pointer select-none">
+                                            Ich akzeptiere die <a href="{{route('agb')}}" target="_blank" class="text-primary hover:text-amber-800 font-bold transition-colors underline decoration-primary/50 underline-offset-4">AGB</a> und habe die <a href="{{route('datenschutz')}}" target="_blank" class="text-primary hover:text-amber-800 font-bold transition-colors underline decoration-primary/50 underline-offset-4">Datenschutzerklärung</a> zur Kenntnis genommen. *
+                                        </label>
                                     </div>
-                                    <label for="terms" class="text-xs sm:text-sm text-gray-600 leading-relaxed cursor-pointer select-none">
-                                        Ich akzeptiere die <a href="{{route('agb')}}" target="_blank" class="text-primary hover:text-amber-800 font-bold transition-colors underline decoration-primary/50 underline-offset-4">AGB</a> und habe die <a href="{{route('datenschutz')}}" target="_blank" class="text-primary hover:text-amber-800 font-bold transition-colors underline decoration-primary/50 underline-offset-4">Datenschutzerklärung</a> zur Kenntnis genommen.
-                                    </label>
+                                    @error('terms')<span class="text-red-600 text-xs block mt-2 font-medium">{{$message}}</span> @enderror
                                 </div>
-                                @error('terms')<span class="text-red-600 text-xs block mt-2 font-medium">{{$message}}</span> @enderror
+
+                                {{-- DSGVO-Einwilligung für KI-Support-Datenzugriff (Art. 6 Abs. 1 lit. a DSGVO) --}}
+                                <div class="p-3.5 rounded-xl bg-amber-50/50 border border-amber-200/70">
+                                    <div class="flex items-start gap-3">
+                                        <div class="flex items-center h-5 mt-0.5">
+                                            <input wire:model.live="ai_data_consent" id="ai_data_consent" type="checkbox" class="w-5 h-5 rounded border-gray-300 bg-white text-primary focus:ring-primary/30 cursor-pointer">
+                                        </div>
+                                        <label for="ai_data_consent" class="text-xs text-gray-600 leading-relaxed cursor-pointer select-none">
+                                            <span class="font-bold text-gray-800 block mb-0.5">DSGVO-Freigabe für den KI-Support-Assistenten (optional)</span>
+                                            Ich willige gemäß Art. 6 Abs. 1 lit. a DSGVO ein, dass unser digitaler KI-Support-Assistent (Funkira) bei meinen Support-Anfragen auf meine Konto-, Bestell- und Ticketdaten zugreifen darf, um mir direkt zu helfen. Diese Einwilligung ist freiwillig und kann jederzeit in den Profileinstellungen deaktiviert werden. Weitere Infos in der <a href="{{route('datenschutz')}}#ki-support-datenzugriff" target="_blank" class="text-primary hover:text-amber-800 font-bold underline decoration-primary/50 underline-offset-4">Datenschutzerklärung</a>.
+                                        </label>
+                                    </div>
+                                </div>
                             </div>
                             <button type="submit" @if(!$this->canRegister) disabled @endif wire:loading.attr="disabled" class="w-full flex justify-center items-center gap-3 py-3.5 px-6 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 shadow-sm {{$this->canRegister ? 'bg-gradient-to-r from-primary-light to-primary hover:from-primary hover:to-primary-light text-gray-900 border border-primary/40 hover:shadow hover:-translate-y-0.5 cursor-pointer' : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-60'}}">
                                 <svg wire:loading class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

@@ -78,4 +78,34 @@ class SystemUser extends Authenticatable
         return Auth::guard($guard)->user();
     }
 
+    /**
+     * Prüft über alle Account-Tabellen (Admins, Employees, Customers inkl. Soft-Deletes) hinweg,
+     * ob eine E-Mail-Adresse bereits einem bestehenden Konto gehört.
+     */
+    public static function isEmailTakenAcrossGuards(string $email, ?string $ignoreGuard = null, ?string $ignoreId = null): bool
+    {
+        $normalized = mb_strtolower(trim($email));
+        if ($normalized === '') {
+            return false;
+        }
+
+        $guardMap = [
+            'admin' => Admin::class,
+            'employee' => Employee::class,
+            'customer' => Customer::class,
+        ];
+
+        foreach ($guardMap as $guard => $modelClass) {
+            $query = $modelClass::withTrashed()->whereRaw('LOWER(email) = ?', [$normalized]);
+            if ($ignoreGuard === $guard && !empty($ignoreId)) {
+                $query->where('id', '!=', $ignoreId);
+            }
+            if ($query->exists()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
 }

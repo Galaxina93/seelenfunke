@@ -226,7 +226,7 @@ fun OrdersTabContent(
                             }
                         }
                     } else {
-                        items(orders) { order ->
+                        items(orders, key = { it.id }) { order ->
                             OrderCard(order = order, onClick = {
                                 viewModel.loadOrderDetails(order.id)
                             })
@@ -334,17 +334,6 @@ fun OrderCard(
     val cardBorderColor = if (isExpressActive) Gold else AppTheme.colors.cardBorder
     val cardBgColor = if (isExpressActive) Color(0x15C5A059) else AppTheme.colors.cardBackground
 
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = keyframes { durationMillis = 800 },
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "alpha"
-    )
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -372,6 +361,16 @@ fun OrderCard(
                         color = Gold
                     )
                     if (order.is_express == true) {
+                        val infiniteTransition = rememberInfiniteTransition(label = "expressPulse")
+                        val alpha by infiniteTransition.animateFloat(
+                            initialValue = 0.3f,
+                            targetValue = 1f,
+                            animationSpec = infiniteRepeatable(
+                                animation = keyframes { durationMillis = 800 },
+                                repeatMode = RepeatMode.Reverse
+                            ),
+                            label = "expressAlpha"
+                        )
                         Spacer(modifier = Modifier.width(6.dp))
                         Surface(
                             color = Color(0x22EF4444),

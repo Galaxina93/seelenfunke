@@ -594,14 +594,20 @@
                                             <span>Zertifikats-Passwort wurde hochsicher aus der Server-Konfiguration <code class="bg-white dark:bg-gray-950 px-1 py-0.5 rounded text-[10px] font-mono">.env</code> geladen.</span>
                                         </div>
                                     @else
-                                        <div>
+                                        <div x-data="{ showCertPw: false }">
                                             <label class="block text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-widest mb-2 flex items-center gap-2">
                                                 <x-heroicon-s-lock-closed class="w-4 h-4 text-emerald-500" />
                                                 Zertifikats-Passwort (Mein ELSTER)
                                             </label>
-                                            <input type="password" wire:model.live="certPassword"
-                                                   class="w-full bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-800 text-gray-900 dark:text-white text-center text-lg tracking-widest font-mono rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm hover:border-emerald-500 transition-colors font-bold"
-                                                   placeholder="Ihr ELSTER Passwort">
+                                            <div class="relative">
+                                                <input :type="showCertPw ? 'text' : 'password'" wire:model.live="certPassword"
+                                                       class="w-full bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-800 text-gray-900 dark:text-white text-center text-lg tracking-widest font-mono rounded-xl pl-4 pr-11 py-3 focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm hover:border-emerald-500 transition-colors font-bold"
+                                                       placeholder="Ihr ELSTER Passwort">
+                                                <button type="button" @click="showCertPw = !showCertPw" tabindex="-1" class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-gray-400 hover:text-emerald-500 focus:outline-none cursor-pointer">
+                                                    <x-heroicon-o-eye x-show="!showCertPw" class="w-5 h-5" />
+                                                    <x-heroicon-o-eye-slash x-show="showCertPw" x-cloak class="w-5 h-5 text-emerald-500" />
+                                                </button>
+                                            </div>
                                             <p class="text-[10px] text-gray-500 mt-2 leading-relaxed">
                                                 Wird nicht gespeichert. Sie können das Passwort auch dauerhaft als <code class="bg-gray-100 dark:bg-gray-900 px-1 py-0.5 rounded text-[9px]">ERIC_CERT_PASSWORD</code> in der .env hinterlegen.
                                             </p>

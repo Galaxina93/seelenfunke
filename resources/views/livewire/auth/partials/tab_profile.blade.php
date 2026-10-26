@@ -40,7 +40,7 @@
                             @if($user && $user->profile && $user->profile->photo_path)
                                 @php
                                     $pp = $user->profile->photo_path;
-                                    $src = (str_starts_with($pp, 'shopverwaltung/images/') || str_starts_with($pp, 'shop/') || str_starts_with($pp, '/')) 
+                                    $src = (str_starts_with($pp, 'shopverwaltung/images/') || str_starts_with($pp, 'shop/') || str_starts_with($pp, '/'))
                                            ? asset($pp) : (\Illuminate\Support\Str::startsWith($pp, 'shop/') ? asset($pp) : Storage::url($pp));
                                 @endphp
                                 <img src="{{ $src }}" class="w-full h-full object-cover">
@@ -86,7 +86,7 @@
         {{-- FORMULAR --}}
         <form wire:submit.prevent="saveProfile" class="space-y-6">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 items-start">
-                
+
                 {{-- LINKE SPALTE: PERSÖNLICHE INFOS --}}
                 <div class="space-y-5">
                     @if($guard === 'customer')
@@ -169,6 +169,46 @@
                     <span class="text-[10px] text-gray-500">Optional · Angaben für dein Profil</span>
                 </div>
                 <textarea wire:model="about" rows="4" placeholder="Erzähle kurz etwas über dich, deine Wünsche oder besondere Angaben..." class="w-full bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-800 rounded-2xl px-4 py-3 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white dark:focus:bg-gray-900 transition-all shadow-sm dark:shadow-inner resize-y min-h-[110px] leading-relaxed cursor-text"></textarea>
+            </div>
+
+            {{-- DSGVO KI-DATENZUGRIFF FREIGABE (ART. 6 ABS. 1 LIT. A & ART. 7 ABS. 3 DSGVO) --}}
+            <div class="pt-2">
+                <div class="p-4 sm:p-5 rounded-2xl border transition-all {{ $aiDataConsent ? 'bg-amber-50/50 dark:bg-amber-950/20 border-primary/40' : 'bg-gray-50 dark:bg-gray-950/60 border-gray-200 dark:border-gray-800' }}">
+                    <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-2">
+                        <div class="flex items-start gap-3">
+                            <div class="pt-0.5">
+                                <input
+                                    type="checkbox"
+                                    id="profile_ai_data_consent"
+                                    wire:model.live="aiDataConsent"
+                                    class="w-5 h-5 rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-primary focus:ring-primary/30 cursor-pointer"
+                                >
+                            </div>
+                            <label for="profile_ai_data_consent" class="cursor-pointer select-none">
+                                <span class="block text-xs sm:text-sm font-bold text-gray-900 dark:text-white">
+                                    DSGVO-Freigabe: KI-Support-Zugriff auf meine Kontodaten erlauben
+                                </span>
+                                <span class="block text-xs text-gray-600 dark:text-gray-400 mt-1 leading-relaxed">
+                                    Wenn dieser Haken gesetzt ist, darf unser digitaler KI-Support-Assistent bei deinen Support-Anfragen im Chat DSGVO-konform auf deine Bestellungen, Rechnungen und Support-Tickets zugreifen, um dir gezielt zu helfen. Du kannst diese Einwilligung (Art. 6 Abs. 1 lit. a DSGVO) hier jederzeit mit sofortiger Wirkung aktivieren oder deaktivieren. Mehr in der <a href="{{ route('datenschutz') }}#ki-support-datenzugriff" target="_blank" class="text-primary font-bold underline underline-offset-2 hover:opacity-80">Datenschutzerklärung</a>.
+                                </span>
+                            </label>
+                        </div>
+
+                        <div class="shrink-0 pl-8 sm:pl-0">
+                            @if($aiDataConsent)
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                    Aktiv{{ $aiDataConsentAt ? ' · ' . $aiDataConsentAt : '' }}
+                                </span>
+                            @else
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-gray-200/70 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                                    Deaktiviert
+                                </span>
+                            @endif
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {{-- FOOTER BUTTONS --}}

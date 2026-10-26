@@ -57,7 +57,7 @@ class MarketingTrackingMiddleware
                     ->where('is_active', true)
                     ->whereNotNull('influencer_id')
                     ->first();
-                if ($trkLink && $trkLink->influencer && $trkLink->influencer->is_active) {
+                if ($trkLink && $trkLink->influencer && $trkLink->influencer->is_active && !$trkLink->influencer->is_archived && !$trkLink->influencer->is_pending_invitation) {
                     $cookieMinutes = max(1, (int) ($trkLink->influencer->cookie_days ?: 30)) * 1440;
                     session([
                         'seelenfunke_influencer_id' => $trkLink->influencer_id,

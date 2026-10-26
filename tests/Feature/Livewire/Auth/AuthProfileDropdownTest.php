@@ -102,22 +102,22 @@ class AuthProfileDropdownTest extends TestCase
     {
         Livewire::test(AuthProfileDropdown::class)
             ->set('currentPassword', 'password123')
-            ->set('newPassword', 'newpassword123')
-            ->set('repeatNewPassword', 'newpassword123')
+            ->set('newPassword', 'NewPassword123')
+            ->set('repeatNewPassword', 'NewPassword123')
             ->call('updatePassword')
             ->assertHasNoErrors()
             ->assertDispatched('password-updated');
 
         $this->user->refresh();
-        $this->assertTrue(Hash::check('newpassword123', $this->user->password));
+        $this->assertTrue(Hash::check('NewPassword123', $this->user->password));
     }
 
     public function test_password_update_fails_with_incorrect_current_password()
     {
         Livewire::test(AuthProfileDropdown::class)
             ->set('currentPassword', 'wrongpassword')
-            ->set('newPassword', 'newpassword123')
-            ->set('repeatNewPassword', 'newpassword123')
+            ->set('newPassword', 'NewPassword123')
+            ->set('repeatNewPassword', 'NewPassword123')
             ->call('updatePassword')
             ->assertHasErrors(['currentPassword']);
     }

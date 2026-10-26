@@ -159,6 +159,13 @@ trait HandlesOrderCreation
                     $this->invalidateCartCoupon($cart, 'Dieser persönliche Belohnungsgutschein ist an ein verifiziertes Kundenkonto gebunden und kann nur nach Anmeldung mit dieser E-Mail-Adresse eingelöst werden.');
                 }
             }
+
+            // [SICHERHEIT] Eigenbestellungs-Sperre für Influencer-Rabattcodes (auch bei Gast-Checkout mit Creator-E-Mail)
+            if ($coupon instanceof MarketingVoucher && !empty($coupon->influencer_id)) {
+                if ($cartService->isInfluencerSelfRedemption($coupon, (string) $this->email)) {
+                    $this->invalidateCartCoupon($cart, 'Eigenbestellungen mit dem eigenen Creator-Rabattcode sind nicht zulässig. Der Gutschein wurde entfernt.');
+                }
+            }
         }
 
         return DB::transaction(function () use ($cartService, $cart) {
@@ -291,7 +298,7 @@ trait HandlesOrderCreation
             $influencerId = session('seelenfunke_influencer_id') ?: request()->cookie('seelenfunke_influencer_id');
             if ($influencerId && empty($orderData['utm_campaign_last']) && \Illuminate\Support\Facades\Schema::hasTable('marketing_influencers')) {
                 $inf = \App\Models\Marketing\MarketingInfluencer::find($influencerId);
-                if ($inf && $inf->is_active) {
+                if ($inf && $inf->is_active && !$inf->is_archived) {
                     $orderData['utm_source_last'] = 'influencer';
                     $orderData['utm_campaign_last'] = 'aff:' . substr($inf->slug, 0, 50);
                     $orderData['utm_medium_last'] = $inf->primary_channel ?: 'social';
