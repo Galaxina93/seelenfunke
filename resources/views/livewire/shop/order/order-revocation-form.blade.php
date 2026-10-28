@@ -15,17 +15,68 @@
                 Diese Eingangsbestätigung dokumentiert lediglich den fristgerechten Zugang Ihrer Erklärung. Sie stellt keine inhaltliche Anerkennung der rechtlichen Wirksamkeit des Widerrufs dar (insbesondere bei von vornherein ausgeschlossenen personalisierten Waren). Wir prüfen Ihr Anliegen und melden uns in Kürze manuell bei Ihnen.
             </p>
         </div>
+    @elseif($confirmStep)
+        <div class="bg-white border-2 border-gray-900 p-6 md:p-8 rounded-2xl shadow-md">
+            <div class="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
+                <span class="bg-gray-900 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold shrink-0">2</span>
+                <div>
+                    <h2 class="text-xl font-bold text-gray-900">Schritt 2 von 2: Widerrufserklärung prüfen & bestätigen (§ 356a Abs. 3 BGB)</h2>
+                    <p class="text-xs text-gray-500">Bitte prüfen Sie Ihre Angaben vor dem verbindlichen Absenden Ihres Widerrufs.</p>
+                </div>
+            </div>
+
+            <dl class="bg-gray-50 rounded-xl p-5 border border-gray-200 space-y-3 text-sm mb-6">
+                <div class="flex flex-col sm:flex-row sm:justify-between border-b border-gray-200/70 pb-2.5">
+                    <dt class="text-gray-500 font-medium">Name des Verbrauchers:</dt>
+                    <dd class="font-bold text-gray-900">{{ $name }}</dd>
+                </div>
+                <div class="flex flex-col sm:flex-row sm:justify-between border-b border-gray-200/70 pb-2.5">
+                    <dt class="text-gray-500 font-medium">E-Mail für Eingangsbestätigung:</dt>
+                    <dd class="font-bold text-gray-900">{{ $email }}</dd>
+                </div>
+                <div class="flex flex-col sm:flex-row sm:justify-between border-b border-gray-200/70 pb-2.5">
+                    <dt class="text-gray-500 font-medium">Vertrags- / Bestellnummer:</dt>
+                    <dd class="font-bold text-gray-900">{{ $order_number }}</dd>
+                </div>
+                @if(!empty($items))
+                    <div class="flex flex-col sm:flex-row sm:justify-between border-b border-gray-200/70 pb-2.5">
+                        <dt class="text-gray-500 font-medium">Betroffene Artikel / Hinweise:</dt>
+                        <dd class="font-medium text-gray-800 sm:text-right max-w-md">{{ $items }}</dd>
+                    </div>
+                @endif
+                <div class="flex flex-col sm:flex-row sm:justify-between">
+                    <dt class="text-gray-500 font-medium">Datum & Uhrzeit der Erklärung:</dt>
+                    <dd class="font-mono text-xs font-bold text-gray-700">{{ now()->format('d.m.Y H:i') }} Uhr</dd>
+                </div>
+            </dl>
+
+            <p class="text-xs text-gray-600 mb-6 leading-relaxed">
+                Mit Klick auf <strong>„Widerruf bestätigen“</strong> geben Sie Ihre Widerrufserklärung verbindlich ab. Sie erhalten unmittelbar im Anschluss eine automatische Eingangsbestätigung auf einem dauerhaften Datenträger (per E-Mail an <strong>{{ $email }}</strong>).
+            </p>
+
+            <div class="flex flex-col-reverse sm:flex-row items-center justify-between gap-4 pt-4 border-t border-gray-100">
+                <button type="button" wire:click="backToForm" class="w-full sm:w-auto px-5 py-3 rounded-lg border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-colors cursor-pointer">
+                    &larr; Angaben korrigieren
+                </button>
+
+                {{-- Gesetzlich vorgeschriebene Bestätigungsschaltfläche nach § 356a Abs. 3 BGB --}}
+                <button type="button" wire:click="submitRevocation" class="w-full sm:w-auto bg-red-600 text-white font-bold py-3.5 px-8 rounded-lg shadow-md hover:bg-red-700 hover:shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 flex justify-center items-center gap-2 cursor-pointer">
+                    <span wire:loading.remove wire:target="submitRevocation">Widerruf bestätigen</span>
+                    <div wire:loading wire:target="submitRevocation" class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                </button>
+            </div>
+        </div>
     @else
-        <form wire:submit.prevent="submitRevocation" class="bg-white border border-gray-200 p-6 md:p-8 rounded-2xl shadow-sm">
+        <form wire:submit.prevent="proceedToConfirmation" class="bg-white border border-gray-200 p-6 md:p-8 rounded-2xl shadow-sm">
             <div class="mb-8">
                 <div class="flex items-start gap-4 bg-amber-50 border-l-4 border-amber-500 p-5 rounded-r-xl">
                     <svg class="w-6 h-6 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
                     <div>
-                        <h4 class="font-bold text-amber-900 text-sm">Wichtiger rechtlicher Hinweis (Personalisierte Ware)</h4>
+                        <h4 class="font-bold text-amber-900 text-sm">Wichtiger rechtlicher Hinweis zu personalisierten Produkten (§ 312g Abs. 2 Nr. 1 BGB)</h4>
                         <p class="text-amber-800 text-xs mt-1 leading-relaxed">
-                            Ein gesetzliches Widerrufsrecht besteht gemäß § 312g Abs. 2 Nr. 1 BGB nicht bei Fernabsatzverträgen zur Lieferung von Waren, die nicht vorgefertigt sind und für deren Herstellung eine individuelle Auswahl oder Bestimmung maßgeblich ist. <strong>Zusammengefasst: Personalisierte Gravur-Artikel können nicht widerrufen werden.</strong> <br>Der nachfolgende elektronische Widerruf ist ausschließlich für unsere (zukünftigen) Standardwaren ohne Anpassungen vorgesehen.
+                            Ein gesetzliches Widerrufsrecht besteht gemäß § 312g Abs. 2 Nr. 1 BGB <strong>nicht</strong> bei Fernabsatzverträgen zur Lieferung von Waren, die nicht vorgefertigt sind und für deren Herstellung eine individuelle Auswahl oder Bestimmung durch den Verbraucher maßgeblich ist (individuelle Gravuren & Personalisierungen). Der nachfolgende elektronische Widerruf nach § 356a BGB gilt für nicht-personalisierte Standardartikel sowie Geschenkgutscheine. Sollte ein personalisiertes Produkt beschädigt oder fehlerhaft geliefert worden sein, nutzen Sie bitte unser <a href="{{ route('contact') }}" class="underline font-bold hover:text-amber-950">Kontaktformular</a> im Rahmen Ihrer 2-jährigen gesetzlichen Gewährleistung.
                         </p>
                     </div>
                 </div>
@@ -127,13 +178,12 @@
 
                 <div class="pt-4 border-t border-gray-100 flex flex-col md:flex-row items-center justify-between gap-4">
                     <p class="text-xs text-gray-500 w-full md:w-2/3">
-                        Nach Klick auf den Button erhalten Sie unverzüglich eine Eingangsbestätigung an die oben genannte E-Mail-Adresse.
+                        Schritt 1 von 2 (§ 356a BGB): Im nächsten Schritt können Sie Ihre Angaben vor der verbindlichen Bestätigung noch einmal prüfen.
                     </p>
                     
-                    {{-- Der rechtlich zwingend vorgeschriebene Button: "Widerruf bestätigen" --}}
-                    <button type="submit" class="w-full md:w-auto bg-gray-900 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-black hover:shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 flex justify-center items-center group whitespace-nowrap">
-                        <span wire:loading.remove wire:target="submitRevocation">Widerruf bestätigen</span>
-                        <div wire:loading wire:target="submitRevocation" class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <button type="submit" class="w-full md:w-auto bg-gray-900 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-black hover:shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 flex justify-center items-center group whitespace-nowrap cursor-pointer">
+                        <span wire:loading.remove wire:target="proceedToConfirmation">Vertrag widerrufen &rarr;</span>
+                        <div wire:loading wire:target="proceedToConfirmation" class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     </button>
                 </div>
             </div>

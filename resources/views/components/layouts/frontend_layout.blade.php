@@ -154,11 +154,12 @@
     ];
 @endphp
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="overflow-x-hidden">
 <head>
 
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>[x-cloak] { display: none !important; }</style>
 
     {{-- SEO Meta --}}
     <title>{{ $resolvedTitle }}</title>
@@ -206,15 +207,19 @@
     <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('apple-touch-icon.png') }}?v=2">
 
     {{-- Styles --}}
-    <link rel="preload" href="{{ mix('css/app.css') }}" as="style">
-    <link rel="stylesheet" href="{{ mix('css/app.css') }}">
+    @php
+        $cssVersion = file_exists(public_path('css/app.css')) ? filemtime(public_path('css/app.css')) : 1;
+        $jsVersion = file_exists(public_path('js/app.js')) ? filemtime(public_path('js/app.js')) : 1;
+    @endphp
+    <link rel="preload" href="{{ asset('css/app.css') }}?v={{ $cssVersion }}" as="style">
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ $cssVersion }}">
 
     <!-- cookieconsent -->
     <link rel="stylesheet" href="{{ asset('lib/dp_cookieconsent/css/cookieconsent.css') }}" media="print" onload="this.media='all'">
     <script type="module" src="{{ asset('lib/dp_cookieconsent/js/cookieconsent-config.js') }}" defer></script>
 
     {{-- Scripts --}}
-    <script src="{{ mix('js/app.js') }}" defer></script>
+    <script src="{{ asset('js/app.js') }}?v={{ $jsVersion }}" defer></script>
 
     {{-- Livewire --}}
     @livewireStyles
@@ -315,13 +320,13 @@
     @include('frontend.navigation.navigation')
 </header>
 
-<main class="relative">
+<main class="relative overflow-x-hidden">
     <div class="relative">
         {{ $slot }}
 
-        @auth('customer')
+        @if(auth()->guard('customer')->check() && app(\App\Services\Gamification\GamificationService::class)->isGameModeActive())
             <livewire:customer.gamification.game-spark-hunt-component />
-        @endauth
+        @endif
     </div>
 </main>
 

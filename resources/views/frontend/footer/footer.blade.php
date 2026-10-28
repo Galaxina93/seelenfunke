@@ -127,6 +127,14 @@
                         <li><a href="/verhaltenskodex" title="Unser Verhaltenskodex" class="hover:text-gray-900 transition text-gray-500">Verhaltenskodex</a></li>
                         <li><a href="/versand" title="Informationen zu Versand & Lieferung" class="hover:text-gray-900 transition text-gray-500">Versand</a></li>
                         <li><a href="/barrierefreiheit" title="Erklärung zur Barrierefreiheit" class="hover:text-gray-900 transition text-gray-500">Barrierefreiheit</a></li>
+                        <li>
+                            <button type="button"
+                                    onclick="if (window.CookieConsent && typeof window.CookieConsent.showPreferences === 'function') { window.CookieConsent.showPreferences(); } else { window.location.href = '/datenschutz'; }"
+                                    title="Cookie-Einwilligungen verwalten oder widerrufen"
+                                    class="hover:text-gray-900 transition text-gray-500 text-left cursor-pointer">
+                                Cookie-Einstellungen
+                            </button>
+                        </li>
                         
                         <li class="pt-2"><a href="{{ route('widerruf') }}" title="Vertrag elektronisch widerrufen" class="text-red-600 hover:text-red-800 transition flex items-center gap-1.5 font-medium"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.125 2.25h-4.5c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125v-9M10.125 2.25h.375a9 9 0 0 1 9 9v.375M10.125 2.25A3.375 3.375 0 0 1 13.5 5.625v1.5c0 .621.504 1.125 1.125 1.125h1.5a3.375 3.375 0 0 1 3.375 3.375M9 15l2.25 2.25L15 12" /></svg>Vertrag widerrufen</a></li>
                     </ul>

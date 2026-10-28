@@ -49,6 +49,7 @@ class MarketingInfluencer extends Model
 
     protected $hidden = [
         'iban',
+        'tax_number',
         'invitation_token_hash',
         'invitation_token_encrypted',
         'invitation_code_hash',
@@ -142,10 +143,31 @@ class MarketingInfluencer extends Model
         return substr($raw, 0, 4) . ' •••• •••• •••• ' . substr($raw, -4);
     }
 
+    public function getTaxNumberAttribute($value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        try {
+            return \Illuminate\Support\Facades\Crypt::decryptString((string) $value);
+        } catch (\Throwable) {
+            return (string) $value;
+        }
+    }
+
+    public function setTaxNumberAttribute($value): void
+    {
+        if ($value === null || trim((string) $value) === '') {
+            $this->attributes['tax_number'] = null;
+            return;
+        }
+        $this->attributes['tax_number'] = \Illuminate\Support\Facades\Crypt::encryptString(trim((string) $value));
+    }
+
     /**
      * Prüft, ob alle steuerlichen und zahlungstechnischen Pflichtangaben für eine Auszahlung vorliegen.
      */
-    public function isReadyForPayout(): bool
+    public function isReadyForPayout(?string $methodOverride = null): bool
     {
         if (!$this->self_employed_confirmed || empty(trim((string) $this->tax_number))) {
             return false;
@@ -156,15 +178,19 @@ class MarketingInfluencer extends Model
             return false;
         }
 
-        if ($this->payout_method === 'bank_transfer') {
+        $effectiveMethod = in_array($methodOverride, ['bank_transfer', 'paypal', 'shop_voucher'], true)
+            ? $methodOverride
+            : $this->payout_method;
+
+        if ($effectiveMethod === 'bank_transfer') {
             return !empty(trim((string) $this->account_holder)) && !empty(trim((string) $this->iban));
         }
 
-        if ($this->payout_method === 'paypal') {
+        if ($effectiveMethod === 'paypal') {
             return !empty(trim((string) $this->paypal_email)) && filter_var($this->paypal_email, FILTER_VALIDATE_EMAIL) !== false;
         }
 
-        if ($this->payout_method === 'shop_voucher') {
+        if ($effectiveMethod === 'shop_voucher') {
             return true;
         }
 

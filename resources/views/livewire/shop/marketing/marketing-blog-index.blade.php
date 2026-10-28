@@ -7,7 +7,7 @@
     <div class="bg-white min-h-screen">
 
         {{-- Header / Hero Section (Analog zur Kollektion) --}}
-        <div class="bg-gray-50 border-b border-gray-100 pt-32 pb-20 md:pt-36 md:pb-24 text-center px-4">
+        <div class="bg-gray-50 border-b border-gray-100 py-16 md:py-20 text-center px-4">
             <h1 class="text-4xl md:text-5xl font-serif font-bold text-gray-900 mb-4">
                 Der Seelen Blog
             </h1>

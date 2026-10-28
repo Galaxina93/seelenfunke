@@ -233,12 +233,12 @@ class ProductReviews extends Component
             $customerId = Auth::guard('customer')->id();
             $user = $customerId ? Customer::find($customerId) : null;
             if ($user) {
-                $gameService = app(GamificationService::class);
-                $profile = \App\Models\Customer\CustomerGamification::firstOrCreate(
-                    ['customer_id' => $user->id],
-                    ['is_active' => false]
-                );
-                $gameService->syncDynamicTitles($profile);
+                $profile = \App\Models\Customer\CustomerGamification::where('customer_id', $user->id)
+                    ->where('is_active', true)
+                    ->first();
+                if ($profile) {
+                    app(GamificationService::class)->syncDynamicTitles($profile);
+                }
             }
 
             $this->cancelEdit();
@@ -392,12 +392,12 @@ class ProductReviews extends Component
             // TITEL UPDATE: Dynamisch anhand der tatsächlich freigegebenen Bewertungen synchronisieren (kein Delete+Submit-Farming)
             $user = Customer::find($customerId);
             if ($user) {
-                $gameService = app(GamificationService::class);
-                $profile = \App\Models\Customer\CustomerGamification::firstOrCreate(
-                    ['customer_id' => $user->id],
-                    ['is_active' => false]
-                );
-                $gameService->syncDynamicTitles($profile);
+                $profile = \App\Models\Customer\CustomerGamification::where('customer_id', $user->id)
+                    ->where('is_active', true)
+                    ->first();
+                if ($profile) {
+                    app(GamificationService::class)->syncDynamicTitles($profile);
+                }
             }
 
             $this->reset(['rating', 'title', 'content', 'isAnonymous', 'accumulatedMedia', 'existingMedia', 'newMedia']);

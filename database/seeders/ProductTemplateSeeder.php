@@ -96,6 +96,22 @@ class ProductTemplateSeeder extends Seeder
                     ],
                 ],
             ],
+            'goldenes-seelen-herz' => [
+                'logo_x' => 50, 'logo_y' => 47, 'logo_size' => 52,
+                'text_x' => 50, 'text_y' => 64, 'text_size' => 1.15,
+                'back_texts' => [
+                    [
+                        'id' => Str::uuid()->toString(),
+                        'text' => "Für immer im Herzen\n♥",
+                        'font' => 'Montserrat',
+                        'align' => 'center',
+                        'x' => 50,
+                        'y' => 57,
+                        'size' => 1.05,
+                        'rotation' => 0,
+                    ],
+                ],
+            ],
             default => [
                 'logo_x' => 50, 'logo_y' => 32, 'logo_size' => 92,
                 'text_x' => 50, 'text_y' => 58, 'text_size' => $defaultTextSize,

@@ -2,8 +2,8 @@
     title="Datenschutzerklärung (DSGVO) | Mein Seelenfunke"
     meta_description="Informationen zum Datenschutz, zur Verarbeitung personenbezogener Daten gemäß DSGVO und zu Ihren Rechten bei Mein Seelenfunke.">
     <x-sections.page-container>
-        <section class="max-w-4xl mx-auto px-4 py-20 text-gray-800">
-            <h1 class="text-3xl md:text-4xl font-serif font-bold mb-8 text-gray-900">Datenschutzerklärung</h1>
+        <section class="max-w-4xl mx-auto px-4 py-12 md:py-16 text-gray-800 overflow-x-hidden break-words">
+            <h1 class="text-2xl sm:text-3xl md:text-4xl font-serif font-bold mb-8 text-gray-900 break-words hyphens-auto">Datenschutzerklärung</h1>
 
             <div class="space-y-8 text-base leading-relaxed text-gray-700">
 
@@ -148,36 +148,41 @@
                 </div>
 
                 <div>
-                    <h2 class="text-2xl font-bold text-gray-900 mb-4">5. Verarbeitung von Kunden- und Vertragsdaten</h2>
+                    <h2 class="text-2xl font-bold text-gray-900 mb-4">5. Verarbeitung von Kunden-, Bestell- und Konfiguratordaten</h2>
 
-                    <h3 class="font-bold text-lg mt-4">Verkauf über Etsy</h3>
+                    <h3 class="font-bold text-lg mt-4">Bestellungen im Mein-Seelenfunke Online-Shop (Gast- & Kundenkonto)</h3>
                     <p>
-                        Wir bieten unsere Waren primär über die Plattform <strong>Etsy</strong> (Etsy Ireland UC, 66/67 Great Strand Street, Dublin 1, Irland) an.
-                        Wenn Sie in unserem Etsy-Shop eine Bestellung tätigen, gelten die Datenschutzbestimmungen von Etsy. Wir erhalten von Etsy Zugriff auf Ihre Daten (Name, Lieferadresse, bestellte Artikel), soweit dies für die <strong>Erfüllung des Vertrags</strong> und den <strong>Versand der Ware</strong> notwendig ist.
+                        Wenn Sie in unserem Online-Shop eine Bestellung aufgeben (als Gast oder über Ihr passwortgeschütztes Kundenkonto), verarbeiten wir die von Ihnen im Bestellprozess angegebenen Stammdaten (Vor- und Nachname, Rechnungs- und Lieferanschrift, E-Mail-Adresse, ggf. Firmenname sowie gewählte Zahlungs- und Versandart) zur Begründung, Durchführung und Abwicklung des Kaufvertrages sowie zur Zusendung Ihrer Bestell-, Rechnungs- und Versandinformationen.
                         <br>
-                        Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung).
+                        <span class="text-sm text-gray-500">Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung und vorvertragliche Maßnahmen).</span>
                     </p>
 
-                    <h3 class="font-bold text-lg mt-6">Versanddienstleister</h3>
+                    <h3 class="font-bold text-lg mt-6">2D/3D-Produktkonfigurator & Personalisierungsdaten (Gravurtexte, Fotos & Motive)</h3>
                     <p>
-                        Zur Auslieferung Ihrer Bestellung geben wir Ihre Adressdaten an Logistikunternehmen weiter (z.B. Deutsche Post AG, DHL Paket GmbH).
-                        Dies ist zur Vertragserfüllung zwingend notwendig.
+                        Bei der Nutzung unseres interaktiven 2D/3D-Produktkonfigurators verarbeiten und speichern wir die von Ihnen eingegebenen Gravurtexte, Schriftwünsche, Positionierungen sowie von Ihnen hochgeladene Bilddateien (z. B. Fotos, Grafiken, Logos) und die daraus erzeugten 2D/3D-Vorschau-Snapshots. Diese Daten werden ausschließlich zum Zweck der individuellen Lasergravur und Fertigung Ihres Unikats, der Auftragsabwicklung in unserer Manufaktur sowie zur Abwicklung etwaiger Gewährleistungsansprüche verarbeitet und niemals für Werbezwecke Dritter verwendet.
                         <br>
-                        Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO.
+                        <span class="text-sm text-gray-500">Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (Herstellung nach Kundenspezifikation / Vertragserfüllung).</span>
                     </p>
 
-                    <h3 class="font-bold text-lg mt-6">Zahlungsdienste</h3>
+                    <h3 class="font-bold text-lg mt-6">Optionale Nutzung externer Marktplätze (z. B. Etsy)</h3>
                     <p>
-                        Bei Bestellungen über Etsy erfolgt die Zahlungsabwicklung direkt über Etsy Payments. Wir erhalten keinen Zugriff auf Ihre Kreditkartendaten oder Bankverbindungen.
-                        Sollten wir in Einzelfällen (z.B. bei B2B-Großaufträgen) eine direkte Rechnung stellen, verarbeiten wir Ihre Bankdaten zur Zahlungsabwicklung und Buchhaltung.
+                        Der Verkauf unserer Unikate findet primär direkt über unseren eigenen Online-Shop statt. Sofern wir einzelne Artikel ergänzend über externe Marktplätze wie <strong>Etsy</strong> (Etsy Ireland UC, 66/67 Great Strand Street, Dublin 1, Irland) anbieten und Sie dort eine Bestellung tätigen, gelten für den Bestellvorgang auf der Plattform die Datenschutzbestimmungen von Etsy. Wir erhalten in diesem Fall Zugriff auf die für die Fertigung und den Versand erforderlichen Bestelldaten.
+                        <br>
+                        <span class="text-sm text-gray-500">Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung).</span>
                     </p>
 
-                    <h3 class="font-bold text-lg mt-6">Buchführung & Steuern</h3>
+                    <h3 class="font-bold text-lg mt-6">Versanddienstleister & Sendungsverfolgung</h3>
                     <p>
-                        Wir sind gesetzlich verpflichtet, Rechnungs- und Bestelldaten für steuerliche Zwecke aufzubewahren (z.B. 10 Jahre gemäß GoBD/AO).
-                        Diese Daten können an Steuerberater oder Finanzbehörden weitergegeben werden, soweit dies gesetzlich erforderlich ist.
+                        Zur Auslieferung Ihrer Bestellung übermitteln wir Ihre Lieferanschrift sowie – sofern für die Paketankündigung und Sendungsverfolgung erforderlich – Ihre E-Mail-Adresse an das beauftragte Logistikunternehmen (insbesondere DHL Paket GmbH / Deutsche Post AG).
                         <br>
-                        Rechtsgrundlage: Art. 6 Abs. 1 lit. c DSGVO (rechtliche Verpflichtung).
+                        <span class="text-sm text-gray-500">Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung).</span>
+                    </p>
+
+                    <h3 class="font-bold text-lg mt-6">Buchführung & Gesetzliche Aufbewahrungsfristen</h3>
+                    <p>
+                        Wir sind handels- und steuerrechtlich verpflichtet, Buchungsbelege, Rechnungs- und Bestelldaten für den gesetzlich vorgeschriebenen Zeitraum (in der Regel 8 bis 10 Jahre gemäß § 147 AO / § 257 HGB) aufzubewahren. Diese Daten können im Rahmen der gesetzlichen Pflichten an Steuerberater oder Finanzbehörden übermittelt werden.
+                        <br>
+                        <span class="text-sm text-gray-500">Rechtsgrundlage: Art. 6 Abs. 1 lit. c DSGVO (rechtliche Verpflichtung).</span>
                     </p>
 
                     <h3 class="font-bold text-lg mt-6">Erfassung von Geburtsdatum und Kundentyp</h3>
@@ -190,13 +195,13 @@
                     <p class="mt-2 text-sm text-gray-500">
                         Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung) sowie Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einer zielgruppengerechten Ansprache).
                     </p>
-                    <h3 class="font-bold text-lg mt-6">Elektronischer Widerruf (Widerrufsbutton)</h3>
+                    <h3 class="font-bold text-lg mt-6">Elektronische Widerrufsfunktion gemäß § 356a BGB</h3>
                     <p>
-                        Über unseren gut sichtbaren „Vertrag widerrufen“-Button (Menüleiste) bieten wir Ihnen die Möglichkeit, Verträge über nicht-personalisierte Waren (falls angeboten) direkt auf elektronischem Wege zu widerrufen (Umsetzung der EU-Richtlinie ab 19. Juni 2026).
-                        Wenn Sie diese Funktion nutzen, verarbeiten wir Ihre eingegebenen Daten (z. B. Name, Adressdaten, E-Mail-Adresse, Datum des Vorfalls) ausschließlich zum Zweck der Identifikation, der Bearbeitung des Vorgangs und der gesetzlich zwingend vorgeschriebenen, unverzüglichen Eingangsbestätigung (per E-Mail).
+                        Über unsere zweistufige elektronische Widerrufsfunktion („Vertrag widerrufen“ in der Fußzeile der Website) bieten wir Ihnen gemäß <strong>§ 356a BGB</strong> die Möglichkeit, Verträge über nicht-personalisierte Waren oder Geschenkgutscheine direkt auf elektronischem Wege zu widerrufen.
+                        Wenn Sie diese Funktion nutzen, verarbeiten wir Ihre eingegebenen Daten (Name, E-Mail-Adresse, Bestellnummer, optionale Artikelangaben sowie Datum und Uhrzeit des Widerrufs) ausschließlich zum Zweck der Zuordnung des Vertrags, der unverzüglichen Übermittlung der gesetzlich vorgeschriebenen Eingangsbestätigung auf einem dauerhaften Datenträger (per E-Mail) sowie der Rückabwicklung.
                     </p>
                     <p class="mt-2 text-sm text-gray-500">
-                        Rechtsgrundlage: Art. 6 Abs. 1 lit. c DSGVO (Erfüllung einer rechtlichen Verpflichtung zur Zurverfügungstellung und Bestätigung des Widerrufs) sowie Art. 6 Abs. 1 lit. b DSGVO (Rückabwicklung des Vertrages).
+                        Rechtsgrundlage: Art. 6 Abs. 1 lit. c DSGVO i.V.m. § 356a BGB (Erfüllung einer rechtlichen Verpflichtung) sowie Art. 6 Abs. 1 lit. b DSGVO (Vertragsrückabwicklung).
                     </p>
                 </div>
 
@@ -328,7 +333,7 @@
                         Die Nutzung unseres Gamification-Angebots erfolgt freiwillig. Durch das initiale Aktivieren ("Magie aktivieren") in Ihrem Dashboard willigen Sie in diese lokale und temporäre Speicherung ein.
                     </p>
                     <p class="mt-2 text-sm text-gray-500">
-                        <strong>Rechtsgrundlage:</strong> Die Verarbeitung erfolgt auf Grundlage Ihrer Einwilligung (Art. 6 Abs. 1 lit. a DSGVO) sowie – hinsichtlich der absolut notwendigen technischen Bereitstellung – gemäß § 25 Abs. 1 TTDSG bzw. Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse am reibungslosen Ablauf des gebotenen Funktionsumfangs).
+                        <strong>Rechtsgrundlage:</strong> Die Verarbeitung erfolgt auf Grundlage Ihrer Einwilligung (Art. 6 Abs. 1 lit. a DSGVO) sowie – hinsichtlich der absolut notwendigen technischen Bereitstellung – gemäß § 25 Abs. 2 Nr. 2 TDDDG bzw. Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse am reibungslosen Ablauf des gebotenen Funktionsumfangs).
                     </p>
                 </div>
 

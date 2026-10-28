@@ -1,171 +1,342 @@
 <div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;">
-    <!-- Top Action Bar -->
+    <style>
+        .supplier-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+        }
+        .supplier-scroll:hover {
+            scrollbar-color: var(--theme-color) rgba(148, 163, 184, 0.12);
+        }
+        .supplier-scroll::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        .supplier-scroll::-webkit-scrollbar-button {
+            display: none;
+            width: 0;
+            height: 0;
+        }
+        .supplier-scroll::-webkit-scrollbar-track {
+            background: rgba(148, 163, 184, 0.08);
+            border-radius: 9999px;
+        }
+        .supplier-scroll::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.45);
+            border-radius: 9999px;
+            transition: background-color 0.2s ease;
+        }
+        .supplier-scroll:hover::-webkit-scrollbar-thumb {
+            background: var(--theme-color);
+        }
+    </style>
+    <!-- Top Action & Filter Bar (Kompakt) -->
     @if(!$showModal)
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 animate-fade-in-up">
-        <div>
-            <h2 class="text-xl font-bold text-gray-900 dark:text-white tracking-wide">Übersicht deiner Lieferanten</h2>
-            <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">Hinterlege hier alle Großhändler und Kontaktadressen, um Lieferketten optimal abzubilden.</p>
+    @php
+        $totalCount = $suppliers->count();
+        $deCount = $suppliers->filter(fn($s) => strtoupper((string) $s->country_code) === 'DE')->count();
+        $linkedProductsCount = $suppliers->sum(fn($s) => $s->products->count());
+    @endphp
+    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 mb-4 shadow-sm animate-fade-in-up">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-3">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h2 class="text-base font-bold text-gray-900 dark:text-white tracking-tight">Übersicht deiner Lieferanten</h2>
+                        <span class="px-2 py-0.5 rounded-md text-[11px] font-black bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">{{ $totalCount }} Händler</span>
+                        <span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">🇩🇪 {{ $deCount }} DE</span>
+                        <span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">{{ $linkedProductsCount }} Produkte verknüpft</span>
+                    </div>
+                    <p class="text-gray-500 dark:text-gray-400 text-xs mt-0.5">Kompakte B2B-Großhandels- & Lieferantenmatrix (Deutsche Händler zuerst sortiert).</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <!-- Schnellfilter Land -->
+                <div class="inline-flex items-center bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800 text-xs font-bold">
+                    <button type="button" wire:click="setCountryFilter('all')" class="px-2.5 py-1 rounded-lg transition-all {{ $countryFilter === 'all' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-300' }}">
+                        Alle
+                    </button>
+                    <button type="button" wire:click="setCountryFilter('DE')" class="px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 {{ $countryFilter === 'DE' ? 'bg-white dark:bg-gray-800 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-300' }}">
+                        <span>🇩🇪</span> DE
+                    </button>
+                    <button type="button" wire:click="setCountryFilter('INT')" class="px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 {{ $countryFilter === 'INT' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-300' }}">
+                        <span>🌍</span> Int.
+                    </button>
+                </div>
+
+                <!-- Live-Suche -->
+                <div class="relative w-full sm:w-56">
+                    <x-heroicon-o-magnifying-glass class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input type="text" wire:model.live.debounce.200ms="search" placeholder="Händler, Ort, Produkt..." class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl pl-8 pr-7 py-1.5 text-xs font-medium text-gray-900 dark:text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] placeholder-gray-400">
+                    @if($search !== '')
+                        <button type="button" wire:click="$set('search', '')" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                            <x-heroicon-o-x-mark class="w-3.5 h-3.5" />
+                        </button>
+                    @endif
+                </div>
+
+                <button wire:click="create" class="bg-[var(--theme-color)] hover:opacity-90 text-gray-900 font-bold px-3.5 py-1.5 rounded-xl text-xs shadow-sm transition-all flex items-center gap-1.5 shrink-0">
+                    <x-heroicon-o-plus class="w-4 h-4" />
+                    Lieferant anlegen
+                </button>
+            </div>
         </div>
-        <button wire:click="create" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)]-hover text-gray-900 font-bold px-6 py-3 rounded-xl shadow-sm dark:shadow-glow transition-all flex items-center gap-2">
-            <x-heroicon-o-plus class="w-5 h-5" />
-            Neuen Lieferanten anlegen
-        </button>
     </div>
 
-    <!-- Suppliers Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-fade-in-up">
-        @forelse($suppliers as $supplier)
-            <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm dark:shadow-xl relative group hover:border-gray-300 dark:hover:border-gray-700 transition-colors flex flex-col h-full">
-                <!-- Actions Dropdown -->
-                <div class="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button wire:click="edit('{{ $supplier->id }}')" class="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-500/20 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 flex items-center justify-center transition-colors">
-                        <x-heroicon-o-pencil-square class="w-4 h-4" />
-                    </button>
-                    <button wire:click="delete('{{ $supplier->id }}')" wire:confirm="Lieferant {{ $supplier->name }} wirklich löschen?" class="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-500/20 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 flex items-center justify-center transition-colors">
-                        <x-heroicon-o-trash class="w-4 h-4" />
-                    </button>
-                </div>
+    <!-- Kompakte Lieferanten-Tabelle -->
+    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm dark:shadow-xl overflow-hidden animate-fade-in-up">
+        <div class="overflow-x-auto supplier-scroll">
+            <table class="w-full lg:table-fixed text-left border-collapse">
+                <thead>
+                    <tr class="bg-gray-50/90 dark:bg-gray-950/80 border-b border-gray-200 dark:border-gray-800 text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                        <th class="py-2.5 pl-4 pr-3 lg:w-[22%]">Lieferant & Firmensitz</th>
+                        <th class="py-2.5 px-3 lg:w-[19%]">Kontakt & Steuern</th>
+                        <th class="py-2.5 px-3 lg:w-[12%]">Lieferzeit & Konditionen</th>
+                        <th class="py-2.5 px-3 lg:w-[19%]">Direktlinks & Portale</th>
+                        <th class="py-2.5 px-3 lg:w-[21%]">Gelieferte Produkte</th>
+                        <th class="py-2.5 pl-2 pr-4 text-right lg:w-[7%]">Aktion</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-800/70 text-xs">
+                    @forelse($suppliers as $supplier)
+                        @php
+                            $code = strtoupper((string) $supplier->country_code);
+                            $flag = match($code) {
+                                'DE' => '🇩🇪', 'CN' => '🇨🇳', 'US' => '🇺🇸', 'GB' => '🇬🇧',
+                                'IT' => '🇮🇹', 'FR' => '🇫🇷', 'ES' => '🇪🇸', 'PL' => '🇵🇱',
+                                'NL' => '🇳🇱', 'AT' => '🇦🇹', 'CH' => '🇨🇭', default => '🏳️'
+                            };
+                            $isDe = ($code === 'DE');
+                            $activeDays = match($supplier->shipping_method) {
+                                'air' => $supplier->lead_time_air_days,
+                                'sea' => $supplier->lead_time_sea_days,
+                                'train' => $supplier->lead_time_train_days,
+                                default => $supplier->lead_time_land_days,
+                            };
+                            $methodLabel = match($supplier->shipping_method) {
+                                'air' => 'Luft',
+                                'sea' => 'See',
+                                'train' => 'Bahn',
+                                default => 'Land',
+                            };
+                        @endphp
+                        <tr class="hover:bg-gray-50/70 dark:hover:bg-gray-800/30 transition-colors align-top group">
+                            <!-- 1. Lieferant & Sitz (ohne lange Beschreibung für kompakte Spaltenbreite) -->
+                            <td class="py-2.5 pl-4 pr-3">
+                                <div class="flex items-start gap-2.5 min-w-0">
+                                    <div class="w-8 h-8 rounded-lg border {{ $isDe ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-gray-100 dark:bg-gray-950 border-gray-200 dark:border-gray-800' }} flex items-center justify-center shrink-0 text-sm shadow-inner" title="{{ $supplier->country ?: $code }}">
+                                        {{ $flag }}
+                                    </div>
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex items-center gap-1.5 min-w-0">
+                                            <span class="font-bold text-gray-900 dark:text-white text-xs leading-snug truncate" title="{{ $supplier->name }}{{ $supplier->notes ? ' — ' . $supplier->notes : '' }}">
+                                                {{ $supplier->name }}
+                                            </span>
+                                            @if($isDe)
+                                                <span class="px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shrink-0">DE</span>
+                                            @elseif($code)
+                                                <span class="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 shrink-0">{{ $code }}</span>
+                                            @endif
+                                        </div>
+                                        @if($supplier->company_name && $supplier->company_name !== $supplier->name)
+                                            <div class="text-[11px] text-gray-500 dark:text-gray-400 truncate" title="{{ $supplier->company_name }}">
+                                                {{ $supplier->company_name }}
+                                            </div>
+                                        @endif
+                                        @if($supplier->zip || $supplier->city || $supplier->street)
+                                            @php
+                                                $fullAddress = trim(($supplier->street ? $supplier->street . ' ' . $supplier->house_number . ', ' : '') . $supplier->zip . ' ' . $supplier->city, ', ');
+                                            @endphp
+                                            <div class="text-[10px] text-gray-400 dark:text-gray-500 truncate mt-0.5" title="{{ $fullAddress }}">
+                                                {{ $fullAddress }}
+                                            </div>
+                                        @endif
+                                    </div>
+                                </div>
+                            </td>
 
-                <!-- Header -->
-                <div class="flex items-start gap-4 mb-5">
-                    <div class="w-12 h-12 bg-gray-50 dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 flex items-center justify-center shrink-0 shadow-inner relative">
-                        <x-heroicon-o-building-office-2 class="w-6 h-6 text-[var(--theme-color)] opacity-80" />
-                        @if($supplier->country_code)
-                            @php
-                                $flag = match(strtoupper($supplier->country_code)) {
-                                    'DE' => '🇩🇪', 'CN' => '🇨🇳', 'US' => '🇺🇸', 'GB' => '🇬🇧', 
-                                    'IT' => '🇮🇹', 'FR' => '🇫🇷', 'ES' => '🇪🇸', 'PL' => '🇵🇱', 
-                                    'NL' => '🇳🇱', 'AT' => '🇦🇹', 'CH' => '🇨🇭', default => '🏳️'
-                                };
-                            @endphp
-                            <div class="absolute -top-2 -right-2 text-xl drop-shadow-md" title="{{ $supplier->country }}">{{ $flag }}</div>
-                        @endif
-                    </div>
-                    <div>
-                        <h3 class="text-lg font-bold text-gray-900 dark:text-white leading-tight break-all pr-12">{{ $supplier->name }}</h3>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
-                            <x-heroicon-o-user class="w-4 h-4" /> {{ $supplier->contact_person ?: 'Kein Ansprechpartner' }}
-                        </p>
-                    </div>
-                </div>
+                            <!-- 2. Kontakt & Steuern -->
+                            <td class="py-2.5 px-3">
+                                <div class="space-y-1">
+                                    <div class="flex items-center gap-1 text-[11px] font-semibold text-gray-800 dark:text-gray-200 truncate" title="{{ $supplier->contact_person }}">
+                                        <x-heroicon-o-user class="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                        <span class="truncate">{{ $supplier->contact_person ?: '—' }}</span>
+                                    </div>
+                                    @if($supplier->email)
+                                        <a href="mailto:{{ $supplier->email }}" class="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400 hover:text-[var(--theme-color)] truncate transition-colors" title="{{ $supplier->email }}">
+                                            <x-heroicon-o-envelope class="w-3.5 h-3.5 shrink-0" />
+                                            <span class="truncate">{{ $supplier->email }}</span>
+                                        </a>
+                                    @endif
+                                    @if($supplier->phone)
+                                        <a href="tel:{{ $supplier->phone }}" class="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400 hover:text-[var(--theme-color)] truncate transition-colors" title="{{ $supplier->phone }}">
+                                            <x-heroicon-o-phone class="w-3.5 h-3.5 shrink-0" />
+                                            <span class="truncate">{{ $supplier->phone }}</span>
+                                        </a>
+                                    @endif
+                                    @if($supplier->vat_id || $supplier->customer_number)
+                                        <div class="flex flex-wrap gap-1 pt-0.5">
+                                            @if($supplier->vat_id)
+                                                <span class="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-950 text-[9px] font-mono text-gray-500 dark:text-gray-400 border border-gray-200/70 dark:border-gray-800" title="USt-IdNr.">{{ $supplier->vat_id }}</span>
+                                            @endif
+                                            @if($supplier->customer_number)
+                                                <span class="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-950 text-[9px] font-mono text-gray-500 dark:text-gray-400 border border-gray-200/70 dark:border-gray-800" title="Kundennummer">KD: {{ $supplier->customer_number }}</span>
+                                            @endif
+                                        </div>
+                                    @endif
+                                </div>
+                            </td>
 
-                <!-- Info Grid -->
-                <div class="grid grid-cols-2 gap-4 mb-6">
-                    <div class="bg-gray-50 dark:bg-gray-950/50 p-3 rounded-xl border border-gray-200 dark:border-gray-800/50">
-                        <span class="block text-[10px] uppercase font-black tracking-widest text-gray-500 mb-1">Lieferzeit (Lead Time)</span>
-                        <div class="text-sm font-bold text-gray-800 dark:text-gray-300 flex items-center gap-2">
-                            @php
-                                $activeDays = match($supplier->shipping_method) {
-                                    'air' => $supplier->lead_time_air_days,
-                                    'sea' => $supplier->lead_time_sea_days,
-                                    'train' => $supplier->lead_time_train_days,
-                                    default => $supplier->lead_time_land_days,
-                                };
-                            @endphp
-                            @if($supplier->shipping_method === 'air')
-                                <x-heroicon-s-paper-airplane class="w-4 h-4 text-[var(--theme-color)] -rotate-45" title="Luftfracht" />
-                            @elseif($supplier->shipping_method === 'sea')
-                                <x-heroicon-s-globe-europe-africa class="w-4 h-4 text-[var(--theme-color)]" title="Seefracht" />
-                            @elseif($supplier->shipping_method === 'train')
-                                <x-heroicon-s-ticket class="w-4 h-4 text-[var(--theme-color)]" title="Zug / Bahn" />
-                            @else
-                                <x-heroicon-s-truck class="w-4 h-4 text-[var(--theme-color)]" title="Landweg" />
-                            @endif
-                            {{ $activeDays ? $activeDays . ' Tage' : 'Unbekannt' }}
-                        </div>
-                    </div>
-                    <div class="bg-gray-50 dark:bg-gray-950/50 p-3 rounded-xl border border-gray-200 dark:border-gray-800/50 overflow-hidden">
-                        <span class="block text-[10px] uppercase font-black tracking-widest text-gray-500 mb-1">Kontakt</span>
-                        <div class="text-sm font-bold text-gray-800 dark:text-gray-300 truncate" title="{{ $supplier->email }}">
-                            {{ $supplier->email ?: ($supplier->phone ?: 'Unbekannt') }}
-                        </div>
-                    </div>
-                </div>
+                            <!-- 3. Lieferzeit & Konditionen -->
+                            <td class="py-2.5 px-3">
+                                <div class="space-y-1">
+                                    <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-[11px] font-bold text-gray-800 dark:text-gray-200">
+                                        @if($supplier->shipping_method === 'air')
+                                            <x-heroicon-s-paper-airplane class="w-3.5 h-3.5 text-sky-400 -rotate-45 shrink-0" />
+                                        @elseif($supplier->shipping_method === 'sea')
+                                            <x-heroicon-s-globe-europe-africa class="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                                        @elseif($supplier->shipping_method === 'train')
+                                            <x-heroicon-s-ticket class="w-3.5 h-3.5 text-orange-400 shrink-0" />
+                                        @else
+                                            <x-heroicon-s-truck class="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                        @endif
+                                        <span>{{ $activeDays ? $activeDays . ' Tage' : 'k.A.' }}</span>
+                                        <span class="text-[9px] text-gray-400 font-normal">({{ $methodLabel }})</span>
+                                    </div>
 
-                <!-- Notizen -->
-                @if($supplier->notes)
-                    <div class="text-sm text-gray-600 dark:text-gray-400 mb-6 bg-gray-100 dark:bg-gray-800/20 p-4 rounded-xl border border-gray-200 dark:border-gray-800 italic">
-                        "{{ Str::limit($supplier->notes, 80) }}"
-                    </div>
-                @endif
+                                    @if($supplier->payment_terms)
+                                        <div class="text-[10px] text-gray-500 dark:text-gray-400 truncate" title="{{ $supplier->payment_terms }}">
+                                            💳 {{ Str::limit($supplier->payment_terms, 32) }}
+                                        </div>
+                                    @endif
 
-                <!-- Dynamische Links -->
-                <div class="space-y-2">
-                    @if($supplier->website)
-                        <a href="{{ $supplier->website }}" target="_blank" class="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)] group/link transition-colors">
-                            <span class="flex items-center gap-3 text-sm font-bold text-gray-800 dark:text-gray-300 group-hover/link:text-[var(--theme-color)] transition-colors">
-                                <x-heroicon-o-globe-alt class="w-5 h-5 text-gray-500 group-hover/link:text-[var(--theme-color)] transition-colors" />
-                                Hauptwebseite
-                            </span>
-                            <x-heroicon-o-arrow-top-right-on-square class="w-4 h-4 text-gray-400 dark:text-gray-600 group-hover/link:text-[var(--theme-color)] transition-colors" />
-                        </a>
-                    @endif
+                                    @if($supplier->minimum_order_value || $supplier->shipping_costs)
+                                        <div class="flex flex-wrap gap-1 text-[10px] text-gray-400">
+                                            @if($supplier->minimum_order_value)
+                                                <span>MOQ: {{ number_format($supplier->minimum_order_value / 100, 0, ',', '.') }} €</span>
+                                            @endif
+                                            @if($supplier->shipping_costs)
+                                                <span>• Versand: {{ number_format($supplier->shipping_costs / 100, 2, ',', '.') }} €</span>
+                                            @endif
+                                        </div>
+                                    @endif
+                                </div>
+                            </td>
 
-                    @if(is_array($supplier->dynamic_links) && count($supplier->dynamic_links) > 0)
-                        @foreach($supplier->dynamic_links as $link)
-                            @if(!empty($link['url']) && !empty($link['title']))
-                                <a href="{{ $link['url'] }}" target="_blank" class="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)] group/link transition-colors">
-                                    <span class="flex items-center gap-3 text-sm font-bold text-gray-800 dark:text-gray-300 group-hover/link:text-[var(--theme-color)] transition-colors">
-                                        <x-heroicon-o-link class="w-5 h-5 text-gray-500 group-hover/link:text-[var(--theme-color)] transition-colors" />
-                                        {{ $link['title'] }}
-                                    </span>
-                                    <x-heroicon-o-arrow-top-right-on-square class="w-4 h-4 text-gray-400 dark:text-gray-600 group-hover/link:text-[var(--theme-color)] transition-colors" />
-                                </a>
-                            @endif
-                        @endforeach
-                    @endif
-                </div>
+                            <!-- 4. Direktlinks & Portale (Kompakte Scroll-Pills) -->
+                            <td class="py-2.5 px-3">
+                                <div class="max-h-20 overflow-y-auto supplier-scroll pr-1.5 flex flex-wrap gap-1">
+                                    @if($supplier->website)
+                                        <a href="{{ $supplier->website }}" target="_blank" class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)] text-[11px] font-bold text-gray-700 dark:text-gray-300 hover:text-[var(--theme-color)] transition-colors">
+                                            <x-heroicon-o-globe-alt class="w-3.5 h-3.5 text-[var(--theme-color)] shrink-0" />
+                                            <span class="truncate max-w-[125px]">Hauptshop</span>
+                                            <x-heroicon-o-arrow-top-right-on-square class="w-3 h-3 opacity-60 shrink-0" />
+                                        </a>
+                                    @endif
 
-                <!-- Produkte -->
-                @if($supplier->products->count() > 0)
-                    <div class="mt-auto pt-5 border-t border-gray-200 dark:border-gray-800/50">
-                        <span class="block text-[10px] uppercase font-black tracking-widest text-gray-500 mb-3">Lieferbare Produkte ({{ $supplier->products->count() }})</span>
-                        <div class="flex overflow-x-auto gap-3 pb-2 scrollbar-hide snap-x">
-                            @foreach($supplier->products as $product)
-                                @php
-                                    $galleryImage = null;
-                                    if(isset($product->media_gallery) && is_array($product->media_gallery)) {
-                                        foreach($product->media_gallery as $media) {
-                                            if(is_array($media) && isset($media['path'])) {
-                                                if(!isset($media['type']) || $media['type'] === 'image') {
-                                                    $galleryImage = $media['path'];
-                                                    break;
+                                    @if(is_array($supplier->dynamic_links) && count($supplier->dynamic_links) > 0)
+                                        @foreach($supplier->dynamic_links as $link)
+                                            @if(!empty($link['url']) && !empty($link['title']))
+                                                <a href="{{ $link['url'] }}" target="_blank" title="{{ $link['title'] }}" class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)] text-[10px] font-semibold text-gray-600 dark:text-gray-400 hover:text-[var(--theme-color)] transition-colors">
+                                                    <x-heroicon-o-link class="w-3 h-3 shrink-0 opacity-70" />
+                                                    <span class="truncate max-w-[130px]">{{ $link['title'] }}</span>
+                                                </a>
+                                            @endif
+                                        @endforeach
+                                    @endif
+
+                                    @if(!$supplier->website && (empty($supplier->dynamic_links) || count($supplier->dynamic_links) === 0))
+                                        <span class="text-[11px] text-gray-400 italic">Keine Links</span>
+                                    @endif
+                                </div>
+                            </td>
+
+                            <!-- 5. Gelieferte Produkte (Kompakter Scrollbereich) -->
+                            <td class="py-2.5 px-3">
+                                @if($supplier->products->count() > 0)
+                                    <div class="max-h-20 overflow-y-auto supplier-scroll pr-1.5 space-y-1">
+                                        @foreach($supplier->products as $product)
+                                            @php
+                                                $galleryImage = null;
+                                                if(isset($product->media_gallery) && is_array($product->media_gallery)) {
+                                                    foreach($product->media_gallery as $media) {
+                                                        if(is_array($media) && isset($media['path'])) {
+                                                            if(!isset($media['type']) || $media['type'] === 'image') {
+                                                                $galleryImage = $media['path'];
+                                                                break;
+                                                            }
+                                                        } elseif(is_string($media)) {
+                                                            $galleryImage = $media;
+                                                            break;
+                                                        }
+                                                    }
                                                 }
-                                            } elseif(is_string($media)) {
-                                                $galleryImage = $media;
-                                                break;
-                                            }
-                                        }
-                                    }
-                                @endphp
-                                @if($galleryImage)
-                                    <div class="w-24 h-24 sm:w-32 sm:h-32 shrink-0 snap-start rounded-2xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 overflow-hidden group/product relative shadow-inner" title="{{ $product->name }}">
-                                        <img src="{{ asset('storage/' . $galleryImage) }}" class="w-full h-full object-cover group-hover/product:scale-110 transition-transform">
+                                                if (!$galleryImage && $product->preview_image_path) {
+                                                    $galleryImage = $product->preview_image_path;
+                                                }
+                                            @endphp
+                                            <div class="flex items-center justify-between gap-2 p-1 rounded-lg bg-gray-50 dark:bg-gray-950/90 border border-gray-200/80 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 transition-colors">
+                                                <div class="flex items-center gap-2 min-w-0">
+                                                    @if($galleryImage)
+                                                        <img src="{{ asset('storage/' . $galleryImage) }}" alt="{{ $product->name }}" class="w-7 h-7 rounded-md object-cover shrink-0 border border-gray-200 dark:border-gray-800">
+                                                    @else
+                                                        <div class="w-7 h-7 rounded-md bg-gray-200 dark:bg-gray-900 flex items-center justify-center shrink-0">
+                                                            <x-heroicon-o-cube class="w-4 h-4 text-gray-400" />
+                                                        </div>
+                                                    @endif
+                                                    <div class="min-w-0">
+                                                        <a href="{{ url('/produkt/' . $product->slug) }}" target="_blank" class="block text-[11px] font-bold text-gray-900 dark:text-white hover:text-[var(--theme-color)] truncate max-w-[135px]" title="{{ $product->name }}">
+                                                            {{ $product->name }}
+                                                        </a>
+                                                        <div class="text-[9px] text-gray-400 font-mono truncate">
+                                                            EK {{ number_format(($product->purchase_price ?? 0) / 100, 2, ',', '.') }} € • {{ $product->quantity }} Stk.
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                @if($product->reorder_url)
+                                                    <a href="{{ $product->reorder_url }}" target="_blank" title="Rohling beim Händler nachbestellen" class="p-1 rounded-md text-gray-400 hover:text-[var(--theme-color)] hover:bg-gray-200/50 dark:hover:bg-gray-800 shrink-0 transition-colors">
+                                                        <x-heroicon-o-shopping-bag class="w-3.5 h-3.5" />
+                                                    </a>
+                                                @endif
+                                            </div>
+                                        @endforeach
                                     </div>
                                 @else
-                                    <div class="w-24 h-24 sm:w-32 sm:h-32 shrink-0 snap-start rounded-2xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 flex items-center justify-center group/product relative shadow-inner" title="{{ $product->name }}">
-                                        <x-heroicon-o-cube class="w-8 h-8 sm:w-10 sm:h-10 text-gray-400 dark:text-gray-600" />
-                                    </div>
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-100/70 dark:bg-gray-950/60 text-[10px] text-gray-400 border border-dashed border-gray-200 dark:border-gray-800">
+                                        Noch kein Produkt verknüpft
+                                    </span>
                                 @endif
-                            @endforeach
-                        </div>
-                    </div>
-                @endif
-            </div>
-        @empty
-            <div class="col-span-1 md:col-span-2 xl:col-span-3">
-                <div class="flex flex-col flex-1 items-center justify-center p-12 text-center h-64 border-2 border-dashed border-gray-300 dark:border-gray-800 rounded-[2rem] bg-gray-50 dark:bg-gray-900/30">
-                    <div class="w-20 h-20 bg-white dark:bg-gray-900 rounded-full flex items-center justify-center mb-6 shadow-inner border border-gray-200 dark:border-gray-800">
-                        <x-heroicon-o-truck class="w-10 h-10 text-gray-400 dark:text-gray-600" />
-                    </div>
-                    <h4 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Noch keine Lieferanten angelegt</h4>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 max-w-sm mb-6">Erfasse hier deine Großhändler, Produzenten und Marktplätze inkl. aller Kontaktwege wie WhatsApp, WeChat oder Dashboards.</p>
-                    <button wire:click="create" class="bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white font-bold px-6 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 transition-colors text-sm">
-                        Ersten Händler anlegen
-                    </button>
-                </div>
-            </div>
-        @endforelse
+                            </td>
+
+                            <!-- 6. Aktionen -->
+                            <td class="py-2.5 pl-2 pr-4 text-right whitespace-nowrap">
+                                <div class="inline-flex items-center gap-1">
+                                    <button wire:click="edit('{{ $supplier->id }}')" title="Lieferant bearbeiten" class="w-7 h-7 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-500/20 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 inline-flex items-center justify-center transition-colors">
+                                        <x-heroicon-o-pencil-square class="w-3.5 h-3.5" />
+                                    </button>
+                                    <button wire:click="delete('{{ $supplier->id }}')" wire:confirm="Lieferant {{ $supplier->name }} wirklich löschen?" title="Lieferant löschen" class="w-7 h-7 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-500/20 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 inline-flex items-center justify-center transition-colors">
+                                        <x-heroicon-o-trash class="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="6" class="py-10 px-4 text-center">
+                                <div class="flex flex-col items-center justify-center">
+                                    <x-heroicon-o-truck class="w-8 h-8 text-gray-400 dark:text-gray-600 mb-2" />
+                                    <p class="text-xs font-bold text-gray-900 dark:text-white">Keine passenden Lieferanten gefunden</p>
+                                    <p class="text-[11px] text-gray-500 mt-0.5 mb-3">Passe den Suchfilter an oder lege einen neuen Großhändler an.</p>
+                                    <button wire:click="create" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white font-bold px-3.5 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 transition-colors text-xs">
+                                        Lieferant anlegen
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
     </div>
     @endif
 

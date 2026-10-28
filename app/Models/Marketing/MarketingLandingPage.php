@@ -274,7 +274,7 @@ class MarketingLandingPage extends Model
             return [
                 'title'      => "{$name} | Personalisiertes K9-Kristallglas aus der Manufaktur",
                 'headline'   => 'Brillante Lichtbrechung für besondere Erinnerungen: ' . $name,
-                'sales_copy' => $rawDesc ?: 'Halte besondere Momente stilvoll fest – mit einem geschliffenen K9-Kristallglas. Dank unserer feinen Lasergravur und der interaktiven 3D-Vorschau gestaltest du dein persönliches Unikat inklusive passender Geschenkbox.',
+                'sales_copy' => $rawDesc ?: 'Halte besondere Momente stilvoll fest – mit einem geschliffenen K9-Kristallglas. Dank unserer feinen Lasergravur und der interaktiven 3D-Vorschau gestaltest du dein persönliches Unikat online.',
                 'cta_text'   => 'Jetzt Unikat gestalten',
             ];
         }

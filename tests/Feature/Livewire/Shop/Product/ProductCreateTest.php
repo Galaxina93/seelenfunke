@@ -367,10 +367,21 @@ class ProductCreateTest extends TestCase
 
         $this->assertEquals('active', $product->fresh()->status);
 
+        // Toggle Origin Badge (handcrafted_in_germany -> none -> made_in_germany)
+        $this->assertEquals('handcrafted_in_germany', $product->fresh()->getOriginBadgeMode());
+        Livewire::test(ProductCreate::class)
+            ->call('toggleOriginBadge', $product->id);
+        $this->assertEquals('none', $product->fresh()->getOriginBadgeMode());
+        Livewire::test(ProductCreate::class)
+            ->call('toggleOriginBadge', $product->id);
+        $this->assertEquals('made_in_germany', $product->fresh()->getOriginBadgeMode());
+        $this->assertEquals('Made in Germany', $product->fresh()->getOriginBadgeLabel());
+
         // Create a turnkey AI product per 1-click
         Livewire::test(ProductCreate::class)
             ->call('openQuickAiModal')
             ->assertSet('showQuickAiModal', true)
+            ->set('quickAiReorderUrl', 'https://www.gluecksfieber.de/shop/laserrohlinge/edelstahl-laserrohling-anhaenger-herz-mit-collierschlaufe-14-karat-vergoldet-25-x-22-x-4-mm-oese-3-x-6-mm-ion-plating-ip.html')
             ->set('quickAiName', 'Der Seelen-Talisman Test')
             ->set('quickAiSku', 'STEEL-TEST-99')
             ->set('quickAiPrice', '19.90')

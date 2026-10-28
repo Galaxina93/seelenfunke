@@ -118,6 +118,12 @@ class MarketingInfluencer extends Component
             return;
         }
 
+        $this->validate([
+            'inviteLabel' => 'nullable|string|max:120',
+            'inviteCommissionValue' => 'required|integer|min:1|max:80',
+            'inviteFollowerDiscount' => 'required|integer|min:0|max:50',
+        ]);
+
         $slot = MarketingInfluencerModel::findOrFail($this->activeInviteId);
         $slot->update([
             'invitation_label' => trim($this->inviteLabel) !== '' ? trim($this->inviteLabel) : $slot->invitation_label,
@@ -208,11 +214,12 @@ class MarketingInfluencer extends Component
             $isPendingSlot = $existingInf && $existingInf->is_pending_invitation;
         }
 
+        $maxCommission = $this->commissionType === 'fixed_cents' ? 50000 : 80;
         $rules = [
             'primaryChannel' => 'required|in:instagram,tiktok,youtube,pinterest,blog',
             'profileUrl' => 'nullable|url|max:500',
             'commissionType' => 'required|in:percent,fixed_cents',
-            'commissionValue' => 'required|integer|min:1|max:50000',
+            'commissionValue' => 'required|integer|min:1|max:' . $maxCommission,
             'followerDiscountPercent' => 'required|integer|min:0|max:50',
             'cookieDays' => 'required|integer|min:1|max:90',
         ];
@@ -284,21 +291,29 @@ class MarketingInfluencer extends Component
 
     public function toggleActive(string $id, InfluencerService $service): void
     {
-        $inf = MarketingInfluencerModel::with(['defaultVoucher', 'trackingLinks'])->findOrFail($id);
+        $inf = MarketingInfluencerModel::with(['employee', 'defaultVoucher', 'trackingLinks'])->findOrFail($id);
         $newState = !$inf->is_active;
         $inf->update(['is_active' => $newState]);
+
+        if (!$newState && $inf->employee) {
+            $inf->employee->revokeActiveSessionsAndTokens();
+        }
 
         $service->syncInfluencerActiveState($inf->fresh());
     }
 
     public function toggleArchive(string $id, InfluencerService $service): void
     {
-        $inf = MarketingInfluencerModel::with(['defaultVoucher', 'trackingLinks'])->findOrFail($id);
+        $inf = MarketingInfluencerModel::with(['employee', 'defaultVoucher', 'trackingLinks'])->findOrFail($id);
         $newArchiveState = !$inf->is_archived;
         $inf->update([
             'is_archived' => $newArchiveState,
             'is_active' => $newArchiveState ? false : true,
         ]);
+
+        if ($newArchiveState && $inf->employee) {
+            $inf->employee->revokeActiveSessionsAndTokens();
+        }
 
         $service->syncInfluencerActiveState($inf->fresh());
 

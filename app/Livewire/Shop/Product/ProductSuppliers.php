@@ -16,6 +16,8 @@ class ProductSuppliers extends Component
     public string $themingDepartment = 'Produkte';
 
     public $suppliers;
+    public string $search = '';
+    public string $countryFilter = 'all';
 
     // Form fields
     public $name;
@@ -112,9 +114,46 @@ class ProductSuppliers extends Component
         $this->loadSuppliers();
     }
 
+    public function updatedSearch(): void
+    {
+        $this->loadSuppliers();
+    }
+
+    public function setCountryFilter(string $filter): void
+    {
+        $this->countryFilter = in_array($filter, ['all', 'DE', 'INT'], true) ? $filter : 'all';
+        $this->loadSuppliers();
+    }
+
     public function loadSuppliers()
     {
-        $this->suppliers = ProductSupplier::with('products')->orderBy('name')->get();
+        $query = ProductSupplier::with('products')->orderByRaw("CASE WHEN UPPER(country_code) = 'DE' THEN 0 ELSE 1 END")->orderBy('name');
+
+        if ($this->countryFilter === 'DE') {
+            $query->whereRaw("UPPER(country_code) = 'DE'");
+        } elseif ($this->countryFilter === 'INT') {
+            $query->where(function ($q) {
+                $q->whereNull('country_code')->orWhereRaw("UPPER(country_code) != 'DE'");
+            });
+        }
+
+        $term = trim($this->search);
+        if ($term !== '') {
+            $like = '%' . $term . '%';
+            $query->where(function ($q) use ($like) {
+                $q->where('name', 'like', $like)
+                    ->orWhere('company_name', 'like', $like)
+                    ->orWhere('city', 'like', $like)
+                    ->orWhere('contact_person', 'like', $like)
+                    ->orWhere('email', 'like', $like)
+                    ->orWhere('notes', 'like', $like)
+                    ->orWhereHas('products', function ($pq) use ($like) {
+                        $pq->where('name', 'like', $like)->orWhere('sku', 'like', $like);
+                    });
+            });
+        }
+
+        $this->suppliers = $query->get();
     }
 
     public function create()

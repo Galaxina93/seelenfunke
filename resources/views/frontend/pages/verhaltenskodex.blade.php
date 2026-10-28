@@ -4,7 +4,7 @@
 
     <x-sections.page-container>
 
-        <section class="max-w-4xl mx-auto px-4 py-20 text-gray-800">
+        <section class="max-w-4xl mx-auto px-4 py-12 md:py-16 text-gray-800">
             <header class="mb-12 text-center md:text-left">
                 <h1 class="text-3xl md:text-4xl font-serif font-bold mb-4 text-gray-900">Verhaltenskodex</h1>
             </header>

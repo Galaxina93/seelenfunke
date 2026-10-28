@@ -558,11 +558,13 @@ class CartService
             ];
         }
 
-        // [SICHERHEIT] Persönliche Belohnungsgutscheine an das verifizierte Kundenkonto binden
+        // [SICHERHEIT] Persönliche Belohnungsgutscheine an das verifizierte Kundenkonto & aktiven Spielmodus binden
         if (!empty($coupon->recipient_email)) {
+            $isFunkiCoupon = str_starts_with((string) $coupon->code, 'FUNKI-');
             $ownsFunkiCoupon = $customer
-                && str_starts_with((string) $coupon->code, 'FUNKI-')
-                && in_array($coupon->code, (array) (\App\Models\Customer\CustomerGamification::where('customer_id', $customer->id)->value('unlocked_coupons') ?? []), true);
+                && $isFunkiCoupon
+                && in_array($coupon->code, (array) (\App\Models\Customer\CustomerGamification::where('customer_id', $customer->id)->where('is_active', true)->value('unlocked_coupons') ?? []), true);
+
             $emailAllowed = $customer
                 && ($customer->hasVerifiedEmail() || $ownsFunkiCoupon)
                 && $buyerEmail
@@ -572,6 +574,13 @@ class CartService
                 return [
                     'success' => false,
                     'message' => 'Dieser Belohnungsgutschein ist persönlich an das Kundenkonto (' . $this->maskEmail($coupon->recipient_email) . ') gebunden. Bitte melde dich an, um ihn einzulösen.'
+                ];
+            }
+
+            if ($isFunkiCoupon && !$ownsFunkiCoupon) {
+                return [
+                    'success' => false,
+                    'message' => 'Dieser Seelenfunken-Belohnungsgutschein erfordert ein eingeloggtes Kundenkonto mit aktiviertem Spielmodus.'
                 ];
             }
         }
@@ -793,13 +802,16 @@ class CartService
                 $coupon = MarketingVoucher::where('code', $couponCode)->first();
                 $personalCouponAllowed = true;
                 if ($coupon && !empty($coupon->recipient_email)) {
+                    $isFunkiCoupon = str_starts_with((string) $coupon->code, 'FUNKI-');
                     $ownsFunkiCoupon = $activeCustomer
-                        && str_starts_with((string) $coupon->code, 'FUNKI-')
-                        && in_array($coupon->code, (array) (\App\Models\Customer\CustomerGamification::where('customer_id', $activeCustomer->id)->value('unlocked_coupons') ?? []), true);
+                        && $isFunkiCoupon
+                        && in_array($coupon->code, (array) (\App\Models\Customer\CustomerGamification::where('customer_id', $activeCustomer->id)->where('is_active', true)->value('unlocked_coupons') ?? []), true);
                     $effectiveBuyerEmail = ($activeCustomer && ($activeCustomer->hasVerifiedEmail() || $ownsFunkiCoupon))
                         ? strtolower(trim((string) $activeCustomer->email))
                         : null;
-                    $personalCouponAllowed = $effectiveBuyerEmail !== null && $effectiveBuyerEmail === strtolower(trim($coupon->recipient_email));
+                    $personalCouponAllowed = (!$isFunkiCoupon || $ownsFunkiCoupon)
+                        && $effectiveBuyerEmail !== null
+                        && $effectiveBuyerEmail === strtolower(trim($coupon->recipient_email));
                 }
 
                 if ($coupon && !empty($coupon->influencer_id) && $this->isInfluencerSelfRedemption($coupon, $activeCustomer?->email)) {

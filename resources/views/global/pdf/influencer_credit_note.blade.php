@@ -154,7 +154,7 @@
         <tr>
             <td class="address-box">
                 <div class="address-label">Leistender / Zahlungsempfänger (Creator)</div>
-                <strong>{{ $snap['full_name'] ?? ($influencer->employee->first_name . ' ' . $influencer->employee->last_name) }}</strong>
+                <strong>{{ $snap['full_name'] ?? trim(($influencer?->employee?->first_name ?? '') . ' ' . ($influencer?->employee?->last_name ?? '')) ?: 'Creator' }}</strong>
                 @if(!empty($snap['company_name']))
                     <br>{{ $snap['company_name'] }}
                 @endif

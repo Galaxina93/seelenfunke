@@ -29,6 +29,8 @@ class ProductSeeder extends Seeder
         $sup4 = \App\Models\Product\ProductSupplier::where('name', 'Mambocat')->first();
         $sup5 = \App\Models\Product\ProductSupplier::where('name', 'HaoYiZF (Fuhao) - Temu')->first();
         $sup6 = \App\Models\Product\ProductSupplier::where('name', 'Thal-Versand / Amazon Business DE')->first();
+        $sup8 = \App\Models\Product\ProductSupplier::where('name', 'Glücksfieber (Lübeck)')->first();
+        $sup9 = \App\Models\Product\ProductSupplier::where('name', 'like', '%Print Equipment%')->first();
 
         foreach ($cats as $name => $type) {
             ProductCategory::firstOrCreate(
@@ -52,8 +54,8 @@ class ProductSeeder extends Seeder
         $p1 = Product::updateOrCreate(['slug' => 'seelen-kristall'], [
             'name' => 'Der Seelen Kristall',
             'type' => 'physical',
-            'description' => 'Halten Sie besondere Momente für die Ewigkeit fest – mit einem meisterhaft geschliffenen K9-Kristall. Dank unserer detailverliebten 3D-Gravurmethode schwebt Ihr persönliches Wunschmotiv förmlich im Inneren des massiven, glasklaren Blocks. Der Seelen Kristall brilliert durch seine hohe optische Reinheit, die das Licht in faszinierenden Facetten bricht. Ob als tiefgründiges Geschenk für einen geliebten Menschen oder als bedeutungsvolle Erinnerung für Sie selbst: Er entfaltet in jedem Raum seine beeindruckende Präsenz und wird garantiert zum Blickfang. Jedes Exemplar wird in einer schützenden Premium-Geschenkbox geliefert, optimal vorbereitet für die sofortige Übergabe.',
-            'short_description' => 'Hochgradig personalisierbares und exklusiv veredeltes Premium-Kristallglas. Inklusive maßgeschneiderter 3D-Innengravur und edler Geschenkpräsentation.',
+            'description' => 'Halten Sie besondere Momente für die Ewigkeit fest – mit einem meisterhaft geschliffenen K9-Kristall. Dank unserer detailverliebten 3D-Gravurmethode schwebt Ihr persönliches Wunschmotiv förmlich im Inneren des massiven, glasklaren Blocks. Der Seelen Kristall brilliert durch seine hohe optische Reinheit, die das Licht in faszinierenden Facetten bricht. Ob als tiefgründiges Geschenk für einen geliebten Menschen oder als bedeutungsvolle Erinnerung für Sie selbst: Er entfaltet in jedem Raum seine beeindruckende Präsenz und wird garantiert zum Blickfang. Jedes Exemplar wird in unserer Manufaktur sorgfältig von Hand geprüft und bruchsicher geschützt verpackt geliefert.',
+            'short_description' => 'Hochgradig personalisierbares und exklusiv veredeltes Premium-Kristallglas inklusive maßgeschneiderter 3D-Lasergravur.',
             'status' => 'active',
             'is_personalizable' => true,
             'three_d_active' => true,
@@ -62,9 +64,9 @@ class ProductSeeder extends Seeder
             'purchase_price' => 536, // EK: ~268€ (285 USD net) / 50 Stück = ~5.36€ pro Stück
             'laser_runtime_minutes' => 1,
             'electricity_wear_factor' => 15,
-            'packaging_cost' => 60,
+            'packaging_cost' => 60, // Karton.eu 240stk Kartons für Trophäe = 0,60€ netto
             'marketing_cost_percent' => 15.00,
-            'sku' => 'CRYSTAL-001-CLR',
+            'sku' => 'CRYSTAL-3D-001',
             'product_supplier_id' => $sup1?->id,
             'reorder_url' => 'https://german.alibaba.com/product-detail/Pujiang-Wangzhe-Manufacturer-Wholesale-Blank-Glass-1600897934261.html?chatToken=TDFKeWNGRlpkWFZTWmtkNFRYRnZjVWxhVTBsU1ozUklWbW96V1M5dmVGQkxla1pYWlZWM1RHTTBSbHB6V0ZKak9YVnNSeXR3ZW5aUVNVTmphWE0yVWxaU1ZGa3haa0p3T0hjclQyaDVjRFZhSzJOVmNtbHFSalYwUzFkM1dGRlBVRVZ1WVhaU1JHaGhjRlptUkRJeWFISk5XRTFuZGpGa2FHVjJaWFJFZVd0dVIyZHFlV0ZzUjBKVFZUbFJNVWd3TVRGUGR5OUdkbEp2TmtSTlowSmpXR3N4WjFCSVYwWmtWa0ZZVjAxdVN6VmxNVWxzV2sxcU1FaDRlVmRoUzJadCZ2ZXJzaW9uPTIuMC4w&encryptTargetLoginId=8pctgRBMALM%2FQHxJOCLxWd%2BlWrcRHecO6wdkfYSa%2Bs4%3D',
             'barcode' => '',
@@ -77,19 +79,17 @@ class ProductSeeder extends Seeder
             'width' => 180,
             'height' => 200,
             'length' => 40,
-            'shipping_class' => 'paket_s',
+            'shipping_class' => null, // DHL Standard (Gewichtsbasiert)
             'preview_image_path' => 'produkte/products/seelen-kristall/overlay.png',
             'three_d_model_path' => 'produkte/products/seelen-kristall/t_seelenk.glb',
             'three_d_background_path' => 'produkte/products/seelen-kristall/header_bg.png',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'produkte/products/seelen-kristall/seelen-kristall_b.jpg', 'is_main' => true, 'alt' => 'Der Seelen Kristall – Personalisierter K9 Kristall mit Lasergravur'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-kristall/seelen-kristall-detail.jpg', 'is_main' => false, 'alt' => 'Der Seelen Kristall – Detailansicht Facettenschliff & Lasergravur'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-kristall/seelen-kristall-giftbox.jpg', 'is_main' => false, 'alt' => 'Der Seelen Kristall in schwarzer Seelenfunke Premium-Geschenkbox'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-kristall/seelen-kristall-dimensions.jpg', 'is_main' => false, 'alt' => 'Der Seelen Kristall – Technisches Maßblatt & Abmessungen (180 x 200 x 40 mm)'],
-                ['type' => 'video', 'path' => 'produkte/products/seelen-kristall/seelen-kristall-promo.mp4', 'is_main' => false, 'alt' => 'Der Seelen Kristall – Produktvideo'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-kristall/seelen-kristall_b.jpg', 'is_main' => true, 'is_ai_generated' => true, 'alt' => 'Der Seelen Kristall – Personalisierter K9 Kristall mit Lasergravur'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-kristall/seelen-kristall-dimensions.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen Kristall – Technisches Maßblatt & Abmessungen (180 x 200 x 40 mm)'],
             ],
             'configurator_settings' => [
                 'template_package' => 'seelen-kristall',
+                'origin_badge' => 'handcrafted_in_germany',
                 'auto_seasonal_main_image' => true,
                 'enable_background_video' => true,
                 'default_background_theme' => 'standard',
@@ -127,7 +127,7 @@ class ProductSeeder extends Seeder
                 'Größe' => '180 x 200 x 40 mm',
                 'Gewicht' => 'ca. 920 g (massiv)',
                 'Veredelung' => 'Hochpräzise 3D-Lasergravur',
-                'Lieferumfang' => 'Inkl. gepolsterter Seelenfunke Geschenkbox',
+                'Herkunft' => 'Handveredelt in Deutschland',
             ],
             'tier_pricing' => [],
             'seo_title' => 'Der Seelen Kristall | Personalisiertes Premium Glas-Geschenk online gestalten',
@@ -146,6 +146,13 @@ class ProductSeeder extends Seeder
             ['qty' => 20, 'percent' => 15]
         ]);
 
+        // Verpackungsmaterial (LUCID / /admin/product-packaging): Versandkarton + Polsterschutz (150 g gesamt)
+        $p1->packagings()->delete();
+        $p1->packagings()->createMany([
+            ['material_type' => 'paper',   'weight_grams' => 130],
+            ['material_type' => 'plastic', 'weight_grams' => 20],
+        ]);
+
         // --- PRODUKT 2: Der Seelenanhänger (Physisch) ---
         $p2 = Product::updateOrCreate(['slug' => 'seelen-anhaenger'], [
             'name' => 'Der Seelenanhänger',
@@ -160,7 +167,7 @@ class ProductSeeder extends Seeder
             'purchase_price' => 136, // EK: 13,67€ / 10 Stück = 1,36€ pro Stück
             'laser_runtime_minutes' => 1,
             'electricity_wear_factor' => 5,
-            'packaging_cost' => 14,
+            'packaging_cost' => 14, // Karton.eu 400stk Luftpolster Versandtüten = 0,14€ netto
             'marketing_cost_percent' => 10.00,
             'sku' => 'ALU-HEART-001',
             'product_supplier_id' => $sup2?->id,
@@ -171,23 +178,21 @@ class ProductSeeder extends Seeder
             'quantity' => 150,
             'continue_selling_when_out_of_stock' => true,
             'weight' => 19,
-            'packaging_weight' => 0,
+            'packaging_weight' => 15, // Luftpolster-Versandtüte (15 g)
             'height' => 40,
             'width' => 45,
             'length' => 2.3,
-            'shipping_class' => 'paket_s',
+            'shipping_class' => 'brief', // Brief / Großbrief (Luftpolster-Umschlag)
             'preview_image_path' => 'produkte/products/seelen-anhaenger/overlay.png',
             'three_d_model_path' => 'produkte/products/seelen-anhaenger/seelenanhaenger_3d_.glb',
             'three_d_background_path' => 'produkte/products/seelen-anhaenger/header_bg.png',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger_s.jpg', 'is_main' => true, 'alt' => 'Der Seelenanhänger – Massives Alu-Herz mit Lasergravur'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger-back.jpg', 'is_main' => false, 'alt' => 'Der Seelenanhänger – Beidseitige Gravur mit Wunschdatum & Koordinaten'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger-giftbox.jpg', 'is_main' => false, 'alt' => 'Der Seelenanhänger im edlen Seelenfunke Geschenketui'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger-dimensions.jpg', 'is_main' => false, 'alt' => 'Der Seelenanhänger – Technisches Maßblatt & Abmessungen (45 x 40 x 2,3 mm)'],
-                ['type' => 'video', 'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger-promo.mp4', 'is_main' => false, 'alt' => 'Der Seelenanhänger – Produktvideo'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger-back.jpg', 'is_main' => true, 'is_ai_generated' => true, 'alt' => 'Der Seelenanhänger – Massives Alu-Herz mit beidseitiger Lasergravur'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger-dimensions.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelenanhänger – Technisches Maßblatt & Abmessungen (45 x 40 x 2,3 mm)'],
             ],
             'configurator_settings' => [
                 'template_package' => 'seelen-anhaenger',
+                'origin_badge' => 'handcrafted_in_germany',
                 'auto_seasonal_main_image' => true,
                 'enable_background_video' => true,
                 'default_background_theme' => 'standard',
@@ -253,6 +258,7 @@ class ProductSeeder extends Seeder
                 'Größe' => '45 x 40 x 2,3 mm',
                 'Gewicht' => 'ca. 19 g',
                 'Veredelung' => 'Abriebfeste Silber-Weiß Faserlaser-Gravur',
+                'Herkunft' => 'Handveredelt in Deutschland',
             ],
             'tier_pricing' => [],
             'seo_title' => 'Der Seelenanhänger | Massives graviertes Alu-Herz als Geschenk',
@@ -269,6 +275,13 @@ class ProductSeeder extends Seeder
             ['qty' => 10, 'percent' => 15]
         ]);
 
+        // Verpackungsmaterial (LUCID / /admin/product-packaging): Luftpolster-Versandtüte (15 g gesamt)
+        $p2->packagings()->delete();
+        $p2->packagings()->createMany([
+            ['material_type' => 'composite', 'weight_grams' => 12],
+            ['material_type' => 'paper',     'weight_grams' => 3],
+        ]);
+
         // --- PRODUKT 3: Der Feierabend-Funke (Physisch) ---
         $p3 = Product::updateOrCreate(['slug' => 'weizenglas-personalisiert'], [
             'name' => 'Der Feierabend-Funke',
@@ -283,7 +296,7 @@ class ProductSeeder extends Seeder
             'purchase_price' => 333, // EK: 19,99€ / 6 Stück = 3,33€ pro Stück
             'laser_runtime_minutes' => 1,
             'electricity_wear_factor' => 15,
-            'packaging_cost' => 60,
+            'packaging_cost' => 60, // Karton.eu 240stk Kartons = 0,60€ netto
             'marketing_cost_percent' => 12.50,
             'sku' => 'GLASS-WEIZEN-001',
             'product_supplier_id' => $sup4?->id,
@@ -298,19 +311,17 @@ class ProductSeeder extends Seeder
             'width' => 74,      // 7,4 cm
             'height' => 218,    // 21,8 cm
             'length' => 74,     // 7,4 cm
-            'shipping_class' => 'paket_m',
+            'shipping_class' => null, // DHL Standard (Gewichtsbasiert)
             'preview_image_path' => 'produkte/products/weizenglas-personalisiert/overlay.png',
             'three_d_model_path' => 'produkte/products/weizenglas-personalisiert/beer_glas_3d.glb',
             'three_d_background_path' => 'produkte/products/weizenglas-personalisiert/header_bg.png',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/beer_glas_main.jpg', 'is_main' => true, 'alt' => 'Der Feierabend-Funke – Personalisiertes Weizenbierglas'],
-                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/weizenglas-detail.jpg', 'is_main' => false, 'alt' => 'Der Feierabend-Funke – Detailansicht der frostweißen Lasergravur'],
-                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/weizenglas-lifestyle.jpg', 'is_main' => false, 'alt' => 'Der Feierabend-Funke – Perfektes Geschenk für Genießer'],
-                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/weizenglas-dimensions.jpg', 'is_main' => false, 'alt' => 'Der Feierabend-Funke – Technisches Maßblatt & Abmessungen (218 x Ø 74 mm)'],
-                ['type' => 'video', 'path' => 'produkte/products/weizenglas-personalisiert/weizenglas-promo.mp4', 'is_main' => false, 'alt' => 'Der Feierabend-Funke – Produktvideo'],
+                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/beer_glas_main.jpg', 'is_main' => true, 'is_ai_generated' => true, 'alt' => 'Der Feierabend-Funke – Personalisiertes Weizenbierglas'],
+                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/weizenglas-dimensions.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Der Feierabend-Funke – Technisches Maßblatt & Abmessungen (218 x Ø 74 mm)'],
             ],
             'configurator_settings' => [
                 'template_package' => 'weizenglas-personalisiert',
+                'origin_badge' => 'made_in_germany',
                 'auto_seasonal_main_image' => true,
                 'enable_background_video' => true,
                 'default_background_theme' => 'standard',
@@ -346,6 +357,7 @@ class ProductSeeder extends Seeder
                 'Größe' => 'Ø 7,4 cm x 21,8 cm Höhe',
                 'Veredelung' => '360° Rotations-Lasergravur',
                 'Pflege' => '100% Spülmaschinenfest & abriebfest',
+                'Herkunft' => 'Made in Germany',
             ],
             'tier_pricing' => [],
             'seo_title' => 'Der Feierabend-Funke | Weizenglas mit eigener 360° Gravur | Mein-Seelenfunke',
@@ -362,11 +374,18 @@ class ProductSeeder extends Seeder
             ['qty' => 12, 'percent' => 15]
         ]);
 
+        // Verpackungsmaterial (LUCID / /admin/product-packaging): Versandkarton + Polsterschutz (120 g gesamt)
+        $p3->packagings()->delete();
+        $p3->packagings()->createMany([
+            ['material_type' => 'paper',   'weight_grams' => 100],
+            ['material_type' => 'plastic', 'weight_grams' => 20],
+        ]);
+
         // --- PRODUKT 4: Der Seelen-Talisman (Physisch / NEU – Massiv Gold Edelstahl-Schlüsselanhänger) ---
         $p4 = Product::updateOrCreate(['slug' => 'seelen-talisman'], [
             'name' => 'Der Seelen-Talisman',
             'type' => 'physical',
-            'description' => 'Ein edles Statement für jeden Tag: Der Seelen-Talisman ist aus massivem, spiegelpoliertem Edelstahl mit hochwertigem Gold-Finish gefertigt und besticht durch seine sanft abgerundete Tonnen-Kontur mit massivem Flachprofil-Schlüsselring. Durch unsere hochpräzise Faserlaser-Anlassgravur treten Ihre Wunschbotschaft, Koordinaten, Initialen oder Symbole in gestochen scharfem, abriebfestem Tief-Anthrazit auf dem glänzenden Gold hervor – auf Wunsch beidseitig veredelt! Ob als treuer Schutzbegleiter für den Lieblingsmenschen, als stilvoller Schlüsselanhänger zum neuen Zuhause oder als Jahrestags-Erinnerung: Der Seelen-Talisman liegt spürbar wertig in der Hand und wird im edlen Samtetui geliefert.',
+            'description' => 'Ein edles Statement für jeden Tag: Der Seelen-Talisman ist aus massivem, spiegelpoliertem Edelstahl mit hochwertigem Gold-Finish gefertigt und besticht durch seine sanft abgerundete Tonnen-Kontur mit massivem Flachprofil-Schlüsselring. Durch unsere hochpräzise Faserlaser-Anlassgravur treten Ihre Wunschbotschaft, Koordinaten, Initialen oder Symbole in gestochen scharfem, abriebfestem Tief-Anthrazit auf dem glänzenden Gold hervor – auf Wunsch beidseitig veredelt! Ob als treuer Schutzbegleiter für den Lieblingsmenschen, als stilvoller Schlüsselanhänger zum neuen Zuhause oder als Jahrestags-Erinnerung: Der Seelen-Talisman liegt spürbar wertig in der Hand und begleitet Sie zuverlässig durch den Alltag.',
             'short_description' => 'Massiver, spiegelpolierter Edelstahl-Schlüsselanhänger in edlem Gold-Finish mit kontraststarker, beidseitiger Faserlaser-Gravur.',
             'status' => 'active',
             'is_personalizable' => true,
@@ -376,7 +395,7 @@ class ProductSeeder extends Seeder
             'purchase_price' => 116, // EK laut Temu-Beleg 15.10.2026: 18,60€ / 16 Stück = 1,16€ netto (1,48€ inkl. Einfuhrabgabe)
             'laser_runtime_minutes' => 1,
             'electricity_wear_factor' => 5,
-            'packaging_cost' => 17, // Luftpolstertasche Karton.eu 0,17€
+            'packaging_cost' => 14, // Karton.eu 400stk Luftpolster Versandtüten = 0,14€ netto
             'marketing_cost_percent' => 10.00,
             'sku' => 'STEEL-BAR-001',
             'product_supplier_id' => $sup5?->id,
@@ -387,24 +406,23 @@ class ProductSeeder extends Seeder
             'quantity' => 16,
             'continue_selling_when_out_of_stock' => true,
             'weight' => 24,
-            'packaging_weight' => 15,
+            'packaging_weight' => 15, // Luftpolster-Versandtüte (15 g)
             'height' => 50,
             'width' => 28,
             'length' => 2.2,
-            'shipping_class' => 'paket_s',
+            'shipping_class' => 'brief', // Brief / Großbrief (Luftpolster-Umschlag)
             'preview_image_path' => 'produkte/products/seelen-talisman/overlay.png',
             'three_d_model_path' => 'produkte/products/seelen-talisman/seelen_talisman_3d.glb',
             'three_d_background_path' => 'produkte/products/seelen-talisman/header_bg.png',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-main.jpg', 'is_main' => true, 'alt' => 'Der Seelen-Talisman – Spiegelpolierter Gold-Edelstahl-Schlüsselanhänger mit Gravur'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-back.jpg', 'is_main' => false, 'alt' => 'Der Seelen-Talisman – Beidseitige Gravur mit Wunschkoordinaten'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-lifestyle.jpg', 'is_main' => false, 'alt' => 'Der Seelen-Talisman am Schlüsselbund'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-giftbox.jpg', 'is_main' => false, 'alt' => 'Der Seelen-Talisman in schwarzer Seelenfunke Geschenkbox'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-dimensions.jpg', 'is_main' => false, 'alt' => 'Der Seelen-Talisman – Technisches Maßblatt & Abmessungen (50 x 28 x 2,2 mm)'],
-                ['type' => 'video', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-promo.mp4', 'is_main' => false, 'alt' => 'Der Seelen-Talisman – Produktvideo'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-main.jpg', 'is_main' => true, 'is_ai_generated' => true, 'alt' => 'Der Seelen-Talisman – Spiegelpolierter Gold-Edelstahl-Schlüsselanhänger mit Gravur'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-back.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen-Talisman – Beidseitige Gravur mit Wunschkoordinaten'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-lifestyle.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen-Talisman am Schlüsselbund'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-dimensions.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen-Talisman – Technisches Maßblatt & Abmessungen (50 x 28 x 2,2 mm)'],
             ],
             'configurator_settings' => [
                 'template_package' => 'seelen-talisman',
+                'origin_badge' => 'handcrafted_in_germany',
                 'auto_seasonal_main_image' => true,
                 'enable_background_video' => true,
                 'default_background_theme' => 'standard',
@@ -448,9 +466,10 @@ class ProductSeeder extends Seeder
             'attributes' => [
                 'Material' => 'Hochglanzpolierter Edelstahl (Massiv Gold-Finish)',
                 'Form' => 'Gewölbte Dog-Tag Plakette mit Flachring (Beidseitig gravierbar)',
-                'Größe' => '50 x 28 x 2,2 mm (ohne Schlüsselring)',
+                'Größe' => '50 x 28 x 2,2 mm (5,0 x 2,8 cm Plakette, Ø 30 mm Schlüsselring)',
                 'Gewicht' => 'ca. 24 g (massiv)',
                 'Veredelung' => 'Tiefschwarze Faserlaser-Anlassgravur auf Gold',
+                'Herkunft' => 'Handveredelt in Deutschland',
             ],
             'tier_pricing' => [],
             'seo_title' => 'Der Seelen-Talisman | Gold Edelstahl-Schlüsselanhänger mit Gravur',
@@ -467,6 +486,13 @@ class ProductSeeder extends Seeder
             ['qty' => 10, 'percent' => 15]
         ]);
 
+        // Verpackungsmaterial (LUCID / /admin/product-packaging): Luftpolster-Versandtüte (15 g gesamt)
+        $p4->packagings()->delete();
+        $p4->packagings()->createMany([
+            ['material_type' => 'composite', 'weight_grams' => 12],
+            ['material_type' => 'paper',     'weight_grams' => 3],
+        ]);
+
         // --- PRODUKT 5: Die Seelen-Pfote (Physisch / NEU – Edelstahl-Hundemarke Knochenform mit Pfoten-Durchbruch) ---
         $p5Paw = Product::updateOrCreate(['slug' => 'seelen-pfote-hundemarke'], [
             'name' => 'Die Seelen-Pfote',
@@ -481,7 +507,7 @@ class ProductSeeder extends Seeder
             'purchase_price' => 79, // EK laut Temu-Angebot (goods_id=601099514279197): 7,88€ / 10 Stück = 0,79€ pro Stück
             'laser_runtime_minutes' => 1,
             'electricity_wear_factor' => 5,
-            'packaging_cost' => 17, // Luftpolstertasche 0,17€
+            'packaging_cost' => 14, // Karton.eu 400stk Luftpolster Versandtüten = 0,14€ netto
             'marketing_cost_percent' => 10.00,
             'sku' => 'STEEL-PAW-001',
             'product_supplier_id' => $sup5?->id,
@@ -489,27 +515,26 @@ class ProductSeeder extends Seeder
             'barcode' => '',
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
-            'quantity' => 50,
+            'quantity' => 0,
             'continue_selling_when_out_of_stock' => true,
-            'weight' => 16,
-            'packaging_weight' => 15,
-            'height' => 26,
+            'weight' => 12,
+            'packaging_weight' => 15, // Luftpolster-Versandtüte (15 g)
+            'height' => 22,
             'width' => 40,
             'length' => 1.8,
-            'shipping_class' => 'paket_s',
+            'shipping_class' => 'brief', // Brief / Großbrief (Luftpolster-Umschlag)
             'preview_image_path' => 'produkte/products/seelen-pfote-hundemarke/overlay.png',
             'three_d_model_path' => 'produkte/products/seelen-pfote-hundemarke/seelen_pfote_3d.glb',
             'three_d_background_path' => 'produkte/products/seelen-pfote-hundemarke/header_bg.png',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-main.jpg', 'is_main' => true, 'alt' => 'Die Seelen-Pfote – Polierte Edelstahl-Hundemarke Knochenform mit Pfoten-Durchbruch & Gravur'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-back.jpg', 'is_main' => false, 'alt' => 'Die Seelen-Pfote – Rückseite mit Notfall-Telefonnummer & TASSO-Hinweis'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-lifestyle.jpg', 'is_main' => false, 'alt' => 'Die Seelen-Pfote Hundemarke am Lederhalsband eines Golden Retrievers'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-giftbox.jpg', 'is_main' => false, 'alt' => 'Die Seelen-Pfote in edler Seelenfunke Geschenkbox'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-dimensions.jpg', 'is_main' => false, 'alt' => 'Die Seelen-Pfote – Technisches Maßblatt & Abmessungen (40 x 26 x 1,8 mm)'],
-                ['type' => 'video', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-promo.mp4', 'is_main' => false, 'alt' => 'Die Seelen-Pfote – Produktvideo'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-main.jpg', 'is_main' => true, 'is_ai_generated' => true, 'alt' => 'Die Seelen-Pfote – Polierte Edelstahl-Hundemarke Knochenform mit Pfoten-Durchbruch & Gravur'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-back.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Die Seelen-Pfote – Rückseite mit Notfall-Telefonnummer & TASSO-Hinweis'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-lifestyle.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Die Seelen-Pfote Hundemarke am Lederhalsband eines Golden Retrievers'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-dimensions.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Die Seelen-Pfote – Technisches Maßblatt & Abmessungen (40 x 22 x 1,8 mm)'],
             ],
             'configurator_settings' => [
                 'template_package' => 'seelen-pfote-hundemarke',
+                'origin_badge' => 'handcrafted_in_germany',
                 'auto_seasonal_main_image' => true,
                 'enable_background_video' => true,
                 'default_background_theme' => 'standard',
@@ -563,9 +588,10 @@ class ProductSeeder extends Seeder
             'attributes' => [
                 'Material' => 'Hochglanzpolierter V2A-Edelstahl (Rostfrei & Wasserfest)',
                 'Form' => 'Hundeknochen mit echtem Pfoten-Durchbruch (Beidseitig gravierbar)',
-                'Größe' => '40 x 26 x 1,8 mm (inkl. integrierter Öse Ø 5 mm)',
-                'Gewicht' => 'ca. 16 g (robust & alltagstauglich)',
+                'Größe' => '40 x 22 x 1,8 mm (1,57 x 0,87 in, inkl. integrierter Öse)',
+                'Gewicht' => 'ca. 12 g / 0,43 oz (robust & alltagstauglich)',
                 'Veredelung' => 'Tiefschwarze Faserlaser-Anlassgravur auf Silber-Edelstahl',
+                'Herkunft' => 'Handveredelt in Deutschland',
             ],
             'tier_pricing' => [],
             'seo_title' => 'Die Seelen-Pfote | Edelstahl-Hundemarke mit Pfoten-Durchbruch & Gravur',
@@ -580,6 +606,137 @@ class ProductSeeder extends Seeder
             ['qty' => 2, 'percent' => 8],
             ['qty' => 3, 'percent' => 12],
             ['qty' => 5, 'percent' => 18]
+        ]);
+
+        // Verpackungsmaterial (LUCID / /admin/product-packaging): Luftpolster-Versandtüte (15 g gesamt)
+        $p5Paw->packagings()->delete();
+        $p5Paw->packagings()->createMany([
+            ['material_type' => 'composite', 'weight_grams' => 12],
+            ['material_type' => 'paper',     'weight_grams' => 3],
+        ]);
+
+        // --- PRODUKT 6: Das Goldene Seelen-Herz (Physisch / NEU – 14 Karat vergoldeter Edelstahl-Herzanhänger mit Collierschlaufe von Glücksfieber DE) ---
+        $p6GoldHeart = Product::updateOrCreate(['slug' => 'goldenes-seelen-herz'], [
+            'name' => 'Das Goldene Seelen-Herz',
+            'type' => 'physical',
+            'description' => 'Ein Schmuckstück für die Ewigkeit, gefertigt und veredelt in Deutschland: Das Goldene Seelen-Herz ist ein außergewöhnlich massiver (4,0 mm starker!) Edelstahl-Schmuckanhänger mit edler 14-Karat-Echtgold-Ion-Plating-Vergoldung (IP) und integrierter Collierschlaufe (Öse 3 × 6 mm). Anders als dünne Blechanhänger besticht dieser Rohling aus dem Lübecker Fachgroßhandel Glücksfieber durch sein spürbares Juwelier-Gewicht, sanft facettierte Kanten und eine extrem kratz- sowie anlauffeste Spiegeloberfläche. Mit unserem Präzisions-Faserlaser verewigen wir Ihre Initialen, Namen, ein besonderes Datum oder feine Symbole in tiefem, kontraststarkem Anthrazit-Schwarz direkt im 14k Gold-Finish – auf Wunsch auf Vorder- und Rückseite.',
+            'short_description' => 'Massiver 14 Karat vergoldeter Edelstahl-Herzanhänger (4 mm Stärke, Ion-Plating) mit Collierschlaufe & beidseitiger Faserlaser-Gravur – Made in Germany.',
+            'status' => 'active',
+            'is_personalizable' => true,
+            'three_d_active' => true,
+            'price' => 2490,
+            'compare_at_price' => 2990,
+            'purchase_price' => 210, // EK bei Glücksfieber (Lübeck, DE) im Staffelbezug: ca. 2,10€ netto pro Stück
+            'laser_runtime_minutes' => 1,
+            'electricity_wear_factor' => 5,
+            'packaging_cost' => 14, // Karton.eu 400stk Luftpolster Versandtüten = 0,14€ netto
+            'marketing_cost_percent' => 10.00,
+            'sku' => 'GOLD-HEART-001',
+            'product_supplier_id' => $sup8?->id,
+            'reorder_url' => 'https://www.gluecksfieber.de/shop/laserrohlinge/edelstahl-laserrohling-anhaenger-herz-mit-collierschlaufe-14-karat-vergoldet-25-x-22-x-4-mm-oese-3-x-6-mm-ion-plating-ip.html',
+            'barcode' => '',
+            'brand' => 'Mein-Seelenfunke',
+            'track_quantity' => true,
+            'quantity' => 0,
+            'continue_selling_when_out_of_stock' => true,
+            'weight' => 14,
+            'packaging_weight' => 15, // Luftpolster-Versandtüte (15 g)
+            'height' => 25,
+            'width' => 22,
+            'length' => 4.0,
+            'shipping_class' => 'brief', // Brief / Großbrief (Luftpolster-Umschlag)
+            'preview_image_path' => 'produkte/products/goldenes-seelen-herz/overlay.png',
+            'three_d_model_path' => 'produkte/products/goldenes-seelen-herz/goldenes_seelen_herz_3d.glb',
+            'three_d_background_path' => 'produkte/products/goldenes-seelen-herz/header_bg.png',
+            'media_gallery' => [
+                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-main.jpg', 'is_main' => true, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelen-Herz – 14 Karat vergoldeter Edelstahl-Herzanhänger mit Collierschlaufe & Gravur'],
+                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-back.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelen-Herz – Rückseite mit Wunschdatum & Koordinaten-Gravur'],
+                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-lifestyle.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelen-Herz an feiner Goldkette getragen'],
+                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-dimensions.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelen-Herz – Technisches Maßblatt & Abmessungen (25 x 22 x 4 mm, Öse 3 x 6 mm)'],
+            ],
+            'configurator_settings' => [
+                'template_package' => 'goldenes-seelen-herz',
+                'origin_badge' => 'made_in_germany',
+                'auto_seasonal_main_image' => true,
+                'enable_background_video' => true,
+                'default_background_theme' => 'standard',
+                'allow_text_pos' => true,
+                'allow_logo' => true,
+                'has_back_side' => true,
+                'area_shape' => 'custom',
+                'area_left' => 20.0,
+                'area_top' => 38.0,
+                'area_width' => 60.0,
+                'area_height' => 52.5,
+                'overlay_type' => 'plane',
+                'cylinder_radius' => 50,
+                'material_type' => 'metal',
+                'model_scale' => 133,
+                'model_pos_x' => 0, 'model_pos_y' => 0, 'model_pos_z' => 0,
+                'model_rot_x' => 0, 'model_rot_y' => 0, 'model_rot_z' => 0,
+                // VORDERSEITE (1:1 deckungsgleich zum 800x800 2D-Overlay: W_canvas / maxPlaneSize = 800 / 1062 = 75.3%)
+                'engraving_scale' => 75,
+                'engraving_pos_x' => 0, 'engraving_pos_y' => 0, 'engraving_pos_z' => 0,
+                'engraving_rot_x' => 0, 'engraving_rot_y' => 180, 'engraving_rot_z' => 0,
+                // RÜCKSEITE (-Z Fläche der 4,0 mm starken 14k Gold-Platte bei zHalf = 0.088)
+                'back_engraving_scale' => 75,
+                'back_engraving_pos_x' => 0, 'back_engraving_pos_y' => 0, 'back_engraving_pos_z' => -1.78,
+                'back_engraving_rot_x' => 0, 'back_engraving_rot_y' => 0, 'back_engraving_rot_z' => 0,
+                'custom_points' => [
+                    ['x' => 50.0, 'y' => 42.2],
+                    ['x' => 54.5, 'y' => 39.2],
+                    ['x' => 61.5, 'y' => 38.2],
+                    ['x' => 68.5, 'y' => 39.0],
+                    ['x' => 74.8, 'y' => 42.5],
+                    ['x' => 78.5, 'y' => 48.2],
+                    ['x' => 79.5, 'y' => 55.0],
+                    ['x' => 78.2, 'y' => 62.5],
+                    ['x' => 74.5, 'y' => 70.0],
+                    ['x' => 69.2, 'y' => 77.2],
+                    ['x' => 62.5, 'y' => 83.5],
+                    ['x' => 55.5, 'y' => 88.2],
+                    ['x' => 50.0, 'y' => 90.5],
+                    ['x' => 44.5, 'y' => 88.2],
+                    ['x' => 37.5, 'y' => 83.5],
+                    ['x' => 30.8, 'y' => 77.2],
+                    ['x' => 25.5, 'y' => 70.0],
+                    ['x' => 21.8, 'y' => 62.5],
+                    ['x' => 20.5, 'y' => 55.0],
+                    ['x' => 21.5, 'y' => 48.2],
+                    ['x' => 25.2, 'y' => 42.5],
+                    ['x' => 31.5, 'y' => 39.0],
+                    ['x' => 38.5, 'y' => 38.2],
+                    ['x' => 45.5, 'y' => 39.2],
+                ]
+            ],
+            'attributes' => [
+                'Material' => 'Massiver Edelstahl, 14 Karat vergoldet (Ion-Plating / IP)',
+                'Form' => 'Schmuck-Herz mit Collierschlaufe (Beidseitig gravierbar)',
+                'Größe' => '25 x 22 x 4,0 mm (Collierschlaufe / Öse: 3 x 6 mm)',
+                'Gewicht' => 'ca. 14 g (4 mm starkes Juwelier-Vollmaterial)',
+                'Veredelung' => 'Tief-anthrazitfarbene Faserlaser-Anlassgravur auf 14k Gold',
+                'Herkunft' => 'Made in Germany',
+            ],
+            'tier_pricing' => [],
+            'seo_title' => 'Das Goldene Seelen-Herz | 14k vergoldeter Herzanhänger mit Lasergravur – Made in Germany',
+            'seo_description' => 'Massiver 14 Karat vergoldeter Edelstahl-Herzanhänger (25x22x4 mm) mit Collierschlaufe und individueller Gravur. Made in Germany – jetzt im 3D-Konfigurator gestalten!',
+            'completion_step' => 4
+        ]);
+
+        $catIdsGoldHeart = ProductCategory::whereIn('name', ['Schmuck & Anhänger', 'Metall & Alu', 'Geschenksets', 'Bestseller'])->pluck('id');
+        $p6GoldHeart->categories()->sync($catIdsGoldHeart);
+        $p6GoldHeart->tierPrices()->delete();
+        $p6GoldHeart->tierPrices()->createMany([
+            ['qty' => 2, 'percent' => 5],
+            ['qty' => 3, 'percent' => 10],
+            ['qty' => 5, 'percent' => 15]
+        ]);
+
+        // Verpackungsmaterial (LUCID / /admin/product-packaging): Luftpolster-Versandtüte (15 g gesamt)
+        $p6GoldHeart->packagings()->delete();
+        $p6GoldHeart->packagings()->createMany([
+            ['material_type' => 'composite', 'weight_grams' => 12],
+            ['material_type' => 'paper',     'weight_grams' => 3],
         ]);
 
         // --- PRODUKT 4: KI-Agenten im E-Commerce (Digital) ---
@@ -613,10 +770,9 @@ Zusätzlich erhältst du das vollständige ZIP-Archiv mit allen 200 einsatzberei
             'digital_filename' => 'KI_Agenten_Management_Paket.zip',
             'preview_image_path' => 'produkte/products/ki-agenten-playbook/playbook-cover.jpg',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'produkte/products/ki-agenten-playbook/playbook-cover.jpg', 'is_main' => true, 'alt' => 'KI-Agenten im E-Commerce Cover'],
-                ['type' => 'video', 'path' => 'produkte/products/ki-agenten-playbook/playbook-promo.mp4', 'is_main' => false, 'alt' => 'KI-Agenten im E-Commerce Promo-Video'],
-                ['type' => 'image', 'path' => 'produkte/products/ki-agenten-playbook/playbook-perspective-tablet.jpg', 'is_main' => false, 'alt' => 'KI-Agenten im E-Commerce Tablet-Ansicht'],
-                ['type' => 'image', 'path' => 'produkte/products/ki-agenten-playbook/playbook-perspective-devices.jpg', 'is_main' => false, 'alt' => 'KI-Agenten im E-Commerce Multi-Device-Ansicht']
+                ['type' => 'image', 'path' => 'produkte/products/ki-agenten-playbook/playbook-cover.jpg', 'is_main' => true, 'is_ai_generated' => true, 'alt' => 'KI-Agenten im E-Commerce Cover'],
+                ['type' => 'image', 'path' => 'produkte/products/ki-agenten-playbook/playbook-perspective-tablet.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'KI-Agenten im E-Commerce Tablet-Ansicht'],
+                ['type' => 'image', 'path' => 'produkte/products/ki-agenten-playbook/playbook-perspective-devices.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'KI-Agenten im E-Commerce Multi-Device-Ansicht']
             ],
             'configurator_settings' => [
                 'allow_text_pos' => false,
@@ -649,7 +805,7 @@ Zusätzlich erhältst du das vollständige ZIP-Archiv mit allen 200 einsatzberei
             'status' => 'active',
             'price' => 0, // Wird dynamisch durch den Konfigurator/Warenkorb bestimmt
             'compare_at_price' => null,
-            'sku' => 'GIFT-VOUCHER',
+            'sku' => 'GIFT-VOUCHER-001',
             'barcode' => '',
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => false,
@@ -682,5 +838,25 @@ Zusätzlich erhältst du das vollständige ZIP-Archiv mit allen 200 einsatzberei
 
         $catIds5 = ProductCategory::whereIn('name', ['Geschenksets', 'Bestseller'])->pluck('id');
         $p5->categories()->sync($catIds5);
+
+        // Sicherstellen, dass bei allen bestehenden Produkten & Vorlagen jedes Bild als KI-generiert markiert ist
+        foreach (Product::withTrashed()->get() as $existingProduct) {
+            $gallery = is_array($existingProduct->media_gallery) ? $existingProduct->media_gallery : [];
+            $changed = false;
+            foreach ($gallery as $idx => $item) {
+                if (is_array($item) && ($item['type'] ?? 'image') === 'image' && empty($item['is_ai_generated'])) {
+                    $gallery[$idx]['is_ai_generated'] = true;
+                    $changed = true;
+                }
+            }
+            if ($changed) {
+                $existingProduct->media_gallery = $gallery;
+                $existingProduct->saveQuietly();
+            }
+        }
+        \App\Models\Product\ProductTemplate::withTrashed()->update(['is_ai_generated' => true]);
+
+        // --- 3D-Modelle (.glb), Saison-Overlays & Technische Maßblätter nativ synchronisieren ---
+        $this->call(ProductAssetSeeder::class);
     }
 }

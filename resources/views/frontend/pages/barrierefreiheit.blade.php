@@ -2,7 +2,7 @@
     title="Erklärung zur Barrierefreiheit (BFSG) | Mein Seelenfunke"
     meta_description="Unsere Erklärung zur digitalen Barrierefreiheit gemäß Barrierefreiheitsstärkungsgesetz (BFSG) für den Onlineshop von Mein Seelenfunke.">
     <x-sections.page-container>
-        <section class="max-w-4xl mx-auto px-4 py-20 text-gray-800">
+        <section class="max-w-4xl mx-auto px-4 py-12 md:py-16 text-gray-800">
 
             {{-- Header Bereich --}}
             <header class="mb-16 text-center md:text-left border-b border-gray-100 pb-12">

@@ -296,11 +296,21 @@ trait HandlesOrderCreation
                 $orderData['utm_campaign_last'] = 'ref:' . substr($referrer, 0, 50);
             }
             $influencerId = session('seelenfunke_influencer_id') ?: request()->cookie('seelenfunke_influencer_id');
-            if ($influencerId && empty($orderData['utm_campaign_last']) && \Illuminate\Support\Facades\Schema::hasTable('marketing_influencers')) {
+            $trackingLinkId = session('seelenfunke_tracking_link_id') ?: request()->cookie('seelenfunke_tracking_link_id');
+            if ($influencerId && \Illuminate\Support\Facades\Schema::hasTable('marketing_influencers')) {
                 $inf = \App\Models\Marketing\MarketingInfluencer::find($influencerId);
                 if ($inf && $inf->is_active && !$inf->is_archived) {
+                    $affSlug = (string) $inf->slug;
+                    if ($trackingLinkId && \Illuminate\Support\Facades\Schema::hasTable('marketing_tracking_links')) {
+                        $trk = \App\Models\Marketing\MarketingTrackingLink::where('id', $trackingLinkId)
+                            ->where('influencer_id', $inf->id)
+                            ->first();
+                        if ($trk && !empty($trk->slug)) {
+                            $affSlug = (string) $trk->slug;
+                        }
+                    }
                     $orderData['utm_source_last'] = 'influencer';
-                    $orderData['utm_campaign_last'] = 'aff:' . substr($inf->slug, 0, 50);
+                    $orderData['utm_campaign_last'] = 'aff:' . substr($affSlug, 0, 50);
                     $orderData['utm_medium_last'] = $inf->primary_channel ?: 'social';
                 }
             }
@@ -315,11 +325,15 @@ trait HandlesOrderCreation
             if (request()->hasCookie('seelenfunke_last_touch')) {
                 $lt = json_decode(request()->cookie('seelenfunke_last_touch'), true);
                 if (is_array($lt)) {
-                    $orderData['utm_source_last'] = $lt['source'] ?? null;
+                    if (empty($orderData['utm_source_last'])) {
+                        $orderData['utm_source_last'] = $lt['source'] ?? null;
+                    }
                     if (empty($orderData['utm_campaign_last'])) {
                         $orderData['utm_campaign_last'] = $lt['campaign'] ?? null;
                     }
-                    $orderData['utm_medium_last'] = $lt['medium'] ?? null;
+                    if (empty($orderData['utm_medium_last'])) {
+                        $orderData['utm_medium_last'] = $lt['medium'] ?? null;
+                    }
                 }
             }
 

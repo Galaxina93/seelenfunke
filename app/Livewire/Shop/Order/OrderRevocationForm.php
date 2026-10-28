@@ -22,6 +22,7 @@ class OrderRevocationForm extends Component
     public $honey_name = ''; // Honeypot gegen Spam-Bots
 
     public $isSubmitted = false;
+    public $confirmStep = false;
 
     protected $rules = [
         'name' => 'required|string|min:2|max:255',
@@ -89,6 +90,17 @@ class OrderRevocationForm extends Component
             unset($this->attachments[$index]);
             $this->attachments = array_values($this->attachments);
         }
+    }
+
+    public function proceedToConfirmation()
+    {
+        $this->validate();
+        $this->confirmStep = true;
+    }
+
+    public function backToForm()
+    {
+        $this->confirmStep = false;
     }
 
     public function submitRevocation()

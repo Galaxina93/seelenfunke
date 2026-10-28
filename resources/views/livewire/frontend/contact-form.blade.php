@@ -19,7 +19,7 @@
         @endphp
 
         <section id="contact"
-                 class="bg-stone-50 border-t border-gray-200 py-24 relative overflow-hidden"
+                 class="bg-stone-50 border-t border-gray-200 py-12 md:py-16 relative overflow-hidden"
                  x-data
                  x-init="setTimeout(() => { if(window.startUniverseEngine) window.startUniverseEngine($el, {{ $totalStars }}) }, 400)"
                  aria-label="Kontaktformular und Kontaktdaten">

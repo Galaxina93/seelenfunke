@@ -232,7 +232,7 @@ return new class extends Migration
 
             // Steuerliche & rechtliche Pflichtangaben (§ 14 Abs. 2 S. 2 UStG / § 19 UStG)
             $table->string('tax_status', 30)->default('small_business'); // small_business, standard_tax
-            $table->string('tax_number', 100)->nullable();
+            $table->text('tax_number')->nullable();
             $table->boolean('self_employed_confirmed')->default(false);
             $table->timestamp('self_employed_confirmed_at')->nullable();
 

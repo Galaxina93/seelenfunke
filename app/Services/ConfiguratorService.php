@@ -24,8 +24,8 @@ class ConfiguratorService
             $previewImagePath = $packages[$pkgKey]['preview_image_path'];
         }
 
-        $fallbackDark = ($pkgKey !== 'seelen-talisman') && (($configSettings['material_type'] ?? '') === 'metal' || in_array($pkgKey, ['seelen-anhaenger', 'seelen-pfote-hundemarke'], true));
-        $fallbackTrans = ($configSettings['area_shape'] ?? '') === 'custom' || in_array($pkgKey, ['seelen-anhaenger', 'seelen-talisman', 'seelen-pfote-hundemarke'], true);
+        $fallbackDark = !in_array($pkgKey, ['seelen-talisman', 'goldenes-seelen-herz'], true) && (($configSettings['material_type'] ?? '') === 'metal' || in_array($pkgKey, ['seelen-anhaenger', 'seelen-pfote-hundemarke'], true));
+        $fallbackTrans = ($configSettings['area_shape'] ?? '') === 'custom' || in_array($pkgKey, ['seelen-anhaenger', 'seelen-talisman', 'seelen-pfote-hundemarke', 'goldenes-seelen-herz'], true);
 
         if (!$previewImagePath) {
             return [
@@ -274,6 +274,17 @@ class ConfiguratorService
                 'preview_image_path'      => 'produkte/products/seelen-pfote-hundemarke/overlay.png',
                 'three_d_background_path' => 'produkte/products/seelen-pfote-hundemarke/header_bg.png',
                 'three_d_model_path'      => 'produkte/products/seelen-pfote-hundemarke/seelen_pfote_3d.glb',
+                'default_background_theme'=> 'standard',
+                'material_type'           => 'metal',
+                'area_shape'              => 'custom',
+            ],
+            'goldenes-seelen-herz' => [
+                'key'                     => 'goldenes-seelen-herz',
+                'name'                    => 'Goldenes Seelen-Herz Paket (14k Edelstahl-Herz mit Collierschlaufe)',
+                'description'             => 'Transparenter 2D 14k Gold-Herz Cutout mit Collierschlaufe + 3D Manufaktur-Holztisch',
+                'preview_image_path'      => 'produkte/products/goldenes-seelen-herz/overlay.png',
+                'three_d_background_path' => 'produkte/products/goldenes-seelen-herz/header_bg.png',
+                'three_d_model_path'      => 'produkte/products/goldenes-seelen-herz/goldenes_seelen_herz_3d.glb',
                 'default_background_theme'=> 'standard',
                 'material_type'           => 'metal',
                 'area_shape'              => 'custom',
@@ -685,9 +696,9 @@ class ConfiguratorService
      * Erstellt die chronologische Timeline aller Feiertags- & Jahreszeiten-Animationen
      * (analog zu getNewsletterTimeline in MarketingNewsletter) für /admin/product-templates.
      */
-    public function getAnimationTimeline(?int $year = null): Collection
+    public function getAnimationTimeline(?int $year = null, ?Carbon $referenceDate = null): Collection
     {
-        $now = Carbon::now()->startOfDay();
+        $now = ($referenceDate ? $referenceDate->copy() : Carbon::now())->startOfDay();
         $year = $year ?? (int) $now->year;
         $themes = $this->getBackgroundThemes();
         $activeNow = $this->getCurrentActiveTheme($now);
@@ -699,8 +710,21 @@ class ConfiguratorService
             $startDate = $eventDate->copy()->subDays($meta['days_before'])->startOfDay();
             $endDate = $eventDate->copy()->addDays($meta['days_after'])->endOfDay();
 
-            if ($endDate->isPast() && !$endDate->isToday()) {
+            // Wenn das komplette Kampagnen-Fenster im aktuellen Kalenderjahr bereits abgelaufen ist,
+            // zuerst auf das Folgejahr rollen (wichtig z. B. Ende Dezember für Neujahr 01.01. des Folgejahres)
+            if ($endDate->lt($now)) {
                 $eventDate = $this->getHolidayDate($key, $year + 1);
+                $startDate = $eventDate->copy()->subDays($meta['days_before'])->startOfDay();
+                $endDate = $eventDate->copy()->addDays($meta['days_after'])->endOfDay();
+            }
+
+            $isActiveWindow = $now->betweenIncluded($startDate, $endDate);
+            $isActiveNow = $isActiveWindow && ($activeNow['event_key'] === $key);
+
+            // Falls ein Event aktuell nicht aktiv ist (z. B. durch manuelle Übersteuerung), sein Stichtag aber schon vorbei ist
+            if (!$isActiveNow && $eventDate->lt($now)) {
+                $nextYear = (int) $eventDate->year + 1;
+                $eventDate = $this->getHolidayDate($key, $nextYear);
                 $startDate = $eventDate->copy()->subDays($meta['days_before'])->startOfDay();
                 $endDate = $eventDate->copy()->addDays($meta['days_after'])->endOfDay();
             }
@@ -709,8 +733,6 @@ class ConfiguratorService
             $themeObj = $themes[$themeKey] ?? $themes['standard'];
             $vidDisk = storage_path('app/public/' . $themeObj['video']);
             $imgDisk = storage_path('app/public/' . $themeObj['image']);
-
-            $isActiveWindow = $now->betweenIncluded($startDate, $endDate);
 
             $events[] = [
                 'date'          => $startDate,
@@ -722,7 +744,7 @@ class ConfiguratorService
                 'event_name'    => $meta['name'],
                 'theme_key'     => $themeKey,
                 'theme'         => $themeObj,
-                'is_active_now' => $isActiveWindow && ($activeNow['event_key'] === $key),
+                'is_active_now' => $isActiveNow,
                 'video_path'    => 'storage/app/public/' . $themeObj['video'],
                 'video_url'     => asset('storage/' . $themeObj['video']),
                 'video_kb'      => is_file($vidDisk) ? (int) max(1, round(filesize($vidDisk) / 1024)) : null,
@@ -753,9 +775,16 @@ class ConfiguratorService
                 $endDate = Carbon::create($year, 2, 1)->endOfMonth()->endOfDay();
             }
 
-            if ($endDate->isPast() && !$endDate->isToday()) {
-                $startDate = Carbon::create($year + 1, $sMeta['month'], $sMeta['day'])->startOfDay();
-                $endYearNext = ($sMeta['end_month'] < $sMeta['month']) ? $year + 2 : $year + 1;
+            $isActiveSeason = $now->betweenIncluded($startDate, $endDate);
+            $isActiveNow = ($isActiveSeason && ($activeNow['event_key'] === $sKey))
+                || (!empty($activeNow['is_manual']) && ($activeNow['event_key'] === $sKey));
+
+            // Wenn die Jahreszeit aktuell nicht die aktive Kachel ist (z. B. weil ein Feiertag wie Halloween aktiv ist)
+            // und ihr Startdatum bereits in der Vergangenheit liegt, auf den nächsten Jahreszeiten-Start im Folgejahr rollen
+            if (!$isActiveNow && ($endDate->lt($now) || $startDate->lt($now))) {
+                $nextStartYear = ($sKey === 'season_winter' && $now->month <= 2) ? $year : $year + 1;
+                $startDate = Carbon::create($nextStartYear, $sMeta['month'], $sMeta['day'])->startOfDay();
+                $endYearNext = ($sMeta['end_month'] < $sMeta['month']) ? $nextStartYear + 1 : $nextStartYear;
                 $endDate = $sMeta['end_month'] === 2
                     ? Carbon::create($endYearNext, 2, 1)->endOfMonth()->endOfDay()
                     : Carbon::create($endYearNext, $sMeta['end_month'], $sMeta['end_day'])->endOfDay();
@@ -765,8 +794,6 @@ class ConfiguratorService
             $themeObj = $themes[$themeKey] ?? $themes['standard'];
             $vidDisk = storage_path('app/public/' . $themeObj['video']);
             $imgDisk = storage_path('app/public/' . $themeObj['image']);
-
-            $isActiveSeason = $now->betweenIncluded($startDate, $endDate);
 
             $events[] = [
                 'date'          => $startDate,
@@ -778,7 +805,7 @@ class ConfiguratorService
                 'event_name'    => $sMeta['name'],
                 'theme_key'     => $themeKey,
                 'theme'         => $themeObj,
-                'is_active_now' => ($isActiveSeason && ($activeNow['event_key'] === $sKey)) || (!empty($activeNow['is_manual']) && ($activeNow['event_key'] === $sKey)),
+                'is_active_now' => $isActiveNow,
                 'video_path'    => 'storage/app/public/' . $themeObj['video'],
                 'video_url'     => asset('storage/' . $themeObj['video']),
                 'video_kb'      => is_file($vidDisk) ? (int) max(1, round(filesize($vidDisk) / 1024)) : null,
@@ -788,9 +815,12 @@ class ConfiguratorService
             ];
         }
 
-        // Sortiere: Aktuell aktive Animation zuerst, danach chronologisch nach Startdatum
+        // Sortiere: Aktuell aktive Animation zuerst, danach streng chronologisch nach Event-Datum
         return collect($events)->sortBy(function ($item) {
-            return ($item['is_active_now'] ? '0_' : '1_') . $item['date']->format('Ymd');
+            return ($item['is_active_now'] ? '0_' : '1_')
+                . $item['event_date']->format('Ymd')
+                . '_'
+                . $item['date']->format('Ymd');
         })->values();
     }
 

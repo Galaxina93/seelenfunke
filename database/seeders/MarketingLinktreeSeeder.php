@@ -33,7 +33,7 @@ class MarketingLinktreeSeeder extends Seeder
             ],
             [
                 'title' => 'TikTok',
-                'url' => 'https://tiktok.com/@seelenfunke',
+                'url' => 'https://tiktok.com/@mein_seelenfunke',
                 'icon' => 'tiktok',
                 'type' => 'standard',
                 'sort_order' => 3,
@@ -41,7 +41,7 @@ class MarketingLinktreeSeeder extends Seeder
             ],
             [
                 'title' => 'Instagram',
-                'url' => 'https://instagram.com/seelenfunke',
+                'url' => 'https://instagram.com/mein_seelenfunke',
                 'icon' => 'instagram',
                 'type' => 'standard',
                 'sort_order' => 4,

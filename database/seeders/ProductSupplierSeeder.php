@@ -170,5 +170,73 @@ class ProductSupplierSeeder extends Seeder
                 'dynamic_links' => [],
             ]
         );
+
+        // 8. HÄNDLER 8: Glücksfieber (Lübeck, DE – Edelstahl- & Ion-Plating-Laserrohlinge)
+        ProductSupplier::updateOrCreate(
+            ['name' => 'Glücksfieber (Lübeck)'],
+            [
+                'company_name' => 'Stefan Spreier & Sandra Schmidt GbR (Glücksfieber)',
+                'contact_person' => 'Stefan Spreier & Sandra Schmidt',
+                'street' => 'Stockholmring',
+                'house_number' => '8',
+                'zip' => '23560',
+                'city' => 'Lübeck',
+                'country' => 'Deutschland',
+                'country_code' => 'DE',
+                'phone' => '+49 451 4799850',
+                'email' => 'kundenservice@gluecksfieber.de',
+                'website' => 'https://www.gluecksfieber.de/shop/laserrohlinge/',
+                'vat_id' => 'DE246566105',
+                'lead_time_land_days' => 2,
+                'shipping_method' => 'land',
+                'notes' => 'Deutscher Fachhändler für Edelstahl-Laserrohlinge (304/316L Chirurgenstahl & 14k Ion-Plating). Hauptprodukt: Edelstahl Laserrohling Anhänger, Herz, mit Collierschlaufe (25 x 22 x 4 mm, Öse 3 x 6 mm).',
+                'dynamic_links' => [
+                    [
+                        'title' => 'Herz-Anhänger mit Collierschlaufe (14k vergoldet, 25x22x4 mm)',
+                        'url' => 'https://www.gluecksfieber.de/shop/laserrohlinge/edelstahl-laserrohling-anhaenger-herz-mit-collierschlaufe-14-karat-vergoldet-25-x-22-x-4-mm-oese-3-x-6-mm-ion-plating-ip.html'
+                    ],
+                    [
+                        'title' => 'Glücksfieber Laserrohlinge Katalog',
+                        'url' => 'https://www.gluecksfieber.de/shop/laserrohlinge/'
+                    ],
+                ],
+            ]
+        );
+
+        // 9. HÄNDLER 9: Print Equipment GmbH & Co. KG (Ottersweier, DE – B2B Schiefer & Laserartikel)
+        ProductSupplier::updateOrCreate(
+            ['name' => 'Print Equipment GmbH & Co. KG'],
+            [
+                'company_name' => 'Print Equipment GmbH & Co. KG',
+                'contact_person' => 'Mario Panter / B2B Laser-Vertrieb',
+                'street' => 'Im Stühlinger',
+                'house_number' => '10',
+                'zip' => '77833',
+                'city' => 'Ottersweier',
+                'country' => 'Deutschland',
+                'country_code' => 'DE',
+                'phone' => '+49 7223 28150',
+                'email' => 'info@printequipment.de',
+                'website' => 'https://shop.printequipment.de/',
+                'vat_id' => 'DE814310164',
+                'lead_time_land_days' => 2,
+                'shipping_method' => 'land',
+                'notes' => 'Deutscher B2B-Großhändler (als Selbstständiger registriert unter https://shop.printequipment.de/). Fokus: Unbeschichtete Naturschieferplatten, Edelstahl-Flachmänner, Thermobecher & Holz-Laserartikel.',
+                'dynamic_links' => [
+                    [
+                        'title' => 'Print Equipment B2B Shop (Laserartikel)',
+                        'url' => 'https://shop.printequipment.de/laser/'
+                    ],
+                    [
+                        'title' => 'Naturschiefer-Platten für Lasergravur',
+                        'url' => 'https://shop.printequipment.de/laser/laserartikel/schiefer/'
+                    ],
+                    [
+                        'title' => 'Edelstahl-Flachmänner & Becher',
+                        'url' => 'https://shop.printequipment.de/laser/laserartikel/edelstahl/'
+                    ],
+                ],
+            ]
+        );
     }
 }

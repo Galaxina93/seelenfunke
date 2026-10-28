@@ -129,6 +129,45 @@ class Product extends Model
         return $this->quantity > 0;
     }
 
+    /**
+     * Liefert den aktuellen Herkunfts-Siegel-Modus des Produkts:
+     * - 'made_in_germany'        -> "Made in Germany"
+     * - 'handcrafted_in_germany' -> "Handveredelt in Deutschland"
+     * - 'none'                   -> Kein Siegel
+     */
+    public function getOriginBadgeMode(): string
+    {
+        $settings = is_array($this->configurator_settings) ? $this->configurator_settings : [];
+        $explicit = $settings['origin_badge'] ?? null;
+
+        if (in_array($explicit, ['made_in_germany', 'handcrafted_in_germany', 'none'], true)) {
+            return $explicit;
+        }
+
+        if ($this->type !== 'physical') {
+            return 'none';
+        }
+
+        // Logischer Standardwert für bestehende physische Produkte, falls noch nicht explizit gesetzt
+        if (in_array($this->slug, ['weizenglas-personalisiert', 'goldenes-seelen-herz'], true)) {
+            return 'made_in_germany';
+        }
+
+        return 'handcrafted_in_germany';
+    }
+
+    /**
+     * Liefert den sichtbaren Text des Herkunfts-Siegels für Shop-Kacheln & Produktdetailseite (oder null bei 'none').
+     */
+    public function getOriginBadgeLabel(): ?string
+    {
+        return match ($this->getOriginBadgeMode()) {
+            'made_in_germany'        => 'Made in Germany',
+            'handcrafted_in_germany' => 'Handveredelt in Deutschland',
+            default                  => null,
+        };
+    }
+
     public function tierPrices()
     {
         return $this->hasMany(ProductTierPrice::class)->orderBy('qty', 'asc');
@@ -176,7 +215,7 @@ class Product extends Model
         $excluded = is_array($settings['excluded_variant_attributes'] ?? null) ? $settings['excluded_variant_attributes'] : [];
         $included = is_array($settings['included_variant_attributes'] ?? null) ? $settings['included_variant_attributes'] : [];
 
-        $defaultInfoOnlyKeys = ['Gewicht', 'Lieferzeit', 'Auslieferung', 'Sprache', 'Seiten', 'Dauer', 'Ort', 'Experte'];
+        $defaultInfoOnlyKeys = ['Gewicht', 'Lieferzeit', 'Auslieferung', 'Sprache', 'Seiten', 'Dauer', 'Ort', 'Experte', 'Herkunft'];
 
         $parsed = [];
         foreach ($attributes as $key => $val) {
@@ -680,7 +719,7 @@ class Product extends Model
                 return [
                     'path'            => $media['path'],
                     'url'             => ProductTemplate::resolveImageUrl($media['path']),
-                    'is_ai_generated' => filter_var($media['is_ai_generated'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                    'is_ai_generated' => filter_var($media['is_ai_generated'] ?? true, FILTER_VALIDATE_BOOLEAN),
                     'label'           => $variant['name'] ?? $this->name,
                 ];
             }
@@ -698,7 +737,7 @@ class Product extends Model
                     return [
                         'path'            => $media['path'],
                         'url'             => ProductTemplate::resolveImageUrl($media['path']),
-                        'is_ai_generated' => filter_var($media['is_ai_generated'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                        'is_ai_generated' => filter_var($media['is_ai_generated'] ?? true, FILTER_VALIDATE_BOOLEAN),
                         'label'           => "{$attrKey}: {$attrVal}",
                     ];
                 }
@@ -743,7 +782,7 @@ class Product extends Model
                             return [
                                 'path'            => $media['path'],
                                 'url'             => ProductTemplate::resolveImageUrl($media['path']),
-                                'is_ai_generated' => filter_var($media['is_ai_generated'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                                'is_ai_generated' => filter_var($media['is_ai_generated'] ?? true, FILTER_VALIDATE_BOOLEAN),
                                 'label'           => $media['holiday'] ?? ucfirst($normCandidate),
                             ];
                         }
@@ -759,7 +798,7 @@ class Product extends Model
                         return [
                             'path'            => $media['path'],
                             'url'             => ProductTemplate::resolveImageUrl($media['path']),
-                            'is_ai_generated' => filter_var($media['is_ai_generated'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                            'is_ai_generated' => filter_var($media['is_ai_generated'] ?? true, FILTER_VALIDATE_BOOLEAN),
                             'label'           => $media['alt'] ?? $this->name,
                         ];
                     }
@@ -767,7 +806,7 @@ class Product extends Model
                     return [
                         'path'            => $media,
                         'url'             => ProductTemplate::resolveImageUrl($media),
-                        'is_ai_generated' => false,
+                        'is_ai_generated' => true,
                         'label'           => $this->name,
                     ];
                 }

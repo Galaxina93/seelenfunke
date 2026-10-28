@@ -31,19 +31,19 @@
                 </p>
 
                 @if(isset($reviewsData['rating']))
-                    <div class="inline-flex items-center bg-white dark:bg-gray-800 rounded-full px-6 py-2 shadow-sm border border-gray-100 dark:border-gray-700">
-                        <span class="text-3xl font-bold text-gray-900 dark:text-white mr-3">{{ $reviewsData['rating'] }}</span>
+                    <div class="inline-flex flex-wrap items-center justify-center max-w-full bg-white dark:bg-gray-800 rounded-2xl sm:rounded-full px-4 sm:px-6 py-2 shadow-sm border border-gray-100 dark:border-gray-700 gap-y-1">
+                        <span class="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mr-2.5 sm:mr-3">{{ $reviewsData['rating'] }}</span>
 
                         {{-- Goldene Sterne --}}
                         <div class="flex text-yellow-400 space-x-1">
                             @for($i = 0; $i < 5; $i++)
-                                <svg class="w-6 h-6 {{ $i < round($reviewsData['rating']) ? 'fill-current' : 'text-gray-200 dark:text-gray-600' }}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <svg class="w-5 h-5 sm:w-6 sm:h-6 {{ $i < round($reviewsData['rating']) ? 'fill-current' : 'text-gray-200 dark:text-gray-600' }}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                     <path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.005Z" clip-rule="evenodd" />
                                 </svg>
                             @endfor
                         </div>
 
-                        <span class="text-gray-600 dark:text-gray-300 text-sm font-medium ml-3 border-l border-gray-200 dark:border-gray-600 pl-3">
+                        <span class="text-gray-600 dark:text-gray-300 text-xs sm:text-sm font-medium ml-2.5 sm:ml-3 border-l border-gray-200 dark:border-gray-600 pl-2.5 sm:pl-3">
                             {{ $reviewsData['total_ratings'] ?? 0 }} Rezensionen
                         </span>
                     </div>

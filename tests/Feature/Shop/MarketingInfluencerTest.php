@@ -1016,4 +1016,151 @@ class MarketingInfluencerTest extends TestCase
             ->test(\App\Livewire\Shop\Order\OrderShoppingCarts::class)
             ->assertForbidden();
     }
+
+    public function test_security_hardening_admin_cookie_isolation_payout_method_override_and_public_components(): void
+    {
+        Storage::fake('local');
+        $admin = $this->createAdmin();
+        $service = app(InfluencerService::class);
+
+        $influencer = $service->createOrUpdateInfluencer([
+            'first_name' => 'Maya',
+            'last_name' => 'Schutz',
+            'email' => 'maya@creator-test.de',
+            'handle' => '@maya.schutz',
+            'slug' => 'maya-schutz',
+            'commission_value' => 15,
+        ]);
+
+        $dummyAddress = [
+            'first_name' => 'Normaler',
+            'last_name' => 'Kunde',
+            'street' => 'Marktplatz 1',
+            'postal_code' => '38518',
+            'city' => 'Gifhorn',
+            'country' => 'DE',
+        ];
+
+        // 1. Admin-Cookie-Kontaminationsschutz:
+        // Wenn ein Admin im Browser zuvor einen Influencer-Link getestet hat (Session hat seelenfunke_influencer_id),
+        // darf das manuelle Bezahlt-Setzen einer fremden Kundenbestellung im Admin-Backend KEINE Provision auslösen!
+        session(['seelenfunke_influencer_id' => $influencer->id]);
+        $this->actingAs($admin, 'admin');
+
+        $organicOrder = OrderOrder::create([
+            'order_number' => 'ORD-2026-ORGANIC01',
+            'email' => 'normaler.kunde@example.com',
+            'status' => 'pending',
+            'payment_status' => 'unpaid',
+            'billing_address' => $dummyAddress,
+            'shipping_address' => $dummyAddress,
+            'subtotal_price' => 11900,
+            'discount_amount' => 0,
+            'tax_amount' => 1900,
+            'shipping_price' => 0,
+            'total_price' => 11900,
+        ]);
+
+        $organicOrder->update(['payment_status' => 'paid', 'status' => 'completed']);
+        $this->assertNull(
+            MarketingInfluencerCommission::where('order_id', $organicOrder->id)->first(),
+            'Admin-Session-Cookie darf fremde Kundenbestellungen beim Verbuchen nicht kontaminieren!'
+        );
+        session()->forget('seelenfunke_influencer_id');
+        auth('admin')->logout();
+
+        // 2. Stornierte oder erstattete Bestellungen dürfen niemals verprovisioniert werden
+        $cancelledOrder = OrderOrder::create([
+            'order_number' => 'ORD-2026-CANCELLED01',
+            'email' => 'storno.kunde@example.com',
+            'status' => 'cancelled',
+            'payment_status' => 'paid',
+            'billing_address' => $dummyAddress,
+            'shipping_address' => $dummyAddress,
+            'subtotal_price' => 11900,
+            'discount_amount' => 0,
+            'tax_amount' => 1900,
+            'shipping_price' => 0,
+            'total_price' => 11900,
+            'utm_campaign_last' => 'aff:maya-schutz',
+        ]);
+        $this->assertNull($service->processOrderCommission($cancelledOrder));
+
+        // 3. Deep-Link UTM-Auflösung (aff:{deep_link_slug}) bewahrt exakte tracking_link_id auch bei Webhook-Zahlung
+        $deepLink = \App\Models\Marketing\MarketingTrackingLink::create([
+            'influencer_id' => $influencer->id,
+            'name' => 'Maya Deep Link Kristall',
+            'slug' => 'maya-schutz-kristall-herz',
+            'target_url' => '/produkt/kristall-herz',
+            'channel' => 'referral',
+            'utm_source' => 'influencer',
+            'utm_medium' => 'instagram',
+            'utm_campaign' => 'maya-schutz',
+            'is_active' => true,
+        ]);
+
+        $deepLinkOrder = OrderOrder::create([
+            'order_number' => 'ORD-2026-DEEPLINK01',
+            'email' => 'deeplink.kunde@example.com',
+            'status' => 'completed',
+            'payment_status' => 'paid',
+            'billing_address' => $dummyAddress,
+            'shipping_address' => $dummyAddress,
+            'subtotal_price' => 23800,
+            'discount_amount' => 0,
+            'tax_amount' => 3800,
+            'shipping_price' => 0,
+            'total_price' => 23800,
+            'utm_campaign_last' => 'aff:maya-schutz-kristall-herz',
+        ]);
+
+        $comm = $service->processOrderCommission($deepLinkOrder);
+        $this->assertNotNull($comm);
+        $this->assertEquals($influencer->id, $comm->influencer_id);
+        $this->assertEquals($deepLink->id, $comm->tracking_link_id);
+        $this->assertEquals(3000, $comm->commission_amount_cents); // 15% von 200,00 € Netto = 30,00 €
+
+        // 4. Auszahlungsweg-Override-Prüfung (isReadyForPayout($method)):
+        // Maya hat Adresse + Steuernummer, aber KEINE IBAN und KEINE PayPal-E-Mail hinterlegt.
+        $influencer->employee->profile()->updateOrCreate(
+            ['employee_id' => $influencer->employee->id],
+            [
+                'street' => 'Lindenallee',
+                'house_number' => '9',
+                'postal' => '50667',
+                'city' => 'Köln',
+                'country' => 'DE',
+            ]
+        );
+        $influencer->update([
+            'tax_status' => 'small_business',
+            'tax_number' => '215/1234/5678',
+            'self_employed_confirmed' => true,
+            'payout_method' => 'shop_voucher',
+            'iban' => null,
+            'paypal_email' => null,
+        ]);
+        $influencer->refresh();
+
+        $this->assertTrue($influencer->isReadyForPayout('shop_voucher'));
+        $this->assertFalse($influencer->isReadyForPayout('bank_transfer'));
+        $this->assertFalse($influencer->isReadyForPayout('paypal'));
+
+        // Versuch, SEPA-Überweisung ohne IBAN anzufordern, obwohl default 'shop_voucher' ist -> muss blockiert werden!
+        try {
+            $service->requestPayout($influencer, 'bank_transfer', true);
+            $this->fail('SEPA-Auszahlung ohne IBAN hätte abgelehnt werden müssen.');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('Zahlungsdaten', $e->getMessage());
+        }
+
+        // 5. Eingeloggte Influencer dürfen öffentliche Frontend-Komponenten (z.B. Widerrufsformular & Newsletter) ohne 403 sehen
+        Livewire::actingAs($influencer->employee, 'employee')
+            ->test(\App\Livewire\Shop\Order\OrderRevocationForm::class)
+            ->assertStatus(200);
+
+        Livewire::actingAs($influencer->employee, 'employee')
+            ->test(\App\Livewire\Shop\Marketing\MarketingNewsletterSignup::class)
+            ->assertStatus(200);
+    }
 }

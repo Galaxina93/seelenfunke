@@ -269,10 +269,14 @@ class ProductCreate extends Component
         $draft = Product::create([
             'name' => 'Neues Produkt ' . date('H:i'),
             'slug' => 'draft-' . Str::uuid(),
+            'sku' => $this->generateNextCleanSku('MSF-UNIKAT'),
+            'brand' => 'Mein-Seelenfunke',
             'status' => 'draft',
             'type' => 'physical', // Standard
             'is_personalizable' => true,
             'three_d_active' => true,
+            'track_quantity' => true,
+            'quantity' => 0,
             'price' => 0,
             'media_gallery' => [],
             'tier_pricing' => [],
@@ -480,6 +484,48 @@ class ProductCreate extends Component
         }
     }
 
+    /**
+     * 1-Klick Herkunfts-Siegel Switch: Schaltet direkt in der Kachelansicht ("Deine Kollektion")
+     * zwischen "Made in Germany" -> "Handveredelt in Deutschland" -> "Kein Siegel (Aus)" um.
+     */
+    public function toggleOriginBadge(string $id): void
+    {
+        $prod = Product::find($id);
+        if (!$prod) {
+            return;
+        }
+
+        $current = $prod->getOriginBadgeMode();
+        $next = match ($current) {
+            'made_in_germany'        => 'handcrafted_in_germany',
+            'handcrafted_in_germany' => 'none',
+            default                  => 'made_in_germany',
+        };
+
+        $settings = is_array($prod->configurator_settings) ? $prod->configurator_settings : [];
+        $settings['origin_badge'] = $next;
+        $prod->configurator_settings = $settings;
+
+        $attrs = is_array($prod->attributes) ? $prod->attributes : [];
+        if ($next === 'made_in_germany') {
+            $attrs['Herkunft'] = 'Made in Germany (Deutscher Fachhandel & Laser-Veredelung in DE)';
+        } elseif ($next === 'handcrafted_in_germany') {
+            $attrs['Herkunft'] = 'Handveredelt in Deutschland (Laser-Manufaktur Gifhorn)';
+        } else {
+            unset($attrs['Herkunft']);
+        }
+        $prod->attributes = $attrs;
+        $prod->save();
+
+        $label = match ($next) {
+            'made_in_germany'        => '🇩🇪 Made in Germany',
+            'handcrafted_in_germany' => '🇩🇪 Handveredelt in Deutschland',
+            default                  => 'Ausgeblendet',
+        };
+
+        session()->flash('success', "Herkunfts-Siegel für „{$prod->name}“ auf {$label} gesetzt.");
+    }
+
     public function openQuickAiModal(): void
     {
         $this->resetValidation();
@@ -514,14 +560,14 @@ class ProductCreate extends Component
         if ($presetKey === 'heavytool-opener') {
             $sup = \App\Models\Product\ProductSupplier::where('name', 'like', '%Heavytool%')->first();
             $this->quickAiName = 'Der Seelen-Öffner (Alu-Schlüsselanhänger)';
-            $this->quickAiSku = 'ALU-OPENER-' . rand(100, 999);
+            $this->quickAiSku = $this->generateNextCleanSku('ALU-OPENER');
             $this->quickAiPrice = '14.90';
             $this->quickAiPurchasePrice = '0.29';
             if (trim($this->quickAiReorderUrl) === '') {
                 $this->quickAiReorderUrl = 'https://www.heavytool-shop.de/';
             }
             $this->quickAiSupplierId = $sup?->id;
-            $this->quickAiQuantity = 150;
+            $this->quickAiQuantity = 0;
             $this->quickAiWeight = 15;
             $this->quickAiWidth = 15;
             $this->quickAiHeight = 65;
@@ -529,14 +575,14 @@ class ProductCreate extends Component
         } elseif ($presetKey === 'bambus-pen') {
             $sup = \App\Models\Product\ProductSupplier::where('name', 'like', '%HaoYiZF%')->first();
             $this->quickAiName = 'Der Seelen-Schreiber (Bambus-Kugelschreiber)';
-            $this->quickAiSku = 'BAMBOO-PEN-' . rand(100, 999);
+            $this->quickAiSku = $this->generateNextCleanSku('BAMBOO-PEN');
             $this->quickAiPrice = '12.90';
             $this->quickAiPurchasePrice = '0.30';
             if (trim($this->quickAiReorderUrl) === '') {
                 $this->quickAiReorderUrl = 'https://www.temu.com/';
             }
             $this->quickAiSupplierId = $sup?->id;
-            $this->quickAiQuantity = 24;
+            $this->quickAiQuantity = 0;
             $this->quickAiWeight = 12;
             $this->quickAiWidth = 11;
             $this->quickAiHeight = 140;
@@ -544,34 +590,107 @@ class ProductCreate extends Component
         } elseif ($presetKey === 'seelen-pfote-hundemarke') {
             $sup = \App\Models\Product\ProductSupplier::where('name', 'like', '%HaoYiZF%')->first();
             $this->quickAiName = 'Die Seelen-Pfote Edition';
-            $this->quickAiSku = 'STEEL-PAW-' . rand(100, 999);
+            $this->quickAiSku = $this->generateNextCleanSku('STEEL-PAW');
             $this->quickAiPrice = '17.90';
             $this->quickAiPurchasePrice = '0.79';
             if (trim($this->quickAiReorderUrl) === '') {
                 $this->quickAiReorderUrl = 'https://www.temu.com/de/set-mit-10-edelstahl-hundeanhangern-in-knochenform-mit-pfotenabdrucken-zur--von-haustierdetails-g-601099514279197.html';
             }
             $this->quickAiSupplierId = $sup?->id;
-            $this->quickAiQuantity = 50;
-            $this->quickAiWeight = 16;
+            $this->quickAiQuantity = 0;
+            $this->quickAiWeight = 12;
             $this->quickAiWidth = 40;
-            $this->quickAiHeight = 26;
+            $this->quickAiHeight = 22;
             $this->quickAiLength = 1.8;
+        } elseif ($presetKey === 'goldenes-seelen-herz') {
+            $sup = \App\Models\Product\ProductSupplier::where('name', 'like', '%Glücksfieber%')->first();
+            $this->quickAiName = 'Das Goldene Seelen-Herz';
+            $this->quickAiSku = $this->generateNextCleanSku('GOLD-HEART');
+            $this->quickAiPrice = '24.90';
+            $this->quickAiPurchasePrice = '2.10';
+            if (trim($this->quickAiReorderUrl) === '') {
+                $this->quickAiReorderUrl = 'https://www.gluecksfieber.de/shop/laserrohlinge/edelstahl-laserrohling-anhaenger-herz-mit-collierschlaufe-14-karat-vergoldet-25-x-22-x-4-mm-oese-3-x-6-mm-ion-plating-ip.html';
+            }
+            $this->quickAiSupplierId = $sup?->id;
+            $this->quickAiQuantity = 0;
+            $this->quickAiWeight = 14;
+            $this->quickAiWidth = 22;
+            $this->quickAiHeight = 25;
+            $this->quickAiLength = 4.0;
         } else {
             $sup = \App\Models\Product\ProductSupplier::where('name', 'like', '%HaoYiZF%')->first();
             $this->quickAiName = 'Der Seelen-Talisman Edition';
-            $this->quickAiSku = 'STEEL-BAR-' . rand(100, 999);
+            $this->quickAiSku = $this->generateNextCleanSku('STEEL-BAR');
             $this->quickAiPrice = '19.90';
             $this->quickAiPurchasePrice = '1.16';
             if (trim($this->quickAiReorderUrl) === '') {
                 $this->quickAiReorderUrl = 'https://www.temu.com/goods.html?_bg_fs=1&goods_id=606203291790930&sku_id=89857024078818';
             }
             $this->quickAiSupplierId = $sup?->id;
-            $this->quickAiQuantity = 16;
+            $this->quickAiQuantity = 0;
             $this->quickAiWeight = 24;
             $this->quickAiWidth = 28;
             $this->quickAiHeight = 50;
             $this->quickAiLength = 2.2;
         }
+    }
+
+    /**
+     * Erzeugt eine saubere, fortlaufende und eindeutige Artikelnummer (SKU)
+     * im Standardformat <MATERIAL>-<FORM>-<NNN> (z.B. STEEL-PAW-001, STEEL-PAW-002).
+     */
+    public function generateNextCleanSku(string $prefix = 'MSF-UNIKAT', ?string $ignoreProductId = null): string
+    {
+        $cleanPrefix = strtoupper(trim((string) preg_replace('/[^A-Za-z0-9-]+/', '-', $prefix), '-'));
+        if ($cleanPrefix === '') {
+            $cleanPrefix = 'MSF-UNIKAT';
+        }
+
+        $query = Product::withTrashed()->where('sku', 'like', $cleanPrefix . '-%');
+        if ($ignoreProductId) {
+            $query->where('id', '!=', $ignoreProductId);
+        }
+
+        $existingSkus = $query->pluck('sku')->map(fn ($s) => strtoupper(trim((string) $s)))->all();
+        $usedNumbers = [];
+        foreach ($existingSkus as $sku) {
+            if (preg_match('/^' . preg_quote($cleanPrefix, '/') . '-(\d{1,4})$/', $sku, $m)) {
+                $usedNumbers[(int) $m[1]] = true;
+            }
+        }
+
+        $nextNum = 1;
+        while (isset($usedNumbers[$nextNum])) {
+            $nextNum++;
+        }
+
+        return $cleanPrefix . '-' . str_pad((string) $nextNum, 3, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Bereinigt eine eingegebene Artikelnummer auf Großbuchstaben/Bindestriche und stellt Eindeutigkeit sicher.
+     */
+    protected function normalizeCleanSku(string $rawSku, string $fallbackPrefix = 'MSF-UNIKAT', ?string $ignoreProductId = null): string
+    {
+        $cleaned = strtoupper(trim((string) preg_replace('/[^A-Za-z0-9-]+/', '-', trim($rawSku)), '-'));
+        $cleaned = (string) preg_replace('/-+/', '-', $cleaned);
+
+        if ($cleaned === '' || strlen($cleaned) < 3) {
+            return $this->generateNextCleanSku($fallbackPrefix, $ignoreProductId);
+        }
+
+        $existsQuery = Product::withTrashed()->where('sku', $cleaned);
+        if ($ignoreProductId) {
+            $existsQuery->where('id', '!=', $ignoreProductId);
+        }
+
+        if (!$existsQuery->exists()) {
+            return $cleaned;
+        }
+
+        // Falls exakt diese SKU bereits vergeben ist, Basis-Präfix extrahieren und nächste freie Nummer wählen
+        $basePrefix = preg_replace('/-\d{1,4}$/', '', $cleaned) ?: $fallbackPrefix;
+        return $this->generateNextCleanSku($basePrefix, $ignoreProductId);
     }
 
     /**
@@ -609,6 +728,8 @@ class ProductCreate extends Component
                 $detectedPreset = 'weizenglas-personalisiert';
             } elseif (preg_match('/kristall|pokal|trophae|trophäe|glasblock|3d-glas|award/', $haystack)) {
                 $detectedPreset = 'seelen-kristall';
+            } elseif (preg_match('/collierschlaufe|14-karat|ion-plating/', $haystack) || (str_contains($host, 'gluecksfieber') && preg_match('/herz|heart/', $haystack))) {
+                $detectedPreset = 'goldenes-seelen-herz';
             } elseif (preg_match('/herz|heart|liebe|valentins/', $haystack)) {
                 $detectedPreset = 'seelen-anhaenger';
             } elseif (preg_match('/oeffner|öffner|flaschen|bottle|heavytool/', $haystack)) {
@@ -620,97 +741,118 @@ class ProductCreate extends Component
             }
         }
 
-        // 3. Basis-Stammdaten je erkanntem Archetyp
+        // 3. Basis-Stammdaten je erkanntem Archetyp (Start-Lagerbestand bei Neuanlage immer 0!)
         $defaults = match ($detectedPreset) {
             'seelen-pfote-hundemarke' => [
                 'ref_slug' => 'seelen-pfote-hundemarke',
                 'name' => 'Die Seelen-Pfote (Edelstahl-Hundemarke)',
-                'sku' => 'STEEL-PAW-' . rand(100, 999),
+                'sku_prefix' => 'STEEL-PAW',
+                'sku' => $this->generateNextCleanSku('STEEL-PAW'),
                 'unit_ek' => 0.79,
                 'vk' => 17.90,
                 'width' => 40,
-                'height' => 26,
+                'height' => 22,
                 'length' => 1.8,
-                'weight' => 16,
-                'qty' => max(10, $packSize > 1 ? $packSize * 5 : 50),
+                'weight' => 12,
+                'qty' => 0,
                 'material' => 'Hochglanzpolierter Edelstahl (Silber, rostfrei)',
             ],
             'weizenglas-personalisiert' => [
                 'ref_slug' => 'weizenglas-personalisiert',
                 'name' => 'Das Seelen-Glas (Personalisiertes Kristallglas)',
-                'sku' => 'GLASS-PRO-' . rand(100, 999),
-                'unit_ek' => 1.20,
-                'vk' => 16.90,
-                'width' => 80,
-                'height' => 240,
-                'length' => 80.0,
-                'weight' => 550,
-                'qty' => 48,
+                'sku_prefix' => 'GLASS-WEIZEN',
+                'sku' => $this->generateNextCleanSku('GLASS-WEIZEN'),
+                'unit_ek' => 3.33,
+                'vk' => 24.90,
+                'width' => 74,
+                'height' => 218,
+                'length' => 74.0,
+                'weight' => 450,
+                'qty' => 0,
                 'material' => 'Brillantes Kristallglas (Spülmaschinenfest)',
             ],
             'seelen-kristall' => [
                 'ref_slug' => 'seelen-kristall',
                 'name' => 'Der Seelen-Kristall (Optischer 3D-Kristallblock)',
-                'sku' => 'CRYSTAL-3D-' . rand(100, 999),
-                'unit_ek' => 4.19,
+                'sku_prefix' => 'CRYSTAL-3D',
+                'sku' => $this->generateNextCleanSku('CRYSTAL-3D'),
+                'unit_ek' => 5.36,
                 'vk' => 39.90,
-                'width' => 60,
-                'height' => 80,
-                'length' => 60.0,
-                'weight' => 650,
-                'qty' => 35,
+                'width' => 180,
+                'height' => 200,
+                'length' => 40.0,
+                'weight' => 920,
+                'qty' => 0,
                 'material' => 'Optisches K9-Kristallglas mit Facettenschliff',
+            ],
+            'goldenes-seelen-herz' => [
+                'ref_slug' => 'goldenes-seelen-herz',
+                'name' => 'Das Goldene Seelen-Herz (Edelstahl-Herz mit Collierschlaufe)',
+                'sku_prefix' => 'GOLD-HEART',
+                'sku' => $this->generateNextCleanSku('GOLD-HEART'),
+                'unit_ek' => 2.10,
+                'vk' => 24.90,
+                'width' => 22,
+                'height' => 25,
+                'length' => 4.0,
+                'weight' => 14,
+                'qty' => 0,
+                'material' => '14 Karat vergoldeter 304/316 Edelstahl (Ion-Plating)',
             ],
             'seelen-anhaenger' => [
                 'ref_slug' => 'seelen-anhaenger',
                 'name' => 'Der Seelen-Anhänger (Herz-Edelstahlmarke)',
-                'sku' => 'HEART-TAG-' . rand(100, 999),
-                'unit_ek' => 0.70,
-                'vk' => 14.90,
-                'width' => 38,
-                'height' => 33,
-                'length' => 2.0,
-                'weight' => 18,
-                'qty' => max(20, $packSize > 1 ? $packSize * 5 : 80),
+                'sku_prefix' => 'ALU-HEART',
+                'sku' => $this->generateNextCleanSku('ALU-HEART'),
+                'unit_ek' => 1.36,
+                'vk' => 16.99,
+                'width' => 45,
+                'height' => 40,
+                'length' => 2.3,
+                'weight' => 19,
+                'qty' => 0,
                 'material' => 'Eloxiertes Aluminium / Edelstahl',
             ],
             'heavytool-opener' => [
                 'ref_slug' => 'seelen-talisman',
                 'name' => 'Der Seelen-Öffner (Alu-Schlüsselanhänger)',
-                'sku' => 'ALU-OPENER-' . rand(100, 999),
+                'sku_prefix' => 'ALU-OPENER',
+                'sku' => $this->generateNextCleanSku('ALU-OPENER'),
                 'unit_ek' => 0.29,
                 'vk' => 14.90,
                 'width' => 15,
                 'height' => 65,
                 'length' => 12.0,
                 'weight' => 15,
-                'qty' => 150,
+                'qty' => 0,
                 'material' => 'Eloxiertes Aluminium mit Gravurfläche',
             ],
             'bambus-pen' => [
                 'ref_slug' => 'seelen-talisman',
                 'name' => 'Der Seelen-Schreiber (Bambus-Kugelschreiber)',
-                'sku' => 'BAMBOO-PEN-' . rand(100, 999),
+                'sku_prefix' => 'BAMBOO-PEN',
+                'sku' => $this->generateNextCleanSku('BAMBOO-PEN'),
                 'unit_ek' => 0.30,
                 'vk' => 12.90,
                 'width' => 11,
                 'height' => 140,
                 'length' => 11.0,
                 'weight' => 12,
-                'qty' => max(24, $packSize),
+                'qty' => 0,
                 'material' => 'Natur-Bambusholz mit Metallclip',
             ],
             default => [
                 'ref_slug' => 'seelen-talisman',
                 'name' => 'Der Seelen-Talisman (Edelstahl-Schlüsselanhänger)',
-                'sku' => 'STEEL-BAR-' . rand(100, 999),
+                'sku_prefix' => 'STEEL-BAR',
+                'sku' => $this->generateNextCleanSku('STEEL-BAR'),
                 'unit_ek' => 1.16,
                 'vk' => 19.90,
                 'width' => 28,
                 'height' => 50,
                 'length' => 2.2,
                 'weight' => 24,
-                'qty' => max(16, $packSize > 1 ? $packSize * 2 : 50),
+                'qty' => 0,
                 'material' => 'Massiver 304 Edelstahl (Spiegelpoliert)',
             ],
         };
@@ -742,6 +884,10 @@ class ProductCreate extends Component
             $supplier = \App\Models\Product\ProductSupplier::where('name', 'like', '%METRO%')->first();
         } elseif (str_contains($host, 'alibaba') || str_contains($host, 'aliexpress')) {
             $supplier = \App\Models\Product\ProductSupplier::where('name', 'like', '%Pujiang%')->first();
+        } elseif (str_contains($host, 'gluecksfieber')) {
+            $supplier = \App\Models\Product\ProductSupplier::where('name', 'like', '%Glücksfieber%')->first();
+        } elseif (str_contains($host, 'printequipment')) {
+            $supplier = \App\Models\Product\ProductSupplier::where('name', 'like', '%Print Equipment%')->first();
         } elseif (str_contains($host, 'amazon') || str_contains($host, 'ebay')) {
             $supplier = \App\Models\Product\ProductSupplier::where('name', 'like', '%Thal-Versand%')->first();
         }
@@ -820,7 +966,8 @@ class ProductCreate extends Component
         $inferred = $this->inferFromQuickAiUrl($url);
 
         $name = trim($this->quickAiName) !== '' ? trim($this->quickAiName) : $inferred['name'];
-        $sku = trim($this->quickAiSku) !== '' ? trim($this->quickAiSku) : $inferred['sku'];
+        $rawSku = trim($this->quickAiSku) !== '' ? trim($this->quickAiSku) : $inferred['sku'];
+        $sku = $this->normalizeCleanSku($rawSku, $inferred['sku_prefix'] ?? 'STEEL-BAR');
         $ekFloat = trim((string) $this->quickAiPurchasePrice) !== ''
             ? (float) str_replace(',', '.', (string) $this->quickAiPurchasePrice)
             : (float) $inferred['unit_ek'];
@@ -863,17 +1010,21 @@ class ProductCreate extends Component
             'seelen-pfote-hundemarke'   => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-dimensions.jpg',
             'seelen-talisman'           => 'produkte/products/seelen-talisman/seelen-talisman-dimensions.jpg',
             'seelen-anhaenger'          => 'produkte/products/seelen-anhaenger/seelen-anhaenger-dimensions.jpg',
+            'goldenes-seelen-herz'      => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-dimensions.jpg',
             'seelen-kristall'           => 'produkte/products/seelen-kristall/seelen-kristall-dimensions.jpg',
             'weizenglas-personalisiert' => 'produkte/products/weizenglas-personalisiert/weizenglas-dimensions.jpg',
         ];
         $dimensionImagePath = $dimensionImgMap[$refSlug] ?? 'produkte/products/seelen-talisman/seelen-talisman-dimensions.jpg';
 
         $mediaGallery = $refProduct && !empty($refProduct->media_gallery)
-            ? $refProduct->media_gallery
+            ? array_values(array_filter(
+                $refProduct->media_gallery,
+                fn ($item) => ($item['type'] ?? 'image') !== 'video'
+                    && !str_contains((string) ($item['path'] ?? ''), '-giftbox')
+            ))
             : [
-                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-main.jpg', 'is_main' => true, 'alt' => $name],
-                ['type' => 'image', 'path' => $dimensionImagePath, 'is_main' => false, 'alt' => $name . ' Technische Maßangaben (' . $width . ' x ' . $height . ' x ' . $length . ' mm)'],
-                ['type' => 'video', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-promo.mp4', 'is_main' => false, 'alt' => $name . ' Video'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-main.jpg', 'is_main' => true, 'is_ai_generated' => true, 'alt' => $name],
+                ['type' => 'image', 'path' => $dimensionImagePath, 'is_main' => false, 'is_ai_generated' => true, 'alt' => $name . ' Technische Maßangaben (' . $width . ' x ' . $height . ' x ' . $length . ' mm)'],
             ];
 
         // Sicherstellen, dass das Maßblatt-Produktbild auf der letzten Bildposition vorhanden ist
@@ -883,9 +1034,17 @@ class ProductCreate extends Component
                 'type' => 'image',
                 'path' => $dimensionImagePath,
                 'is_main' => false,
+                'is_ai_generated' => true,
                 'alt' => "{$name} – Detaillierte Maßangaben ({$width} x {$height} x {$length} mm)",
             ];
         }
+
+        // Versandart & Verpackung (Luftpolster-Umschlag vs. Versandkarton) automatisch bestimmen
+        $isEnvelope = ($weight <= 100 && !in_array($refSlug, ['seelen-kristall', 'weizenglas-personalisiert'], true));
+        $shippingClass = $isEnvelope ? 'brief' : null;
+        $packagingCostCents = $isEnvelope ? 14 : 60; // 14 Cent (Luftpolster-Versandtüte Karton.eu) bzw. 60 Cent (Karton)
+        $packagingWeightGrams = $isEnvelope ? 15 : ($refSlug === 'weizenglas-personalisiert' ? 120 : 150);
+        $wearFactorCents = $isEnvelope ? 5 : 15;
 
         $created = Product::create([
             'name' => $name,
@@ -894,14 +1053,14 @@ class ProductCreate extends Component
             'status' => 'active',
             'is_personalizable' => true,
             'three_d_active' => true,
-            'description' => "{$name} – Individuell in unserer Manufaktur Mein-Seelenfunke per Hochpräzisions-Laser für Sie veredelt. Jedes Exemplar ({$width} x {$height} x {$length} mm, ca. {$weight} g) wird nach Ihren Wünschen im Live-3D-Konfigurator gestaltet, abriebfest graviert und versandfertig verpackt.",
+            'description' => "{$name} – Individuell in unserer Manufaktur Mein-Seelenfunke per Hochpräzisions-Laser für Sie veredelt. Jedes Exemplar ({$width} x {$height} x {$length} mm, ca. {$weight} g) wird nach Ihren Wünschen im Live-3D-Konfigurator gestaltet, abriebfest graviert und sorgfältig geprüft versendet.",
             'short_description' => "Personalisiertes Unikat ({$width} x {$height} mm) mit hochpräziser Lasergravur aus der Manufaktur Mein-Seelenfunke.",
             'price' => $priceCents,
             'compare_at_price' => (int) round($priceCents * 1.2),
             'purchase_price' => $ekCents,
             'laser_runtime_minutes' => 1,
-            'electricity_wear_factor' => 5,
-            'packaging_cost' => 17,
+            'electricity_wear_factor' => $wearFactorCents,
+            'packaging_cost' => $packagingCostCents,
             'marketing_cost_percent' => 10.00,
             'sku' => $sku,
             'product_supplier_id' => $supplierId ?: null,
@@ -911,11 +1070,11 @@ class ProductCreate extends Component
             'quantity' => max(0, $quantity),
             'continue_selling_when_out_of_stock' => true,
             'weight' => max(1, $weight),
-            'packaging_weight' => 15,
+            'packaging_weight' => $packagingWeightGrams,
             'height' => max(1, $height),
             'width' => max(1, $width),
             'length' => max(0.5, $length),
-            'shipping_class' => 'paket_s',
+            'shipping_class' => $shippingClass,
             'preview_image_path' => $previewPath,
             'three_d_model_path' => $modelPath,
             'three_d_background_path' => $bgPath,
@@ -934,13 +1093,30 @@ class ProductCreate extends Component
             'completion_step' => 4,
         ]);
 
-        $catIds = \App\Models\Product\ProductCategory::whereIn('name', ['Metall & Alu', 'Schmuck & Anhänger', 'Bestseller'])->pluck('id');
+        $catNames = $isEnvelope
+            ? ['Metall & Alu', 'Schmuck & Anhänger', 'Bestseller']
+            : ['Glas & Kristall', 'Geschenksets', 'Bestseller'];
+        $catIds = \App\Models\Product\ProductCategory::whereIn('name', $catNames)->pluck('id');
         $created->categories()->sync($catIds);
         $created->tierPrices()->createMany([
             ['qty' => 3, 'percent' => 5],
             ['qty' => 5, 'percent' => 10],
             ['qty' => 10, 'percent' => 15],
         ]);
+
+        // Automatische Pflege der Verpackungsseite (/admin/product-packaging & LUCID)
+        $created->packagings()->delete();
+        $created->packagings()->createMany(
+            $isEnvelope
+                ? [
+                    ['material_type' => 'composite', 'weight_grams' => 12],
+                    ['material_type' => 'paper',     'weight_grams' => 3],
+                ]
+                : [
+                    ['material_type' => 'paper',   'weight_grams' => max(10, $packagingWeightGrams - 20)],
+                    ['material_type' => 'plastic', 'weight_grams' => 20],
+                ]
+        );
 
         \App\Models\Marketing\MarketingLandingPage::syncForProduct($created);
 
@@ -1071,7 +1247,8 @@ class ProductCreate extends Component
         $this->product->seo_title = $this->seo_title;
         $this->product->seo_description = $this->seo_description;
 
-        // 4. Identifikatoren
+        // 4. Identifikatoren (SKU auf sauberes Großbuchstaben-Format <MATERIAL>-<FORM>-<NNN> normalisieren)
+        $this->sku = $this->normalizeCleanSku((string) $this->sku, 'MSF-UNIKAT', $this->product->id);
         $this->product->sku = $this->sku;
         $this->product->barcode = $this->barcode;
         $this->product->brand = $this->brand;
@@ -1142,6 +1319,25 @@ class ProductCreate extends Component
         }
 
         $this->product->save();
+
+        // Automatische LUCID-Verpackungsanlage (/admin/product-packaging), falls physisches Produkt noch keine Einträge hat
+        if ($this->type === 'physical' && $this->product->packagings()->count() === 0) {
+            $isBrief = ($this->product->shipping_class === 'brief')
+                || ((int) $this->product->weight > 0 && (int) $this->product->weight <= 100);
+            $pkgWeight = max(15, (int) ($this->product->packaging_weight ?: ($isBrief ? 15 : 150)));
+            $this->product->packagings()->createMany(
+                $isBrief
+                    ? [
+                        ['material_type' => 'composite', 'weight_grams' => max(1, $pkgWeight - 3)],
+                        ['material_type' => 'paper',     'weight_grams' => 3],
+                    ]
+                    : [
+                        ['material_type' => 'paper',   'weight_grams' => max(10, $pkgWeight - 20)],
+                        ['material_type' => 'plastic', 'weight_grams' => 20],
+                    ]
+            );
+        }
+
         \App\Models\Marketing\MarketingLandingPage::syncForProduct($this->product);
 
         if($notify) session()->flash('success', 'Produkt gespeichert.');
@@ -1163,7 +1359,7 @@ class ProductCreate extends Component
             $filename = time() . '_' . Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME)) . '.jpg';
             $fullPath = $folder . '/' . $filename;
             $this->resizeAndSaveImage($file->getRealPath(), $fullPath);
-            $gallery[] = ['type' => 'image', 'path' => $fullPath, 'is_ai_generated' => false];
+            $gallery[] = ['type' => 'image', 'path' => $fullPath, 'is_ai_generated' => true];
         }
 
         $this->product->media_gallery = $gallery;
@@ -1650,7 +1846,7 @@ class ProductCreate extends Component
 
         $gallery = $this->product->media_gallery ?? [];
         if (isset($gallery[$index]) && is_array($gallery[$index])) {
-            $current = filter_var($gallery[$index]['is_ai_generated'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $current = filter_var($gallery[$index]['is_ai_generated'] ?? true, FILTER_VALIDATE_BOOLEAN);
             $gallery[$index]['is_ai_generated'] = !$current;
             $this->product->media_gallery = $gallery;
             $this->product->save();

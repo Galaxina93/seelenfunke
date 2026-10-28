@@ -40,7 +40,7 @@
                     NEUE SECTION: DIE GRÜNDERIN (Alina Steinhauer)
                     Modern, interaktiv und mit Fokus auf Langfristigkeit
                 --}}
-        <section class="py-24 bg-white overflow-hidden" aria-labelledby="founder-heading">
+        <section class="py-12 md:py-16 bg-white overflow-hidden" aria-labelledby="founder-heading">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
                 <div class="flex flex-col lg:flex-row items-center gap-16">
@@ -67,7 +67,7 @@
                             </div>
 
                             {{-- Experience-Badge (im edlen hellen Creme-/Champagner-Farbton wie die Gutscheinkarte) --}}
-                            <div class="absolute -right-6 -bottom-6 bg-gradient-to-br from-[#FAF7F2] via-[#FDFBF7] to-[#F3ECE0] border-2 border-primary/40 text-gray-900 p-6 rounded-2xl shadow-xl transform transition-transform group-hover:rotate-6 group-hover:scale-110 duration-300 overflow-hidden">
+                            <div class="absolute right-2 -bottom-4 sm:-right-6 sm:-bottom-6 bg-gradient-to-br from-[#FAF7F2] via-[#FDFBF7] to-[#F3ECE0] border-2 border-primary/40 text-gray-900 p-4 sm:p-6 rounded-2xl shadow-xl transform transition-transform group-hover:rotate-6 group-hover:scale-110 duration-300 overflow-hidden">
                                 <div class="absolute top-2 left-2 w-3 h-3 border-t-2 border-l-2 border-primary/60"></div>
                                 <div class="absolute top-2 right-2 w-3 h-3 border-t-2 border-r-2 border-primary/60"></div>
                                 <div class="absolute bottom-2 left-2 w-3 h-3 border-b-2 border-l-2 border-primary/60"></div>
@@ -235,7 +235,7 @@
             SECTION 3: DER PROZESS (Zig-Zag Layout mit GPU-beschleunigten Mikro- & Hover-Animationen)
             Detaillierte Erklärung der Schritte aus EURER Sicht
         --}}
-        <section class="py-20 bg-gray-50" aria-labelledby="prozess-heading">
+        <section class="py-20 bg-gray-50 overflow-hidden" aria-labelledby="prozess-heading">
             <style>
                 .sf-card {
                     transform: translate3d(0, 0, 0);
@@ -664,7 +664,7 @@
                 </span>
 
                 <blockquote class="text-lg sm:text-xl lg:text-2xl font-serif italic text-stone-100 mb-10 leading-relaxed drop-shadow">
-                    „Ich stehe mit ganzem Herzen dafür, meinen Kunden mit liebevoll handgefertigten Unikaten pure Freude zu schenken – und gleichzeitig soziale Fürsorge für Kinder aktiv zu leben. Ein Seelenfunke soll nicht nur im Zuhause unserer Kunden ein warmes Leuchten entfachen, sondern zeitgleich auch in Kinderaugen echte Begeisterung und ein Lächeln zaubern. Pure Freude beim Kunden und soziales Engagement für Kinder gehören für mich untrennbar zusammen.“
+                    „Ich stehe mit ganzem Herzen dafür, meinen Kunden mit liebevoll handveredelten Unikaten pure Freude zu schenken – und gleichzeitig soziale Fürsorge für Kinder aktiv zu leben. Ein Seelenfunke soll nicht nur im Zuhause unserer Kunden ein warmes Leuchten entfachen, sondern zeitgleich auch in Kinderaugen echte Begeisterung und ein Lächeln zaubern. Pure Freude beim Kunden und soziales Engagement für Kinder gehören für mich untrennbar zusammen.“
                 </blockquote>
 
                 <div class="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-10">

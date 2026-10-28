@@ -1,12 +1,12 @@
 <div class="bg-white min-h-screen text-gray-800" style="--theme-color: #C9A66B; --theme-color-10: #C9A66B1A; --theme-color-20: #C9A66B33; --theme-color-30: #C9A66B4D; --theme-color-50: #C9A66B80;">
     {{-- Header / Hero Section (Analog zur Kollektion/Blog) --}}
-    <div class="bg-gray-50 border-b border-gray-100 py-16 sm:py-24 text-center">
+    <div class="bg-gray-50 border-b border-gray-100 py-16 md:py-20 text-center">
         <h1 class="text-3xl sm:text-4xl md:text-5xl font-serif font-bold text-gray-900 mb-4 tracking-wide">
             Geschenkgutscheine
         </h1>
         <p class="text-gray-500 max-w-2xl mx-auto text-base sm:text-lg leading-relaxed px-4">
             Verschenke magische Momente voller Emotionen und Liebe. <br class="hidden sm:inline">
-            Edel gestaltet und flexibel einlösbar für all unsere handgefertigten Produkte.
+            Edel gestaltet und flexibel einlösbar für all unsere handveredelten Produkte.
         </p>
     </div>
 

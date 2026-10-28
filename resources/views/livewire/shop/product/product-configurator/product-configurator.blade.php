@@ -212,6 +212,49 @@
                 max-width: 100% !important;
             }
         }
+
+        /* Optische Schreibbereitschaft für das Konfigurator-Textfeld */
+        @keyframes configCaretBlink {
+            0%, 45% { opacity: 1; transform: scaleY(1); }
+            50%, 95% { opacity: 0.08; transform: scaleY(0.92); }
+            100% { opacity: 1; transform: scaleY(1); }
+        }
+        @keyframes configTypingBoxPulseDark {
+            0%, 100% {
+                box-shadow: 0 0 0 2px rgba(197, 160, 89, 0.45), 0 0 18px rgba(197, 160, 89, 0.35);
+            }
+            50% {
+                box-shadow: 0 0 0 3.5px rgba(251, 191, 36, 0.75), 0 0 26px rgba(197, 160, 89, 0.6);
+            }
+        }
+        @keyframes configTypingBoxPulseLight {
+            0%, 100% {
+                box-shadow: 0 0 0 2px rgba(197, 160, 89, 0.45), 0 4px 18px rgba(197, 160, 89, 0.28);
+            }
+            50% {
+                box-shadow: 0 0 0 3.5px rgba(197, 160, 89, 0.8), 0 4px 24px rgba(197, 160, 89, 0.5);
+            }
+        }
+        @keyframes configBadgePopIn {
+            0% { opacity: 0; transform: translate(-50%, 4px) scale(0.92); }
+            100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+        }
+        .config-blinking-caret {
+            animation: configCaretBlink 1.05s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .config-typing-ready-box-dark {
+            animation: configTypingBoxPulseDark 1.8s ease-in-out infinite;
+        }
+        .config-typing-ready-box-light {
+            animation: configTypingBoxPulseLight 1.8s ease-in-out infinite;
+        }
+        .config-typing-badge-pop {
+            animation: configBadgePopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        textarea[data-id]:focus::placeholder {
+            opacity: 0 !important;
+            color: transparent !important;
+        }
     </style>
 
     <div class="h-full flex flex-col flex-1 min-h-0 overflow-hidden">

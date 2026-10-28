@@ -260,10 +260,53 @@
                          @mousedown.stop="startAction($event,'text',index,'drag')"
                          @touchstart.stop="startAction($event,'text',index,'drag')">
 
-                        <div class="relative transition-all rounded-lg p-1.5 border-[1.5px]"
+                        <div class="relative transition-all duration-300 rounded-lg p-1.5 border-[1.5px] cursor-text"
+                             @click.stop="if (!isDragging && !isResizing && !isRotating && textItem && textItem.id) { focusedTextId = textItem.id; selectItem('text', index); const ta = $el.querySelector('textarea[data-id]'); if (ta && document.activeElement !== ta) ta.focus(); }"
                              :class="selectedType==='text' && selectedIndex===index && context!=='preview'
-                                 ? (isDarkSurface ? 'border-primary border-dashed bg-white/10 backdrop-blur-[2px] shadow-[0_0_15px_rgba(197,160,89,0.25)]' : 'border-primary border-dashed {{ $isDark ? 'bg-white/10' : 'bg-white/40' }} backdrop-blur-sm shadow-lg')
+                                 ? (focusedTextId === textItem.id
+                                     ? (isDarkSurface
+                                         ? 'border-primary border-solid bg-gray-950/35 backdrop-blur-[3px] config-typing-ready-box-dark'
+                                         : 'border-primary border-solid {{ $isDark ? 'bg-gray-900/35' : 'bg-white/65' }} backdrop-blur-sm config-typing-ready-box-light')
+                                     : (isDarkSurface
+                                         ? 'border-primary border-dashed bg-white/10 backdrop-blur-[2px] shadow-[0_0_15px_rgba(197,160,89,0.25)]'
+                                         : 'border-primary border-dashed {{ $isDark ? 'bg-white/10' : 'bg-white/40' }} backdrop-blur-sm shadow-lg'))
                                  : (isDarkSurface ? 'border-transparent hover:border-primary/60 hover:bg-white/5' : 'border-transparent hover:border-gray-500 {{ $isDark ? 'hover:bg-white/5' : 'hover:bg-white/10' }}')">
+
+                            {{-- ANIMIERTE SCHREIBBEREITSCHAFTS-ANZEIGE BEI LEEREM, FOKUSSIERTEM TEXTFELD --}}
+                            <template x-if="focusedTextId === textItem.id && (!textItem.text || textItem.text.length === 0) && !isCapturing && context !== 'preview'">
+                                <div class="pointer-events-none select-none">
+                                    {{-- Schwebendes Status-Badge oberhalb des Textfelds --}}
+                                    <div class="
+                                        absolute -top-8 left-1/2 -translate-x-1/2 z-[210]
+                                        px-2.5 py-0.5 rounded-full whitespace-nowrap
+                                        flex items-center gap-1.5
+                                        text-[9px] font-black uppercase tracking-wider
+                                        bg-gray-900/95 text-white border border-primary/60
+                                        shadow-[0_4px_14px_rgba(0,0,0,0.35),0_0_12px_rgba(197,160,89,0.35)]
+                                        config-typing-badge-pop
+                                    ">
+                                        <span class="relative flex h-2 w-2">
+                                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-80"></span>
+                                            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                                        </span>
+                                        <span class="text-primary">Schreibbereit</span>
+                                    </div>
+
+                                    {{-- Animierter Blink-Cursor + sanfter Fokus-Impuls direkt im leeren Eingabefeld --}}
+                                    <div class="absolute inset-1.5 flex items-center"
+                                         :class="textItem.align === 'left' ? 'justify-start pl-1' : (textItem.align === 'right' ? 'justify-end pr-1' : 'justify-center')">
+                                        <div class="flex items-center gap-1">
+                                            <span class="inline-block rounded-full config-blinking-caret"
+                                                  :style="`
+                                                      width: 2.5px;
+                                                      height: ${Math.max(18, Math.round((20 * (textItem.size || 1)) * scaleFactor * 1.05))}px;
+                                                      background: ${isDarkSurface ? '#fbbf24' : '#C5A059'};
+                                                      box-shadow: 0 0 8px rgba(197, 160, 89, 0.9), 0 0 2px rgba(0, 0, 0, 0.6);
+                                                  `"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
 
                             <template x-if="currentTexts[index] !== undefined && !isCapturing">
                                 <textarea x-model="textItem.text"
@@ -275,11 +318,13 @@
                                                 $watch('textItem.font', () => setTimeout(() => fitTextarea(textItem.id, $el), 50));
                                                 $nextTick(() => fitTextarea(textItem.id, $el));
                                           "
+                                          @focus="focusedTextId = textItem.id; selectItem('text', index)"
+                                          @click.stop="focusedTextId = textItem.id; selectItem('text', index)"
                                           @input="handleTextInput(textItem, $el)"
-                                          @blur="recordHistory()"
+                                          @blur="if (focusedTextId === textItem.id) { focusedTextId = null; } recordHistory()"
                                           wrap="off"
-                                          class="bg-transparent font-bold resize-none overflow-hidden block whitespace-pre p-0 m-0 border-0 outline-none shadow-none ring-0 select-none"
-                                          :class="alignMap[textItem.align || 'center']"
+                                          class="bg-transparent font-bold resize-none overflow-hidden block whitespace-pre p-0 m-0 border-0 outline-none shadow-none ring-0 focus:placeholder-transparent"
+                                          :class="[alignMap[textItem.align || 'center'], focusedTextId === textItem.id ? 'select-text cursor-text' : 'select-none cursor-text']"
                                           :style="`
                                                 width: ${textDims[textItem.id]?.width || 'auto'};
                                                 height: ${textDims[textItem.id]?.height || 'auto'};
@@ -288,13 +333,13 @@
                                                 line-height: 1.15;
                                                 color: ${isDarkSurface ? 'rgba(248, 250, 252, 0.96)' : 'rgba(17, 24, 39, 0.95)'};
                                                 -webkit-text-fill-color: ${isDarkSurface ? '#f8fafc' : '#111827'};
-                                                caret-color: #C5A059;
+                                                caret-color: ${(focusedTextId === textItem.id && (!textItem.text || textItem.text.length === 0)) ? 'transparent' : '#C5A059'};
                                                 filter: ${isDarkSurface
                                                     ? 'drop-shadow(0px 1px 3px rgba(0,0,0,0.9)) drop-shadow(0px 0px 6px rgba(255,255,255,0.25))'
                                                     : 'drop-shadow(0px 0px 3px rgba(255,255,255,0.75)) drop-shadow(0px 1px 2px rgba(0,0,0,0.25))'};
                                                 white-space: pre !important;
                                             `"
-                                          placeholder="Text eingeben...">
+                                          :placeholder="focusedTextId === textItem.id ? '' : 'Text eingeben...'">
                                 </textarea>
                             </template>
                             <template x-if="currentTexts[index] !== undefined && isCapturing">

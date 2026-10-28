@@ -1,339 +1,163 @@
 <x-layouts.frontend_layout
-    title="Impressum & Rechtliche Angaben | Mein Seelenfunke"
-    meta_description="Impressum und gesetzliche Anbieterkennzeichnung gemäß § 5 DDG der Manufaktur Mein Seelenfunke – Inhaberin Alina Steinhauer in 38518 Gifhorn.">
+    title="Impressum & Gesetzliche Anbieterkennzeichnung | Mein Seelenfunke"
+    meta_description="Impressum, gesetzliche Anbieterkennzeichnung gemäß § 5 DDG, § 18 Abs. 2 MStV sowie Hersteller- und Produktsicherheitsangaben nach Art. 19 GPSR von Mein Seelenfunke (Alina Steinhauer, Gifhorn).">
+
     <x-sections.page-container>
-        <section class="max-w-4xl mx-auto px-4 py-20 text-gray-800">
 
-            {{-- IMPRESSUM BEREICH (Zusammengefasst über den AGB) --}}
-            <header class="mb-16 text-center md:text-left border-b pb-8">
-                <h1 class="text-3xl md:text-4xl font-serif font-bold mb-6 text-gray-900">Impressum</h1>
-                <div class="space-y-1 text-base leading-relaxed">
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Angaben gemäß § 5 DDG</p>
-                    <p>
-                        <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong><br>
-                        Inhaberin: {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
-                        {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}<br>
-                        {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}
-                    </p>
-
-                    <div class="pt-4 space-y-2">
-                        <strong>Kontakt:</strong><br>
-
-                        <div class="flex flex-col sm:flex-row sm:gap-8 gap-2">
-                            <span class="text-gray-500 font-medium min-w-[120px]">Telefon:</span>
-                            <a href="tel:{{ str_replace([' ', '(', ')', '-'], '', shop_setting('company_phone', shop_setting('owner_phone', '+4915901966864'))) }}" class="text-primary hover:underline font-medium">{{ shop_setting('company_phone', shop_setting('owner_phone', '+49 159 019 668 64')) }}</a>
-                        </div>
-
-                        <div class="flex flex-col sm:flex-row sm:gap-8 gap-2">
-                            <span class="text-gray-500 font-medium min-w-[120px]">E-Mail:</span>
-                            <a href="mailto:{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}" class="text-primary hover:underline font-medium">{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}</a>
-                        </div>
-
-                        {{-- Zeige Impressum-Mail nur, wenn sie ausgefüllt ist und sich von der allgemeinen unterscheidet --}}
-                        @if(shop_setting('owner_email_impressum') && shop_setting('owner_email_impressum') !== shop_setting('owner_email'))
-                            <div class="flex flex-col sm:flex-row sm:gap-8 gap-2">
-                                <span class="text-gray-500 font-medium min-w-[120px]">Rechtliches:</span>
-                                <a href="mailto:{{ shop_setting('owner_email_impressum') }}" class="text-primary hover:underline font-medium">{{ shop_setting('owner_email_impressum') }}</a>
-                            </div>
-                        @endif
-
-                        {{-- Zeige Rechnungs-Mail nur, wenn sie ausgefüllt ist und sich von der allgemeinen unterscheidet --}}
-                        @if(shop_setting('owner_email_invoices') && shop_setting('owner_email_invoices') !== shop_setting('owner_email'))
-                            <div class="flex flex-col sm:flex-row sm:gap-8 gap-2">
-                                <span class="text-gray-500 font-medium min-w-[120px]">Buchhaltung:</span>
-                                <a href="mailto:{{ shop_setting('owner_email_invoices') }}" class="text-primary hover:underline font-medium">{{ shop_setting('owner_email_invoices') }}</a>
-                            </div>
-                        @endif
-
-                        <div class="flex flex-col sm:flex-row sm:gap-8 gap-2">
-                            <span class="text-gray-500 font-medium min-w-[120px]">Webseite:</span>
-                            <a href="{{ url('/') }}" class="text-primary hover:underline font-medium">{{ str_replace(['http://', 'https://'], '', shop_setting('owner_website', 'www.mein-seelenfunke.de')) }}</a>
-                        </div>
-                    </div>
-
-                    <p class="pt-4 text-sm text-gray-600">
-                        <strong>Steuerangaben & Gerichtsstand:</strong><br>
-                        @if(shop_setting('owner_tax_id'))
-                            Steuernummer: {{ shop_setting('owner_tax_id') }}<br>
-                        @endif
-                        @if(shop_setting('owner_ust_id'))
-                            USt-IdNr. gemäß § 27 a UStG: {{ shop_setting('owner_ust_id') }}<br>
-                        @endif
-                        @if(shop_setting('is_small_business', false))
-                            <span class="text-xs text-gray-500 italic block my-1">
-                                Umsatzsteuer: Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.
-                            </span>
-                        @endif
-                        Gerichtsstand: {{ shop_setting('owner_court', 'Gifhorn') }}
-                    </p>
-
-                    <p class="pt-4 text-sm text-gray-600">
-                        <strong>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV:</strong><br>
-                        {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
-                        {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}<br>
-                        {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}
-                    </p>
-
-                    <div class="pt-4 text-sm text-gray-600">
-                        <strong>Verbraucherstreitbeilegung / Universalschlichtungsstelle:</strong><br>
-                        Wir sind nicht bereit oder verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen (§ 36 VSBG).
-                    </div>
-                </div>
-            </header>
-
-            {{-- AGB & WIDERRUF BEREICH --}}
+        <section class="max-w-4xl mx-auto px-4 py-12 md:py-16 text-gray-800">
             <header class="mb-12 text-center md:text-left">
-                <h1 class="text-3xl md:text-4xl font-serif font-bold mb-4 text-gray-900">AGB & Widerrufsrecht</h1>
-                <p class="text-gray-500 text-sm">Stand: {{ now()->format('d.m.Y') }}</p>
+                <h1 class="text-3xl md:text-4xl font-serif font-bold mb-4 text-gray-900">Impressum</h1>
+                <p class="text-gray-500">Gesetzliche Anbieterkennzeichnung gemäß § 5 DDG, § 18 Abs. 2 MStV & Verordnung (EU) 2023/988 (GPSR)</p>
             </header>
 
-            <div class="space-y-16 text-base leading-relaxed text-gray-700">
+            <div class="space-y-12">
 
-                {{-- I Allgemeine Geschäftsbedingungen --}}
-                <div>
-                    <h2 class="text-2xl font-bold text-gray-900 mb-8 border-b pb-4 flex items-center gap-3">
-                        <span class="bg-gray-900 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-normal">I</span>
-                        Allgemeine Geschäftsbedingungen
+                {{-- 1. Anbieterkennzeichnung nach § 5 DDG --}}
+                <div id="anbieterkennzeichnung" class="bg-gray-50 p-8 rounded-xl border border-gray-200 shadow-sm">
+                    <h2 class="text-xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+                        <span class="bg-gray-900 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-normal">1</span>
+                        Angaben gemäß § 5 Digitale-Dienste-Gesetz (DDG)
                     </h2>
 
-                    <div class="space-y-10">
-                        <div id="geltungsbereich" class="scroll-mt-28">
-                            <h3 class="font-bold text-lg text-gray-900 mb-2">1. Geltungsbereich und Anbieter</h3>
+                    <div class="grid md:grid-cols-2 gap-8 text-gray-700 leading-relaxed">
+                        <div>
+                            <p class="font-bold text-lg text-gray-900 mb-2">{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</p>
                             <p>
-                                (1) Diese Allgemeinen Geschäftsbedingungen gelten für alle Bestellungen, die Sie bei dem Online-Shop <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong> (nachfolgend „Anbieter“) tätigen.
-                            </p>
-                            <p class="mt-2 text-sm bg-gray-50 p-4 rounded border border-gray-200">
-                                <strong>Anbieterkennzeichnung:</strong><br>
-                                {{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}<br>
                                 Inhaberin: {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
-                                {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}, {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}<br>
-                                E-Mail: {{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}
-                            </p>
-                            <p class="mt-2">
-                                (2) Das Warenangebot in unserem Online-Shop richtet sich ausschließlich an Verbraucher, die das 18. Lebensjahr vollendet haben. Verbraucher ist jede natürliche Person, die ein Rechtsgeschäft zu Zwecken abschließt, die überwiegend weder ihrer gewerblichen noch ihrer selbständigen beruflichen Tätigkeit zugerechnet werden können (§ 13 BGB).
-                            </p>
-                        </div>
-
-                        <div id="vertragsschluss" class="scroll-mt-28">
-                            <h3 class="font-bold text-lg text-gray-900 mb-2">2. Vertragsschluss</h3>
-                            <p>
-                                (1) Die Präsentation der Waren im Online-Shop stellt kein rechtlich bindendes Angebot, sondern einen unverbindlichen Online-Katalog dar.
-                            </p>
-                            <p class="mt-2">
-                                (2) <strong>Bestellungen über Etsy:</strong> Soweit Sie Waren über unseren Shop auf der Plattform Etsy bestellen, gelten vorrangig die dortigen technischen Schritte zum Vertragsschluss sowie die AGB und Nutzungsbedingungen von Etsy.
-                            </p>
-                            <p class="mt-2">
-                                (3) <strong>Individuelle Aufträge:</strong> Bei Bestellungen, die individuell per E-Mail, Telefon oder über das Anfrageformular dieser Website vereinbart werden, erhalten Sie von uns zunächst ein verbindliches Angebot. Der Vertrag kommt zustande, wenn Sie dieses Angebot durch eine Bestätigung (z.B. per E-Mail) oder durch Zahlung des Rechnungsbetrages annehmen.
-                            </p>
-                        </div>
-
-                        <div id="konfigurator" class="scroll-mt-28">
-                            <h3 class="font-bold text-lg text-gray-900 mb-2">3. Nutzung des Produktkonfigurators</h3>
-                            <p>
-                                (1) Der auf der Website bereitgestellte Produktkonfigurator dient als Visualisierungshilfe zur groben Platzierung von Texten, Bildern und Symbolen auf den angebotenen Waren.
-                            </p>
-                            <p class="mt-2">
-                                (2) Die im Konfigurator dargestellte Vorschau ist <strong>nicht maßstabsgetreu</strong> und stellt keine millimetergenaue Abbildung des Endprodukts dar. Geringfügige Abweichungen in der Platzierung, Ausrichtung und Größe (im Bereich handwerklicher Toleranzen) sind produktionsbedingt möglich und stellen keinen Mangel dar.
-                            </p>
-                            <p class="mt-2">
-                                (3) <strong>Technische Umsetzung & Farbwiedergabe:</strong> Der Kunde nimmt zur Kenntnis, dass farbige Bilddateien im Laserverfahren technisch bedingt nicht farbecht wiedergegeben werden können. Die Veredelung erfolgt als dauerhafte Oberflächenveränderung (Gravur), wobei Farben in materialabhängige Kontraststufen (monochrom / Graustufen) umgewandelt werden. Abweichungen zur digitalen RGB-Farbdarstellung am Monitor sind prozessbedingt und stellen keinen Reklamationsgrund dar.
-                            </p>
-                            <p class="mt-2">
-                                (4) Der Kunde ist dafür verantwortlich, die im Konfigurator eingegebenen Inhalte (insbesondere Rechtschreibung von Namen oder Daten) vor Abschluss der Bestellung auf Richtigkeit zu prüfen. Da es sich um individuell nach Kundenspezifikation angefertigte Waren handelt, ist das Widerrufsrecht gemäß § 312g Abs. 2 Nr. 1 BGB ausgeschlossen.
-                            </p>
-                            <p class="mt-2">
-                                (5) <strong>Charakter der grafischen Darstellung:</strong> Der Produktkonfigurator dient ausschließlich der besseren Informationsaufnahme Ihrer individuellen Gestaltungswünsche (Texte, Schriftarten, Symbole und Motive). Da es sich bei der Ansicht im Konfigurator um eine rein digitale, grafische Vorschau handelt, sind darstellungs- und fertigungsbedingte Abweichungen unvermeidbar; das tatsächliche Aussehen des handwerklich veredelten Endprodukts weicht naturgemäß von der digitalen Grafikanzeige ab.
+                                {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}<br>
+                                {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}<br>
+                                {{ shop_setting('company_country', 'Deutschland') }}
                             </p>
                         </div>
 
                         <div>
-                            <h3 class="font-bold text-lg text-gray-900">3. Preise und Zahlung</h3>
-                            <p class="mt-2">
-                                @if(shop_setting('is_small_business', false))
-                                    (1) Die angegebenen Preise sind Endpreise zzgl. Versandkosten. Gemäß § 19 UStG wird keine Umsatzsteuer erhoben. <br>
-                                @else
-                                    (1) Die angegebenen Preise sind Endpreise inklusive der gesetzlichen Umsatzsteuer. <br>
-                                @endif
-                                (2) Ihnen stehen folgende Zahlungsarten zur Verfügung:
+                            <p class="font-semibold text-gray-900 mb-2">Kontakt</p>
+                            <p class="mb-4">
+                                Telefon: <a href="tel:{{ preg_replace('/[^0-9+]/', '', shop_setting('company_phone', shop_setting('owner_phone', '+49 159 019 668 64'))) }}" class="hover:text-primary transition-colors">{{ shop_setting('company_phone', shop_setting('owner_phone', '+49 159 019 668 64')) }}</a><br>
+                                E-Mail: <a href="mailto:{{ shop_setting('owner_email_impressum', shop_setting('company_email', 'kontakt@mein-seelenfunke.de')) }}" class="text-primary hover:underline transition-colors">{{ shop_setting('owner_email_impressum', shop_setting('company_email', 'kontakt@mein-seelenfunke.de')) }}</a><br>
+                                Website: <a href="{{ url('/') }}" class="hover:text-primary transition-colors">{{ url('/') }}</a>
                             </p>
-                            <ul class="list-disc list-inside ml-4 mt-2 mb-2">
-                                <li>Vorkasse (Überweisung)</li>
-                                <li>Kreditkarte (Visa, Mastercard, American Express)</li>
-                                <li>Apple Pay / Google Pay</li>
-                                <li>Amazon Pay / Paypal</li>
-                                <li>Sofortüberweisung / Klarna</li>
-                            </ul>
-                            <p>
-                                Die Abwicklung der Kartenzahlungen und digitalen Wallets erfolgt über den Zahlungsdienstleister <strong>Stripe Payments Europe, Ltd.</strong> Die Belastung Ihres Kontos erfolgt unmittelbar nach Abschluss der Bestellung.
-                            </p>
-                        </div>
 
-                        <div id="eigentum" class="scroll-mt-28">
-                            <h3 class="font-bold text-lg text-gray-900 mb-2">4. Eigentumsvorbehalt</h3>
-                            <p>Bis zur vollständigen Bezahlung bleibt die Ware unser Eigentum.</p>
-                        </div>
-
-                        <div id="transportschaeden" class="scroll-mt-28">
-                            <h3 class="font-bold text-lg text-gray-900 mb-2">5. Transportschäden</h3>
-                            <p>
-                                (1) Werden Waren mit offensichtlichen Transportschäden angeliefert, so reklamieren Sie solche Fehler bitte möglichst sofort beim Zusteller und nehmen Sie bitte unverzüglich Kontakt zu uns auf.
-                            </p>
-                            <p class="mt-2">
-                                (2) Die Versäumung einer Reklamation oder Kontaktaufnahme hat für Ihre gesetzlichen Ansprüche und deren Durchsetzung, insbesondere Ihre Gewährleistungsrechte, keinerlei Konsequenzen. Sie helfen uns aber, unsere eigenen Ansprüche gegenüber dem Frachtführer bzw. der Transportversicherung geltend machen zu können.
-                            </p>
-                        </div>
-
-                        <div id="gewaehrleistung" class="scroll-mt-28">
-                            <h3 class="font-bold text-lg text-gray-900 mb-2">6. Gewährleistung und Mängelhaftung</h3>
-                            <p>
-                                (1) Es besteht ein gesetzliches Mängelhaftungsrecht.
-                            </p>
-                            <p class="mt-2">
-                                (2) <strong>Hinweis zu Naturprodukten:</strong> Holz, Schiefer und ähnliche Naturmaterialien unterliegen Schwankungen in Farbe, Maserung und Beschaffenheit. Solche naturbedingten Abweichungen sowie materialtypische Merkmale (z.B. Asteinschlüsse bei Holz) stellen keinen Mangel dar, solange die Tauglichkeit zum vertraglich vorausgesetzten Gebrauch nicht beeinträchtigt ist.
-                            </p>
-                            <p class="mt-2">
-                                (3) Bei personalisierten Produkten stellt eine subjektiv nicht gefallende Gestaltung (z.B. Schriftart, Platzierung), die jedoch den Vorgaben der Bestellung entspricht, keinen Mangel dar.
-                            </p>
-                        </div>
-
-                        <div id="streitbeilegung" class="scroll-mt-28">
-                            <h3 class="font-bold text-lg text-gray-900 mb-2">7. Verbraucherstreitbeilegung</h3>
-                            <p>
-                                <strong>Information gemäß § 36 VSBG:</strong><br>
-                                Wir sind zur Teilnahme an einem Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle weder verpflichtet noch bereit.
+                            <p class="font-semibold text-gray-900 mb-1">Umsatzsteuer-Identifikationsnummer</p>
+                            <p class="text-sm text-gray-600">
+                                Umsatzsteuer-Identifikationsnummer gemäß § 27 a Umsatzsteuergesetz:<br>
+                                <span class="font-mono text-gray-800">{{ shop_setting('owner_ust_id', 'DE359662265') }}</span>
                             </p>
                         </div>
                     </div>
                 </div>
 
-                {{-- II Widerrufsbelehrung --}}
-                <div id="widerruf" class="scroll-mt-28">
-                    <h2 class="text-2xl font-bold text-gray-900 mb-8 border-b pb-4 flex items-center gap-3">
-                        <span class="bg-gray-900 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-normal">II</span>
-                        Widerrufsbelehrung
-                    </h2>
-
-                    <div class="space-y-4 mb-10">
-                        <div class="bg-red-50 border-l-4 border-red-500 p-6 rounded-r-xl shadow-sm">
-                            <div class="flex items-start gap-4">
-                                <div class="flex-shrink-0 mt-1">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <h3 class="font-bold text-red-800 text-lg">Ausschluss bei personalisierten Produkten</h3>
-                                    <p class="text-red-800 mt-2 text-sm leading-relaxed">
-                                        Das Widerrufsrecht besteht <strong>nicht</strong> bei Verträgen zur Lieferung von Waren, die nicht vorgefertigt sind und für deren Herstellung eine individuelle Auswahl oder Bestimmung durch den Verbraucher maßgeblich ist oder die eindeutig auf die persönlichen Bedürfnisse des Verbrauchers zugeschnitten sind (§ 312g Abs. 2 Nr. 1 BGB).
-                                    </p>
-                                    <p class="text-red-900 mt-3 font-bold text-sm bg-white/50 p-2 rounded inline-block border border-red-100">
-                                        Dies gilt für alle Produkte, die speziell für Sie graviert oder anderweitig personalisiert werden.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="bg-blue-50 border-l-4 border-blue-500 p-6 rounded-r-xl shadow-sm">
-                            <div class="flex items-start gap-4">
-                                <div class="flex-shrink-0 mt-1 text-blue-600">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <h3 class="font-bold text-blue-800 text-lg">Erlöschen bei digitalen Inhalten</h3>
-                                    <p class="text-blue-800 mt-2 text-sm leading-relaxed">
-                                        Das Widerrufsrecht erlischt bei einem Vertrag über die Lieferung von nicht auf einem körperlichen Datenträger befindlichen digitalen Inhalten (z.B. Downloads, E-Books, Design-Vorlagen), wenn der Unternehmer mit der Ausführung des Vertrags begonnen hat, nachdem der Verbraucher:
-                                    </p>
-                                    <ul class="list-disc list-outside ml-4 mt-2 text-blue-800 text-sm font-medium">
-                                        <li>ausdrücklich zugestimmt hat, dass der Unternehmer mit der Ausführung des Vertrags vor Ablauf der Widerrufsfrist beginnt, und</li>
-                                        <li>seine Kenntnis davon bestätigt hat, dass er durch seine Zustimmung mit Beginn der Ausführung des Vertrags sein Widerrufsrecht verliert.</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="prose prose-gray max-w-none text-gray-700">
-                        <p class="font-medium bg-gray-100 p-2 inline-block rounded text-sm mb-4">
-                            Für alle anderen Waren (z.B. Standard-Zubehör ohne Personalisierung) gilt folgendes Widerrufsrecht:
-                        </p>
-
-                        <h3 class="font-bold text-lg text-gray-900">Widerrufsrecht</h3>
-                        <p>
-                            Sie haben das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen.
-                            Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag, an dem Sie oder ein von Ihnen benannter Dritter, der nicht der Beförderer ist, die Waren in Besitz genommen haben bzw. hat.
-                        </p>
-                        <p>
-                            Um Ihr Widerrufsrecht auszuüben, müssen Sie uns (<strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}, {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}, {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}, {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}, E-Mail: {{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}</strong>) mittels einer eindeutigen Erklärung (z. B. ein mit der Post versandter Brief oder E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren. Sie können dafür das beigefügte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist.
-                        </p>
-                        <p>
-                            Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.
-                        </p>
-
-                        <h3 class="font-bold text-lg text-gray-900 mt-6">Folgen des Widerrufs</h3>
-                        <p>
-                            Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen, die wir von Ihnen erhalten haben, einschließlich der Lieferkosten (mit Ausnahme der zusätzlichen Kosten, die sich daraus ergeben, dass Sie eine andere Art der Lieferung als die von uns angebotene, günstigste Standardlieferung gewählt haben), unverzüglich und spätestens binnen vierzehn Tagen ab dem Tag zurückzuzahlen, an dem die Mitteilung über Ihren Widerruf dieses Vertrags bei uns eingegangen ist. Für diese Rückzahlung verwenden wir dasselbe Zahlungsmittel, das Sie bei der ursprünglichen Transaktion eingesetzt haben, es sei denn, mit Ihnen wurde ausdrücklich etwas anderes vereinbart; in keinem Fall werden Ihnen wegen dieser Rückzahlung Entgelte berechnet.
-                        </p>
-                        <p>
-                            Wir können die Rückzahlung verweigern, bis wir die Waren wieder zurückerhalten haben oder bis Sie den Nachweis erbracht haben, dass Sie die Waren zurückgesandt haben, je nachdem, welches der frühere Zeitpunkt ist.
-                        </p>
-                        <p>
-                            Sie haben die Waren unverzüglich und in jedem Fall spätestens binnen vierzehn Tagen ab dem Tag, an dem Sie uns über den Widerruf dieses Vertrags unterrichten, an uns zurückzusenden oder zu übergeben. Die Frist ist gewahrt, wenn Sie die Waren vor Ablauf der Frist von vierzehn Tagen absenden.
-                        </p>
-                        <p class="font-semibold">
-                            Sie tragen die unmittelbaren Kosten der Rücksendung der Waren.
-                        </p>
-                        <p>
-                            Sie müssen für einen etwaigen Wertverlust der Waren nur aufkommen, wenn dieser Wertverlust auf einen zur Prüfung der Beschaffenheit, Eigenschaften und Funktionsweise der Waren nicht notwendigen Umgang mit ihnen zurückzuführen ist.
-                        </p>
-                    </div>
-                </div>
-
-                {{-- Muster-Widerrufsformular --}}
-                <div id="widerrufsformular" class="scroll-mt-28">
-                    <h2 class="text-2xl font-bold text-gray-900 mb-6 border-b pb-2">Muster-Widerrufsformular</h2>
-
-                    <div class="mb-8">
-                        <p class="text-gray-600 mb-4">Wenn Sie den Vertrag widerrufen wollen, dann füllen Sie bitte dieses Formular aus und senden Sie es zurück.</p>
-                        <a href="{{ route('widerruf.pdf') }}" class="inline-flex items-center gap-3 bg-gray-900 text-white px-6 py-4 rounded-lg font-bold hover:bg-gray-800 transition-all shadow-md group hover:-translate-y-0.5">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 group-hover:scale-110 transition-transform">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M7.5 12 12 16.5m0 0 4.5-4.5M12 16.5V3.75" />
-                            </svg>
-                            <span>Formular als PDF herunterladen</span>
-                        </a>
-                    </div>
-
-                    <div class="border border-gray-200 p-8 rounded-xl bg-white shadow-sm text-gray-800 font-mono text-sm leading-relaxed">
-                        <p class="mb-6 font-bold">
-                            An:<br>
-                            {{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}<br>
-                            {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
+                {{-- 2. Redaktionelle Verantwortung & DSA Kontaktstelle --}}
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-xs">
+                        <h2 class="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2.5">
+                            <span class="bg-gray-900 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-normal shrink-0">2</span>
+                            Redaktionell Verantwortliche (§ 18 Abs. 2 MStV)
+                        </h2>
+                        <p class="text-sm text-gray-700 leading-relaxed">
+                            Verantwortlich für den Inhalt nach § 18 Abs. 2 Medienstaatsvertrag (MStV):<br><br>
+                            <strong>{{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}</strong><br>
                             {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}<br>
-                            {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}<br>
-                            E-Mail: {{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}
+                            {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}<br>
+                            Deutschland
                         </p>
+                    </div>
 
-                        <p class="mb-6">
-                            Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*) abgeschlossenen Vertrag über den Kauf der folgenden Waren (*):
+                    <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-xs">
+                        <h2 class="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2.5">
+                            <span class="bg-gray-900 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-normal shrink-0">3</span>
+                            Kontaktstelle nach Digital Services Act (DSA)
+                        </h2>
+                        <p class="text-sm text-gray-700 leading-relaxed">
+                            Zentrale Kontaktstelle für Nutzer und Behörden gemäß Art. 11 und Art. 12 der Verordnung (EU) 2022/2065 (Gesetz über digitale Dienste):<br><br>
+                            E-Mail: <a href="mailto:{{ shop_setting('owner_email_impressum', shop_setting('company_email', 'kontakt@mein-seelenfunke.de')) }}" class="text-primary hover:underline font-medium">{{ shop_setting('owner_email_impressum', shop_setting('company_email', 'kontakt@mein-seelenfunke.de')) }}</a><br>
+                            Telefon: {{ shop_setting('company_phone', shop_setting('owner_phone', '+49 159 019 668 64')) }}<br>
+                            <span class="text-xs text-gray-500">Kommunikationssprachen: Deutsch, Englisch.</span>
                         </p>
+                    </div>
+                </div>
 
-                        <div class="h-px bg-gray-200 w-full my-6"></div>
-
-                        <div class="space-y-4">
-                            <p>Bestellt am (*) / erhalten am (*): <span class="inline-block border-b border-gray-300 w-48">&nbsp;</span></p>
-                            <p>Name des/der Verbraucher(s): <span class="inline-block border-b border-gray-300 w-48">&nbsp;</span></p>
-                            <p>Anschrift des/der Verbraucher(s): <span class="inline-block border-b border-gray-300 w-64">&nbsp;</span></p>
+                {{-- 4. Produktsicherheit & Herstellerangaben (GPSR) --}}
+                <div id="gpsr" class="bg-amber-50/50 p-6 md:p-8 rounded-xl border border-amber-200/80 shadow-xs scroll-mt-28">
+                    <h2 class="text-lg md:text-xl font-bold text-gray-900 mb-3 flex items-center gap-3">
+                        <span class="bg-gray-900 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs font-normal shrink-0">4</span>
+                        Herstellerangaben & Produktsicherheit gemäß Verordnung (EU) 2023/988 (GPSR)
+                    </h2>
+                    <div class="text-sm text-gray-700 leading-relaxed space-y-3">
+                        <p>
+                            Verantwortlicher Hersteller bzw. Veredler für sämtliche im Online-Shop unter der Marke <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong> angebotenen personalisierten und veredelten Produkte im Sinne des Art. 19 der EU-Produktsicherheitsverordnung (Verordnung (EU) 2023/988 – General Product Safety Regulation, GPSR):
+                        </p>
+                        <div class="bg-white p-4 rounded-lg border border-amber-200/70 text-gray-800">
+                            <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }} – Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}</strong><br>
+                            {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}, {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}, Deutschland<br>
+                            Elektronische Kontaktadresse für Produktsicherheitsanfragen: <a href="mailto:{{ shop_setting('company_email', 'kontakt@mein-seelenfunke.de') }}" class="text-primary hover:underline font-medium">{{ shop_setting('company_email', 'kontakt@mein-seelenfunke.de') }}</a>
                         </div>
+                        <p class="text-xs text-gray-600">
+                            Produktspezifische Sicherheits- und Warnhinweise sind zudem direkt auf der jeweiligen Produktdetailseite im Reiter „Produktsicherheit & Hersteller (GPSR)“ sowie in unseren <a href="{{ route('agb') }}#produktsicherheit" class="text-primary underline hover:text-primary-dark">Allgemeinen Geschäftsbedingungen (§ 6a)</a> abrufbar.
+                        </p>
+                    </div>
+                </div>
 
-                        <div class="mt-12 mb-4">
-                            <span class="inline-block border-b border-gray-300 w-2/3">&nbsp;</span>
-                            <p class="text-xs text-gray-500 mt-1">Unterschrift des/der Verbraucher(s) (nur bei Mitteilung auf Papier)</p>
-                        </div>
+                {{-- 5. Verbraucherstreitbeilegung (§ 36 VSBG) --}}
+                <div class="bg-white p-6 md:p-8 rounded-xl border border-gray-200 shadow-xs">
+                    <h2 class="text-lg md:text-xl font-bold text-gray-900 mb-3 flex items-center gap-3">
+                        <span class="bg-gray-900 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs font-normal shrink-0">5</span>
+                        Verbraucherstreitbeilegung / Universalschlichtungsstelle (§ 36 VSBG)
+                    </h2>
+                    <div class="text-sm text-gray-700 leading-relaxed space-y-2">
+                        <p>
+                            Wir sind nicht bereit oder verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle im Sinne des Verbraucherstreitbeilegungsgesetzes (VSBG) teilzunehmen.
+                        </p>
+                        <p class="text-xs text-gray-500">
+                            Hinweis: Die ehemalige Plattform der Europäischen Kommission zur Online-Streitbeilegung (OS-Plattform) wurde gemäß der Verordnung (EU) 2024/3228 mit Wirkung zum 20. Juli 2025 endgültig eingestellt. Unser Kundenservice steht Ihnen bei Anliegen jederzeit direkt unter <a href="mailto:{{ shop_setting('company_email', 'kontakt@mein-seelenfunke.de') }}" class="text-primary hover:underline">{{ shop_setting('company_email', 'kontakt@mein-seelenfunke.de') }}</a> zur Verfügung.
+                        </p>
+                    </div>
+                </div>
 
-                        <p class="mb-4">Datum: <span class="inline-block border-b border-gray-300 w-32">&nbsp;</span></p>
+                {{-- 6. Urheberrecht, Haftung & KI-Transparenz (EU AI Act) --}}
+                <div class="bg-white p-6 md:p-8 rounded-xl border border-gray-200 shadow-xs space-y-4">
+                    <h2 class="text-lg md:text-xl font-bold text-gray-900 mb-2 flex items-center gap-3">
+                        <span class="bg-gray-900 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs font-normal shrink-0">6</span>
+                        Urheberrecht & Transparenzhinweis nach Art. 50 EU AI Act
+                    </h2>
+                    <div class="text-sm text-gray-700 leading-relaxed space-y-3">
+                        <p>
+                            <strong>Urheberrecht:</strong> Die durch die Seitenbetreiberin erstellten Inhalte, Gravurvorlagen, Fotografien, 3D-Modelle und Werke auf diesen Seiten unterliegen dem deutschen Urheberrecht. Die Vervielfältigung, Bearbeitung, Verbreitung und jede Art der Verwertung außerhalb der Grenzen des Urheberrechtes bedürfen der schriftlichen Zustimmung der jeweiligen Autorin bzw. Erstellerin.
+                        </p>
+                        <p>
+                            <strong>KI-Transparenzhinweis gemäß Art. 50 Verordnung (EU) 2024/1689 (EU AI Act):</strong> Zur realitätsnahen Visualisierung von Gravurbeispielen, Designvorlagen und Ambiente-Darstellungen setzen wir in unserem Online-Shop ergänzend KI-gestützte Bild- und Textwerkzeuge unter menschlicher Kuratierung ein. Entsprechende Darstellungen sind direkt am Bild mit dem Hinweis „KI-generiert“ gekennzeichnet. Die physische Fertigung und Lasergravur Ihres Produktes erfolgt stets individuell am echten Werkstück in unserer Manufaktur in Gifhorn.
+                        </p>
+                    </div>
+                </div>
 
-                        <p class="text-xs text-gray-400 mt-8">(*) Unzutreffendes streichen.</p>
+                {{-- 7. Weiterführende Rechtstexte (Schnellnavigation) --}}
+                <div class="pt-4 border-t border-gray-200">
+                    <h2 class="text-lg font-bold text-gray-900 mb-4">Weiterführende Rechtstexte & Kundeninformationen</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                        <a href="{{ route('agb') }}" class="p-4 rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-primary hover:shadow-sm transition-all flex items-center justify-between group">
+                            <span class="font-semibold text-gray-800 group-hover:text-primary">AGB & Widerrufsbelehrung</span>
+                            <span class="text-gray-400 group-hover:text-primary">&rarr;</span>
+                        </a>
+                        <a href="{{ route('datenschutz') }}" class="p-4 rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-primary hover:shadow-sm transition-all flex items-center justify-between group">
+                            <span class="font-semibold text-gray-800 group-hover:text-primary">Datenschutzerklärung</span>
+                            <span class="text-gray-400 group-hover:text-primary">&rarr;</span>
+                        </a>
+                        <a href="{{ route('widerruf') }}" class="p-4 rounded-xl border border-red-200 bg-red-50/50 hover:bg-white hover:border-red-500 hover:shadow-sm transition-all flex items-center justify-between group">
+                            <span class="font-semibold text-red-700 group-hover:text-red-800">Vertrag elektronisch widerrufen</span>
+                            <span class="text-red-400 group-hover:text-red-700">&rarr;</span>
+                        </a>
+                        <a href="{{ route('versand') }}" class="p-4 rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-primary hover:shadow-sm transition-all flex items-center justify-between group">
+                            <span class="font-semibold text-gray-800 group-hover:text-primary">Versand & Zahlungsarten</span>
+                            <span class="text-gray-400 group-hover:text-primary">&rarr;</span>
+                        </a>
+                        <a href="{{ route('barrierefreiheit') }}" class="p-4 rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-primary hover:shadow-sm transition-all flex items-center justify-between group">
+                            <span class="font-semibold text-gray-800 group-hover:text-primary">Barrierefreiheit (BFSG)</span>
+                            <span class="text-gray-400 group-hover:text-primary">&rarr;</span>
+                        </a>
+                        <a href="{{ route('verhaltenskodex') }}" class="p-4 rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-primary hover:shadow-sm transition-all flex items-center justify-between group">
+                            <span class="font-semibold text-gray-800 group-hover:text-primary">Verhaltenskodex</span>
+                            <span class="text-gray-400 group-hover:text-primary">&rarr;</span>
+                        </a>
                     </div>
                 </div>
 

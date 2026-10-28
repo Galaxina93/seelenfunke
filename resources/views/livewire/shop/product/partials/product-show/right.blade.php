@@ -90,12 +90,14 @@
             </div>
         </div>
 
-        {{-- Sternebewertung mit Anker-Sprung zu den Bewertungen (direkt über dem Lagerbestand) --}}
+        {{-- Sternebewertung & Herkunfts-Siegel (direkt über dem Lagerbestand) --}}
         @php
             $detailRatingAvg = round((float) ($this->product->average_rating ?? 0), 1);
             $detailRatingCount = (int) ($this->product->review_count ?? 0);
+            $detailOriginLabel = $this->product->getOriginBadgeLabel();
+            $detailOriginMode = $this->product->getOriginBadgeMode();
         @endphp
-        <div class="mb-4">
+        <div class="mb-4 flex flex-wrap items-center gap-3">
             <div class="inline-flex items-center gap-2.5">
                 <div class="flex items-center">
                     @for($i = 1; $i <= 5; $i++)
@@ -117,6 +119,17 @@
                     @endif
                 </button>
             </div>
+
+            @if($detailOriginLabel)
+                <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider border shadow-2xs {{ $detailOriginMode === 'made_in_germany' ? 'bg-amber-50 text-amber-900 border-amber-200' : 'bg-stone-50 text-stone-800 border-stone-200' }}">
+                    <span class="inline-flex flex-col w-3.5 h-2.5 rounded-[2px] overflow-hidden shrink-0 border border-black/15">
+                        <span class="h-1/3 w-full bg-black"></span>
+                        <span class="h-1/3 w-full bg-[#DD0000]"></span>
+                        <span class="h-1/3 w-full bg-[#FFCE00]"></span>
+                    </span>
+                    <span>{{ $detailOriginLabel }}</span>
+                </span>
+            @endif
         </div>
 
         <livewire:shop.system.system-delivery-display :product="$this->product" />
@@ -385,7 +398,7 @@
     @endphp
     <div class="flex lg:hidden flex-col mt-10 w-full clear-both"
          data-nosnippet
-         x-data="{ descOpenMobile: false, propsOpenMobile: false }">
+         x-data="{ descOpenMobile: false, propsOpenMobile: false, gpsrOpenMobile: false }">
         <div class="border-t border-gray-100 pt-6 w-full block space-y-4">
             @if($rawDescriptionMobile !== '')
                 <div class="bg-gray-50/70 rounded-2xl p-5 border border-gray-100 w-full">
@@ -419,8 +432,8 @@
                 <div class="bg-gray-50/70 rounded-2xl border border-gray-100 w-full overflow-hidden">
                     <button type="button"
                             @click="propsOpenMobile = !propsOpenMobile"
-                            class="w-full p-5 flex items-center justify-between gap-4 text-left cursor-pointer">
-                        <div class="flex items-center gap-2">
+                            class="w-full p-5 flex items-center justify-between gap-3 text-left cursor-pointer">
+                        <div class="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
                             <svg class="w-5 h-5 text-[var(--theme-color)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
                             <h4 class="text-sm font-bold uppercase text-gray-900 tracking-wider">Eigenschaften</h4>
                             <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-white text-gray-500 border border-gray-200">
@@ -446,6 +459,48 @@
                                 </div>
                             @endforeach
                         </dl>
+                    </div>
+                </div>
+            @endif
+
+            @if(($product->type ?? 'physical') === 'physical')
+                <div class="bg-gray-50/70 rounded-2xl border border-gray-100 w-full overflow-hidden">
+                    <button type="button"
+                            @click="gpsrOpenMobile = !gpsrOpenMobile"
+                            class="w-full p-5 flex items-center justify-between gap-3 text-left cursor-pointer">
+                        <div class="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
+                            <svg class="w-5 h-5 text-[var(--theme-color)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                            <h4 class="text-sm font-bold uppercase text-gray-900 tracking-wider">Produktsicherheit & Hersteller</h4>
+                            <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-white text-gray-500 border border-gray-200">GPSR</span>
+                        </div>
+                        <span class="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 shrink-0">
+                            <span x-text="gpsrOpenMobile ? 'Ausblenden' : 'Anzeigen'">Anzeigen</span>
+                            <svg class="w-4 h-4 transition-transform duration-300" :class="gpsrOpenMobile ? 'rotate-180 text-[var(--theme-color)]' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </span>
+                    </button>
+
+                    <div x-show="gpsrOpenMobile"
+                         x-cloak
+                         class="px-5 pb-5 pt-3 border-t border-gray-200/60 text-xs text-gray-600 space-y-3 leading-relaxed">
+                        <div>
+                            <p class="font-bold text-gray-900 mb-0.5">Hersteller & Verantwortliche Person in der EU (Art. 19 GPSR):</p>
+                            <p>
+                                {{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }} – Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
+                                {{ shop_setting('company_street', 'Carl-Goerdeler-Ring') }} {{ shop_setting('company_street_number', '26') }}, {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}, Deutschland<br>
+                                E-Mail: <a href="mailto:{{ shop_setting('company_email', 'kontakt@mein-seelenfunke.de') }}" class="text-[var(--theme-color)] underline">{{ shop_setting('company_email', 'kontakt@mein-seelenfunke.de') }}</a> | SKU: <span class="font-mono text-gray-800">{{ $product->sku ?: ('MSF-' . $product->id) }}</span>
+                            </p>
+                        </div>
+                        <div>
+                            <p class="font-bold text-gray-900 mb-0.5">Sicherheits- & Pflegehinweise:</p>
+                            <ul class="list-disc list-inside space-y-1">
+                                <li>Dekorations-, Erinnerungs- bzw. Gebrauchsartikel – kein Kinderspielzeug.</li>
+                                <li>Bei Artikeln mit Schlüsselringen/Ösen: Achtung – verschluckbare Kleinteile (Erstickungsgefahr für Kinder unter 36 Monaten).</li>
+                                <li>Bei Glas- und Schieferartikeln: Vor Stürzen schützen (Schnittgefahr bei Glas-/Schieferbruch); Kristallglas vor dauerhafter direkter Sonneneinstrahlung nahe brennbaren Materialien schützen.</li>
+                                <li>Pflege: Mit einem weichen, leicht angefeuchteten Tuch ohne aggressive Reinigungsmittel abwischen (nicht spülmaschinengeeignet).</li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
             @endif

@@ -33,7 +33,7 @@ return new class extends Migration
                 $table->uuid('admin_id');
                 $table->boolean('is_business')->nullable()->default(0);
                 $table->string('company_name')->nullable();
-                $table->string('vat_id')->nullable();
+                $table->text('vat_id')->nullable();
                 $table->text('internal_note')->nullable();
                 $table->date('birthday')->nullable();
                 $table->string('photo_path')->nullable();
@@ -84,7 +84,7 @@ return new class extends Migration
                 $table->uuid('customer_id');
                 $table->boolean('is_business')->nullable()->default(0);
                 $table->string('company_name')->nullable();
-                $table->string('vat_id')->nullable();
+                $table->text('vat_id')->nullable();
                 $table->text('internal_note')->nullable();
                 $table->date('birthday')->nullable();
                 $table->string('photo_path')->nullable();
@@ -135,7 +135,7 @@ return new class extends Migration
                 $table->uuid('employee_id');
                 $table->boolean('is_business')->nullable()->default(0);
                 $table->string('company_name')->nullable();
-                $table->string('vat_id')->nullable();
+                $table->text('vat_id')->nullable();
                 $table->text('internal_note')->nullable();
                 $table->date('birthday')->nullable();
                 $table->string('photo_path')->nullable();

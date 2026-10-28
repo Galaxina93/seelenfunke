@@ -842,7 +842,7 @@
                             </a>
 
                             @if($selectedPayoutData['status'] !== 'paid')
-                                <button type="button" wire:click="confirmPayoutPaid('{{ $payout->id ?? $selectedPayoutData['id'] }}')"
+                                <button type="button" wire:click="confirmPayoutPaid('{{ $selectedPayoutData['id'] }}')"
                                         class="px-5 py-2.5 rounded-xl bg-[var(--theme-color)] hover:opacity-90 text-gray-900 dark:text-gray-950 font-black text-[10px] uppercase tracking-widest cursor-pointer">
                                     Als bezahlt verbuchen
                                 </button>

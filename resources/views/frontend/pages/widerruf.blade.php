@@ -1,10 +1,10 @@
 <x-layouts.frontend_layout
     title="Widerrufsbelehrung & Elektronischer Widerruf | Mein Seelenfunke"
     meta_description="Informationen zum gesetzlichen Widerrufsrecht, Ausnahmen bei personalisierten Gravur-Artikeln und elektronisches Widerrufsformular.">
-    <div class="px-4 py-16 sm:px-6 lg:px-8 bg-gray-50/50 min-h-screen">
+    <div class="px-4 py-12 md:py-16 sm:px-6 lg:px-8 bg-gray-50/50 min-h-screen">
         <div class="max-w-3xl mx-auto space-y-12">
             
-            <div class="text-center mt-12">
+            <div class="text-center">
                 <h1 class="text-3xl md:text-4xl font-black text-gray-900 mb-4 tracking-tight">Elektronischer Widerruf</h1>
                 <p class="text-lg text-gray-600 max-w-2xl mx-auto">
                     Nutzen Sie dieses Formular, um Ihre Vertragserklärung über nicht-personalisierte Waren (falls zutreffend) auf elektronischem Wege fristgerecht zu widerrufen.

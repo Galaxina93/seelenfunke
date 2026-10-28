@@ -161,7 +161,7 @@ class LandingPageView extends Component
                 'path'            => $heroImageMeta['path'] ?? null,
                 'alt'             => $heroImageMeta['label'] ?? $product->name,
                 'label'           => $seasonalTemplate ? ($seasonalTemplate->holiday ?: $seasonalTemplate->name) : ($heroImageMeta['label'] ?? null),
-                'is_ai_generated' => (bool) ($heroImageMeta['is_ai_generated'] ?? false),
+                'is_ai_generated' => (bool) ($heroImageMeta['is_ai_generated'] ?? true),
                 'is_seasonal'     => $seasonalTemplate !== null,
                 'template_id'     => $seasonalTemplate?->id,
             ];
@@ -188,7 +188,7 @@ class LandingPageView extends Component
                     'path'            => $media['path'],
                     'alt'             => $media['alt'] ?? $product->name,
                     'label'           => $media['holiday'] ?? null,
-                    'is_ai_generated' => filter_var($media['is_ai_generated'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                    'is_ai_generated' => filter_var($media['is_ai_generated'] ?? true, FILTER_VALIDATE_BOOLEAN),
                     'is_seasonal'     => !empty($media['holiday']) && mb_strtolower((string) $media['holiday']) !== 'standard',
                     'template_id'     => null,
                 ];

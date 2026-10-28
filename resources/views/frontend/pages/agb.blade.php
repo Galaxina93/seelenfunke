@@ -4,17 +4,17 @@
 
     <x-sections.page-container>
 
-        <section class="max-w-4xl mx-auto px-4 py-20 text-gray-800">
+        <section class="max-w-4xl mx-auto px-4 py-12 md:py-16 text-gray-800">
 
-            {{-- Impressum Section --}}
+            {{-- Anbieterkennzeichnung Header --}}
             <header class="mb-16 text-center md:text-left border-b pb-8">
-                <h1 class="text-3xl md:text-4xl font-serif font-bold mb-6 text-gray-900">Impressum</h1>
+                <h2 class="text-xl md:text-2xl font-serif font-bold mb-4 text-gray-900">Anbieterkennzeichnung (Angaben gemäß § 5 DDG)</h2>
                 <div class="space-y-1 text-base leading-relaxed">
                     <p>
                         <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong><br>
                         Inhaberin: {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
                         {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}<br>
-                        {{ shop_setting('owner_city', '38518 Gifhorn') }}
+                        {{ shop_setting('owner_city', '38518 Gifhorn') }}, Deutschland
                     </p>
                     <p class="pt-4">
                         <strong>Kontakt:</strong><br>
@@ -23,11 +23,9 @@
                         Web: <a href="{{ url('/') }}" class="text-primary hover:underline">{{ str_replace(['http://', 'https://'], '', shop_setting('owner_website', 'www.mein-seelenfunke.de')) }}</a>
                     </p>
                     <p class="pt-4 text-sm text-gray-600">
-                        <strong>Rechtliche Angaben:</strong><br>
-                        Steuernummer: {{ shop_setting('owner_tax_id') }}<br>
-                        @if(shop_setting('owner_ust_id')) USt-IdNr.: {{ shop_setting('owner_ust_id') }}<br> @endif
-                        Gerichtsstand: {{ shop_setting('owner_court', 'Gifhorn') }}<br>
-                        IBAN: {{ shop_setting('owner_iban', 'Wird nachgereicht') }}
+                        <strong>Umsatzsteuer-ID & Rechtliche Angaben:</strong><br>
+                        USt-IdNr. gemäß § 27a UStG: {{ shop_setting('owner_ust_id', 'DE359662265') }}<br>
+                        Verantwortlich gemäß § 18 Abs. 2 MStV & Art. 19 GPSR: {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }} (Anschrift wie oben)
                     </p>
                 </div>
             </header>
@@ -62,27 +60,31 @@
                                 E-Mail: {{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}
                             </p>
                             <p class="mt-2">
-                                (2) Das Warenangebot in unserem Online-Shop richtet sich ausschließlich an Verbraucher, die das 18. Lebensjahr vollendet haben. Verbraucher ist jede natürliche Person, die ein Rechtsgeschäft zu Zwecken abschließt, die überwiegend weder ihrer gewerblichen noch ihrer selbständigen beruflichen Tätigkeit zugerechnet werden können (§ 13 BGB).
+                                (2) Das Warenangebot in unserem Online-Shop richtet sich sowohl an Verbraucher (§ 13 BGB) als auch an Unternehmer (§ 14 BGB), die das 18. Lebensjahr vollendet haben. Verbraucher ist jede natürliche Person, die ein Rechtsgeschäft zu Zwecken abschließt, die überwiegend weder ihrer gewerblichen noch ihrer selbständigen beruflichen Tätigkeit zugerechnet werden können (§ 13 BGB).
                             </p>
                         </div>
 
                         {{-- §2 Vertragsschluss --}}
                         <div id="vertragsschluss" class="scroll-mt-28">
-                            <h3 class="font-bold text-lg text-gray-900 mb-2">2. Vertragsschluss & Bestellablauf</h3>
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">2. Vertragsschluss & Bestellablauf im Online-Shop (§ 312i BGB)</h3>
                             <p>
-                                (1) Die Präsentation der Waren im Online-Shop stellt kein rechtlich bindendes Angebot, sondern einen unverbindlichen Online-Katalog dar.
+                                (1) Die Darstellung der Produkte im Online-Shop stellt kein rechtlich bindendes Angebot, sondern einen unverbindlichen Online-Katalog (<em>invitatio ad offerendum</em>) dar.
                             </p>
                             <p class="mt-2">
-                                (2) <strong>Bestellungen über Etsy:</strong> Soweit Sie Waren über unseren Shop auf der Plattform Etsy bestellen, gelten vorrangig die dortigen technischen Schritte zum Vertragsschluss sowie die AGB und Nutzungsbedingungen von Etsy. Über den dortigen Warenkorb-Prozess können Sie vor verbindlicher Abgabe der Bestellung laufend Eingabefehler erkennen und mittels der üblichen Tastatur- und Mausfunktionen korrigieren.
+                                (2) <strong>Bestellablauf im Mein-Seelenfunke Online-Shop:</strong> Sie können unsere Produkte zunächst unverbindlich auswählen, im interaktiven 2D/3D-Produktkonfigurator individuell gestalten und über die Schaltfläche „In den Warenkorb“ in Ihren virtuellen Warenkorb legen. Im Warenkorb sowie auf der anschließenden Kassen-Übersichtsseite („Checkout“) können Sie Ihre Auswahl, die Stückzahl, Ihre Gravur- und Personalisierungsdaten sowie Ihre Rechnungs-, Liefer- und Zahlungsangaben jederzeit überprüfen und Eingabefehler vor dem Absenden Ihrer Bestellung über die vorgesehenen Änderungs- und Löschfunktionen oder die üblichen Browser-, Tastatur- und Mausfunktionen korrigieren.
                             </p>
                             <p class="mt-2">
-                                (3) <strong>Individuelle Aufträge:</strong> Bei Bestellungen, die individuell per E-Mail, Telefon oder über das Anfrageformular dieser Website vereinbart werden, erhalten Sie von uns zunächst ein verbindliches Angebot. Der Vertrag kommt zustande, wenn Sie dieses Angebot durch eine Bestätigung (z.B. per E-Mail) oder durch Zahlung des Rechnungsbetrages annehmen.
+                                (3) <strong>Verbindliches Kaufangebot & Vertragsannahme:</strong> Durch Anklicken des Buttons <strong>„Zahlungspflichtig bestellen“</strong> im abschließenden Schritt des Bestellprozesses geben Sie ein verbindliches Kaufangebot über die im Warenkorb enthaltenen Waren ab (§ 312j Abs. 3 BGB). Unmittelbar nach dem Absenden der Bestellung erhalten Sie eine automatisierte Bestellbestätigung per E-Mail, die den Eingang Ihrer Bestellung dokumentiert (§ 312i Abs. 1 Satz 1 Nr. 3 BGB). Ein verbindlicher Kaufvertrag kommt zustande:
+                            </p>
+                            <ul class="list-disc list-inside mt-2 space-y-1 text-sm text-gray-700 ml-2">
+                                <li>bei Auswahl einer Sofortzahlungsart (Kreditkarte, Apple Pay, Google Pay, PayPal, Klarna Sofort/Rechnung) unmittelbar mit Abschluss der Zahlungsautorisierung bzw. Zahlungsanweisung im Bestellprozess, oder</li>
+                                <li>spätestens durch unsere ausdrückliche Auftrags- oder Versandbestätigung per E-Mail innerhalb von 2 Werktagen.</li>
+                            </ul>
+                            <p class="mt-2">
+                                (4) <strong>Individuelle Aufträge & B2B-Großbestellungen:</strong> Bei individuellen Sonderanfertigungen per E-Mail, Telefon oder über den B2B-Projekt-Kalkulator dieser Website erstellen wir Ihnen ein verbindliches Angebot in Textform. Der Vertrag kommt zustande, sobald Sie dieses Angebot bestätigen oder die vereinbarte Zahlung leisten. Soweit Sie Waren über externe Marktplätze (z. B. Etsy) erwerben, gelten ergänzend die dortigen technischen Schritte zum Vertragsschluss.
                             </p>
                             <p class="mt-2">
-                                (4) <strong>Vertragssprache:</strong> Die für den Vertragsschluss zur Verfügung stehende Sprache ist ausschließlich Deutsch.
-                            </p>
-                            <p class="mt-2">
-                                (5) <strong>Speicherung des Vertragstextes:</strong> Der finale Vertragstext wird von uns nicht permanent für Sie speicherbar im Shop-System hinterlegt und ist nach Abschluss Ihrer Bestellung für Sie nicht mehr über eine Online-Oberfläche abrufbar. Wir bestätigen Ihnen den Inhalt des Vertrages (Bestelldaten & AGB) jedoch unverzüglich auf einem dauerhaften Datenträger (per E-Mail), sodass Sie diesen selbst abspeichern können.
+                                (5) <strong>Vertragssprache & Vertragstextspeicherung:</strong> Die für den Vertragsschluss zur Verfügung stehende Sprache ist ausschließlich Deutsch. Wir speichern Ihre Bestelldaten im Rahmen der gesetzlichen Aufbewahrungsfristen und senden Ihnen den vollständigen Vertragsinhalt (Bestellübersicht, Personalisierungsdaten, AGB und Widerrufsbelehrung) unverzüglich nach Vertragsschluss auf einem dauerhaften Datenträger (per E-Mail) zu. Registrierte Kunden können ihre Bestellungen zudem jederzeit in ihrem passwortgeschützten Kundenkonto einsehen.
                             </p>
                         </div>
 
@@ -223,12 +225,29 @@
                             </div>
                         </div>
 
+                        {{-- §6a Produktsicherheit & Herstellerangaben (GPSR) --}}
+                        <div id="produktsicherheit" class="scroll-mt-28">
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">6a. Produktsicherheit & Herstellerangaben gemäß Verordnung (EU) 2023/988 (GPSR)</h3>
+                            <p>
+                                (1) <strong>Verantwortlicher Hersteller / Veredler in der Europäischen Union (Art. 19 GPSR):</strong><br>
+                                {{ shop_setting('owner_name', 'Mein Seelenfunke') }} – Inhaberin {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}, {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}, {{ shop_setting('owner_city', '38518 Gifhorn') }}, Deutschland. Elektronische Kontaktadresse für Produktsicherheit: <a href="mailto:{{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}" class="text-primary hover:underline">{{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}</a>.
+                            </p>
+                            <p class="mt-2">
+                                (2) <strong>Allgemeine Sicherheits- und Verwendungshinweise:</strong> Unsere veredelten Produkte aus optischem K9-Kristallglas, Naturschiefer, Massivholz sowie Edelstahl/eloxiertem Aluminium sind als hochwertige Dekorations-, Erinnerungs- und Gebrauchsgegenstände konzipiert und stellen kein Kinderspielzeug im Sinne der Spielzeugrichtlinie 2009/48/EG dar.
+                            </p>
+                            <ul class="list-disc list-inside mt-2 space-y-1 text-sm text-gray-700 ml-2">
+                                <li><strong>Kleinteile-Warnung (Schlüsselanhänger, Schmuck & Haustiermarken):</strong> Produkte mit Befestigungsringen, Ösen oder Karabinern enthalten verschluckbare Kleinteile – Erstickungsgefahr für Kinder unter 36 Monaten.</li>
+                                <li><strong>Bruchgefahr bei Kristallglas & Naturschiefer:</strong> Bei Sturz oder starker mechanischer Einwirkung können scharfkantige Bruchstücke oder Splitter entstehen. Beschädigte Glas- oder Schieferprodukte nicht weiterverwenden; Kristallglas nicht dauerhaft gebündelter direkter Sonneneinstrahlung in der Nähe leicht entflammbarer Materialien aussetzen (Brennglaseffekt).</li>
+                                <li><strong>Pflegehinweis:</strong> Lasergravierte Oberflächen bitte ausschließlich mit einem weichen, leicht angefeuchteten Mikrofasertuch ohne scheuernde oder lösungsmittelhaltige Reinigungsmittel säubern (nicht spülmaschinengeeignet).</li>
+                            </ul>
+                        </div>
+
                         {{-- §7 Verbraucherstreitbeilegung --}}
                         <div id="streitbeilegung" class="scroll-mt-28">
                             <h3 class="font-bold text-lg text-gray-900 mb-2">7. Verbraucherstreitbeilegung</h3>
                             <p>
                                 <strong>Information gemäß § 36 VSBG:</strong><br>
-                                Wir sind zur Teilnahme an einem Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle weder verpflichtet noch bereit.
+                                Wir sind zur Teilnahme an einem Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle weder verpflichtet noch bereit. (Hinweis: Die ehemalige EU-Plattform zur Online-Streitbeilegung wurde gemäß Verordnung (EU) 2024/3228 zum 20.07.2025 endgültig eingestellt.)
                             </p>
                         </div>
 
@@ -388,10 +407,10 @@
                     </div>
 
                     <div class="prose prose-gray max-w-none text-gray-700">
-                        <div class="bg-gray-100 border-l-4 border-gray-500 p-6 rounded-r-xl shadow-sm mb-8">
-                            <h3 class="font-bold text-gray-800 text-lg mb-2">Präventiver Hinweis zur Widerrufsbutton-Pflicht (ab 19. Juni 2026)</h3>
+                        <div class="bg-gray-100 border-l-4 border-gray-700 p-6 rounded-r-xl shadow-sm mb-8">
+                            <h3 class="font-bold text-gray-900 text-lg mb-2">Elektronische Widerrufsfunktion gemäß § 356a BGB („Vertrag widerrufen“)</h3>
                             <p class="text-gray-700 text-sm leading-relaxed">
-                                Gemäß der neuen EU-Richtlinie stellen wir bereits jetzt präventiv einen leicht zugänglichen <strong>„Vertrag widerrufen“-Button</strong> (im Seitenmenü) zur Verfügung. Obwohl wir derzeit primär nach Kundenspezifikation personalisierte Waren anbieten – für die das gesetzliche Widerrufsrecht ausgeschlossen ist –, bereitet diese technische Maßnahme den Shop langfristig auf den potenziellen künftigen Verkauf von nicht-personalisierten Standardartikeln vor.
+                                Soweit Ihnen für eine Bestellung ein gesetzliches Widerrufsrecht zusteht (z. B. beim Erwerb nicht-personalisierter Standardartikel oder Geschenkgutscheine), können Sie Ihren Widerruf gemäß <strong>§ 356a BGB</strong> auch direkt elektronisch über unsere 2-stufige Online-Widerrufsfunktion unter <a href="{{ route('widerruf') }}" class="text-primary font-bold underline hover:text-primary-dark">Vertrag widerrufen</a> (jederzeit erreichbar in der Fußzeile unserer Website) erklären. Nach Eingabe Ihrer Bestelldaten (Stufe 1: „Vertrag widerrufen“) und verbindlicher Bestätigung (Stufe 2: „Jetzt verbindlich widerrufen“) übermitteln wir Ihnen unverzüglich eine Eingangsbestätigung Ihres Widerrufs inklusive Zeitstempel auf einem dauerhaften Datenträger (per E-Mail).
                             </p>
                         </div>
                         <p class="font-medium bg-gray-100 p-2 inline-block rounded text-sm mb-4">

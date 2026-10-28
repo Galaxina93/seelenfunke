@@ -67,7 +67,7 @@
                     'type'            => 'image',
                     'url'             => $primaryMeta['url'],
                     'alt'             => $primaryMeta['label'] ?? $product->name,
-                    'is_ai_generated' => (bool) ($primaryMeta['is_ai_generated'] ?? false),
+                    'is_ai_generated' => (bool) ($primaryMeta['is_ai_generated'] ?? true),
                 ];
             }
         }
@@ -82,7 +82,7 @@
                         'url'             => $url,
                         'alt'             => $m['alt'] ?? ($bindingLabel ? $product->name . ' – ' . $bindingLabel : $product->name),
                         'variant_label'   => $bindingLabel,
-                        'is_ai_generated' => filter_var($m['is_ai_generated'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                        'is_ai_generated' => filter_var($m['is_ai_generated'] ?? true, FILTER_VALIDATE_BOOLEAN),
                     ];
                 }
             }
@@ -223,6 +223,7 @@
          x-data="{
             descOpen: false,
             propsOpen: false,
+            gpsrOpen: false,
             refreshLeftScroll() {
                 $nextTick(() => {
                     if (typeof checkScroll === 'function') checkScroll();
@@ -307,6 +308,58 @@
                                 </div>
                             @endforeach
                         </dl>
+                    </div>
+                </div>
+            @endif
+
+            {{-- Produktsicherheit & Herstellerangaben (GPSR - Verordnung (EU) 2023/988) --}}
+            @if(($product->type ?? 'physical') === 'physical')
+                <div class="bg-gray-50/70 rounded-2xl border border-gray-100 w-full block clear-both overflow-hidden transition-all">
+                    <button type="button"
+                            @click="gpsrOpen = !gpsrOpen; refreshLeftScroll()"
+                            class="w-full p-5 sm:px-6 flex items-center justify-between gap-4 text-left hover:bg-gray-100/60 transition-colors cursor-pointer group">
+                        <div class="flex items-center gap-2.5">
+                            <svg class="w-5 h-5 text-[var(--theme-color)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                            </svg>
+                            <h4 class="text-sm font-bold uppercase text-gray-900 tracking-wider group-hover:text-[var(--theme-color)] transition-colors">
+                                Produktsicherheit & Hersteller
+                            </h4>
+                            <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-white text-gray-500 border border-gray-200">
+                                GPSR
+                            </span>
+                        </div>
+                        <span class="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 group-hover:text-[var(--theme-color)] shrink-0 transition-colors">
+                            <span x-text="gpsrOpen ? 'Ausblenden' : 'Anzeigen'">Anzeigen</span>
+                            <svg class="w-4 h-4 transition-transform duration-300" :class="gpsrOpen ? 'rotate-180 text-[var(--theme-color)]' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </span>
+                    </button>
+
+                    <div x-show="gpsrOpen"
+                         x-cloak
+                         x-transition:enter="transition ease-out duration-200"
+                         x-transition:enter-start="opacity-0 -translate-y-1"
+                         x-transition:enter-end="opacity-100 translate-y-0"
+                         class="px-6 pb-6 pt-3 border-t border-gray-200/60 text-xs text-gray-600 space-y-3 leading-relaxed">
+                        <div>
+                            <p class="font-bold text-gray-900 mb-0.5">Hersteller & Verantwortliche Person in der EU (Art. 19 GPSR):</p>
+                            <p>
+                                {{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }} – Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
+                                {{ shop_setting('company_street', 'Carl-Goerdeler-Ring') }} {{ shop_setting('company_street_number', '26') }}, {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}, Deutschland<br>
+                                E-Mail: <a href="mailto:{{ shop_setting('company_email', 'kontakt@mein-seelenfunke.de') }}" class="text-[var(--theme-color)] underline">{{ shop_setting('company_email', 'kontakt@mein-seelenfunke.de') }}</a> | Modell-/Artikel-Nr.: <span class="font-mono text-gray-800">{{ $product->sku ?: ('MSF-' . $product->id) }}</span>
+                            </p>
+                        </div>
+                        <div>
+                            <p class="font-bold text-gray-900 mb-0.5">Sicherheits- & Pflegehinweise:</p>
+                            <ul class="list-disc list-inside space-y-1">
+                                <li>Dekorations-, Erinnerungs- bzw. Gebrauchsartikel – kein Kinderspielzeug.</li>
+                                <li>Bei Artikeln mit Schlüsselringen/Ösen: Achtung – verschluckbare Kleinteile (Erstickungsgefahr für Kinder unter 36 Monaten).</li>
+                                <li>Bei Glas- und Schieferartikeln: Vor Stürzen schützen (Schnittgefahr bei Glas-/Schieferbruch); Kristallglas nicht dauerhaft gebündelter Sonneneinstrahlung nahe brennbaren Materialien aussetzen.</li>
+                                <li>Pflege: Mit einem weichen, leicht angefeuchteten Tuch ohne aggressive Reinigungsmittel abwischen (nicht spülmaschinengeeignet).</li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
             @endif

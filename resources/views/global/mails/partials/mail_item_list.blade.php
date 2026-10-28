@@ -228,7 +228,7 @@
                         {{-- HINWEIS FÜR STANDARD PRODUKTE (Nicht bei Geschenkgutscheinen anzeigen) --}}
                         @if(empty($conf['is_gift_voucher']) && isset($item['is_personalizable']) && $item['is_personalizable'] === false)
                              <div style="margin-top: 8px; font-style: italic; color: #166534; font-size: 10px;">
-                                 {{ !empty($isPdf) ? '•' : '✓' }} Handgefertigter Standard-Artikel<br>
+                                 {{ !empty($isPdf) ? '•' : '✓' }} Handveredelter Standard-Artikel<br>
                                  <span style="font-size: 9px; color: #78716c;">(Keine Personalisierung durch Kunden vorgesehen.)</span>
                              </div>
                         @endif

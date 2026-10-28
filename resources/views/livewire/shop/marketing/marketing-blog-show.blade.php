@@ -6,7 +6,7 @@
     @endpush
 
     {{-- 1. HEADER BILD (Hero) --}}
-    <div class="relative min-h-[460px] md:min-h-[580px] w-full bg-gray-900 overflow-hidden flex flex-col justify-end pt-28 md:pt-36 pb-16 md:pb-24 px-6 md:px-12">
+    <div class="relative min-h-[420px] md:min-h-[520px] w-full bg-gray-900 overflow-hidden flex flex-col justify-end py-16 md:py-24 px-6 md:px-12">
         @if($post->header_image || $post->featured_image)
             <img src="{{ asset('storage/' . ($post->header_image ?: $post->featured_image)) }}" alt="{{ $post->title }}" class="absolute inset-0 w-full h-full object-cover opacity-50 transition-transform duration-1000 hover:scale-105">
         @else

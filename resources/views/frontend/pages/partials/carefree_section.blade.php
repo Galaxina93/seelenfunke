@@ -2,7 +2,7 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
         <div class="grid md:grid-cols-2 gap-x-12 gap-y-16 items-center">
 
-            <div class="fade-in">
+            <div class="fade-in min-w-0">
                 <div class="text-[#8a6820] font-serif font-semibold mb-2 inline-block tracking-wider uppercase text-sm">
                     Full-Service Manufaktur
                 </div>
@@ -65,7 +65,7 @@
             </div>
 
             {{-- BILD RECHTS --}}
-            <div class="flex justify-center items-center relative fade-in" style="animation-delay: 0.3s;">
+            <div class="flex justify-center items-center relative fade-in min-w-0" style="animation-delay: 0.3s;">
                 {{-- Dekorativer Hintergrundkreis --}}
                 <div class="absolute inset-0 bg-primary/5 rounded-full transform scale-90 blur-3xl"></div>
 
@@ -75,7 +75,7 @@
                      height="400"
                      loading="lazy"
                      decoding="async"
-                     class="relative w-[400px] max-w-md object-cover transform hover:scale-105 transition duration-500 drop-shadow-2xl">
+                     class="relative w-full max-w-[320px] sm:max-w-md object-cover transform hover:scale-105 transition duration-500 drop-shadow-2xl">
             </div>
         </div>
     </div>

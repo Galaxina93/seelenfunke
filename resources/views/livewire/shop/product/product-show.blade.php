@@ -15,7 +15,7 @@
     @if($this->product->slug === 'geschenkgutschein')
         @livewire('shop.marketing.marketing-voucher-purchase-page')
     @else
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
 
             {{-- Breadcrumb --}}
             <nav class="flex text-sm font-medium text-gray-500 mb-8" aria-label="Breadcrumb">

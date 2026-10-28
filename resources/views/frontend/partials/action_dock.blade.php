@@ -8,40 +8,93 @@
     }"
      x-init="
         const updateScrollState = () => {
-            atTop = window.scrollY < 300;
-            atBottom = (window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100;
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+            const docHeight = Math.max(
+                document.body ? document.body.scrollHeight : 0,
+                document.documentElement ? document.documentElement.scrollHeight : 0,
+                document.body ? document.body.offsetHeight : 0,
+                document.documentElement ? document.documentElement.offsetHeight : 0
+            );
+            const winHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+            atTop = scrollTop < 220;
+            atBottom = docHeight <= (winHeight + 80) || (winHeight + scrollTop) >= (docHeight - 100);
         };
         updateScrollState();
+        setTimeout(updateScrollState, 350);
         window.addEventListener('scroll', updateScrollState, { passive: true });
+        window.addEventListener('resize', updateScrollState, { passive: true });
+        window.addEventListener('load', updateScrollState, { passive: true });
     "
      @toggle-chat-size.window="chatMaximized = !chatMaximized"
+     @close-support-chat.window="chatOpen = false; setTimeout(() => chatMaximized = false, 400)"
      @toggle-vouchers.window="vouchersOpen = !vouchersOpen; if(vouchersOpen) chatOpen = false"
      @close-vouchers.window="vouchersOpen = false"
+     @keydown.escape.window="chatOpen = false; vouchersOpen = false"
+     :class="(chatOpen || vouchersOpen) ? 'sf-dock-modal-open' : ''"
      class="fixed right-3 bottom-4 sm:right-5 sm:bottom-5 z-[9990] flex flex-col items-center gap-2 pointer-events-none"
 >
     <style>
+        #frontend-action-dock {
+            position: fixed;
+            right: max(0.75rem, env(safe-area-inset-right, 0px));
+            bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+            z-index: 9990;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            pointer-events: none;
+            transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+        @media (min-width: 640px) {
+            #frontend-action-dock {
+                right: 1.25rem;
+                bottom: 1.25rem;
+            }
+        }
+        @media (max-width: 639px) {
+            #frontend-action-dock.sf-dock-modal-open {
+                opacity: 0;
+                pointer-events: none !important;
+                transform: translateY(8px);
+            }
+            #frontend-action-dock.sf-dock-modal-open .sf-floating-corner-btn {
+                pointer-events: none !important;
+            }
+        }
         .sf-floating-corner-btn {
             position: relative;
-            width: 2.5rem;
-            height: 2.5rem;
+            width: 2.625rem;
+            height: 2.625rem;
             border-radius: 9999px;
-            background: rgba(255, 255, 255, 0.94);
+            background: rgba(255, 255, 255, 0.96);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(214, 211, 209, 0.85);
-            color: #44403c;
-            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(197, 160, 89, 0.45);
+            color: #292524;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14), 0 0 0 1px rgba(255, 255, 255, 0.6);
             display: inline-flex;
             align-items: center;
             justify-content: center;
             pointer-events: auto;
             cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
             transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
                         border-color 0.28s ease,
                         box-shadow 0.28s ease,
                         color 0.28s ease,
                         background 0.28s ease;
             overflow: hidden;
+        }
+        @media (min-width: 640px) {
+            .sf-floating-corner-btn {
+                width: 2.5rem;
+                height: 2.5rem;
+                border-color: rgba(214, 211, 209, 0.85);
+                color: #44403c;
+                box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+            }
         }
         .sf-floating-corner-btn::before {
             content: '';
@@ -53,7 +106,8 @@
             transition: opacity 0.28s ease;
             pointer-events: none;
         }
-        .sf-floating-corner-btn:hover {
+        .sf-floating-corner-btn:hover,
+        .sf-floating-corner-btn:active {
             transform: translateY(-2px) scale(1.07);
             border-color: #C5A059;
             color: #9a6f1a;
@@ -62,7 +116,8 @@
                         0 0 32px rgba(197, 160, 89, 0.35),
                         0 8px 20px rgba(0, 0, 0, 0.1);
         }
-        .sf-floating-corner-btn:hover::before {
+        .sf-floating-corner-btn:hover::before,
+        .sf-floating-corner-btn:active::before {
             opacity: 1;
         }
         .sf-floating-corner-btn svg {
@@ -102,7 +157,7 @@
             x-transition:leave="transition ease-in duration-150"
             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
             x-transition:leave-end="opacity-0 scale-75 translate-y-2"
-            @click="window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'})"
+            @click="window.scrollTo({top: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight), behavior: 'smooth'})"
             class="sf-floating-corner-btn"
             title="Nach unten scrollen"
             aria-label="Nach unten scrollen">
@@ -112,7 +167,7 @@
     </button>
 
     {{-- 3. COOKIE-EINSTELLUNGEN (Eigenständiges Icon) --}}
-    <button @click="CookieConsent.showPreferences()"
+    <button @click="if (window.CookieConsent && typeof window.CookieConsent.showPreferences === 'function') { window.CookieConsent.showPreferences(); }"
             class="sf-floating-corner-btn"
             title="Cookie-Einstellungen"
             aria-label="Cookie-Einstellungen">
@@ -145,7 +200,7 @@
              x-transition:leave="transition ease-in duration-200"
              x-transition:leave-start="translate-y-0 opacity-100 scale-100"
              x-transition:leave-end="translate-y-4 opacity-0 scale-95"
-             class="fixed left-3 right-3 sm:left-auto sm:right-6 top-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-2xl sm:w-[340px] shadow-[0_25px_60px_rgba(0,0,0,0.18)] rounded-[2rem] border border-stone-200/90 flex flex-col pointer-events-auto"
+             class="fixed left-3 right-3 sm:left-auto sm:right-6 top-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-2xl sm:w-[340px] max-h-[82dvh] shadow-[0_25px_60px_rgba(0,0,0,0.18)] rounded-[2rem] border border-stone-200/90 flex flex-col pointer-events-auto overflow-hidden"
              style="z-index: 99998;"
         >
             @livewire('shop.marketing.marketing-voucher-slider')
@@ -162,12 +217,12 @@
              x-transition:leave="transition ease-in duration-300"
              x-transition:leave-start="translate-x-0 opacity-100"
              x-transition:leave-end="translate-x-10 opacity-0"
-             :class="chatMaximized ? 'fixed right-2 left-2 bottom-20 top-20 sm:left-auto sm:right-20 sm:bottom-10 sm:top-10 sm:w-[450px] sm:h-[calc(100vh-5rem)]' : 'fixed right-2 left-2 bottom-20 top-20 sm:left-auto sm:right-20 sm:bottom-6 sm:top-auto sm:w-[380px] sm:h-[75vh] sm:max-h-[600px]'"
+             :class="chatMaximized ? 'fixed right-2.5 left-2.5 bottom-3 top-[4.75rem] sm:left-auto sm:right-20 sm:bottom-10 sm:top-10 sm:w-[450px] sm:h-[calc(100vh-5rem)]' : 'fixed right-2.5 left-2.5 bottom-3 top-[4.75rem] sm:left-auto sm:right-20 sm:bottom-6 sm:top-auto sm:w-[380px] sm:h-[75vh] sm:max-h-[600px]'"
              class="bg-white shadow-[0_30px_80px_rgba(0,0,0,0.4)] rounded-3xl border border-gray-100 overflow-hidden flex flex-col pointer-events-auto transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]"
-             :style="chatMaximized ? 'z-index: 100001;' : 'z-index: 99999;'"
+             :style="chatMaximized ? 'z-index: 100001; max-height: calc(100dvh - 5.5rem);' : 'z-index: 99999; max-height: calc(100dvh - 5.5rem);'"
         >
             @livewire('frontend.support.ai-frontend-support-chat')
-            <div class="hidden sm:w-[450px] sm:h-[calc(100vh-5rem)] sm:w-[380px] sm:h-[75vh] sm:max-h-[600px] right-2 left-2 bottom-20 top-20 sm:left-auto sm:right-20 sm:bottom-10 sm:top-10 sm:bottom-6 sm:top-auto"></div>
+            <div class="hidden sm:w-[450px] sm:h-[calc(100vh-5rem)] sm:w-[380px] sm:h-[75vh] sm:max-h-[600px] right-2.5 left-2.5 bottom-3 top-[4.75rem] sm:left-auto sm:right-20 sm:bottom-10 sm:top-10 sm:bottom-6 sm:top-auto"></div>
         </div>
     </template>
 </div>

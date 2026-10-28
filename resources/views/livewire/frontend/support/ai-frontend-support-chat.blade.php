@@ -14,7 +14,7 @@
     x-init="scrollToBottom"
 >
     {{-- Header --}}
-    <div class="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-cyan-600 to-cyan-500 rounded-t-3xl shadow-md z-10 shrink-0">
+    <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 bg-gradient-to-r from-cyan-600 to-cyan-500 rounded-t-3xl shadow-md z-10 shrink-0">
         <div class="flex items-center space-x-3">
             <div class="relative">
                 <img src="{{ $agentImage ?: funki_asset('shop/ai/images/funki_selfie.png') }}" alt="{{ $agentName }}" class="w-10 h-10 rounded-full border-2 border-white/30 object-cover shadow-inner">
@@ -37,7 +37,7 @@
             </button>
             
             {{-- Close Button --}}
-            <button @click="chatOpen = false; setTimeout(() => chatMaximized = false, 400);" class="text-white/70 hover:text-white transition-colors bg-white/10 hover:bg-white/20 p-2 rounded-full" title="Chat schließen">
+            <button @click="chatOpen = false; $dispatch('close-support-chat'); setTimeout(() => chatMaximized = false, 400);" class="text-white/70 hover:text-white transition-colors bg-white/10 hover:bg-white/20 p-2 rounded-full" title="Chat schließen">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -46,7 +46,7 @@
     </div>
 
     {{-- Chat History --}}
-    <div class="flex-1 overflow-y-auto px-4 py-6 space-y-4" x-ref="chatContainer">
+    <div class="flex-1 overflow-y-auto px-3.5 py-4 sm:px-4 sm:py-6 space-y-4" x-ref="chatContainer">
         
         @if(empty($messages))
             <div class="flex flex-col items-center justify-center h-full space-y-4 opacity-50 text-center px-6">
@@ -99,7 +99,7 @@
     </div>
 
     {{-- Input Box --}}
-    <div class="p-4 bg-white border-t border-gray-100 shrink-0">
+    <div class="p-3 sm:p-4 bg-white border-t border-gray-100 shrink-0">
         @if($isResolved)
             @if(!$ratingSubmitted)
                 <div class="text-center w-full px-2 animate-fade-in" x-data="{ hoverRating: 0, selectedRating: @entangle('rating') }">
@@ -153,11 +153,11 @@
                 </div>
             @else
                 @if(!$hasAcceptedPrivacy)
-                    <div class="p-3 text-center animate-fade-in-up mt-2 mb-2">
-                        <div class="mx-auto mb-4 bg-white p-3.5 rounded-xl border border-gray-100 shadow-sm text-left">
-                            <label class="flex items-start gap-3 cursor-pointer group">
-                                <input type="checkbox" wire:model.live="privacyChecked" class="mt-0.5 w-4 h-4 text-cyan-500 rounded border-gray-300 focus:ring-cyan-500">
-                                <span class="text-[11px] text-gray-600 leading-relaxed group-hover:text-gray-900 transition-colors">
+                    <div class="p-1.5 sm:p-3 text-center animate-fade-in-up mt-1 mb-1">
+                        <div class="mx-auto mb-3 bg-white p-3 rounded-xl border border-gray-100 shadow-sm text-left max-h-[32vh] overflow-y-auto">
+                            <label class="flex items-start gap-2.5 sm:gap-3 cursor-pointer group">
+                                <input type="checkbox" wire:model.live="privacyChecked" class="mt-0.5 w-4 h-4 shrink-0 text-cyan-500 rounded border-gray-300 focus:ring-cyan-500">
+                                <span class="text-[11px] text-gray-600 leading-snug sm:leading-relaxed group-hover:text-gray-900 transition-colors">
                                     Ich willige gemäß Art. 6 Abs. 1 lit. a DSGVO ein, dass meine Eingaben sowie (falls eingeloggt) meine Konto-, Bestell- und Ticketdaten zur Bearbeitung meiner Support-Anfrage durch das <strong>Seelenfunke KI-Support-System (unter Nutzung von Google Cloud / Gemini)</strong> verarbeitet werden dürfen. Diese Einwilligung ist freiwillig und kann jederzeit in den Profileinstellungen widerrufen werden. Es gelten die <a href="/agb" target="_blank" class="text-cyan-600 underline font-bold">AGB</a> und die <a href="/datenschutz#ki-support-datenzugriff" target="_blank" class="text-cyan-600 underline font-bold">Datenschutzerklärung</a>.
                                 </span>
                             </label>
@@ -174,9 +174,9 @@
                             Zustimmen & Chat starten
                         </button>
                         
-                        <div class="mt-2.5 text-center">
+                        <div class="mt-2 text-center">
                             <span class="text-[9px] text-gray-400 uppercase tracking-wider">oder</span>
-                            <a href="{{ route('contact') }}" target="_blank" class="mt-1.5 w-full bg-white border border-cyan-200 text-cyan-700 hover:bg-cyan-50 hover:text-cyan-800 transition-colors py-2 px-4 rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-sm flex items-center justify-center gap-1.5">
+                            <a href="{{ route('contact') }}" target="_blank" class="mt-1 w-full bg-white border border-cyan-200 text-cyan-700 hover:bg-cyan-50 hover:text-cyan-800 transition-colors py-2 px-4 rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-sm flex items-center justify-center gap-1.5">
                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                 </svg>

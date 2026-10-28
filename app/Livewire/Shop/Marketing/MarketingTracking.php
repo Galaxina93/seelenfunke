@@ -4,6 +4,7 @@ namespace App\Livewire\Shop\Marketing;
 
 use Livewire\Component;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use App\Livewire\Traits\WithDepartmentTheming;
 use App\Models\Marketing\MarketingTrackingLink;
 use Illuminate\Support\Facades\Schema;
@@ -20,6 +21,7 @@ class MarketingTracking extends Component
 
     // Tracking-Links Form State (Inline & Modal)
     public $showModal = false;
+    #[Locked]
     public $editingTrackingId = null;
     public $trackingName = '';
     public $trackingSlug = '';
@@ -29,11 +31,19 @@ class MarketingTracking extends Component
     public $trackingUtmCampaign = '';
     public $trackingIsActive = true;
 
-    public function mount()
+    public function boot(): void
     {
-        if (!auth('admin')->check() && !auth('employee')->check()) {
+        $isAdmin = auth('admin')->check();
+        $employee = auth('employee')->user();
+        $isInternalEmployee = $employee && $employee->isInternalEmployee() && $employee->isAccountActive();
+        if (!$isAdmin && !$isInternalEmployee) {
             abort(403);
         }
+    }
+
+    public function mount()
+    {
+        $this->boot();
 
         $this->loadTrackingLinks();
     }

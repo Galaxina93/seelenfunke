@@ -379,7 +379,7 @@
                     </div>
                     <div class="ml-3 text-xs sm:text-sm">
                         <label for="terms" class="font-medium text-gray-700 cursor-pointer select-none">
-                            Ich habe die <a href="/agb" target="_blank" class="text-primary underline hover:text-primary-dark">AGB</a> gelesen und akzeptiere diese. <span class="text-red-500">*</span>
+                            Ich habe die <a href="/agb" target="_blank" class="text-primary underline hover:text-primary-dark">AGB</a> und die <a href="/agb#widerruf" target="_blank" class="text-primary underline hover:text-primary-dark">Widerrufsbelehrung</a> gelesen und akzeptiere diese. <span class="text-red-500">*</span>
                         </label>
                     </div>
                 </div>
@@ -393,6 +393,9 @@
                         </label>
                     </div>
                 </div>
+                <p class="text-[11px] text-gray-500 leading-snug pt-1 border-t border-gray-200/70">
+                    <strong>Hinweis gemäß § 312g Abs. 2 Nr. 1 BGB:</strong> Für individuell nach Kundenspezifikation gravierte oder personalisierte Waren besteht kein Widerrufsrecht (Ihre 2-jährige gesetzliche Gewährleistung bei Mängeln bleibt unberührt).
+                </p>
                 @if($errors->has('terms_accepted') || $errors->has('privacy_accepted'))
                     <div class="text-red-500 text-xs mt-1 font-bold">Bitte stimme den rechtlichen Bedingungen zu.</div>
                 @endif

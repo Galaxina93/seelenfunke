@@ -45,7 +45,9 @@ class InfluencerService
 
         $rawCommissionType = $options['commission_type'] ?? 'percent';
         $commissionType = in_array($rawCommissionType, ['percent', 'fixed_cents'], true) ? $rawCommissionType : 'percent';
-        $commissionValue = max(0, (int) ($options['commission_value'] ?? 15));
+        $commissionValue = $commissionType === 'fixed_cents'
+            ? max(0, min(50000, (int) ($options['commission_value'] ?? 1500)))
+            : max(1, min(80, (int) ($options['commission_value'] ?? 15)));
         $followerDiscount = max(0, min(50, (int) ($options['follower_discount_percent'] ?? 10)));
         $cookieDays = max(1, min(90, (int) ($options['cookie_days'] ?? 30)));
         $label = !empty($options['invitation_label'])
@@ -94,16 +96,29 @@ class InfluencerService
         $cleanToken = trim($rawToken);
         $cleanCode = $this->normalizeVerificationCode($inputCode);
 
-        if (strlen($cleanToken) < 20 || strlen($cleanCode) < 4) {
+        if (strlen($cleanToken) < 20 || strlen($cleanCode) !== 6) {
             return null;
         }
 
         $tokenHash = hash('sha256', $cleanToken);
+        $throttleKey = 'invite_pin_inf_' . $tokenHash;
+
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            \App\Services\System\SystemSecurityService::logEvent(
+                'security:invitation_pin_lockout',
+                'Creator-Einladungs-PIN wegen Brute-Force gesperrt',
+                'Zu viele Fehlversuche für Creator-Einladungs-Token von IP ' . request()->ip(),
+                'error',
+                ['token_hash_prefix' => substr($tokenHash, 0, 12)]
+            );
+            return null;
+        }
+
         $influencer = MarketingInfluencer::with('employee.profile')
             ->where('invitation_token_hash', $tokenHash)
             ->first();
 
-        if (!$influencer || !$influencer->is_active || $influencer->invitation_accepted_at !== null) {
+        if (!$influencer || !$influencer->is_active || $influencer->is_archived || $influencer->invitation_accepted_at !== null) {
             return null;
         }
 
@@ -117,8 +132,11 @@ class InfluencerService
 
         $inputHash = hash('sha256', $cleanCode);
         if (!hash_equals((string) $influencer->invitation_code_hash, $inputHash)) {
+            \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 900);
             return null;
         }
+
+        \Illuminate\Support\Facades\RateLimiter::clear($throttleKey);
 
         return $influencer;
     }
@@ -135,20 +153,25 @@ class InfluencerService
         $cleanToken = trim($rawToken);
         $cleanCode = $this->normalizeVerificationCode($inputCode);
 
-        if (strlen($cleanToken) < 20 || strlen($cleanCode) < 4) {
+        if (strlen($cleanToken) < 20 || strlen($cleanCode) !== 6) {
             return null;
         }
 
         $tokenHash = hash('sha256', $cleanToken);
         $codeHash = hash('sha256', $cleanCode);
+        $throttleKey = 'invite_pin_inf_' . $tokenHash;
 
-        return DB::transaction(function () use ($tokenHash, $codeHash, $data) {
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            return null;
+        }
+
+        return DB::transaction(function () use ($tokenHash, $codeHash, $throttleKey, $data) {
             $influencer = MarketingInfluencer::with('employee.profile')
                 ->where('invitation_token_hash', $tokenHash)
                 ->lockForUpdate()
                 ->first();
 
-            if (!$influencer || !$influencer->is_active || $influencer->invitation_accepted_at !== null) {
+            if (!$influencer || !$influencer->is_active || $influencer->is_archived || $influencer->invitation_accepted_at !== null) {
                 return null;
             }
 
@@ -156,9 +179,12 @@ class InfluencerService
                 return null;
             }
 
-            if (!empty($influencer->invitation_code_hash) && !hash_equals((string) $influencer->invitation_code_hash, $codeHash)) {
+            if (empty($influencer->invitation_code_hash) || !hash_equals((string) $influencer->invitation_code_hash, $codeHash)) {
+                \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 900);
                 return null;
             }
+
+            \Illuminate\Support\Facades\RateLimiter::clear($throttleKey);
 
             $firstName = trim((string) ($data['first_name'] ?? ''));
             $lastName = trim((string) ($data['last_name'] ?? ''));
@@ -207,18 +233,18 @@ class InfluencerService
                 ]);
             }
 
-            $employee->load('profile');
-            if ($employee->profile) {
-                $employee->profile->update([
+            $employee->profile()->updateOrCreate(
+                ['employee_id' => $employee->id],
+                [
                     'street' => trim((string) ($data['street'] ?? '')),
                     'house_number' => trim((string) ($data['house_number'] ?? '')),
                     'postal' => trim((string) ($data['postal'] ?? '')),
                     'city' => trim((string) ($data['city'] ?? '')),
                     'country' => strtoupper(trim((string) ($data['country'] ?? 'DE'))),
-                    'tax_number' => trim((string) ($data['tax_number'] ?? '')),
+                    'vat_id' => trim((string) ($data['tax_number'] ?? '')) ?: null,
                     'email_verified_at' => now(),
-                ]);
-            }
+                ]
+            );
 
             $taxStatus = in_array($data['tax_status'] ?? 'small_business', ['small_business', 'standard_tax', 'reverse_charge'], true)
                 ? $data['tax_status']
@@ -465,7 +491,9 @@ class InfluencerService
             $commissionType = in_array($rawCommissionType, ['percent', 'fixed_cents'], true)
                 ? $rawCommissionType
                 : 'percent';
-            $commissionValue = max(0, (int) ($data['commission_value'] ?? 15));
+            $commissionValue = $commissionType === 'fixed_cents'
+                ? max(0, min(50000, (int) ($data['commission_value'] ?? 1500)))
+                : max(1, min(80, (int) ($data['commission_value'] ?? 15)));
             $followerDiscount = max(0, min(50, (int) ($data['follower_discount_percent'] ?? 10)));
             $cookieDays = max(1, min(90, (int) ($data['cookie_days'] ?? 30)));
             $isActive = (bool) ($data['is_active'] ?? true);
@@ -612,6 +640,8 @@ class InfluencerService
             $influencer->update([
                 'invitation_token_hash' => null,
                 'invitation_token_encrypted' => null,
+                'invitation_code_hash' => null,
+                'invitation_code_encrypted' => null,
                 'invitation_expires_at' => null,
                 'invitation_accepted_at' => now(),
             ]);
@@ -647,6 +677,10 @@ class InfluencerService
             return null;
         }
 
+        if (in_array($order->status, ['cancelled', 'refunded'], true) || $order->payment_status === 'refunded') {
+            return null;
+        }
+
         // Idempotenz-Schutz: Jede Bestellung kann maximal 1x verprovisioniert werden
         $existing = MarketingInfluencerCommission::where('order_id', $order->id)->first();
         if ($existing) {
@@ -677,8 +711,18 @@ class InfluencerService
             }
 
             // WEG B: Zuordnung über Tracking-Link Cookie / Session / UTM-Kampagne
-            $cookieInfluencerId = session('seelenfunke_influencer_id') ?: request()?->cookie('seelenfunke_influencer_id');
-            $cookieTrackingLinkId = session('seelenfunke_tracking_link_id') ?: request()?->cookie('seelenfunke_tracking_link_id');
+            // Wichtig: Falls ein Admin im Backend eine Kundenbestellung manuell als bezahlt markiert,
+            // darf ein eventuell im Admin-Browser gesetztes Test-Cookie die Kundenbestellung nicht kontaminieren.
+            $isAdminBackendAction = \Illuminate\Support\Facades\Auth::guard('admin')->check()
+                && session('checkout_order_id') !== $order->id
+                && !str_contains((string) request()?->path(), 'checkout');
+
+            $cookieInfluencerId = !$isAdminBackendAction
+                ? (session('seelenfunke_influencer_id') ?: request()?->cookie('seelenfunke_influencer_id'))
+                : null;
+            $cookieTrackingLinkId = !$isAdminBackendAction
+                ? (session('seelenfunke_tracking_link_id') ?: request()?->cookie('seelenfunke_tracking_link_id'))
+                : null;
 
             if ($cookieInfluencerId) {
                 $candidate = MarketingInfluencer::where('id', $cookieInfluencerId)->where('is_active', true)->where('is_archived', false)->first();
@@ -720,10 +764,16 @@ class InfluencerService
             // Eigenkauf-Schutz: Influencer darf keine Provision für eigene Bestellungen erhalten
             $influencerEmail = strtolower(trim((string) ($finalInfluencer->employee?->email ?? '')));
             $influencerPaypalEmail = strtolower(trim((string) ($finalInfluencer->paypal_email ?? '')));
-            $buyerEmail = strtolower(trim((string) ($order->email ?? '')));
-            if ($buyerEmail !== '' && ($buyerEmail === $influencerEmail || ($influencerPaypalEmail !== '' && $buyerEmail === $influencerPaypalEmail))) {
-                Log::warning("Influencer-Provision abgelehnt (Eigenkauf): {$buyerEmail} für Order {$order->order_number}.");
-                return null;
+            $buyerEmails = array_filter(array_unique([
+                strtolower(trim((string) ($order->email ?? ''))),
+                strtolower(trim((string) ($order->customer?->email ?? ''))),
+            ]));
+
+            foreach ($buyerEmails as $buyerEmail) {
+                if ($buyerEmail === $influencerEmail || ($influencerPaypalEmail !== '' && $buyerEmail === $influencerPaypalEmail)) {
+                    Log::warning("Influencer-Provision abgelehnt (Eigenkauf): {$buyerEmail} für Order {$order->order_number}.");
+                    return null;
+                }
             }
 
             $attributionSource = 'link';
@@ -833,11 +883,15 @@ class InfluencerService
     {
         $influencer->loadMissing('employee.profile');
 
-        if (!$influencer->isReadyForPayout()) {
-            throw new InvalidArgumentException('Bitte vervollständige zuerst deine Adresse, Steuernummer, Selbstständigkeits-Bestätigung und Auszahlungsdaten.');
+        $method = in_array($chosenMethod, ['bank_transfer', 'paypal', 'shop_voucher'], true)
+            ? $chosenMethod
+            : $influencer->payout_method;
+
+        if (!$influencer->isReadyForPayout($method)) {
+            throw new InvalidArgumentException('Bitte vervollständige zuerst deine Adresse, Steuernummer, Selbstständigkeits-Bestätigung und die Zahlungsdaten für den gewählten Auszahlungsweg.');
         }
 
-        return DB::transaction(function () use ($influencer, $chosenMethod, $enforceMinimum) {
+        return DB::transaction(function () use ($influencer, $method, $enforceMinimum) {
             $commissions = MarketingInfluencerCommission::where('influencer_id', $influencer->id)
                 ->where('status', 'approved')
                 ->whereNull('payout_id')
@@ -854,10 +908,6 @@ class InfluencerService
                 $currentFormatted = number_format($netCents / 100, 2, ',', '.');
                 throw new InvalidArgumentException("Der Mindestauszahlungsbetrag von {$minFormatted} € Netto ist noch nicht erreicht (aktuell freigegeben: {$currentFormatted} €).");
             }
-
-            $method = in_array($chosenMethod, ['bank_transfer', 'paypal', 'shop_voucher'], true)
-                ? $chosenMethod
-                : $influencer->payout_method;
 
             $bonusCents = 0;
             $taxRate = 0;

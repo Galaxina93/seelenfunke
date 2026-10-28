@@ -16,7 +16,7 @@
 @endphp
 
 <section id="home"
-         class="relative pt-16 overflow-hidden text-white bg-gray-950"
+         class="relative overflow-hidden text-white bg-gray-950"
          x-data
          x-init="setTimeout(() => { if(window.startUniverseEngine) window.startUniverseEngine($el, {{ $totalStars }}) }, 350)"
          aria-label="Mein Seelenfunke - Personalisierte Geschenke">
@@ -27,7 +27,7 @@
     {{-- Zartes Overlay für bessere Lesbarkeit des Textes --}}
     <div class="absolute inset-0 bg-gradient-to-b from-gray-950/40 to-gray-950/90 z-0 pointer-events-none"></div>
 
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-28 md:py-48 relative z-10">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-36 relative z-10">
         <div class="text-center">
 
             {{-- Hauptüberschrift --}}
@@ -63,11 +63,11 @@
             <div class="flex flex-col md:flex-row justify-center items-center gap-6 text-white mt-8 opacity-80 text-sm md:text-base">
                 <div class="flex items-center gap-2">
                     <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                    <span>Made in Germany</span>
+                    <span>Handveredelt in Deutschland</span>
                 </div>
                 <div class="flex items-center gap-2">
-                    <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <span>Schneller Versand</span>
+                    <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    <span>Sicherer Versand</span>
                 </div>
                 <div class="flex items-center gap-2">
                     <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>

@@ -29,6 +29,7 @@
 
             selectedIndex: null,
             selectedType: null,
+            focusedTextId: null,
             showFontMenu: false,
             showSizeMenu: false,
             showAlignMenu: false,
@@ -548,7 +549,8 @@
             },
 
             addFallbackText() {
-                const newItem = {id: Math.random().toString(36).substr(2, 9), text: 'Neuer Text', size: 1, x: this.areaCenterX, y: this.areaCenterY, rotation: 0, align: 'center', font: 'Arial'};
+                const newId = Math.random().toString(36).substr(2, 9);
+                const newItem = {id: newId, text: '', size: 1, x: this.areaCenterX, y: this.areaCenterY, rotation: 0, align: 'center', font: 'Arial'};
                 if (this.activeSide === 'front') {
                     this.texts.push(newItem);
                     this.selectItem('text', this.texts.length - 1);
@@ -556,6 +558,12 @@
                     this.texts_back.push(newItem);
                     this.selectItem('text', this.texts_back.length - 1);
                 }
+                this.focusedTextId = newId;
+                this.$nextTick(() => {
+                    const root = this.$root || document;
+                    const ta = root.querySelector(`textarea[data-id="${newId}"]`);
+                    if (ta) ta.focus();
+                });
                 this.updateTexture();
                 this.recordHistory();
             },
@@ -994,6 +1002,7 @@
 
                 this.selectedType = null;
                 this.selectedIndex = null;
+                this.focusedTextId = null;
                 this.showFontMenu = this.showSizeMenu = this.showAlignMenu = this.showPosMenu = false;
             },
 
@@ -1186,6 +1195,10 @@
                 this.selectItem(type, index);
 
                 if(event.target.tagName === 'TEXTAREA' && action === 'drag') {
+                    const tItem = (type === 'text' && this.currentTexts) ? this.currentTexts[index] : null;
+                    if (tItem && tItem.id) {
+                        this.focusedTextId = tItem.id;
+                    }
                     event.target.focus();
                     return;
                 }

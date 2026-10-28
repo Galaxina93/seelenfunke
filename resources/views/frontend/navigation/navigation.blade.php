@@ -1,4 +1,4 @@
-<div class="mx-auto pt-6">
+<div class="mx-auto pt-20">
     <style>
         @keyframes gold-pulse {
             0%, 100% { text-shadow: 0 0 2px rgba(251, 191, 36, 0.4); opacity: 0.95; }

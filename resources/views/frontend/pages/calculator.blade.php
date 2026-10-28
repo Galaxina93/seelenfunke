@@ -39,10 +39,10 @@
     @endpush
     <x-sections.page-container>
 
-        <section class="bg-white py-20 sm:py-20 md:py-24">
+        <section class="bg-white py-12 md:py-16">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
 
-                <div class="my-16 sm:mt-20 scroll-mt-24" id="calculator-area">
+                <div class="scroll-mt-24" id="calculator-area">
                     {{-- Hinweis: Stelle sicher, dass deine Komponente auch wirklich unter diesem Namen registriert ist --}}
                     @livewire('shop.product.product-calculator.product-calculator')
                 </div>

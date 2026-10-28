@@ -212,7 +212,7 @@
                 @foreach($product->media_gallery ?? [] as $index => $media)
                     @if(is_array($media) && $media['type'] === 'image')
                         @php
-                            $isAiImg = filter_var($media['is_ai_generated'] ?? false, FILTER_VALIDATE_BOOLEAN);
+                            $isAiImg = filter_var($media['is_ai_generated'] ?? true, FILTER_VALIDATE_BOOLEAN);
                             $currentBinding = (string) ($media['variant_binding'] ?? '');
                             $bindingLabel = $product->resolveMediaVariantBindingLabel($currentBinding);
                         @endphp

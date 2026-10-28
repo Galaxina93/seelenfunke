@@ -17,14 +17,14 @@
 
         <form id="payment-form" class="grid grid-cols-1 lg:grid-cols-12 min-h-screen">
             {{-- LINKE SPALTE: Rechnungsdetails & Zahlung --}}
-            <div class="lg:col-span-7 bg-white px-4 sm:px-6 lg:px-8 xl:px-16 py-12 lg:py-24 lg:flex lg:justify-end">
+            <div class="lg:col-span-7 bg-white px-4 sm:px-6 lg:px-8 xl:px-16 py-12 lg:py-16 lg:flex lg:justify-end">
                 <div class="w-full lg:max-w-2xl">
                     @include("livewire.shop.order.order-checkout.partials.left-column-payment-adress-login")
                 </div>
             </div>
 
             {{-- RECHTE SPALTE: Bestellübersicht --}}
-            <div class="lg:col-span-5 bg-[#FCFAF7] border-t lg:border-t-0 lg:border-l border-[#F3EDE2] px-4 sm:px-6 lg:px-8 xl:px-16 py-12 lg:py-24">
+            <div class="lg:col-span-5 bg-[#FCFAF7] border-t lg:border-t-0 lg:border-l border-[#F3EDE2] px-4 sm:px-6 lg:px-8 xl:px-16 py-12 lg:py-16">
                 <div class="w-full lg:max-w-md">
                     @include("livewire.shop.order.order-checkout.partials.right-column-summary")
                 </div>

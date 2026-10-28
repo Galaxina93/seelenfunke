@@ -421,8 +421,8 @@
                         child.material = new window.THREE.MeshStandardMaterial({
                             map: oldMap,
                             color: 0xffffff,
-                            roughness: hasEnv ? 0.2 : 0.4,
-                            metalness: hasEnv ? 0.9 : 0.0,
+                            roughness: hasEnv ? 0.24 : 0.36,
+                            metalness: hasEnv ? 0.35 : 0.0,
                             alphaTest: oldMap ? 0.35 : 0.0,
                             side: window.THREE.DoubleSide
                         });

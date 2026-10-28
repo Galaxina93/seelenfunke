@@ -200,7 +200,7 @@ class MarketingBlogSeeder extends Seeder
                     <p>Doch wer schon einmal eine billig bedruckte oder flach geritzte Marke gekauft hat, kennt das Problem: Nach wenigen Wochen im Wald, beim Toben im Sand oder nach dem Schwimmen im See blättert die Farbe ab und die Telefonnummer ist kaum noch zu entziffern.</p>
 
                     <h3>1. Warum spiegelpolierter Edelstahl das ideale Material für Hundemarken ist</h3>
-                    <p>Bei <strong><a href="/produkt/seelen-pfote-hundemarke">Die Seelen-Pfote</a></strong> setzen wir in unserer Gifhorner Manufaktur bewusst auf <strong>massiven, rostfreien Edelstahl (40 × 26 × 1,8 mm, ca. 16 g)</strong> in Knochenform mit oben mittig angegossener Aufhänge-Öse und ausgestanztem Pfotenabdruck unten rechts:</p>
+                    <p>Bei <strong><a href="/produkt/seelen-pfote-hundemarke">Die Seelen-Pfote</a></strong> setzen wir in unserer Gifhorner Manufaktur bewusst auf <strong>massiven, rostfreien Edelstahl (40 × 22 × 1,8 mm, ca. 12 g)</strong> in Knochenform mit oben mittig angegossener Aufhänge-Öse und ausgestanztem Pfotenabdruck unten rechts:</p>
                     <ul>
                         <li><strong>100 % rostfrei & wasserfest:</strong> Egal ob Salzwasser, Regen oder Schnee – Edelstahl oxidiert nicht und färbt nicht auf helles Hundefell ab.</li>
                         <li><strong>Integrierte Aufhänge-Öse:</strong> Durch die stabile, abgerundete Metallöse oben mittig reißt die Marke selbst bei starker Zugbelastung im Unterholz nicht aus.</li>
@@ -223,7 +223,7 @@ class MarketingBlogSeeder extends Seeder
                 'status' => 'published',
                 'published_at' => Carbon::parse('2026-10-24 10:00:00'),
                 'meta_title' => 'Hundemarke mit Gravur aus Edelstahl – Ratgeber & 3D-Konfigurator | Mein-Seelenfunke',
-                'meta_description' => 'Warum eine Hundemarke aus massivem Edelstahl (40×26 mm) mit Faserlaser-Gravur jedes Abenteuer übersteht: Tipps für Vorder- & Rückseite im 3D-Konfigurator.',
+                'meta_description' => 'Warum eine Hundemarke aus massivem Edelstahl (40×22 mm, ca. 12 g) mit Faserlaser-Gravur jedes Abenteuer übersteht: Tipps für Vorder- & Rückseite im 3D-Konfigurator.',
                 'meta_keywords' => 'Hundemarke mit Gravur, Hundemarke Edelstahl, Knochen Hundemarke Pfote, Hundemarke personalisiert, Lasergravur Hundemarke',
                 'is_advertisement' => false,
                 'author_name' => 'Alina Steinhauer',
@@ -242,19 +242,19 @@ class MarketingBlogSeeder extends Seeder
                 'content' => '
                     <p>Ein persönliches Geschenk zeigt auf den ersten Blick: Hier hat sich jemand wirklich Gedanken gemacht. In unserer Manufaktur <strong>Mein-Seelenfunke</strong> in Gifhorn veredeln wir fünf handverlesene Grundprodukte, die du direkt im Browser im interaktiven 2D- und 3D-Echtzeit-Konfigurator gestalten kannst.</p>
 
-                    <h3>1. Der Seelen Kristall (60 × 80 × 60 mm, optisches K9-Kristallglas)</h3>
-                    <p>Unser <a href="/produkt/seelen-kristall"><strong>Seelen Kristall</strong></a> (650 g massives K9-Kristallglas mit edlem Facettenschliff) ist das ultimative Erinnerungsstück für Hochzeiten, Jubiläen, Ehrungen oder als leuchtendes Fotogeschenk.</p>
+                    <h3>1. Der Seelen Kristall (180 × 200 × 40 mm, optisches K9-Kristallglas)</h3>
+                    <p>Unser <a href="/produkt/seelen-kristall"><strong>Seelen Kristall</strong></a> (ca. 920 g massives K9-Kristallglas mit edlem Facettenschliff) ist das ultimative Erinnerungsstück für Hochzeiten, Jubiläen, Ehrungen oder als leuchtendes Fotogeschenk.</p>
 
                     <h3>2. Der Seelen-Talisman (28 × 50 × 2,2 mm, Spiegelgold-Edelstahl)</h3>
-                    <p>Der <a href="/produkt/seelen-talisman"><strong>Seelen-Talisman</strong></a> ist ein massiver, spiegelpolierter Edelstahl-Schlüsselanhänger in edlem Gelbgold-Finish (24 g). Die tief-anthrazitfarbene Faserlaser-Gravur auf Vorder- und Rückseite macht ihn zum täglichen Begleiter für den Autoschlüssel, Jahrestag oder Vatertag.</p>
+                    <p>Der <a href="/produkt/seelen-talisman"><strong>Seelen-Talisman</strong></a> ist ein massiver, spiegelpolierter Edelstahl-Schlüsselanhänger in edlem Gelbgold-Finish (ca. 24 g). Die tief-anthrazitfarbene Faserlaser-Gravur auf Vorder- und Rückseite macht ihn zum täglichen Begleiter für den Autoschlüssel, Jahrestag oder Vatertag.</p>
 
-                    <h3>3. Der Seelenanhänger (38 × 33 × 2,0 mm, Herzform)</h3>
+                    <h3>3. Der Seelenanhänger (45 × 40 × 2,3 mm, Herzform)</h3>
                     <p>Unser <a href="/produkt/seelen-anhaenger"><strong>Seelenanhänger in Herzform</strong></a> aus schwarz eloxiertem Metall überzeugt durch seinen brillanten Silber-Weiß-Gravurkontrast – perfekt für Valentinstag, Muttertag oder als Freundschaftsbeweis.</p>
 
-                    <h3>4. Die Seelen-Pfote (40 × 26 × 1,8 mm, Edelstahl-Hundemarke)</h3>
-                    <p>Für alle Hundeliebhaber: <a href="/produkt/seelen-pfote-hundemarke"><strong>Die Seelen-Pfote</strong></a> aus hochglanzpoliertem silbernem Edelstahl in Knochenform mit ausgestanztem Pfotenabdruck schützt deinen Vierbeiner mit Name und Notfall-Telefonnummer.</p>
+                    <h3>4. Die Seelen-Pfote (40 × 22 × 1,8 mm, Edelstahl-Hundemarke)</h3>
+                    <p>Für alle Hundeliebhaber: <a href="/produkt/seelen-pfote-hundemarke"><strong>Die Seelen-Pfote</strong></a> (ca. 12 g) aus hochglanzpoliertem silbernem Edelstahl in Knochenform mit ausgestanztem Pfotenabdruck schützt deinen Vierbeiner mit Name und Notfall-Telefonnummer.</p>
 
-                    <h3>5. Der Feierabend-Funke (80 × 240 mm, 0,5 l Kristall-Weizenglas)</h3>
+                    <h3>5. Der Feierabend-Funke (Ø 74 × 218 mm, 0,5 l Kristall-Weizenglas)</h3>
                     <p>Das personalisierte <a href="/produkt/weizenglas-personalisiert"><strong>Weizenglas „Der Feierabend-Funke“</strong></a> mit feiner 360°-Laser-Frosting-Gravur ist der Klassiker für Geburtstage, Vatertag, Vereinsfeiern und Junggesellenabschiede.</p>
 
                     <h3>Für Firmen & Vereine: Mengenrabatte & Online-Kalkulator</h3>
