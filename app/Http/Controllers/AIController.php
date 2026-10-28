@@ -16,9 +16,16 @@ class AIController extends Controller
     {
         $tools = AIFunctionsRegistry::getSchema();
         if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
-            $tools = array_values(array_filter($tools, function ($tool) {
+            $isInternalEmployee = \App\Services\AI\AiAuthHelper::isEmployee();
+            $tools = array_values(array_filter($tools, function ($tool) use ($isInternalEmployee) {
                 $name = $tool['function']['name'] ?? '';
-                return $name !== '' && !AIFunctionsRegistry::isToolRestrictedForEmployee($name);
+                if ($name === '') {
+                    return false;
+                }
+                if (!$isInternalEmployee) {
+                    return str_starts_with($name, 'support_') || $name === 'system_get_current_time';
+                }
+                return !AIFunctionsRegistry::isToolRestrictedForEmployee($name);
             }));
         }
 
@@ -629,10 +636,10 @@ class AIController extends Controller
             'system_open_nav_item', 'system_open_zentrum', 'system_close_zentrum', 'system_close_ui', 
             'system_trigger_ui_element', 'system_switch_agent', 'system_search_web', 'system_read_web_url',
             'task_get_all', 'task_get_lists', 'task_create', 'task_add_subtask', 'task_update', 'task_complete',
-            'system_get_health'
         ];
         if ($isAdminUser) {
             $voiceAllowedTools = array_merge($voiceAllowedTools, [
+                'system_get_health',
                 'calendar_get_events', 'calendar_create_event', 'calendar_send_ics_email', 'calendar_update_event', 'calendar_delete_event',
                 'routine_get_day_routines', 'routine_get_evaluation', 'routine_log_progress', 'routine_log_step', 'routine_set_sick_day',
                 'routine_create', 'routine_update', 'routine_delete', 'routine_manage_steps',

@@ -27,6 +27,17 @@ Route::post('/login', function (Request $request) {
                 return response()->json(['message' => 'Dieser Account wurde deaktiviert.'], 403);
             }
 
+            if ($user instanceof \App\Models\Employee\Employee) {
+                if (!$user->isInternalEmployee()) {
+                    \App\Services\System\SystemSecurityService::recordLoginAttempt($credentials['email'], $request->ip(), false, 'api_partner_blocked');
+                    return response()->json(['message' => 'Externe Partner-Accounts haben keinen Zugriff auf die interne System-API.'], 403);
+                }
+                if (!$user->isAccountActive()) {
+                    \App\Services\System\SystemSecurityService::recordLoginAttempt($credentials['email'], $request->ip(), false, 'api_inactive_employee');
+                    return response()->json(['message' => 'Dieser Mitarbeiter-Account ist pausiert oder deaktiviert.'], 403);
+                }
+            }
+
             if ($guard === 'customer' && method_exists($user, 'hasVerifiedEmail') && !$user->hasVerifiedEmail()) {
                 \App\Services\System\SystemSecurityService::recordLoginAttempt($credentials['email'], $request->ip(), false, 'api');
                 return response()->json(['message' => 'Bitte bestätige zuerst deine E-Mail-Adresse.'], 403);

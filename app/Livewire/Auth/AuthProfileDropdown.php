@@ -194,11 +194,14 @@ class AuthProfileDropdown extends Component
     public function optOut(\App\Services\Gamification\GamificationService $gameService)
     {
         if ($this->guard === 'customer' && $this->user) {
-            $profile = $gameService->getProfile($this->user);
+            $profile = \App\Models\Customer\CustomerGamification::where('customer_id', $this->user->id)->first();
             if ($profile) {
                 $profile->is_active = false;
                 $profile->save();
             }
+            $this->isGameModeActive = false;
+            session()->forget('active_game_session');
+            $this->dispatch('gamification-mode-changed');
             return redirect()->route('customer.dashboard');
         }
     }

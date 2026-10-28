@@ -18,10 +18,20 @@ class AiAuthHelper
     {
         $user = Auth::user();
         if ($user instanceof \App\Models\Employee\Employee) {
-            return $user->isInternalEmployee();
+            return $user->isInternalEmployee() && $user->isAccountActive();
         }
         $employee = Auth::guard('employee')->user();
-        return ($employee instanceof \App\Models\Employee\Employee) && $employee->isInternalEmployee();
+        return ($employee instanceof \App\Models\Employee\Employee) && $employee->isInternalEmployee() && $employee->isAccountActive();
+    }
+
+    public static function isExternalPartner(): bool
+    {
+        $user = Auth::user();
+        if ($user instanceof \App\Models\Employee\Employee && !$user->isInternalEmployee()) {
+            return true;
+        }
+        $employee = Auth::guard('employee')->user();
+        return ($employee instanceof \App\Models\Employee\Employee) && !$employee->isInternalEmployee();
     }
 
     public static function isCustomer(): bool

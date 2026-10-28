@@ -254,11 +254,24 @@ class EmployeeHrService
         $cleanToken = trim($rawToken);
         $cleanCode = $this->normalizeVerificationCode($inputCode);
 
-        if (strlen($cleanToken) < 20 || strlen($cleanCode) < 4) {
+        if (strlen($cleanToken) < 20 || strlen($cleanCode) !== 6) {
             return null;
         }
 
         $tokenHash = hash('sha256', $cleanToken);
+        $throttleKey = 'invite_pin_emp_' . $tokenHash;
+
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            \App\Services\System\SystemSecurityService::logEvent(
+                'security:invitation_pin_lockout',
+                'Mitarbeiter-Einladungs-PIN wegen Brute-Force gesperrt',
+                'Zu viele Fehlversuche für Mitarbeiter-Einladungs-Token von IP ' . request()->ip(),
+                'error',
+                ['token_hash_prefix' => substr($tokenHash, 0, 12)]
+            );
+            return null;
+        }
+
         $contract = EmployeeContract::with('employee.profile')
             ->where('invitation_token_hash', $tokenHash)
             ->first();
@@ -277,8 +290,11 @@ class EmployeeHrService
 
         $inputHash = hash('sha256', $cleanCode);
         if (!hash_equals((string) $contract->invitation_code_hash, $inputHash)) {
+            \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 900);
             return null;
         }
+
+        \Illuminate\Support\Facades\RateLimiter::clear($throttleKey);
 
         return $contract;
     }
@@ -296,14 +312,19 @@ class EmployeeHrService
         $cleanToken = trim($rawToken);
         $cleanCode = $this->normalizeVerificationCode($inputCode);
 
-        if (strlen($cleanToken) < 20 || strlen($cleanCode) < 4) {
+        if (strlen($cleanToken) < 20 || strlen($cleanCode) !== 6) {
             return null;
         }
 
         $tokenHash = hash('sha256', $cleanToken);
         $codeHash = hash('sha256', $cleanCode);
+        $throttleKey = 'invite_pin_emp_' . $tokenHash;
 
-        $contract = DB::transaction(function () use ($tokenHash, $codeHash, $data) {
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            return null;
+        }
+
+        $contract = DB::transaction(function () use ($tokenHash, $codeHash, $throttleKey, $data) {
             $contract = EmployeeContract::with('employee.profile')
                 ->where('invitation_token_hash', $tokenHash)
                 ->lockForUpdate()
@@ -317,9 +338,12 @@ class EmployeeHrService
                 return null;
             }
 
-            if (!empty($contract->invitation_code_hash) && !hash_equals((string) $contract->invitation_code_hash, $codeHash)) {
+            if (empty($contract->invitation_code_hash) || !hash_equals((string) $contract->invitation_code_hash, $codeHash)) {
+                \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 900);
                 return null;
             }
+
+            \Illuminate\Support\Facades\RateLimiter::clear($throttleKey);
 
             $firstName = trim((string) ($data['first_name'] ?? ''));
             $lastName = trim((string) ($data['last_name'] ?? ''));

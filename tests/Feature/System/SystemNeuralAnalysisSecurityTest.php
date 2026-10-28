@@ -46,4 +46,19 @@ class SystemNeuralAnalysisSecurityTest extends TestCase
             ->test(SystemNeuralAnalysisIndex::class)
             ->assertStatus(200);
     }
+
+    public function test_external_partners_cannot_mount_neural_analysis(): void
+    {
+        $influencer = Employee::create([
+            'first_name' => 'Creator',
+            'last_name' => 'Partner',
+            'email' => 'creator.partner@seelenfunke.de',
+            'role' => 'influencer',
+            'password' => bcrypt('password123'),
+        ]);
+
+        Livewire::actingAs($influencer, 'employee')
+            ->test(SystemNeuralAnalysisIndex::class)
+            ->assertStatus(403);
+    }
 }

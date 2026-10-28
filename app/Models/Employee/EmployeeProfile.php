@@ -37,8 +37,29 @@ class EmployeeProfile extends Model
     }
 
     protected $hidden = [
-        'password', 'rememberToken', 'two_factor_recovery_codes', 'two_factor_secret', 'internal_note',
+        'password', 'rememberToken', 'two_factor_recovery_codes', 'two_factor_secret', 'internal_note', 'vat_id',
     ];
+
+    public function getVatIdAttribute($value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        try {
+            return \Illuminate\Support\Facades\Crypt::decryptString((string) $value);
+        } catch (\Throwable) {
+            return (string) $value;
+        }
+    }
+
+    public function setVatIdAttribute($value): void
+    {
+        if ($value === null || trim((string) $value) === '') {
+            $this->attributes['vat_id'] = null;
+            return;
+        }
+        $this->attributes['vat_id'] = \Illuminate\Support\Facades\Crypt::encryptString(trim((string) $value));
+    }
 
     public function employee(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {

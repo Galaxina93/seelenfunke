@@ -258,34 +258,48 @@ Route::put('/funki/financials/variable/{id}', function (Request $request, $id) {
     $issue = AccountingSpecialIssue::where('admin_id', $request->user()->id)->findOrFail($id);
 
     $data = $request->validate([
-        'title' => 'required|string',
+        'title' => 'required|string|max:255',
         'amount' => 'required',
-        'category' => 'required|string',
+        'category' => 'required|string|max:120',
         'execution_date' => 'required|date',
         'is_business' => 'boolean',
-        'location' => 'nullable|string'
+        'location' => 'nullable|string|max:255'
     ]);
+
+    $parsedAmount = (float) str_replace(',', '.', (string) $data['amount']);
+    if (!is_finite($parsedAmount) || abs($parsedAmount) > 99999999.99) {
+        return response()->json(['success' => false, 'message' => 'Ungültiger Betrag.'], 422);
+    }
+
+    if ($request->has('is_expense')) {
+        $isExpense = filter_var($request->input('is_expense'), FILTER_VALIDATE_BOOLEAN);
+        $parsedAmount = $isExpense ? -abs($parsedAmount) : abs($parsedAmount);
+    } elseif ($issue->amount < 0 && $parsedAmount > 0 && !str_starts_with(trim((string) $data['amount']), '+')) {
+        // Behalte Ausgaben-Vorzeichen bei, falls es vorher eine Ausgabe war und kein explizites '+' gesendet wurde
+        $parsedAmount = -abs($parsedAmount);
+    }
 
     // Basis-Daten aktualisieren
     $issue->update([
         'title' => $data['title'],
-        'amount' => (float)str_replace(',', '.', $data['amount']),
+        'amount' => round($parsedAmount, 2),
         'category' => $data['category'],
         'execution_date' => $data['execution_date'],
-        'is_business' => filter_var($data['is_business'], FILTER_VALIDATE_BOOLEAN),
+        'is_business' => filter_var($data['is_business'] ?? false, FILTER_VALIDATE_BOOLEAN),
         'location' => $data['location'] ?? null,
     ]);
 
     // DATEI-LOGIK FIX:
     // Wir prüfen auf 'file', da Laravel bei Multipart-Arrays das Key-Handling übernimmt
     if ($request->hasFile('file')) {
-        $existingPaths = $issue->file_paths ?? [];
+        $existingPaths = is_array($issue->file_paths) ? $issue->file_paths : [];
         $files = $request->file('file');
 
-        // Sicherstellen, dass wir immer ein Array haben
+        // Sicherstellen, dass wir immer ein Array haben (maximal 10 Dateien pro Request)
         if (!is_array($files)) {
             $files = [$files];
         }
+        $files = array_slice($files, 0, 10);
 
         $allowedExts = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic'];
         $allowedMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
@@ -301,7 +315,7 @@ Route::put('/funki/financials/variable/{id}', function (Request $request, $id) {
             $existingPaths[] = $file->store('buchhaltung/receipts', 'local');
         }
 
-        $issue->update(['file_paths' => $existingPaths]);
+        $issue->update(['file_paths' => array_slice($existingPaths, 0, 25)]);
         Log::info('Update: Neue Dateien hinzugefügt', ['count' => count($files)]);
     }
 
@@ -442,9 +456,12 @@ Route::put('/funki/financials/fixed-item/{id}', function (Request $request, $id)
             return response()->json(['success' => false, 'message' => 'Ungültiges Dateiformat oder Datei zu groß.'], 422);
         }
 
-        // Alte Datei löschen, falls vorhanden
-        if ($item->contract_file_path && Storage::disk('local')->exists($item->contract_file_path)) {
-            Storage::disk('local')->delete($item->contract_file_path);
+        // Alte Datei sicher löschen, falls vorhanden (mit Pfad-Containment-Prüfung)
+        if (!empty($item->contract_file_path)) {
+            $oldPath = ltrim((string) $item->contract_file_path, '/');
+            if ($oldPath !== '' && !str_contains($oldPath, '..') && !str_contains($oldPath, "\0") && str_starts_with($oldPath, 'buchhaltung/') && Storage::disk('local')->exists($oldPath)) {
+                Storage::disk('local')->delete($oldPath);
+            }
         }
 
         $path = $file->store('buchhaltung/contracts', 'local');

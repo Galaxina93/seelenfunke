@@ -211,9 +211,9 @@ class InfluencerDashboard extends Component
     {
         $influencer = $this->getInfluencer();
 
-        if (!$influencer->isReadyForPayout()) {
+        if (!$influencer->isReadyForPayout($chosenMethod)) {
             $this->activeTab = 'settings';
-            session()->flash('creator_error', 'Bitte vervollständige zuerst deine Steuer- und Auszahlungsdaten, bevor du eine Gutschrift anforderst.');
+            session()->flash('creator_error', 'Bitte vervollständige zuerst deine Steuer- und Auszahlungsdaten für den gewählten Auszahlungsweg, bevor du eine Gutschrift anforderst.');
             return;
         }
 

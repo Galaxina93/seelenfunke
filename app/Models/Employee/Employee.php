@@ -109,6 +109,52 @@ class Employee extends Model implements Authenticatable
         return !in_array($this->role ?? 'internal', ['influencer', 'tax_advisor'], true);
     }
 
+    public function isAccountActive(): bool
+    {
+        if ($this->trashed()) {
+            return false;
+        }
+
+        if ($this->isInfluencer()) {
+            if (\Illuminate\Support\Facades\Schema::hasTable('marketing_influencers')) {
+                $inf = $this->relationLoaded('influencerProfile')
+                    ? $this->influencerProfile
+                    : $this->influencerProfile()->first();
+                if ($inf && (!$inf->is_active || $inf->is_archived)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        if ($this->isInternalEmployee()) {
+            if (\Illuminate\Support\Facades\Schema::hasTable('employee_contracts')) {
+                $contract = $this->relationLoaded('employmentContract')
+                    ? $this->employmentContract
+                    : $this->employmentContract()->first();
+                if ($contract && (!$contract->is_active || $contract->is_archived)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        return true;
+    }
+
+    public function revokeActiveSessionsAndTokens(): void
+    {
+        if (method_exists($this, 'tokens')) {
+            $this->tokens()->delete();
+        }
+
+        if (config('session.driver') === 'database' && \Illuminate\Support\Facades\Schema::hasTable(config('session.table', 'sessions'))) {
+            \Illuminate\Support\Facades\DB::table(config('session.table', 'sessions'))
+                ->where('user_id', $this->id)
+                ->delete();
+        }
+    }
+
     public function hasAiDataConsent(): bool
     {
         return (bool) ($this->profile?->ai_data_consent ?? false);

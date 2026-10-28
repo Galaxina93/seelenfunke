@@ -288,19 +288,25 @@ class ManagementEmployees extends Component
 
     public function toggleActive(string $id): void
     {
-        $contract = EmployeeContract::findOrFail($id);
+        $contract = EmployeeContract::with('employee')->findOrFail($id);
         $contract->update(['is_active' => !$contract->is_active]);
+        if (!$contract->is_active && $contract->employee) {
+            $contract->employee->revokeActiveSessionsAndTokens();
+        }
         session()->flash('success', $contract->is_active ? 'Mitarbeitervertrag aktiviert.' : 'Mitarbeitervertrag pausiert.');
     }
 
     public function toggleArchive(string $id): void
     {
-        $contract = EmployeeContract::findOrFail($id);
+        $contract = EmployeeContract::with('employee')->findOrFail($id);
         $newArchived = !$contract->is_archived;
         $contract->update([
             'is_archived' => $newArchived,
             'is_active' => $newArchived ? false : $contract->is_active,
         ]);
+        if ($newArchived && $contract->employee) {
+            $contract->employee->revokeActiveSessionsAndTokens();
+        }
         session()->flash('success', $newArchived ? 'Personalakte archiviert.' : 'Personalakte wiederhergestellt.');
     }
 

@@ -208,3 +208,40 @@ Artisan::command('workspace:dateitrichter {--all : Verarbeitet alle Dokumente im
     $this->info($result['message']);
     $this->info("Gefunden: {$result['total_files_found']} | Verarbeitet: {$result['processed_count']} | Verschoben: {$result['moved_count']} | Indiziert: {$result['indexed_count']}");
 })->purpose('Analysiert und sortiert Workspace-Dokumente in Berufsleben, Dokumente und Gesundheit ein');
+
+Artisan::command('product:assortment {slug? : Produkt-Slug oder SKU} {--enable : Produkt im Sortiment aktivieren} {--disable : Produkt im Sortiment pausieren}', function (?string $slug = null) {
+    if (!$slug) {
+        $rows = \App\Models\Product\Product::orderBy('created_at')->get()->map(fn ($p) => [
+            $p->sku ?: '-',
+            $p->slug,
+            $p->name,
+            $p->status,
+            (int) $p->quantity,
+            $p->shipping_class ?: ($p->type === 'physical' ? 'dhl_standard' : $p->type),
+        ])->toArray();
+
+        $this->table(['SKU', 'Slug', 'Name', 'Status', 'Bestand', 'Versand/Typ'], $rows);
+        return;
+    }
+
+    $product = \App\Models\Product\Product::where('slug', $slug)
+        ->orWhere('sku', strtoupper(trim($slug)))
+        ->first();
+
+    if (!$product) {
+        $this->error("Produkt '{$slug}' wurde nicht gefunden.");
+        return;
+    }
+
+    if ($this->option('enable')) {
+        $product->status = 'active';
+    } elseif ($this->option('disable')) {
+        $product->status = 'draft';
+    } else {
+        $product->status = $product->status === 'active' ? 'draft' : 'active';
+    }
+
+    $product->save();
+    \App\Models\Marketing\MarketingLandingPage::syncForProduct($product);
+    $this->info("Produkt [{$product->sku}] {$product->name} ({$product->slug}) -> Status: {$product->status}");
+})->purpose('Listet alle Produkte samt Artikelnummer (SKU) auf oder schaltet ein Produkt im Sortiment aktiv/pausiert');

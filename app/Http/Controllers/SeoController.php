@@ -404,7 +404,7 @@ class SeoController extends Controller
         $lines[] = '- **Was kostet die Personalisierung?** Die individuelle Lasergravur (Texte, Motive, eigenes Logo und Vorder-/Rückseitengravur bei Glas) ist im angezeigten Produktpreis bereits vollständig enthalten – keine versteckten Zusatzkosten.';
         $lines[] = '- **Gibt es eine Mindestbestellmenge?** Nein, wir fertigen sowohl Einzelstücke (ab 1 Stück) für Privatkunden als auch Großserien mit attraktiven Staffelpreisen für Unternehmen, Vereine und Hochzeiten.';
         $lines[] = "- **Wie hoch sind die Versandkosten?** Innerhalb Deutschlands berechnen wir {$shippingCost} € für den versicherten DHL-Versand. Ab {$freeThreshold} € Warenkorbwert liefern wir innerhalb Deutschlands versandkostenfrei.";
-        $lines[] = '- **Was passiert, wenn mein Glasprodukt beim Transport beschädigt wird?** Jede Kristallglas-Trophäe wird in einer passgenau gepolsterten Geschenkbox versendet. Sollte dennoch ein Transportschaden auftreten, fertigen wir nach kurzer Fotodokumentation umgehend kostenfreien Ersatz.';
+        $lines[] = '- **Was passiert, wenn mein Glasprodukt beim Transport beschädigt wird?** Jede Kristallglas-Trophäe wird bruchsicher gepolstert im stabilen Versandkarton versendet. Sollte dennoch ein Transportschaden auftreten, fertigen wir nach kurzer Fotodokumentation umgehend kostenfreien Ersatz.';
 
         return response(implode("\n", $lines) . "\n", 200, [
             'Content-Type' => 'text/plain; charset=UTF-8',

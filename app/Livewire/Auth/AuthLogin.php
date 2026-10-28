@@ -135,6 +135,13 @@ class AuthLogin extends Component
             ]);
         }
 
+        if ($this->user instanceof \App\Models\Employee\Employee && !$this->user->isAccountActive()) {
+            $this->logLoginAttempt($this->email, false);
+            throw ValidationException::withMessages([
+                'email' => 'Dieser Account ist aktuell pausiert oder archiviert.',
+            ]);
+        }
+
         if ($this->guard === 'customer' && method_exists($this->user, 'hasVerifiedEmail') && !$this->user->hasVerifiedEmail()) {
             $this->logLoginAttempt($this->email, false);
             throw ValidationException::withMessages([

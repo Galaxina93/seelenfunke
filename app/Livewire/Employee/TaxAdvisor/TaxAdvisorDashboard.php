@@ -706,7 +706,7 @@ class TaxAdvisorDashboard extends Component
             'shipping_collected_eur' => $allPeriodOrders->sum('shipping_price') / 100,
             'cancellations_gross_eur' => $allPeriodInvoices->whereIn('type', ['cancellation', 'credit_note'])->sum(fn ($i) => abs((int) $i->total)) / 100,
             'creator_payouts_gross_eur' => $allPeriodPayouts->sum('gross_amount_cents') / 100,
-            'creator_payouts_vat_eur' => $allPeriodPayouts->sum('vat_amount_cents') / 100,
+            'creator_payouts_vat_eur' => $allPeriodPayouts->sum('tax_amount_cents') / 100,
         ];
 
         $filteredInvoices = $allPeriodInvoices->filter(function (AccountingInvoice $inv) {

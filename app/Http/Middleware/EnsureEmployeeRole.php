@@ -21,6 +21,15 @@ class EnsureEmployeeRole
             abort(403, 'Zugriff verweigert.');
         }
 
+        if (method_exists($employee, 'isAccountActive') && !$employee->isAccountActive()) {
+            Auth::guard('employee')->logout();
+            if ($request->hasSession()) {
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+            }
+            return response()->redirectToRoute('login')->with('error', 'Dieser Account ist aktuell pausiert oder archiviert.');
+        }
+
         $currentRole = (string) ($employee->role ?: 'internal');
 
         if (

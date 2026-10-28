@@ -205,9 +205,26 @@ class AIFunctionsRegistry
      */
     public static function execute(string $name, array $args = [], $agent = null)
     {
-        // Rollen-Schranke: Authentifizierte Mitarbeiter (Employee) dürfen keine Admin-exklusiven Werkzeuge ausführen
+        // Rollen-Schranke: Nicht-Administratoren unterliegen strikter Rollentrennung
         if (AiAuthHelper::check() && !AiAuthHelper::isAdmin()) {
-            if (self::isToolRestrictedForEmployee($name)) {
+            // Externe Partner (Influencer / Steuerberater), Kunden oder pausierte Mitarbeiter dürfen nur öffentliche Support-Tools nutzen
+            if (!AiAuthHelper::isEmployee()) {
+                $publicAllowed = str_starts_with($name, 'support_') || $name === 'system_get_current_time';
+                if (!$publicAllowed) {
+                    \App\Services\System\SystemSecurityService::logEvent(
+                        'security:ai_partner_sandbox_blocked',
+                        'KI-Rechteausweitung durch Nicht-Mitarbeiter / Partner blockiert',
+                        "Benutzer (ID: " . AiAuthHelper::getUserId() . ") versuchte das interne Werkzeug '{$name}' auszuführen.",
+                        'error',
+                        ['tool' => $name, 'user_id' => AiAuthHelper::getUserId()]
+                    );
+                    return [
+                        'error' => true,
+                        'status' => 'error',
+                        'message' => "SANDBOX VIOLATION: Das Werkzeug '{$name}' ist für externe Partner und Kunden gesperrt."
+                    ];
+                }
+            } elseif (self::isToolRestrictedForEmployee($name)) {
                 \App\Services\System\SystemSecurityService::logEvent(
                     'security:ai_privilege_escalation_blocked',
                     'KI-Rechteausweitung durch Mitarbeiter blockiert',

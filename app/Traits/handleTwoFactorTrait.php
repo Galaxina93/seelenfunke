@@ -41,8 +41,8 @@ trait handleTwoFactorTrait
         $userModel = (new \App\Models\System\SystemUser)->getUserModelByGuard($guard);
         $user = $userModel::find($userId);
 
-        if (!$user || !$user->profile || (method_exists($user, 'trashed') && $user->trashed())) {
-            session()->flash('error', 'Benutzer nicht gefunden. Bitte erneut anmelden.');
+        if (!$user || !$user->profile || (method_exists($user, 'trashed') && $user->trashed()) || ($user instanceof \App\Models\Employee\Employee && !$user->isAccountActive())) {
+            session()->flash('error', 'Benutzer nicht gefunden oder deaktiviert. Bitte erneut anmelden.');
             return;
         }
 

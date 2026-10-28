@@ -15,9 +15,15 @@ Broadcast::channel('admin', function ($user) {
     return true;
 }, ['guards' => ['admin']]);
 
-// 2. Globale / Shop Channels (CEO & Worker)
+// 2. Globale / Shop Channels (CEO & interne aktive Mitarbeiter)
 Broadcast::channel('shop', function ($user) {
-    return true;
+    if ($user instanceof \App\Models\Admin\Admin) {
+        return true;
+    }
+    if ($user instanceof \App\Models\Employee\Employee) {
+        return $user->isInternalEmployee() && $user->isAccountActive();
+    }
+    return false;
 }, ['guards' => ['admin', 'employee']]);
 
 // 2b. Sensible CEO-/Management-Kanäle (Nur Admin)

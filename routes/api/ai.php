@@ -23,16 +23,16 @@ Route::prefix('ai')->group(function () {
     // Endpunkt zum Persistieren von Live-Transkripten (für internen Node-Server)
     Route::post('/save-live-transcript', [AIController::class, 'saveLiveTranscript'])->middleware('throttle:120,1');
 
-    // Admin & Mitarbeiter geschützte KI-Endpunkte
+    // Admin & interne aktive Mitarbeiter geschützte KI-Endpunkte
     Route::group(['middleware' => ['web', 'auth:sanctum,web,admin,employee', function ($request, $next) {
         $user = $request->user() ?: auth()->guard('admin')->user() ?: auth()->guard('employee')->user();
         $isAdminOrEmployee = ($user instanceof \App\Models\Admin\Admin)
-            || ($user instanceof \App\Models\Employee\Employee)
+            || ($user instanceof \App\Models\Employee\Employee && $user->isInternalEmployee() && $user->isAccountActive())
             || \App\Services\AI\AiAuthHelper::isAdmin()
             || \App\Services\AI\AiAuthHelper::isEmployee();
 
         if (!$isAdminOrEmployee) {
-            abort(403, 'Zugriff verweigert. Nur Administratoren und Mitarbeiter.');
+            abort(403, 'Zugriff verweigert. Nur Administratoren und interne Mitarbeiter.');
         }
 
         // CSRF- & Cross-Origin-Schutz für Cookie-basierte (nicht-Bearer) schreibende Anfragen

@@ -103,6 +103,11 @@ class GoogleAuthController extends Controller
                 return redirect()->route('login')->with('error', 'Dieser Account wurde deaktiviert.');
             }
 
+            if ($user instanceof Employee && !$user->isAccountActive()) {
+                \App\Services\System\SystemSecurityService::recordLoginAttempt($user->email, request()->ip(), false, 'google_oauth_inactive');
+                return redirect()->route('login')->with('error', 'Dieser Account ist aktuell pausiert oder archiviert.');
+            }
+
             // Sicherheitscheck gegen Account-Hijacking: Falls bereits eine abweichende Google-ID verknüpft ist, ablehnen
             if ($user && !empty($user->google_id) && (string) $user->google_id !== (string) $googleUser->id) {
                 \App\Services\System\SystemSecurityService::recordLoginAttempt($user->email, request()->ip(), false, 'google_oauth_mismatch');
@@ -228,6 +233,14 @@ class GoogleAuthController extends Controller
             if ($guard === 'customer' && !empty($user->needs_password_change)) {
                 session(['force_password_change_customer_id' => $user->id]);
                 return redirect()->route('customer.password-change-force');
+            }
+
+            if ($guard === 'employee' && method_exists($user, 'isInfluencer') && $user->isInfluencer()) {
+                return redirect()->route('employee.influencer.dashboard');
+            }
+
+            if ($guard === 'employee' && method_exists($user, 'isTaxAdvisor') && $user->isTaxAdvisor()) {
+                return redirect()->route('employee.tax-advisor.dashboard');
             }
 
             // Redirect zum Dashboard des ermittelten Guards

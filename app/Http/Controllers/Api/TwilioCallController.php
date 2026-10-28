@@ -61,6 +61,15 @@ class TwilioCallController extends Controller
      */
     public function inbound(Request $request)
     {
+        $configuredAccountSid = config('services.twilio.sid') ?: env('TWILIO_SID') ?: env('TWILIO_ACCOUNT_SID');
+        if (!empty($configuredAccountSid)) {
+            if (!$request->filled('AccountSid') || !is_string($request->input('AccountSid')) || !hash_equals((string) $configuredAccountSid, (string) $request->input('AccountSid'))) {
+                return response('Forbidden', 403);
+            }
+        } elseif (!\App\Services\System\SystemSecurityService::isTrustedBridgeRequest($request)) {
+            return response('Forbidden', 403);
+        }
+
         $response = new VoiceResponse();
         
         $response->say('Willkommen bei Seelenfunke. Sie werden nun mit der KI verbunden.', ['language' => 'de-DE']);

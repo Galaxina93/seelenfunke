@@ -17,12 +17,17 @@ class EmployeeRoleIsolationHook extends ComponentHook
         \App\Livewire\Shop\Order\OrderCheckout\OrderCheckout::class,
         \App\Livewire\Shop\Order\OrderCheckout\OrderCheckoutSuccess::class,
         \App\Livewire\Shop\Order\OrderQuoteAcceptance::class,
+        \App\Livewire\Shop\Order\OrderRevocationForm::class,
         \App\Livewire\Shop\Product\ProductFrontendFilterArea::class,
         \App\Livewire\Shop\Product\ProductShow::class,
+        \App\Livewire\Shop\Product\ProductReviews::class,
         \App\Livewire\Shop\Product\ProductConfigurator\ProductConfigurator::class,
-        \App\Livewire\Shop\Product\ProductCalculator::class,
+        \App\Livewire\Shop\Product\ProductCalculator\ProductCalculator::class,
         \App\Livewire\Shop\Marketing\MarketingVoucherSlider::class,
+        \App\Livewire\Shop\Marketing\MarketingVoucherBalanceChecker::class,
+        \App\Livewire\Shop\Marketing\MarketingVoucherPurchasePage::class,
         \App\Livewire\Shop\Marketing\MarketingNewsletterPage::class,
+        \App\Livewire\Shop\Marketing\MarketingNewsletterSignup::class,
         \App\Livewire\Shop\Marketing\MarketingBlogIndex::class,
         \App\Livewire\Shop\Marketing\MarketingBlogShow::class,
         \App\Livewire\Shop\System\SystemDeliveryDisplay::class,
@@ -36,7 +41,16 @@ class EmployeeRoleIsolationHook extends ComponentHook
         }
 
         $employee = Auth::guard('employee')->user();
-        if (!$employee || $employee->isInternalEmployee()) {
+        if (!$employee) {
+            return;
+        }
+
+        if (method_exists($employee, 'isAccountActive') && !$employee->isAccountActive()) {
+            Auth::guard('employee')->logout();
+            abort(403, 'Dieser Account ist pausiert oder deaktiviert.');
+        }
+
+        if ($employee->isInternalEmployee()) {
             return;
         }
 

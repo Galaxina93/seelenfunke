@@ -1,4 +1,14 @@
 <div>
+@php
+    $dashboardRoute = $guard ? ($guard . '.dashboard') : 'login';
+    if ($guard === 'employee' && $user) {
+        if (method_exists($user, 'isInfluencer') && $user->isInfluencer()) {
+            $dashboardRoute = 'employee.influencer.dashboard';
+        } elseif (method_exists($user, 'isTaxAdvisor') && $user->isTaxAdvisor()) {
+            $dashboardRoute = 'employee.tax-advisor.dashboard';
+        }
+    }
+@endphp
 @if($isMobile)
     @if($user)
         <div class="w-full flex flex-col space-y-2">
@@ -28,7 +38,7 @@
                 </div>
             </div>
             <div class="w-full pt-1 flex flex-col space-y-1">
-                <a href="{{ route($guard . '.dashboard') }}" class="block px-3.5 py-2 text-sm font-semibold text-gray-700 hover:text-primary hover:bg-gray-50 rounded-xl transition-colors">Mein Dashboard</a>
+                <a href="{{ route($dashboardRoute) }}" class="block px-3.5 py-2 text-sm font-semibold text-gray-700 hover:text-primary hover:bg-gray-50 rounded-xl transition-colors">Mein Dashboard</a>
                 <button wire:click="logout" class="block w-full text-left px-3.5 py-2 text-sm font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl transition-colors">Ausloggen</button>
             </div>
         </div>
@@ -97,7 +107,7 @@
                 </div>
 
                 {{-- Dynamische Route basierend auf Guard --}}
-                <a href="{{ route($guard . '.dashboard') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-primary cursor-pointer" role="menuitem" tabindex="-1">
+                <a href="{{ route($dashboardRoute) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-primary cursor-pointer" role="menuitem" tabindex="-1">
                     Mein Dashboard
                 </a>
 
