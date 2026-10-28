@@ -46,8 +46,9 @@ class GamificationMilestoneVoucherTest extends TestCase
         $gameService = app(GamificationService::class);
         $profile = $gameService->getProfile($customer);
 
-        // Funken balance hochsetzen für Level Up zu Level 3
+        // Funken balance hochsetzen für Level Up zu Level 3 (Game-Modus aktiv)
         $profile->update([
+            'is_active' => true,
             'level' => 2,
             'funken_balance' => 500,
         ]);
@@ -82,7 +83,7 @@ class GamificationMilestoneVoucherTest extends TestCase
         $gameService = app(GamificationService::class);
         $profile = $gameService->getProfile($customer);
 
-        $profile->update(['level' => 5]);
+        $profile->update(['is_active' => true, 'level' => 5]);
 
         // Einmal aufrufen
         $gameService->syncUnlockedRewards($profile);
@@ -111,7 +112,7 @@ class GamificationMilestoneVoucherTest extends TestCase
         $customer = $this->createCustomer('anna@example.com');
         $gameService = app(GamificationService::class);
         $profile = $gameService->getProfile($customer);
-        $profile->update(['level' => 3]);
+        $profile->update(['is_active' => true, 'level' => 3]);
         $gameService->syncUnlockedRewards($profile);
         $profile->refresh();
 
@@ -138,13 +139,15 @@ class GamificationMilestoneVoucherTest extends TestCase
         $victim = $this->createCustomer('victim@example.com');
         $gameService = app(GamificationService::class);
         $victimProfile = $gameService->getProfile($victim);
-        $victimProfile->update(['level' => 10]); // 15% Seelengott-Rabatt
+        $victimProfile->update(['is_active' => true, 'level' => 10]); // 15% Seelengott-Rabatt
         $gameService->syncUnlockedRewards($victimProfile);
         $victimProfile->refresh();
 
         $stolenCode = $victimProfile->unlocked_coupons['10'];
 
         $attacker = $this->createCustomer('attacker@example.com');
+        $attackerProfile = $gameService->getProfile($attacker);
+        $attackerProfile->update(['is_active' => true]);
         Auth::guard('customer')->login($attacker);
 
         $product = $this->createProduct();
@@ -161,7 +164,7 @@ class GamificationMilestoneVoucherTest extends TestCase
         $customer = $this->createCustomer('slider-test@example.com');
         $gameService = app(GamificationService::class);
         $profile = $gameService->getProfile($customer);
-        $profile->update(['level' => 3]);
+        $profile->update(['is_active' => true, 'level' => 3]);
         $gameService->syncUnlockedRewards($profile);
         $profile->refresh();
 
@@ -193,7 +196,7 @@ class GamificationMilestoneVoucherTest extends TestCase
         $customer = $this->createCustomer('markus@example.com');
         $gameService = app(GamificationService::class);
         $profile = $gameService->getProfile($customer);
-        $profile->update(['level' => 3]);
+        $profile->update(['is_active' => true, 'level' => 3]);
         $gameService->syncUnlockedRewards($profile);
         $profile->refresh();
 
@@ -225,9 +228,9 @@ class GamificationMilestoneVoucherTest extends TestCase
         $this->assertEquals(1, $voucher->fresh()->used_count);
         $this->assertFalse($voucher->fresh()->isValid());
 
-        // In GameProfileComponent prüfen
+        // Im zentralen Spieler-Cockpit (GameGamesComponent) prüfen
         Auth::guard('customer')->login($customer);
-        $component = new \App\Livewire\Customer\Gamification\GameProfileComponent();
+        $component = new \App\Livewire\Customer\Gamification\GameGamesComponent();
         $component->loadGamificationData($gameService, $profile);
 
         $this->assertTrue($component->unlockedCoupons['lvl_3']['is_used']);

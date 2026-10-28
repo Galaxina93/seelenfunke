@@ -972,7 +972,8 @@ trait AiSupportFuncs
                     'registered_since' => $customer->created_at->format('Y-m-d'),
                     'open_orders_count' => $openOrders,
                     'closed_orders_count' => $closedOrders,
-                    'gamification_level' => $gamification ? $gamification->level : 1,
+                    'gamification_active' => (bool) ($gamification && $gamification->is_active),
+                    'gamification_level' => ($gamification && $gamification->is_active) ? $gamification->level : null,
                     'active_support_tickets' => $activeTickets
                 ]
             ];

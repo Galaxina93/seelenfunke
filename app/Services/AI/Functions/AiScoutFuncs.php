@@ -79,13 +79,17 @@ trait AiScoutFuncs
 
         try {
             $leaders = CustomerGamification::with('customer.profile')
-                ->orderBy('total_xp', 'desc')
+                ->where('is_active', true)
+                ->where('ranking_opt_in', true)
+                ->orderBy('level', 'desc')
+                ->orderBy('funken_total_earned', 'desc')
                 ->take(5)->get();
 
             if ($leaders->isEmpty()) {
                 return ['status' => 'success', 'message' => 'Noch keine Spieler in der Gamification-Tabelle.'];
             }
 
+            $gameService = app(\App\Services\Gamification\GamificationService::class);
             $formatted = [];
             foreach ($leaders as $idx => $l) {
                 $hasConsent = \App\Services\AI\AiAuthHelper::hasCustomerAiConsent($l->customer, $l->customer_id);
@@ -95,9 +99,9 @@ trait AiScoutFuncs
                     'rank' => $idx + 1,
                     'customer' => $cName,
                     'gdpr_ai_consent' => $hasConsent,
-                    'level' => $l->current_level,
-                    'xp' => number_format($l->total_xp, 0, ',', '.') . ' XP',
-                    'title' => $l->title ?? 'Novize'
+                    'level' => $l->level,
+                    'funken' => number_format((int) $l->funken_total_earned, 0, ',', '.') . ' Funken',
+                    'title' => $gameService->resolveActiveRankName($l) ?? 'Kein Rang'
                 ];
             }
 

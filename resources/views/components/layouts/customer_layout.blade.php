@@ -13,8 +13,8 @@
     <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16x16.png') }}?v=2">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('apple-touch-icon.png') }}?v=2">
 
-    <link href="{{ asset('css/app.css') }}" rel="stylesheet">
-    <script src="{{ mix('js/app.js') }}" defer></script>
+    <link href="{{ asset('css/app.css') }}?v={{ file_exists(public_path('css/app.css')) ? filemtime(public_path('css/app.css')) : 1 }}" rel="stylesheet">
+    <script src="{{ asset('js/app.js') }}?v={{ file_exists(public_path('js/app.js')) ? filemtime(public_path('js/app.js')) : 1 }}" defer></script>
     <script src="{{ mix('js/admin-bundle.js') }}" defer></script>
 
     @livewireStyles
@@ -143,7 +143,7 @@
     <div class="relative min-h-full w-full">
         {{ $slot }}
 
-        @if(auth()->guard('customer')->check())
+        @if($hasOptedIn)
             <livewire:customer.gamification.game-spark-hunt-component />
         @endif
     </div>
@@ -178,17 +178,10 @@
         <span class="text-[9px] font-black uppercase tracking-widest">Hilfe</span>
     </a>
 
-    @if($hasOptedIn)
-    <a href="{{ route('customer.gamification.profile') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.games') || request()->routeIs('customer.gamification.profile') ? 'text-emerald-500' : 'text-gray-500 dark:text-gray-400' }}">
+    <a href="{{ route('customer.games') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.games*') || request()->routeIs('customer.gamification*') || request()->routeIs('customer.ranking*') ? 'text-emerald-500' : 'text-gray-500 dark:text-gray-400' }}">
         <span class="text-xl leading-none h-6 flex items-center">🎮</span>
         <span class="text-[9px] font-black uppercase tracking-widest">Spiele</span>
     </a>
-    @else
-    <a href="{{ route('customer.games') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.games') ? 'text-emerald-500' : 'text-gray-500 dark:text-gray-400' }}">
-        <span class="text-xl leading-none h-6 flex items-center">🎮</span>
-        <span class="text-[9px] font-black uppercase tracking-widest">Spiele</span>
-    </a>
-    @endif
 </nav>
 
 @if(auth()->guard('customer')->check())
@@ -256,186 +249,7 @@
             }
         };
     }
-
-    window.funkiHub = function(initialModelPath, initialImagePath) {
-        let scene, camera, renderer, controls, currentModel;
-        let threeInitialized = false;
-        let animationId = null;
-
-        return {
-            darkFade: false,
-            evolutionFlash: false,
-            showConfetti: false,
-            rewardMessage: '',
-            show3DModal: false,
-            showTitlesModal: false,
-            currentPath: initialModelPath || '',
-            currentImagePath: initialImagePath || '',
-
-            initFunki() {
-                if (window.sessionStorage.getItem('funki_just_activated')) {
-                    this.darkFade = true;
-                    window.sessionStorage.removeItem('funki_just_activated');
-                    setTimeout(() => { this.darkFade = false; }, 100);
-                }
-            },
-
-            handleLevelUp(data) {
-                const payload = Array.isArray(data) ? (data[0] || {}) : (data || {});
-                this.open3DModal();
-                setTimeout(() => {
-                    this.evolutionFlash = true;
-                    setTimeout(() => {
-                        if (payload.newModelPath) this.currentPath = payload.newModelPath;
-                        if (payload.newImagePath) this.currentImagePath = payload.newImagePath;
-
-                        let flashFinished = false;
-                        const finishFlash = () => {
-                            if (flashFinished) return;
-                            flashFinished = true;
-                            this.evolutionFlash = false;
-                            this.rewardMessage = payload.reward || 'Neue Form freigeschaltet!';
-                            this.showConfetti = true;
-                            setTimeout(() => { this.showConfetti = false; }, 4000);
-                        };
-
-                        // FAIL-SAFE: Guarantees the flash ends even if ThreeJS crashes or loader hangs
-                        setTimeout(finishFlash, 2500);
-
-                        if (threeInitialized && window._funki3DLoader) {
-                            window._funki3DLoader(this.currentPath, finishFlash);
-                        } else {
-                            finishFlash();
-                        }
-                    }, 1000);
-                }, 500);
-            },
-
-            open3DModal() {
-                this.show3DModal = true;
-                setTimeout(() => {
-                    if (!threeInitialized) {
-                        this.initThreeJS();
-                    } else {
-                        this.resizeThreeJS();
-                        if (!animationId && typeof window._funkiRestartAnimation === 'function') {
-                            window._funkiRestartAnimation();
-                        }
-                    }
-                }, 100);
-            },
-
-            close3DModal() {
-                this.show3DModal = false;
-            },
-
-            initThreeJS() {
-                const container = document.getElementById('funki-3d-canvas-container');
-                if (!container || typeof window.THREE === 'undefined' || typeof window.GLTFLoader === 'undefined' || typeof window.OrbitControls === 'undefined') {
-                    console.warn('ThreeJS or plugins not loaded properly.');
-                    return;
-                }
-
-                // Remove existing canvases if Livewire/Alpine re-initializes while wire:ignore kept the DOM
-                while (container.firstChild) {
-                    container.removeChild(container.firstChild);
-                }
-
-                scene = new window.THREE.Scene();
-                camera = new window.THREE.PerspectiveCamera(45, container.offsetWidth / container.offsetHeight, 0.1, 1000);
-                renderer = new window.THREE.WebGLRenderer({ antialias: true, alpha: true });
-                renderer.setSize(container.offsetWidth, container.offsetHeight);
-                renderer.setPixelRatio(window.devicePixelRatio);
-                renderer.domElement.style.cursor = 'default';
-                container.appendChild(renderer.domElement);
-
-                scene.add(new window.THREE.AmbientLight(0xffffff, 2.5));
-                const dirLight = new window.THREE.DirectionalLight(0xffffff, 2.0);
-                dirLight.position.set(5, 5, 5);
-                scene.add(dirLight);
-
-                controls = new window.OrbitControls(camera, renderer.domElement);
-                controls.enableDamping = true;
-                controls.minDistance = 1;
-                controls.maxDistance = 5;
-
-                window._funki3DLoader = (path, cb) => {
-                    if (!path || path.trim() === '') return;
-
-                    // Set the latest requested path to prevent async race conditions
-                    window._funkiLatestRequestedPath = path;
-
-                    const loader = new window.GLTFLoader();
-                    loader.load(
-                        path,
-                        (gltf) => {
-                            // Abort if a different model was requested while this one was downloading
-                            if (window._funkiLatestRequestedPath !== path) return;
-
-                            if (currentModel) {
-                                scene.remove(currentModel);
-                                // Dispose geometries and materials to avoid memory leaks
-                                currentModel.traverse((child) => {
-                                    if (child.isMesh) {
-                                        if (child.geometry) child.geometry.dispose();
-                                        if (child.material) {
-                                            if (Array.isArray(child.material)) {
-                                                child.material.forEach(m => m.dispose());
-                                            } else {
-                                                child.material.dispose();
-                                            }
-                                        }
-                                    }
-                                });
-                            }
-
-                            currentModel = gltf.scene;
-                            const box = new window.THREE.Box3().setFromObject(currentModel);
-                            const center = box.getCenter(new window.THREE.Vector3());
-                            currentModel.position.sub(center);
-                            currentModel.rotation.y = Math.PI / -2;
-                            scene.add(currentModel);
-                            camera.position.set(0, 0.8, 2.5);
-                            if (cb) cb();
-                        },
-                        undefined,
-                        (error) => {
-                            console.error('Failed to load Funki model:', error);
-                            // Even if it fails, trigger the callback so we don't get stuck with a white screen flash
-                            if (window._funkiLatestRequestedPath === path && cb) {
-                                cb();
-                            }
-                        }
-                    );
-                };
-
-                window._funki3DLoader(this.currentPath);
-
-                const animate = () => {
-                    if (!this.show3DModal) {
-                        animationId = null;
-                        return;
-                    }
-                    animationId = requestAnimationFrame(animate);
-                    if (currentModel) currentModel.position.y = Math.sin(Date.now() * 0.002) * 0.05;
-                    if (controls) controls.update();
-                    if (renderer) renderer.render(scene, camera);
-                };
-                window._funkiRestartAnimation = animate;
-                animate();
-                threeInitialized = true;
-                window.addEventListener('resize', () => this.resizeThreeJS());
-            },
-
-            resizeThreeJS() {
-                const container = document.getElementById('funki-3d-canvas-container');
-                if (!camera || !renderer || !container) return;
-                camera.aspect = container.offsetWidth / container.offsetHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(container.offsetWidth, container.offsetHeight);
-            }
-        };
-    };
 </script>
+@include('livewire.customer.partials.scripts-partials.funki_hub')
 </body>
 </html>

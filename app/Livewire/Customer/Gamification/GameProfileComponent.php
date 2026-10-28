@@ -63,6 +63,28 @@ class GameProfileComponent extends Component
     public $unlockedCoupons = [];
     #[Locked]
     public $milestonesConfig = [];
+    #[Locked]
+    public $prestigeMilestones = [];
+    #[Locked]
+    public $shipSkins = [];
+    #[Locked]
+    public $unlockedSkins = ['default'];
+    #[Locked]
+    public $activeShipSkinKey = 'default';
+    #[Locked]
+    public $activeShipSkin = [];
+    #[Locked]
+    public $hallAuras = [];
+    #[Locked]
+    public $unlockedAuras = ['default'];
+    #[Locked]
+    public $activeHallAuraKey = 'default';
+    #[Locked]
+    public $heroMottos = [];
+    #[Locked]
+    public $activeMottoKey = 'default';
+    #[Locked]
+    public $isVipBuyer = false;
 
     public function mount()
     {
@@ -70,16 +92,8 @@ class GameProfileComponent extends Component
         if (!$user) {
             return redirect()->route('login');
         }
-        $profile = CustomerGamification::where('customer_id', $user->id)->first();
-        if ($profile && $profile->is_active) {
-            $this->hasOptedIn = true;
-            $gameService = app(GamificationService::class);
-            $this->loadGamificationData($gameService, $profile);
-        } else {
-            $this->redirect(route('customer.games'));
-            return;
-        }
-        $this->updateEnergyState();
+        // Einheitliches Spieler-Cockpit unter /games
+        return $this->redirect(route('customer.games'));
     }
 
     public function optIn()
@@ -127,10 +141,8 @@ class GameProfileComponent extends Component
         if (!$user) return;
 
         $profile = CustomerGamification::where('customer_id', $user->id)->first();
-        if ($profile) {
-            if ($profile->is_active) {
-                $profile = app(GamificationService::class)->refillEnergyIfDue($profile, $this->maxEnergy);
-            }
+        if ($profile && $profile->is_active) {
+            $profile = app(GamificationService::class)->refillEnergyIfDue($profile, $this->maxEnergy);
             $this->currentEnergy = $profile->energy_balance;
             $this->energyBalance = $profile->energy_balance;
 
@@ -144,7 +156,7 @@ class GameProfileComponent extends Component
             }
             // Fetch highscores for Funkenflug
             $this->personalHighscoreFF = $profile->funkenflug_highscore ?? 0;
-            $this->globalHighscoreFF = CustomerGamification::max('funkenflug_highscore') ?? 0;
+            $this->globalHighscoreFF = CustomerGamification::where('is_active', true)->max('funkenflug_highscore') ?? 0;
         }
     }
 
@@ -160,7 +172,7 @@ class GameProfileComponent extends Component
         }
 
         $user = Auth::guard('customer')->user();
-        if (!$user) return;
+        if (!$user || !$gameService->isGameModeActive($user)) return;
 
         $profile = $gameService->getProfile($user);
         $titlesData = $gameService->evaluateTitles($profile);
@@ -195,6 +207,9 @@ class GameProfileComponent extends Component
 
     public function loadGamificationData(GamificationService $gameService, $profile)
     {
+        if (!$profile || !$profile->is_active) {
+            return;
+        }
         $gameService->refillEnergyIfDue($profile, $this->maxEnergy);
 
         $gameService->syncUnlockedRewards($profile);
@@ -261,12 +276,75 @@ class GameProfileComponent extends Component
             ? $profile->active_title
             : null;
         $this->currentRankName = $gameService->resolveActiveRankName($profile, $this->titlesData);
+
+        $this->prestigeMilestones = GameConfig::getPrestigeMilestones();
+        $hangar = $gameService->resolveHangarData($profile);
+        $this->shipSkins = $hangar['skins'];
+        $this->unlockedSkins = $hangar['unlocked_skins'];
+        $this->activeShipSkinKey = $hangar['active_skin_key'];
+        $this->activeShipSkin = $hangar['active_skin'];
+        $this->hallAuras = $hangar['auras'];
+        $this->unlockedAuras = $hangar['unlocked_auras'];
+        $this->activeHallAuraKey = $hangar['active_aura_key'];
+        $this->heroMottos = $hangar['mottos'];
+        $this->activeMottoKey = $hangar['active_motto_key'];
+        $this->isVipBuyer = $hangar['is_vip_buyer'];
+    }
+
+    public function buyOrEquipSkin(string $skinKey, GamificationService $gameService)
+    {
+        $user = Auth::guard('customer')->user();
+        if (!$user || !$gameService->isGameModeActive($user)) return;
+
+        $res = $gameService->buyOrEquipShipSkin($user, $skinKey);
+        $profile = $gameService->getProfile($user);
+        $this->loadGamificationData($gameService, $profile);
+
+        if ($res['success']) {
+            $this->dispatch('sparks-awarded');
+            $this->dispatch('notify', ['type' => 'success', 'message' => $res['message']]);
+        } else {
+            $this->dispatch('notify', ['type' => 'error', 'message' => $res['message']]);
+        }
+    }
+
+    public function buyOrEquipAura(string $auraKey, GamificationService $gameService)
+    {
+        $user = Auth::guard('customer')->user();
+        if (!$user || !$gameService->isGameModeActive($user)) return;
+
+        $res = $gameService->buyOrEquipHallAura($user, $auraKey);
+        $profile = $gameService->getProfile($user);
+        $this->loadGamificationData($gameService, $profile);
+
+        if ($res['success']) {
+            $this->dispatch('sparks-awarded');
+            $this->dispatch('notify', ['type' => 'success', 'message' => $res['message']]);
+        } else {
+            $this->dispatch('notify', ['type' => 'error', 'message' => $res['message']]);
+        }
+    }
+
+    public function selectHeroMotto(string $mottoKey, GamificationService $gameService)
+    {
+        $user = Auth::guard('customer')->user();
+        if (!$user || !$gameService->isGameModeActive($user)) return;
+
+        $res = $gameService->selectHeroMotto($user, $mottoKey);
+        $profile = $gameService->getProfile($user);
+        $this->loadGamificationData($gameService, $profile);
+
+        if ($res['success']) {
+            $this->dispatch('notify', ['type' => 'success', 'message' => $res['message']]);
+        } else {
+            $this->dispatch('notify', ['type' => 'error', 'message' => $res['message']]);
+        }
     }
 
     public function upgrade(GamificationService $gameService)
     {
         $user = Auth::guard('customer')->user();
-        if (!$user) return;
+        if (!$user || !$gameService->isGameModeActive($user)) return;
         $result = $gameService->upgradeLevel($user);
 
         if ($result['success']) {

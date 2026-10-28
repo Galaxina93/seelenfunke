@@ -114,9 +114,9 @@ class CustomerGamificationSecurityTest extends TestCase
             ->call('saveGameRecord', 50000, 5000);
 
         $this->profile->refresh();
-        // 5 seconds * 65 max speed = 325 max distance
-        $this->assertLessThanOrEqual(375, $this->profile->funkenflug_highscore);
-        $this->assertLessThanOrEqual(25, $this->profile->funken_balance);
+        // 5 seconds * 85 max speed (incl. ship skin distance bonus) = 425 max distance
+        $this->assertLessThanOrEqual(425, $this->profile->funkenflug_highscore);
+        $this->assertLessThanOrEqual(40, $this->profile->funken_balance);
     }
 
     public function test_cannot_equip_unearned_title()

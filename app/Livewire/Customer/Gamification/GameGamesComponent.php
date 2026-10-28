@@ -64,6 +64,39 @@ class GameGamesComponent extends Component
     public $unlockedCoupons = [];
     #[Locked]
     public $milestonesConfig = [];
+    #[Locked]
+    public $prestigeMilestones = [];
+    #[Locked]
+    public $shipSkins = [];
+    #[Locked]
+    public $unlockedSkins = ['default'];
+    #[Locked]
+    public $activeShipSkinKey = 'default';
+    #[Locked]
+    public $activeShipSkin = [];
+    #[Locked]
+    public $hallAuras = [];
+    #[Locked]
+    public $unlockedAuras = ['default'];
+    #[Locked]
+    public $activeHallAuraKey = 'default';
+    #[Locked]
+    public $heroMottos = [];
+    #[Locked]
+    public $heroMottosDetails = [];
+    #[Locked]
+    public $activeMottoKey = 'default';
+    #[Locked]
+    public $activeMottoDetail = [];
+    #[Locked]
+    public $isVipBuyer = false;
+    #[Locked]
+    public $battleshipUnlock = [];
+    #[Locked]
+    public $spaceStationsPlaceholder = [];
+    #[Locked]
+    public $rankingOptIn = false;
+    public $rankingTab = 'classic';
     public $leftHandedMode = false;
 
     public function mount()
@@ -75,10 +108,28 @@ class GameGamesComponent extends Component
         $profile = CustomerGamification::where('customer_id', $user->id)->first();
         if ($profile && $profile->is_active) {
             $this->hasOptedIn = true;
+            $this->rankingOptIn = (bool) $profile->ranking_opt_in;
             $gameService = app(GamificationService::class);
             $this->loadGamificationData($gameService, $profile);
         }
         $this->updateEnergyState();
+    }
+
+    public function optInRanking()
+    {
+        $user = Auth::guard('customer')->user();
+        if (!$user) return;
+        $profile = CustomerGamification::where('customer_id', $user->id)->first();
+        if (!$profile || !$profile->is_active) return;
+
+        $profile->update(['ranking_opt_in' => true]);
+        $this->rankingOptIn = true;
+        $this->dispatch('notify', ['type' => 'success', 'message' => 'Willkommen in der Halle der Legenden!']);
+    }
+
+    public function setRankingTab(string $tab): void
+    {
+        $this->rankingTab = in_array($tab, ['classic', 'funkenflug'], true) ? $tab : 'classic';
     }
 
     public function optIn()
@@ -104,8 +155,10 @@ class GameGamesComponent extends Component
 
         $this->hasOptedIn = true;
         $gameService = app(GamificationService::class);
+        $gameService->syncDynamicTitles($profile);
         $this->loadGamificationData($gameService, $profile);
         $this->updateEnergyState();
+        $this->dispatch('gamification-mode-changed');
         $this->dispatch('sparks-awarded');
         $this->dispatch('energy-updated');
 
@@ -119,7 +172,7 @@ class GameGamesComponent extends Component
         if (!$user) return;
         $profile = CustomerGamification::where('customer_id', $user->id)->first();
         if ($profile && $profile->is_active) {
-            $this->balance = $profile->funken_balance;
+            $this->loadGamificationData(app(GamificationService::class), $profile);
         }
     }
 
@@ -130,10 +183,8 @@ class GameGamesComponent extends Component
         if (!$user) return;
 
         $profile = CustomerGamification::where('customer_id', $user->id)->first();
-        if ($profile) {
-            if ($profile->is_active) {
-                $profile = app(GamificationService::class)->refillEnergyIfDue($profile, $this->maxEnergy);
-            }
+        if ($profile && $profile->is_active) {
+            $profile = app(GamificationService::class)->refillEnergyIfDue($profile, $this->maxEnergy);
             $this->currentEnergy = $profile->energy_balance;
             $this->energyBalance = $profile->energy_balance;
 
@@ -147,13 +198,202 @@ class GameGamesComponent extends Component
             }
             // Fetch highscores for Funkenflug
             $this->personalHighscoreFF = $profile->funkenflug_highscore ?? 0;
-            $this->globalHighscoreFF = CustomerGamification::max('funkenflug_highscore') ?? 0;
+            $this->globalHighscoreFF = CustomerGamification::where('is_active', true)->max('funkenflug_highscore') ?? 0;
         }
     }
 
     public function render()
     {
-        return view('livewire.customer.gamification.game-games-component');
+        if (!in_array((string) $this->rankingTab, ['classic', 'funkenflug'], true)) {
+            $this->rankingTab = 'classic';
+        }
+
+        $rankings = collect();
+        if ($this->hasOptedIn && $this->rankingOptIn) {
+            $query = CustomerGamification::with('customer')
+                ->has('customer')
+                ->where('is_active', true)
+                ->where('ranking_opt_in', true);
+
+            if ($this->rankingTab === 'funkenflug') {
+                $query->where('funkenflug_highscore', '>', 0)
+                      ->orderBy('funkenflug_highscore', 'desc');
+            } else {
+                $query->orderBy('level', 'desc')
+                      ->orderBy('funken_total_earned', 'desc');
+            }
+
+            $rankings = $query->take(50)->get();
+        }
+
+        return view('livewire.customer.gamification.game-games-component', [
+            'rankings' => $rankings,
+        ]);
+    }
+
+    public function getAvatarForLevel($level)
+    {
+        $map = [
+            1 => 'funki_lvl_1_rags.png',
+            2 => 'funki_lvl_2_basic.png',
+            3 => 'funki_lvl_3_helper.png',
+            4 => 'funki_lvl_4_novice.png',
+            5 => 'funki_lvl_5_apprentice.png',
+            6 => 'funki_lvl_6_craftsman.png',
+            7 => 'funki_lvl_7_artisan.png',
+            8 => 'funki_lvl_8_master.png',
+            9 => 'funki_lvl_9_lightbringer.png',
+            10 => 'funki_lvl_10_god_of_soul.png',
+        ];
+
+        $clampedLevel = max(1, min(10, (int) $level));
+        $filename = $map[$clampedLevel] ?? 'funki_lvl_1_rags.png';
+
+        return asset('shop/customer/gamification/models/images/original/' . $filename);
+    }
+
+    public function getActiveTitleName(CustomerGamification $profile): string
+    {
+        $activeKey = $profile->active_title;
+        $titlesConfig = GameConfig::getTitles();
+
+        if ($activeKey && isset($titlesConfig[$activeKey])) {
+            $config = $titlesConfig[$activeKey];
+            $progress = $profile->titles_progress ?? [];
+            $currentValue = (int) floor((float) ($progress[$activeKey] ?? 0));
+
+            if ($activeKey === 'funkenkoenig') {
+                $currentValue = max($currentValue, (int) ($profile->funken_total_earned ?? 0));
+            } elseif ($activeKey === 'treue_seele' && $profile->customer?->created_at) {
+                $currentValue = max($currentValue, (int) floor($profile->customer->created_at->diffInDays(now())));
+            }
+
+            $currentTier = 'grau';
+            if ($currentValue >= $config['tiers']['diamant']['req']) {
+                $currentTier = 'diamant';
+            } elseif ($currentValue >= $config['tiers']['gold']['req']) {
+                $currentTier = 'gold';
+            } elseif ($currentValue >= $config['tiers']['silber']['req']) {
+                $currentTier = 'silber';
+            }
+
+            if ($currentTier !== 'grau') {
+                return $config['tiers'][$currentTier]['name'];
+            }
+        }
+
+        return 'Kein Rang';
+    }
+
+    public function getShipSkinForProfile(CustomerGamification $profile): array
+    {
+        $skins = GameConfig::getShipSkins();
+        $activeKey = $profile->active_ship_skin ?: 'default';
+        return $skins[$activeKey] ?? $skins['default'];
+    }
+
+    public function getHallAuraForProfile(CustomerGamification $profile): array
+    {
+        $auras = GameConfig::getHallAuras();
+        $activeKey = $profile->active_hall_aura ?: 'default';
+        return $auras[$activeKey] ?? $auras['default'];
+    }
+
+    public function getHeroMottoForProfile(CustomerGamification $profile): string
+    {
+        $mottos = GameConfig::getHeroMottos();
+        $key = $profile->hero_motto_key ?: 'default';
+        return $mottos[$key] ?? $mottos['default'];
+    }
+
+    public function getHeroMottoDetailForProfile(CustomerGamification $profile): array
+    {
+        $details = GameConfig::getHeroMottosDetails();
+        $key = $profile->hero_motto_key ?: 'default';
+        return $details[$key] ?? $details['default'];
+    }
+
+    public function getPrestigeBadgeForLevel(int $level): ?array
+    {
+        $milestones = GameConfig::getPrestigeMilestones();
+        $matched = null;
+        foreach ($milestones as $reqLevel => $info) {
+            if ($level >= $reqLevel) {
+                $matched = array_merge($info, ['level' => $reqLevel]);
+            }
+        }
+        return $matched;
+    }
+
+    public function getUnlockedTrophiesForProfile(CustomerGamification $profile): array
+    {
+        $titlesConfig = GameConfig::getTitles();
+        $progress = $profile->titles_progress ?? [];
+        $trophies = [];
+
+        foreach ($titlesConfig as $key => $config) {
+            $val = (int) floor((float) ($progress[$key] ?? 0));
+            if ($key === 'funkenkoenig') {
+                $val = max($val, (int) ($profile->funken_total_earned ?? 0));
+            } elseif ($key === 'treue_seele' && $profile->customer?->created_at) {
+                $val = max($val, (int) floor($profile->customer->created_at->diffInDays(now())));
+            }
+
+            $tier = null;
+            if ($val >= $config['tiers']['diamant']['req']) {
+                $tier = 'Diamant';
+            } elseif ($val >= $config['tiers']['gold']['req']) {
+                $tier = 'Gold';
+            } elseif ($val >= $config['tiers']['silber']['req']) {
+                $tier = 'Silber';
+            }
+
+            if ($tier) {
+                $trophies[] = [
+                    'name' => $config['name'],
+                    'tier' => $tier,
+                    'title_name' => $config['tiers'][strtolower($tier)]['name'] ?? $config['name'],
+                ];
+            }
+        }
+
+        return $trophies;
+    }
+
+    public function getInspectorPayload(CustomerGamification $profile, int $rank): array
+    {
+        $ship = $this->getShipSkinForProfile($profile);
+        $aura = $this->getHallAuraForProfile($profile);
+        $mottoDetail = $this->getHeroMottoDetailForProfile($profile);
+        $prestige = $this->getPrestigeBadgeForLevel((int) $profile->level);
+        $displayName = ($profile->customer?->first_name ?? 'Anonym') . ' ' . ($profile->customer?->last_name ? mb_substr($profile->customer->last_name, 0, 1) . '.' : '');
+
+        return [
+            'rank' => $rank,
+            'display_name' => trim($displayName),
+            'level' => (int) $profile->level,
+            'avatar_url' => $this->getAvatarForLevel($profile->level),
+            'active_title' => $this->getActiveTitleName($profile),
+            'ship_icon' => $ship['icon'] ?? '🚀',
+            'ship_name' => $ship['name'] ?? 'Seelenfunke Standard-Gleiter',
+            'ship_rarity' => $ship['rarity'] ?? 'Klassisch',
+            'ship_category_label' => $ship['category_label'] ?? 'Gleiter & Jäger',
+            'ship_perk' => $ship['perk_summary'] ?? 'Standard-Konfiguration',
+            'aura_key' => $profile->active_hall_aura ?: 'default',
+            'aura_name' => $aura['name'] ?? 'Klassischer Eintrag',
+            'aura_icon' => $aura['icon'] ?? '✨',
+            'aura_badge' => $aura['badge'] ?? null,
+            'aura_row_class' => $aura['row_class'] ?? '',
+            'aura_badge_class' => $aura['badge_class'] ?? '',
+            'motto' => $this->getHeroMottoForProfile($profile),
+            'motto_title' => $mottoDetail['title'] ?? 'Funken-Wächter',
+            'motto_buff' => $mottoDetail['buff_label'] ?? '+10% Magnet-Reichweite',
+            'prestige_name' => $prestige['name'] ?? ($profile->level >= 10 ? 'Seelengott' : 'Aufstrebender Funke'),
+            'prestige_icon' => $prestige['icon'] ?? ($profile->level >= 10 ? '⚡' : '✨'),
+            'funken_total' => number_format((int) $profile->funken_total_earned, 0, ',', '.'),
+            'highscore' => number_format((int) $profile->funkenflug_highscore, 0, ',', '.'),
+            'trophies' => $this->getUnlockedTrophiesForProfile($profile),
+        ];
     }
 
     public function selectTitle($titleKey, GamificationService $gameService)
@@ -163,7 +403,7 @@ class GameGamesComponent extends Component
         }
 
         $user = Auth::guard('customer')->user();
-        if (!$user) return;
+        if (!$user || !$gameService->isGameModeActive($user)) return;
 
         $profile = $gameService->getProfile($user);
         $titlesData = $gameService->evaluateTitles($profile);
@@ -198,6 +438,9 @@ class GameGamesComponent extends Component
 
     public function loadGamificationData(GamificationService $gameService, $profile)
     {
+        if (!$profile || !$profile->is_active) {
+            return;
+        }
         $gameService->refillEnergyIfDue($profile, $this->maxEnergy);
 
         $gameService->syncUnlockedRewards($profile);
@@ -265,12 +508,81 @@ class GameGamesComponent extends Component
             ? $profile->active_title
             : null;
         $this->currentRankName = $gameService->resolveActiveRankName($profile, $this->titlesData);
+
+        $this->prestigeMilestones = GameConfig::getPrestigeMilestones();
+        $hangar = $gameService->resolveHangarData($profile);
+        $this->shipSkins = $hangar['skins'];
+        $this->unlockedSkins = $hangar['unlocked_skins'];
+        $this->activeShipSkinKey = $hangar['active_skin_key'];
+        $this->activeShipSkin = $hangar['active_skin'];
+        $this->hallAuras = $hangar['auras'];
+        $this->unlockedAuras = $hangar['unlocked_auras'];
+        $this->activeHallAuraKey = $hangar['active_aura_key'];
+        $this->heroMottos = $hangar['mottos'];
+        $this->heroMottosDetails = $hangar['mottos_details'] ?? GameConfig::getHeroMottosDetails();
+        $this->activeMottoKey = $hangar['active_motto_key'];
+        $this->activeMottoDetail = $hangar['active_motto_detail'] ?? ($this->heroMottosDetails[$this->activeMottoKey] ?? []);
+        $this->isVipBuyer = $hangar['is_vip_buyer'];
+        $this->battleshipUnlock = $hangar['battleship_unlock'] ?? [];
+        $this->spaceStationsPlaceholder = $hangar['space_stations'] ?? GameConfig::getSpaceStationsPlaceholder();
+    }
+
+    public function buyOrEquipSkin(string $skinKey, GamificationService $gameService)
+    {
+        $user = Auth::guard('customer')->user();
+        if (!$user || !$gameService->isGameModeActive($user)) return;
+
+        $res = $gameService->buyOrEquipShipSkin($user, $skinKey);
+        $profile = $gameService->getProfile($user);
+        $this->loadGamificationData($gameService, $profile);
+
+        if ($res['success']) {
+            $this->dispatch('sparks-awarded');
+            $this->dispatch('ship-skin-changed', skin: $this->activeShipSkin);
+            $this->dispatch('notify', ['type' => 'success', 'message' => $res['message']]);
+        } else {
+            $this->dispatch('notify', ['type' => 'error', 'message' => $res['message']]);
+        }
+    }
+
+    public function buyOrEquipAura(string $auraKey, GamificationService $gameService)
+    {
+        $user = Auth::guard('customer')->user();
+        if (!$user || !$gameService->isGameModeActive($user)) return;
+
+        $res = $gameService->buyOrEquipHallAura($user, $auraKey);
+        $profile = $gameService->getProfile($user);
+        $this->loadGamificationData($gameService, $profile);
+
+        if ($res['success']) {
+            $this->dispatch('sparks-awarded');
+            $this->dispatch('notify', ['type' => 'success', 'message' => $res['message']]);
+        } else {
+            $this->dispatch('notify', ['type' => 'error', 'message' => $res['message']]);
+        }
+    }
+
+    public function selectHeroMotto(string $mottoKey, GamificationService $gameService)
+    {
+        $user = Auth::guard('customer')->user();
+        if (!$user || !$gameService->isGameModeActive($user)) return;
+
+        $res = $gameService->selectHeroMotto($user, $mottoKey);
+        $profile = $gameService->getProfile($user);
+        $this->loadGamificationData($gameService, $profile);
+
+        if ($res['success']) {
+            $this->dispatch('hero-motto-changed', motto: $this->activeMottoDetail);
+            $this->dispatch('notify', ['type' => 'success', 'message' => $res['message']]);
+        } else {
+            $this->dispatch('notify', ['type' => 'error', 'message' => $res['message']]);
+        }
     }
 
     public function upgrade(GamificationService $gameService)
     {
         $user = Auth::guard('customer')->user();
-        if (!$user) return;
+        if (!$user || !$gameService->isGameModeActive($user)) return;
         $result = $gameService->upgradeLevel($user);
 
         if ($result['success']) {
@@ -430,16 +742,16 @@ class GameGamesComponent extends Component
         // Sitzung sofort invalidieren (Einmal-Gültigkeit)
         session()->forget('active_game_session');
 
-        // Physikalische Plausibilitätsprüfung für Funkenflug-Distanz
+        // Physikalische Plausibilitätsprüfung für Funkenflug-Distanz (inkl. Skin-Bonus bis +40m pro Funke)
         $rawDistance = max(0, intval($distance));
-        $maxPossibleDistance = max(100, $elapsed * 65);
+        $maxPossibleDistance = max(140, $elapsed * 85);
         $safeDistance = min($rawDistance, $maxPossibleDistance);
-        $safeDistance = min($safeDistance, 10000);
+        $safeDistance = min($safeDistance, 25000);
 
         // Plausibilitätsprüfung für gesammelte Funken
         $rawSparks = max(0, intval($funkenCollected));
-        $maxPossibleSparks = (int) ceil($safeDistance / 20) + 5;
-        $safeSparks = min($rawSparks, $maxPossibleSparks, 100);
+        $maxPossibleSparks = (int) ceil($safeDistance / 15) + 8;
+        $safeSparks = min($rawSparks, $maxPossibleSparks, 150);
 
         $profile = \Illuminate\Support\Facades\DB::transaction(function () use ($user, $safeSparks, $safeDistance) {
             $lockedProfile = CustomerGamification::where('customer_id', $user->id)->lockForUpdate()->first();
@@ -479,7 +791,7 @@ class GameGamesComponent extends Component
         if (!$user) return;
 
         $profile = CustomerGamification::where('customer_id', $user->id)->first();
-        if ($profile) {
+        if ($profile && $profile->is_active) {
             $profile->left_handed_mode = (bool) $value;
             $profile->save();
         }

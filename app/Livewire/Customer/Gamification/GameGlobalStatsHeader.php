@@ -47,6 +47,7 @@ class GameGlobalStatsHeader extends Component
     #[On('sparks-awarded')]
     #[On('energy-updated')]
     #[On('funki-level-up')]
+    #[On('gamification-mode-changed')]
     public function refreshStats(GamificationService $gameService)
     {
         $this->loadData($gameService);

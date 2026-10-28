@@ -6,7 +6,16 @@ window.funkenflugExpress = function() {
         distance: 0,
         funkenCollected: 0,
         shieldEnergy: 0,
+        hullHp: 3,
+        maxHullHp: 3,
+        comboCount: 0,
+        weaponTier: 1,
+        bossActive: false,
+        bossHpPercent: 100,
+        bossName: 'Lord Lieblos',
+        bossSubtitle: 'Der Massenware-Monolith',
         gameState: 'ready', // 'ready', 'playing', 'gameover'
+        isDying: false,
         energyWarning: false,
         bgmVolumeUi: 20,
         isBgmPlaying: false,
@@ -14,6 +23,13 @@ window.funkenflugExpress = function() {
         isFullscreen: false,
         leftHandedMode: @entangle('leftHandedMode').live,
         showMissionBriefing: false,
+        showHangarModal: false,
+        readyView: 'lobby', // 'lobby', 'hangar', 'briefing'
+        viewTransitionPhase: 'idle', // 'idle', 'leaving', 'entering'
+        viewTransitionDir: 'forward', // 'forward', 'back'
+        hangarTab: 'ships',
+        activeShipSkin: @js($activeShipSkin ?? \App\Services\Gamification\GameConfig::getShipSkins()['default']),
+        activeMottoDetail: @js($activeMottoDetail ?? []),
         assetsLoading: true,
         loadingProgress: 0,
         
@@ -45,6 +61,33 @@ window.funkenflugExpress = function() {
             });
             window.addEventListener('webkitfullscreenchange', () => {
                 this.isFullscreen = !!document.webkitFullscreenElement;
+            });
+
+            // Live Ship Skin Wechsel aus dem 3D-Seelen-Hangar
+            window.addEventListener('ship-skin-changed', (e) => {
+                if (e.detail && e.detail.skin) {
+                    this.activeShipSkin = e.detail.skin;
+                    const maxH = Number(e.detail.skin?.stats?.max_hearts || (e.detail.skin?.category === 'battleship' ? 5 : 3));
+                    this.maxHullHp = maxH;
+                    this.hullHp = maxH;
+                    if (engine && typeof engine.applyShipSkin === 'function') {
+                        engine.applyShipSkin(e.detail.skin);
+                    }
+                }
+            });
+
+            // Live Helden-Motto & Moral-Buff Wechsel aus dem Hangar
+            window.addEventListener('hero-motto-changed', (e) => {
+                if (e.detail && e.detail.motto) {
+                    this.activeMottoDetail = e.detail.motto;
+                    if (engine && typeof engine.applyMottoBuff === 'function') {
+                        engine.applyMottoBuff(e.detail.motto);
+                    }
+                }
+            });
+
+            window.addEventListener('close-hangar-panel', () => {
+                this.switchReadyView('lobby');
             });
 
             // Immediate Init if already active
@@ -109,7 +152,7 @@ window.funkenflugExpress = function() {
         },
 
         togglePause() {
-            if (this.gameState !== 'playing' || !engine) return;
+            if (this.gameState !== 'playing' || this.isDying || !engine) return;
             let audio = this.$refs.ffBgmAudio;
             if (this.isPaused) {
                 this.isPaused = false;
@@ -133,6 +176,7 @@ window.funkenflugExpress = function() {
 
         quitGame() {
             this.gameState = 'ready';
+            this.isDying = false;
             this.isPaused = false;
             
             let audio = this.$refs.ffBgmAudio;
@@ -168,6 +212,38 @@ window.funkenflugExpress = function() {
             if(!audio) return;
             if (this.isBgmPlaying) { audio.pause(); this.isBgmPlaying = false; }
             else { audio.play().catch(e => console.log(e)); this.isBgmPlaying = true; }
+        },
+
+        switchReadyView(target) {
+            if (this.readyView === target || this.viewTransitionPhase !== 'idle') return;
+            if (window.sfCockpitSound) {
+                window.sfCockpitSound('click');
+                setTimeout(() => window.sfCockpitSound(target === 'lobby' ? 'back' : 'switch'), 35);
+            }
+            this.viewTransitionDir = (target === 'lobby') ? 'back' : 'forward';
+            this.viewTransitionPhase = 'leaving';
+
+            setTimeout(() => {
+                const scrollCard = document.getElementById('ff-ready-modal-card');
+                if (scrollCard) {
+                    scrollCard.scrollTo({ top: 0, behavior: 'instant' });
+                }
+
+                this.readyView = target;
+                this.showHangarModal = (target === 'hangar');
+                this.showMissionBriefing = (target === 'briefing');
+                this.viewTransitionPhase = 'entering';
+
+                if (target === 'hangar') {
+                    window.dispatchEvent(new CustomEvent('hangar-panel-opened'));
+                }
+
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        this.viewTransitionPhase = 'idle';
+                    });
+                });
+            }, 190);
         },
 
         async attemptStartGame() {
@@ -245,11 +321,12 @@ window.funkenflugExpress = function() {
                 },
                 onSparkCollected: () => {
                     this.funkenCollected += 1;
+                    const bonusDist = (engine && engine.shipSparkDistBonus) ? engine.shipSparkDistBonus : 25;
                     if (engine) {
-                        engine.distance += 25;
+                        engine.distance += bonusDist;
                         this.distance = Math.floor(engine.distance);
                     } else {
-                        this.distance += 25;
+                        this.distance += bonusDist;
                     }
                     if (!hudDistEl || !hudDistEl.isConnected) {
                         hudDistEl = document.getElementById('ff-hud-distance');
@@ -261,6 +338,20 @@ window.funkenflugExpress = function() {
                 onShieldUpdate: (energy) => {
                     this.shieldEnergy = Math.max(0, Math.floor(energy));
                 },
+                onHullUpdate: (hp, maxHp) => {
+                    this.hullHp = Math.max(0, Math.floor(hp));
+                    this.maxHullHp = maxHp || 3;
+                },
+                onComboUpdate: (combo, tier) => {
+                    this.comboCount = combo;
+                    this.weaponTier = tier;
+                },
+                onBossUpdate: (active, hpPercent, name, subtitle) => {
+                    this.bossActive = !!active;
+                    this.bossHpPercent = Math.max(0, Math.min(100, Math.ceil(hpPercent)));
+                    if (name) this.bossName = name;
+                    if (subtitle) this.bossSubtitle = subtitle;
+                },
                 onCooldownReduction: (amount) => {
                     for(let i=0; i<4; i++) {
                         if (this.skillCooldowns[i] > 0) {
@@ -268,7 +359,11 @@ window.funkenflugExpress = function() {
                         }
                     }
                 },
+                onShipDestroyed: () => {
+                    this.isDying = true;
+                },
                 onGameOver: () => {
+                    this.isDying = false;
                     if (this.gameState !== 'gameover') {
                         if (engine) {
                             this.distance = Math.floor(engine.distance);
@@ -310,8 +405,26 @@ window.funkenflugExpress = function() {
 
             const assets = {
                 rocket: "{{ asset('shop/customer/gamification/images/funki_rocket.glb') }}",
+                ships: {
+                    default: "{{ asset('shop/customer/gamification/images/funki_rocket.glb') }}",
+                    crystal_fighter: "{{ asset('shop/customer/gamification/images/ship_crystal_fighter.glb') }}",
+                    slate_phantom: "{{ asset('shop/customer/gamification/images/ship_slate_phantom.glb') }}",
+                    gold_phoenix: "{{ asset('shop/customer/gamification/images/ship_gold_phoenix.glb') }}",
+                    funki_comet: "{{ asset('shop/customer/gamification/images/ship_funki_comet.glb') }}",
+                    royal_dreadnought: "{{ asset('shop/customer/gamification/images/ship_royal_dreadnought.glb') }}",
+                    aegis_titan: "{{ asset('shop/customer/gamification/images/ship_aegis_titan.glb') }}",
+                    valkyrie_prime: "{{ asset('shop/customer/gamification/images/ship_valkyrie_prime.glb') }}",
+                    leviathan_frost: "{{ asset('shop/customer/gamification/images/ship_leviathan_frost.glb') }}",
+                    hyperion_sun: "{{ asset('shop/customer/gamification/images/ship_hyperion_sun.glb') }}",
+                    celestial_ark: "{{ asset('shop/customer/gamification/images/ship_celestial_ark.glb') }}",
+                    dark_perl: "{{ asset('shop/customer/gamification/images/ship_dark_perl.glb') }}"
+                },
+                activeSkin: this.activeShipSkin,
+                activeMotto: this.activeMottoDetail,
                 meteor: "{{ asset('shop/customer/gamification/images/meteorit.glb') }}",
-                sharp_stone: "{{ asset('shop/customer/gamification/images/sharp_stone.glb') }}"
+                sharp_stone: "{{ asset('shop/customer/gamification/images/sharp_stone.glb') }}",
+                boss: "{{ asset('shop/customer/gamification/images/sector_boss.glb') }}",
+                distant_planets: "{{ asset('shop/customer/gamification/images/distant_planets.glb') }}"
             };
 
             console.log("[Alpine] Instantiating FunkenflugEngine...");
@@ -328,7 +441,12 @@ window.funkenflugExpress = function() {
             this.distance = 0;
             this.funkenCollected = 0;
             this.shieldEnergy = 100;
+            this.comboCount = 0;
+            this.weaponTier = 1;
+            this.bossActive = false;
+            this.bossHpPercent = 100;
             this.skillCooldowns = [0, 0, 0, 0];
+            this.isDying = false;
             this.gameState = 'playing';
             this.isPaused = false;
 
@@ -348,7 +466,7 @@ window.funkenflugExpress = function() {
         },
 
         useSkill(index) {
-            if (this.isPaused) return;
+            if (this.isPaused || this.isDying) return;
             let i = index - 1;
             if (this.skillLevels[i] > 0 && this.skillCooldowns[i] <= 0 && this.gameState === 'playing') {
                 // Trigger skill in engine

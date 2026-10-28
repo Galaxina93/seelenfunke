@@ -22,28 +22,20 @@ class GameGlobalRankingComponent extends Component
             return redirect()->route('login');
         }
 
-        $profile = CustomerGamification::where('customer_id', $user->id)->first();
-        if ($profile) {
-            $this->hasOptedIn = $profile->ranking_opt_in;
-        }
+        // Einheitliches Spieler-Cockpit unter /games (öffnet direkt die Ruhmeshalle)
+        return redirect()->to(route('customer.games') . '?panel=ranking');
     }
 
     public function optIn()
     {
         $user = Auth::guard('customer')->user();
         if (!$user) return;
-        $profile = CustomerGamification::firstOrCreate(
-            ['customer_id' => $user->id],
-            [
-                'is_active' => true,
-                'energy_balance' => 5,
-                'level' => 1,
-                'active_title' => null,
-            ]
-        );
+        $profile = CustomerGamification::where('customer_id', $user->id)->first();
+        if (!$profile || !$profile->is_active) {
+            return redirect()->route('customer.games');
+        }
 
         $profile->update([
-            'is_active' => true,
             'ranking_opt_in' => true,
         ]);
         $this->hasOptedIn = true;
@@ -141,5 +133,103 @@ class GameGlobalRankingComponent extends Component
         }
 
         return 'Kein Rang';
+    }
+
+    public function getShipSkinForProfile(CustomerGamification $profile): array
+    {
+        $skins = \App\Services\Gamification\GameConfig::getShipSkins();
+        $activeKey = $profile->active_ship_skin ?: 'default';
+        return $skins[$activeKey] ?? $skins['default'];
+    }
+
+    public function getHallAuraForProfile(CustomerGamification $profile): array
+    {
+        $auras = \App\Services\Gamification\GameConfig::getHallAuras();
+        $activeKey = $profile->active_hall_aura ?: 'default';
+        return $auras[$activeKey] ?? $auras['default'];
+    }
+
+    public function getHeroMottoForProfile(CustomerGamification $profile): string
+    {
+        $mottos = \App\Services\Gamification\GameConfig::getHeroMottos();
+        $key = $profile->hero_motto_key ?: 'default';
+        return $mottos[$key] ?? $mottos['default'];
+    }
+
+    public function getPrestigeBadgeForLevel(int $level): ?array
+    {
+        $milestones = \App\Services\Gamification\GameConfig::getPrestigeMilestones();
+        $matched = null;
+        foreach ($milestones as $reqLevel => $info) {
+            if ($level >= $reqLevel) {
+                $matched = array_merge($info, ['level' => $reqLevel]);
+            }
+        }
+        return $matched;
+    }
+
+    public function getUnlockedTrophiesForProfile(CustomerGamification $profile): array
+    {
+        $titlesConfig = \App\Services\Gamification\GameConfig::getTitles();
+        $progress = $profile->titles_progress ?? [];
+        $trophies = [];
+
+        foreach ($titlesConfig as $key => $config) {
+            $val = (int) floor((float) ($progress[$key] ?? 0));
+            if ($key === 'funkenkoenig') {
+                $val = max($val, (int) ($profile->funken_total_earned ?? 0));
+            } elseif ($key === 'treue_seele' && $profile->customer?->created_at) {
+                $val = max($val, (int) floor($profile->customer->created_at->diffInDays(now())));
+            }
+
+            $tier = null;
+            if ($val >= $config['tiers']['diamant']['req']) {
+                $tier = 'Diamant';
+            } elseif ($val >= $config['tiers']['gold']['req']) {
+                $tier = 'Gold';
+            } elseif ($val >= $config['tiers']['silber']['req']) {
+                $tier = 'Silber';
+            }
+
+            if ($tier) {
+                $trophies[] = [
+                    'name' => $config['name'],
+                    'tier' => $tier,
+                    'title_name' => $config['tiers'][strtolower($tier)]['name'] ?? $config['name'],
+                ];
+            }
+        }
+
+        return $trophies;
+    }
+
+    public function getInspectorPayload(CustomerGamification $profile, int $rank): array
+    {
+        $ship = $this->getShipSkinForProfile($profile);
+        $aura = $this->getHallAuraForProfile($profile);
+        $prestige = $this->getPrestigeBadgeForLevel((int) $profile->level);
+        $displayName = ($profile->customer?->first_name ?? 'Anonym') . ' ' . ($profile->customer?->last_name ? mb_substr($profile->customer->last_name, 0, 1) . '.' : '');
+
+        return [
+            'rank' => $rank,
+            'display_name' => trim($displayName),
+            'level' => (int) $profile->level,
+            'avatar_url' => $this->getAvatarForLevel($profile->level),
+            'active_title' => $this->getActiveTitleName($profile),
+            'ship_icon' => $ship['icon'] ?? '🚀',
+            'ship_name' => $ship['name'] ?? 'Seelenfunke Standard-Gleiter',
+            'ship_rarity' => $ship['rarity'] ?? 'Klassisch',
+            'ship_perk' => $ship['perk_summary'] ?? 'Standard-Konfiguration',
+            'aura_key' => $profile->active_hall_aura ?: 'none',
+            'aura_name' => $aura['name'] ?? 'Klassischer Eintrag',
+            'aura_icon' => $aura['icon'] ?? '✨',
+            'aura_badge' => $aura['badge'] ?? null,
+            'motto' => $this->getHeroMottoForProfile($profile),
+            'prestige_name' => $prestige['name'] ?? ($profile->level >= 10 ? 'Seelengott' : 'Aufstrebender Funke'),
+            'prestige_icon' => $prestige['icon'] ?? ($profile->level >= 10 ? '⚡' : '✨'),
+            'funken_total' => number_format((int) $profile->funken_total_earned, 0, ',', '.'),
+            'highscore' => number_format((int) $profile->funkenflug_highscore, 0, ',', '.'),
+            'trophies' => $this->getUnlockedTrophiesForProfile($profile),
+        ];
     }
 }

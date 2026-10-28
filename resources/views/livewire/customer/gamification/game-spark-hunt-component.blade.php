@@ -24,9 +24,56 @@
                     this.shineX = 50;
                     this.shineY = 50;
                 },
+                playSweetSparkSound() {
+                    try {
+                        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                        if (!AudioCtx) return;
+                        if (!window._sfSparkAudioCtx) {
+                            window._sfSparkAudioCtx = new AudioCtx();
+                        }
+                        const ctx = window._sfSparkAudioCtx;
+                        if (ctx.state === 'suspended') {
+                            ctx.resume().catch(() => {});
+                        }
+                        const now = ctx.currentTime;
+                        // Süßer, sanfter Spieluhr-/Celesta-Klang (G-Dur Glöckchen-Arpeggio: G5 - B5 - D6 - G6)
+                        const notes = [783.99, 987.77, 1174.66, 1567.98];
+                        notes.forEach((freq, idx) => {
+                            const start = now + idx * 0.065;
+                            const osc = ctx.createOscillator();
+                            const overtone = ctx.createOscillator();
+                            const gain = ctx.createGain();
+                            const overtoneGain = ctx.createGain();
+
+                            osc.type = 'sine';
+                            overtone.type = 'triangle';
+                            osc.frequency.setValueAtTime(freq, start);
+                            overtone.frequency.setValueAtTime(freq * 2, start);
+
+                            gain.gain.setValueAtTime(0.0001, start);
+                            gain.gain.linearRampToValueAtTime(0.075, start + 0.018);
+                            gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.68);
+
+                            overtoneGain.gain.setValueAtTime(0.0001, start);
+                            overtoneGain.gain.linearRampToValueAtTime(0.022, start + 0.012);
+                            overtoneGain.gain.exponentialRampToValueAtTime(0.0001, start + 0.35);
+
+                            osc.connect(gain);
+                            overtone.connect(overtoneGain);
+                            gain.connect(ctx.destination);
+                            overtoneGain.connect(ctx.destination);
+
+                            osc.start(start);
+                            overtone.start(start);
+                            osc.stop(start + 0.72);
+                            overtone.stop(start + 0.38);
+                        });
+                    } catch (e) {}
+                },
                 collect() {
                     if (this.clicked) return;
                     this.clicked = true;
+                    this.playSweetSparkSound();
                     setTimeout(() => {
                         $wire.collectSpark();
                         this.show = false;

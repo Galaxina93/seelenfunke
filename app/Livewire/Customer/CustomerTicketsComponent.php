@@ -62,7 +62,10 @@ class CustomerTicketsComponent extends Component
 
         $profile = CustomerGamification::firstOrCreate(
             ['customer_id' => $this->customerId],
-            ['ticket_emails_enabled' => true]
+            [
+                'is_active' => false,
+                'ticket_emails_enabled' => true,
+            ]
         );
         $this->emailNotifications = (bool) $profile->ticket_emails_enabled;
     }
@@ -130,7 +133,8 @@ class CustomerTicketsComponent extends Component
     {
         $this->enforceCustomerId();
         $profile = CustomerGamification::firstOrCreate(
-            ['customer_id' => $this->customerId]
+            ['customer_id' => $this->customerId],
+            ['is_active' => false]
         );
         $profile->update(['ticket_emails_enabled' => (bool) $this->emailNotifications]);
         $this->dispatch('notify', ['type' => 'success', 'message' => 'Benachrichtigungs-Einstellung gespeichert.']);
@@ -350,7 +354,7 @@ class CustomerTicketsComponent extends Component
             \Illuminate\Support\Facades\Log::error('Websocket Offline: ' . $e->getMessage());
         }
 
-        if ($this->newCategory === 'bug') {
+        if ($this->newCategory === 'bug' && $customerUser && $gameService->isGameModeActive($customerUser)) {
             $rewarded = \Illuminate\Support\Facades\DB::transaction(function () use ($ticket) {
                 $alreadyRewardedToday = SupportTicket::where('customer_id', $this->customerId)
                     ->where('category', 'bug')
@@ -368,7 +372,7 @@ class CustomerTicketsComponent extends Component
             });
 
             if ($rewarded) {
-                $gameService->addFunken(Auth::guard('customer')->user(), 5, 'bug_report');
+                $gameService->addFunken($customerUser, 5, 'bug_report');
                 $this->dispatch('notify', ['type' => 'success', 'message' => 'SupportTicket eröffnet! +5 ✨ für deine Fehlermeldung!']);
                 $this->dispatch('sparks-awarded');
             } else {

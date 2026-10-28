@@ -12,6 +12,8 @@ class CustomerGamification extends Model
         'is_active' => 'boolean',
         'titles_progress' => 'array',
         'unlocked_coupons' => 'array',
+        'unlocked_skins' => 'array',
+        'unlocked_hall_auras' => 'array',
         'show_seelengott_badge' => 'boolean',
         'last_spark_collection_date' => 'date',
         'last_energy_refill_at' => 'datetime',

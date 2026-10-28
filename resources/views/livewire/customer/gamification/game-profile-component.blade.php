@@ -40,7 +40,7 @@
                             $level < 4 => 'border-2 border-gray-300 dark:border-gray-800',
                             $level < 7 => 'border-[3px] border-gray-400 dark:border-gray-600',
                             $level < 10 => 'border-[3px] border-primary',
-                            $level == 10 => 'border-[4px] border-amber-400',
+                            $level >= 10 => 'border-[4px] border-amber-400',
                             default => 'border-2 border-gray-300 dark:border-gray-800'
                         };
                     @endphp
@@ -67,7 +67,7 @@
                         @if($level >= 7)
                             <div class="absolute inset-[-1rem] rounded-full border-[2px] border-primary/40 border-dashed animate-[spin_15s_linear_reverse_infinite] pointer-events-none"></div>
                         @endif
-                        @if($level == 10)
+                        @if($level >= 10)
                             <div class="absolute inset-[-2rem] rounded-full border-[3px] border-amber-400/60 border-dotted animate-[spin_10s_linear_infinite] pointer-events-none"></div>
                         @endif
 
@@ -130,7 +130,7 @@
                                 </div>
                             @else
                                 <div class="mt-3 sm:mt-4 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400 px-6 py-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-widest shadow-sm">
-                                    Maximales Level
+                                    Maximales Prestige-Level (100)
                                 </div>
                             @endif
                         </div>
@@ -260,72 +260,170 @@
                             </div>
                         @endforeach
                     </div>
+
+                    {{-- PRESTIGE-AUFSTIEG (LEVEL 11 - 100) --}}
+                    <div class="mt-12 bg-white/90 dark:bg-gray-900/80 border border-amber-500/30 rounded-3xl p-6 sm:p-8 shadow-sm dark:shadow-[0_0_30px_rgba(245,158,11,0.1)]">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-gray-200 dark:border-gray-800">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xl">👑</span>
+                                    <h4 class="text-lg sm:text-xl font-serif font-bold text-gray-900 dark:text-white">Prestige-Aufstieg (Level 11 bis 100)</h4>
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    Ab Level 10 hat Funki seine vollkommene 3D-Gottform erreicht. Dein Aufstieg geht jedoch weiter bis <strong>Level 100</strong> und schaltet exklusive Prestige-Embleme für die Halle der Legenden frei!
+                                </p>
+                            </div>
+                            <span class="px-3.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[10px] font-black uppercase tracking-widest shrink-0">
+                                Dein Level: {{ $level }} / 100
+                            </span>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3.5">
+                            @foreach(($prestigeMilestones ?? []) as $pLevel => $pInfo)
+                                @php $pUnlocked = $level >= $pLevel; @endphp
+                                <div class="rounded-2xl border p-4 flex flex-col items-center text-center transition-all {{ $pUnlocked ? 'bg-amber-500/10 border-amber-400/50 shadow-sm dark:shadow-[0_0_20px_rgba(245,158,11,0.15)]' : 'bg-gray-50 dark:bg-gray-950/60 border-gray-200 dark:border-gray-800 opacity-65' }}">
+                                    <div class="text-2xl mb-2">{{ $pInfo['icon'] }}</div>
+                                    <span class="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full mb-1.5 {{ $pUnlocked ? 'bg-amber-500 text-gray-900' : 'bg-gray-200 dark:bg-gray-800 text-gray-500' }}">
+                                        Level {{ $pLevel }}
+                                    </span>
+                                    <h5 class="font-black text-xs text-gray-900 dark:text-white mb-1">{{ $pInfo['name'] }}</h5>
+                                    <p class="text-[10px] text-gray-500 dark:text-gray-400 leading-snug mb-3">{{ $pInfo['reward'] }}</p>
+                                    <span class="mt-auto text-[9px] font-black uppercase tracking-widest {{ $pUnlocked ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400' }}">
+                                        {{ $pUnlocked ? '✓ Freigeschaltet' : '🔒 Noch ' . max(0, $pLevel - $level) . ' Lvl' }}
+                                    </span>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+
+                {{-- 3D-SEELEN-HANGAR, RUHMES-AUREN & HELDEN-MOTTO --}}
+                <div class="w-full max-w-5xl mx-auto mt-16 sm:mt-24 text-left animate-fade-in-up">
+                    <div class="bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border border-amber-500/30 rounded-3xl p-6 sm:p-10 shadow-sm dark:shadow-[0_0_40px_rgba(245,158,11,0.12)]">
+                        @include('livewire.customer.partials.games-component.seelen-hangar-panel', ['showBackButton' => false])
+                    </div>
                 </div>
 
             <template x-teleport="body">
-                <div x-show="show3DModal" style="display: none;" class="fixed inset-0 z-[6000] flex flex-col items-center justify-between p-4 sm:p-10">
-                    <div class="absolute inset-0 bg-black/60 dark:bg-black/98 backdrop-blur-md dark:backdrop-blur-3xl" @click="close3DModal()" x-transition.opacity></div>
+                <div x-show="show3DModal" style="display: none;" class="fixed inset-0 z-[6000] flex flex-col items-center justify-between p-3 sm:p-8">
+                    <div class="absolute inset-0 bg-stone-900/45 backdrop-blur-md transition-opacity duration-200" @click="close3DModal()" x-transition.opacity></div>
 
-                    <div class="relative w-full max-w-[90rem] flex-1 flex flex-col bg-white dark:bg-gradient-to-b dark:from-gray-900 dark:to-black rounded-[2rem] sm:rounded-[3rem] shadow-2xl dark:shadow-[0_0_100px_rgba(0,0,0,1)] border border-gray-200 dark:border-gray-800 overflow-hidden cursor-default"
-                         x-transition:enter="transition ease-out duration-300 delay-100"
-                         x-transition:enter-start="opacity-0 scale-95 translate-y-10"
-                         x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-                         x-transition:leave="transition ease-in duration-200"
-                         x-transition:leave-start="opacity-100 scale-100 translate-y-0"
-                         x-transition:leave-end="opacity-0 scale-95 translate-y-10">
+                    <div class="relative w-full max-w-[90rem] flex-1 flex flex-col bg-gradient-to-b from-[#fffdf9] via-[#fdf7ea] to-[#f3e6ce] rounded-[2rem] sm:rounded-[3rem] shadow-[0_30px_90px_rgba(160,115,40,0.28)] border-2 border-amber-500/40 overflow-hidden cursor-default"
+                         style="will-change: transform, opacity; transform: translateZ(0);"
+                         x-transition:enter="transition ease-out duration-250"
+                         x-transition:enter-start="opacity-0 scale-95"
+                         x-transition:enter-end="opacity-100 scale-100"
+                         x-transition:leave="transition ease-in duration-150"
+                         x-transition:leave-start="opacity-100 scale-100"
+                         x-transition:leave-end="opacity-0 scale-95">
 
-                        <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary/10 via-transparent to-transparent opacity-60 pointer-events-none"></div>
+                        {{-- HELLER MANUFAKTUR-ATELIER LICHTSCHEIN & BODEN-REFLEXION --}}
+                        <div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,_rgba(251,191,36,0.28)_0%,_rgba(245,158,11,0.10)_42%,_rgba(255,255,255,0)_72%)] pointer-events-none"></div>
+                        <div class="absolute inset-x-0 bottom-16 h-48 bg-[radial-gradient(ellipse_at_50%_100%,_rgba(197,160,89,0.22)_0%,_rgba(255,255,255,0)_70%)] pointer-events-none"></div>
 
-                        <div x-show="evolutionFlash" x-transition:enter="transition ease-in duration-1000" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-out duration-1000" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="absolute inset-0 z-[6050] flex items-center justify-center bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white via-white/95 to-primary/50 pointer-events-none" style="display: none;"></div>
+                        {{-- 60 FPS GPU-PARTIKEL-, LICHTSTRAHL- & SCHOCKWELLEN-CANVAS --}}
+                        <canvas id="funki-levelup-fx-canvas" class="absolute inset-0 w-full h-full z-[6045] pointer-events-none" wire:ignore></canvas>
 
-                        <div x-show="showConfetti" x-transition class="absolute inset-0 z-[6060] pointer-events-none flex flex-col items-center justify-center" style="display: none;">
-                            <h2 class="text-5xl md:text-8xl font-serif font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-amber-300 drop-shadow-[0_0_30px_rgba(197,160,89,1)] animate-bounce mb-4 text-center">LEVEL UP!</h2>
-                            <p class="text-white text-lg md:text-2xl font-black uppercase tracking-widest drop-shadow-lg text-center" x-text="rewardMessage"></p>
-                        </div>
-
-                        <div class="absolute top-4 left-4 sm:top-8 sm:left-8 z-[6020] flex items-center gap-3 sm:gap-4 bg-white/95 dark:bg-gray-900/90 backdrop-blur-md border border-gray-200 dark:border-gray-700 rounded-[2rem] p-2 pr-4 sm:p-4 sm:pr-8 shadow-md dark:shadow-2xl pointer-events-auto">
-                            <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-b from-primary-light to-primary border-2 border-primary/40 dark:border-gray-900 flex items-center justify-center shadow-sm dark:shadow-[0_0_20px_rgba(197,160,89,0.6)] shrink-0">
-                                <span class="text-gray-900 font-black text-lg sm:text-xl">{{$level}}</span>
+                        {{-- AAA LEVEL-UP BANNER & BELOHNUNGS-EMBLEM (LÄSST FUNKI IN DER MITTE FREI SICHTBAR!) --}}
+                        <div x-show="showConfetti"
+                             x-transition:enter="transition ease-out duration-400"
+                             x-transition:enter-start="opacity-0 scale-90 -translate-y-4"
+                             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                             x-transition:leave="transition ease-in duration-300"
+                             x-transition:leave-start="opacity-100 scale-100"
+                             x-transition:leave-end="opacity-0 scale-95"
+                             class="absolute inset-x-0 top-20 sm:top-24 z-[6060] pointer-events-none flex flex-col items-center px-4"
+                             style="display: none;">
+                            <div class="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-amber-500/15 border border-amber-500/50 text-amber-800 text-[10px] sm:text-xs font-black uppercase tracking-[0.3em] mb-2 shadow-[0_8px_25px_rgba(245,158,11,0.25)]">
+                                <span>⚡</span>
+                                <span>Aufstieg Vollbracht</span>
+                                <span>⚡</span>
                             </div>
-                            <h3 class="text-gray-900 dark:text-white font-black text-[9px] sm:text-xs uppercase tracking-[0.2em]">{{ $currentRankName ?: 'Kein Rang' }}</h3>
+                            <h2 class="text-4xl sm:text-6xl md:text-7xl font-serif font-black text-transparent bg-clip-text bg-gradient-to-b from-amber-500 via-amber-600 to-yellow-800 drop-shadow-[0_6px_25px_rgba(245,158,11,0.45)] tracking-tight text-center">
+                                LEVEL <span x-text="activeModelLevel || {{$level}}"></span>
+                            </h2>
+                            <div x-show="rewardMessage" class="mt-3 px-6 py-2.5 rounded-2xl bg-white/95 border-2 border-amber-400 shadow-[0_12px_35px_rgba(245,158,11,0.3)] flex items-center gap-2.5">
+                                <span class="text-xl">🎁</span>
+                                <p class="text-amber-800 text-xs sm:text-base font-black uppercase tracking-widest text-center" x-text="rewardMessage"></p>
+                            </div>
                         </div>
 
-                        <button @click="close3DModal()" class="absolute top-4 right-4 sm:top-8 sm:right-8 z-[6050] p-2.5 sm:p-3 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-full text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-red-50 dark:hover:bg-red-500 hover:border-red-300 dark:hover:border-red-500 transition-all shadow-md dark:shadow-[0_0_30px_rgba(0,0,0,0.8)] hover:scale-110 cursor-pointer">
-                            <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
-                            </svg>
-                        </button>
+                        {{-- TOP LEFT: LEVEL & RANG BADGE (HELLMODUS) --}}
+                        <div class="absolute top-4 left-4 sm:top-7 sm:left-7 z-[6050] flex items-center gap-3 sm:gap-4 bg-white/90 backdrop-blur-md border border-amber-500/40 rounded-[2rem] p-2 pr-4 sm:p-3.5 sm:pr-7 shadow-[0_10px_30px_rgba(197,160,89,0.2)] pointer-events-auto">
+                            <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-b from-amber-300 to-amber-500 border-2 border-amber-200 flex items-center justify-center shadow-[0_4px_15px_rgba(245,158,11,0.45)] shrink-0">
+                                <span class="text-gray-950 font-black text-lg sm:text-xl" x-text="activeModelLevel || {{$level}}">{{$level}}</span>
+                            </div>
+                            <div>
+                                <p class="text-[8px] sm:text-[9px] text-amber-700 font-black uppercase tracking-widest">Seelen-Evolution</p>
+                                <h3 class="text-gray-900 font-black text-[10px] sm:text-xs uppercase tracking-[0.2em]">{{ $currentRankName ?: 'Kein Rang' }}</h3>
+                            </div>
+                        </div>
+
+                        {{-- TOP RIGHT: AUFSTIEGS-MAGIE (NUR KLICKBAR WENN LEVEL-UP MÖGLICH) & SCHLIESSEN --}}
+                        <div class="absolute top-4 right-4 sm:top-7 sm:right-7 z-[6050] flex items-center gap-2.5 pointer-events-auto">
+                            @if($canUpgrade)
+                                <button type="button"
+                                        wire:click="upgrade"
+                                        wire:loading.attr="disabled"
+                                        title="Jetzt auf Level {{ $level + 1 }} aufsteigen!"
+                                        class="px-4 py-2.5 sm:px-5 sm:py-3 rounded-full bg-gradient-to-r from-amber-400 via-primary to-amber-500 hover:from-amber-300 hover:to-amber-400 text-gray-950 border border-amber-300 font-black text-[10px] sm:text-xs uppercase tracking-widest transition-all shadow-[0_8px_25px_rgba(245,158,11,0.45)] hover:scale-105 flex items-center gap-1.5 cursor-pointer animate-[pulse_2s_infinite]">
+                                    <span>✨</span>
+                                    <span wire:loading.remove wire:target="upgrade" class="hidden sm:inline">Aufstiegs-Magie</span>
+                                    <span wire:loading.remove wire:target="upgrade" class="sm:hidden">Level Up!</span>
+                                    <span wire:loading wire:target="upgrade">Wirkt Magie...</span>
+                                </button>
+                            @else
+                                <button type="button"
+                                        disabled
+                                        title="{{ $isMaxLevel ? 'Maximales Prestige-Level (100) erreicht' : 'Noch ' . $missingSparks . ' Funken bis zum nächsten Level-Aufstieg' }}"
+                                        class="px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-full bg-white/80 text-gray-400 border border-gray-300/80 font-black text-[10px] sm:text-xs uppercase tracking-widest transition-all shadow-sm flex items-center gap-1.5 cursor-not-allowed opacity-75 select-none">
+                                    <span>🔒</span>
+                                    <span class="hidden sm:inline">Aufstiegs-Magie</span>
+                                    @if(!$isMaxLevel)
+                                        <span class="text-[9px] font-bold text-amber-800/75 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/25">Noch {{ $missingSparks }} F.</span>
+                                    @endif
+                                </button>
+                            @endif
+                            <button @click="close3DModal()" class="p-2.5 sm:p-3 bg-white/90 border border-gray-200 rounded-full text-gray-600 hover:text-white hover:bg-red-500 hover:border-red-500 transition-all shadow-md hover:scale-110 cursor-pointer">
+                                <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
 
                         <div class="flex-1 w-full relative min-h-0 pt-20 pb-4 cursor-default">
                             <style>
                                 #funki-3d-canvas-container,
                                 #funki-3d-canvas-container canvas {
-                                    cursor: default !important;
+                                    cursor: grab !important;
+                                }
+                                #funki-3d-canvas-container:active canvas {
+                                    cursor: grabbing !important;
                                 }
                             </style>
-                            <div id="funki-3d-canvas-container" class="absolute inset-0 cursor-default [&>canvas]:cursor-default w-full h-full z-10" style="cursor: default !important;" wire:ignore></div>
+                            <div id="funki-3d-canvas-container" class="absolute inset-0 w-full h-full z-10" wire:ignore></div>
                         </div>
 
-                        <div class="w-full bg-gray-50/98 dark:bg-gray-950/98 backdrop-blur-3xl border-t border-gray-200 dark:border-gray-800 relative z-[6020] pb-safe">
-                            <div class="flex flex-row items-center justify-start gap-4 sm:gap-8 px-4 sm:px-12 py-4 sm:py-6 overflow-x-auto no-scrollbar scroll-smooth w-full">
+                        <div class="w-full bg-white/90 backdrop-blur-xl border-t border-amber-500/25 relative z-[6050] pb-safe shadow-[0_-10px_35px_rgba(197,160,89,0.1)]">
+                            <div class="flex flex-row items-center justify-start sm:justify-center gap-4 sm:gap-7 px-4 sm:px-10 py-4 sm:py-5 overflow-x-auto no-scrollbar scroll-smooth w-full">
                                 @php
                                     $milestones = \App\Services\Gamification\GameConfig::getAppearanceMilestones();
                                 @endphp
                                 @foreach($milestones as $mLevel => $mName)
-                                    <div wire:key="milestone-{{$mLevel}}" class="flex flex-col items-center gap-2 sm:gap-3 relative group shrink-0">
+                                    <div wire:key="milestone-{{$mLevel}}" class="flex flex-col items-center gap-2 relative group shrink-0">
                                         <button type="button"
                                                 @if($level >= $mLevel)
-                                                    @click="currentPath = '{{asset('shop/customer/gamification/models/' . $mName . '.glb')}}'; currentImagePath = '{{asset('shop/customer/gamification/models/images/original/' . $mName . '.png')}}'; activeModelLevel = {{$mLevel}}; if(window.Alpine && window.Alpine.store('funki')) window.Alpine.store('funki').setLevel({{$mLevel}}); window._funki3DLoader(currentPath);"
+                                                    @click="selectEvolutionStage({{$mLevel}}, '{{asset('shop/customer/gamification/models/' . $mName . '.glb')}}', '{{asset('shop/customer/gamification/models/images/original/' . $mName . '.png')}}')"
                                                 @endif
                                                 :class="{
-                                                    'border-[#C5A059] shadow-sm dark:shadow-[0_0_25px_rgba(197,160,89,0.8)] scale-110 ring-4 ring-[#C5A059]/50 z-10': (typeof $store !== 'undefined' && $store.funki ? $store.funki.activeLevel : (typeof activeModelLevel !== 'undefined' ? activeModelLevel : {{$level}})) == {{$mLevel}},
-                                                    'border-[#C5A059]/40 opacity-70 hover:opacity-100 hover:scale-105 hover:border-[#C5A059] cursor-pointer': (typeof $store !== 'undefined' && $store.funki ? $store.funki.activeLevel : (typeof activeModelLevel !== 'undefined' ? activeModelLevel : {{$level}})) != {{$mLevel}} && {{$level >= $mLevel ? 'true' : 'false'}},
-                                                    'border-gray-300 dark:border-gray-800 cursor-not-allowed': {{$level < $mLevel ? 'true' : 'false'}}
+                                                    'border-[#C5A059] bg-amber-50 shadow-[0_8px_25px_rgba(197,160,89,0.45)] scale-110 ring-4 ring-[#C5A059]/40 z-10': (typeof $store !== 'undefined' && $store.funki ? $store.funki.activeLevel : (typeof activeModelLevel !== 'undefined' ? activeModelLevel : {{min(10, $level)}})) == {{$mLevel}},
+                                                    'border-amber-500/35 bg-white opacity-85 hover:opacity-100 hover:scale-105 hover:border-[#C5A059] cursor-pointer shadow-sm': (typeof $store !== 'undefined' && $store.funki ? $store.funki.activeLevel : (typeof activeModelLevel !== 'undefined' ? activeModelLevel : {{min(10, $level)}})) != {{$mLevel}} && {{$level >= $mLevel ? 'true' : 'false'}},
+                                                    'border-gray-200 bg-gray-100 cursor-not-allowed opacity-50': {{$level < $mLevel ? 'true' : 'false'}}
                                                 }"
-                                                class="w-14 h-14 sm:w-20 sm:h-20 shrink-0 rounded-full bg-gray-100 dark:bg-black border-2 flex items-center justify-center transition-all duration-1000 focus:outline-none">
-                                            <img src="{{asset('shop/customer/gamification/models/images/original/' . $mName . '.png')}}" class="w-full h-full object-cover rounded-full transition-all duration-1000 {{ $level >= $mLevel ? '' : 'blur-[10px] opacity-10 grayscale' }}">
+                                                class="w-14 h-14 sm:w-18 sm:h-18 shrink-0 rounded-full border-2 flex items-center justify-center transition-all duration-300 focus:outline-none">
+                                            <img src="{{asset('shop/customer/gamification/models/images/original/' . $mName . '.png')}}" class="w-full h-full object-cover rounded-full {{ $level >= $mLevel ? '' : 'blur-[6px] opacity-30 grayscale' }}">
                                         </button>
-                                        <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-widest" :class="(typeof $store !== 'undefined' && $store.funki ? $store.funki.activeLevel : (typeof activeModelLevel !== 'undefined' ? activeModelLevel : {{$level}})) == {{$mLevel}} ? 'text-amber-700 dark:text-primary font-bold' : 'text-gray-500 dark:text-gray-400'">Level {{$mLevel}}</span>
+                                        <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-widest" :class="(typeof $store !== 'undefined' && $store.funki ? $store.funki.activeLevel : (typeof activeModelLevel !== 'undefined' ? activeModelLevel : {{min(10, $level)}})) == {{$mLevel}} ? 'text-amber-700 font-bold' : 'text-gray-500'">Level {{$mLevel}}</span>
                                     </div>
                                 @endforeach
                             </div>

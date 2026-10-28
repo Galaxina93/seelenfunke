@@ -33,8 +33,14 @@ class GamificationServiceSecurityTest extends TestCase
         ]);
 
         $profile = $this->service->getProfile($customer);
+        $this->assertFalse((bool) $profile->is_active);
+        // Inactive profile must not receive sparks before Opt-In
+        $this->service->addFunken($customer, 10, 'purchase');
+        $profile->refresh();
         $this->assertEquals(0, $profile->funken_balance);
-        $this->assertEquals(0, $profile->funken_total_earned);
+
+        // Activate Game Mode Opt-In
+        $profile->update(['is_active' => true]);
 
         // 1. Valid positive addition
         $this->service->addFunken($customer, 10, 'purchase');
@@ -66,6 +72,7 @@ class GamificationServiceSecurityTest extends TestCase
         ]);
 
         $profile = $this->service->getProfile($customer);
+        $profile->update(['is_active' => true]);
 
         // Collect up to DAILY_SPARK_LIMIT
         for ($i = 0; $i < GameConfig::DAILY_SPARK_LIMIT; $i++) {
@@ -102,6 +109,7 @@ class GamificationServiceSecurityTest extends TestCase
         $progress['sammler'] = 50;
         $profile->titles_progress = $progress;
         $profile->active_title = 'sammler';
+        $profile->is_active = true;
         $profile->save();
 
         $this->assertEquals('Sucher', $this->service->resolveActiveRankName($profile->fresh()));
@@ -121,6 +129,7 @@ class GamificationServiceSecurityTest extends TestCase
         ]);
 
         $profile = $this->service->getProfile($customer);
+        $profile->update(['is_active' => true]);
         $this->assertEquals(0, $profile->funken_balance);
 
         $order = \App\Models\Order\OrderOrder::create([
