@@ -29,24 +29,26 @@
                     @error('email') <span class="text-red-600 text-xs mt-1 block font-medium">{{ $message }}</span> @enderror
                 </div>
 
-                <div class="flex items-start gap-2">
+                <div class="flex items-start gap-2.5 p-2 rounded-xl transition-all @error('privacy_accepted') bg-red-50/80 border border-red-400 ring-2 ring-red-500/20 @else border border-transparent @enderror">
                     <input type="checkbox"
                            id="privacy"
                            wire:model.live="privacy_accepted"
-                           class="mt-1 w-4 h-4 rounded bg-white border-gray-300 text-primary focus:ring-primary/30 cursor-pointer">
-                    <label for="privacy" class="text-xs text-gray-600 cursor-pointer leading-tight select-none">
+                           class="mt-0.5 w-4 h-4 rounded bg-white @error('privacy_accepted') border-red-500 text-red-600 focus:ring-red-500/30 @else border-gray-300 text-primary focus:ring-primary/30 @enderror cursor-pointer accent-[#C5A059]">
+                    <label for="privacy" class="text-xs @error('privacy_accepted') text-red-700 font-semibold @else text-gray-600 @enderror cursor-pointer leading-tight select-none">
                         Ich stimme der <a href="/datenschutz" class="text-amber-800 underline hover:text-amber-900 font-medium">Datenschutzerklärung</a> zu.
                     </label>
                 </div>
-                @error('privacy_accepted') <span class="text-red-600 text-xs block font-medium">{{ $message }}</span> @enderror
+                @error('privacy_accepted')
+                    <span class="text-red-600 text-xs flex items-center gap-1.5 font-semibold animate-fade-in">
+                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+                        <span>{{ $message }}</span>
+                    </span>
+                @enderror
 
                 <button type="submit"
-                        @disabled(!$privacy_accepted)
-                        class="w-full font-bold py-2.5 rounded-xl transition shadow-sm flex items-center justify-center gap-2
-                               disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-none border border-primary/30
-                               enabled:bg-gradient-to-r enabled:from-primary-light enabled:to-primary enabled:hover:from-primary enabled:hover:to-primary-light enabled:text-gray-900 enabled:hover:shadow cursor-pointer">
-                    <span wire:loading.remove>Anmelden</span>
-                    <span wire:loading>
+                        class="w-full font-bold py-2.5 rounded-xl transition shadow-sm flex items-center justify-center gap-2 border border-primary/40 bg-gradient-to-r from-primary-light to-primary hover:from-primary hover:to-primary-light text-gray-900 hover:shadow cursor-pointer active:scale-[0.99]">
+                    <span wire:loading.remove wire:target="subscribe">Anmelden</span>
+                    <span wire:loading wire:target="subscribe">
                         <svg class="animate-spin h-4 w-4 text-gray-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                     </span>
                 </button>

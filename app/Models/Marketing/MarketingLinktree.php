@@ -2,12 +2,53 @@
 
 namespace App\Models\Marketing;
 
+
+use App\Support\Blueprint\Concerns\InteractsWithSystemBlueprint;
+use App\Support\Blueprint\Contracts\HasSystemBlueprint;
+use App\Support\Blueprint\Enums\ActorScope;
+use App\Support\Blueprint\Enums\AiAccessPolicy;
+use App\Support\Blueprint\Enums\ComplianceRegulation;
+use App\Support\Blueprint\Enums\DataSensitivity;
+use App\Support\Blueprint\Enums\ExternalChannel;
+use App\Support\Blueprint\Enums\LifecycleBehavior;
+use App\Support\Blueprint\Enums\RetentionPolicy;
+use App\Support\Blueprint\Enums\SystemDepartment;
+use App\Support\Blueprint\ModelBlueprint;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
-class MarketingLinktree extends Model
+class MarketingLinktree extends Model implements HasSystemBlueprint
 {
-    use HasUuids;
+    
+    use InteractsWithSystemBlueprint;
+
+    /**
+     * Digitales Architektur- & Compliance-Typenschild (Living Documentation).
+     */
+    public static function blueprint(): ModelBlueprint
+    {
+        return ModelBlueprint::make(
+            label: 'Social-Media Bio-Link (Linktree)',
+            description: 'Konfigurierbare Social-Media-Einstiegsseite für Instagram, TikTok und Pinterest.',
+            department: SystemDepartment::Marketing,
+            navigationNodes: ['admin.marketing.linktree'],
+            lifecycle: LifecycleBehavior::MasterData,
+            sensitivity: DataSensitivity::PublicCatalog,
+            retention: RetentionPolicy::PermanentMasterData,
+            aiAccess: AiAccessPolicy::ReadAndPropose,
+            actorsRead: [ActorScope::PublicVisitor, ActorScope::Admin],
+            actorsWrite: [ActorScope::Admin],
+            regulations: [],
+            externalChannels: [],
+            dependsOnSettings: [],
+            isGdprArt15Exportable: false,
+            customerForeignKey: null,
+            containsProductionAssets: false,
+            assetColumns: [],
+        );
+    }
+
+use HasUuids;
 
     protected $table = 'marketing_linktrees';
 

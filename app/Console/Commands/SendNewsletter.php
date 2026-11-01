@@ -48,6 +48,7 @@ class SendNewsletter extends Command
         }
 
         // 2. Templates durchlaufen
+        $hasErrors = false;
         foreach ($templates as $template) {
             $this->line("-----------------------------------------");
             $this->line("🔍 Prüfe Template: <comment>{$template->title}</comment> (Typ: " . ($template->type ?? 'automated') . ", Event: {$template->target_event_key})");
@@ -131,8 +132,10 @@ class SendNewsletter extends Command
                         );
                     }
 
-                } catch (\Exception $e) {
+                } catch (\Throwable $e) {
+                    $hasErrors = true;
                     $this->error("   ❌ Fehler beim Versand: " . $e->getMessage());
+                    Log::error("Newsletter-Versand fehlgeschlagen ({$template->title}): " . $e->getMessage(), ['exception' => $e]);
                     if (isset($log)) {
                         $log->finish('error', 'Fehler beim Versand: ' . $e->getMessage());
                     }
@@ -143,7 +146,7 @@ class SendNewsletter extends Command
         }
 
         $this->info("\n🎉 Prüfung vollständig abgeschlossen.");
-        return 0;
+        return $hasErrors ? self::FAILURE : self::SUCCESS;
     }
 
     /**
@@ -153,7 +156,13 @@ class SendNewsletter extends Command
     {
         Log::info("Newsletter Command: Starte Batch-Versand für '{$template->subject}'");
 
-        $subscribers = MarketingNewsletterSubscriber::where('is_verified', true)->get();
+        $query = MarketingNewsletterSubscriber::where('is_verified', true);
+        if (\Illuminate\Support\Facades\Schema::hasColumn('marketing_newsletter_subscribers', 'receive_newsletter')) {
+            $query->where(function ($q) {
+                $q->where('receive_newsletter', true)->orWhereNull('receive_newsletter');
+            });
+        }
+        $subscribers = $query->get();
         $count = 0;
 
         foreach ($subscribers as $subscriber) {

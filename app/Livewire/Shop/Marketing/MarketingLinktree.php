@@ -23,6 +23,7 @@ class MarketingLinktree extends Component
 
     // Form Modal State
     public $showModal = false;
+    #[\Livewire\Attributes\Locked]
     public $editingId = null;
 
     // Form Fields
@@ -47,9 +48,16 @@ class MarketingLinktree extends Component
         'is_active' => 'boolean',
     ];
 
+    public function boot(): void
+    {
+        if (!auth('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
-        if (!auth('admin')->check() && !auth('employee')->check()) {
+        if (!auth('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 

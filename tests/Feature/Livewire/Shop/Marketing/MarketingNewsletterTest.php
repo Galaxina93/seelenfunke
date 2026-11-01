@@ -181,4 +181,94 @@ class MarketingNewsletterTest extends TestCase
             ->assertSet('privacy_accepted', false)
             ->assertSet('successMessage', '');
     }
+
+    #[Test]
+    public function it_uses_frontend_gold_theme_and_supports_granular_birthday_and_anniversary_email_unsubscribe()
+    {
+        Mail::fake();
+
+        $customer = \App\Models\Customer\Customer::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Hanna',
+            'last_name' => 'Gold',
+            'email' => 'hanna-gold@example.com',
+            'password' => bcrypt('secret123'),
+        ]);
+        $customer->profile()->update([
+            'birthday' => now()->subYears(30)->format('Y-m-d'),
+            'receive_birthday_emails' => true,
+            'receive_anniversary_emails' => true,
+        ]);
+        \App\Models\Customer\CustomerGamification::create([
+            'customer_id' => $customer->id,
+            'is_active' => true,
+            'funken_balance' => 100,
+            'funken_total_earned' => 100,
+            'level' => 1,
+        ]);
+
+        MarketingNewsletterSubscriber::create([
+            'email' => 'hanna-gold@example.com',
+            'ip_address' => '127.0.0.1',
+            'privacy_accepted' => true,
+            'is_verified' => true,
+            'receive_newsletter' => true,
+            'receive_birthday_emails' => true,
+            'receive_anniversary_emails' => true,
+        ]);
+
+        // 1. Gold-Theme (#C5A059) statt Backend-Marketing-Lila im Frontend prüfen
+        $component = Livewire::test(NewsletterPage::class);
+        $this->assertSame('#C5A059', $component->instance()->getThemeColorHexProperty());
+        $component->assertSee('#C5A059');
+
+        // 2. Differenzierte Abmeldung: Nur "🎂 Geburtstags-Funke" abstellen, Eigentliche News & Kauf-Jubiläum behalten
+        Livewire::test(NewsletterPage::class)
+            ->call('switchTab', 'unsubscribe')
+            ->set('email', 'hanna-gold@example.com')
+            ->set('unsub_newsletter', false)
+            ->set('unsub_birthday', true)
+            ->set('unsub_anniversary', false)
+            ->call('unsubscribe')
+            ->assertHasNoErrors();
+
+        // Newsletter-Eintrag bleibt für eigentliche News bestehen, aber receive_birthday_emails ist false
+        $this->assertDatabaseHas('marketing_newsletter_subscribers', [
+            'email' => 'hanna-gold@example.com',
+            'receive_newsletter' => true,
+            'receive_birthday_emails' => false,
+            'receive_anniversary_emails' => true,
+        ]);
+        $this->assertDatabaseHas('customer_profiles', [
+            'customer_id' => $customer->id,
+            'receive_birthday_emails' => false,
+            'receive_anniversary_emails' => true,
+        ]);
+
+        // Beim Geburtstags-Lauf bekommt Hanna trotzdem ihre +50 Funken, aber KEINE Geburtstags-Mail
+        $gameService = app(\App\Services\Gamification\GamificationService::class);
+        $this->assertFalse($gameService->shouldSendLoyaltyEmail($customer->fresh(), 'birthday'));
+        $this->assertTrue($gameService->shouldSendLoyaltyEmail($customer->fresh(), 'anniversary'));
+
+        $res = $gameService->processAnnualLoyaltySparksForCustomer($customer->fresh(), true);
+        $this->assertTrue($res['birthday_awarded']);
+        Mail::assertNotSent(\App\Mail\GamificationLoyaltySparksMail::class);
+
+        // 3. "Alles komplett abstellen" blockiert alle 3 Kategorien und entfernt aus dem Newsletter-Verteiler
+        \Illuminate\Support\Facades\RateLimiter::clear('newsletter_unsub_127.0.0.1');
+        Livewire::test(NewsletterPage::class)
+            ->call('switchTab', 'unsubscribe')
+            ->set('email', 'hanna-gold@example.com')
+            ->call('unsubscribeAll')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseMissing('marketing_newsletter_subscribers', [
+            'email' => 'hanna-gold@example.com',
+        ]);
+        $this->assertDatabaseHas('customer_profiles', [
+            'customer_id' => $customer->id,
+            'receive_birthday_emails' => false,
+            'receive_anniversary_emails' => false,
+        ]);
+    }
 }
