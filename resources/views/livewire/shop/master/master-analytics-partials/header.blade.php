@@ -25,7 +25,7 @@
         </div>
         <div class="flex items-center gap-3 w-full md:w-auto justify-end ml-auto">
             <button type="button"
-                    @click="focusMode = !focusMode; window.sfPlaySound && window.sfPlaySound('switch')"
+                    @click="focusMode = !focusMode; $wire.saveFocusMode(focusMode); window.sfPlaySound && window.sfPlaySound('switch')"
                     @mouseenter="window.sfPlaySound && window.sfPlaySound('hover')"
                     :class="focusMode
                         ? 'bg-[#C5A059]/15 text-[#C5A059] border-[#C5A059]/40 dark:shadow-[0_0_15px_rgba(197,160,89,0.2)]'
@@ -34,7 +34,7 @@
                     title="Zwischen Fokus-Ansicht (nur offene Punkte) und Vollansicht (alle Kacheln) wechseln">
                 <x-heroicon-s-sparkles x-show="focusMode" class="w-4 h-4 text-[#C5A059]" />
                 <x-heroicon-o-squares-2x2 x-show="!focusMode" x-cloak class="w-4 h-4" />
-                <span x-text="focusMode ? 'Fokus-Modus' : 'Alle Kacheln'">Fokus-Modus</span>
+                <span x-text="focusMode ? 'Fokus-Modus' : 'Alle Kacheln'">{{ $focusMode ? 'Fokus-Modus' : 'Alle Kacheln' }}</span>
             </button>
         </div>
     </div>

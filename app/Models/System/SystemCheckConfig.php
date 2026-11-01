@@ -47,16 +47,18 @@ class SystemCheckConfig extends Model implements HasSystemBlueprint
         );
     }
 
-protected $fillable = [
+    protected $fillable = [
         'user_id',
         'filter_type',
         'date_start',
         'date_end',
         'range_mode',
+        'focus_mode',
         'widgets'
     ];
 
     protected $casts = [
+        'focus_mode' => 'boolean',
         'widgets' => 'array'
     ];
 }

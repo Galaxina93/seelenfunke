@@ -393,10 +393,8 @@
              class="fixed inset-0 z-[99999] bg-[#03050a] overflow-hidden font-mono">
 
     <!-- [AREA: SCRIPTS & IMPORTS] -->
-    <!-- Mapbox GL JS & Anime.js -->
+    <!-- Mapbox GL CSS (JS & Anime.js werden bei Öffnen von FunkiView in part4 nachgeladen) -->
     <link href="{{ asset('vendor/mapbox-gl/mapbox-gl.css') }}" rel="stylesheet" />
-    <script src="{{ asset('vendor/mapbox-gl/mapbox-gl.js') }}"></script>
-    <script src="{{ asset('vendor/animejs/anime.min.js') }}"></script>
 
     <!-- Mapbox Map Container (Background) -->
     <div id="funki-map-container" class="absolute inset-0 w-full h-full z-0 transition-opacity duration-1000 opacity-100 pointer-events-auto" style="filter: contrast(1.1) brightness(0.9) saturate(1.2);"></div>

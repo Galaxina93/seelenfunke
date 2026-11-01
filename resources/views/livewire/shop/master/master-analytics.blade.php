@@ -1,11 +1,10 @@
-<div wire:poll.5s="checkLiveOrders"
+<div wire:poll.15s.visible="checkLiveOrders"
      x-data="{
-        focusMode: true,
-        dashboardReady: Boolean(window.__sfDashboardReady),
+        focusMode: @entangle('focusMode'),
+        dashboardReady: true,
         orderIncomingPulse: false,
         orderIncomingNumber: null
      }"
-     x-init="if (!dashboardReady) { setTimeout(() => { dashboardReady = true; window.__sfDashboardReady = true; }, 520); }"
      @live-order-incoming.window="
         if (window.sfPlaySound) {
             window.sfPlaySound('order');
@@ -20,50 +19,6 @@
         }, 4200);
      "
      class="p-4 md:p-6 bg-transparent min-h-screen relative z-10">
-
-    <!-- LADEBALKEN-ANIMATION BEIM SEITENSTART -->
-    <style>
-        @keyframes sfDashboardProgress {
-            0% { width: 0%; }
-            45% { width: 68%; }
-            85% { width: 92%; }
-            100% { width: 100%; }
-        }
-        .sf-dashboard-loader-bar {
-            width: 0%;
-            animation: sfDashboardProgress 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-        }
-        .sf-dashboard-stage-hidden {
-            opacity: 0;
-            pointer-events: none;
-            max-height: 0;
-            overflow: hidden;
-        }
-        .sf-dashboard-stage-ready {
-            opacity: 1;
-            pointer-events: auto;
-            max-height: none;
-            overflow: visible;
-        }
-    </style>
-    <div x-show="!dashboardReady"
-         x-transition:leave="transition-opacity duration-250 ease-out"
-         x-transition:leave-start="opacity-100"
-         x-transition:leave-end="opacity-0"
-         class="flex flex-col items-center justify-center min-h-[75vh] w-full select-none">
-        <div class="relative w-16 h-16 mb-5 flex items-center justify-center">
-            <div class="absolute inset-0 rounded-full border border-[#C5A059]/30 animate-ping"></div>
-            <div class="relative w-14 h-14 rounded-full bg-[#141417] border border-[#C5A059]/80 shadow-[0_0_25px_rgba(197,160,89,0.45)] flex items-center justify-center">
-                <x-heroicon-s-sparkles class="w-6 h-6 text-[#C5A059] animate-pulse" />
-            </div>
-        </div>
-        <div class="text-[11px] font-black uppercase tracking-[0.28em] text-[#C5A059] mb-3">
-            Chrono-Core wird geladen
-        </div>
-        <div class="w-64 sm:w-80 h-2 bg-gray-200/80 dark:bg-gray-900/90 rounded-full overflow-hidden border border-[#C5A059]/35 p-[1px] shadow-inner">
-            <div class="h-full rounded-full bg-gradient-to-r from-[#8a6820] via-[#C5A059] to-[#f5dca0] shadow-[0_0_12px_#C5A059] sf-dashboard-loader-bar"></div>
-        </div>
-    </div>
 
     <!-- Basis-Sound aus /admin/tasks kombiniert mit futuristischem Seelenfunke Web-Audio-Synthesizer -->
     <audio id="sfBaseTaskSound" src="{{ asset('shop/management/todo/sounds/todo_done.mp3') }}" preload="auto"></audio>
@@ -349,12 +304,7 @@
         };
     </script>
 
-    <div x-cloak
-         :class="[
-             dashboardReady ? 'sf-dashboard-stage-ready' : 'sf-dashboard-stage-hidden',
-             focusMode ? 'space-y-1' : 'space-y-8'
-         ]"
-         class="sf-dashboard-stage-hidden transition-opacity duration-500 ease-out">
+    <div :class="focusMode ? 'space-y-1' : 'space-y-8'">
 
         @include('livewire.shop.master.master-analytics-partials.header')
 

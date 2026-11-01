@@ -151,47 +151,54 @@
             },
 
             init() {
-                // Initialize Web Audio API for zero latency playback
-                try {
-                    window.funkiAudioContext = window.funkiAudioContext || new (window.AudioContext || window.webkitAudioContext)();
-                    window.funkiAudioBuffers = window.funkiAudioBuffers || {};
-                    
-                    const soundPaths = {
-                        'click': '/shop/ai/sounds/ai_click.mp3',
-                        'unclick': '/shop/ai/sounds/ai_unclick.mp3',
-                        'map-open': '/shop/ai/sounds/map_open.mp3',
-                        'map-close': '/shop/ai/sounds/map_close.mp3',
-                        'secret-open': '/shop/ai/sounds/top_secret/open_secret_mode.mp3',
-                        'secret-close': '/shop/ai/sounds/top_secret/close_secret_mode.mp3',
-                        'brain-open': '/shop/ai/sounds/project_brain/open_project_brain.mp3'
-                    };
+                // Initialize Web Audio API lazily during browser idle time so initial page load & animations never stutter
+                const initAudioBuffers = () => {
+                    try {
+                        window.funkiAudioContext = window.funkiAudioContext || new (window.AudioContext || window.webkitAudioContext)();
+                        window.funkiAudioBuffers = window.funkiAudioBuffers || {};
 
-                    Object.entries(soundPaths).forEach(([key, path]) => {
-                        if (window.funkiAudioBuffers[key]) return;
-                        fetch(path)
-                            .then(response => response.arrayBuffer())
-                            .then(arrayBuffer => {
-                                if (window.funkiAudioContext) {
-                                    return window.funkiAudioContext.decodeAudioData(arrayBuffer);
-                                }
-                                throw new Error('AudioContext not initialized');
-                            })
-                            .then(audioBuffer => {
-                                window.funkiAudioBuffers[key] = audioBuffer;
-                            })
-                            .catch(e => console.warn('WebAudio failed to load sound:', key, e));
-                    });
+                        const soundPaths = {
+                            'click': '/shop/ai/sounds/ai_click.mp3',
+                            'unclick': '/shop/ai/sounds/ai_unclick.mp3',
+                            'map-open': '/shop/ai/sounds/map_open.mp3',
+                            'map-close': '/shop/ai/sounds/map_close.mp3',
+                            'secret-open': '/shop/ai/sounds/top_secret/open_secret_mode.mp3',
+                            'secret-close': '/shop/ai/sounds/top_secret/close_secret_mode.mp3',
+                            'brain-open': '/shop/ai/sounds/project_brain/open_project_brain.mp3'
+                        };
 
-                    const resumeContext = () => {
-                        if (window.funkiAudioContext && window.funkiAudioContext.state === 'suspended') {
-                            window.funkiAudioContext.resume();
-                        }
-                    };
-                    document.addEventListener('click', resumeContext, { once: true });
-                    document.addEventListener('keydown', resumeContext, { once: true });
-                    document.addEventListener('touchstart', resumeContext, { once: true });
-                } catch(audioCtxErr) {
-                    console.warn('Web Audio API not supported or failed to init:', audioCtxErr);
+                        Object.entries(soundPaths).forEach(([key, path]) => {
+                            if (window.funkiAudioBuffers[key]) return;
+                            fetch(path)
+                                .then(response => response.arrayBuffer())
+                                .then(arrayBuffer => {
+                                    if (window.funkiAudioContext) {
+                                        return window.funkiAudioContext.decodeAudioData(arrayBuffer);
+                                    }
+                                    throw new Error('AudioContext not initialized');
+                                })
+                                .then(audioBuffer => {
+                                    window.funkiAudioBuffers[key] = audioBuffer;
+                                })
+                                .catch(e => console.warn('WebAudio failed to load sound:', key, e));
+                        });
+
+                        const resumeContext = () => {
+                            if (window.funkiAudioContext && window.funkiAudioContext.state === 'suspended') {
+                                window.funkiAudioContext.resume();
+                            }
+                        };
+                        document.addEventListener('click', resumeContext, { once: true });
+                        document.addEventListener('keydown', resumeContext, { once: true });
+                        document.addEventListener('touchstart', resumeContext, { once: true });
+                    } catch (audioCtxErr) {
+                        console.warn('Web Audio API not supported or failed to init:', audioCtxErr);
+                    }
+                };
+                if ('requestIdleCallback' in window) {
+                    window.requestIdleCallback(initAudioBuffers, { timeout: 3000 });
+                } else {
+                    setTimeout(initAudioBuffers, 2000);
                 }
 
                 if (this.allowVoiceInterruption === null) {

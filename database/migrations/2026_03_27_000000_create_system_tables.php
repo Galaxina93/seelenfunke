@@ -293,8 +293,13 @@ return new class extends Migration
                 $table->date('date_start');
                 $table->date('date_end');
                 $table->string('range_mode')->default('year');
+                $table->boolean('focus_mode')->default(true);
                 $table->json('widgets')->nullable();
                 $table->timestamps();
+            });
+        } elseif (!Schema::hasColumn('system_check_configs', 'focus_mode')) {
+            Schema::table('system_check_configs', function (Blueprint $table) {
+                $table->boolean('focus_mode')->default(true)->after('range_mode');
             });
         }
 

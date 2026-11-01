@@ -2479,8 +2479,8 @@
                 this.lastDecodedFrames = 0;
 
                 this.cameraInterval = setInterval(() => {
-                    if (!video || !video.srcObject) {
-                        this.cameraFps = '0.00';
+                    if (!this.showFunkiView || !video || !video.srcObject) {
+                        if (this.cameraFps !== '0.00') this.cameraFps = '0.00';
                         return;
                     }
 
@@ -2532,7 +2532,9 @@
 
             initCameraAndPing() {
                 this.startCameraCapture();
-                this.checkBridgePing();
+                setTimeout(() => {
+                    this.checkBridgePing();
+                }, 2500);
                 if (this.bridgePollInterval) clearInterval(this.bridgePollInterval);
                 this.bridgePollInterval = setInterval(() => {
                     this.checkBridgePing();

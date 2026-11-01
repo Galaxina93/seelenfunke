@@ -266,4 +266,35 @@ class MasterAnalyticsHealthFilterTest extends TestCase
         $component->call('checkLiveOrders')
             ->assertNotDispatched('live-order-incoming');
     }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function focus_mode_persists_in_system_check_config_across_reloads_and_range_changes()
+    {
+        $admin = Admin::factory()->create();
+
+        // 1. Initial ist Fokus-Modus aktiv (true)
+        $component = Livewire::actingAs($admin, 'admin')
+            ->test(MasterAnalytics::class)
+            ->assertSet('focusMode', true);
+
+        // 2. Umschalten auf "Alle Kacheln" (focusMode = false) speichert in SystemCheckConfig
+        $component->call('saveFocusMode', false)
+            ->assertSet('focusMode', false);
+
+        $config = \App\Models\System\SystemCheckConfig::where('user_id', $admin->id)->first();
+        $this->assertNotNull($config);
+        $this->assertFalse((bool) ($config->widgets['focus_mode'] ?? true));
+        $this->assertFalse((bool) $config->focus_mode);
+
+        // 3. Wechsel zwischen "Aktueller Monat" und "Ganzes Jahr" behält den Fokus-Modus-Status bei
+        $component->call('setCurrentMonth')
+            ->assertSet('rangeMode', 'current_month')
+            ->assertSet('focusMode', false);
+
+        // 4. Seiten-Reload (neuer Component-Mount) lädt den gespeicherten Modus ("Alle Kacheln")
+        Livewire::actingAs($admin, 'admin')
+            ->test(MasterAnalytics::class)
+            ->assertSet('focusMode', false)
+            ->assertSet('rangeMode', 'current_month');
+    }
 }

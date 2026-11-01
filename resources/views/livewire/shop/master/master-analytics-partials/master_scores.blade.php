@@ -29,33 +29,43 @@
 }
 @keyframes sf-core-breathe {
     0%, 100% {
-        box-shadow: 0 0 40px rgba(197, 160, 89, 0.30), 0 0 85px rgba(197, 160, 89, 0.14), inset 0 0 30px rgba(0, 0, 0, 0.85);
+        opacity: 0.35;
+        transform: scale(0.98);
     }
     50% {
-        box-shadow: 0 0 65px rgba(197, 160, 89, 0.52), 0 0 120px rgba(197, 160, 89, 0.24), inset 0 0 40px rgba(0, 0, 0, 0.9);
+        opacity: 0.95;
+        transform: scale(1.03);
     }
 }
 .sf-chrono-core-dial {
+    box-shadow: 0 0 40px rgba(197, 160, 89, 0.30), 0 0 85px rgba(197, 160, 89, 0.14), inset 0 0 30px rgba(0, 0, 0, 0.85);
+    transform: translateZ(0);
+}
+.sf-chrono-core-dial::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 9999px;
+    pointer-events: none;
+    box-shadow: 0 0 60px rgba(197, 160, 89, 0.48), 0 0 110px rgba(197, 160, 89, 0.22);
+    will-change: transform, opacity;
     animation: sf-core-breathe 4s ease-in-out infinite;
-    will-change: transform, box-shadow;
 }
 .sf-spin-slow {
-    transform-origin: 150px 150px;
+    transform-origin: 50% 50%;
     will-change: transform;
     animation: sf-chrono-rotate 60s linear infinite;
 }
 .sf-spin-reverse {
-    transform-origin: 150px 150px;
+    transform-origin: 50% 50%;
     will-change: transform;
     animation: sf-chrono-rotate-rev 38s linear infinite;
 }
 .sf-wave-dot {
-    will-change: transform;
     animation: sf-wave-bob 2.35s ease-in-out infinite;
 }
 .sf-freq-bar {
     transform-origin: 150px 150px;
-    will-change: transform;
     animation: sf-bar-pulse 2.7s ease-in-out infinite;
 }
 .sf-energy-stream {
@@ -65,6 +75,14 @@
 .sf-floating-satellite {
     will-change: transform;
     animation: sf-float-node 4.5s ease-in-out infinite;
+}
+[x-cloak],
+[x-cloak] *,
+[style*="display: none"],
+[style*="display: none"] *,
+[style*="display:none"],
+[style*="display:none"] * {
+    animation-play-state: paused !important;
 }
 .sf-stage-height {
     transition: height 650ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -1238,10 +1256,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                             @endphp
                             <path d="{{ $pathD }}" fill="none" stroke="{{ $node['color'] }}" stroke-width="6" stroke-opacity="0.14" stroke-linecap="round" />
                             <path d="{{ $pathD }}" fill="none" stroke="{{ $node['color'] }}" stroke-width="1.75" stroke-opacity="0.48" />
-                            <path d="{{ $pathD }}" fill="none" stroke="{{ $node['color'] }}" stroke-width="2.8" stroke-opacity="0.95" stroke-linecap="round" class="sf-energy-stream" style="animation-delay: -{{ $idx * 0.55 }}s;" />
-                            <circle r="3.4" fill="{{ $node['color'] }}">
-                                <animateMotion dur="{{ 2.6 + ($idx * 0.35) }}s" repeatCount="indefinite" path="{{ $pathD }}" />
-                            </circle>
+                            <path d="{{ $pathD }}" fill="none" stroke="{{ $node['color'] }}" stroke-width="3.2" stroke-opacity="0.95" stroke-linecap="round" class="sf-energy-stream" style="animation-delay: -{{ $idx * 0.55 }}s;" />
                             <circle cx="{{ $ex }}" cy="{{ $ey }}" r="4.5" fill="{{ $node['color'] }}" />
                             <circle cx="{{ $ex }}" cy="{{ $ey }}" r="8.5" fill="none" stroke="{{ $node['color'] }}" stroke-opacity="0.38" stroke-width="1.2" />
                         @endforeach
@@ -1256,10 +1271,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                             @endphp
                             <path d="{{ $pathD }}" fill="none" stroke="{{ $node['color'] }}" stroke-width="6" stroke-opacity="0.14" stroke-linecap="round" />
                             <path d="{{ $pathD }}" fill="none" stroke="{{ $node['color'] }}" stroke-width="1.75" stroke-opacity="0.48" />
-                            <path d="{{ $pathD }}" fill="none" stroke="{{ $node['color'] }}" stroke-width="2.8" stroke-opacity="0.95" stroke-linecap="round" class="sf-energy-stream" style="animation-delay: -{{ ($idx + 1) * 0.45 }}s;" />
-                            <circle r="3.4" fill="{{ $node['color'] }}">
-                                <animateMotion dur="{{ 2.7 + ($idx * 0.35) }}s" repeatCount="indefinite" path="{{ $pathD }}" />
-                            </circle>
+                            <path d="{{ $pathD }}" fill="none" stroke="{{ $node['color'] }}" stroke-width="3.2" stroke-opacity="0.95" stroke-linecap="round" class="sf-energy-stream" style="animation-delay: -{{ ($idx + 1) * 0.45 }}s;" />
                             <circle cx="{{ $ex }}" cy="{{ $ey }}" r="4.5" fill="{{ $node['color'] }}" />
                             <circle cx="{{ $ex }}" cy="{{ $ey }}" r="8.5" fill="none" stroke="{{ $node['color'] }}" stroke-opacity="0.38" stroke-width="1.2" />
                         @endforeach
@@ -1316,10 +1328,12 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                                     <svg class="w-full h-full overflow-visible" viewBox="0 0 84 84">
                                         <circle cx="42" cy="42" r="39" fill="none" stroke="{{ $node['color'] }}" stroke-opacity="0.3" stroke-width="1" stroke-dasharray="2 4" />
                                         <circle cx="42" cy="42" r="34" fill="none" stroke="currentColor" stroke-width="5" class="text-gray-200/70 dark:text-gray-800/90" />
+                                        <circle cx="42" cy="42" r="34" fill="none" stroke="{{ $node['color'] }}" stroke-width="9" stroke-opacity="0.22"
+                                                stroke-dasharray="{{ $rCirc }}" stroke-dashoffset="{{ $rOffset }}" stroke-linecap="round"
+                                                transform="rotate(-90 42 42)" />
                                         <circle cx="42" cy="42" r="34" fill="none" stroke="{{ $node['color'] }}" stroke-width="5"
                                                 stroke-dasharray="{{ $rCirc }}" stroke-dashoffset="{{ $rOffset }}" stroke-linecap="round"
                                                 transform="rotate(-90 42 42)"
-                                                style="filter: drop-shadow(0 0 6px {{ $node['color'] }});"
                                                 class="transition-all duration-700" />
                                     </svg>
                                     <div class="absolute inset-0 flex flex-col items-center justify-center">
@@ -1364,10 +1378,12 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                                     <svg class="w-full h-full overflow-visible" viewBox="0 0 84 84">
                                         <circle cx="42" cy="42" r="39" fill="none" stroke="{{ $node['color'] }}" stroke-opacity="0.3" stroke-width="1" stroke-dasharray="2 4" />
                                         <circle cx="42" cy="42" r="34" fill="none" stroke="currentColor" stroke-width="5" class="text-gray-200/70 dark:text-gray-800/90" />
+                                        <circle cx="42" cy="42" r="34" fill="none" stroke="{{ $node['color'] }}" stroke-width="9" stroke-opacity="0.22"
+                                                stroke-dasharray="{{ $rCirc }}" stroke-dashoffset="{{ $rOffset }}" stroke-linecap="round"
+                                                transform="rotate(-90 42 42)" />
                                         <circle cx="42" cy="42" r="34" fill="none" stroke="{{ $node['color'] }}" stroke-width="5"
                                                 stroke-dasharray="{{ $rCirc }}" stroke-dashoffset="{{ $rOffset }}" stroke-linecap="round"
                                                 transform="rotate(-90 42 42)"
-                                                style="filter: drop-shadow(0 0 6px {{ $node['color'] }});"
                                                 class="transition-all duration-700" />
                                     </svg>
                                     <div class="absolute inset-0 flex flex-col items-center justify-center">
@@ -1438,6 +1454,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                      :class="orderIncomingPulse ? 'ring-4 ring-[#ffe39f]/90 shadow-[0_0_95px_rgba(255,227,159,0.85)] scale-[1.04]' : ''"
                      class="relative w-[310px] h-[310px] xl:w-[330px] xl:h-[330px] rounded-full bg-[#141417] sf-chrono-core-dial flex items-center justify-center cursor-pointer group transition-all duration-500 hover:scale-[1.02]">
 
+                    <!-- STATISCHE BASIS & PULSIERENDE ELEMENTE -->
                     <svg class="w-full h-full overflow-visible" viewBox="0 0 300 300">
                         <defs>
                             <radialGradient id="sfDialSurfaceMain" cx="50%" cy="50%" r="50%">
@@ -1463,33 +1480,22 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                                 @foreach($scene['dockSegments'] as $seg)
                                     <circle cx="150" cy="150" r="140" fill="none"
                                             stroke="{{ $seg['color'] }}"
+                                            stroke-width="7.5"
+                                            stroke-opacity="0.22"
+                                            stroke-dasharray="{{ $seg['len'] }} {{ $segCirc }}"
+                                            stroke-linecap="round"
+                                            transform="rotate({{ $seg['rot'] }} 150 150)" />
+                                    <circle cx="150" cy="150" r="140" fill="none"
+                                            stroke="{{ $seg['color'] }}"
                                             stroke-width="3.6"
                                             stroke-dasharray="{{ $seg['len'] }} {{ $segCirc }}"
                                             stroke-linecap="round"
-                                            style="filter: drop-shadow(0 0 4px {{ $seg['color'] }});"
                                             transform="rotate({{ $seg['rot'] }} 150 150)" />
                                 @endforeach
                             </g>
                         @endforeach
 
-                        <!-- LAYER 2: 120 feine Chronographen-Teilstriche in Seelenfunke Gold (Einmalig gerendert, 100% GPU) -->
-                        <g class="sf-spin-slow">
-                            @for($i = 0; $i < 120; $i++)
-                                @php
-                                    $angle = $i * 3;
-                                    $isMajor = ($i % 5 === 0);
-                                    $y1 = $isMajor ? 18 : 20;
-                                    $y2 = $isMajor ? 27 : 25;
-                                @endphp
-                                <line x1="150" y1="{{ $y1 }}" x2="150" y2="{{ $y2 }}"
-                                      stroke="{{ $isMajor ? '#e5c178' : '#9a7b3e' }}"
-                                      stroke-width="{{ $isMajor ? '1.3' : '0.8' }}"
-                                      stroke-opacity="{{ $isMajor ? '0.92' : '0.55' }}"
-                                      transform="rotate({{ $angle }} 150 150)" />
-                            @endfor
-                        </g>
-
-                        <!-- LAYER 3: Horizontale Laser-Frequenzlinien in Seelenfunke Gold (100% GPU CSS-Keyframes) -->
+                        <!-- LAYER 3: Horizontale Laser-Frequenzlinien in Seelenfunke Gold -->
                         <g>
                             @for($b = 0; $b < 39; $b++)
                                 @php
@@ -1514,17 +1520,10 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                         <!-- Horizontale Mittel-Achse -->
                         <line x1="42" y1="150" x2="258" y2="150" stroke="#C5A059" stroke-width="1.6" stroke-opacity="0.75" />
 
-                        <!-- LAYER 4: 3 feine gegenläufige Champagner-Gold Orbital-Bögen -->
-                        <g class="sf-spin-reverse" opacity="0.9">
-                            <circle cx="150" cy="150" r="108" fill="none" stroke="#fff3d1" stroke-width="1.1" stroke-dasharray="95 600" stroke-linecap="round" transform="rotate(15 150 150)" />
-                            <circle cx="150" cy="150" r="113" fill="none" stroke="#e5c178" stroke-width="1.3" stroke-dasharray="120 600" stroke-linecap="round" transform="rotate(5 150 150)" />
-                            <circle cx="150" cy="150" r="118" fill="none" stroke="#C5A059" stroke-width="1.5" stroke-dasharray="145 600" stroke-linecap="round" transform="rotate(-5 150 150)" />
-                        </g>
-
                         <!-- Dezente Glas-Reflexion oben links -->
                         <path d="M 56 175 A 102 102 0 0 1 135 52 L 143 68 A 84 84 0 0 0 72 168 Z" fill="rgba(255,255,255,0.045)" />
 
-                        <!-- LAYER 5: GPU-animierte Sinus-Punktwelle (0% JS-Last, 120 FPS) -->
+                        <!-- LAYER 5: Sinus-Punktwelle -->
                         <g>
                             @for($w = 0; $w < 23; $w++)
                                 @php
@@ -1547,6 +1546,30 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
 
                         <!-- Sanfte zentrale Abdunklung für gestochen scharfe Lesbarkeit -->
                         <circle cx="150" cy="150" r="84" fill="url(#sfCenterReadabilityMain)" />
+                    </svg>
+
+                    <!-- LAYER 2: 120 Chronographen-Teilstriche als eigener GPU-Compositor-Layer (Einmalig gerastert, 0% Main-Thread Re-Paint!) -->
+                    <svg class="absolute inset-0 w-full h-full pointer-events-none sf-spin-slow" viewBox="0 0 300 300">
+                        @for($i = 0; $i < 120; $i++)
+                            @php
+                                $angle = $i * 3;
+                                $isMajor = ($i % 5 === 0);
+                                $y1 = $isMajor ? 18 : 20;
+                                $y2 = $isMajor ? 27 : 25;
+                            @endphp
+                            <line x1="150" y1="{{ $y1 }}" x2="150" y2="{{ $y2 }}"
+                                  stroke="{{ $isMajor ? '#e5c178' : '#9a7b3e' }}"
+                                  stroke-width="{{ $isMajor ? '1.3' : '0.8' }}"
+                                  stroke-opacity="{{ $isMajor ? '0.92' : '0.55' }}"
+                                  transform="rotate({{ $angle }} 150 150)" />
+                        @endfor
+                    </svg>
+
+                    <!-- LAYER 4: 3 gegenläufige Champagner-Gold Orbital-Bögen als eigener GPU-Compositor-Layer -->
+                    <svg class="absolute inset-0 w-full h-full pointer-events-none sf-spin-reverse" viewBox="0 0 300 300" style="opacity: 0.9;">
+                        <circle cx="150" cy="150" r="108" fill="none" stroke="#fff3d1" stroke-width="1.1" stroke-dasharray="95 600" stroke-linecap="round" transform="rotate(15 150 150)" />
+                        <circle cx="150" cy="150" r="113" fill="none" stroke="#e5c178" stroke-width="1.3" stroke-dasharray="120 600" stroke-linecap="round" transform="rotate(5 150 150)" />
+                        <circle cx="150" cy="150" r="118" fill="none" stroke="#C5A059" stroke-width="1.5" stroke-dasharray="145 600" stroke-linecap="round" transform="rotate(-5 150 150)" />
                     </svg>
 
                     <!-- GOLDENES ZAHNRAD-SYMBOL MITTIG OBEN IM KREIS (Öffnet die fliegenden Zeitraum- & Filter-Einstellungen) -->
@@ -1731,10 +1754,12 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                             <div class="relative w-18 h-18 flex items-center justify-center shrink-0 bg-gray-50/90 dark:bg-gray-950/90 rounded-full">
                                 <svg class="w-18 h-18 overflow-visible" viewBox="0 0 72 72">
                                     <circle cx="36" cy="36" r="30" fill="none" stroke="currentColor" stroke-width="4.5" class="text-gray-200 dark:text-gray-800" />
+                                    <circle cx="36" cy="36" r="30" fill="none" stroke="{{ $node['color'] }}" stroke-width="8" stroke-opacity="0.2"
+                                            stroke-dasharray="{{ $rCirc }}" stroke-dashoffset="{{ $rOffset }}" stroke-linecap="round"
+                                            transform="rotate(-90 36 36)" />
                                     <circle cx="36" cy="36" r="30" fill="none" stroke="{{ $node['color'] }}" stroke-width="4.5"
                                             stroke-dasharray="{{ $rCirc }}" stroke-dashoffset="{{ $rOffset }}" stroke-linecap="round"
-                                            transform="rotate(-90 36 36)"
-                                            style="filter: drop-shadow(0 0 5px {{ $node['color'] }});" />
+                                            transform="rotate(-90 36 36)" />
                                 </svg>
                                 <div class="absolute inset-0 flex flex-col items-center justify-center">
                                     <span class="text-sm font-black text-gray-900 dark:text-white leading-none">{{ $node['value'] }}</span>

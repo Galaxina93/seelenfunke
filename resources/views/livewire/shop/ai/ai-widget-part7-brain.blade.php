@@ -1,10 +1,19 @@
 <!-- Neurale Fehleranalyse (3D Projekt Gehirn) -->
-<script src="//unpkg.com/3d-force-graph"></script>
 <script>
     window.brainMapInstance = null;
     window.brainMapData = null;
 
     window.initBrainMap = async function() {
+        if (typeof ForceGraph3D === 'undefined') {
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = "//unpkg.com/3d-force-graph";
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+
         if (window.brainMapInstance) {
             // Already initialized, just fit to screen
             try {

@@ -97,6 +97,25 @@
                     });
                 }
 
+                if (typeof anime === 'undefined') {
+                    await new Promise((resolve, reject) => {
+                        const script = document.createElement('script');
+                        script.src = "{{ asset('vendor/animejs/anime.min.js') }}";
+                        script.onload = resolve;
+                        script.onerror = reject;
+                        document.head.appendChild(script);
+                    });
+                }
+
+                if (typeof mapboxgl === 'undefined') {
+                    await new Promise((resolve, reject) => {
+                        const script = document.createElement('script');
+                        script.src = "{{ asset('vendor/mapbox-gl/mapbox-gl.js') }}";
+                        script.onload = resolve;
+                        script.onerror = reject;
+                        document.head.appendChild(script);
+                    });
+                }
 
                 startAnimation();
             },

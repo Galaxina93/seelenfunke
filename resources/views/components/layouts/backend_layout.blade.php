@@ -113,7 +113,7 @@
         }
     </style>
 </head>
-<body class="min-h-screen bg-slate-100 dark:bg-gray-950 font-sans text-gray-800 dark:text-gray-300 antialiased relative overflow-x-hidden transition-colors duration-300" x-data="universeLayout()" x-init="init()">
+<body class="min-h-screen bg-slate-100 dark:bg-gray-950 font-sans text-gray-800 dark:text-gray-300 antialiased relative overflow-x-hidden transition-colors duration-300" x-data="universeLayout()">
 
 {{-- HINTERGRUND UNIVERSUM --}}
 <canvas id="global-universe-canvas" class="fixed inset-0 z-0 pointer-events-none w-full h-full opacity-0 dark:opacity-100 transition-opacity duration-500" wire:ignore></canvas>
@@ -400,7 +400,7 @@
             <main class="{{ ($guard !== 'customer' && !$isExternalEmployee) ? 'py-8 flex-1 min-w-0' : 'flex-1 min-w-0' }}">
                 @if($guard !== 'customer' && !$isExternalEmployee)
                     <div class="max-w-[1700px] w-full mx-auto px-4 sm:px-6 lg:px-8">
-                        <div class="animate-fade-in-up" x-data x-init="setTimeout(() => $el.classList.remove('animate-fade-in-up'), 1000)">
+                        <div class="animate-fade-in-up">
                             @yield('content')
                             {{ $slot ?? '' }}
                         </div>
@@ -426,10 +426,10 @@
 
 <style>
     html.dark .shadow-glow { filter: drop-shadow(0 0 8px rgba(197, 160, 89, 0.3)); }
-    .animate-fade-in-up { animation: fadeInUp 0.5s ease-out forwards; }
+    .animate-fade-in-up { animation: fadeInUp 0.22s ease-out; }
     @keyframes fadeInUp {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: none; }
+        from { opacity: 0; }
+        to { opacity: 1; }
     }
     .custom-scrollbar::-webkit-scrollbar { width: 4px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -443,18 +443,30 @@
                 init() {
                     const canvas = document.getElementById('global-universe-canvas');
                     if (!canvas) return;
-                    const ctx = canvas.getContext('2d');
 
-                    let width, height;
+                    // Singleton-Guard: Verhindert doppelte Initialisierung (Springen beim Laden & doppelte RAF-Loops)
+                    if (window.__sfUniverseState && window.__sfUniverseState.canvas === canvas) {
+                        return;
+                    }
+                    if (window.__sfUniverseState && window.__sfUniverseState.rafId) {
+                        cancelAnimationFrame(window.__sfUniverseState.rafId);
+                    }
+                    if (window.__sfUniverseState && window.__sfUniverseState.resizeHandler) {
+                        window.removeEventListener('resize', window.__sfUniverseState.resizeHandler);
+                    }
+
+                    const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true }) || canvas.getContext('2d');
+
+                    let width = window.innerWidth;
+                    let height = window.innerHeight;
                     let stars = [];
                     let planets = [];
                     let meteors = [];
                     let dust = [];
 
-                    // Einstellungen für das gechillte Universum
                     const config = {
                         starsCount: 250,
-                        planetsCount: 3, // Sonnen/Monde
+                        planetsCount: 3,
                         dustCount: 40,
                         meteorsCount: 12,
                         colors: {
@@ -465,15 +477,63 @@
                         }
                     };
 
-                    const resize = () => {
-                        width = canvas.width = window.innerWidth;
-                        height = canvas.height = window.innerHeight;
-                    };
-                    window.addEventListener('resize', resize);
-                    resize();
-
-                    // Hilfsfunktion für Zufallszahlen
                     const random = (min, max) => Math.random() * (max - min) + min;
+
+                    // Vorab-gerenderte Glow-Sprites (ersetzt 52 teure ctx.shadowBlur Aufrufe pro Frame durch schnelles GPU-drawImage)
+                    const createGlowSprite = (radius, rgbPrefix, coreAlpha = 1, haloScale = 4) => {
+                        const size = Math.ceil(radius * haloScale * 2);
+                        const off = document.createElement('canvas');
+                        off.width = size;
+                        off.height = size;
+                        const octx = off.getContext('2d');
+                        const center = size / 2;
+                        const grad = octx.createRadialGradient(center, center, 0, center, center, center);
+                        grad.addColorStop(0, `${rgbPrefix}${coreAlpha})`);
+                        grad.addColorStop(0.22, `${rgbPrefix}${coreAlpha * 0.65})`);
+                        grad.addColorStop(0.5, `${rgbPrefix}${coreAlpha * 0.2})`);
+                        grad.addColorStop(1, 'rgba(0,0,0,0)');
+                        octx.fillStyle = grad;
+                        octx.beginPath();
+                        octx.arc(center, center, center, 0, Math.PI * 2);
+                        octx.fill();
+                        return off;
+                    };
+
+                    const createPlanetSprite = (r, colorPrefix, maxAlpha) => {
+                        const size = Math.ceil(r * 2);
+                        const off = document.createElement('canvas');
+                        off.width = size;
+                        off.height = size;
+                        const octx = off.getContext('2d');
+                        const grad = octx.createRadialGradient(r - r * 0.2, r - r * 0.2, 0, r, r, r);
+                        grad.addColorStop(0, `${colorPrefix}${maxAlpha})`);
+                        grad.addColorStop(1, 'rgba(0,0,0,0)');
+                        octx.fillStyle = grad;
+                        octx.beginPath();
+                        octx.arc(r, r, r, 0, Math.PI * 2);
+                        octx.fill();
+                        return off;
+                    };
+
+                    const dustSprite = createGlowSprite(4, config.colors.gold, 1, 3.5);
+                    const meteorHeadGold = createGlowSprite(3, config.colors.gold, 1, 4.5);
+                    const meteorHeadWhite = createGlowSprite(3, config.colors.white, 1, 4.5);
+
+                    const resize = () => {
+                        const newW = window.innerWidth;
+                        const newH = window.innerHeight;
+                        if (canvas.width !== newW || canvas.height !== newH) {
+                            const scaleX = width > 0 ? newW / width : 1;
+                            const scaleY = height > 0 ? newH / height : 1;
+                            width = canvas.width = newW;
+                            height = canvas.height = newH;
+                            stars.forEach(s => { s.x *= scaleX; s.y *= scaleY; });
+                            dust.forEach(d => { d.x *= scaleX; d.baseY *= scaleY; });
+                        }
+                    };
+                    canvas.width = width;
+                    canvas.height = height;
+                    window.addEventListener('resize', resize, { passive: true });
 
                     // 1. STERNE (Funkeln im Hintergrund)
                     for (let i = 0; i < config.starsCount; i++) {
@@ -488,25 +548,29 @@
                         });
                     }
 
-                    // 2. MONDE / SONNEN (Tief im Hintergrund, riesig, fast unsichtbar)
+                    // 2. MONDE / SONNEN (Vorab als Offscreen-Sprite gerendert -> 0 Gradient-Allokationen im Loop)
                     for (let i = 0; i < config.planetsCount; i++) {
+                        const r = random(150, 400);
+                        const color = [config.colors.gold, config.colors.blue, config.colors.copper][Math.floor(Math.random() * 3)];
+                        const maxAlpha = random(0.03, 0.08);
                         planets.push({
                             x: random(0, width),
                             y: random(0, height),
-                            r: random(150, 400),
-                            vx: random(-0.02, 0.02), // Extrem langsam
+                            r: r,
+                            vx: random(-0.02, 0.02),
                             vy: random(-0.02, 0.02),
-                            color: [config.colors.gold, config.colors.blue, config.colors.copper][Math.floor(Math.random() * 3)],
-                            maxAlpha: random(0.03, 0.08) // Geisterhaft transparent
+                            sprite: createPlanetSprite(r, color, maxAlpha)
                         });
                     }
 
                     // 3. STERNENSTAUB (Sanftes Schweben)
                     for (let i = 0; i < config.dustCount; i++) {
+                        const r = random(1, 3);
                         dust.push({
                             x: random(0, width),
                             y: random(0, height),
-                            r: random(1, 3),
+                            r: r,
+                            drawSize: r * 7,
                             vx: random(-0.05, 0.05),
                             angle: random(0, Math.PI * 2),
                             floatSpeed: random(0.005, 0.015),
@@ -516,13 +580,10 @@
                         });
                     }
 
-                    // 4. METEORITEN (Zufällige flache Winkel)
+                    // 4. METEORITEN
                     const spawnMeteor = (isInitial = false) => {
-                        // Spawnt entweder links, rechts, oben oder unten
                         const edge = Math.floor(random(0, 4));
-                        let x, y, vx, vy;
-
-                        // Extrem langsame Geschwindigkeit für den "Chill" Faktor
+                        let x, y;
                         const speed = random(0.1, 0.3);
                         const angle = random(0, Math.PI * 2);
 
@@ -530,22 +591,25 @@
                             x = random(0, width);
                             y = random(0, height);
                         } else {
-                            if (edge === 0) { x = -50; y = random(0, height); } // Links
-                            if (edge === 1) { x = width + 50; y = random(0, height); } // Rechts
-                            if (edge === 2) { x = random(0, width); y = -50; } // Oben
-                            if (edge === 3) { x = random(0, width); y = height + 50; } // Unten
+                            if (edge === 0) { x = -50; y = random(0, height); }
+                            if (edge === 1) { x = width + 50; y = random(0, height); }
+                            if (edge === 2) { x = random(0, width); y = -50; }
+                            if (edge === 3) { x = random(0, width); y = height + 50; }
                         }
 
-                        // Bewegung in Richtung Zentrum der Map (grob)
-                        vx = Math.cos(angle) * speed;
-                        vy = Math.sin(angle) * speed;
-
+                        const isGold = Math.random() > 0.5;
+                        const size = random(0.8, 2.5);
                         meteors.push({
-                            x: x, y: y, vx: vx, vy: vy,
-                            size: random(0.8, 2.5),
+                            x: x,
+                            y: y,
+                            vx: Math.cos(angle) * speed,
+                            vy: Math.sin(angle) * speed,
+                            size: size,
+                            headDrawSize: size * 9,
                             alpha: random(0.1, 0.6),
                             length: random(30, 100),
-                            color: Math.random() > 0.5 ? config.colors.gold : config.colors.white
+                            color: isGold ? config.colors.gold : config.colors.white,
+                            headSprite: isGold ? meteorHeadGold : meteorHeadWhite
                         });
                     };
 
@@ -553,104 +617,121 @@
                         spawnMeteor(true);
                     }
 
+                    const state = {
+                        canvas: canvas,
+                        rafId: null,
+                        resizeHandler: resize,
+                        lastTime: performance.now()
+                    };
+                    window.__sfUniverseState = state;
+
                     // ==========================================
-                    // RENDER LOOP
+                    // RENDER LOOP (Delta-Time geglättet & GPU-Sprite optimiert)
                     // ==========================================
-                    const loop = () => {
+                    const loop = (now) => {
+                        state.rafId = requestAnimationFrame(loop);
+
+                        // Im Light-Mode (Canvas unsichtbar) oder bei inaktivem Browser-Tab keine GPU/CPU-Zeit verbrauchen
+                        if (document.hidden || !document.documentElement.classList.contains('dark')) {
+                            state.lastTime = now;
+                            return;
+                        }
+
+                        const elapsed = now - state.lastTime;
+                        state.lastTime = now;
+                        // Normiert auf 60 FPS (16.6667ms), geclampt gegen Sprünge nach Tab-Wechsel
+                        const dt = elapsed > 0 ? Math.min(2.2, Math.max(0.2, elapsed / 16.6667)) : 1;
+
                         ctx.clearRect(0, 0, width, height);
 
-                        // 1. Monde & Sonnen zeichnen
-                        planets.forEach(p => {
-                            p.x += p.vx;
-                            p.y += p.vy;
+                        // 1. Monde & Sonnen zeichnen (1x drawImage statt createRadialGradient pro Frame)
+                        ctx.globalAlpha = 1;
+                        for (let i = 0; i < planets.length; i++) {
+                            const p = planets[i];
+                            p.x += p.vx * dt;
+                            p.y += p.vy * dt;
 
-                            // Endlos-Loop an den Rändern
                             if (p.x - p.r > width) p.x = -p.r;
                             if (p.x + p.r < 0) p.x = width + p.r;
                             if (p.y - p.r > height) p.y = -p.r;
                             if (p.y + p.r < 0) p.y = height + p.r;
 
-                            let grad = ctx.createRadialGradient(p.x - p.r * 0.2, p.y - p.r * 0.2, 0, p.x, p.y, p.r);
-                            grad.addColorStop(0, `${p.color}${p.maxAlpha})`);
-                            grad.addColorStop(1, 'rgba(0,0,0,0)');
-
-                            ctx.beginPath();
-                            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-                            ctx.fillStyle = grad;
-                            ctx.fill();
-                        });
+                            ctx.drawImage(p.sprite, p.x - p.r, p.y - p.r);
+                        }
 
                         // 2. Sterne zeichnen (Funkeln)
-                        stars.forEach(s => {
-                            s.angle += s.speed;
-                            // Pulsierender Alpha-Wert
+                        for (let i = 0; i < stars.length; i++) {
+                            const s = stars[i];
+                            s.angle += s.speed * dt;
                             let currentAlpha = s.baseAlpha + Math.sin(s.angle) * 0.3;
-                            if (currentAlpha < 0) currentAlpha = 0;
+                            if (currentAlpha <= 0.01) continue;
 
                             ctx.beginPath();
                             ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
                             ctx.fillStyle = `${s.color}${currentAlpha})`;
                             ctx.fill();
-                        });
+                        }
 
-                        // 3. Sternenstaub (Schweben)
-                        dust.forEach(d => {
-                            d.x += d.vx;
-                            d.angle += d.floatSpeed;
+                        // 3. Sternenstaub (Schweben via Pre-Rendered Glow-Sprite ohne shadowBlur)
+                        for (let i = 0; i < dust.length; i++) {
+                            const d = dust[i];
+                            d.x += d.vx * dt;
+                            d.angle += d.floatSpeed * dt;
                             d.y = d.baseY + Math.sin(d.angle) * d.floatRange;
 
                             if (d.x > width + 10) d.x = -10;
                             if (d.x < -10) d.x = width + 10;
 
-                            ctx.beginPath();
-                            ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
-                            ctx.fillStyle = `${config.colors.gold}${d.alpha})`;
-                            ctx.shadowBlur = d.r * 3;
-                            ctx.shadowColor = `${config.colors.gold}${d.alpha})`;
-                            ctx.fill();
-                            ctx.shadowBlur = 0; // Reset
-                        });
+                            ctx.globalAlpha = d.alpha;
+                            const half = d.drawSize * 0.5;
+                            ctx.drawImage(dustSprite, d.x - half, d.y - half, d.drawSize, d.drawSize);
+                        }
 
-                        // 4. Meteoriten zeichnen
+                        // 4. Meteoriten zeichnen (ohne shadowBlur)
+                        ctx.lineCap = 'round';
                         for (let i = meteors.length - 1; i >= 0; i--) {
-                            let m = meteors[i];
+                            const m = meteors[i];
 
-                            m.x += m.vx;
-                            m.y += m.vy;
+                            m.x += m.vx * dt;
+                            m.y += m.vy * dt;
 
-                            // Entfernen und Neu-Spawnen wenn außerhalb
                             if (m.x > width + 150 || m.x < -150 || m.y > height + 150 || m.y < -150) {
                                 meteors.splice(i, 1);
                                 spawnMeteor();
                                 continue;
                             }
 
-                            // Schweif
-                            ctx.beginPath();
-                            ctx.moveTo(m.x, m.y);
-                            ctx.lineTo(m.x - (m.vx * m.length), m.y - (m.vy * m.length));
-                            let grad = ctx.createLinearGradient(m.x, m.y, m.x - (m.vx * m.length), m.y - (m.vy * m.length));
-                            grad.addColorStop(0, `${m.color}${m.alpha})`);
-                            grad.addColorStop(1, 'rgba(0,0,0,0)');
+                            const tailX = m.x - (m.vx * m.length);
+                            const tailY = m.y - (m.vy * m.length);
+                            const midX = (m.x + tailX) * 0.5;
+                            const midY = (m.y + tailY) * 0.5;
 
-                            ctx.strokeStyle = grad;
-                            ctx.lineWidth = m.size * 0.6;
-                            ctx.lineCap = 'round';
+                            // Zweistufiger Schweif (vermeidet createLinearGradient-Allokation pro Frame)
+                            ctx.globalAlpha = m.alpha * 0.32;
+                            ctx.strokeStyle = `${m.color}1)`;
+                            ctx.lineWidth = m.size * 0.45;
+                            ctx.beginPath();
+                            ctx.moveTo(midX, midY);
+                            ctx.lineTo(tailX, tailY);
                             ctx.stroke();
 
-                            // Leuchtender Kopf
+                            ctx.globalAlpha = m.alpha * 0.78;
+                            ctx.lineWidth = m.size * 0.65;
                             ctx.beginPath();
-                            ctx.arc(m.x, m.y, m.size, 0, Math.PI * 2);
-                            ctx.fillStyle = `${m.color}${m.alpha + 0.3})`;
-                            ctx.shadowBlur = m.size * 5;
-                            ctx.shadowColor = `${m.color}${m.alpha})`;
-                            ctx.fill();
-                            ctx.shadowBlur = 0; // Reset
+                            ctx.moveTo(m.x, m.y);
+                            ctx.lineTo(midX, midY);
+                            ctx.stroke();
+
+                            // Leuchtender Kopf via Glow-Sprite
+                            ctx.globalAlpha = Math.min(1, m.alpha + 0.35);
+                            const halfHead = m.headDrawSize * 0.5;
+                            ctx.drawImage(m.headSprite, m.x - halfHead, m.y - halfHead, m.headDrawSize, m.headDrawSize);
                         }
 
-                        requestAnimationFrame(loop);
+                        ctx.globalAlpha = 1;
                     };
-                    loop();
+
+                    state.rafId = requestAnimationFrame(loop);
                 }
             };
         }

@@ -38,10 +38,6 @@
                 </button>
             @endif
         </div>
-
-        @if($item->description)
-            <div class="text-[11px] text-gray-600 dark:text-gray-400 mt-3 italic leading-relaxed border-l-2 border-gray-200 dark:border-gray-800 pl-3">{{ $item->description }}</div>
-        @endif
     </div>
 
     <div class="text-left sm:text-right mt-3 sm:mt-0 w-full sm:w-auto">
@@ -60,39 +56,6 @@
             <button wire:click.stop="archiveItem('{{ $item->id }}')" wire:confirm="Kostenstelle '{{ $item->name }}' ins Archiv verschieben? (Vertrag bleibt gesichert und kann jederzeit wiederhergestellt werden)" class="text-[9px] text-gray-400 dark:text-gray-500 hover:text-amber-500 dark:hover:text-amber-400 font-black uppercase tracking-widest border-b border-gray-300 dark:border-gray-700 hover:border-amber-500 dark:hover:border-amber-400 pb-0.5 transition-colors">Archivieren</button>
             <button wire:click.stop="forceDeleteItem('{{ $item->id }}')" wire:confirm="Achtung: Möchtest du diese Kostenstelle samt hinterlegtem Vertrag wirklich UNWIDERRUFLICH und endgültig löschen?" class="text-[9px] text-gray-400 dark:text-gray-600 hover:text-red-600 dark:hover:text-red-400 font-black uppercase tracking-widest border-b border-gray-300 dark:border-gray-600 hover:border-red-600 dark:hover:border-red-400 pb-0.5 transition-colors">Endgültig löschen</button>
         </div>
-    </div>
-</div>
-
-<div class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-800/50 w-full">
-    <div class="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-2" style="scrollbar-width: thin;">
-        <svg class="w-4 h-4 text-[var(--theme-color)]/70 shrink-0 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-        </svg>
-
-        @foreach($item->tags ?? [] as $tag)
-            <span class="shrink-0 bg-[var(--theme-color-10)] border border-[var(--theme-color-30)] text-[var(--theme-color)] shadow-[0_0_10px_var(--theme-color-20)] rounded-full pl-2.5 pr-1 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all hover:bg-[var(--theme-color-20)]">
-                {{ $tag }}
-                <button wire:click.stop="removeTagFromItem('{{ $item->id }}', '{{ $tag }}')" class="text-[var(--theme-color)]/70 hover:text-red-400 hover:bg-red-500/20 transition-colors rounded-full p-0.5" title="Tag entfernen">
-                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-            </span>
-        @endforeach
-
-        @if($addingTagToItemId === $item->id)
-            <div class="shrink-0 flex items-center gap-1 bg-white dark:bg-gray-950 border border-[var(--theme-color-50)] shadow-sm dark:shadow-inner rounded-full pl-3 pr-1 py-0.5" @click.stop>
-                <input type="text" wire:model="newItemTag" wire:keydown.enter="saveNewItemTag" placeholder="Tag eingeben..." class="bg-transparent text-[9px] font-black uppercase tracking-widest text-gray-900 dark:text-white w-24 outline-none cursor-pointer" autofocus>
-                <button wire:click.stop="saveNewItemTag" class="text-emerald-400 hover:text-emerald-300 p-0.5 transition-colors" title="Speichern">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-                </button>
-                <button wire:click.stop="$set('addingTagToItemId', null)" class="text-gray-500 hover:text-gray-400 p-0.5 transition-colors" title="Abbrechen">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-            </div>
-        @else
-            <button wire:click.stop="startAddingTag('{{ $item->id }}')" class="shrink-0 bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:border-[var(--theme-color-50)] text-gray-500 hover:text-[var(--theme-color)] shadow-sm dark:shadow-inner rounded-full p-1 transition-all" title="Tag hinzufügen">
-                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
-            </button>
-        @endif
     </div>
 </div>
 

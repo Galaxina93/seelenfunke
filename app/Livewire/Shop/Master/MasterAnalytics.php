@@ -31,6 +31,7 @@ class MasterAnalytics extends Component
     public $healthChecks = [];
     public $systemHealth = [];
     public $rangeMode = 'year';
+    public bool $focusMode = true;
 
     // Suchfeld für die Historie
     public $searchLogins = '';
@@ -645,32 +646,35 @@ class MasterAnalytics extends Component
                 }
             }
 
-            // CLI PHP-Versionen & proc_open testen
-            $cliVersions = [];
-            $interpreters = ['/usr/bin/php8.4', '/usr/bin/php', 'php'];
-            if (function_exists('exec')) {
-                foreach ($interpreters as $interpreter) {
-                    $output = [];
-                    $code = -1;
-                    @exec("$interpreter -v 2>&1", $output, $code);
-                    if ($code === 0 && !empty($output)) {
-                        $version = 'not_found';
-                        if (preg_match('/PHP\s+([0-9.]+)/i', $output[0], $m)) {
-                            $version = $m[1];
+            // CLI PHP-Versionen & proc_open testen (1h gecacht, um 6x synchrone Shell-Prozesse pro Check zu vermeiden)
+            $cliVersions = \Illuminate\Support\Facades\Cache::remember('system_health_php_cli_versions', 3600, function () {
+                $versions = [];
+                $interpreters = ['/usr/bin/php8.4', '/usr/bin/php', 'php'];
+                if (function_exists('exec')) {
+                    foreach ($interpreters as $interpreter) {
+                        $output = [];
+                        $code = -1;
+                        @exec("$interpreter -v 2>&1", $output, $code);
+                        if ($code === 0 && !empty($output)) {
+                            $version = 'not_found';
+                            if (preg_match('/PHP\s+([0-9.]+)/i', $output[0], $m)) {
+                                $version = $m[1];
+                            }
+
+                            $procOpenOutput = [];
+                            $procOpenExitCode = -1;
+                            @exec("$interpreter -r \"echo function_exists('proc_open') ? 'yes' : 'no';\" 2>&1", $procOpenOutput, $procOpenExitCode);
+                            $hasProc = ($procOpenExitCode === 0 && implode('', $procOpenOutput) === 'yes');
+
+                            $versions[$interpreter] = [
+                                'version' => $version,
+                                'proc_open' => $hasProc,
+                            ];
                         }
-                        
-                        $procOpenOutput = [];
-                        $procOpenExitCode = -1;
-                        @exec("$interpreter -r \"echo function_exists('proc_open') ? 'yes' : 'no';\" 2>&1", $procOpenOutput, $procOpenExitCode);
-                        $hasProc = ($procOpenExitCode === 0 && implode('', $procOpenOutput) === 'yes');
-                        
-                        $cliVersions[$interpreter] = [
-                            'version' => $version,
-                            'proc_open' => $hasProc
-                        ];
                     }
                 }
-            }
+                return $versions;
+            });
 
             // Zusätzliche Diagnostik für DB Cronjobs
             $heartbeatActive = false;
@@ -931,14 +935,26 @@ class MasterAnalytics extends Component
         $this->loadStats(app(AnalyticsService::class));
     }
 
+    protected function resolveConfigUserId(): ?string
+    {
+        $id = Auth::guard('admin')->id() ?: auth()->id();
+        return $id ? (string) $id : null;
+    }
+
     public function loadSettings()
     {
-        $config = SystemCheckConfig::where('user_id', auth()->id())->first();
+        $userId = $this->resolveConfigUserId();
+        $config = $userId ? SystemCheckConfig::where('user_id', $userId)->first() : null;
         if ($config) {
-            $this->filterType = $config->filter_type;
+            $this->filterType = $config->filter_type ?: 'all';
             $this->dateStart = $config->date_start;
             $this->dateEnd = $config->date_end;
             $this->rangeMode = $config->range_mode ?? 'custom';
+            if (is_array($config->widgets) && array_key_exists('focus_mode', $config->widgets)) {
+                $this->focusMode = (bool) $config->widgets['focus_mode'];
+            } elseif (isset($config->focus_mode)) {
+                $this->focusMode = (bool) $config->focus_mode;
+            }
             if (isset($config->widgets['journey_start_date'])) {
                 $this->journeyStartDate = $config->widgets['journey_start_date'];
             }
@@ -953,26 +969,56 @@ class MasterAnalytics extends Component
             'journeyStartDate' => 'required|date',
         ]);
         $this->journeyStartDate = \Carbon\Carbon::parse($this->journeyStartDate)->format('Y-m-d');
-        $config = SystemCheckConfig::firstOrNew(['user_id' => auth()->id()]);
-        $widgets = $config->widgets ?? [];
-        $widgets['journey_start_date'] = $this->journeyStartDate;
-        $config->widgets = $widgets;
-        $config->save();
+        $this->saveSettings();
         $this->dispatch('banner-message', style: 'success', message: 'Startpunkt für 10-Jahres-Reise aktualisiert.');
     }
 
-    public function saveSettings($rangeMode = 'custom')
+    public function saveSettings($rangeMode = null)
     {
-        $this->rangeMode = $rangeMode;
+        if ($rangeMode !== null) {
+            $this->rangeMode = $rangeMode;
+        } elseif (!$this->rangeMode) {
+            $this->rangeMode = 'custom';
+        }
+
+        $userId = $this->resolveConfigUserId();
+        if (!$userId) {
+            return;
+        }
+
+        $existing = SystemCheckConfig::where('user_id', $userId)->first();
+        $widgets = is_array($existing?->widgets) ? $existing->widgets : [];
+        $widgets['focus_mode'] = (bool) $this->focusMode;
+        $widgets['journey_start_date'] = $this->journeyStartDate;
+
+        $payload = [
+            'filter_type' => $this->filterType ?: 'all',
+            'date_start' => $this->dateStart ?: now()->startOfYear()->format('Y-m-d'),
+            'date_end' => $this->dateEnd ?: now()->endOfYear()->format('Y-m-d'),
+            'range_mode' => $this->rangeMode,
+            'widgets' => $widgets,
+        ];
+
+        if (\Illuminate\Support\Facades\Schema::hasColumn('system_check_configs', 'focus_mode')) {
+            $payload['focus_mode'] = (bool) $this->focusMode;
+        }
+
         SystemCheckConfig::updateOrCreate(
-            ['user_id' => auth()->id()],
-            [
-                'filter_type' => $this->filterType,
-                'date_start' => $this->dateStart,
-                'date_end' => $this->dateEnd,
-                'range_mode' => $rangeMode
-            ]
+            ['user_id' => $userId],
+            $payload
         );
+    }
+
+    public function saveFocusMode(bool $state): void
+    {
+        $this->focusMode = $state;
+        $this->saveSettings();
+    }
+
+    public function toggleFocusMode(): void
+    {
+        $this->focusMode = !$this->focusMode;
+        $this->saveSettings();
     }
 
     public function setCurrentMonth($save = true)
@@ -1004,6 +1050,12 @@ class MasterAnalytics extends Component
 
     public function updated($property)
     {
+        if ($property === 'focusMode') {
+            $this->focusMode = (bool) $this->focusMode;
+            $this->saveSettings();
+            return;
+        }
+
         if (in_array($property, ['dateStart', 'dateEnd', 'filterType'])) {
             if (!in_array($this->filterType, ['all', 'business', 'private'], true)) {
                 $this->filterType = 'all';
@@ -1019,7 +1071,8 @@ class MasterAnalytics extends Component
 
             if ($validator->fails()) {
                 // Bei Fehlern setzen wir auf den letzten gespeicherten Wert zurück (Auto-Revert)
-                $config = SystemCheckConfig::where('user_id', auth()->id())->first();
+                $userId = $this->resolveConfigUserId();
+                $config = $userId ? SystemCheckConfig::where('user_id', $userId)->first() : null;
                 if ($config) {
                     $this->dateStart = $config->date_start;
                     $this->dateEnd = $config->date_end;
@@ -1120,20 +1173,19 @@ class MasterAnalytics extends Component
             [$start, $end] = [$end->copy()->startOfDay(), $start->copy()->endOfDay()];
         }
 
-        $periodOrdersCount = ($this->filterType !== 'private')
-            ? \App\Models\Order\OrderOrder::whereBetween('created_at', [$start, $end])
-                ->whereNotIn('status', ['cancelled', 'refunded'])
-                ->count()
-            : 0;
+        $agg = \App\Models\Order\OrderOrder::query()
+            ->selectRaw("
+                SUM(CASE WHEN status NOT IN ('cancelled', 'refunded') THEN 1 ELSE 0 END) as global_count,
+                SUM(CASE WHEN status IN ('pending', 'processing') THEN 1 ELSE 0 END) as open_count,
+                SUM(CASE WHEN created_at BETWEEN ? AND ? AND status NOT IN ('cancelled', 'refunded') THEN 1 ELSE 0 END) as period_count,
+                SUM(CASE WHEN created_at BETWEEN ? AND ? AND payment_status = 'paid' AND status NOT IN ('cancelled', 'refunded') THEN total_price ELSE 0 END) as paid_cents
+            ", [$start, $end, $start, $end])
+            ->first();
 
-        $globalOrdersCount = \App\Models\Order\OrderOrder::whereNotIn('status', ['cancelled', 'refunded'])->count();
-        $openOrdersCount = \App\Models\Order\OrderOrder::whereIn('status', ['pending', 'processing'])->count();
-        $paidRevenueCents = ($this->filterType !== 'private')
-            ? (int) \App\Models\Order\OrderOrder::whereBetween('created_at', [$start, $end])
-                ->where('payment_status', 'paid')
-                ->whereNotIn('status', ['cancelled', 'refunded'])
-                ->sum('total_price')
-            : 0;
+        $periodOrdersCount = ($this->filterType !== 'private') ? (int) ($agg->period_count ?? 0) : 0;
+        $globalOrdersCount = (int) ($agg->global_count ?? 0);
+        $openOrdersCount = (int) ($agg->open_count ?? 0);
+        $paidRevenueCents = ($this->filterType !== 'private') ? (int) ($agg->paid_cents ?? 0) : 0;
 
         $latestOrder = \App\Models\Order\OrderOrder::whereNotIn('status', ['cancelled', 'refunded'])
             ->latest('created_at')
