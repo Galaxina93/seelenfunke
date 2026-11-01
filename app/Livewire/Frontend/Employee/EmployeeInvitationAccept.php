@@ -56,6 +56,7 @@ class EmployeeInvitationAccept extends Component
     #[Locked]
     public bool $isFixedTerm = false;
 
+    #[Locked]
     public int $step = 1;
 
     // Schritt 1: 6-stelliger Sicherheitscode
@@ -120,20 +121,12 @@ class EmployeeInvitationAccept extends Component
         }
 
         $this->isValidToken = true;
-        $this->contractId = $contract->id;
-        $this->existingEmployeeId = $contract->employee_id;
         $this->jobTitle = (string) $contract->job_title;
         $this->employmentTypeLabel = (string) $contract->employment_type_label;
         $this->hourlyRateCents = (int) $contract->hourly_rate_cents;
         $this->weeklyHours = (float) $contract->weekly_hours;
         $this->vacationDays = (int) $contract->vacation_days_per_year;
         $this->isFixedTerm = (bool) $contract->is_fixed_term;
-
-        if ($contract->employee) {
-            $this->firstName = (string) ($contract->employee->first_name ?? '');
-            $this->lastName = (string) ($contract->employee->last_name ?? '');
-            $this->email = (string) ($contract->employee->email ?? '');
-        }
     }
 
     public function verifyCode(EmployeeHrService $service): void
@@ -163,6 +156,15 @@ class EmployeeInvitationAccept extends Component
             throw ValidationException::withMessages([
                 'verificationCode' => 'Der eingegebene Sicherheitscode ist ungültig.',
             ]);
+        }
+
+        $contract->loadMissing('employee.profile');
+        $this->contractId = $contract->id;
+        $this->existingEmployeeId = $contract->employee_id;
+        if ($contract->employee) {
+            $this->firstName = (string) ($contract->employee->first_name ?? '');
+            $this->lastName = (string) ($contract->employee->last_name ?? '');
+            $this->email = (string) ($contract->employee->email ?? '');
         }
 
         $this->isCodeVerified = true;

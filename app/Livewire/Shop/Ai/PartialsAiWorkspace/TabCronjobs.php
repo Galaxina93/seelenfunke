@@ -27,6 +27,10 @@ class TabCronjobs extends Component
         if (!Auth::guard('admin')->check()) {
             abort(403);
         }
+
+        if (class_exists(\Database\Seeders\SystemCronjobSeeder::class)) {
+            \Database\Seeders\SystemCronjobSeeder::ensureDefaultCronjobsExist();
+        }
     }
 
     #[Computed]
@@ -147,25 +151,50 @@ class TabCronjobs extends Component
                         }
                     }
                 }
-                Artisan::call($commandClean, $parameters);
-                
+                $exitCode = Artisan::call($commandClean, $parameters);
+                $output = trim((string) Artisan::output());
+
+                if ($exitCode !== 0) {
+                    throw new \RuntimeException(
+                        "Der Cronjob '{$job->name}' ({$commandClean}) wurde mit Fehler-Exit-Code {$exitCode} beendet."
+                        . ($output !== '' ? " Ausgabe: " . mb_substr($output, 0, 500) : '')
+                    );
+                }
+
                 $job->update([
                     'status' => 'success',
                     'last_run_at' => now(),
                 ]);
-                
+
                 $this->dispatch('notify', [
                     'type' => 'success',
                     'message' => 'Cronjob "' . $job->name . '" erfolgreich ausgeführt!'
                 ]);
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $job->update([
                     'status' => 'error',
                     'last_run_at' => now(),
                 ]);
-                
-                Log::error("Manuelle Cronjob-Ausführung fehlgeschlagen: " . $e->getMessage());
-                
+
+                if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
+                    \App\Services\System\SystemErrorLogger::recordException(
+                        $e,
+                        'scheduler',
+                        'scheduler:cronjob_failed:' . $commandClean,
+                        'Cronjob fehlgeschlagen: ' . $job->name,
+                        [
+                            'cronjob_id' => $job->id,
+                            'cronjob_name' => $job->name,
+                            'command' => $job->command,
+                            'parameters' => $job->parameters,
+                            'schedule' => $job->schedule,
+                            'trigger' => 'manual_admin_workspace',
+                        ]
+                    );
+                } else {
+                    Log::error("Manuelle Cronjob-Ausführung fehlgeschlagen ({$job->name}): " . $e->getMessage());
+                }
+
                 $this->dispatch('notify', [
                     'type' => 'error',
                     'message' => 'Fehler bei der Ausführung: ' . $e->getMessage()

@@ -74,14 +74,7 @@ class GenerateSystemBrainMap extends Command
 
             // Generate a readable label
             $label = basename($relativePath);
-            
-            $nodes[] = [
-                'id' => $relativePath,
-                'name' => $label,
-                'path' => $relativePath,
-                'val' => 1, // Size of the node
-                'group' => $group
-            ];
+            $blueprintData = null;
 
             // Indexing for relationship mapping
             if (str_ends_with($relativePath, '.blade.php')) {
@@ -100,8 +93,32 @@ class GenerateSystemBrainMap extends Command
                     $fileIndex['class:' . $fullClass] = $relativePath;
                     // Also index the short name for naive matching
                     $fileIndex['shortclass:' . trim($classNameMatch[1])] = $relativePath;
+
+                    if (
+                        str_starts_with($relativePath, 'app/Models/')
+                        && class_exists($fullClass)
+                        && is_subclass_of($fullClass, \App\Support\Blueprint\Contracts\HasSystemBlueprint::class)
+                    ) {
+                        try {
+                            $blueprintData = $fullClass::blueprint()->toArray();
+                        } catch (\Throwable) {
+                            $blueprintData = null;
+                        }
+                    }
                 }
             }
+
+            $nodeEntry = [
+                'id' => $relativePath,
+                'name' => $label,
+                'path' => $relativePath,
+                'val' => 1, // Size of the node
+                'group' => $group,
+            ];
+            if ($blueprintData !== null) {
+                $nodeEntry['blueprint'] = $blueprintData;
+            }
+            $nodes[] = $nodeEntry;
         }
 
         $this->info('Parsing relationships (links)...');
@@ -213,8 +230,8 @@ class GenerateSystemBrainMap extends Command
 
         $this->info('Updating SystemNeuralNode database...');
         
-        // Truncate outside transaction (causes implicit commit in MySQL)
-        SystemNeuralNode::truncate();
+        // Delete all nodes without DDL implicit commit so active transactions stay intact
+        SystemNeuralNode::query()->delete();
         
         DB::beginTransaction();
         try {
@@ -234,6 +251,9 @@ class GenerateSystemBrainMap extends Command
                 
                 $methods = [];
                 $properties = [];
+                if (isset($node['blueprint']) && is_array($node['blueprint'])) {
+                    $properties['blueprint'] = $node['blueprint'];
+                }
                 
                 if (str_ends_with($node['path'], '.php') && !str_ends_with($node['path'], '.blade.php')) {
                     // Extract basic methods
@@ -264,6 +284,18 @@ class GenerateSystemBrainMap extends Command
 
             DB::commit();
             $this->info('Database updated successfully.');
+
+            try {
+                $bpService = app(\App\Services\System\SystemBlueprintService::class);
+                $audit = $bpService->auditArchitecture();
+                if (!$audit['is_fully_compliant']) {
+                    $bpService->reportArchitectureAuditViolations($audit);
+                }
+                $bpService->generateGdprArt30VvtMarkdown(true);
+                $this->info('Living VVT (Art. 30 DSGVO) synchronized with Model Blueprints.');
+            } catch (\Throwable $e) {
+                $this->warn('Could not sync VVT Markdown: ' . $e->getMessage());
+            }
         } catch (\Exception $e) {
             DB::rollBack();
             $this->error('Failed to update database: ' . $e->getMessage());

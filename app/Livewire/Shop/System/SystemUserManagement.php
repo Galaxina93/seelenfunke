@@ -32,6 +32,10 @@ class SystemUserManagement extends Component
     #[\Livewire\Attributes\Locked]
     public $editingType = null;
     public bool $editing2faActive = false;
+    #[\Livewire\Attributes\Locked]
+    public array $editingUserLogs = [];
+    #[\Livewire\Attributes\Locked]
+    public int $editingUserBirthdayCorrections = 0;
 
     public $isCreating = false;
     public $createType = 'customer';
@@ -41,6 +45,7 @@ class SystemUserManagement extends Component
         'last_name' => '',
         'email' => '',
         'password' => '',
+        'birthday' => '',
         'phone_number' => '',
         'street' => '',
         'house_number' => '',
@@ -51,6 +56,10 @@ class SystemUserManagement extends Component
         'vat_id' => '',
         'internal_note' => '',
         'is_verified' => true,
+        'funken_balance' => 0,
+        'funken_total_earned' => 0,
+        'funki_level' => 1,
+        'gamification_active' => false,
     ];
 
     protected $queryString = ['search', 'filterRole', 'showArchive', 'sortField', 'sortDirection'];
@@ -121,6 +130,10 @@ class SystemUserManagement extends Component
             'formData.vat_id' => 'nullable|string|max:50',
             'formData.internal_note' => 'nullable|string|max:5000',
             'formData.is_verified' => 'boolean',
+            'formData.funken_balance' => 'nullable|integer|min:0|max:1000000',
+            'formData.funken_total_earned' => 'nullable|integer|min:0|max:1000000',
+            'formData.funki_level' => 'nullable|integer|min:1|max:10',
+            'formData.gamification_active' => 'nullable|boolean',
         ]);
 
         $class = match($this->createType) {
@@ -185,11 +198,20 @@ class SystemUserManagement extends Component
 
         $model = $this->getModelInstance($type, $id);
         $this->editing2faActive = (bool) ($model->profile->two_factor_is_active ?? false);
+        $gamification = ($type === 'customer') ? $model->gamification : null;
+        $gameService = app(\App\Services\Gamification\GamificationService::class);
+
+        $this->editingUserLogs = $gameService->getUserProfileChangeLogs((string) $model->id, $model->email, 60);
+        $this->editingUserBirthdayCorrections = ($type === 'customer' && $model instanceof Customer)
+            ? $gameService->countCustomerBirthdayCorrections($model)
+            : 0;
+
         $this->formData = [
             'first_name' => $model->first_name,
             'last_name' => $model->last_name,
             'email' => $model->email,
             'password' => '',
+            'birthday' => !empty($model->profile->birthday) ? \Carbon\Carbon::parse($model->profile->birthday)->format('Y-m-d') : '',
             'phone_number' => $model->profile->phone_number ?? '',
             'street' => $model->profile->street ?? '',
             'house_number' => $model->profile->house_number ?? '',
@@ -202,6 +224,14 @@ class SystemUserManagement extends Component
             'is_verified' => $this->editingType === 'customer'
                 ? (!is_null($model->email_verified_at) || !is_null($model->profile->email_verified_at ?? null))
                 : !is_null($model->profile->email_verified_at ?? null),
+            'funken_balance' => (int) ($gamification->funken_balance ?? 0),
+            'funken_total_earned' => (int) ($gamification->funken_total_earned ?? 0),
+            'funki_level' => max(1, min(10, (int) ($gamification->level ?? $gamification->funki_level ?? 1))),
+            'gamification_active' => (bool) ($gamification->is_active ?? false),
+            'ranking_opt_in' => (bool) ($gamification->ranking_opt_in ?? false),
+            'use_real_name' => (bool) ($gamification->use_real_name ?? false),
+            'player_name' => (string) ($gamification->player_name ?? ''),
+            'ai_data_consent' => (bool) ($model->profile->ai_data_consent ?? false),
         ];
     }
 
@@ -210,6 +240,8 @@ class SystemUserManagement extends Component
         $this->editingId = null;
         $this->editingType = null;
         $this->editing2faActive = false;
+        $this->editingUserLogs = [];
+        $this->editingUserBirthdayCorrections = 0;
         $this->isCreating = false;
         $this->resetErrorBag();
     }
@@ -225,6 +257,7 @@ class SystemUserManagement extends Component
             'formData.last_name' => 'required|string|max:255',
             'formData.email' => 'required|email|unique:'.($this->editingType === 'admin' ? 'admins' : ($this->editingType === 'customer' ? 'customers' : 'employees')).',email,'.$this->editingId,
             'formData.password' => 'nullable|string|min:8',
+            'formData.birthday' => 'nullable|date',
             'formData.phone_number' => 'nullable|string|max:50',
             'formData.street' => 'nullable|string|max:255',
             'formData.house_number' => 'nullable|string|max:30',
@@ -235,6 +268,14 @@ class SystemUserManagement extends Component
             'formData.vat_id' => 'nullable|string|max:50',
             'formData.internal_note' => 'nullable|string|max:5000',
             'formData.is_verified' => 'boolean',
+            'formData.funken_balance' => 'nullable|integer|min:0|max:1000000',
+            'formData.funken_total_earned' => 'nullable|integer|min:0|max:1000000',
+            'formData.funki_level' => 'nullable|integer|min:1|max:10',
+            'formData.gamification_active' => 'nullable|boolean',
+            'formData.ranking_opt_in' => 'nullable|boolean',
+            'formData.use_real_name' => 'nullable|boolean',
+            'formData.player_name' => 'nullable|string|max:40',
+            'formData.ai_data_consent' => 'nullable|boolean',
         ]);
 
         $model = $this->getModelInstance($this->editingType, $this->editingId);
@@ -244,6 +285,7 @@ class SystemUserManagement extends Component
             'first_name' => $model->first_name,
             'last_name' => $model->last_name,
             'email' => $model->email,
+            'birthday' => !empty($model->profile->birthday) ? \Carbon\Carbon::parse($model->profile->birthday)->format('Y-m-d') : '',
             'phone_number' => $model->profile->phone_number ?? '',
             'street' => $model->profile->street ?? '',
             'house_number' => $model->profile->house_number ?? '',
@@ -256,6 +298,11 @@ class SystemUserManagement extends Component
             'is_verified' => $this->editingType === 'customer'
                 ? (!is_null($model->email_verified_at) || !is_null($model->profile->email_verified_at ?? null))
                 : !is_null($model->profile->email_verified_at ?? null),
+            'ai_data_consent' => (bool) ($model->profile->ai_data_consent ?? false),
+            'gamification_active' => (bool) ($model->gamification->is_active ?? false),
+            'ranking_opt_in' => (bool) ($model->gamification->ranking_opt_in ?? false),
+            'use_real_name' => (bool) ($model->gamification->use_real_name ?? false),
+            'player_name' => (string) ($model->gamification->player_name ?? ''),
         ];
 
         $userUpdate = [
@@ -293,6 +340,7 @@ class SystemUserManagement extends Component
             $isBusiness = $this->formData['customer_type'] === 'business';
 
             $profile->update([
+                'birthday' => !empty($this->formData['birthday']) ? \Carbon\Carbon::parse($this->formData['birthday'])->format('Y-m-d') : null,
                 'phone_number' => $this->formData['phone_number'],
                 'street' => $this->formData['street'],
                 'house_number' => $this->formData['house_number'],
@@ -304,6 +352,23 @@ class SystemUserManagement extends Component
                 'internal_note' => $this->formData['internal_note'],
                 'email_verified_at' => $verifiedAt,
             ]);
+        }
+
+        if ($this->editingType === 'customer' && $model instanceof Customer) {
+            if (method_exists($model, 'updateAiDataConsent')) {
+                $model->updateAiDataConsent((bool) ($this->formData['ai_data_consent'] ?? false), 'admin_user_management');
+            }
+
+            app(\App\Services\Gamification\GamificationService::class)->adminAdjustCustomerGamification(
+                $model,
+                max(0, (int) ($this->formData['funken_balance'] ?? 0)),
+                max(0, (int) ($this->formData['funken_total_earned'] ?? 0)),
+                max(1, min(10, (int) ($this->formData['funki_level'] ?? 1))),
+                (bool) ($this->formData['gamification_active'] ?? false),
+                (bool) ($this->formData['ranking_opt_in'] ?? false),
+                (bool) ($this->formData['use_real_name'] ?? false),
+                (string) ($this->formData['player_name'] ?? '')
+            );
         }
 
         // Berechne die genauen Änderungen (Delta)
@@ -332,6 +397,7 @@ class SystemUserManagement extends Component
                 'status' => 'success',
                 'payload' => [
                     'actor' => $adminEmail,
+                    'user_id' => (string) $model->id,
                     'target_user' => $model->email,
                     'changes' => $changes
                 ],
@@ -550,11 +616,12 @@ class SystemUserManagement extends Component
             ])));
         }
         if (in_array($this->filterRole, ['all', 'customer'])) {
-            $results = $results->merge($queryCustomer->with('profile')->get()->map(fn($i) => array_merge($i->toArray(), [
+            $results = $results->merge($queryCustomer->with(['profile', 'gamification'])->get()->map(fn($i) => array_merge($i->toArray(), [
                 'user_type' => 'customer',
                 'last_seen' => $i->profile->last_seen ?? null,
                 'created_at' => $i->created_at ? $i->created_at->toDateTimeString() : null,
-                'profile' => $i->profile ? $i->profile->toArray() : []
+                'profile' => $i->profile ? $i->profile->toArray() : [],
+                'gamification' => $i->gamification ? $i->gamification->toArray() : null,
             ])));
         }
         if (in_array($this->filterRole, ['all', 'employee'])) {

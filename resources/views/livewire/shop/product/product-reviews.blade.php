@@ -1,4 +1,10 @@
-<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="w-full relative z-10">
+<div x-data="{
+        reviewerModal: null,
+        openReviewerProfile(data) {
+            this.reviewerModal = data;
+        }
+     }"
+     style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="w-full relative z-10">
     <div class="mt-2 w-full">
 
         <div class="border-t border-gray-100 pt-6 w-full">
@@ -73,7 +79,13 @@
                                      return this.funkiImages[r];
                                  }
                              }">
-                            <h3 class="text-lg font-bold text-gray-900 mb-6">{{ $isEditing ? 'Deine Bewertung bearbeiten' : 'Deine Erfahrung teilen' }}</h3>
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+                                <h3 class="text-lg font-bold text-gray-900">{{ $isEditing ? 'Deine Bewertung bearbeiten' : 'Deine Erfahrung teilen' }}</h3>
+                                <span class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-amber-500/15 via-[#C5A059]/20 to-amber-500/15 border border-[#C5A059]/50 text-amber-900 text-xs font-black uppercase tracking-wider shadow-xs">
+                                    <span>✨</span>
+                                    <span>Ehrliche Bewertung = +{{ \App\Services\Gamification\GameConfig::REVIEW_SPARK_REWARD }} Seelenfunken Belohnung</span>
+                                </span>
+                            </div>
 
                             <form wire:submit.prevent="submitReview" class="space-y-6 w-full">
                                 <div class="w-full">
@@ -273,15 +285,58 @@
                                         </p>
                                     </div>
                                 @else
-                                    <div class="h-14 w-14 rounded-full bg-amber-200 flex items-center justify-center text-amber-900 font-bold text-xl shadow-inner border border-white shrink-0">
-                                        {{ substr($userReview->customer->first_name, 0, 1) }}{{ substr($userReview->customer->last_name, 0, 1) }}
-                                    </div>
-                                    <div>
-                                        <p class="text-base font-semibold text-gray-900">{{ $userReview->customer->first_name }} {{ substr($userReview->customer->last_name, 0, 1) }}.</p>
-                                        <p class="text-xs text-gray-500 flex items-center mt-1 font-medium">
-                                            <i class="bi bi-check-circle-fill text-green-500 mr-1.5"></i> Verifizierter Kauf &bull; {{ $userReview->created_at->format('d.m.Y') }}
-                                        </p>
-                                    </div>
+                                    @php
+                                        $uCard = $userReview->customer
+                                            ? app(\App\Services\Gamification\GamificationService::class)->getPublicProfileCardData($userReview->customer, $userReview->customer->gamification)
+                                            : null;
+                                    @endphp
+                                    @if($uCard)
+                                        <button type="button"
+                                                @click="openReviewerProfile(@js($uCard))"
+                                                title="Klicken, um dein öffentliches Bewertungs-Profil anzusehen"
+                                                class="relative h-20 w-20 sm:h-24 sm:w-24 rounded-full shrink-0 group cursor-pointer focus:outline-none">
+                                            <div class="absolute inset-[-4px] rounded-full border border-dashed border-[#C5A059]/50 pointer-events-none"></div>
+                                            @if(!empty($uCard['custom_photo_url']))
+                                                <img src="{{ $uCard['custom_photo_url'] }}" alt="{{ $uCard['display_name'] }}" class="h-full w-full rounded-full object-cover border-2 border-[#C5A059] shadow-md transition-transform duration-300 group-hover:scale-105">
+                                            @else
+                                                <div style="{{ $uCard['circle_css'] }}"
+                                                     class="relative h-full w-full rounded-full border-2 border-[#C5A059] shadow-[0_0_20px_rgba(197,160,89,0.35)] overflow-hidden flex items-center justify-center transition-transform duration-300 group-hover:scale-105">
+                                                    @if(!empty($uCard['video_url']))
+                                                        <video src="{{ $uCard['video_url'] }}"
+                                                               autoplay loop muted playsinline
+                                                               class="absolute inset-0 w-full h-full object-cover rounded-full pointer-events-none z-[1]"></video>
+                                                    @endif
+                                                    <div class="absolute inset-[-18%] rounded-full opacity-55 mix-blend-screen animate-[spin_22s_linear_infinite] pointer-events-none z-[2]"
+                                                         style="background: conic-gradient(from 0deg, transparent 0%, {{ $uCard['accent_hex'] }}55 25%, transparent 50%, {{ $uCard['accent_hex'] }}44 75%, transparent 100%);"></div>
+                                                    <img src="{{ $uCard['image_url'] }}" alt="Funki Level {{ $uCard['display_level'] }}" class="relative z-10 w-full h-full object-contain p-2 drop-shadow-[0_6px_12px_rgba(0,0,0,0.55)]">
+                                                </div>
+                                            @endif
+                                            <span class="absolute -bottom-1 -right-1 z-20 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-300 via-[#C5A059] to-amber-500 text-gray-950 border border-white text-[9px] font-black shadow-sm">
+                                                Lvl. {{ $uCard['level'] }}
+                                            </span>
+                                        </button>
+                                        <div>
+                                            <div class="flex items-center gap-2 flex-wrap">
+                                                <button type="button"
+                                                        @click="openReviewerProfile(@js($uCard))"
+                                                        class="text-base sm:text-lg font-bold text-gray-900 hover:text-amber-700 transition-colors cursor-pointer">
+                                                    {{ $uCard['display_name'] }}
+                                                </button>
+                                                <span class="text-[10px] font-black uppercase tracking-wider bg-amber-500/15 border border-[#C5A059]/40 text-amber-800 px-2.5 py-0.5 rounded-full">
+                                                    ✨ Funki Lvl. {{ $uCard['level'] }}
+                                                </span>
+                                                @if(!empty($uCard['rank_name']))
+                                                    <span class="text-[10px] font-black uppercase tracking-wider {{ !empty($uCard['is_seelengott']) ? 'bg-gradient-to-r from-amber-400 via-[#C5A059] to-amber-500 text-gray-950 border-amber-300' : 'bg-white border-amber-300 text-amber-900' }} border px-2.5 py-0.5 rounded-full">
+                                                        {{ !empty($uCard['is_seelengott']) ? '👑' : '🏆' }} {{ $uCard['rank_name'] }}
+                                                    </span>
+                                                @endif
+                                            </div>
+                                            <p class="text-xs text-gray-500 flex items-center mt-1 font-medium">
+                                                <i class="bi bi-check-circle-fill text-green-500 mr-1.5"></i> Verifizierter Kauf &bull; {{ $userReview->created_at->format('d.m.Y') }} &bull;
+                                                <button type="button" @click="openReviewerProfile(@js($uCard))" class="ml-1 text-amber-700 hover:underline font-semibold cursor-pointer">Profil ansehen</button>
+                                            </p>
+                                        </div>
+                                    @endif
                                 @endif
                             </div>
                             <div class="flex items-center mb-4">
@@ -322,9 +377,34 @@
                 @endif
             @else
                 <div class="mb-12 text-center py-10 bg-gray-50 border border-gray-100 rounded-2xl w-full" x-data="{ showLogin: false }">
+                    <style>
+                        @keyframes sfReviewSparkFloatMain {
+                            0%, 100% { transform: translateY(0) scale(1) rotate(0deg); opacity: 0.95; }
+                            50% { transform: translateY(-5px) scale(1.12) rotate(12deg); opacity: 1; }
+                        }
+                        @keyframes sfReviewSparkFloatSubA {
+                            0%, 100% { transform: translate(0, 0) scale(0.85) rotate(0deg); opacity: 0.55; }
+                            50% { transform: translate(-4px, -6px) scale(1.1) rotate(-18deg); opacity: 1; }
+                        }
+                        @keyframes sfReviewSparkFloatSubB {
+                            0%, 100% { transform: translate(0, 0) scale(0.8) rotate(0deg); opacity: 0.5; }
+                            50% { transform: translate(4px, -5px) scale(1.08) rotate(20deg); opacity: 0.95; }
+                        }
+                    </style>
                     <div x-show="!showLogin" class="animate-fade-in">
-                        <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-amber-100 mb-4">
-                            <i class="bi bi-person-lock text-amber-600 text-2xl"></i>
+                        <div class="mx-auto relative flex items-center justify-center h-14 w-20 mb-3 select-none pointer-events-none" aria-hidden="true">
+                            {{-- Haupt-Funke (Gold) --}}
+                            <svg class="w-8 h-8 text-[#C5A059] drop-shadow-[0_0_8px_rgba(197,160,89,0.55)]" style="animation: sfReviewSparkFloatMain 3.2s ease-in-out infinite;" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2l2.3 6.9L21 11.2l-6.7 2.3L12 20.5l-2.3-7L3 11.2l6.7-2.3L12 2z"/>
+                            </svg>
+                            {{-- Kleiner Funke links oben --}}
+                            <svg class="w-4 h-4 text-amber-400 absolute top-1 left-2 drop-shadow-[0_0_5px_rgba(251,191,36,0.65)]" style="animation: sfReviewSparkFloatSubA 2.6s ease-in-out infinite 0.4s;" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2l2.1 6.4L20.5 10.5l-6.4 2.1L12 19l-2.1-6.4L3.5 10.5l6.4-2.1L12 2z"/>
+                            </svg>
+                            {{-- Kleiner Funke rechts unten --}}
+                            <svg class="w-3.5 h-3.5 text-amber-500 absolute bottom-1.5 right-2.5 drop-shadow-[0_0_5px_rgba(245,158,11,0.6)]" style="animation: sfReviewSparkFloatSubB 2.9s ease-in-out infinite 1.1s;" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2l2.1 6.4L20.5 10.5l-6.4 2.1L12 19l-2.1-6.4L3.5 10.5l6.4-2.1L12 2z"/>
+                            </svg>
                         </div>
                         <h3 class="text-lg font-bold text-gray-900">Teile deine Erfahrung</h3>
                         <p class="mt-2 text-gray-500 max-w-lg mx-auto text-sm px-4">Bitte melde dich an, um eine Bewertung für dieses Produkt abzugeben und anderen Kunden bei der Entscheidung zu helfen.</p>
@@ -415,18 +495,53 @@
                                                 </p>
                                             </div>
                                         @else
-                                            @if($review->customer->profile && $review->customer->profile->photo_path)
-                                                <img src="{{ \Illuminate\Support\Str::startsWith($review->customer->profile->photo_path, 'shop/') ? asset($review->customer->profile->photo_path) : Storage::url($review->customer->profile->photo_path) }}" alt="{{ $review->customer->first_name }}" class="h-12 w-12 rounded-full object-cover border border-white shadow-inner shrink-0">
-                                            @else
-                                                <div class="h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-bold text-lg border border-white shadow-inner shrink-0">
-                                                    {{ substr($review->customer->first_name, 0, 1) }}{{ substr($review->customer->last_name, 0, 1) }}
-                                                </div>
-                                            @endif
+                                            @php
+                                                $rCard = app(\App\Services\Gamification\GamificationService::class)->getPublicProfileCardData($review->customer, $review->customer->gamification);
+                                            @endphp
+                                            <button type="button"
+                                                    @click="openReviewerProfile(@js($rCard))"
+                                                    title="Profil von {{ $rCard['display_name'] }} ansehen"
+                                                    class="relative h-16 w-16 sm:h-20 sm:w-20 rounded-full shrink-0 group cursor-pointer focus:outline-none">
+                                                <div class="absolute inset-[-3px] rounded-full border border-dashed border-[#C5A059]/45 pointer-events-none"></div>
+                                                @if(!empty($rCard['custom_photo_url']))
+                                                    <img src="{{ $rCard['custom_photo_url'] }}" alt="{{ $rCard['display_name'] }}" class="h-full w-full rounded-full object-cover border-2 border-[#C5A059] shadow-sm transition-transform duration-300 group-hover:scale-105">
+                                                @else
+                                                    <div style="{{ $rCard['circle_css'] }}"
+                                                         class="relative h-full w-full rounded-full border-2 border-[#C5A059] shadow-[0_0_16px_rgba(197,160,89,0.3)] overflow-hidden flex items-center justify-center transition-transform duration-300 group-hover:scale-105">
+                                                        @if(!empty($rCard['video_url']))
+                                                            <video src="{{ $rCard['video_url'] }}"
+                                                                   autoplay loop muted playsinline
+                                                                   class="absolute inset-0 w-full h-full object-cover rounded-full pointer-events-none z-[1]"></video>
+                                                        @endif
+                                                        <div class="absolute inset-[-18%] rounded-full opacity-55 mix-blend-screen animate-[spin_22s_linear_infinite] pointer-events-none z-[2]"
+                                                             style="background: conic-gradient(from 0deg, transparent 0%, {{ $rCard['accent_hex'] }}55 25%, transparent 50%, {{ $rCard['accent_hex'] }}44 75%, transparent 100%);"></div>
+                                                        <img src="{{ $rCard['image_url'] }}" alt="Funki Level {{ $rCard['display_level'] }}" class="relative z-10 w-full h-full object-contain p-1.5 drop-shadow-[0_5px_10px_rgba(0,0,0,0.5)]">
+                                                    </div>
+                                                @endif
+                                                <span class="absolute -bottom-1 -right-1 z-20 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-300 via-[#C5A059] to-amber-500 text-gray-950 border border-white text-[8px] font-black shadow-xs">
+                                                    Lvl. {{ $rCard['level'] }}
+                                                </span>
+                                            </button>
 
                                             <div>
-                                                <p class="text-base font-semibold text-gray-900">{{ $review->customer->first_name }} {{ substr($review->customer->last_name, 0, 1) }}.</p>
+                                                <div class="flex items-center gap-2 flex-wrap">
+                                                    <button type="button"
+                                                            @click="openReviewerProfile(@js($rCard))"
+                                                            class="text-base font-bold text-gray-900 hover:text-amber-700 transition-colors cursor-pointer">
+                                                        {{ $rCard['display_name'] }}
+                                                    </button>
+                                                    <span class="text-[10px] font-black uppercase tracking-wider bg-amber-500/15 border border-[#C5A059]/40 text-amber-800 px-2 py-0.5 rounded-full">
+                                                        ✨ Funki Lvl. {{ $rCard['level'] }}
+                                                    </span>
+                                                    @if(!empty($rCard['rank_name']))
+                                                        <span class="text-[10px] font-black uppercase tracking-wider {{ !empty($rCard['is_seelengott']) ? 'bg-gradient-to-r from-amber-400 via-[#C5A059] to-amber-500 text-gray-950 border-amber-300' : 'bg-gray-100 border-gray-200 text-gray-700' }} border px-2 py-0.5 rounded-full">
+                                                            {{ !empty($rCard['is_seelengott']) ? '👑' : '🏆' }} {{ $rCard['rank_name'] }}
+                                                        </span>
+                                                    @endif
+                                                </div>
                                                 <p class="text-xs text-gray-500 flex items-center mt-0.5 font-medium">
-                                                    <i class="bi bi-check-circle-fill text-green-500 mr-1.5"></i> Verifizierter Kauf &bull; {{ $review->created_at->format('d.m.Y') }}
+                                                    <i class="bi bi-check-circle-fill text-green-500 mr-1.5"></i> Verifizierter Kauf &bull; {{ $review->created_at->format('d.m.Y') }} &bull;
+                                                    <button type="button" @click="openReviewerProfile(@js($rCard))" class="ml-1 text-amber-700 hover:underline font-semibold cursor-pointer">Profil ansehen</button>
                                                 </p>
                                             </div>
                                         @endif
@@ -478,4 +593,94 @@
 
         </div>
     </div>
+
+    {{-- SÜSSES REVIEWER-PROFIL-MODAL (WIE IN DER HALLE DER HELDEN) --}}
+    <template x-teleport="body">
+        <div x-show="reviewerModal !== null"
+             style="display: none;"
+             @keydown.escape.window="reviewerModal = null"
+             class="fixed inset-0 z-[9500] flex items-center justify-center p-4">
+            <div class="fixed inset-0 bg-black/70 backdrop-blur-md"
+                 @click="reviewerModal = null"
+                 x-transition.opacity></div>
+
+            <template x-if="reviewerModal">
+                <div class="relative z-10 w-full max-w-md rounded-[2rem] bg-white dark:bg-[#0f131d] border-2 border-[#C5A059]/60 shadow-[0_25px_70px_rgba(0,0,0,0.45)] overflow-hidden p-6 sm:p-8 text-center animate-fade-in-up">
+                    <button type="button"
+                            @click="reviewerModal = null"
+                            class="absolute top-4 right-4 z-20 w-9 h-9 rounded-xl bg-gray-100 hover:bg-red-500 text-gray-500 hover:text-white flex items-center justify-center transition-colors cursor-pointer">
+                        ✕
+                    </button>
+
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-[#C5A059]/40 text-amber-800 dark:text-[#f5dca0] text-[10px] font-black uppercase tracking-widest mb-4">
+                        <span>🏛️</span>
+                        <span>Seelenfunke • Mitgliedsprofil</span>
+                    </span>
+
+                    {{-- Großer animierter Funki- & Hintergrund-Kreis --}}
+                    <div class="relative w-36 h-36 sm:w-44 sm:h-44 mx-auto mb-5 flex items-center justify-center select-none">
+                        <div class="absolute inset-[-6px] rounded-full border border-dashed border-[#C5A059]/50 pointer-events-none"></div>
+                        <div class="absolute inset-[-12px] rounded-full border border-dotted border-[#C5A059]/30 animate-[spin_26s_linear_infinite] pointer-events-none"></div>
+
+                        <div :style="reviewerModal.circle_css"
+                             class="relative w-full h-full rounded-full border-2 border-[#C5A059] shadow-[0_0_35px_rgba(197,160,89,0.45)] overflow-hidden flex items-center justify-center bg-gray-950">
+                            <template x-if="reviewerModal.video_url">
+                                <video :src="reviewerModal.video_url"
+                                       autoplay loop muted playsinline
+                                       class="absolute inset-0 w-full h-full object-cover rounded-full pointer-events-none z-[1]"></video>
+                            </template>
+                            <div class="absolute inset-[-18%] rounded-full opacity-55 mix-blend-screen animate-[spin_22s_linear_infinite] pointer-events-none z-[2]"
+                                 :style="`background: conic-gradient(from 0deg, transparent 0%, ${reviewerModal.accent_hex}55 25%, transparent 50%, ${reviewerModal.accent_hex}44 75%, transparent 100%);`"></div>
+                            <img :src="reviewerModal.custom_photo_url || reviewerModal.image_url"
+                                 :alt="reviewerModal.display_name"
+                                 :class="reviewerModal.custom_photo_url ? 'w-full h-full object-cover' : 'w-full h-full object-contain p-3.5 drop-shadow-[0_10px_20px_rgba(0,0,0,0.65)]'"
+                                 class="relative z-10">
+                        </div>
+
+                        <span class="absolute -bottom-1 -right-1 z-30 px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-300 via-[#C5A059] to-amber-500 text-gray-950 border border-white text-xs font-black shadow-md"
+                              x-text="'Level ' + reviewerModal.level"></span>
+                    </div>
+
+                    {{-- Name & Aktiver Titel --}}
+                    <h4 class="text-2xl font-serif font-bold text-gray-900 dark:text-white" x-text="reviewerModal.display_name"></h4>
+
+                    <div class="mt-2 flex flex-wrap items-center justify-center gap-2">
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border"
+                              :class="reviewerModal.is_seelengott ? 'bg-gradient-to-r from-amber-400 via-[#C5A059] to-amber-500 text-gray-950 border-amber-300 shadow-sm' : 'bg-amber-500/15 border-[#C5A059]/50 text-amber-900 dark:text-[#f5dca0]'">
+                            <span x-text="reviewerModal.is_seelengott ? '👑' : '🏆'"></span>
+                            <span x-text="reviewerModal.rank_name"></span>
+                        </span>
+                    </div>
+
+                    {{-- Funki Stufe & Hintergrund Info --}}
+                    <div class="mt-4 p-3.5 rounded-2xl bg-amber-50/80 dark:bg-gray-900/80 border border-amber-200/70 dark:border-gray-800 text-xs">
+                        <span class="text-[10px] font-black uppercase tracking-widest text-amber-800 dark:text-amber-400 block" x-text="reviewerModal.funki_name"></span>
+                        <span class="text-gray-600 dark:text-gray-300 font-medium block mt-0.5" x-text="'Hintergrund: ' + reviewerModal.bg_name"></span>
+                    </div>
+
+                    {{-- Kleine Statistik-Kacheln --}}
+                    <div class="mt-4 grid grid-cols-3 gap-2 text-center">
+                        <div class="p-2.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+                            <span class="text-[9px] font-black uppercase tracking-wider text-gray-400 block">Funki-Stufe</span>
+                            <span class="text-sm font-mono font-black text-gray-900 dark:text-white" x-text="reviewerModal.level + ' / 10'"></span>
+                        </div>
+                        <div class="p-2.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+                            <span class="text-[9px] font-black uppercase tracking-wider text-gray-400 block">Max-Titel</span>
+                            <span class="text-sm font-mono font-black text-amber-700 dark:text-[#f5dca0]" x-text="reviewerModal.diamonds_count + ' / ' + reviewerModal.total_titles + ' 💎'"></span>
+                        </div>
+                        <div class="p-2.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+                            <span class="text-[9px] font-black uppercase tracking-wider text-gray-400 block">Funken</span>
+                            <span class="text-sm font-mono font-black text-amber-700 dark:text-[#f5dca0]" x-text="(reviewerModal.funken_total_earned || 0).toLocaleString('de-DE') + ' ✨'"></span>
+                        </div>
+                    </div>
+
+                    <button type="button"
+                            @click="reviewerModal = null"
+                            class="mt-5 w-full py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-black uppercase tracking-widest transition cursor-pointer">
+                        Schließen
+                    </button>
+                </div>
+            </template>
+        </div>
+    </template>
 </div>

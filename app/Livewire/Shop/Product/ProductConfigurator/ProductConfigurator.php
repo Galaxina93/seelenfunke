@@ -896,11 +896,7 @@ class ProductConfigurator extends Component
                         ]
                     );
 
-                    $this->reset(['uploaded_files', 'logos', 'logos_back', 'notes']);
-                    $this->texts = [];
-                    $this->texts_back = [];
-                    if (!$this->isDigital) $this->addText();
-
+                    // Konfiguration im Vorschaufenster beibehalten, damit das Bild beim Hinzufügen in den Warenkorb ruhig & harmonisch bleibt
                     $this->config_confirmed = false;
                 } elseif ($this->context === 'edit') {
                     $cartService->updateItem($this->cartItem->id, $this->qty, $configData);

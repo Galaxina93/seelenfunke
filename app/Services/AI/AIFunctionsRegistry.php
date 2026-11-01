@@ -207,6 +207,22 @@ class AIFunctionsRegistry
     {
         // Rollen-Schranke: Nicht-Administratoren unterliegen strikter Rollentrennung
         if (AiAuthHelper::check() && !AiAuthHelper::isAdmin()) {
+            // Admin-Werkzeuge zuerst prüfen, damit ROLE VIOLATION präzise protokolliert und zurückgegeben wird
+            if (self::isToolRestrictedForEmployee($name)) {
+                \App\Services\System\SystemSecurityService::logEvent(
+                    'security:ai_privilege_escalation_blocked',
+                    'KI-Rechteausweitung durch Nicht-Admin blockiert',
+                    "Benutzer (ID: " . AiAuthHelper::getUserId() . ") versuchte das Admin-Werkzeug '{$name}' auszuführen.",
+                    'error',
+                    ['tool' => $name, 'user_id' => AiAuthHelper::getUserId()]
+                );
+                return [
+                    'error' => true,
+                    'status' => 'error',
+                    'message' => "ROLE VIOLATION: Das Werkzeug '{$name}' erfordert Administrator-Berechtigungen."
+                ];
+            }
+
             // Externe Partner (Influencer / Steuerberater), Kunden oder pausierte Mitarbeiter dürfen nur öffentliche Support-Tools nutzen
             if (!AiAuthHelper::isEmployee()) {
                 $publicAllowed = str_starts_with($name, 'support_') || $name === 'system_get_current_time';
@@ -224,19 +240,6 @@ class AIFunctionsRegistry
                         'message' => "SANDBOX VIOLATION: Das Werkzeug '{$name}' ist für externe Partner und Kunden gesperrt."
                     ];
                 }
-            } elseif (self::isToolRestrictedForEmployee($name)) {
-                \App\Services\System\SystemSecurityService::logEvent(
-                    'security:ai_privilege_escalation_blocked',
-                    'KI-Rechteausweitung durch Mitarbeiter blockiert',
-                    "Mitarbeiter (ID: " . AiAuthHelper::getUserId() . ") versuchte das Admin-Werkzeug '{$name}' auszuführen.",
-                    'error',
-                    ['tool' => $name, 'user_id' => AiAuthHelper::getUserId()]
-                );
-                return [
-                    'error' => true,
-                    'status' => 'error',
-                    'message' => "ROLE VIOLATION: Das Werkzeug '{$name}' erfordert Administrator-Berechtigungen."
-                ];
             }
         }
 

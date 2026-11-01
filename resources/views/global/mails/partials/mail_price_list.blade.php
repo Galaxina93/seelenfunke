@@ -37,6 +37,14 @@
             // 4. KORREKTE RÜCKWÄRTSRECHNUNG:
             // Warenwert = Endsumme + Rabatte - Versand - Express
             $goodsValue = $totalGross + $volDiscount + $couponDiscount - $shippingGross - $expressGross;
+
+            // 5. Seelenfunken Treue-Bonus (Variante A = 100 % vom bezahlten Produktwert)
+            if (isset($order) && $order instanceof \App\Models\Order\OrderOrder) {
+                $mailBonusSparks = app(\App\Services\Gamification\GamificationService::class)->calculateOrderSparks($order);
+            } else {
+                $paidGoodsCents = max(0, (int) round(($goodsValue - $volDiscount - $couponDiscount) * 100));
+                $mailBonusSparks = \App\Services\Gamification\GameConfig::calculateSparksForCents($paidGoodsCents);
+            }
         @endphp
 
         {{-- Warenwert Brutto --}}
@@ -138,6 +146,22 @@
                     </td>
                 </tr>
             @endif
+        @endif
+
+        @if(($mailBonusSparks ?? 0) > 0)
+            @php
+                $isCancelledMail = (isset($order) && (in_array($order->status ?? '', ['cancelled', 'refunded'], true) || ($order->payment_status ?? '') === 'refunded'))
+                    || (isset($invoice) && (in_array($invoice->type ?? '', ['cancellation', 'credit_note'], true) || ($invoice->status ?? '') === 'cancelled'))
+                    || in_array($data['type'] ?? '', ['cancellation', 'credit_note'], true);
+            @endphp
+            <tr>
+                <td class="text-right" style="padding-top: 8px; color: {{ $isCancelledMail ? '#dc2626' : '#92400e' }}; font-size: 12px; font-weight: bold; text-align: right;">
+                    {{ !empty($isPdf) ? '' : '✨ ' }}{{ $isCancelledMail ? 'Seelenfunken (Stornierung / Widerruf):' : 'Seelenfunken Treue-Bonus (100%):' }}
+                </td>
+                <td class="text-right" style="padding-top: 8px; color: {{ $isCancelledMail ? '#dc2626' : '#92400e' }}; font-size: 12px; font-weight: bold; text-align: right;">
+                    {{ $isCancelledMail ? '-' : '+' }}{{ number_format($mailBonusSparks, 0, ',', '.') }} Funken
+                </td>
+            </tr>
         @endif
     </table>
 

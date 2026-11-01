@@ -142,6 +142,8 @@ class GamificationTestSeeder extends Seeder
             ]);
         }
 
+        $this->call(GamificationUltimatePlayerSeeder::class);
+
         $this->command->info('Gamification Test-Daten erfolgreich generiert!');
     }
 

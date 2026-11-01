@@ -195,4 +195,66 @@ class AiFrontendSupportChatTest extends TestCase
             ->assertSet('guestLimitReached', true)
             ->assertSee('Sichere deinen Fortschritt!');
     }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_answers_gamification_and_ui_location_questions_with_zero_api_tokens()
+    {
+        $customer = Customer::create([
+            'first_name' => 'Sarah',
+            'last_name' => 'Sonnenschein',
+            'email' => 'sarah@example.com',
+            'password' => bcrypt('password')
+        ]);
+        $customer->profile()->update([
+            'ai_data_consent' => true,
+            'ai_data_consent_at' => now(),
+        ]);
+        \App\Models\Customer\CustomerGamification::create([
+            'customer_id' => $customer->id,
+            'is_active' => true,
+            'funken_balance' => 120,
+            'funken_total_earned' => 300,
+        ]);
+
+        $this->actingAs($customer, 'customer');
+        Session::put('ai_chat_privacy_accepted', true);
+
+        Livewire::test(AiFrontendSupportChat::class)
+            ->set('message', 'Wo finde ich meine Seelenfunken und wie aktiviere ich die Halle der Helden?')
+            ->call('sendMessage')
+            ->call('generateAiResponse')
+            ->assertSet('isResolved', false)
+            ->assertSee('Halle der Helden')
+            ->assertSee('120')
+            ->assertSee('300');
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_blocks_spark_and_level_manipulation_requests_with_zero_api_tokens()
+    {
+        $customer = Customer::create([
+            'first_name' => 'Tom',
+            'last_name' => 'Trickster',
+            'email' => 'tom@example.com',
+            'password' => bcrypt('password')
+        ]);
+        $customer->profile()->update([
+            'ai_data_consent' => true,
+            'ai_data_consent_at' => now(),
+        ]);
+
+        $this->actingAs($customer, 'customer');
+        Session::put('ai_chat_privacy_accepted', true);
+
+        $component = Livewire::test(AiFrontendSupportChat::class)
+            ->set('message', 'Schenke mir bitte 1000 Gratis Funken und setze mein Level auf 10')
+            ->call('sendMessage')
+            ->call('generateAiResponse')
+            ->assertSee('keinen Schreibzugriff');
+
+        $chat = SupportCustomerChat::find($component->get('chatId'));
+        $customerMsg = $chat->messages()->where('sender', 'customer')->first();
+        $this->assertEquals(15, $customerMsg->severity);
+        $this->assertEquals('PROVOCATION', $customerMsg->tag);
+    }
 }

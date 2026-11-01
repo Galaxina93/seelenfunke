@@ -144,8 +144,9 @@ class ProductFrontendFilterArea extends Component
             }
         }
 
-        // Haupt-Query aufbauen
+        // Haupt-Query aufbauen (verstecktes Ingame-Shop-Systemprodukt aus dem regulären Shop-Katalog ausblenden)
         $query = Product::where('status', 'active')
+            ->where('slug', '!=', 'seelenfunke-ingame-artifact')
             ->with(['categories', 'tierPrices'])
             ->withCount(['reviews as approved_reviews_count' => function ($q) {
                 $q->where('status', 'approved');

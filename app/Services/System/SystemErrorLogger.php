@@ -28,6 +28,14 @@ class SystemErrorLogger
         $msgLower = strtolower($message);
         $classLower = strtolower((string) $exceptionClass);
 
+        if (str_contains($classLower, 'blueprintsecurityexception') || str_contains($msgLower, 'architektur-blueprint')) {
+            return [
+                'category' => 'blueprint_guardrail_or_compliance',
+                'probable_cause' => 'Blockierter KI-Zugriff auf ein GoBD-/Sicherheits-geschütztes Model oder Verstoß gegen das Architektur-Typenschild (ModelBlueprint).',
+                'recommended_action' => 'Prüfe die AiAccessPolicy des betroffenen Models im Blueprint sowie den auslösenden KI-Tool-Aufruf im Trace.',
+            ];
+        }
+
         if (str_contains($msgLower, 'getaddrinfo') || str_contains($msgLower, 'redis') || str_contains($classLower, 'predis')) {
             return [
                 'category' => 'redis_connectivity_or_dns',
@@ -73,6 +81,14 @@ class SystemErrorLogger
                 'category' => 'auth_or_permission',
                 'probable_cause' => 'Nicht authentifizierter Zugriff oder fehlende Berechtigung / abgelaufene Session.',
                 'recommended_action' => 'Normal bei abgelaufenen Nutzer-Sessions; bei API-Requests Token-Übergabe prüfen.',
+            ];
+        }
+
+        if (str_contains($msgLower, 'cronjob') || str_contains($msgLower, 'scheduler') || str_contains($msgLower, 'exit-code') || str_contains((string) $file, 'Console/Commands')) {
+            return [
+                'category' => 'scheduler_or_cronjob_error',
+                'probable_cause' => 'Ein geplanter Server-Cronjob oder Konsolenbefehl ist mit einem Fehler abgebrochen oder hat einen Fehler-Exit-Code zurückgegeben.',
+                'recommended_action' => 'Prüfe die Konsolenausgabe im Payload sowie den Status unter /admin/ai/workspace -> Server Cronjobs.',
             ];
         }
 
@@ -296,6 +312,63 @@ class SystemErrorLogger
                     'execution_context' => self::buildExecutionContext(),
                     'server_environment' => self::buildServerEnvironment(),
                 ],
+                'started_at' => now(),
+                'finished_at' => now(),
+            ]);
+        } catch (\Throwable $ignore) {
+            return null;
+        } finally {
+            self::$isRecording = false;
+        }
+    }
+
+    /**
+     * Protokolliert einen fehlgeschlagenen Artisan-Befehl / Server-Cronjob (Exit-Code != 0) sofort in system_logs (/admin/global-logs).
+     */
+    public static function recordCommandFailure(
+        string $command,
+        int $exitCode,
+        string $output = '',
+        array $extra = []
+    ): ?SystemLog {
+        if (self::$isRecording || !class_exists(SystemLog::class)) {
+            return null;
+        }
+
+        $commandClean = trim(explode(' ', trim($command))[0]);
+        $dedupeKey = 'cmd_fail:' . $commandClean . ':' . $exitCode;
+        if (isset(self::$loggedExceptionIds[crc32($dedupeKey)])) {
+            return null;
+        }
+
+        self::$isRecording = true;
+        try {
+            self::$loggedExceptionIds[crc32($dedupeKey)] = true;
+
+            $sanitizedOutput = self::sanitizeSensitiveText(trim($output));
+            $cronjobName = $extra['cronjob_name'] ?? $commandClean;
+
+            $message = "Der Befehl '{$command}' wurde mit Fehler-Exit-Code {$exitCode} beendet.";
+            if ($sanitizedOutput !== '') {
+                $message .= " Ausgabe: " . Str::limit($sanitizedOutput, 1500);
+            }
+
+            $diagnosis = self::diagnose($message, null, 'Console/Commands');
+
+            return SystemLog::create([
+                'type' => 'scheduler',
+                'action_id' => Str::limit('scheduler:cronjob_failed:' . $commandClean, 190, ''),
+                'title' => Str::limit('Cronjob fehlgeschlagen: ' . $cronjobName . ' (Exit ' . $exitCode . ')', 190),
+                'message' => Str::limit($message, 2000),
+                'status' => 'error',
+                'payload' => array_merge([
+                    'command' => $command,
+                    'exit_code' => $exitCode,
+                    'console_output' => Str::limit($sanitizedOutput, 3000),
+                    'diagnosis' => $diagnosis,
+                    'execution_context' => self::buildExecutionContext(),
+                    'server_environment' => self::buildServerEnvironment(),
+                ], $extra),
                 'started_at' => now(),
                 'finished_at' => now(),
             ]);

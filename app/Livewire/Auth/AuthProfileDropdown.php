@@ -47,6 +47,9 @@ class AuthProfileDropdown extends Component
     public string $country = 'DE';
     public $isBusiness = 0;
     public string $birthday = '';
+    public bool $canChangeBirthday = true;
+    public ?string $profileFeedbackMessage = null;
+    public bool $profileFeedbackSuccess = true;
     public bool $aiDataConsent = false;
     public ?string $aiDataConsentAt = null;
 
@@ -103,6 +106,9 @@ class AuthProfileDropdown extends Component
 
         if ($this->guard === 'customer') {
             $this->isGameModeActive = (bool) \App\Models\Customer\CustomerGamification::where('customer_id', $this->user->id)->value('is_active');
+            if ($this->user instanceof \App\Models\Customer\Customer) {
+                $this->canChangeBirthday = app(\App\Services\Gamification\GamificationService::class)->canCustomerChangeBirthday($this->user);
+            }
         }
     }
 
@@ -118,12 +124,41 @@ class AuthProfileDropdown extends Component
 
     public function saveProfile(): void
     {
-        $this->saveUserProfileData([]);
-        $this->dispatch('saved');
+        $this->profileFeedbackMessage = null;
 
-        // Benachrichtigt das Dashboard über die Änderungen, damit die Meldung sofort verschwindet
-        $this->dispatch('profile-updated');
-        $this->dispatch('ai-privacy-consent-updated', accepted: $this->aiDataConsent);
+        try {
+            $this->saveUserProfileData([]);
+
+            if ($this->guard === 'customer' && $this->user instanceof \App\Models\Customer\Customer) {
+                $this->user->refresh();
+                $this->user->load('profile');
+                $this->canChangeBirthday = app(\App\Services\Gamification\GamificationService::class)->canCustomerChangeBirthday($this->user);
+            }
+
+            $this->profileFeedbackSuccess = true;
+            $this->profileFeedbackMessage = session('message') ?: 'Deine Profildaten wurden erfolgreich gespeichert! ✨';
+
+            $this->dispatch('saved', message: $this->profileFeedbackMessage);
+
+            // Benachrichtigt das Dashboard über die Änderungen, damit die Meldung sofort verschwindet
+            $this->dispatch('profile-updated');
+            $this->dispatch('ai-privacy-consent-updated', accepted: $this->aiDataConsent);
+            $this->dispatch('notify', [
+                'type'    => 'success',
+                'message' => $this->profileFeedbackMessage,
+            ]);
+        } catch (ValidationException $e) {
+            $firstError = collect($e->errors())->flatten()->first() ?: 'Bitte überprüfe deine Eingaben.';
+            $this->profileFeedbackSuccess = false;
+            $this->profileFeedbackMessage = (string) $firstError;
+
+            $this->dispatch('notify', [
+                'type'    => 'error',
+                'message' => $this->profileFeedbackMessage,
+            ]);
+
+            throw $e;
+        }
     }
 
     public function updatedAiDataConsent($value): void

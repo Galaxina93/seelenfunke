@@ -228,22 +228,15 @@ class ProductReviews extends Component
                 }
             }
 
+            $reviewSnapshot = clone $review;
             $review->delete();
 
-            $customerId = Auth::guard('customer')->id();
-            $user = $customerId ? Customer::find($customerId) : null;
-            if ($user) {
-                $profile = \App\Models\Customer\CustomerGamification::where('customer_id', $user->id)
-                    ->where('is_active', true)
-                    ->first();
-                if ($profile) {
-                    app(GamificationService::class)->syncDynamicTitles($profile);
-                }
-            }
+            app(GamificationService::class)->reverseReviewFunken($reviewSnapshot);
 
             $this->cancelEdit();
             session()->flash('success', 'Deine Bewertung wurde erfolgreich gelöscht.');
             $this->dispatch('review-added');
+            $this->dispatch('sparks-awarded');
         } else {
             session()->flash('error', 'Bewertung konnte nicht gefunden werden.');
         }
@@ -359,8 +352,18 @@ class ProductReviews extends Component
                     'status' => $targetStatus
                 ]);
 
-                $msg = $targetStatus === 'pending' ? 'Deine Bewertung wurde aktualisiert und wird von uns geprüft.' : 'Deine Bewertung wurde erfolgreich aktualisiert.';
+                $awardedSparks = 0;
+                if ($targetStatus === 'approved') {
+                    $awardedSparks = app(GamificationService::class)->rewardReviewFunken($review->fresh() ?? $review);
+                }
+
+                $msg = $targetStatus === 'pending'
+                    ? 'Deine Bewertung wurde aktualisiert und wird von uns geprüft.'
+                    : ('Deine Bewertung wurde erfolgreich aktualisiert.' . ($awardedSparks > 0 ? " Dir wurden +{$awardedSparks} ✨ Seelenfunken gutgeschrieben!" : ''));
                 session()->flash('success', $msg);
+                if ($awardedSparks > 0) {
+                    $this->dispatch('sparks-awarded');
+                }
                 $this->cancelEdit();
             }
         } else {
@@ -378,7 +381,7 @@ class ProductReviews extends Component
                 return;
             }
 
-            ProductReview::create([
+            $createdReview = ProductReview::create([
                 'product_id' => $this->product->id,
                 'customer_id' => $customerId,
                 'rating' => $this->rating,
@@ -389,14 +392,18 @@ class ProductReviews extends Component
                 'status' => $targetStatus,
             ]);
 
-            // TITEL UPDATE: Dynamisch anhand der tatsächlich freigegebenen Bewertungen synchronisieren (kein Delete+Submit-Farming)
-            $user = Customer::find($customerId);
-            if ($user) {
-                $profile = \App\Models\Customer\CustomerGamification::where('customer_id', $user->id)
-                    ->where('is_active', true)
-                    ->first();
-                if ($profile) {
-                    app(GamificationService::class)->syncDynamicTitles($profile);
+            $awardedSparks = 0;
+            if ($targetStatus === 'approved') {
+                $awardedSparks = app(GamificationService::class)->rewardReviewFunken($createdReview);
+            } else {
+                $user = Customer::find($customerId);
+                if ($user) {
+                    $profile = \App\Models\Customer\CustomerGamification::where('customer_id', $user->id)
+                        ->where('is_active', true)
+                        ->first();
+                    if ($profile) {
+                        app(GamificationService::class)->syncDynamicTitles($profile);
+                    }
                 }
             }
 
@@ -404,7 +411,14 @@ class ProductReviews extends Component
             $this->rating = 5;
             $this->isAnonymous = false;
 
-            $msg = $targetStatus === 'pending' ? 'Vielen Dank! Da du Bilder/Videos angehängt hast, schalten wir deine Bewertung nach einer kurzen Prüfung frei.' : 'Vielen Dank für deine Bewertung! Sie hilft uns und anderen Kunden sehr.';
+            if ($targetStatus === 'pending') {
+                $msg = 'Vielen Dank! Da du Bilder/Videos angehängt hast, schalten wir deine Bewertung nach einer kurzen Prüfung frei (inkl. +' . \App\Services\Gamification\GameConfig::REVIEW_SPARK_REWARD . ' ✨ Seelenfunken Belohnung).';
+            } elseif ($awardedSparks > 0) {
+                $msg = 'Vielen Dank für deine ehrliche Bewertung! Als Dankeschön wurden dir +' . $awardedSparks . ' ✨ Seelenfunken gutgeschrieben.';
+                $this->dispatch('sparks-awarded');
+            } else {
+                $msg = 'Vielen Dank für deine Bewertung! Sie hilft uns und anderen Kunden sehr.';
+            }
             session()->flash('success', $msg);
         }
 
@@ -422,6 +436,7 @@ class ProductReviews extends Component
 
             $userReview = ProductReview::where('product_id', $this->product->id)
                 ->where('customer_id', $customerId)
+                ->with(['customer.profile', 'customer.gamification'])
                 ->first();
 
             if ($userReview) {
@@ -464,7 +479,7 @@ class ProductReviews extends Component
 
         $query = ProductReview::where('product_id', $this->product->id)
             ->where('status', 'approved')
-            ->with('customer');
+            ->with(['customer.profile', 'customer.gamification']);
 
         if ($userReview) {
             $query->where('id', '!=', $userReview->id);

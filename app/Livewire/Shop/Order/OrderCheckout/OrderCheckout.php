@@ -43,6 +43,20 @@ class OrderCheckout extends Component
     // --- RECHTLICHES ---
     public $terms_accepted = false;
     public $privacy_accepted = false;
+    public $digital_waiver_accepted = false;
+
+    public function hasDigitalOrIngameItems(?Cart $cart = null): bool
+    {
+        $cart = $cart ?? app(CartService::class)->getCart();
+        if (!$cart || !$cart->relationLoaded('items') && !$cart->items) {
+            return false;
+        }
+        return $cart->items->contains(function ($item) {
+            return ($item->product->type ?? 'physical') === 'digital'
+                || !empty($item->configuration['is_ingame_shop_item'])
+                || !empty($item->configuration['ingame_item_key']);
+        });
+    }
 
     // --- LOGIN ---
     public $loginEmail = '';
@@ -63,11 +77,15 @@ class OrderCheckout extends Component
     #[Locked]
     public $isFinished = false;
     #[Locked]
+    public $finalOrderId = '';
+    #[Locked]
     public $finalOrderNumber = '';
     #[Locked]
     public $referralCode = '';
     #[Locked]
     public array $instantDownloads = [];
+    #[Locked]
+    public int $earnedSparks = 0;
 
     /**
      * Schöne Namen für die Felder definieren
@@ -109,6 +127,10 @@ class OrderCheckout extends Component
             'privacy_accepted' => 'accepted',
         ];
 
+        if ($this->hasDigitalOrIngameItems()) {
+            $rules['digital_waiver_accepted'] = 'accepted';
+        }
+
         // Falls abweichende Lieferadresse aktiv ist, diese Felder validieren
         if ($this->has_separate_shipping) {
             $rules['shipping_first_name'] = 'required|string|min:2';
@@ -147,6 +169,7 @@ class OrderCheckout extends Component
         // Rechtliches
         'terms_accepted.accepted' => 'Bitte bestätige, dass du die AGB gelesen hast.',
         'privacy_accepted.accepted' => 'Deine Zustimmung zur Datenschutzerklärung ist erforderlich.',
+        'digital_waiver_accepted.accepted' => 'Für digitale Inhalte / Ingame-Gegenstände ist die Zustimmung zum sofortigen Ausführungsbeginn (§ 356 Abs. 5 BGB) erforderlich.',
     ];
 
     public function mount()

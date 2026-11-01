@@ -42,3 +42,13 @@ When operating from the Windows Antigravity IDE:
 3. **Finanz- & Sicherheits-Standards**:
    - Geldbeträge immer als Cent-Integer (`int`) verarbeiten.
    - Strikte Guard- & Rollen-Isolation (`admin`, `employee`, `customer`; externe Partner `influencer` und `tax_advisor` isoliert via `AiAuthHelper` / `EnsureEmployeeRole`) sowie `#[Locked]` für sicherheitskritische Livewire-Properties.
+
+---
+
+## 4. Gamification Clean-Design & UI-Minimalismus (VERBINDLICHER WORKFLOW)
+
+Bei jeder Änderung oder Erweiterung am Gamification-Modul (`Spieler-Cockpit`, `Hangar`, `Inventar`, `Rucksack`, `Ingame-Shop`, `Halle der Legenden`, `3D-Sternenkarte`, `Minigames`) ist [`Workflow_Gamification_Clean_Design.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Workflows/Workflow_Gamification_Clean_Design.md) strikt einzuhalten:
+
+1. **Keine unnötigen Sätze & keine Dopplungen:** Was visuell bereits ersichtlich ist (freigeschaltete Bereiche, ausgewähltes Ziel auf der Karte, Drag-&-Drop-/Doppelklick-Bedienung), darf niemals zusätzlich als Hinweistext, Banner oder Untertitel hingeschrieben werden.
+2. **Klare, kurze Überschriften statt künstlicher Begriffe:** Immer direkte Namen verwenden (`Inventar`, `Rucksack`, `KLASSE C/B/A/S`, `Profil`, `In die Schlacht`) – keine aufgeblähten Rollenspiel-Bandwurm-Überschriften.
+3. **Keine überladenen Ansichten:** Maximal reduzierte Kacheln (z. B. Halle der Legenden nur mit Rang, Avatar, Name, Titel, Funken & `Profil`-Button; Details im Modal; Tastenbelegung in den Einstellungen eingeklappt hinter `Ändern`; Shop-Kacheln mit unbeschnittenem Artwork und exakt 3 goldenen `✓`-Stichpunkten).

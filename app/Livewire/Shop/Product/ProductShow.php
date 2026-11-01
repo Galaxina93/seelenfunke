@@ -53,6 +53,7 @@ class ProductShow extends Component
         ProductTrackingService::trackModeChosen($this->product->id, 'template');
         $this->showTemplateSelection = false;
         $this->showTemplatesList = true;
+        $this->dispatch('scroll-to-config-stage');
     }
 
     public function startCustomConfig()
@@ -61,6 +62,7 @@ class ProductShow extends Component
         $this->showTemplateSelection = false;
         $this->showTemplatesList = false;
         $this->currentConfig = [];
+        $this->dispatch('scroll-to-config-stage');
     }
 
     public function selectTemplate($templateId)
@@ -104,6 +106,7 @@ class ProductShow extends Component
         }
         $this->showTemplateSelection = false;
         $this->showTemplatesList = false;
+        $this->dispatch('scroll-to-config-stage');
     }
 
     public function cancelConfig()

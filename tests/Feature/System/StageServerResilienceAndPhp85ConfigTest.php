@@ -12,6 +12,7 @@ use Tests\TestCase;
 
 class StageServerResilienceAndPhp85ConfigTest extends TestCase
 {
+    use \Illuminate\Foundation\Testing\DatabaseTransactions;
     public function test_database_config_uses_pdo_mysql_attr_ssl_ca_without_deprecation(): void
     {
         $config = require base_path('config/database.php');

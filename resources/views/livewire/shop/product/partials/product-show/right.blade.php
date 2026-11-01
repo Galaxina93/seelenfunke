@@ -1,4 +1,6 @@
-<div class="w-full" @scroll-to-config.window="document.getElementById('configurator-start').scrollIntoView({ behavior: 'smooth', block: 'start' })">
+<div class="w-full"
+     @scroll-to-config.window="document.getElementById('configurator-start')?.scrollIntoView({ behavior: 'smooth', block: 'start' })"
+     @scroll-to-config-stage.window="setTimeout(() => { const el = document.getElementById('configurator-workspace-box') || document.getElementById('configurator-start'); if (el) { const y = el.getBoundingClientRect().top + window.pageYOffset - 76; window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' }); } }, 60)">
 
     <div id="configurator-start" class="lg:sticky lg:top-24 w-full scroll-mt-24">
         <h1 class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 mb-4 leading-tight">
@@ -196,7 +198,7 @@
                 </div>
             </div>
         @else
-            <div class="bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden transition-all w-full min-h-[400px] flex flex-col relative">
+            <div id="configurator-workspace-box" class="bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden transition-all w-full min-h-[400px] flex flex-col relative scroll-mt-20">
 
                 @if($showTemplateSelection)
                     {{-- 1. STARTBILDSCHIRM: VORLAGE ODER SELBER MACHEN --}}

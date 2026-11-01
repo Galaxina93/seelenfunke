@@ -16,6 +16,9 @@ use Stripe\Stripe;
 class OrderCheckoutSuccess extends Component
 {
     #[\Livewire\Attributes\Locked]
+    public $finalOrderId = '';
+
+    #[\Livewire\Attributes\Locked]
     public $finalOrderNumber = '';
 
     #[\Livewire\Attributes\Locked]
@@ -26,6 +29,9 @@ class OrderCheckoutSuccess extends Component
 
     #[\Livewire\Attributes\Locked]
     public array $instantDownloads = [];
+
+    #[\Livewire\Attributes\Locked]
+    public int $earnedSparks = 0;
 
     public function mount()
     {
@@ -41,6 +47,7 @@ class OrderCheckoutSuccess extends Component
                     ->latest()
                     ->first();
                 if ($order) {
+                    $this->finalOrderId = (string) $order->id;
                     $this->finalOrderNumber = $order->order_number;
                     $this->email = $order->email ?: ($order->billing_address['email'] ?? ($order->customer->email ?? ''));
                     $this->instantDownloads = $order->getInstantDownloads();
@@ -77,6 +84,7 @@ class OrderCheckoutSuccess extends Component
         $stripeSecret = config('services.stripe.secret');
         if (!$stripeSecret) {
             if ($isOwner && $order->payment_status === 'paid' && !in_array($order->status, ['cancelled', 'refunded'], true)) {
+                $this->finalOrderId = (string) $order->id;
                 $this->finalOrderNumber = $order->order_number;
                 $this->email = $order->email ?: ($order->billing_address['email'] ?? ($order->customer->email ?? ''));
                 $this->instantDownloads = $order->getInstantDownloads();
@@ -106,6 +114,7 @@ class OrderCheckoutSuccess extends Component
                     $order->refresh();
                 }
 
+                $this->finalOrderId = (string) $order->id;
                 $this->finalOrderNumber = $order->order_number;
                 $this->email = $order->email ?: ($order->billing_address['email'] ?? ($order->customer->email ?? ''));
                 $this->instantDownloads = $order->getInstantDownloads();
@@ -133,6 +142,12 @@ class OrderCheckoutSuccess extends Component
 
     private function resolveReferralCode(OrderOrder $order): void
     {
+        try {
+            $this->earnedSparks = app(\App\Services\Gamification\GamificationService::class)->calculateOrderSparks($order);
+        } catch (\Throwable $e) {
+            $this->earnedSparks = 0;
+        }
+
         try {
             $firstName = $order->billing_address['first_name'] ?? ($order->customer->first_name ?? '');
             $lastName = $order->billing_address['last_name'] ?? ($order->customer->last_name ?? '');

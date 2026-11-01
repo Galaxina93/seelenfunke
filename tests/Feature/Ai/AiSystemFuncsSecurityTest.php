@@ -7,6 +7,7 @@ use App\Services\AI\Functions\AiSystemFuncs;
 
 class AiSystemFuncsSecurityTest extends TestCase
 {
+    use \Illuminate\Foundation\Testing\DatabaseTransactions;
     private $mockClass;
 
     protected function setUp(): void

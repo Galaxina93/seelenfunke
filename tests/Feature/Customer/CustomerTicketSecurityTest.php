@@ -104,7 +104,7 @@ class CustomerTicketSecurityTest extends TestCase
 
         $gamification = CustomerGamification::firstOrCreate(
             ['customer_id' => $this->customer1->id],
-            ['funken_balance' => 0]
+            ['funken_balance' => 0, 'is_active' => true]
         );
 
         // 1st bug ticket: +5 sparks

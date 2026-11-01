@@ -159,6 +159,7 @@
 
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <style>[x-cloak] { display: none !important; }</style>
 
     {{-- SEO Meta --}}
@@ -332,6 +333,8 @@
 
 {{-- Footer --}}
 @include('frontend.footer.footer')
+
+@include('components.gamification.persistent-bgm-dock')
 
 {{-- 2. Der Chat bleibt im Hintergrund geladen, wird aber vom Dock gesteuert --}}
 {{-- FunkiChat removed as per request --}}

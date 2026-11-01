@@ -7,6 +7,7 @@ use App\Services\AI\ReceiptAiScannerService;
 
 class ReceiptAiScannerSecurityTest extends TestCase
 {
+    use \Illuminate\Foundation\Testing\DatabaseTransactions;
     public function test_analyze_rejects_path_traversal(): void
     {
         $res = ReceiptAiScannerService::analyze('../../../../etc/passwd');

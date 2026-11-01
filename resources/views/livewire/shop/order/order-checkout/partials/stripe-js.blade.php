@@ -30,7 +30,48 @@
 
             const appearance = {
                 theme: 'stripe',
-                variables: { colorPrimary: '#C5A059', borderRadius: '8px' }
+                variables: {
+                    colorPrimary: '#C5A059',
+                    colorBackground: '#F9FAFB',
+                    colorText: '#111827',
+                    colorTextSecondary: '#374151',
+                    colorTextPlaceholder: '#9CA3AF',
+                    colorDanger: '#DC2626',
+                    borderRadius: '8px'
+                },
+                rules: {
+                    '.Input': {
+                        backgroundColor: '#F9FAFB',
+                        border: '1px solid #D1D5DB',
+                        color: '#111827',
+                        caretColor: '#111827',
+                        cursor: 'text',
+                        boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                    },
+                    '.Input:hover': {
+                        backgroundColor: '#FFFFFF',
+                        borderColor: '#C5A059'
+                    },
+                    '.Input:focus': {
+                        backgroundColor: '#FFFFFF',
+                        borderColor: '#C5A059',
+                        boxShadow: '0 0 0 3px rgba(197, 160, 89, 0.22)'
+                    },
+                    '.Tab': {
+                        border: '1px solid #E5E7EB',
+                        backgroundColor: '#F9FAFB',
+                        cursor: 'pointer'
+                    },
+                    '.Tab:hover': {
+                        borderColor: '#C5A059',
+                        backgroundColor: '#FFFFFF'
+                    },
+                    '.Tab--selected': {
+                        borderColor: '#C5A059',
+                        backgroundColor: '#FFFFFF',
+                        boxShadow: '0 0 0 2px rgba(197, 160, 89, 0.2)'
+                    }
+                }
             };
 
             const container = document.getElementById("payment-element");
@@ -59,11 +100,14 @@
                     // Schneller, synchroner Client-Check für die rechtlichen AGB-Checkboxen
                     const termsChecked = document.getElementById('terms')?.checked;
                     const privacyChecked = document.getElementById('privacy')?.checked;
+                    const waiverEl = document.getElementById('digital_waiver');
+                    const waiverChecked = !waiverEl || waiverEl.checked;
 
-                    if (!termsChecked || !privacyChecked) {
-                        msgBox.textContent = "Bitte bestätige zuerst die AGB und die Datenschutzerklärung am Ende der Seite (Schritt 2).";
+                    if (!termsChecked || !privacyChecked || !waiverChecked) {
+                        window.dispatchEvent(new CustomEvent('checkout-legal-warning'));
+                        msgBox.textContent = "Bitte bestätige zuerst die rot markierten Pflichthaken (AGB & Datenschutz) am Ende der Seite.";
                         msgBox.classList.remove("hidden");
-                        msgBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        document.getElementById('checkout-legal-box')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         return; // Kein event.resolve() aufrufen -> Das Wallet-Fenster bleibt geschlossen
                     }
 
@@ -217,6 +261,16 @@
 
                     const submitButton = document.getElementById('submit-button');
                     if (submitButton && submitButton.disabled) return;
+
+                    // Pflichthaken prüfen: Falls nicht alle gesetzt sind, rot markieren und hinscrollen
+                    const termsEl = document.getElementById('terms');
+                    const privacyEl = document.getElementById('privacy');
+                    const waiverEl = document.getElementById('digital_waiver');
+                    if ((termsEl && !termsEl.checked) || (privacyEl && !privacyEl.checked) || (waiverEl && !waiverEl.checked)) {
+                        window.dispatchEvent(new CustomEvent('checkout-legal-warning'));
+                        document.getElementById('checkout-legal-box')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        return;
+                    }
 
                     const messageContainer = document.getElementById('payment-message');
                     if (messageContainer) messageContainer.classList.add("hidden");

@@ -30,18 +30,53 @@ class EmployeeRoleIsolationHook extends ComponentHook
         \App\Livewire\Shop\Marketing\MarketingNewsletterSignup::class,
         \App\Livewire\Shop\Marketing\MarketingBlogIndex::class,
         \App\Livewire\Shop\Marketing\MarketingBlogShow::class,
+        \App\Livewire\Shop\Marketing\MarketingHerzensprojekte::class,
+        \App\Livewire\Shop\Support\SupportContactFormComponent::class,
         \App\Livewire\Shop\System\SystemDeliveryDisplay::class,
+    ];
+
+    /**
+     * Geschützte Kundenportal-Komponenten, die zwingend einen eingeloggten Kunden erfordern.
+     */
+    private const PROTECTED_CUSTOMER_COMPONENTS = [
+        \App\Livewire\Customer\CustomerDashboardComponent::class,
+        \App\Livewire\Customer\CustomerOrdersComponent::class,
+        \App\Livewire\Customer\CustomerInvoicesComponent::class,
+        \App\Livewire\Customer\CustomerTicketsComponent::class,
     ];
 
     public function boot(): void
     {
-        // Wenn ein Admin authentifiziert ist, greift keine Partner-Einschränkung
+        $componentClass = get_class($this->component);
+
+        // 0. Geschützte Kundenportal-Komponenten erfordern immer den 'customer'-Guard
+        if (in_array($componentClass, self::PROTECTED_CUSTOMER_COMPONENTS, true)) {
+            $customer = Auth::guard('customer')->user();
+            if (!$customer || !empty($customer->needs_password_change)) {
+                abort(403, 'Zugriff nur für authentifizierte Kunden.');
+            }
+            return;
+        }
+
+        // Wenn ein Admin authentifiziert ist, greift keine Backend-/Partner-Einschränkung
         if (Auth::guard('admin')->check() || AiAuthHelper::isAdmin()) {
             return;
         }
 
+        $isProtectedBackendOrEmployeeComponent = str_starts_with($componentClass, 'App\\Livewire\\Employee\\')
+            || str_starts_with($componentClass, 'App\\Livewire\\Backend\\')
+            || (
+                str_starts_with($componentClass, 'App\\Livewire\\Shop\\')
+                && !in_array($componentClass, self::PUBLIC_SHOP_COMPONENTS, true)
+            );
+
         $employee = Auth::guard('employee')->user();
         if (!$employee) {
+            // Weder Admin noch Mitarbeiter eingeloggt (Gast oder Kunde):
+            // Jeglicher Zugriff auf Backend-, Mitarbeiter- oder nicht-öffentliche Shop-Komponenten wird strikt blockiert
+            if ($isProtectedBackendOrEmployeeComponent) {
+                abort(403, 'Unbefugter Zugriff auf geschützte Systemkomponente.');
+            }
             return;
         }
 
@@ -51,10 +86,15 @@ class EmployeeRoleIsolationHook extends ComponentHook
         }
 
         if ($employee->isInternalEmployee()) {
+            // Interne Mitarbeiter dürfen weder das Creator- noch das Steuerberater-Cockpit aufrufen
+            if (
+                str_starts_with($componentClass, 'App\\Livewire\\Employee\\Influencer\\')
+                || str_starts_with($componentClass, 'App\\Livewire\\Employee\\TaxAdvisor\\')
+            ) {
+                abort(403, 'Zugriff für interne Mitarbeiter nicht vorgesehen.');
+            }
             return;
         }
-
-        $componentClass = get_class($this->component);
 
         // 1. Creator-Cockpit ist nur für Rolle 'influencer' erlaubt
         if (str_starts_with($componentClass, 'App\\Livewire\\Employee\\Influencer\\')) {
@@ -73,14 +113,7 @@ class EmployeeRoleIsolationHook extends ComponentHook
         }
 
         // 3. Interne Mitarbeiter-, Backend- und Admin-Shop-Komponenten sind für externe Partner (Influencer / Steuerberater) strikt gesperrt
-        if (
-            str_starts_with($componentClass, 'App\\Livewire\\Employee\\')
-            || str_starts_with($componentClass, 'App\\Livewire\\Backend\\')
-            || (
-                str_starts_with($componentClass, 'App\\Livewire\\Shop\\')
-                && !in_array($componentClass, self::PUBLIC_SHOP_COMPONENTS, true)
-            )
-        ) {
+        if ($isProtectedBackendOrEmployeeComponent) {
             abort(403, 'Zugriff für externe Partner verweigert.');
         }
     }

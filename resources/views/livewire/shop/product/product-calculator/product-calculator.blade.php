@@ -122,7 +122,7 @@
                 <label class="flex items-start gap-3 cursor-pointer group">
                     <input type="checkbox" wire:model.live="agb_accepted" class="mt-1 w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary">
                     <span class="text-sm text-gray-600 leading-relaxed group-hover:text-gray-900 transition-colors">
-                        Ich bestätige, dass der Konfigurator als **Visualisierungshilfe** dient. Abweichungen in Farbe und Platzierung (keine mm-Präzision) sind möglich. Es gelten die <a href="/agb#konfigurator" target="_blank" class="text-primary underline font-bold">Besonderen Bestimmungen für Konfigurationen</a>.
+                        Ich bestätige, dass der Konfigurator als <strong>Visualisierungshilfe</strong> dient (handwerkliche Toleranzen in Farbe und Platzierung möglich) und ich für hochgeladene Motive/Texte <strong>alle erforderlichen Urheber- &amp; Markenrechte</strong> besitze sowie Mein Seelenfunke von Ansprüchen Dritter freistelle. Es gelten die <a href="/agb#konfigurator" target="_blank" class="text-primary underline font-bold">Besonderen Bestimmungen &amp; Freistellungsregeln (§ 3 AGB)</a>.
                     </span>
                 </label>
                 @error('agb')

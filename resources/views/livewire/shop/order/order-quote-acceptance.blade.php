@@ -256,6 +256,16 @@
                                     <span class="font-bold text-xl text-[var(--theme-color)]">{{ number_format($displayGrossTotal / 100, 2, ',', '.') }} €</span>
                                 </div>
 
+                                @php
+                                    $quoteBonusSparks = \App\Services\Gamification\GameConfig::calculateSparksForCents(max(0, $goodsGross - $discountAmount));
+                                @endphp
+                                @if($quoteBonusSparks > 0)
+                                    <div class="mb-2 flex justify-between items-center text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200/80 px-2.5 py-1.5 rounded-lg">
+                                        <span>✨ Seelenfunken Treue-Bonus (100&nbsp;%):</span>
+                                        <span class="font-mono font-black">+{{ number_format($quoteBonusSparks, 0, ',', '.') }} ✨ Funken</span>
+                                    </div>
+                                @endif
+
                                 {{-- 5. Steuer-Hinweis (Klein & Dezent) --}}
                                 <div class="text-right text-[11px] text-gray-400 italic leading-tight">
                                     @if(!$isSmallBusiness)

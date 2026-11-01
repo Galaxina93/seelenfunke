@@ -9,35 +9,25 @@ use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
-use Carbon\Carbon;
 
 class GameGlobalStatsHeader extends Component
 {
     #[Locked]
-    public $level = 1;
+    public int $level = 1;
     #[Locked]
-    public $balance = 0;
+    public int $balance = 0;
     #[Locked]
-    public $energyBalance = 5;
+    public int $totalEarned = 0;
     #[Locked]
-    public $maxEnergy = 5;
+    public int $progressPercentage = 0;
     #[Locked]
-    public $progressPercentage = 0;
+    public int $missingSparks = 0;
     #[Locked]
-    public $missingSparks = 0;
+    public int $upgradeCost = 0;
     #[Locked]
-    public $upgradeCost = 0;
+    public bool $isMaxLevel = false;
     #[Locked]
-    public $canUpgrade = false;
-    #[Locked]
-    public $isMaxLevel = false;
-    #[Locked]
-    public $nextVoucherLevel = 3;
-    #[Locked]
-    public $hasOptedIn = false;
-
-    #[Locked]
-    public array $voucherMilestones = [3, 5, 8, 10];
+    public bool $hasOptedIn = false;
 
     public function mount(GamificationService $gameService)
     {
@@ -45,7 +35,6 @@ class GameGlobalStatsHeader extends Component
     }
 
     #[On('sparks-awarded')]
-    #[On('energy-updated')]
     #[On('funki-level-up')]
     #[On('gamification-mode-changed')]
     public function refreshStats(GamificationService $gameService)
@@ -56,55 +45,32 @@ class GameGlobalStatsHeader extends Component
     public function loadData(GamificationService $gameService)
     {
         $user = Auth::guard('customer')->user();
-        if (!$user) return;
+        if (!$user) {
+            return;
+        }
 
         $profile = CustomerGamification::where('customer_id', $user->id)->first();
         if (!$profile || !$profile->is_active) {
             $this->hasOptedIn = false;
-            return; // Noch nicht opt-in
+            return;
         }
+
         $this->hasOptedIn = true;
-
-        // Energie Refill Check (Alle 3 Stunden, nur wenn Energie unter Maximum)
-        $gameService->refillEnergyIfDue($profile, $this->maxEnergy);
-
-        $this->level = $profile->level ?? 1;
-        $this->balance = $profile->funken_balance;
-        $this->energyBalance = $profile->energy_balance ?? 5;
-
+        $this->level = max(1, min(GameConfig::MAX_LEVEL, (int) ($profile->funki_level ?? $profile->level ?? 1)));
+        $this->balance = (int) ($profile->funken_balance ?? 0);
+        $this->totalEarned = (int) ($profile->funken_total_earned ?? 0);
         $this->isMaxLevel = $this->level >= GameConfig::MAX_LEVEL;
-        $this->upgradeCost = $gameService->getUpgradeCost($this->level);
-
-        $this->canUpgrade = !$this->isMaxLevel && ($this->balance >= $this->upgradeCost);
+        $this->upgradeCost = GameConfig::getNextLevelCost($this->level);
 
         if ($this->isMaxLevel) {
             $this->progressPercentage = 100;
             $this->missingSparks = 0;
         } else {
-            $this->missingSparks = max(0, $this->upgradeCost - $this->balance);
-            $cost = $this->upgradeCost > 0 ? $this->upgradeCost : 1;
-            $this->progressPercentage = min(100, round(($this->balance / $cost) * 100));
-        }
-
-        // Nächstes Gutschein-Level berechnen
-        foreach($this->voucherMilestones as $milestone) {
-            if ($this->level < $milestone) {
-                $this->nextVoucherLevel = $milestone;
-                break;
-            }
-        }
-    }
-
-    public function upgrade(GamificationService $gameService)
-    {
-        $user = Auth::guard('customer')->user();
-        if (!$user) return;
-        $result = $gameService->upgradeLevel($user);
-
-        if ($result['success']) {
-            $this->loadData($gameService);
-            $this->dispatch('funki-level-up', ['level' => $result['new_level'], 'reward' => $result['reward']]);
-            $this->dispatch('notify', ['type' => 'success', 'message' => 'Level Up!']);
+            $currentFloor = GameConfig::getLevels()[$this->level]['cost'] ?? 0;
+            $span = max(1, $this->upgradeCost - $currentFloor);
+            $gainedInStage = max(0, $this->totalEarned - $currentFloor);
+            $this->missingSparks = max(0, $this->upgradeCost - $this->totalEarned);
+            $this->progressPercentage = min(100, (int) round(($gainedInStage / $span) * 100));
         }
     }
 

@@ -4,9 +4,38 @@ namespace App\Services\Gamification;
 
 class GameConfig
 {
-    public const MAX_LEVEL = 100;
+    public const MAX_LEVEL = 10;
     public const FUNKI_EVOLUTION_MAX_LEVEL = 10;
-    public const DAILY_SPARK_LIMIT = 20;
+
+    // Website-Funkensuche (Selten, Reload- & Bot-geschützt)
+    public const DAILY_SPARK_LIMIT = 10;
+    public const SPARK_COOLDOWN_SECONDS = 180;
+    public const SPARK_MIN_REACTION_SECONDS = 1;
+    public const SPARK_HUNT_REWARD = 1;
+
+    // Belohnung für eine ehrliche, verifizierte Produktbewertung (einmalig pro gekauftem Produkt)
+    public const REVIEW_SPARK_REWARD = 15;
+
+    // Ultimativer Rang-Titel (Alle 5 Kern-Titel auf Diamant + Funki Level 10)
+    public const ULTIMATE_TITLE_NAME = 'Seelengott unter Sterblichen';
+
+    // Prozentuale Seelenfunken-Berechnung (Variante A = 100 % vom bezahlten Produktwert: 1,00 € = 1 Seelenfunke)
+    public const ORDER_SPARKS_PER_ITEM = 0;
+    public const ORDER_SPARKS_PER_EURO = 1;
+    public const ORDER_SPARKS_PERCENT = 100;
+
+    /**
+     * Berechnet die Seelenfunken prozentual (100 % = 1 Funke je 1,00 €, kaufmännisch gerundet)
+     * anhand des funkenberechtigten Produktwerts in Cent.
+     */
+    public static function calculateSparksForCents(int $eligibleCents): int
+    {
+        if ($eligibleCents <= 0) {
+            return 0;
+        }
+
+        return max(0, (int) round(($eligibleCents / 100) * self::ORDER_SPARKS_PER_EURO));
+    }
 
     public static function getAppearanceMilestones(): array
     {
@@ -20,887 +49,473 @@ class GameConfig
             7  => 'funki_lvl_7_artisan',
             8  => 'funki_lvl_8_master',
             9  => 'funki_lvl_9_lightbringer',
-            10 => 'funki_lvl_10_god_of_soul'
+            10 => 'funki_lvl_10_god_of_soul',
         ];
     }
 
-    // Echte Coupon-Struktur für die Generierung (Margen-geschützt: bleibt strikt auf Level 1-10!)
-    public static function getLevelRewards(): array
+    /**
+     * Alle 10 Funki-Evolutionsstufen (2D-Grafiken) inklusive der kostenlosen,
+     * automatisch mit jedem Level aufsteigenden epischen Hintergrund-Darstellung.
+     */
+    public static function getFunkiLevels(): array
     {
         return [
-            3  => ['type' => 'percentage', 'value' => 5,  'name' => '5% Rabatt-Gutschein'],
-            5  => ['type' => 'percentage', 'value' => 8,  'name' => '8% Rabatt-Gutschein'],
-            8  => ['type' => 'percentage', 'value' => 10, 'name' => '10% Rabatt-Gutschein'],
-            10 => ['type' => 'percentage', 'value' => 15, 'name' => '15% Seelengott-Rabatt'],
+            1 => [
+                'level'                    => 1,
+                'required_lifetime_sparks' => 0,
+                'name'                     => 'Funki • Kleiner Seelenfunke',
+                'subtitle'                 => 'Dein treuer Begleiter ab deinem ersten Einkauf in der Manufaktur',
+                'badge'                    => 'STUFE 1 • URSPRUNG',
+                'image_key'                => 'funki_lvl_1_rags',
+                'image_path'               => 'shop/customer/gamification/models/images/original/funki_lvl_1_rags.png',
+                'bg_key'                   => 'lvl_1_ivory',
+                'bg_name'                  => 'Stilles Manufaktur-Atelier',
+                'bg_subtitle'              => 'Sanfter Elfenbein- & Pergament-Schimmer zum Start deiner Reise',
+                'accent_hex'               => '#c5a059',
+                'video_url'                => null,
+                'video_filter_css'         => 'none',
+                'video_transform_css'      => 'scale(1.0)',
+                'circle_css'               => 'background: radial-gradient(circle at 50% 42%, #ffffff 0%, #faf6ee 62%, #efe4cc 100%); box-shadow: inset 0 0 24px rgba(197,160,89,0.25);',
+            ],
+            2 => [
+                'level'                    => 2,
+                'required_lifetime_sparks' => 150,
+                'name'                     => 'Funki • Lichtträger-Lehrling',
+                'subtitle'                 => 'Erste warme Lichtfunken begleiten deinen Lehrling',
+                'badge'                    => 'STUFE 2 • LEHRLING',
+                'image_key'                => 'funki_lvl_2_basic',
+                'image_path'               => 'shop/customer/gamification/models/images/original/funki_lvl_2_basic.png',
+                'bg_key'                   => 'lvl_2_amber_glow',
+                'bg_name'                  => 'Warmer Bernsteinschimmer',
+                'bg_subtitle'              => 'Dezenter Kupfer- & Honiggold-Lichtschein der Manufaktur',
+                'accent_hex'               => '#d97706',
+                'video_url'                => null,
+                'video_filter_css'         => 'none',
+                'video_transform_css'      => 'scale(1.0)',
+                'circle_css'               => 'background: radial-gradient(circle at 50% 35%, #fef3c7 0%, #f5d08a 48%, #92400e 100%); box-shadow: inset 0 0 28px rgba(217,119,6,0.42);',
+            ],
+            3 => [
+                'level'                    => 3,
+                'required_lifetime_sparks' => 350,
+                'name'                     => 'Funki • Manufaktur-Helfer',
+                'subtitle'                 => 'Ausgerüstet für die feinsten Arbeiten an der Werkbank',
+                'badge'                    => 'STUFE 3 • HELFER',
+                'image_key'                => 'funki_lvl_3_helper',
+                'image_path'               => 'shop/customer/gamification/models/images/original/funki_lvl_3_helper.png',
+                'bg_key'                   => 'lvl_3_workshop_dusk',
+                'bg_name'                  => 'Abendliche Sternen-Werkstatt',
+                'bg_subtitle'              => 'Ruhiger Bronze- & Nachtblau-Schimmer mit erstem Sternenstaub',
+                'accent_hex'               => '#eab308',
+                'video_url'                => null,
+                'video_filter_css'         => 'none',
+                'video_transform_css'      => 'scale(1.0)',
+                'circle_css'               => "background: radial-gradient(circle at 50% 32%, rgba(251,191,36,0.28) 0%, rgba(15,23,42,0.72) 100%), url('/shop/gamification/shop/bg_workshop_dusk.jpg?v=2') center/cover no-repeat; box-shadow: inset 0 0 32px rgba(234,179,8,0.45);",
+            ],
+            4 => [
+                'level'                    => 4,
+                'required_lifetime_sparks' => 650,
+                'name'                     => 'Funki • Kristall-Novize',
+                'subtitle'                 => 'Entdeckt das sanfte Leuchten geschliffener Glas- & Kristallkunst',
+                'badge'                    => 'STUFE 4 • NOVIZE',
+                'image_key'                => 'funki_lvl_4_novice',
+                'image_path'               => 'shop/customer/gamification/models/images/original/funki_lvl_4_novice.png',
+                'bg_key'                   => 'lvl_4_sapphire',
+                'bg_name'                  => 'Sanfter Saphir-Kristallnebel',
+                'bg_subtitle'              => 'Ruhig schwebender Saphir-Nebel mit feiner Lichtbrechung',
+                'accent_hex'               => '#38bdf8',
+                'video_url'                => '/shop/gamification/shop/bg_sapphire_starforge.mp4',
+                'video_filter_css'         => 'brightness(0.88) saturate(1.12) contrast(1.06)',
+                'video_transform_css'      => 'scale(1.02)',
+                'circle_css'               => "background: radial-gradient(circle at 50% 35%, rgba(56,189,248,0.34) 0%, rgba(6,9,24,0.72) 100%), url('/shop/gamification/shop/bg_crystal_nebula.jpg') center/cover no-repeat; box-shadow: inset 0 0 38px rgba(56,189,248,0.58);",
+            ],
+            5 => [
+                'level'                    => 5,
+                'required_lifetime_sparks' => 1000,
+                'name'                     => 'Funki • Funken-Geselle',
+                'subtitle'                 => 'Ein wahrer Hüter persönlicher Erinnerungsstücke',
+                'badge'                    => 'STUFE 5 • GESELLE',
+                'image_key'                => 'funki_lvl_5_apprentice',
+                'image_path'               => 'shop/customer/gamification/models/images/original/funki_lvl_5_apprentice.png',
+                'bg_key'                   => 'lvl_5_valhalla',
+                'bg_name'                  => 'Smaragd-Polarlicht der Gesellen',
+                'bg_subtitle'              => 'Harmonisches Smaragd- & Gold-Polarlicht am Nachthimmel',
+                'accent_hex'               => '#10b981',
+                'video_url'                => '/shop/gamification/shop/bg_celestial_valhalla.mp4?v=2',
+                'video_filter_css'         => 'saturate(1.18) contrast(1.06) brightness(0.98)',
+                'video_transform_css'      => 'scale(1.04)',
+                'circle_css'               => "background: radial-gradient(circle at 50% 30%, rgba(16,185,129,0.32) 0%, rgba(4,18,16,0.74) 100%), url('/shop/gamification/shop/bg_emerald_aurora.jpg?v=2') center/cover no-repeat; box-shadow: inset 0 0 44px rgba(16,185,129,0.72), 0 0 22px rgba(16,185,129,0.30);",
+            ],
+            6 => [
+                'level'                    => 6,
+                'required_lifetime_sparks' => 1500,
+                'name'                     => 'Funki • Gravur-Handwerker',
+                'subtitle'                 => 'Präzise Handwerkskunst im warmen Schein der Laserschmiede',
+                'badge'                    => 'STUFE 6 • HANDWERKER',
+                'image_key'                => 'funki_lvl_6_craftsman',
+                'image_path'               => 'shop/customer/gamification/models/images/original/funki_lvl_6_craftsman.png',
+                'bg_key'                   => 'lvl_6_crimson_forge',
+                'bg_name'                  => 'Karmesin-Laserschmiede',
+                'bg_subtitle'              => 'Aufsteigende Schmiedeglut & rubinroter Laserstrahl im Atelier',
+                'accent_hex'               => '#f43f5e',
+                'video_url'                => '/shop/gamification/shop/bg_crimson_bloodmoon.mp4?v=2',
+                'video_filter_css'         => 'saturate(1.18) contrast(1.08) brightness(0.98)',
+                'video_transform_css'      => 'scale(1.04)',
+                'circle_css'               => "background: radial-gradient(circle at 50% 32%, rgba(244,63,94,0.34) 0%, rgba(15,5,10,0.76) 100%), url('/shop/gamification/shop/bg_crimson_forge.jpg?v=2') center/cover no-repeat; box-shadow: inset 0 0 46px rgba(244,63,94,0.68);",
+            ],
+            7 => [
+                'level'                    => 7,
+                'required_lifetime_sparks' => 2100,
+                'name'                     => 'Funki • Kunsthandwerker',
+                'subtitle'                 => 'Veredelt jedes Unikat unter dem Korona-Ring der Eklipse',
+                'badge'                    => 'STUFE 7 • KUNSTHANDWERKER',
+                'image_key'                => 'funki_lvl_7_artisan',
+                'image_path'               => 'shop/customer/gamification/models/images/original/funki_lvl_7_artisan.png',
+                'bg_key'                   => 'lvl_7_black_sun',
+                'bg_name'                  => 'Eklipse der Schwarzen Sonne',
+                'bg_subtitle'              => 'Mystische Sonnenfinsternis mit glühendem Korona-Lichtring',
+                'accent_hex'               => '#ef4444',
+                'video_url'                => '/shop/gamification/shop/bg_black_sun_throne.mp4',
+                'video_filter_css'         => 'saturate(1.25) contrast(1.18) brightness(0.94)',
+                'video_transform_css'      => 'scale(1.04)',
+                'circle_css'               => "background: radial-gradient(circle at 50% 40%, rgba(239,68,68,0.36) 0%, rgba(9,5,8,0.78) 100%), url('/shop/gamification/shop/bg_obsidian_abyss.jpg') center/cover no-repeat; box-shadow: inset 0 0 50px rgba(239,68,68,0.72);",
+            ],
+            8 => [
+                'level'                    => 8,
+                'required_lifetime_sparks' => 2800,
+                'name'                     => 'Funki • Meister der Manufaktur',
+                'subtitle'                 => 'Strahlende Rüstung eines großen Meisters der Seelenfunken',
+                'badge'                    => 'STUFE 8 • MEISTER',
+                'image_key'                => 'funki_lvl_8_master',
+                'image_path'               => 'shop/customer/gamification/models/images/original/funki_lvl_8_master.png',
+                'bg_key'                   => 'lvl_8_singularity',
+                'bg_name'                  => 'Astrale Meister-Singularität',
+                'bg_subtitle'              => 'Violett-goldener Raumzeit-Wirbel der Meisterstufe',
+                'accent_hex'               => '#a855f7',
+                'video_url'                => '/shop/gamification/shop/bg_void_singularity.mp4?v=2',
+                'video_filter_css'         => 'saturate(1.20) contrast(1.08) brightness(0.98)',
+                'video_transform_css'      => 'scale(1.04)',
+                'circle_css'               => "background: radial-gradient(circle at 50% 50%, rgba(168,85,247,0.34) 0%, rgba(5,4,12,0.76) 100%), url('/shop/gamification/shop/bg_void_singularity.jpg?v=2') center/cover no-repeat; box-shadow: inset 0 0 58px rgba(168,85,247,0.82), 0 0 28px rgba(168,85,247,0.42);",
+            ],
+            9 => [
+                'level'                    => 9,
+                'required_lifetime_sparks' => 3800,
+                'name'                     => 'Funki • Hüter des Sternenlichts',
+                'subtitle'                 => 'Unmittelbar vor den Toren der goldenen Gotteshalle',
+                'badge'                    => 'STUFE 9 • LICHTBRINGER',
+                'image_key'                => 'funki_lvl_9_lightbringer',
+                'image_path'               => 'shop/customer/gamification/models/images/original/funki_lvl_9_lightbringer.png',
+                'bg_key'                   => 'lvl_9_horizon',
+                'bg_name'                  => 'Kosmischer Sternen-Horizont',
+                'bg_subtitle'              => 'Rotierende goldene Spiralgalaxie an der Schwelle zur Göttlichkeit',
+                'accent_hex'               => '#f59e0b',
+                'video_url'                => '/shop/gamification/shop/bg_divine_event_horizon.mp4',
+                'video_filter_css'         => 'saturate(1.42) contrast(1.18) brightness(1.04)',
+                'video_transform_css'      => 'scale(1.08)',
+                'circle_css'               => "background: radial-gradient(circle at 50% 38%, rgba(250,204,21,0.36) 0%, rgba(6,10,26,0.78) 100%), url('/shop/gamification/shop/bg_supernova_sanctum.jpg') center/cover no-repeat; box-shadow: inset 0 0 60px rgba(250,204,21,0.78);",
+            ],
+            10 => [
+                'level'                    => 10,
+                'required_lifetime_sparks' => 5000,
+                'name'                     => 'Funki • Gott des Seelenfunkens',
+                'subtitle'                 => 'Höchste Evolutionsstufe in der ewigen Gotteshalle aus purem Gold',
+                'badge'                    => 'STUFE 10 • MAXIMALES LEVEL',
+                'image_key'                => 'funki_lvl_10_god_of_soul',
+                'image_path'               => 'shop/customer/gamification/models/images/original/funki_lvl_10_god_of_soul.png',
+                'bg_key'                   => 'lvl_10_golden_god_hall',
+                'bg_name'                  => 'Gotteshalle aus purem Gold',
+                'bg_subtitle'              => 'Majestätische 24k-Gold-Säulenhalle des Seelengottes mit koronalem Lichtaltar',
+                'accent_hex'               => '#fbbf24',
+                'video_url'                => '/shop/gamification/shop/bg_aurelia_sanctuary.mp4',
+                'video_filter_css'         => 'brightness(1.12) saturate(1.45) contrast(1.16) sepia(0.08)',
+                'video_transform_css'      => 'scale(1.02)',
+                'circle_css'               => "background: radial-gradient(circle at 50% 38%, rgba(254,240,138,0.55) 0%, rgba(245,158,11,0.45) 48%, rgba(24,14,4,0.82) 100%), url('/shop/gamification/shop/bg_imperial_throne.jpg') center/cover no-repeat; box-shadow: inset 0 0 68px rgba(251,191,36,0.95), 0 0 40px rgba(251,191,36,0.60);",
+            ],
         ];
     }
 
-    // Prestige-Meilensteine ab Level 15 bis 100 (0,00 € Margenkosten, maximaler Status in der Halle der Legenden!)
-    public static function getPrestigeMilestones(): array
+    public static function getLevelForLifetimeSparks(int $lifetimeSparks): int
     {
-        return [
-            15  => ['name' => 'Sternensaphir-Hüter',     'icon' => '💠', 'reward' => 'Ruhmes-Aura: Sternensaphir-Schimmer gratis', 'type' => 'aura',   'key' => 'starlight_rain',  'badge' => '💠 Sternensaphir-Aura'],
-            25  => ['name' => 'Sternenschmied',          'icon' => '⚒️', 'reward' => 'Prestige-Wappen in der Halle der Legenden',  'type' => 'rank',   'key' => 'sternenschmied',  'badge' => '⚒️ Sternenschmied (Lvl 25)'],
-            35  => ['name' => 'Kometen-Reiter',          'icon' => '☄️', 'reward' => 'Mythischer 3D-Skin: Funki auf dem Kometen',  'type' => 'skin',   'key' => 'funki_comet',     'badge' => '☄️ Funki-Komet Skin'],
-            50  => ['name' => 'Supernova-Champion',      'icon' => '🌟', 'reward' => 'Ruhmes-Aura: Goldene Supernova gratis',      'type' => 'aura',   'key' => 'solar_supernova', 'badge' => '🌟 Supernova-Aura (Lvl 50)'],
-            75  => ['name' => 'Kosmischer Imperator',    'icon' => '🌌', 'reward' => 'Ruhmes-Aura: Kosmischer Imperator gratis',   'type' => 'aura',   'key' => 'cosmic_emperor',  'badge' => '🌌 Imperator-Aura (Lvl 75)'],
-            100 => ['name' => 'Unsterbliche Legende',    'icon' => '👑', 'reward' => 'Höchstes Prestige-Siegel der Manufaktur',    'type' => 'legend', 'key' => 'immortal_100',    'badge' => '👑 Unsterbliche Legende (Lvl 100)'],
-        ];
+        $levels = self::getFunkiLevels();
+        $resolved = 1;
+        foreach ($levels as $lvl => $cfg) {
+            if ($lifetimeSparks >= (int) $cfg['required_lifetime_sparks']) {
+                $resolved = (int) $lvl;
+            }
+        }
+        return min(self::MAX_LEVEL, max(1, $resolved));
     }
 
-    public static function getFighterSkinKeys(): array
+    public static function calculateFunkiLevel(int $lifetimeSparks): int
     {
-        return [
-            'default',
-            'crystal_fighter',
-            'slate_phantom',
-            'gold_phoenix',
-            'funki_comet',
-            'royal_dreadnought',
-        ];
+        return self::getLevelForLifetimeSparks($lifetimeSparks);
     }
 
-    public static function getBattleshipSkinKeys(): array
+    public static function getLevelConfig(int $level): array
     {
-        return [
-            'aegis_titan',
-            'valkyrie_prime',
-            'leviathan_frost',
-            'hyperion_sun',
-            'celestial_ark',
-            'dark_perl',
-        ];
+        $levels = self::getFunkiLevels();
+        $clamped = min(self::MAX_LEVEL, max(1, $level));
+        return $levels[$clamped] ?? $levels[1];
     }
 
-    public static function getShipSkins(): array
+    public static function getFunkiStageConfig(int $level): array
     {
-        return [
-            // =========================================================================
-            // KATEGORIE 1: GLEITER & JÄGER (6 SCHIFFE)
-            // =========================================================================
-            'default' => [
-                'key'               => 'default',
-                'category'          => 'fighter',
-                'category_label'    => 'Gleiter & Jäger',
-                'name'              => 'Sternengleiter MK-I',
-                'subtitle'          => 'Klassisches Manufaktur-Raumschiff',
-                'rarity'            => 'common',
-                'rarity_label'      => 'Standard',
-                'badge_icon'        => '🚀',
-                'icon'              => '🚀',
-                'perk_summary'      => 'Ausgewogene Standard-Konfiguration (+25 m / Funke)',
-                'price_sparks'      => 0,
-                'min_level'         => 1,
-                'vip_buyer_unlock'  => false,
-                'glb_file'          => 'funki_rocket.glb',
-                'is_vertex_colored' => false,
-                'laser_color_hex'   => 0x38bdf8,
-                'laser_color_css'   => '#38bdf8',
-                'trail_color_hex'   => 0x60a5fa,
-                'stats' => [
-                    'magnet_mult'          => 1.0,
-                    'hitbox_mult'          => 1.0,
-                    'skill_duration_mult'  => 1.0,
-                    'start_shield'         => 0,
-                    'spark_distance_bonus' => 25,
-                    'max_hearts'           => 3,
-                    'weapon_power_mult'    => 1.0,
-                    'salvo_streams'        => 2,
-                ],
-                'perks' => [
-                    'Ausgewogene Standard-Steuerung (3 ❤️ Rumpf-Herzen)',
-                    'Cyan-Plasma-Bordkanone',
-                    '+25 m Distanz pro eingesammeltem Funken',
-                ],
-            ],
-            'crystal_fighter' => [
-                'key'               => 'crystal_fighter',
-                'category'          => 'fighter',
-                'category_label'    => 'Gleiter & Jäger',
-                'name'              => 'Saphir-Kristalljäger',
-                'subtitle'          => 'Geschliffenes 3D-Kristallglas-Schiff',
-                'rarity'            => 'rare',
-                'rarity_label'      => 'Selten',
-                'badge_icon'        => '💎',
-                'icon'              => '💎',
-                'perk_summary'      => '+25 % Funken-Magnet • -5 % Hitbox • +28 m / Funke',
-                'price_sparks'      => 450,
-                'min_level'         => 1,
-                'vip_buyer_unlock'  => false,
-                'glb_file'          => 'ship_crystal_fighter.glb',
-                'is_vertex_colored' => true,
-                'laser_color_hex'   => 0x2dd4bf,
-                'laser_color_css'   => '#2dd4bf',
-                'trail_color_hex'   => 0x2dd4bf,
-                'stats' => [
-                    'magnet_mult'          => 1.25,
-                    'hitbox_mult'          => 0.95,
-                    'skill_duration_mult'  => 1.05,
-                    'start_shield'         => 0,
-                    'spark_distance_bonus' => 28,
-                    'max_hearts'           => 3,
-                    'weapon_power_mult'    => 1.08,
-                    'salvo_streams'        => 2,
-                ],
-                'perks' => [
-                    '+25 % größerer Funken-Magnet-Radius',
-                    '-5 % schmalere Kristall-Hitbox',
-                    '+28 m Distanz pro eingesammeltem Funken',
-                ],
-            ],
-            'slate_phantom' => [
-                'key'               => 'slate_phantom',
-                'category'          => 'fighter',
-                'category_label'    => 'Gleiter & Jäger',
-                'name'              => 'Schiefer-Phantom',
-                'subtitle'          => 'Stealth-Gleiter mit Kupfer-Gold-Gravur',
-                'rarity'            => 'epic',
-                'rarity_label'      => 'Episch',
-                'badge_icon'        => '🦅',
-                'icon'              => '🦅',
-                'perk_summary'      => '-18 % Stealth-Hitbox • +15 % Skill-Dauer • +30 % Magnet',
-                'price_sparks'      => 950,
-                'min_level'         => 1,
-                'vip_buyer_unlock'  => false,
-                'glb_file'          => 'ship_slate_phantom.glb',
-                'is_vertex_colored' => true,
-                'laser_color_hex'   => 0xf97316,
-                'laser_color_css'   => '#f97316',
-                'trail_color_hex'   => 0xf59e0b,
-                'stats' => [
-                    'magnet_mult'          => 1.30,
-                    'hitbox_mult'          => 0.82,
-                    'skill_duration_mult'  => 1.15,
-                    'start_shield'         => 0,
-                    'spark_distance_bonus' => 30,
-                    'max_hearts'           => 3,
-                    'weapon_power_mult'    => 1.15,
-                    'salvo_streams'        => 2,
-                ],
-                'perks' => [
-                    '-18 % kleinere Stealth-Hitbox (leichteres Ausweichen)',
-                    '+15 % längere Fähigkeiten-Dauer (Multishoot & Schild)',
-                    '+30 % größerer Funken-Magnet & +30 m pro Funke',
-                ],
-            ],
-            'gold_phoenix' => [
-                'key'               => 'gold_phoenix',
-                'category'          => 'fighter',
-                'category_label'    => 'Gleiter & Jäger',
-                'name'              => 'Aurelia Gold-Phönix',
-                'subtitle'          => '24k-Gold- & Amethyst-Schwingenkreuzer',
-                'rarity'            => 'legendary',
-                'rarity_label'      => 'Legendär',
-                'badge_icon'        => '🔥',
-                'icon'              => '🔥',
-                'perk_summary'      => '35 % Start-Schild • +45 % Magnet • +25 % Skill-Dauer',
-                'price_sparks'      => 1800,
-                'min_level'         => 1,
-                'vip_buyer_unlock'  => false,
-                'glb_file'          => 'ship_gold_phoenix.glb',
-                'is_vertex_colored' => true,
-                'laser_color_hex'   => 0xfde047,
-                'laser_color_css'   => '#fde047',
-                'trail_color_hex'   => 0xfbbf24,
-                'stats' => [
-                    'magnet_mult'          => 1.45,
-                    'hitbox_mult'          => 0.86,
-                    'skill_duration_mult'  => 1.25,
-                    'start_shield'         => 35,
-                    'spark_distance_bonus' => 32,
-                    'max_hearts'           => 3,
-                    'weapon_power_mult'    => 1.22,
-                    'salvo_streams'        => 2,
-                ],
-                'perks' => [
-                    'Startet jeden Flug direkt mit 35 % Energieschild',
-                    '+45 % Funken-Magnet & +25 % längere Skill-Dauer',
-                    '-14 % Hitbox & +32 m Distanz pro Funke',
-                ],
-            ],
-            'funki_comet' => [
-                'key'               => 'funki_comet',
-                'category'          => 'fighter',
-                'category_label'    => 'Gleiter & Jäger',
-                'name'              => 'Funki auf dem Kometen',
-                'subtitle'          => '3D-Charakter-Skin: Funki fliegt selbst!',
-                'rarity'            => 'mythic',
-                'rarity_label'      => 'Mythisch',
-                'badge_icon'        => '☄️',
-                'icon'              => '☄️',
-                'perk_summary'      => '50 % Start-Schild • -20 % Hitbox • +60 % Magnet',
-                'price_sparks'      => 2600,
-                'min_level'         => 35,
-                'vip_buyer_unlock'  => false,
-                'glb_file'          => 'ship_funki_comet.glb',
-                'is_vertex_colored' => true,
-                'laser_color_hex'   => 0xe879f9,
-                'laser_color_css'   => '#e879f9',
-                'trail_color_hex'   => 0xc084fc,
-                'stats' => [
-                    'magnet_mult'          => 1.60,
-                    'hitbox_mult'          => 0.80,
-                    'skill_duration_mult'  => 1.30,
-                    'start_shield'         => 50,
-                    'spark_distance_bonus' => 35,
-                    'max_hearts'           => 4,
-                    'weapon_power_mult'    => 1.30,
-                    'salvo_streams'        => 3,
-                ],
-                'perks' => [
-                    'Gratis ab Level 35 (oder sofort für 2.600 ✨)',
-                    'Startet mit 50 % Schild, 4 ❤️ Herzen & -20 % Hitbox',
-                    '+60 % Magnet-Radius & +35 m Distanz pro Funke',
-                ],
-            ],
-            'royal_dreadnought' => [
-                'key'               => 'royal_dreadnought',
-                'category'          => 'fighter',
-                'category_label'    => 'Gleiter & Jäger',
-                'name'              => 'Manufaktur-Majestät',
-                'subtitle'          => 'Exklusives VIP-Patron-Flaggschiff',
-                'rarity'            => 'vip',
-                'rarity_label'      => 'VIP-Exklusiv',
-                'badge_icon'        => '👑',
-                'icon'              => '👑',
-                'perk_summary'      => '100 % Start-Schild • +85 % Riesen-Magnet • -22 % Hitbox',
-                'price_sparks'      => 4500,
-                'min_level'         => 1,
-                'vip_buyer_unlock'  => true,
-                'glb_file'          => 'ship_royal_dreadnought.glb',
-                'is_vertex_colored' => true,
-                'laser_color_hex'   => 0xfef08a,
-                'laser_color_css'   => '#fef08a',
-                'trail_color_hex'   => 0xfde047,
-                'stats' => [
-                    'magnet_mult'          => 1.85,
-                    'hitbox_mult'          => 0.78,
-                    'skill_duration_mult'  => 1.35,
-                    'start_shield'         => 100,
-                    'spark_distance_bonus' => 40,
-                    'max_hearts'           => 4,
-                    'weapon_power_mult'    => 1.38,
-                    'salvo_streams'        => 3,
-                ],
-                'perks' => [
-                    'SOFORT GRATIS bei jeder echten Shop-Bestellung!',
-                    'Startet jede Runde mit vollem 100 % Energieschild & 4 ❤️',
-                    '+85 % Riesen-Magnet, -22 % Hitbox & +40 m pro Funke',
-                ],
-            ],
-
-            // =========================================================================
-            // KATEGORIE 2: SCHLACHTSCHIFFE (6 SCHWERE KAMPFSCHIFFE INKL. VIP "DARK PERL")
-            // Spielen in der erhöhten Taktik-Ansicht mit mehr Feinden & massiver Feuerkraft!
-            // =========================================================================
-            'aegis_titan' => [
-                'key'               => 'aegis_titan',
-                'category'          => 'battleship',
-                'category_label'    => 'Schlachtschiff',
-                'name'              => 'Aegis-Titan MK-IV',
-                'subtitle'          => 'Schwerer gepanzerter Flotten-Schlachtkreuzer',
-                'rarity'            => 'epic',
-                'rarity_label'      => 'Schlachtkreuzer',
-                'badge_icon'        => '🛡️',
-                'icon'              => '🛡️',
-                'perk_summary'      => '5 ❤️ Rumpf • +50 % Feuerkraft • 60 % Schild • Taktik-Kamera',
-                'price_sparks'      => 3200,
-                'min_level'         => 1,
-                'vip_buyer_unlock'  => false,
-                'glb_file'          => 'ship_aegis_titan.glb',
-                'is_vertex_colored' => true,
-                'laser_color_hex'   => 0x38bdf8,
-                'laser_color_css'   => '#38bdf8',
-                'trail_color_hex'   => 0x0284c7,
-                'stats' => [
-                    'magnet_mult'          => 1.95,
-                    'hitbox_mult'          => 0.78,
-                    'skill_duration_mult'  => 1.40,
-                    'start_shield'         => 60,
-                    'spark_distance_bonus' => 45,
-                    'max_hearts'           => 5,
-                    'weapon_power_mult'    => 1.50,
-                    'salvo_streams'        => 3,
-                ],
-                'perks' => [
-                    '5 ❤️ Schwerer Titan-Rumpf & 60 % Start-Energieschild',
-                    '+50 % Geschütz-Feuerkraft (3-fach Salven) in erhöhter Taktik-Ansicht',
-                    '+95 % Magnet-Radius, +40 % Skill-Dauer & +45 m pro Funke',
-                ],
-            ],
-            'valkyrie_prime' => [
-                'key'               => 'valkyrie_prime',
-                'category'          => 'battleship',
-                'category_label'    => 'Schlachtschiff',
-                'name'              => 'Walküre-Prime Träger',
-                'subtitle'          => 'Orbitaler Flottenträger mit Begleit-Geschwadern',
-                'rarity'            => 'epic',
-                'rarity_label'      => 'Flottenträger',
-                'badge_icon'        => '⚔️',
-                'icon'              => '⚔️',
-                'perk_summary'      => '5 ❤️ Rumpf • +65 % Feuerkraft • 70 % Schild • +110 % Magnet',
-                'price_sparks'      => 4200,
-                'min_level'         => 1,
-                'vip_buyer_unlock'  => false,
-                'glb_file'          => 'ship_valkyrie_prime.glb',
-                'is_vertex_colored' => true,
-                'laser_color_hex'   => 0x10b981,
-                'laser_color_css'   => '#10b981',
-                'trail_color_hex'   => 0x34d399,
-                'stats' => [
-                    'magnet_mult'          => 2.10,
-                    'hitbox_mult'          => 0.76,
-                    'skill_duration_mult'  => 1.48,
-                    'start_shield'         => 70,
-                    'spark_distance_bonus' => 50,
-                    'max_hearts'           => 5,
-                    'weapon_power_mult'    => 1.65,
-                    'salvo_streams'        => 3,
-                ],
-                'perks' => [
-                    '5 ❤️ Rumpf, 70 % Start-Schild & autonome Walküre-Begleitjäger',
-                    '+65 % Smaragd-Lanzen-Feuerkraft im erweiterten Schlachtfeld',
-                    '+110 % Magnet-Radius, +48 % Skill-Dauer & +50 m pro Funke',
-                ],
-            ],
-            'leviathan_frost' => [
-                'key'               => 'leviathan_frost',
-                'category'          => 'battleship',
-                'category_label'    => 'Schlachtschiff',
-                'name'              => 'Kryo-Leviathan Dreadnought',
-                'subtitle'          => 'Arktischer Tiefenraum-Koloss mit Sub-Zero-Reaktor',
-                'rarity'            => 'legendary',
-                'rarity_label'      => 'Dreadnought',
-                'badge_icon'        => '❄️',
-                'icon'              => '❄️',
-                'perk_summary'      => '5 ❤️ Rumpf • +80 % Feuerkraft (4-fach) • 80 % Schild',
-                'price_sparks'      => 5400,
-                'min_level'         => 1,
-                'vip_buyer_unlock'  => false,
-                'glb_file'          => 'ship_leviathan_frost.glb',
-                'is_vertex_colored' => true,
-                'laser_color_hex'   => 0x67e8f9,
-                'laser_color_css'   => '#67e8f9',
-                'trail_color_hex'   => 0x22d3ee,
-                'stats' => [
-                    'magnet_mult'          => 2.25,
-                    'hitbox_mult'          => 0.74,
-                    'skill_duration_mult'  => 1.55,
-                    'start_shield'         => 80,
-                    'spark_distance_bonus' => 55,
-                    'max_hearts'           => 5,
-                    'weapon_power_mult'    => 1.80,
-                    'salvo_streams'        => 4,
-                ],
-                'perks' => [
-                    '4-fach Sub-Zero Breitseiten-Salve mit +80 % Waffenstärke',
-                    '5 ❤️ Kryo-Panzerung, 80 % Start-Schild & -26 % Hitbox',
-                    '+125 % Magnet-Radius, +55 % Skill-Dauer & +55 m pro Funke',
-                ],
-            ],
-            'hyperion_sun' => [
-                'key'               => 'hyperion_sun',
-                'category'          => 'battleship',
-                'category_label'    => 'Schlachtschiff',
-                'name'              => 'Hyperion-Sonnensturm',
-                'subtitle'          => 'Solares Imperiums-Schlachtschiff mit Fusions-Korona',
-                'rarity'            => 'legendary',
-                'rarity_label'      => 'Imperiums-Koloss',
-                'badge_icon'        => '☀️',
-                'icon'              => '☀️',
-                'perk_summary'      => '6 ❤️ Rumpf • +100 % Feuerkraft • 90 % Schild • +140 % Magnet',
-                'price_sparks'      => 6800,
-                'min_level'         => 1,
-                'vip_buyer_unlock'  => false,
-                'glb_file'          => 'ship_hyperion_sun.glb',
-                'is_vertex_colored' => true,
-                'laser_color_hex'   => 0xfacc15,
-                'laser_color_css'   => '#facc15',
-                'trail_color_hex'   => 0xf59e0b,
-                'stats' => [
-                    'magnet_mult'          => 2.40,
-                    'hitbox_mult'          => 0.72,
-                    'skill_duration_mult'  => 1.65,
-                    'start_shield'         => 90,
-                    'spark_distance_bonus' => 60,
-                    'max_hearts'           => 6,
-                    'weapon_power_mult'    => 2.00,
-                    'salvo_streams'        => 4,
-                ],
-                'perks' => [
-                    '6 ❤️ Sonnengold-Rumpf & 90 % solares Start-Energieschild',
-                    'Doppelte Waffen-Feuerkraft (+100 %) & 4-fach Solar-Kanonen',
-                    '+140 % Magnet-Radius, +65 % Skill-Dauer & +60 m pro Funke',
-                ],
-            ],
-            'celestial_ark' => [
-                'key'               => 'celestial_ark',
-                'category'          => 'battleship',
-                'category_label'    => 'Schlachtschiff',
-                'name'              => 'Astral-Arche der Götter',
-                'subtitle'          => 'Mythisches Sternen-Mutterschiff mit Kardan-Astrolabium',
-                'rarity'            => 'mythic',
-                'rarity_label'      => 'Sternen-Arche',
-                'badge_icon'        => '🌌',
-                'icon'              => '🌌',
-                'perk_summary'      => '6 ❤️ Rumpf • +125 % Feuerkraft • 100 % Schild • +165 % Magnet',
-                'price_sparks'      => 8500,
-                'min_level'         => 65,
-                'vip_buyer_unlock'  => false,
-                'glb_file'          => 'ship_celestial_ark.glb',
-                'is_vertex_colored' => true,
-                'laser_color_hex'   => 0xe879f9,
-                'laser_color_css'   => '#e879f9',
-                'trail_color_hex'   => 0xa855f7,
-                'stats' => [
-                    'magnet_mult'          => 2.65,
-                    'hitbox_mult'          => 0.70,
-                    'skill_duration_mult'  => 1.75,
-                    'start_shield'         => 100,
-                    'spark_distance_bonus' => 70,
-                    'max_hearts'           => 6,
-                    'weapon_power_mult'    => 2.25,
-                    'salvo_streams'        => 4,
-                ],
-                'perks' => [
-                    '6 ❤️ Astral-Rumpf & sofort 100 % volles Energieschild',
-                    '+125 % Quanten-Feuerkraft & -30 % kleinere Hitbox',
-                    '+165 % Magnet-Radius, +75 % Skill-Dauer & +70 m pro Funke',
-                ],
-            ],
-            'dark_perl' => [
-                'key'               => 'dark_perl',
-                'category'          => 'battleship',
-                'category_label'    => 'Schlachtschiff',
-                'name'              => 'Dark Perl',
-                'subtitle'          => 'Schwarzes VIP-Elite Obsidian-Schlachtschiff mit glühenden Lava-Adern',
-                'rarity'            => 'vip',
-                'rarity_label'      => 'VIP-Elite Supremacy',
-                'badge_icon'        => '🌋',
-                'icon'              => '🌋',
-                'perk_summary'      => '7 ❤️ Rumpf • +160 % Lava-Salven (5-fach) • 100 % Schild • +200 % Magnet',
-                'price_sparks'      => 12000,
-                'min_level'         => 1,
-                'vip_buyer_unlock'  => false,
-                'glb_file'          => 'ship_dark_perl.glb',
-                'is_vertex_colored' => true,
-                'laser_color_hex'   => 0xff2a00,
-                'laser_color_css'   => '#ff2a00',
-                'trail_color_hex'   => 0xdc2626,
-                'max_hearts'        => 7,
-                'weapon_power_mult' => 2.60,
-                'salvo_streams'     => 5,
-                'stats' => [
-                    'magnet_mult'          => 3.00,
-                    'hitbox_mult'          => 0.65,
-                    'skill_duration_mult'  => 2.00,
-                    'start_shield'         => 100,
-                    'spark_distance_bonus' => 85,
-                    'max_hearts'           => 7,
-                    'weapon_power_mult'    => 2.60,
-                    'salvo_streams'        => 5,
-                ],
-                'perks' => [
-                    'DAS ABSOLUT STÄRKSTE SCHIFF: 7 ❤️ Obsidian-Rumpf & 100 % Lava-Schild',
-                    '5-fach Magma-Breitseiten mit +160 % Zerstörungskraft & 4 Dark-Lava-Drohnen',
-                    '+200 % Mega-Magnet, doppelte Skill-Dauer (+100 %), -35 % Hitbox & +85 m / Funke',
-                ],
-            ],
-        ];
+        return self::getLevelConfig($level);
     }
 
-    public static function getSpaceStationsPlaceholder(): array
+    public static function getMissingSparksForNextLevel(int $lifetimeSparks): int
     {
-        return [
-            'aether_forge' => [
-                'key'          => 'aether_forge',
-                'name'         => 'Äther-Schmiede Orbit-Zitadelle',
-                'subtitle'     => 'Passive Funken-Raffinerie & Flotten-Dock im hohen Orbit',
-                'rarity'       => 'Geplante Groß-Erweiterung',
-                'rarity_label' => 'Orbit-Zitadelle',
-                'eta_badge'    => 'Phase III • In Kürze',
-                'badge_icon'   => '🛰️',
-                'icon'         => '🛰️',
-                'description'  => 'Generiert kontinuierlich Sternen-Energie und rüstet deine Schlachtschiffe vor dem Abflug mit orbitalen Überladungs-Modulen aus.',
-                'preview'      => 'Generiert kontinuierlich Sternen-Energie und rüstet deine Schlachtschiffe vor dem Abflug mit orbitalen Überladungs-Modulen aus.',
-            ],
-            'solaris_nexus' => [
-                'key'          => 'solaris_nexus',
-                'name'         => 'Solaris-Nexus Sternenbasis',
-                'subtitle'     => 'Planetarer Verteidigungsring mit 360°-Laser-Phalanx',
-                'rarity'       => 'Geplante Groß-Erweiterung',
-                'rarity_label' => 'Sternenbasis',
-                'eta_badge'    => 'Phase III • In Kürze',
-                'badge_icon'   => '🪐',
-                'icon'         => '🪐',
-                'description'  => 'Dient als kommandierbare Basis im kommenden Sektor-Verteidigungsmodus gegen ganze Flotten von Lord Lieblos.',
-                'preview'      => 'Dient als kommandierbare Basis im kommenden Sektor-Verteidigungsmodus gegen ganze Flotten von Lord Lieblos.',
-            ],
-            'obsidian_bastion' => [
-                'key'          => 'obsidian_bastion',
-                'name'         => 'Dark-Core Obsidian-Bastion',
-                'subtitle'     => 'Heimatstation der legendären „Dark Perl“ mit Magma-Reaktor',
-                'rarity'       => 'VIP-Endgame Vorschau',
-                'rarity_label' => 'VIP-Festung',
-                'eta_badge'    => 'VIP Phase III',
-                'badge_icon'   => '🌋',
-                'icon'         => '🌋',
-                'description'  => 'Schaltet galaktische Spezial-Missionen, Boss-Belagerungen und exklusive Manufaktur-Artefakte frei.',
-                'preview'      => 'Schaltet galaktische Spezial-Missionen, Boss-Belagerungen und exklusive Manufaktur-Artefakte frei.',
-            ],
-        ];
+        $progress = self::getLevelProgressData($lifetimeSparks);
+        return (int) ($progress['missing_sparks'] ?? 0);
     }
 
-    public static function getHallAuras(): array
-    {
-        return [
-            'default' => [
-                'key'              => 'default',
-                'name'             => 'Klassischer Glanz',
-                'subtitle'         => 'Dezente Darstellung in der Halle der Legenden',
-                'description'      => 'Edle, zurückhaltende Manufaktur-Signatur ohne zusätzliche Partikel-Überlagerung.',
-                'effect_type'      => 'classic',
-                'glow_color'       => '#94a3b8',
-                'badge_icon'       => '✨',
-                'icon'             => '✨',
-                'badge'            => null,
-                'price_sparks'     => 0,
-                'min_level'        => 1,
-                'vip_buyer_unlock' => false,
-                'row_class'        => 'sf-aura-row-default',
-                'row_classes'      => 'sf-aura-row-default',
-                'badge_class'      => 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-700',
-            ],
-            'starlight_rain' => [
-                'key'              => 'starlight_rain',
-                'name'             => 'Sternensaphir-Schimmer',
-                'subtitle'         => 'Pulsierender Kryo-Saphir-Lichtstrom mit schwebenden Eiskristallen',
-                'description'      => 'Hüllt deinen Ranglisten-Platz und deine Visitenkarte in ein fließendes Saphir-Polarlicht mit funkelnden Kristall-Spitzen.',
-                'effect_type'      => 'sapphire_pulse',
-                'glow_color'       => '#22d3ee',
-                'badge_icon'       => '💠',
-                'icon'             => '💠',
-                'badge'            => 'Sternensaphir',
-                'price_sparks'     => 500,
-                'min_level'        => 15,
-                'vip_buyer_unlock' => false,
-                'row_class'        => 'sf-aura-row-sapphire bg-gradient-to-r from-cyan-500/15 via-sky-500/10 to-teal-500/15 border-l-4 border-l-cyan-400 shadow-[inset_0_0_28px_rgba(34,211,238,0.18)]',
-                'row_classes'      => 'sf-aura-row-sapphire bg-gradient-to-r from-cyan-500/15 via-sky-500/10 to-teal-500/15 border-l-4 border-l-cyan-400 shadow-[inset_0_0_28px_rgba(34,211,238,0.18)]',
-                'badge_class'      => 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-400/50 shadow-[0_0_12px_rgba(34,211,238,0.35)]',
-            ],
-            'solar_supernova' => [
-                'key'              => 'solar_supernova',
-                'name'             => 'Goldene Supernova',
-                'subtitle'         => 'Strahlende Sonnengold-Eruption mit wandernder Korona-Welle',
-                'description'      => 'Ein warmes 24k-Sonnenfeuer durchzieht deine Zeile mit goldenen Korona-Ringen und aufsteigenden Lichtfunken.',
-                'effect_type'      => 'solar_flare',
-                'glow_color'       => '#fbbf24',
-                'badge_icon'       => '🌟',
-                'icon'             => '🌟',
-                'badge'            => 'Supernova',
-                'price_sparks'     => 1200,
-                'min_level'        => 50,
-                'vip_buyer_unlock' => false,
-                'row_class'        => 'sf-aura-row-supernova bg-gradient-to-r from-amber-500/20 via-yellow-500/12 to-orange-500/20 border-l-4 border-l-amber-400 shadow-[inset_0_0_32px_rgba(251,191,36,0.22)]',
-                'row_classes'      => 'sf-aura-row-supernova bg-gradient-to-r from-amber-500/20 via-yellow-500/12 to-orange-500/20 border-l-4 border-l-amber-400 shadow-[inset_0_0_32px_rgba(251,191,36,0.22)]',
-                'badge_class'      => 'bg-amber-500/25 text-amber-800 dark:text-amber-200 border-amber-400/60 shadow-[0_0_15px_rgba(251,191,36,0.45)]',
-            ],
-            'cosmic_emperor' => [
-                'key'              => 'cosmic_emperor',
-                'name'             => 'Kosmischer Imperator',
-                'subtitle'         => 'Mythischer Amethyst-Quasar mit Dimensions-Nebel & Sternenwirbel',
-                'description'      => 'Tiefviolettes Galaxie-Leuchten mit irisierendem Magenta-Gold-Farbverlauf und pulsierendem Quasar-Horizont.',
-                'effect_type'      => 'cosmic_nebula',
-                'glow_color'       => '#e879f9',
-                'badge_icon'       => '🌌',
-                'icon'             => '🌌',
-                'badge'            => 'Imperator',
-                'price_sparks'     => 2200,
-                'min_level'        => 75,
-                'vip_buyer_unlock' => false,
-                'row_class'        => 'sf-aura-row-cosmic bg-gradient-to-r from-purple-600/25 via-fuchsia-500/15 to-amber-500/25 border-l-4 border-l-fuchsia-400 shadow-[inset_0_0_38px_rgba(217,70,239,0.28)]',
-                'row_classes'      => 'sf-aura-row-cosmic bg-gradient-to-r from-purple-600/25 via-fuchsia-500/15 to-amber-500/25 border-l-4 border-l-fuchsia-400 shadow-[inset_0_0_38px_rgba(217,70,239,0.28)]',
-                'badge_class'      => 'bg-fuchsia-500/25 text-fuchsia-800 dark:text-fuchsia-200 border-fuchsia-400/60 shadow-[0_0_18px_rgba(217,70,239,0.5)]',
-            ],
-            'manufaktur_royal' => [
-                'key'              => 'manufaktur_royal',
-                'name'             => 'Patron der Manufaktur (VIP)',
-                'subtitle'         => 'Ultimative Obsidian-Gold-lava Thron-Aura mit animiertem Kronen-Siegel & Lichtstrahlen',
-                'description'      => 'Die königliche Meister-Aura: Tiefschwarzes Obsidian-Samt, durchzogen von flüssigen 24k-Gold-Lichtwellen, rotierendem Manufaktur-Wappen und schwebenden Gold-Diamant-Partikeln!',
-                'effect_type'      => 'vip_royal_throne',
-                'glow_color'       => '#facc15',
-                'badge_icon'       => '👑',
-                'icon'             => '👑',
-                'badge'            => 'Patron der Manufaktur',
-                'price_sparks'     => 3500,
-                'min_level'        => 1,
-                'vip_buyer_unlock' => true,
-                'row_class'        => 'sf-aura-row-vip-royal border-l-4 border-l-yellow-300',
-                'row_classes'      => 'sf-aura-row-vip-royal border-l-4 border-l-yellow-300',
-                'badge_class'      => 'sf-aura-badge-vip-royal bg-gradient-to-r from-amber-400 via-yellow-200 to-amber-500 text-gray-950 border-yellow-200 shadow-[0_0_22px_rgba(250,204,21,0.85)] font-black',
-            ],
-        ];
-    }
-
-    public static function getHeroMottos(): array
+    public static function getVoucherRewards(): array
     {
         $out = [];
-        foreach (self::getHeroMottosDetails() as $key => $info) {
-            $out[$key] = $info['text'];
+        foreach (self::getRedeemableVouchers() as $key => $cfg) {
+            $out[$key] = array_merge($cfg, [
+                'title'       => $cfg['name'],
+                'cost_funken' => $cfg['cost_sparks'],
+            ]);
         }
         return $out;
     }
 
-    public static function getHeroMottosDetails(): array
+    public static function getLevels(): array
+    {
+        $levels = self::getFunkiLevels();
+        foreach ($levels as $lvl => &$cfg) {
+            $cfg['title'] = $cfg['name'];
+            $cfg['cost'] = $cfg['required_lifetime_sparks'];
+            $cfg['image'] = $cfg['image_path'];
+            $cfg['background_image'] = $cfg['circle_css'];
+            $cfg['background_title'] = $cfg['bg_name'];
+            $cfg['model'] = '';
+        }
+        return $levels;
+    }
+
+    public static function getNextLevelCost(int $currentLevel): int
+    {
+        $levels = self::getFunkiLevels();
+        $nextLevel = min(self::MAX_LEVEL, max(1, $currentLevel + 1));
+        return (int) ($levels[$nextLevel]['required_lifetime_sparks'] ?? 5000);
+    }
+
+    public static function getLevelProgressData(int $lifetimeSparks, ?int $explicitLevel = null): array
+    {
+        $levels = self::getFunkiLevels();
+        $calculatedLevel = self::getLevelForLifetimeSparks($lifetimeSparks);
+        $level = $explicitLevel !== null ? min(self::MAX_LEVEL, max($calculatedLevel, $explicitLevel)) : $calculatedLevel;
+        $isMaxLevel = $level >= self::MAX_LEVEL;
+
+        $currentCfg = $levels[$level] ?? $levels[1];
+        $currentThreshold = (int) ($currentCfg['required_lifetime_sparks'] ?? 0);
+
+        if ($isMaxLevel) {
+            return [
+                'level'                => self::MAX_LEVEL,
+                'is_max_level'         => true,
+                'progress_percentage'  => 100,
+                'missing_sparks'       => 0,
+                'next_level_threshold' => $currentThreshold,
+                'ep_bottom_arc_text'   => '100% • MAXIMALES LEVEL ERREICHT',
+                'level_config'         => $currentCfg,
+            ];
+        }
+
+        $nextCfg = $levels[$level + 1] ?? $currentCfg;
+        $nextThreshold = (int) ($nextCfg['required_lifetime_sparks'] ?? ($currentThreshold + 150));
+        $span = max(1, $nextThreshold - $currentThreshold);
+        $gainedInLevel = max(0, $lifetimeSparks - $currentThreshold);
+        $pct = min(99, max(0, (int) round(($gainedInLevel / $span) * 100)));
+        $missing = max(1, $nextThreshold - $lifetimeSparks);
+
+        return [
+            'level'                => $level,
+            'is_max_level'         => false,
+            'progress_percentage'  => $pct,
+            'missing_sparks'       => $missing,
+            'next_level_threshold' => $nextThreshold,
+            'ep_bottom_arc_text'   => $pct . '% • NOCH ' . number_format($missing, 0, ',', '.') . ' FUNKEN',
+            'level_config'         => $currentCfg,
+        ];
+    }
+
+    /**
+     * Einmalig einlösbare Rabatt-Gutscheine gegen gesammelte Seelenfunken:
+     * 250 Funken = 5 %, 500 Funken = 10 %, 750 Funken = 15 %
+     */
+    public static function getRedeemableVouchers(): array
     {
         return [
-            'default' => [
-                'key'              => 'default',
-                'title'            => 'Sternen-Pionier',
-                'icon'             => '🚀',
-                'text'             => 'Bereit für den nächsten Funkenflug durch die Galaxis!',
-                'buff_label'       => '+5 % Funken-Magnet',
-                'buff_description' => 'Vergrößert im Funkenflug-Express deinen passiven Magnet-Radius für Seelenfunken um +5 %.',
-                'buff_stat'        => 'magnet_mult',
-                'buff_value'       => 0.05,
+            'voucher_5' => [
+                'key'         => 'voucher_5',
+                'percent'     => 5,
+                'value'       => 5,
+                'cost_sparks' => 250,
+                'name'        => '5% Rabatt-Gutschein',
+                'badge'       => '5% RABATT',
+                'code_prefix' => 'FUNKI-5P',
+                'description' => 'Einmalig einlösbar für deinen nächsten Einkauf im gesamten Mein-Seelenfunke Shop.',
             ],
-            'lord' => [
-                'key'              => 'lord',
-                'title'            => 'Rebell gegen Lord Lieblos',
-                'icon'             => '⚡',
-                'text'             => 'Lord Lieblos sieht im Rückspiegel nur meinen Sternenstaub.',
-                'buff_label'       => '+8 % Skill-Dauer',
-                'buff_description' => 'Verlängert die Wirkungsdauer deiner 4 aktiven Schiffsfähigkeiten um +8 %.',
-                'buff_stat'        => 'skill_duration_mult',
-                'buff_value'       => 0.08,
+            'voucher_10' => [
+                'key'         => 'voucher_10',
+                'percent'     => 10,
+                'value'       => 10,
+                'cost_sparks' => 500,
+                'name'        => '10% Rabatt-Gutschein',
+                'badge'       => '10% RABATT',
+                'code_prefix' => 'FUNKI-10P',
+                'description' => 'Einmalig einlösbar für deinen nächsten Einkauf im gesamten Mein-Seelenfunke Shop.',
             ],
-            'craft' => [
-                'key'              => 'craft',
-                'title'            => 'Meister der Manufaktur',
-                'icon'             => '⚒️',
-                'text'             => 'Handgefertigte Präzision – in der Manufaktur und im Kosmos.',
-                'buff_label'       => '+10 % Start-Schild-Bonus',
-                'buff_description' => 'Gewährt dir beim Start jedes Funkenflug-Einsatzes sofort +10 % zusätzliches Energieschild.',
-                'buff_stat'        => 'start_shield_bonus',
-                'buff_value'       => 10,
+            'voucher_15' => [
+                'key'         => 'voucher_15',
+                'percent'     => 15,
+                'value'       => 15,
+                'cost_sparks' => 750,
+                'name'        => '15% Rabatt-Gutschein',
+                'badge'       => '15% PREMIUM-RABATT',
+                'code_prefix' => 'FUNKI-15P',
+                'description' => 'Einmalig einlösbar für deinen nächsten Einkauf im gesamten Mein-Seelenfunke Shop.',
             ],
-            'collector' => [
-                'key'              => 'collector',
-                'title'            => 'Artefakt-Sucher',
-                'icon'             => '💎',
-                'text'             => 'Jäger der seltensten Seelenfunken & Kristall-Artefakte.',
-                'buff_label'       => '+10 % Funken-Magnet',
-                'buff_description' => 'Zieht Seelenfunken und Äther-Kühlkerne aus +10 % größerer Distanz automatisch an.',
-                'buff_stat'        => 'magnet_mult',
-                'buff_value'       => 0.10,
-            ],
-            'boss' => [
-                'key'              => 'boss',
-                'title'            => 'Bezwingen des Kolosses',
-                'icon'             => '🎯',
-                'text'             => 'Selbst der Paragraphen-Koloss §-0815 kann mich nicht bremsen!',
-                'buff_label'       => '+12 % Boss-Feuerkraft',
-                'buff_description' => 'Erhöht deinen Laser- und Salven-Schaden gegen Sektor-Bosse und Zwillings-Bosse um +12 %.',
-                'buff_stat'        => 'weapon_power_mult',
-                'buff_value'       => 0.12,
-            ],
-            'patron' => [
-                'key'              => 'patron',
-                'title'            => 'Hüter der Flamme',
-                'icon'             => '❤️',
-                'text'             => 'Stolzer Patron der Manufaktur & Hüter des ewigen Lichts.',
-                'buff_label'       => '+25 % Herz-Drop-Glück ❤️',
-                'buff_description' => 'Erhöht die Chance auf seltene Rote Reparatur-Herzen im Gefecht um +25 %.',
-                'buff_stat'        => 'heart_drop_mult',
-                'buff_value'       => 0.25,
-            ],
-            'speed' => [
-                'key'              => 'speed',
-                'title'            => 'Warp-Navigator',
-                'icon'             => '☄️',
-                'text'             => 'Lichtgeschwindigkeit ist für mich erst das Aufwärmtraining.',
-                'buff_label'       => '+3 m Distanz pro Funke',
-                'buff_description' => 'Jeder eingesammelte Seelenfunke katapultiert dich +3 zusätzliche Meter weiter vorwärts.',
-                'buff_stat'        => 'spark_distance_bonus',
-                'buff_value'       => 3,
-            ],
-            'legend' => [
-                'key'              => 'legend',
-                'title'            => 'Ewige Legende',
-                'icon'             => '👑',
-                'text'             => 'Mein Name ist in den Sternen der Halle der Legenden eingraviert.',
-                'buff_label'       => '+8 % Allround-Kampfmoral',
-                'buff_description' => 'Kombiniert +8 % Waffen-Feuerkraft mit +8 % größerem Funken-Magnet-Radius.',
-                'buff_stat'        => 'allround_boost',
-                'buff_value'       => 0.08,
-            ],
+        ];
+    }
+
+    /**
+     * Kompatibilitäts-Methode für Meilenstein-Gutschein-Prüfungen (Level 1-10).
+     */
+    public static function getLevelRewards(): array
+    {
+        return [
+            3  => ['type' => 'percentage', 'value' => 5,  'name' => '5% Rabatt-Gutschein',  'cost_sparks' => 250],
+            5  => ['type' => 'percentage', 'value' => 8,  'name' => '8% Rabatt-Gutschein',  'cost_sparks' => 400],
+            8  => ['type' => 'percentage', 'value' => 10, 'name' => '10% Rabatt-Gutschein', 'cost_sparks' => 500],
+            10 => ['type' => 'percentage', 'value' => 15, 'name' => '15% Seelengott-Rabatt', 'cost_sparks' => 750],
+        ];
+    }
+
+    public static function getPrestigeMilestones(): array
+    {
+        return [];
+    }
+
+    public static function getIngameShopCatalog(): array
+    {
+        return [];
+    }
+
+    public static function getCockpitBackgrounds(): array
+    {
+        $out = [];
+        foreach (self::getFunkiLevels() as $lvl => $cfg) {
+            $out[$cfg['bg_key']] = [
+                'key'           => $cfg['bg_key'],
+                'level'         => $lvl,
+                'name'          => $cfg['bg_name'],
+                'subtitle'      => $cfg['bg_subtitle'],
+                'accent_hex'    => $cfg['accent_hex'],
+                'video_url'     => $cfg['video_url'],
+                'circle_css'    => $cfg['circle_css'],
+                'price_sparks'  => 0,
+                'price_cents'   => 0,
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Sinnvolle Rang-Titel für den Aufstieg von Funki-Level 1 bis 10.
+     * Sind zusätzlich alle 5 Kern-Titel auf Max-Stufe (Diamant) und Level 10 erreicht,
+     * wird der ultimative Titel "Seelengott" freigeschaltet.
+     */
+    public static function getLevelTitles(): array
+    {
+        return [
+            1  => ['level' => 1,  'key' => 'level_1',  'name' => 'Kleiner Seelenfunke',        'subtitle' => 'Stufe 1 • Ursprung des Funkens'],
+            2  => ['level' => 2,  'key' => 'level_2',  'name' => 'Lichtträger-Lehrling',       'subtitle' => 'Stufe 2 • Entdecker der Manufaktur'],
+            3  => ['level' => 3,  'key' => 'level_3',  'name' => 'Manufaktur-Helfer',          'subtitle' => 'Stufe 3 • Hüter der feinen Gravur'],
+            4  => ['level' => 4,  'key' => 'level_4',  'name' => 'Kristall-Novize',            'subtitle' => 'Stufe 4 • Meister des Glanzes'],
+            5  => ['level' => 5,  'key' => 'level_5',  'name' => 'Funken-Geselle',             'subtitle' => 'Stufe 5 • Bewahrer der Erinnerungen'],
+            6  => ['level' => 6,  'key' => 'level_6',  'name' => 'Gravur-Handwerker',          'subtitle' => 'Stufe 6 • Präzision aus Licht & Feuer'],
+            7  => ['level' => 7,  'key' => 'level_7',  'name' => 'Kunsthandwerker',            'subtitle' => 'Stufe 7 • Schöpfer edler Unikate'],
+            8  => ['level' => 8,  'key' => 'level_8',  'name' => 'Meister der Manufaktur',     'subtitle' => 'Stufe 8 • Großmeister der Seelenkunst'],
+            9  => ['level' => 9,  'key' => 'level_9',  'name' => 'Hüter des Sternenlichts',    'subtitle' => 'Stufe 9 • Lichtbringer der Ewigkeit'],
+            10 => ['level' => 10, 'key' => 'level_10', 'name' => 'Erhabener des Seelenlichts', 'subtitle' => 'Stufe 10 • Höchste Evolutionsstufe'],
         ];
     }
 
     public static function getMegaTitles(): array
     {
         return [
-            ['req' => 1,  'name' => 'Eine Art große Sache'],
-            ['req' => 3,  'name' => 'Die Leute kennen mich'],
-            ['req' => 5,  'name' => 'Rechte Hand eines Engels'],
-            ['req' => 10, 'name' => 'Engel auf Erden'],
-            ['req' => 12, 'name' => 'Oberster Engelsführer'],
-            ['req' => 15, 'name' => 'Unsterblicher Seelengott'],
+            ['req' => 1, 'name' => 'Geweihter des Funkens'],
+            ['req' => 2, 'name' => 'Wächter der Manufaktur'],
+            ['req' => 3, 'name' => 'Rechte Hand eines Engels'],
+            ['req' => 4, 'name' => 'Engel auf Erden'],
+            ['req' => 5, 'name' => self::ULTIMATE_TITLE_NAME],
         ];
     }
 
+    /**
+     * Die 5 schlichten, sinnvollen Kern-Titel der Manufaktur (jeweils bis zur Max-Stufe Diamant).
+     * Sind alle 5 Titel auf Max-Stufe (Diamant) und Level 10 erreicht, wird man zum "Seelengott unter Sterblichen".
+     */
     public static function getTitles(): array
     {
         return [
-            'spieler' => [
-                'name' => 'Meister der Spiele',
-                'description' => 'Minispiele in der Manufaktur gespielt',
-                'tiers' => [
-                    'grau'    => ['req' => 0,    'name' => 'Zuschauer'],
-                    'silber'  => ['req' => 5,    'name' => 'Herausforderer'],
-                    'gold'    => ['req' => 25,   'name' => 'Taktiker'],
-                    'diamant' => ['req' => 100,  'name' => 'Arcade-Legende']
-                ]
-            ],
             'sammler' => [
-                'name' => 'Funken-Sammler',
+                'name'        => 'Funken-Sammler',
                 'description' => 'Versteckte Funken auf der Website gefunden',
-                'tiers' => [
-                    'grau'    => ['req' => 0,    'name' => 'Beobachter'],
-                    'silber'  => ['req' => 50,   'name' => 'Sucher'],
-                    'gold'    => ['req' => 200,  'name' => 'Jäger'],
-                    'diamant' => ['req' => 1000, 'name' => 'Meister der Funken']
-                ]
-            ],
-            'botschafter' => [
-                'name' => 'Der Botschafter',
-                'description' => 'Verifizierte Produktbewertungen geschrieben',
-                'tiers' => [
-                    'grau'    => ['req' => 0,  'name' => 'Stiller Genießer'],
-                    'silber'  => ['req' => 1,  'name' => 'Wortschmied'],
-                    'gold'    => ['req' => 5,  'name' => 'Meinungsmacher'],
-                    'diamant' => ['req' => 15, 'name' => 'Stimme der Seele']
-                ]
-            ],
-            'bildreporter' => [
-                'name' => 'Visueller Poet',
-                'description' => 'Bewertungen mit Bildern oder Videos verfasst',
-                'tiers' => [
-                    'grau'    => ['req' => 0,  'name' => 'Kamerascheu'],
-                    'silber'  => ['req' => 1,  'name' => 'Knipser'],
-                    'gold'    => ['req' => 3,  'name' => 'Fotograf'],
-                    'diamant' => ['req' => 10, 'name' => 'Meister der Linsen']
-                ]
-            ],
-            'wortgewandt' => [
-                'name' => 'Der Gelehrte',
-                'description' => 'Ausführliche Bewertungen (über 100 Zeichen) verfasst',
-                'tiers' => [
-                    'grau'    => ['req' => 0,  'name' => 'Kurz angebunden'],
-                    'silber'  => ['req' => 1,  'name' => 'Schreiber'],
-                    'gold'    => ['req' => 5,  'name' => 'Autor'],
-                    'diamant' => ['req' => 15, 'name' => 'Poet der Manufaktur']
-                ]
-            ],
-            'treuer_bewerter' => [
-                'name' => 'Bote des Lichts',
-                'description' => 'Perfekte 5-Sterne Bewertungen vergeben',
-                'tiers' => [
-                    'grau'    => ['req' => 0,  'name' => 'Kritiker'],
-                    'silber'  => ['req' => 1,  'name' => 'Zufriedener'],
-                    'gold'    => ['req' => 5,  'name' => 'Enthusiast'],
-                    'diamant' => ['req' => 15, 'name' => 'Wahrer Fan']
-                ]
+                'icon'        => '✨',
+                'tiers'       => [
+                    'grau'    => ['req' => 0,   'name' => 'Beobachter'],
+                    'silber'  => ['req' => 25,  'name' => 'Sucher'],
+                    'gold'    => ['req' => 100, 'name' => 'Jäger'],
+                    'diamant' => ['req' => 250, 'name' => 'Meister der Funken'],
+                ],
             ],
             'schatzhueter' => [
-                'name' => 'Der Schatzhüter',
+                'name'        => 'Der Schatzhüter',
                 'description' => 'Erfolgreich abgeschlossene Bestellungen',
-                'tiers' => [
+                'icon'        => '🛍️',
+                'tiers'       => [
                     'grau'    => ['req' => 0,  'name' => 'Interessent'],
                     'silber'  => ['req' => 1,  'name' => 'Neuling'],
-                    'gold'    => ['req' => 5,  'name' => 'Kenner'],
-                    'diamant' => ['req' => 15, 'name' => 'Patron der Manufaktur']
-                ]
+                    'gold'    => ['req' => 3,  'name' => 'Kenner'],
+                    'diamant' => ['req' => 10, 'name' => 'Patron der Manufaktur'],
+                ],
             ],
-            'massenkaeufer' => [
-                'name' => 'Der Großabnehmer',
-                'description' => 'Gesamtzahl der gekauften Einzelartikel',
-                'tiers' => [
-                    'grau'    => ['req' => 0,   'name' => 'Minimalist'],
-                    'silber'  => ['req' => 5,   'name' => 'Sammler'],
-                    'gold'    => ['req' => 20,  'name' => 'Horter'],
-                    'diamant' => ['req' => 100, 'name' => 'Lager-Plünderer']
-                ]
-            ],
-            'entdecker' => [
-                'name' => 'Der Entdecker',
-                'description' => 'Verschiedene Produkt-Kategorien ausprobiert',
-                'tiers' => [
-                    'grau'    => ['req' => 0, 'name' => 'Gewohnheitstier'],
-                    'silber'  => ['req' => 1, 'name' => 'Neugieriger'],
-                    'gold'    => ['req' => 3, 'name' => 'Weltenbummler'],
-                    'diamant' => ['req' => 6, 'name' => 'Meister der Vielfalt']
-                ]
+            'botschafter' => [
+                'name'        => 'Der Botschafter',
+                'description' => 'Verifizierte Produktbewertungen geschrieben',
+                'icon'        => '✍️',
+                'tiers'       => [
+                    'grau'    => ['req' => 0,  'name' => 'Stiller Genießer'],
+                    'silber'  => ['req' => 1,  'name' => 'Wortschmied'],
+                    'gold'    => ['req' => 3,  'name' => 'Meinungsmacher'],
+                    'diamant' => ['req' => 10, 'name' => 'Stimme der Seele'],
+                ],
             ],
             'freudebringer' => [
-                'name' => 'Der Freudebringer',
+                'name'        => 'Der Freudebringer',
                 'description' => 'Geschenke an abweichende Lieferadressen versendet',
-                'tiers' => [
-                    'grau'    => ['req' => 0,  'name' => 'Selbstbeschenker'],
-                    'silber'  => ['req' => 1,  'name' => 'Aufmerksamer Freund'],
-                    'gold'    => ['req' => 3,  'name' => 'Herzensmensch'],
-                    'diamant' => ['req' => 10, 'name' => 'Bote der Freude']
-                ]
-            ],
-            'nachtschwaermer' => [
-                'name' => 'Kreatur der Nacht',
-                'description' => 'Bestellungen zwischen 22:00 und 05:00 Uhr getätigt',
-                'tiers' => [
-                    'grau'    => ['req' => 0,  'name' => 'Tagträumer'],
-                    'silber'  => ['req' => 1,  'name' => 'Nachteule'],
-                    'gold'    => ['req' => 3,  'name' => 'Mondwandler'],
-                    'diamant' => ['req' => 10, 'name' => 'Fürst der Finsternis']
-                ]
-            ],
-            'wochenend_shopper' => [
-                'name' => 'Wochenend-Krieger',
-                'description' => 'Bestellungen am Samstag oder Sonntag getätigt',
-                'tiers' => [
-                    'grau'    => ['req' => 0,  'name' => 'Werktags-Mensch'],
-                    'silber'  => ['req' => 1,  'name' => 'Sonntags-Shopper'],
-                    'gold'    => ['req' => 5,  'name' => 'Wochenend-Genießer'],
-                    'diamant' => ['req' => 15, 'name' => 'Meister der Freizeit']
-                ]
-            ],
-            'treue_seele' => [
-                'name' => 'Treue Seele',
-                'description' => 'Tage seit deiner Registrierung in der Manufaktur',
-                'tiers' => [
-                    'grau'    => ['req' => 0,   'name' => 'Frischling'],
-                    'silber'  => ['req' => 30,  'name' => 'Bekanntes Gesicht'],
-                    'gold'    => ['req' => 180, 'name' => 'Stammgast'],
-                    'diamant' => ['req' => 365, 'name' => 'Urgestein']
-                ]
-            ],
-            'wiederholungstaeter' => [
-                'name' => 'Der Wiederholungstäter',
-                'description' => 'In verschiedenen Monaten bestellt',
-                'tiers' => [
-                    'grau'    => ['req' => 0,  'name' => 'Einmalkäufer'],
-                    'silber'  => ['req' => 2,  'name' => 'Rückkehrer'],
-                    'gold'    => ['req' => 6,  'name' => 'Saison-Shopper'],
-                    'diamant' => ['req' => 12, 'name' => 'Ewiger Begleiter']
-                ]
+                'icon'        => '🎁',
+                'tiers'       => [
+                    'grau'    => ['req' => 0, 'name' => 'Selbstbeschenker'],
+                    'silber'  => ['req' => 1, 'name' => 'Aufmerksamer Freund'],
+                    'gold'    => ['req' => 3, 'name' => 'Herzensmensch'],
+                    'diamant' => ['req' => 5, 'name' => 'Bote der Freude'],
+                ],
             ],
             'funkenkoenig' => [
-                'name' => 'Der Alchemist',
-                'description' => 'Gesamtzahl aller jemals verdienten Funken',
-                'tiers' => [
+                'name'        => 'Der Alchemist',
+                'description' => 'Gesamtzahl aller jemals gesammelten Seelenfunken',
+                'icon'        => '👑',
+                'tiers'       => [
                     'grau'    => ['req' => 0,    'name' => 'Funkenlos'],
-                    'silber'  => ['req' => 100,  'name' => 'Zauberlehrling'],
+                    'silber'  => ['req' => 150,  'name' => 'Zauberlehrling'],
                     'gold'    => ['req' => 1000, 'name' => 'Magier'],
-                    'diamant' => ['req' => 5000, 'name' => 'Herr der Energie']
-                ]
+                    'diamant' => ['req' => 5000, 'name' => 'Herr der Energie'],
+                ],
             ],
         ];
     }

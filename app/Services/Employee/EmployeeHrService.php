@@ -38,6 +38,13 @@ class EmployeeHrService
     public function ensureTablesExist(): void
     {
         if (\Illuminate\Support\Facades\Schema::hasTable('employee_contracts') && \Illuminate\Support\Facades\Schema::hasTable('employee_payslips')) {
+            if (!\Illuminate\Support\Facades\Schema::hasColumn('employee_contracts', 'can_access_production')) {
+                \Illuminate\Support\Facades\Schema::table('employee_contracts', function (\Illuminate\Database\Schema\Blueprint $table) {
+                    $table->boolean('can_access_production')->default(true)->after('is_archived');
+                    $table->boolean('can_access_support')->default(false)->after('can_access_production');
+                    $table->boolean('can_access_inventory')->default(false)->after('can_access_support');
+                });
+            }
             return;
         }
 
@@ -93,6 +100,9 @@ class EmployeeHrService
                 $table->timestamp('invitation_accepted_at')->nullable();
                 $table->boolean('is_active')->default(true)->index();
                 $table->boolean('is_archived')->default(false)->index();
+                $table->boolean('can_access_production')->default(true);
+                $table->boolean('can_access_support')->default(false);
+                $table->boolean('can_access_inventory')->default(false);
                 $table->text('internal_notes')->nullable();
                 $table->timestamps();
                 $table->softDeletes();
@@ -176,7 +186,7 @@ class EmployeeHrService
             ? trim((string) $options['invitation_label'])
             : ('Mitarbeiter-Einladung #' . strtoupper(Str::random(4)));
 
-        return EmployeeContract::create([
+        $contract = EmployeeContract::create([
             'employee_id' => null,
             'invitation_label' => $label,
             'job_title' => !empty($options['job_title']) ? trim((string) $options['job_title']) : 'Manufaktur- & Versand-Assistent/in',
@@ -209,8 +219,27 @@ class EmployeeHrService
             'invitation_expires_at' => now()->addDays(14),
             'is_active' => true,
             'is_archived' => false,
+            'can_access_production' => (bool) ($options['can_access_production'] ?? true),
+            'can_access_support' => (bool) ($options['can_access_support'] ?? false),
+            'can_access_inventory' => (bool) ($options['can_access_inventory'] ?? false),
             'internal_notes' => $options['internal_notes'] ?? null,
         ]);
+
+        $inviteEmail = !empty($options['invite_email']) ? strtolower(trim((string) $options['invite_email'])) : '';
+        if ($inviteEmail !== '' && filter_var($inviteEmail, FILTER_VALIDATE_EMAIL)) {
+            try {
+                \Illuminate\Support\Facades\Mail::to($inviteEmail)->send(new \App\Mail\EmployeeInvitationMail([
+                    'label' => $label,
+                    'job_title' => $contract->job_title,
+                    'url' => route('employee.invitation', ['token' => $rawToken]),
+                    'code' => $rawCode,
+                ]));
+            } catch (\Throwable $e) {
+                Log::error('EmployeeInvitationMail failed: ' . $e->getMessage());
+            }
+        }
+
+        return $contract;
     }
 
     /**
@@ -577,6 +606,117 @@ class EmployeeHrService
         ]);
 
         return $entry->fresh();
+    }
+
+    /**
+     * Erfasst Urlaubs- oder Krankheitstage (einzeln oder Zeitraum) zur Freigabe durch die Leitung.
+     *
+     * @return array<int, EmployeeTimeEntry>
+     */
+    public function recordLeaveEntries(EmployeeContract $contract, array $data): array
+    {
+        $rawType = (string) ($data['entry_type'] ?? 'vacation');
+        $entryType = in_array($rawType, ['vacation', 'sick'], true) ? $rawType : 'vacation';
+
+        $start = !empty($data['start_date']) ? Carbon::parse($data['start_date'])->startOfDay() : now()->startOfDay();
+        $end = !empty($data['end_date']) ? Carbon::parse($data['end_date'])->startOfDay() : $start->copy();
+
+        if ($end->lessThan($start)) {
+            $end = $start->copy();
+        }
+        if ($start->diffInDays($end) > 30) {
+            $end = $start->copy()->addDays(30);
+        }
+
+        $defaultNote = $entryType === 'sick' ? 'Krankmeldung' : 'Urlaub';
+        $note = !empty($data['activity_note']) ? trim((string) $data['activity_note']) : $defaultNote;
+        $isSingleDay = $start->isSameDay($end);
+
+        $created = [];
+        $cursor = $start->copy();
+
+        while ($cursor->lessThanOrEqualTo($end)) {
+            if (!$isSingleDay && $cursor->isWeekend()) {
+                $cursor->addDay();
+                continue;
+            }
+
+            $dateStr = $cursor->toDateString();
+            $existing = EmployeeTimeEntry::where('contract_id', $contract->id)
+                ->whereDate('work_date', $dateStr)
+                ->whereIn('entry_type', ['vacation', 'sick'])
+                ->first();
+
+            if (!$existing) {
+                $created[] = EmployeeTimeEntry::create([
+                    'contract_id' => $contract->id,
+                    'employee_id' => $contract->employee_id,
+                    'work_date' => $dateStr,
+                    'started_at' => null,
+                    'ended_at' => null,
+                    'break_minutes' => 0,
+                    'net_minutes' => 0,
+                    'entry_type' => $entryType,
+                    'activity_note' => $note,
+                    'status' => 'pending_approval',
+                    'arbzg_compliant' => true,
+                ]);
+            }
+
+            $cursor->addDay();
+        }
+
+        return $created;
+    }
+
+    /**
+     * Genehmigt einen Urlaubs- oder Krankheitstag und bucht Urlaubstage automatisch im Vertrag ab.
+     */
+    public function approveLeaveEntry(EmployeeTimeEntry $entry): EmployeeTimeEntry
+    {
+        return DB::transaction(function () use ($entry) {
+            $locked = EmployeeTimeEntry::where('id', $entry->id)->lockForUpdate()->firstOrFail();
+            $wasApproved = $locked->status === 'approved';
+
+            $locked->update([
+                'status' => 'approved',
+            ]);
+
+            if (!$wasApproved && $locked->entry_type === 'vacation' && $locked->contract_id) {
+                $contract = EmployeeContract::where('id', $locked->contract_id)->lockForUpdate()->first();
+                if ($contract) {
+                    $contract->update([
+                        'vacation_days_taken' => ((int) $contract->vacation_days_taken) + 1,
+                    ]);
+                }
+            }
+
+            return $locked->fresh();
+        });
+    }
+
+    /**
+     * Lehnt einen Urlaubs-/Krankheitseintrag ab bzw. entfernt ihn und korrigiert ggf. genommene Urlaubstage.
+     */
+    public function rejectLeaveEntry(EmployeeTimeEntry $entry): void
+    {
+        DB::transaction(function () use ($entry) {
+            $locked = EmployeeTimeEntry::where('id', $entry->id)->lockForUpdate()->first();
+            if (!$locked) {
+                return;
+            }
+
+            if ($locked->status === 'approved' && $locked->entry_type === 'vacation' && $locked->contract_id) {
+                $contract = EmployeeContract::where('id', $locked->contract_id)->lockForUpdate()->first();
+                if ($contract && $contract->vacation_days_taken > 0) {
+                    $contract->update([
+                        'vacation_days_taken' => max(0, ((int) $contract->vacation_days_taken) - 1),
+                    ]);
+                }
+            }
+
+            $locked->delete();
+        });
     }
 
     /**

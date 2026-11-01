@@ -24,6 +24,9 @@ class MasterAnalyticsSecurityTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        SystemLog::query()->delete();
+        SystemLoginAttempt::query()->delete();
+        SystemBlockedIp::query()->delete();
         $this->admin = Admin::factory()->create();
     }
 

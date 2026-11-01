@@ -55,8 +55,10 @@ class ProductControlReviews extends Component
             abort(403);
         }
 
-        ProductReview::findOrFail($id)->update(['status' => 'approved']);
-        session()->flash('success', 'Bewertung wurde erfolgreich veröffentlicht.');
+        $review = ProductReview::findOrFail($id);
+        $review->update(['status' => 'approved']);
+        $awarded = app(\App\Services\Gamification\GamificationService::class)->rewardReviewFunken($review->fresh() ?? $review);
+        session()->flash('success', 'Bewertung wurde erfolgreich veröffentlicht.' . ($awarded > 0 ? " (+{$awarded} ✨ Seelenfunken an den Kunden vergeben)" : ''));
     }
 
     public function reject($id)
@@ -65,7 +67,9 @@ class ProductControlReviews extends Component
             abort(403);
         }
 
-        ProductReview::findOrFail($id)->update(['status' => 'rejected']);
+        $review = ProductReview::findOrFail($id);
+        $review->update(['status' => 'rejected']);
+        app(\App\Services\Gamification\GamificationService::class)->reverseReviewFunken($review);
         session()->flash('warning', 'Bewertung wurde abgelehnt und versteckt.');
     }
 
@@ -76,6 +80,7 @@ class ProductControlReviews extends Component
         }
 
         $review = ProductReview::findOrFail($id);
+        $reviewSnapshot = clone $review;
 
         if (!empty($review->media) && is_array($review->media)) {
             foreach ($review->media as $media) {
@@ -86,6 +91,7 @@ class ProductControlReviews extends Component
         }
 
         $review->delete();
+        app(\App\Services\Gamification\GamificationService::class)->reverseReviewFunken($reviewSnapshot);
         session()->flash('danger', 'Bewertung wurde endgültig gelöscht.');
     }
 

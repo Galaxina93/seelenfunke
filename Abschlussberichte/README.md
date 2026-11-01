@@ -9,6 +9,7 @@ Alle Systemdokumentationen, Architekturberichte und operativen KI-Workflows sind
 ## 1. Verbindliche KI-Workflows (`Workflows/`)
 * [`Workflow_KI_Automatisierte_Produkterstellung.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Workflows/Workflow_KI_Automatisierte_Produkterstellung.md) – Vollautomatisierte End-to-End-Pipeline für Produkt-Sourcing, Kalkulation, 3D-GLB-Erzeugung, 2D-Overlays, Produktbilder, Marketing-Videos, „Vorschau & Arbeitsbereich“-Kalibrierung und 1-Klick-Sortimentssteuerung.
 * [`Workflow_Verzeichnis_Reinigung.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Workflows/Workflow_Verzeichnis_Reinigung.md) – Standard-Betriebsablauf (SOP) zur Bereinigung temporärer Skripte, Caches und Log-Dateien.
+* [`Workflow_Gamification_Clean_Design.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Workflows/Workflow_Gamification_Clean_Design.md) – Verbindlicher Clean-Design- & Minimalismus-Workflow für alle Gamification-Ansichten (keine unnötigen Sätze, natürliche kurze Überschriften, keine überladenen Kacheln).
 
 ---
 

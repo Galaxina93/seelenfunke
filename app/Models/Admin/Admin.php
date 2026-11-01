@@ -2,6 +2,18 @@
 
 namespace App\Models\Admin;
 
+
+use App\Support\Blueprint\Concerns\InteractsWithSystemBlueprint;
+use App\Support\Blueprint\Contracts\HasSystemBlueprint;
+use App\Support\Blueprint\Enums\ActorScope;
+use App\Support\Blueprint\Enums\AiAccessPolicy;
+use App\Support\Blueprint\Enums\ComplianceRegulation;
+use App\Support\Blueprint\Enums\DataSensitivity;
+use App\Support\Blueprint\Enums\ExternalChannel;
+use App\Support\Blueprint\Enums\LifecycleBehavior;
+use App\Support\Blueprint\Enums\RetentionPolicy;
+use App\Support\Blueprint\Enums\SystemDepartment;
+use App\Support\Blueprint\ModelBlueprint;
 use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,9 +24,38 @@ use Illuminate\Notifications\Notifiable;
 use Ramsey\Uuid\Uuid;
 use Laravel\Sanctum\HasApiTokens;
 
-class Admin extends Model implements Authenticatable
+class Admin extends Model implements Authenticatable, HasSystemBlueprint
 {
-    use HasFactory, SoftDeletes, AuthenticatableTrait, HasApiTokens, Notifiable;
+    
+    use InteractsWithSystemBlueprint;
+
+    /**
+     * Digitales Architektur- & Compliance-Typenschild (Living Documentation).
+     */
+    public static function blueprint(): ModelBlueprint
+    {
+        return ModelBlueprint::make(
+            label: 'Administrator-Konto (Geschäftsführung)',
+            description: 'Primärer Sicherheits-Account der Geschäftsführung mit Vollzugriff auf alle System- und Finanzmodule.',
+            department: SystemDepartment::Admin,
+            navigationNodes: ['admin.dashboard', 'admin.profile'],
+            lifecycle: LifecycleBehavior::MasterData,
+            sensitivity: DataSensitivity::FinancialConfidential,
+            retention: RetentionPolicy::StatutoryWarranty_3Years,
+            aiAccess: AiAccessPolicy::None,
+            actorsRead: [ActorScope::Admin],
+            actorsWrite: [ActorScope::Admin],
+            regulations: [ComplianceRegulation::DSGVO_Art15_Art30],
+            externalChannels: [],
+            dependsOnSettings: [],
+            isGdprArt15Exportable: false,
+            customerForeignKey: null,
+            containsProductionAssets: false,
+            assetColumns: [],
+        );
+    }
+
+use HasFactory, SoftDeletes, AuthenticatableTrait, HasApiTokens, Notifiable;
 
     protected $fillable = [
         'first_name',

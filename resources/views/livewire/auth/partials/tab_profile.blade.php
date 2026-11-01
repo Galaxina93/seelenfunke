@@ -1,9 +1,10 @@
 <div x-show="activeProfileTab === 'profile'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-x-8" x-transition:enter-end="opacity-100 translate-x-0">
-    <div x-init="@this.on('saved', () => { showProfileSuccess = true; })" class="relative">
-        <div x-show="showProfileSuccess" style="display: none;" x-transition class="absolute inset-0 z-[2005] bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl flex flex-col items-center justify-center rounded-[2.5rem] border border-emerald-500/30">
+    <div x-init="@this.on('saved', (e) => { showProfileSuccess = true; if (e && e.message) { profileSuccessText = e.message; } })" class="relative">
+        <div x-show="showProfileSuccess" style="display: none;" x-transition class="absolute inset-0 z-[2005] bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl flex flex-col items-center justify-center rounded-[2.5rem] border border-emerald-500/30 p-6 text-center">
             <svg class="w-20 h-20 text-emerald-500 mb-4 drop-shadow-[0_0_20px_rgba(16,185,129,0.3)] animate-[bounce_2s_infinite]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            <h3 class="text-3xl font-serif font-bold text-gray-900 dark:text-white mb-6 tracking-tight">Erfolgreich gespeichert!</h3>
-            <button @click="showProfileSuccess = false" type="button" class="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-xs hover:scale-105 transition-all shadow-md">Schließen</button>
+            <h3 class="text-2xl sm:text-3xl font-serif font-bold text-gray-900 dark:text-white mb-2 tracking-tight">Erfolgreich gespeichert!</h3>
+            <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-300 max-w-md mb-6 font-medium" x-text="profileSuccessText || 'Deine Profildaten wurden erfolgreich gespeichert!'"></p>
+            <button @click="showProfileSuccess = false" type="button" class="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-xs hover:scale-105 transition-all shadow-md cursor-pointer">Schließen</button>
         </div>
 
         {{-- PROFILBILD & KOPFBEREICH --}}
@@ -100,7 +101,22 @@
                             </div>
                             <div>
                                 <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-gray-600 dark:text-gray-400 mb-1.5">Geburtstag (optional)</label>
-                                <input type="date" wire:model="birthday" class="w-full bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-800 rounded-xl px-4 py-2.5 sm:py-3 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white dark:focus:bg-gray-900 transition-all shadow-sm dark:shadow-inner [color-scheme:light] dark:[color-scheme:dark] cursor-pointer">
+                                <input type="date" wire:model.live="birthday" class="w-full bg-white dark:bg-gray-950 border @error('birthday') border-red-500 dark:border-red-500 ring-2 ring-red-500/20 @else border-gray-300 dark:border-gray-800 @enderror rounded-xl px-4 py-2.5 sm:py-3 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white dark:focus:bg-gray-900 transition-all shadow-sm dark:shadow-inner [color-scheme:light] dark:[color-scheme:dark] cursor-pointer">
+                                @error('birthday')
+                                    <p class="mt-1.5 text-[11px] font-bold text-red-600 dark:text-red-400 leading-snug">
+                                        ⚠️ {{ $message }}
+                                    </p>
+                                @else
+                                    @if(!empty($birthday) && isset($canChangeBirthday) && !$canChangeBirthday)
+                                        <p class="mt-1 text-[10px] text-amber-700 dark:text-amber-400 font-medium">
+                                            ✓ Fest hinterlegt (einmalige Korrektur bereits genutzt).
+                                        </p>
+                                    @elseif(!empty($birthday))
+                                        <p class="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
+                                            Bei Tippfehlern noch 1× selbstständig korrigierbar.
+                                        </p>
+                                    @endif
+                                @enderror
                             </div>
                         </div>
                     @endif
@@ -210,6 +226,22 @@
                     </div>
                 </div>
             </div>
+
+            {{-- SPEICHER- UND VALIDIERUNGS-FEEDBACK DIREKT ÜBER DEM SPEICHERN-BUTTON --}}
+            @if(!empty($profileFeedbackMessage))
+                <div wire:key="profile-feedback-{{ md5($profileFeedbackMessage) }}"
+                     class="p-4 rounded-2xl border text-xs sm:text-sm font-bold flex items-center justify-between gap-3 transition-all {{ ($profileFeedbackSuccess ?? true) ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-800 dark:text-emerald-300' : 'bg-red-500/15 border-red-500/40 text-red-700 dark:text-red-300' }}">
+                    <div class="flex items-center gap-2.5">
+                        <span class="text-base shrink-0">{{ ($profileFeedbackSuccess ?? true) ? '✓' : '⚠️' }}</span>
+                        <span>{{ $profileFeedbackMessage }}</span>
+                    </div>
+                </div>
+            @elseif($errors->any())
+                <div class="p-4 rounded-2xl border border-red-500/40 bg-red-500/15 text-red-700 dark:text-red-300 text-xs sm:text-sm font-bold flex items-center gap-2.5">
+                    <span class="text-base shrink-0">⚠️</span>
+                    <span>{{ $errors->first() }}</span>
+                </div>
+            @endif
 
             {{-- FOOTER BUTTONS --}}
             <div class="flex flex-col sm:flex-row items-center justify-between pt-5 border-t border-gray-200 dark:border-gray-800 gap-4 mt-6">

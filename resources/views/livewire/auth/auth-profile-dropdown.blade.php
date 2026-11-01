@@ -1,8 +1,9 @@
 <div x-data="{
-        showProfileModal: false,
+        showProfileModal: {{ request()->routeIs('customer.profile') || request()->boolean('open_profile') ? 'true' : 'false' }},
         activeProfileTab: 'profile',
         openAvatar: false,
         showProfileSuccess: false,
+        profileSuccessText: 'Erfolgreich gespeichert!',
         showPasswordSuccess: false,
         isDark: ('theme' in localStorage) ? (localStorage.theme === 'dark') : false,
         toggleTheme() {
@@ -20,6 +21,7 @@
         }
     }"
      @theme-changed.window="isDark = $event.detail.isDark"
+     @saved.window="showProfileSuccess = true; if ($event.detail && $event.detail.message) { profileSuccessText = $event.detail.message; }"
      x-on:livewire:navigated.window="isDark = ('theme' in localStorage) ? (localStorage.theme === 'dark') : false"
      @open-profile-modal.window="showProfileModal = true; activeProfileTab = $event.detail.tab"
      @wheel.passive="$el.scrollLeft += $event.deltaY"

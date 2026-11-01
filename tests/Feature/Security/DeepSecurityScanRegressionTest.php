@@ -3884,7 +3884,7 @@ class DeepSecurityScanRegressionTest extends TestCase
             $this->assertStringContainsString('SVG', $e->getMessage());
         }
 
-        // 5. GameGamesComponent::selectTitle must ignore array input and GameGlobalRankingComponent must whitelist activeTab
+        // 5. GameSparkHuntComponent & CustomerDashboardComponent must reject unauthenticated/invalid gamification calls
         $customer = \App\Models\Customer\Customer::create([
             'first_name' => 'Gamer',
             'last_name' => 'R28',
@@ -3897,16 +3897,17 @@ class DeepSecurityScanRegressionTest extends TestCase
             'ranking_opt_in' => true,
             'energy_balance' => 5,
             'level' => 1,
+            'funki_level' => 1,
         ]);
 
         \Livewire\Livewire::actingAs($customer, 'customer')
-            ->test(\App\Livewire\Customer\Gamification\GameGamesComponent::class)
-            ->call('selectTitle', ['illegal' => 'offset']);
+            ->test(\App\Livewire\Customer\Gamification\GameSparkHuntComponent::class)
+            ->call('collectSpark')
+            ->assertSet('isVisible', false);
 
         \Livewire\Livewire::actingAs($customer, 'customer')
-            ->test(\App\Livewire\Customer\Gamification\GameGlobalRankingComponent::class)
-            ->set('activeTab', 'invalid_tab')
-            ->assertSet('activeTab', 'classic');
+            ->test(\App\Livewire\Customer\CustomerDashboardComponent::class)
+            ->call('redeemFunkenVoucher', 'non_existent_tier');
     }
 
     #[\PHPUnit\Framework\Attributes\Test]

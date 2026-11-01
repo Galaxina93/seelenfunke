@@ -125,7 +125,7 @@ trait AiSupportFuncs
             ],
             [
                 'name' => 'support_get_gamification_stats',
-                'description' => 'Gibt die Funken-Punkte und Level des Kunden zurück.',
+                'description' => 'Gibt die aktuellen Seelenfunken-Punkte, das Funki-Level (1–10), den animierten Hintergrund, den aktiven Titel/Ehrenrang (inkl. "Seelengott unter Sterblichen"), einlösbare Rabatt-Gutscheine (5 %/10 %/15 %) und den Status in der Halle der Helden des eingeloggten Kunden zurück.',
                 'parameters' => ['type' => 'object', 'properties' => new \stdClass()],
                 'callable' => [self::class, 'executeGetGamificationStats']
             ],
@@ -860,6 +860,7 @@ trait AiSupportFuncs
                     'customer_name' => \App\Services\AI\AiAuthHelper::sanitizeCustomerName($rawName, $hasConsent),
                     'gdpr_ai_consent' => $hasConsent,
                     'status' => $order->status,
+                    'funken_earned' => (int) ($order->funken_earned ?? 0),
                     'items' => $itemsData
                 ]
             ];
@@ -918,7 +919,7 @@ trait AiSupportFuncs
     public static function executeGetGamificationStats(array $args)
     {
         try {
-            if (\App\Services\AI\AiAuthHelper::isAdmin()) {
+            if (!self::isPublicSupportChatContext($args) && \App\Services\AI\AiAuthHelper::isAdmin()) {
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Admin-Modus aktiv. Du kannst keine eigenen Gamification-Stats abrufen. Nutze admin_search_support_chats oder ähnliches.'];
             }
             $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
@@ -926,18 +927,69 @@ trait AiSupportFuncs
             if ($consentError = self::ensureCustomerAiConsent((string) $customerId)) return $consentError;
 
             $stats = \App\Models\Customer\CustomerGamification::where('customer_id', $customerId)->first();
+            $customer = \App\Models\Customer\Customer::with('profile')->find($customerId);
+
             if (!$stats || !$stats->is_active) {
-                return ['status' => 'success', 'data' => null];
+                $wasPaused = $stats && ((int) $stats->funken_total_earned > 0 || (int) $stats->funken_balance > 0);
+                return [
+                    'status' => 'success',
+                    'data' => [
+                        'is_active' => false,
+                        'was_paused' => $wasPaused,
+                        'funken_balance' => (int) ($stats->funken_balance ?? 0),
+                        'funken_total_earned' => (int) ($stats->funken_total_earned ?? 0),
+                        'activation_path' => 'Kunden-Dashboard (/dashboard) -> mittlere Kachel "✨ Seelenfunken & Prämien" -> Button "Magie aktivieren" klicken und Teilnahmebedingungen bestätigen.',
+                    ],
+                    'message' => $wasPaused
+                        ? 'HINTERGRUND-INFO FÜR KI: Der Kunde hat das Seelenfunken-Sammeln aktuell pausiert. Sein bisheriges Guthaben (' . (int) ($stats->funken_balance ?? 0) . ' ✨) und Level bleiben vollständig erhalten und können im Kunden-Dashboard (/dashboard) in der mittleren Kachel "✨ Seelenfunken & Prämien" jederzeit wieder aktiviert werden.'
+                        : 'HINTERGRUND-INFO FÜR KI: Der Kunde hat "Magie aktivieren" (das Seelenfunken-Treueprogramm) im Kunden-Dashboard (/dashboard) in der Kachel "✨ Seelenfunken & Prämien" noch nicht aktiviert.'
+                ];
             }
 
-            $nextLevelThreshold = ($stats->level * 1000);
-            $missing = max(0, $nextLevelThreshold - $stats->funken_balance);
+            $service = app(\App\Services\Gamification\GamificationService::class);
+            $titlesData = $customer ? $service->getCustomerTitlesAndRanksData($customer, $stats) : null;
+
+            $totalEarned = max((int) $stats->funken_total_earned, (int) $stats->funken_balance);
+            $level = \App\Services\Gamification\GameConfig::calculateFunkiLevel($totalEarned);
+            $stageCfg = \App\Services\Gamification\GameConfig::getFunkiStageConfig($level);
+            $missing = \App\Services\Gamification\GameConfig::getMissingSparksForNextLevel($totalEarned);
+
+            $voucherOptions = [];
+            foreach (\App\Services\Gamification\GameConfig::getVoucherRewards() as $key => $cfg) {
+                $voucherOptions[] = [
+                    'title'        => $cfg['title'],
+                    'cost_funken'  => $cfg['cost_funken'],
+                    'can_redeem'   => ((int) $stats->funken_balance >= (int) $cfg['cost_funken']),
+                ];
+            }
 
             return ['status' => 'success', 'data' => [
-                'level' => $stats->level,
-                'funken_balance' => $stats->funken_balance,
-                'funken_missing_for_next_level' => $missing,
-                'funkenflug_highscore' => $stats->funkenflug_highscore
+                'is_active'                       => true,
+                'level'                           => $level,
+                'stage_name'                      => $stageCfg['name'] ?? ('Funki Level ' . $level),
+                'background_name'                 => $stageCfg['bg_name'] ?? '',
+                'funken_balance'                  => (int) $stats->funken_balance,
+                'funken_total_earned'             => $totalEarned,
+                'funken_missing_for_next_level'   => $missing,
+                'active_title'                    => $titlesData['active_rank_name'] ?? ($stageCfg['rank_title'] ?? 'Funken-Novize'),
+                'diamonds_unlocked'               => ($titlesData['diamonds_count'] ?? 0) . ' / ' . ($titlesData['total_titles'] ?? 5),
+                'is_seelengott_unter_sterblichen' => (bool) ($titlesData['is_seelengott'] ?? false),
+                'ultimate_goal_title'             => \App\Services\Gamification\GameConfig::ULTIMATE_TITLE_NAME,
+                'hall_of_fame_opt_in'             => (bool) ($stats->ranking_opt_in ?? false),
+                'show_real_name'                  => (bool) ($stats->show_real_name ?? false),
+                'player_name'                     => $stats->player_name ?? null,
+                'music_volume'                    => (int) ($stats->music_volume ?? 25),
+                'music_muted'                     => (bool) ($stats->music_muted ?? false),
+                'music_keep_playing'              => (bool) ($stats->music_keep_playing ?? false),
+                'birthday_configured'             => !empty($customer?->profile?->birthday),
+                'voucher_rewards'                 => $voucherOptions,
+                'ui_navigation'                   => [
+                    'dashboard_url'   => url('/dashboard'),
+                    'profile_url'     => url('/profile'),
+                    'modal_tabs'      => ['Rabatte', 'Level', 'Titel & Ränge', 'Halle der Helden'],
+                    'music_controls'  => 'Oben rechts im Funki-Modal neben dem "X" (inkl. Checkbox "Musik laufen lassen" & schwebendem Button unten rechts über dem "Nach oben scrollen"-Button).',
+                    'lightbox_hint'   => 'Klick auf das Funki-Profilbild oben links im Funki-Modal öffnet Charakter & Hintergrund in Großansicht.',
+                ],
             ]];
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
@@ -948,7 +1000,7 @@ trait AiSupportFuncs
     public static function executeGetCustomerFullProfile(array $args)
     {
         try {
-            if (\App\Services\AI\AiAuthHelper::isAdmin()) {
+            if (!self::isPublicSupportChatContext($args) && \App\Services\AI\AiAuthHelper::isAdmin()) {
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Admin-Modus aktiv. Admins haben kein Kunden-Profil. Nutze admin_search_support_chats oder admin_search_support_tickets.'];
             }
             $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
@@ -970,10 +1022,12 @@ trait AiSupportFuncs
                 'data' => [
                     'first_name' => $customer->first_name,
                     'registered_since' => $customer->created_at->format('Y-m-d'),
+                    'birthday_configured' => !empty($customer->profile?->birthday),
                     'open_orders_count' => $openOrders,
                     'closed_orders_count' => $closedOrders,
                     'gamification_active' => (bool) ($gamification && $gamification->is_active),
-                    'gamification_level' => ($gamification && $gamification->is_active) ? $gamification->level : null,
+                    'gamification_level' => ($gamification && $gamification->is_active) ? \App\Services\Gamification\GameConfig::calculateFunkiLevel(max((int) $gamification->funken_total_earned, (int) $gamification->funken_balance)) : null,
+                    'funken_balance' => $gamification ? (int) $gamification->funken_balance : 0,
                     'active_support_tickets' => $activeTickets
                 ]
             ];
@@ -1018,6 +1072,10 @@ trait AiSupportFuncs
                     elseif ($name === 'contact' || $uri === 'kontakt') $actionName = 'Kontakt & Support';
                     elseif ($name === 'marketing/marketing/blog' || $uri === 'marketing/marketing/blog') $actionName = 'Magazin / Blog';
                     elseif ($name === 'manufacture' || $uri === 'manufaktur') $actionName = 'Unsere Manufaktur';
+                    elseif ($uri === 'dashboard' || $name === 'customer.dashboard') $actionName = 'Kunden-Dashboard (Funki öffnen, Seelenfunken & Prämien, Level 1–10, Rabatte, Titel & Halle der Helden)';
+                    elseif ($uri === 'profile' || $name === 'customer.profile') $actionName = 'Kundenprofil & Einstellungen (Persönliche Daten, Geburtsdatum für +50 ✨ Geburtstags-Bonus, Adressen, Datenschutz)';
+                    elseif ($uri === 'orders' || $name === 'customer.orders') $actionName = 'Meine Bestellungen & Rechnungen';
+                    elseif ($uri === 'widerruf') $actionName = 'Widerrufsformular / Stornierung';
                     elseif (str_contains($name, 'customer.')) $actionName = 'Kundenportal - ' . ucfirst(str_replace('customer.', '', $name));
 
                     $links[] = "- **{$actionName}**: [" . url($uri) . "](" . url($uri) . ")";

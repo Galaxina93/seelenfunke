@@ -348,7 +348,7 @@ class AccountingSeeder extends Seeder
                 'amount'      => -44.48,
                 'interval'    => 12,
                 'start_date'  => '2026-12-15',
-                'provider_company' => 'AXA',
+                'provider_company' => 'AXA Versicherung AG',
                 'provider_street'  => 'Colonia-Allee',
                 'provider_house_number' => '10-20',
                 'provider_zip'     => '51067',
@@ -356,10 +356,10 @@ class AccountingSeeder extends Seeder
                 'provider_phone'   => '0800 3203205',
                 'provider_email'   => 'service@axa.de',
                 'provider_website' => 'https://www.axa.de',
-                'contract_number'  => 'PHV-15034785',
+                'contract_number'  => '56004546918',
                 'notice_period'    => 'Jederzeit zum nächsten Tag kündbar',
-                'description' => "Tarif: L mit Bestleistungs-Garantie\nDeckungssumme: 60 Mio. Euro\nSelbstbeteiligung: 0 Euro\nVersicherungsnehmerin: Alina Steinhauer\nAntragsnummer bei CHECK24: PHV-15034785\nVersichert ab: 15.12.2026\nVorversicherung: Grundeigentümer-Versicherung (GEV) gekündigt zum 15.12.2026",
-                'tags'        => ['Versicherung', 'Vorsorge', 'Absicherung', 'AXA', 'Haftpflicht'],
+                'description' => "Tarif: L mit Bestleistungs-Garantie\nDeckungssumme: 60 Mio. Euro\nSelbstbeteiligung: 0 Euro\nVersicherungsnehmerin: Alina Steinhauer\nVersicherungsnummer (Haftpflicht Online Nr.): 56004546918\nAntragsnummer bei CHECK24: PHV-15034785\nBetreuung: CHECK24 Vergleichsportal Sachvers. GmbH, Speicherstr. 55, 60327 Frankfurt (Tel.: 089/24241246, E-Mail: phv@check24.de)\nVersichert ab: 15.12.2026\nVorversicherung: Grundeigentümer-Versicherung (GEV) gekündigt zum 15.12.2026",
+                'tags'        => ['Versicherung', 'Vorsorge', 'Absicherung', 'AXA', 'CHECK24', 'Haftpflicht'],
                 'contract_file_path' => 'buchhaltung/contracts/2026/10/2026-10-19_AXA_Haftpflicht.pdf'
             ],
             [
@@ -402,19 +402,22 @@ class AccountingSeeder extends Seeder
             [
                 'group'       => 'Versicherungen',
                 'name'        => 'Zahnzusatzversicherung',
-                'amount'      => -23.58,
+                'amount'      => -12.14,
                 'interval'    => 1,
-                'start_date'  => '2023-10-15',
-                'provider_company' => 'Tecis',
-                'provider_street'  => 'Laher-Feld-Str. 24',
-                'provider_zip'     => '30659',
-                'provider_city'    => 'Hannover',
-                'provider_phone'   => '0 40 69 69 69-61',
-                'provider_email'   => 'vertriebspartner-service@tecis.de',
-                'contract_number'  => 'AK - 6099415323',
-                'description' => "Weitere E-Mail:\nKundenservice@tecis.de",
-                'tags'        => ['Versicherung', 'Gesundheit', 'Vorsorge', 'Tecis'],
-                'contract_file_path' => 'buchhaltung/contracts/2023/10/2023-10-15_tecis_Zahnzusatzversicherung.pdf'
+                'start_date'  => '2026-12-01',
+                'provider_company' => 'AXA Krankenversicherung AG',
+                'provider_street'  => 'Colonia-Allee',
+                'provider_house_number' => '10-20',
+                'provider_zip'     => '51067',
+                'provider_city'    => 'Köln',
+                'provider_phone'   => '0221 148-41002',
+                'provider_email'   => 'service@axa.de',
+                'provider_website' => 'https://www.axa.de',
+                'contract_number'  => '4942640485',
+                'notice_period'    => 'Zum Ablauf des Versicherungsjahres',
+                'description' => "Tarif: Zahn Klassik (Vertragsgrundlage 13, 556)\nLeistungen: 80% Zahnersatz, 100% Zahnbehandlung, 100% prof. Zahnreinigung 1x/Jahr, 80% Kieferorthopädie bis 5.000 Euro\nVersicherungsnehmerin / Versicherte Person: Alina Steinhauer (geb. 01.09.1993)\nKranken-/Pflege-Versicherung Nr.: 4942640485 (Unsere Zeichen: /T935750)\nVersicherungsbeginn / Fälligkeit: ab 01.12.2026 (monatlich zum 01.)\nBetreuung / Vermittler: CHECK24 Vergleichsportal Krankenvers. GmbH, An der Alster 64, 20099 Hamburg (Tel.: 089/24241277, E-Mail: zahn@check24.de)\nSEPA-Lastschrift: Volksbank BRAWO (IBAN DE85xxxxxxxxxxxxxx6000, BIC GENODEF1WOB)\nMandatsnummer: MDT 21060234274 | Gläubigernummer: DE23G0100000066097\nPostanschrift: 50592 Köln | HRB 1012 Köln | USt-IdNr.: DE 122786679 | VersSt-Nr.: 810/V90810030208\nVorversicherung: Tecis (Vertragsnr. AK - 6099415323, zuvor mtl. -23,58 €)",
+                'tags'        => ['Versicherung', 'Gesundheit', 'Vorsorge', 'AXA', 'CHECK24', 'Zahnzusatz'],
+                'contract_file_path' => 'buchhaltung/contracts/2026/10/2026-10-26_AXA_Zahnzusatzversicherung.pdf'
             ],
             [
                 'group'       => 'Versicherungen',
@@ -664,6 +667,19 @@ class AccountingSeeder extends Seeder
 
         $specialIssues = [
             [
+                'title'          => '5x Edelstahl Laserrohling Anhänger, Herz, mit Collierschlaufe, 14 Karat vergoldet, 25 x 22 x 4 mm, Öse: 3 x 6 mm, Ion Plating(IP)',
+                'location'       => 'www.gluecksfieber.de',
+                'amount'         => -16.99,
+                'date'           => '2026-10-30',
+                'category'       => 'Rohmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => '324858',
+                'note'           => "Bestellung #324858 | Art. Nr.: STA1274 (5 Stück à 2,40 € brutto = 12,00 € brutto / 10,08 € netto zzgl. 1,92 € MwSt.)\nVersand (DHL): 4,99 € brutto (4,19 € netto zzgl. 0,80 € MwSt.) | Gesamtbetrag: 16,99 €\nZahlungsart: PayPal (kontakt@mein-seelenfunke.de)\nHändler: Stefan Spreier & Sandra Schmidt GbR (Glücksfieber), Stockholmring 8, 23560 Lübeck, Tel.: 0451/ 47 99 85-0, E-Mail: kundenservice@gluecksfieber.de\nProdukt-Link: https://www.gluecksfieber.de/shop/laserrohlinge/edelstahl-laserrohling-anhaenger-herz-mit-collierschlaufe-14-karat-vergoldet-25-x-22-x-4-mm-oese-3-x-6-mm-ion-plating-ip.html",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/10/2026-10-30_Gluecksfieber_5x-Edelstahl-Laserrohling-Anhaenger-Herz-Rechnung.pdf'
+                ]
+            ],
+            [
                 'title'          => 'Gewerbeanmeldung Stadt Gifhorn (GewA1) - Neugründung Mein-Seelenfunke',
                 'location'       => 'Stadt Gifhorn',
                 'amount'         => -32.50,
@@ -912,19 +928,23 @@ class AccountingSeeder extends Seeder
         ];
 
         foreach ($specialIssues as $issue) {
-            AccountingSpecialIssue::create([
-                'admin_id'       => $admin->id,
-                'title'          => $issue['title'],
-                'location'       => $issue['location'],
-                'category'       => $issue['category'],
-                'amount'         => $issue['amount'],
-                'execution_date' => $issue['date'],
-                'is_business'    => true,
-                'tax_rate'       => $issue['tax_rate'] ?? 19,
-                'invoice_number' => $issue['invoice_number'] ?? null,
-                'file_paths'     => $issue['file_paths'] ?? null,
-                'note'           => $issue['note'] ?? null,
-            ]);
+            AccountingSpecialIssue::updateOrCreate(
+                [
+                    'admin_id'       => $admin->id,
+                    'title'          => $issue['title'],
+                    'execution_date' => $issue['date'],
+                ],
+                [
+                    'location'       => $issue['location'],
+                    'category'       => $issue['category'],
+                    'amount'         => $issue['amount'],
+                    'is_business'    => true,
+                    'tax_rate'       => $issue['tax_rate'] ?? 19,
+                    'invoice_number' => $issue['invoice_number'] ?? null,
+                    'file_paths'     => $issue['file_paths'] ?? null,
+                    'note'           => $issue['note'] ?? null,
+                ]
+            );
         }
     }
 }

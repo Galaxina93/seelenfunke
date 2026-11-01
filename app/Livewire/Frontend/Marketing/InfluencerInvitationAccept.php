@@ -44,6 +44,7 @@ class InfluencerInvitationAccept extends Component
     #[Locked]
     public int $followerDiscountPercent = 10;
 
+    #[Locked]
     public int $step = 1;
 
     // Schritt 1: Verifizierungscode
@@ -103,27 +104,9 @@ class InfluencerInvitationAccept extends Component
         }
 
         $this->isValidToken = true;
-        $this->influencerId = $influencer->id;
-        $this->existingEmployeeId = $influencer->employee_id;
         $this->commissionPercent = (int) $influencer->commission_value;
         $this->followerDiscountPercent = (int) $influencer->follower_discount_percent;
         $this->primaryChannel = $influencer->primary_channel ?: 'instagram';
-
-        if ($influencer->employee) {
-            $this->firstName = (string) ($influencer->employee->first_name ?? '');
-            $this->lastName = (string) ($influencer->employee->last_name ?? '');
-            $this->email = (string) ($influencer->employee->email ?? '');
-        }
-
-        if ($influencer->handle) {
-            $this->handle = (string) $influencer->handle;
-        }
-        if ($influencer->slug) {
-            $this->slug = (string) $influencer->slug;
-        }
-        if ($influencer->defaultVoucher) {
-            $this->customVoucherCode = (string) $influencer->defaultVoucher->code;
-        }
     }
 
     public function updatedHandle(string $value): void
@@ -167,6 +150,26 @@ class InfluencerInvitationAccept extends Component
             throw ValidationException::withMessages([
                 'verificationCode' => 'Der eingegebene Sicherheitscode ist ungültig.',
             ]);
+        }
+
+        $influencer->loadMissing(['employee.profile', 'defaultVoucher', 'defaultTrackingLink']);
+        $this->influencerId = $influencer->id;
+        $this->existingEmployeeId = $influencer->employee_id;
+
+        if ($influencer->employee) {
+            $this->firstName = (string) ($influencer->employee->first_name ?? '');
+            $this->lastName = (string) ($influencer->employee->last_name ?? '');
+            $this->email = (string) ($influencer->employee->email ?? '');
+        }
+
+        if ($influencer->handle) {
+            $this->handle = (string) $influencer->handle;
+        }
+        if ($influencer->slug) {
+            $this->slug = (string) $influencer->slug;
+        }
+        if ($influencer->defaultVoucher) {
+            $this->customVoucherCode = (string) $influencer->defaultVoucher->code;
         }
 
         $this->isCodeVerified = true;

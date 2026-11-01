@@ -200,8 +200,15 @@ trait HandlesStripePayment
             }
             Session::forget('checkout_order_id');
 
+            $this->finalOrderId = (string) $order->id;
             $this->finalOrderNumber = $order->order_number;
             $this->instantDownloads = $order->fresh(['items.product'])?->getInstantDownloads() ?? [];
+
+            try {
+                $this->earnedSparks = app(\App\Services\Gamification\GamificationService::class)->calculateOrderSparks($order);
+            } catch (\Throwable $e) {
+                $this->earnedSparks = 0;
+            }
 
             try {
                 $ref = app(\App\Services\ReferralService::class)->getOrCreateReferralForCustomer(

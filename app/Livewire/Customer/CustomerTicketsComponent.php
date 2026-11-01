@@ -51,6 +51,14 @@ class CustomerTicketsComponent extends Component
     // Feature: Customer closing ticket
     public $closeReason = '';
 
+    public function boot(): void
+    {
+        $user = Auth::guard('customer')->user();
+        if (!$user || !empty($user->needs_password_change)) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
         if (!Auth::guard('customer')->check()) {

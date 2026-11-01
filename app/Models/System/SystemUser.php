@@ -2,6 +2,18 @@
 
 namespace App\Models\System;
 
+
+use App\Support\Blueprint\Concerns\InteractsWithSystemBlueprint;
+use App\Support\Blueprint\Contracts\HasSystemBlueprint;
+use App\Support\Blueprint\Enums\ActorScope;
+use App\Support\Blueprint\Enums\AiAccessPolicy;
+use App\Support\Blueprint\Enums\ComplianceRegulation;
+use App\Support\Blueprint\Enums\DataSensitivity;
+use App\Support\Blueprint\Enums\ExternalChannel;
+use App\Support\Blueprint\Enums\LifecycleBehavior;
+use App\Support\Blueprint\Enums\RetentionPolicy;
+use App\Support\Blueprint\Enums\SystemDepartment;
+use App\Support\Blueprint\ModelBlueprint;
 use App\Models\Admin\Admin;
 use App\Models\Customer\Customer;
 use App\Models\Employee\Employee;
@@ -11,9 +23,38 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Auth;
 use Laravel\Sanctum\HasApiTokens;
 
-class SystemUser extends Authenticatable
+class SystemUser extends Authenticatable implements HasSystemBlueprint
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    
+    use InteractsWithSystemBlueprint;
+
+    /**
+     * Digitales Architektur- & Compliance-Typenschild (Living Documentation).
+     */
+    public static function blueprint(): ModelBlueprint
+    {
+        return ModelBlueprint::make(
+            label: 'Basis-Systembenutzer',
+            description: 'Technische Authentifizierungs-Entität für interne Systemdienste.',
+            department: SystemDepartment::System,
+            navigationNodes: ['admin.system.users'],
+            lifecycle: LifecycleBehavior::MasterData,
+            sensitivity: DataSensitivity::PersonalPII,
+            retention: RetentionPolicy::StatutoryWarranty_3Years,
+            aiAccess: AiAccessPolicy::None,
+            actorsRead: [ActorScope::Admin],
+            actorsWrite: [ActorScope::Admin],
+            regulations: [ComplianceRegulation::DSGVO_Art15_Art30],
+            externalChannels: [],
+            dependsOnSettings: [],
+            isGdprArt15Exportable: false,
+            customerForeignKey: null,
+            containsProductionAssets: false,
+            assetColumns: [],
+        );
+    }
+
+use HasApiTokens, HasFactory, Notifiable;
 
     protected $table = 'system_users';
 

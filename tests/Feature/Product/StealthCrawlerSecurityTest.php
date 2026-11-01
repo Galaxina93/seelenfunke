@@ -8,6 +8,7 @@ use Tests\TestCase;
 
 class StealthCrawlerSecurityTest extends TestCase
 {
+    use \Illuminate\Foundation\Testing\DatabaseTransactions;
     #[\PHPUnit\Framework\Attributes\Test]
     public function no_hardcoded_scraperapi_key_exists_in_service_file(): void
     {

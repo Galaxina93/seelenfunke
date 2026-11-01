@@ -2,6 +2,18 @@
 
 namespace App\Models\Employee;
 
+
+use App\Support\Blueprint\Concerns\InteractsWithSystemBlueprint;
+use App\Support\Blueprint\Contracts\HasSystemBlueprint;
+use App\Support\Blueprint\Enums\ActorScope;
+use App\Support\Blueprint\Enums\AiAccessPolicy;
+use App\Support\Blueprint\Enums\ComplianceRegulation;
+use App\Support\Blueprint\Enums\DataSensitivity;
+use App\Support\Blueprint\Enums\ExternalChannel;
+use App\Support\Blueprint\Enums\LifecycleBehavior;
+use App\Support\Blueprint\Enums\RetentionPolicy;
+use App\Support\Blueprint\Enums\SystemDepartment;
+use App\Support\Blueprint\ModelBlueprint;
 use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,9 +24,38 @@ use Illuminate\Notifications\Notifiable;
 use Ramsey\Uuid\Uuid;
 use Laravel\Sanctum\HasApiTokens;
 
-class Employee extends Model implements Authenticatable
+class Employee extends Model implements Authenticatable, HasSystemBlueprint
 {
-    use HasFactory, SoftDeletes, AuthenticatableTrait, HasApiTokens, Notifiable;
+    
+    use InteractsWithSystemBlueprint;
+
+    /**
+     * Digitales Architektur- & Compliance-Typenschild (Living Documentation).
+     */
+    public static function blueprint(): ModelBlueprint
+    {
+        return ModelBlueprint::make(
+            label: 'Mitarbeiter-Konto (Manufaktur & Support)',
+            description: 'Zugangskonto für Mitarbeiter in der Laser-Produktion, Verpackung und Kundenbetreuung.',
+            department: SystemDepartment::Employee,
+            navigationNodes: ['admin.employees.index'],
+            lifecycle: LifecycleBehavior::MasterData,
+            sensitivity: DataSensitivity::PersonalPII,
+            retention: RetentionPolicy::GoBD_10Years,
+            aiAccess: AiAccessPolicy::None,
+            actorsRead: [ActorScope::Admin, ActorScope::EmployeeProduction],
+            actorsWrite: [ActorScope::Admin],
+            regulations: [ComplianceRegulation::DSGVO_Art15_Art30, ComplianceRegulation::GoBD],
+            externalChannels: [],
+            dependsOnSettings: [],
+            isGdprArt15Exportable: false,
+            customerForeignKey: null,
+            containsProductionAssets: false,
+            assetColumns: [],
+        );
+    }
+
+use HasFactory, SoftDeletes, AuthenticatableTrait, HasApiTokens, Notifiable;
 
     protected $fillable = [
         'first_name',

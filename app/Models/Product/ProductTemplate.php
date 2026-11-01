@@ -2,15 +2,56 @@
 
 namespace App\Models\Product;
 
+
+use App\Support\Blueprint\Concerns\InteractsWithSystemBlueprint;
+use App\Support\Blueprint\Contracts\HasSystemBlueprint;
+use App\Support\Blueprint\Enums\ActorScope;
+use App\Support\Blueprint\Enums\AiAccessPolicy;
+use App\Support\Blueprint\Enums\ComplianceRegulation;
+use App\Support\Blueprint\Enums\DataSensitivity;
+use App\Support\Blueprint\Enums\ExternalChannel;
+use App\Support\Blueprint\Enums\LifecycleBehavior;
+use App\Support\Blueprint\Enums\RetentionPolicy;
+use App\Support\Blueprint\Enums\SystemDepartment;
+use App\Support\Blueprint\ModelBlueprint;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class ProductTemplate extends Model
+class ProductTemplate extends Model implements HasSystemBlueprint
 {
-    use HasFactory, HasUuids, SoftDeletes;
+    
+    use InteractsWithSystemBlueprint;
+
+    /**
+     * Digitales Architektur- & Compliance-Typenschild (Living Documentation).
+     */
+    public static function blueprint(): ModelBlueprint
+    {
+        return ModelBlueprint::make(
+            label: '2D/3D-Gravurvorlage (Feiertags- & Anlass-Preset)',
+            description: 'Vorkonfigurierte Text-, Schrift- und Vektor-Layouts für den 1-Klick-Start im Produktkonfigurator.',
+            department: SystemDepartment::Product,
+            navigationNodes: ['admin.products.templates', 'shop.product.configurator'],
+            lifecycle: LifecycleBehavior::SeasonalPerpetual,
+            sensitivity: DataSensitivity::PublicCatalog,
+            retention: RetentionPolicy::PermanentMasterData,
+            aiAccess: AiAccessPolicy::ReadAndPropose,
+            actorsRead: [ActorScope::PublicVisitor, ActorScope::Customer, ActorScope::Admin],
+            actorsWrite: [ActorScope::Admin],
+            regulations: [ComplianceRegulation::EU_AI_Act_Art50],
+            externalChannels: [ExternalChannel::LaserMachine_SVG_PDF],
+            dependsOnSettings: [],
+            isGdprArt15Exportable: false,
+            customerForeignKey: null,
+            containsProductionAssets: false,
+            assetColumns: [],
+        );
+    }
+
+use HasFactory, HasUuids, SoftDeletes;
 
     /**
      * Die Tabelle, die mit dem Model verknüpft ist.

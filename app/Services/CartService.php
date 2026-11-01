@@ -345,6 +345,14 @@ class CartService
             return max(500, min(100000, (int) $configuration['amount_cents']));
         }
 
+        if ($product->slug === 'seelenfunke-ingame-artifact' && $configuration && isset($configuration['ingame_item_key'])) {
+            $catalog = \App\Services\Gamification\GameConfig::getIngameShopCatalog();
+            $itemKey = (string) $configuration['ingame_item_key'];
+            if (isset($catalog[$itemKey])) {
+                return max(99, (int) $catalog[$itemKey]['price_cents']);
+            }
+        }
+
         $price = $product->price;
 
         // 1. NEU: Varianten-Preis überschreiben, falls vorhanden
@@ -385,8 +393,22 @@ class CartService
             return null;
         }
 
-        if ($product->slug !== 'geschenkgutschein') {
-            if (isset($configuration['is_gift_voucher']) || isset($configuration['amount_cents'])) {
+        if ($product->slug === 'seelenfunke-ingame-artifact') {
+            $catalog = \App\Services\Gamification\GameConfig::getIngameShopCatalog();
+            $itemKey = (string) ($configuration['ingame_item_key'] ?? 'energy_refill_5');
+            if (!isset($catalog[$itemKey])) {
+                $itemKey = 'energy_refill_5';
+            }
+            $catalogItem = $catalog[$itemKey];
+            $configuration['is_ingame_shop_item'] = true;
+            $configuration['ingame_item_key'] = $itemKey;
+            $configuration['ingame_item_name'] = $catalogItem['name'];
+            $configuration['ingame_category'] = $catalogItem['category'];
+            $configuration['amount_cents'] = (int) $catalogItem['price_cents'];
+            $configuration['purchased_image_path'] = $catalogItem['image_path'] ?? 'shop/gamification/shop/energy_refill_5.jpg';
+            unset($configuration['is_gift_voucher']);
+        } elseif ($product->slug !== 'geschenkgutschein') {
+            if (isset($configuration['is_gift_voucher']) || isset($configuration['amount_cents']) || isset($configuration['is_ingame_shop_item'])) {
                 \App\Services\System\SystemSecurityService::logEvent(
                     'security:price_tampering_attempt',
                     'Gutschein-Parameter-Manipulation blockiert',
@@ -394,7 +416,7 @@ class CartService
                     'error',
                     ['product_id' => $product->id, 'slug' => $product->slug]
                 );
-                unset($configuration['is_gift_voucher'], $configuration['amount_cents']);
+                unset($configuration['is_gift_voucher'], $configuration['amount_cents'], $configuration['is_ingame_shop_item'], $configuration['ingame_item_key']);
             }
         } else {
             $rawCents = isset($configuration['amount_cents']) ? (int) $configuration['amount_cents'] : ((int) $product->price ?: 2500);
@@ -907,6 +929,21 @@ class CartService
             return !empty($cfg['is_gift_voucher']) && ($cfg['delivery_method'] ?? 'email') === 'post';
         });
 
+        // Seelenfunken Treue-Bonus (Variante A = 100 % vom bezahlten Produktwert ohne Geschenkgutscheine & Versand)
+        $nonVoucherSubtotalForSparks = 0;
+        foreach ($cart->items as $item) {
+            $product = $item->product;
+            if (!$product) {
+                continue;
+            }
+            if (!$product->isGiftVoucher(is_array($item->configuration) ? $item->configuration : null)) {
+                $nonVoucherSubtotalForSparks += $item->unit_price * $item->quantity;
+            }
+        }
+        $promoCouponDiscountForSparks = (isset($giftVoucher) && $giftVoucher) ? 0 : $discountProducts;
+        $eligibleForSparksCents = max(0, $nonVoucherSubtotalForSparks - $promoCouponDiscountForSparks);
+        $bonusSparks = \App\Services\Gamification\GameConfig::calculateSparksForCents($eligibleForSparksCents);
+
         return [
             'subtotal_original' => $originalSubtotal,
             'subtotal_gross' => $subtotalGross,
@@ -925,6 +962,7 @@ class CartService
             'is_free_shipping' => $isFreeShipping,
             'missing_for_free_shipping' => $missingForFreeShipping,
             'total' => max(0, $finalTotalGross),
+            'bonus_sparks' => $bonusSparks,
             'item_count' => $itemCount,
             'weight' => $totalWeight,
             'country' => $countryCode

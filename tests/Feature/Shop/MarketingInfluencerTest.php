@@ -154,7 +154,8 @@ class MarketingInfluencerTest extends TestCase
         $this->assertTrue($influencer->fresh()->is_archived);
 
         // Wiederherstellen für Dashboard-Tests
-        $influencer->update(['is_archived' => false, 'is_active' => true]);
+        $influencer->refresh()->update(['is_archived' => false, 'is_active' => true]);
+        $influencer->employee->refresh();
 
         // 5. Influencer darf eigenes Creator-Dashboard sehen
         $this->actingAs($influencer->employee, 'employee')

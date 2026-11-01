@@ -264,6 +264,15 @@
                 {{-- Steuerliche Aufschlüsselung (Informativ am Ende) --}}
                 <div class="mt-2 pt-2 border-t border-gray-100">
                     <div class="text-2xl font-bold text-primary">Gesamtbetrag: {{ number_format($totalBrutto, 2, ',', '.') }}&nbsp;€</div>
+                    @php
+                        $calcBonusSparks = \App\Services\Gamification\GameConfig::calculateSparksForCents((int) round($warenwertItemsBrutto * 100));
+                    @endphp
+                    @if($calcBonusSparks > 0)
+                        <div class="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold">
+                            <span>✨ Seelenfunken Treue-Bonus (100&nbsp;%):</span>
+                            <span class="font-mono font-black">+{{ number_format($calcBonusSparks, 0, ',', '.') }} ✨ Funken</span>
+                        </div>
+                    @endif
 
                     <div class="text-[10px] text-gray-400 italic mt-1">
                         @if(shop_setting('is_small_business', false))

@@ -166,6 +166,11 @@
                             class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer">
                         UStVA &amp; Jahreswerte
                     </button>
+                    <button type="button" @click="mainTab = 'hr'"
+                            :class="mainTab === 'hr' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500 hover:text-gray-900'"
+                            class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer">
+                        Personal ({{ isset($employeeContracts) ? $employeeContracts->count() : 0 }})
+                    </button>
                 </div>
             </div>
 
@@ -456,6 +461,46 @@
                         </div>
                     @endforeach
                 </div>
+            </div>
+        </div>
+
+        {{-- TAB 4: PERSONAL-STAMMBLÄTTER & STUNDENZETTEL --}}
+        <div x-show="mainTab === 'hr'" x-cloak>
+            <div class="divide-y divide-gray-100 dark:divide-gray-800">
+                @forelse($employeeContracts ?? [] as $empContract)
+                    <div class="py-3 flex flex-wrap items-center justify-between gap-3">
+                        <div class="space-y-0.5">
+                            <div class="text-xs font-bold text-gray-900 dark:text-white">
+                                {{ $empContract->display_name }}
+                                <span class="ml-1.5 px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[10px] font-semibold text-gray-600 dark:text-gray-300">
+                                    {{ $empContract->employment_type_label }}
+                                </span>
+                            </div>
+                            <div class="text-[11px] text-gray-500">
+                                {{ $empContract->job_title }} • {{ number_format($empContract->hourly_rate_cents / 100, 2, ',', '.') }} €/Std.
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            <a href="{{ route('employee.tax-advisor.employee-contract.pdf', ['contract' => $empContract->id]) }}" target="_blank"
+                               class="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[11px] font-bold text-gray-800 dark:text-gray-200">
+                                Vertrag PDF
+                            </a>
+                            <a href="{{ route('employee.tax-advisor.employee-questionnaire.pdf', ['contract' => $empContract->id]) }}" target="_blank"
+                               class="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[11px] font-bold text-gray-800 dark:text-gray-200">
+                                Personalbogen PDF
+                            </a>
+                            <a href="{{ route('employee.tax-advisor.employee-timesheet.pdf', ['contract' => $empContract->id, 'year' => $selectedYear, 'month' => $selectedMonth]) }}" target="_blank"
+                               class="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[11px] font-bold text-gray-800 dark:text-gray-200">
+                                Stundenzettel PDF
+                            </a>
+                        </div>
+                    </div>
+                @empty
+                    <div class="py-8 text-center text-xs text-gray-400">
+                        Keine unterzeichneten Personalakten vorhanden.
+                    </div>
+                @endforelse
             </div>
         </div>
 

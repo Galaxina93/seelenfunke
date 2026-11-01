@@ -180,9 +180,14 @@
                             <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </div>
-                    <p class="text-xs leading-relaxed {{ $isDark ? 'text-blue-400/80' : 'text-blue-800/80' }}">
-                        Laden Sie Ihre eigenen Medien hoch. Position, Größe und Rotation können Sie direkt oben im Vorschaubild anpassen. Wir prüfen jede Datei manuell vor der Gravur.
-                    </p>
+                    <div class="space-y-1.5 text-xs leading-relaxed {{ $isDark ? 'text-blue-400/80' : 'text-blue-800/80' }}">
+                        <p>
+                            Laden Sie Ihre eigenen Medien hoch. Position, Größe und Rotation können Sie direkt oben im Vorschaubild anpassen. Wir prüfen jede Datei vor der Gravur manuell <strong>auf technische Gravurqualität</strong>.
+                        </p>
+                        <p class="text-[11px] pt-1 border-t {{ $isDark ? 'border-blue-800/40 text-amber-300/90' : 'border-blue-200/70 text-slate-700' }}">
+                            <strong>⚖️ Rechtlicher Hinweis (Urheber- &amp; Markenrecht):</strong> Mit dem Upload bestätigen Sie, dass Sie alle erforderlichen Rechte an den Motiven besitzen (keine geschützten Markenlogos oder Figuren wie z. B. Pokémon/Disney ohne Lizenz) und uns gemäß <a href="/agb#urheberrecht-freistellung" target="_blank" class="underline font-semibold hover:text-primary">§ 3 Abs. 7–9 unserer AGB</a> von Ansprüchen Dritter freistellen.
+                        </p>
+                    </div>
                 </div>
 
                 <div wire:key="upload-zone-wrapper-{{ count($uploaded_files) }}" class="relative">

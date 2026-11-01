@@ -148,7 +148,7 @@
                     }
                 }
 
-                // Fülle Fehler
+                // Fülle Fehler & Digitales Typenschild (Blueprint)
                 if (errorTile && errorContent) {
                     if (node.isError) {
                         errorTile.classList.remove('border-emerald-500/40', 'shadow-[0_10px_30px_-10px_rgba(16,185,129,0.4)]');
@@ -156,6 +156,19 @@
                         errorTile.querySelector('span').className = "text-[10px] text-rose-400/80 font-bold uppercase tracking-widest flex-shrink-0";
                         errorContent.className = "absolute inset-0 overflow-y-auto custom-scrollbar text-xs font-mono text-rose-100/80 pr-2";
                         errorContent.innerText = node.errorMessage || "Fehler in dieser Datei festgestellt!";
+                    } else if (node.blueprint) {
+                        const bp = node.blueprint;
+                        errorTile.classList.remove('border-rose-500/40', 'shadow-[0_10px_30px_-10px_rgba(244,63,94,0.4)]');
+                        errorTile.classList.add('border-emerald-500/40', 'shadow-[0_10px_30px_-10px_rgba(16,185,129,0.4)]');
+                        errorTile.querySelector('span').className = "text-[10px] text-emerald-400/80 font-bold uppercase tracking-widest flex-shrink-0";
+                        errorContent.className = "absolute inset-0 overflow-y-auto custom-scrollbar text-[11px] font-mono text-emerald-100/90 pr-2 flex flex-col gap-1";
+                        const regs = (bp.regulation_labels && bp.regulation_labels.length) ? bp.regulation_labels.join(', ') : 'Intern';
+                        errorContent.innerHTML = `
+                            <div class="font-bold text-white">${bp.label || node.name}</div>
+                            <div class="text-[10px] text-emerald-300/90">${bp.department_label || ''} • ${bp.retention_label || ''}</div>
+                            <div class="text-[10px] text-amber-300/90">KI-Guardrail: ${bp.ai_access_label || ''}</div>
+                            <div class="text-[10px] text-indigo-300/90">Gesetze: ${regs}</div>
+                        `;
                     } else {
                         errorTile.classList.remove('border-rose-500/40', 'shadow-[0_10px_30px_-10px_rgba(244,63,94,0.4)]');
                         errorTile.classList.add('border-emerald-500/40', 'shadow-[0_10px_30px_-10px_rgba(16,185,129,0.4)]');
@@ -231,6 +244,52 @@
                     2000
                 );
             }
+        }
+    };
+
+    window.filterBrainByBlueprint = function(mode) {
+        if (!window.brainMapInstance || !window.brainMapData) return;
+
+        window.brainMapData.nodes.forEach(node => {
+            delete node.__color;
+            if (mode === 'all') return;
+
+            const bp = node.blueprint || null;
+            let matched = false;
+            let highlightColor = 'rgba(245, 158, 11, 1)';
+
+            if (bp) {
+                if (mode === 'gobd' && bp.is_gobd_protected) {
+                    matched = true;
+                    highlightColor = 'rgba(245, 158, 11, 1)'; // Gold/Amber
+                } else if (mode === 'gdpr_export' && bp.is_gdpr_art15_exportable) {
+                    matched = true;
+                    highlightColor = 'rgba(16, 185, 129, 1)'; // Emerald
+                } else if (mode === 'ai_protected' && !bp.allows_ai_write) {
+                    matched = true;
+                    highlightColor = 'rgba(244, 63, 94, 1)'; // Rose
+                } else if (mode === 'channels' && bp.external_channels && bp.external_channels.length > 0) {
+                    matched = true;
+                    highlightColor = 'rgba(6, 182, 212, 1)'; // Cyan
+                }
+            }
+
+            if (matched) {
+                node.__color = highlightColor;
+                node.__matchedBlueprint = true;
+            } else {
+                node.__matchedBlueprint = false;
+            }
+        });
+
+        if (mode === 'all') {
+            window.brainMapInstance
+                .nodeColor(node => node.isError ? 'rgba(255, 0, 68, 1)' : getGroupColor(node.group))
+                .nodeVal(() => 1);
+        } else {
+            window.brainMapInstance
+                .nodeColor(node => node.__matchedBlueprint ? node.__color : 'rgba(55, 65, 81, 0.15)')
+                .nodeVal(node => node.__matchedBlueprint ? 6 : 1);
         }
     };
 

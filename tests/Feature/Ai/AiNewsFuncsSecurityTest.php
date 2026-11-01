@@ -8,6 +8,7 @@ use Tests\TestCase;
 
 class AiNewsFuncsSecurityTest extends TestCase
 {
+    use \Illuminate\Foundation\Testing\DatabaseTransactions;
     public function test_search_global_news_validates_inputs_and_masks_errors()
     {
         $dummy = new class {

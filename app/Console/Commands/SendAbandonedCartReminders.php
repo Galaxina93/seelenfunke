@@ -47,6 +47,7 @@ class SendAbandonedCartReminders extends Command
             ->get();
 
         $sentCount = 0;
+        $failedCount = 0;
         $skippedNoConsentCount = 0;
         $skippedUnsubscribedCount = 0;
 
@@ -82,14 +83,15 @@ class SendAbandonedCartReminders extends Command
                 $cart->update(['reminder_email_sent_at' => now()]);
                 $sentCount++;
                 $this->info("Erinnerung erfolgreich an {$customer->email} für Warenkorb #{$cart->id} gesendet.");
-            } catch (\Exception $e) {
-                Log::error("Fehler beim automatischen Versand der Warenkorberinnerung an {$customer->email}: " . $e->getMessage());
+            } catch (\Throwable $e) {
+                $failedCount++;
+                Log::error("Fehler beim automatischen Versand der Warenkorberinnerung an {$customer->email}: " . $e->getMessage(), ['exception' => $e]);
                 $this->error("Fehler beim Versand an {$customer->email}: " . $e->getMessage());
             }
         }
 
         $this->info("Abgeschlossen: {$sentCount} Mails versendet | {$skippedNoConsentCount} wegen fehlender Einwilligung übersprungen | {$skippedUnsubscribedCount} wegen Opt-Out übersprungen.");
 
-        return Command::SUCCESS;
+        return $failedCount > 0 ? Command::FAILURE : Command::SUCCESS;
     }
 }

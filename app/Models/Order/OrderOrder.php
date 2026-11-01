@@ -2,6 +2,18 @@
 
 namespace App\Models\Order;
 
+
+use App\Support\Blueprint\Concerns\InteractsWithSystemBlueprint;
+use App\Support\Blueprint\Contracts\HasSystemBlueprint;
+use App\Support\Blueprint\Enums\ActorScope;
+use App\Support\Blueprint\Enums\AiAccessPolicy;
+use App\Support\Blueprint\Enums\ComplianceRegulation;
+use App\Support\Blueprint\Enums\DataSensitivity;
+use App\Support\Blueprint\Enums\ExternalChannel;
+use App\Support\Blueprint\Enums\LifecycleBehavior;
+use App\Support\Blueprint\Enums\RetentionPolicy;
+use App\Support\Blueprint\Enums\SystemDepartment;
+use App\Support\Blueprint\ModelBlueprint;
 use App\Models\Accounting\AccountingInvoice;
 use App\Models\Customer\Customer; // GEÄNDERT: Customer statt User
 use App\Traits\FormatsECommerceData;
@@ -10,9 +22,38 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class OrderOrder extends Model
+class OrderOrder extends Model implements HasSystemBlueprint
 {
-    use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
+    
+    use InteractsWithSystemBlueprint;
+
+    /**
+     * Digitales Architektur- & Compliance-Typenschild (Living Documentation).
+     */
+    public static function blueprint(): ModelBlueprint
+    {
+        return ModelBlueprint::make(
+            label: 'Kundenbestellung & Kaufvertrag',
+            description: 'Zentrales Auftrags-Model für Zahlung, Manufaktur-Fertigung, DHL-Gewichtsberechnung und GoBD-Rechnungserstellung.',
+            department: SystemDepartment::Order,
+            navigationNodes: ['admin.orders.index', 'customer.orders.index', 'shop.checkout'],
+            lifecycle: LifecycleBehavior::TransactionalWorkflow,
+            sensitivity: DataSensitivity::PersonalPII,
+            retention: RetentionPolicy::GoBD_10Years,
+            aiAccess: AiAccessPolicy::ReadOnly,
+            actorsRead: [ActorScope::Customer, ActorScope::EmployeeProduction, ActorScope::Admin],
+            actorsWrite: [ActorScope::EmployeeProduction, ActorScope::Admin, ActorScope::SystemCron],
+            regulations: [ComplianceRegulation::GoBD, ComplianceRegulation::DSGVO_Art15_Art30, ComplianceRegulation::BGB_312g_CustomGoods, ComplianceRegulation::BGB_356a_ElectronicRevocation, ComplianceRegulation::PAngV],
+            externalChannels: [ExternalChannel::StripePayment, ExternalChannel::DHL_DeutschePost, ExternalChannel::DATEV_TaxExport, ExternalChannel::IMAP_SMTP_Mail],
+            dependsOnSettings: ['default_tax_rate', 'is_small_business', 'packaging_weight_envelope_grams', 'packaging_weight_grams'],
+            isGdprArt15Exportable: true,
+            customerForeignKey: 'customer_id',
+            containsProductionAssets: false,
+            assetColumns: [],
+        );
+    }
+
+use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
 
     protected $table = 'order_orders';
 
@@ -145,6 +186,12 @@ class OrderOrder extends Model
                     app(\App\Services\Marketing\InfluencerService::class)->reverseOrderCommission($order, (string) ($order->cancellation_reason ?: 'Stornierung/Erstattung'));
                 } catch (\Throwable $e) {
                     \Illuminate\Support\Facades\Log::error('Influencer commission reversal error on status sync: ' . $e->getMessage());
+                }
+
+                try {
+                    app(\App\Services\Gamification\GamificationService::class)->reverseOrderFunken($order);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error('Gamification order reversal error on status sync: ' . $e->getMessage());
                 }
             }
         });
@@ -709,13 +756,11 @@ class OrderOrder extends Model
             \Illuminate\Support\Facades\Log::error('Influencer commission reversal error: ' . $e->getMessage());
         }
 
-        // 6. Gamification: Gutgeschriebene Seelenfunken & Bestell-Titel bei Storno/Erstattung korrigieren
-        if ($wasPaid && !$alreadyCancelledOrRefunded) {
-            try {
-                app(\App\Services\Gamification\GamificationService::class)->reverseOrderFunken($this);
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::error('Gamification order reversal error: ' . $e->getMessage());
-            }
+        // 6. Gamification: Gutgeschriebene Seelenfunken & Bestell-Titel bei Storno/Widerruf/Erstattung korrigieren (idempotent)
+        try {
+            app(\App\Services\Gamification\GamificationService::class)->reverseOrderFunken($this);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Gamification order reversal error: ' . $e->getMessage());
         }
     }
 

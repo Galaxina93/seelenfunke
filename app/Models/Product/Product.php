@@ -2,6 +2,18 @@
 
 namespace App\Models\Product;
 
+
+use App\Support\Blueprint\Concerns\InteractsWithSystemBlueprint;
+use App\Support\Blueprint\Contracts\HasSystemBlueprint;
+use App\Support\Blueprint\Enums\ActorScope;
+use App\Support\Blueprint\Enums\AiAccessPolicy;
+use App\Support\Blueprint\Enums\ComplianceRegulation;
+use App\Support\Blueprint\Enums\DataSensitivity;
+use App\Support\Blueprint\Enums\ExternalChannel;
+use App\Support\Blueprint\Enums\LifecycleBehavior;
+use App\Support\Blueprint\Enums\RetentionPolicy;
+use App\Support\Blueprint\Enums\SystemDepartment;
+use App\Support\Blueprint\ModelBlueprint;
 use App\Models\Product\ProductCategory;
 use App\Services\PriceCalcService;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -11,9 +23,38 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 
-class Product extends Model
+class Product extends Model implements HasSystemBlueprint
 {
-    use HasFactory, HasUuids, SoftDeletes;
+    
+    use InteractsWithSystemBlueprint;
+
+    /**
+     * Digitales Architektur- & Compliance-Typenschild (Living Documentation).
+     */
+    public static function blueprint(): ModelBlueprint
+    {
+        return ModelBlueprint::make(
+            label: 'Manufaktur-Produkt & Konfigurator-Stammdaten',
+            description: 'Produktkatalog inkl. verifizierter Rohling-Maße, 2D-Overlay, 3D-GLB-Modell, EK/VK-Kalkulation, GPSR und KI-Kennzeichnung.',
+            department: SystemDepartment::Product,
+            navigationNodes: ['admin.products.index', 'shop.product.show', 'shop.product.configurator'],
+            lifecycle: LifecycleBehavior::MasterData,
+            sensitivity: DataSensitivity::PublicCatalog,
+            retention: RetentionPolicy::PermanentMasterData,
+            aiAccess: AiAccessPolicy::ReadAndPropose,
+            actorsRead: [ActorScope::PublicVisitor, ActorScope::Customer, ActorScope::EmployeeProduction, ActorScope::Admin],
+            actorsWrite: [ActorScope::Admin, ActorScope::EmployeeProduction],
+            regulations: [ComplianceRegulation::GPSR_EU_2023_988, ComplianceRegulation::EU_AI_Act_Art50, ComplianceRegulation::PAngV, ComplianceRegulation::VerpackG_LUCID, ComplianceRegulation::BGB_312g_CustomGoods],
+            externalChannels: [ExternalChannel::LaserMachine_SVG_PDF, ExternalChannel::GoogleGemini_AI],
+            dependsOnSettings: ['default_tax_rate', 'is_small_business'],
+            isGdprArt15Exportable: false,
+            customerForeignKey: null,
+            containsProductionAssets: false,
+            assetColumns: [],
+        );
+    }
+
+use HasFactory, HasUuids, SoftDeletes;
 
     protected $guarded = [];
 

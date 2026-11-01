@@ -1,4 +1,23 @@
-<div class="min-h-screen bg-white" x-data="{ isProcessing: false }" @checkout-processing.window="isProcessing = true" @checkout-processing-done.window="isProcessing = false">
+<div class="min-h-screen bg-white text-gray-900" style="color-scheme: light;" x-data="{ isProcessing: false }" @checkout-processing.window="isProcessing = true" @checkout-processing-done.window="isProcessing = false">
+    <style>
+        #payment-form,
+        #payment-form input,
+        #payment-form select,
+        #payment-form textarea,
+        #payment-element {
+            color-scheme: light !important;
+        }
+        #payment-form input[type="text"],
+        #payment-form input[type="email"],
+        #payment-form input[type="password"],
+        #payment-form input[type="tel"],
+        #payment-form input[type="number"],
+        #payment-form textarea {
+            cursor: text !important;
+            color: #111827 !important;
+            caret-color: #111827 !important;
+        }
+    </style>
     @if ($isFinished)
         @include('livewire.shop.order.order-checkout.order-checkout-success')
     @else

@@ -8,16 +8,23 @@ use App\Models\System\SystemCronjob;
 class SystemCronjobSeeder extends Seeder
 {
     /**
-     * Run the database seeds.
+     * Liefert die Liste aller Standard-System-Cronjobs.
      */
-    public function run(): void
+    public static function getDefaultCronjobs(): array
     {
-        $jobs = [
+        return [
             [
                 'name' => 'Newsletter Versand',
                 'description' => 'Täglich um 08:00 Uhr prüfen und Newsletter senden',
                 'command' => 'send-newsletters',
                 'schedule' => '0 8 * * *',
+                'is_active' => true,
+            ],
+            [
+                'name' => 'Seelenfunken Treue-Bonus (Geburtstag & Jahrestag)',
+                'description' => 'Prüft täglich um 08:15 Uhr Geburtstage und Manufaktur-Jahrestage aktiver Seelenfunken-Mitglieder und schreibt automatisch +50 Treue-Funken inkl. E-Mail gut',
+                'command' => 'gamification:award-loyalty-sparks',
+                'schedule' => '15 8 * * *',
                 'is_active' => true,
             ],
             [
@@ -45,7 +52,7 @@ class SystemCronjobSeeder extends Seeder
                 'name' => 'DHL Sendungsverfolgung',
                 'description' => 'Prüft Pakete "in Zustellung" und schließt Orders automatisch ab',
                 'command' => 'dhl:check-delivery-status',
-                'schedule' => '0 */4 * * *', // everyFourHours
+                'schedule' => '0 */4 * * *',
                 'is_active' => true,
             ],
             [
@@ -98,9 +105,40 @@ class SystemCronjobSeeder extends Seeder
                 'schedule' => '0 4 * * *',
                 'is_active' => true,
             ],
+            [
+                'name' => 'Unverifizierte Benutzer bereinigen',
+                'description' => 'Löscht nächtlich unverifizierte Kunden-Accounts ohne Bestellung, die älter als 24 Stunden sind',
+                'command' => 'system:delete-unverified-users',
+                'schedule' => '0 0 * * *',
+                'is_active' => true,
+            ],
         ];
+    }
 
-        foreach ($jobs as $job) {
+    /**
+     * Stellt sicher, dass alle Standard-Cronjobs in der Datenbank registriert sind,
+     * ohne bestehende Admin-Anpassungen (Intervall / Aktiv-Status) zu überschreiben.
+     */
+    public static function ensureDefaultCronjobsExist(): void
+    {
+        if (!\Illuminate\Support\Facades\Schema::hasTable('system_cronjobs')) {
+            return;
+        }
+
+        foreach (self::getDefaultCronjobs() as $job) {
+            SystemCronjob::firstOrCreate(
+                ['command' => $job['command']],
+                $job
+            );
+        }
+    }
+
+    /**
+     * Run the database seeds.
+     */
+    public function run(): void
+    {
+        foreach (self::getDefaultCronjobs() as $job) {
             SystemCronjob::updateOrCreate(
                 ['command' => $job['command']],
                 $job

@@ -1,9 +1,20 @@
+@php
+    $hasDigitalOrIngame = collect($cart->items ?? [])->contains(function($ci) {
+        return ($ci->product->type ?? 'physical') === 'digital'
+            || !empty($ci->configuration['is_ingame_shop_item'])
+            || !empty($ci->configuration['ingame_item_key']);
+    });
+@endphp
 <div class="mt-10 lg:mt-0 lg:sticky lg:top-24 z-20"
      x-data="{
         isProcessing: false,
+        showLegalWarning: false,
         terms: @entangle('terms_accepted'),
-        privacy: @entangle('privacy_accepted')
+        privacy: @entangle('privacy_accepted'),
+        digitalWaiver: @entangle('digital_waiver_accepted'),
+        requiresDigitalWaiver: {{ $hasDigitalOrIngame ? 'true' : 'false' }}
      }"
+     @checkout-legal-warning.window="showLegalWarning = true"
      @checkout-processing-done.window="isProcessing = false"
      @checkout-processing.window="isProcessing = true">
 
@@ -174,7 +185,7 @@
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-start justify-between gap-2.5">
                                         <h3 class="font-serif font-bold text-gray-900 text-sm sm:text-base leading-snug break-words">
-                                            {{ $item->product->name }}
+                                            {{ !empty($item->configuration['ingame_item_name']) ? $item->configuration['ingame_item_name'] : $item->product->name }}
                                         </h3>
                                         <div class="text-right shrink-0">
                                             <p class="font-serif font-bold text-gray-900 text-sm sm:text-base whitespace-nowrap">
@@ -372,32 +383,76 @@
                 </div>
             @endif
 
-            <div class="space-y-3 bg-gray-50/90 p-3.5 rounded-xl mt-4 border border-gray-150">
-                <div class="flex items-start">
+            <div id="checkout-legal-box"
+                 class="space-y-3 p-3.5 rounded-xl mt-4 border transition-all duration-200"
+                 :class="showLegalWarning && (!terms || !privacy || (requiresDigitalWaiver && !digitalWaiver)) ? 'bg-red-50/40 border-red-400 ring-2 ring-red-500/15' : 'bg-gray-50/90 border-gray-150'">
+                <div class="flex items-start rounded-lg transition-all duration-200"
+                     :class="showLegalWarning && !terms ? 'bg-red-50 border border-red-300 p-2 -mx-1' : ''">
                     <div class="flex h-5 items-center">
-                        <input id="terms" wire:model.live="terms_accepted" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer">
+                        <input id="terms"
+                               wire:model.live="terms_accepted"
+                               type="checkbox"
+                               :class="showLegalWarning && !terms ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50 text-red-600 focus:ring-red-500' : 'border-gray-300 text-primary focus:ring-primary'"
+                               class="h-4 w-4 rounded cursor-pointer transition-all">
                     </div>
                     <div class="ml-3 text-xs sm:text-sm">
-                        <label for="terms" class="font-medium text-gray-700 cursor-pointer select-none">
-                            Ich habe die <a href="/agb" target="_blank" class="text-primary underline hover:text-primary-dark">AGB</a> und die <a href="/agb#widerruf" target="_blank" class="text-primary underline hover:text-primary-dark">Widerrufsbelehrung</a> gelesen und akzeptiere diese. <span class="text-red-500">*</span>
+                        <label for="terms"
+                               :class="showLegalWarning && !terms ? 'text-red-700 font-semibold' : 'text-gray-700 font-medium'"
+                               class="cursor-pointer select-none transition-colors">
+                            Ich habe die <a href="/agb" target="_blank" class="text-primary underline hover:text-primary-dark">AGB</a> (inkl. <a href="/agb#urheberrecht-freistellung" target="_blank" class="text-primary underline hover:text-primary-dark">Rechtegarantie &amp; Haftungsfreistellung für eigene Motive</a>) und die <a href="/agb#widerruf" target="_blank" class="text-primary underline hover:text-primary-dark">Widerrufsbelehrung</a> gelesen und akzeptiere diese. <span class="text-red-500 font-bold">*</span>
                         </label>
                     </div>
                 </div>
-                <div class="flex items-start">
+                <div class="flex items-start rounded-lg transition-all duration-200"
+                     :class="showLegalWarning && !privacy ? 'bg-red-50 border border-red-300 p-2 -mx-1' : ''">
                     <div class="flex h-5 items-center">
-                        <input id="privacy" wire:model.live="privacy_accepted" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer">
+                        <input id="privacy"
+                               wire:model.live="privacy_accepted"
+                               type="checkbox"
+                               :class="showLegalWarning && !privacy ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50 text-red-600 focus:ring-red-500' : 'border-gray-300 text-primary focus:ring-primary'"
+                               class="h-4 w-4 rounded cursor-pointer transition-all">
                     </div>
                     <div class="ml-3 text-xs sm:text-sm">
-                        <label for="privacy" class="font-medium text-gray-700 cursor-pointer select-none">
-                            Ich habe die <a href="/datenschutz" target="_blank" class="text-primary underline hover:text-primary-dark">Datenschutzerklärung</a> zur Kenntnis genommen. <span class="text-red-500">*</span>
+                        <label for="privacy"
+                               :class="showLegalWarning && !privacy ? 'text-red-700 font-semibold' : 'text-gray-700 font-medium'"
+                               class="cursor-pointer select-none transition-colors">
+                            Ich habe die <a href="/datenschutz" target="_blank" class="text-primary underline hover:text-primary-dark">Datenschutzerklärung</a> zur Kenntnis genommen. <span class="text-red-500 font-bold">*</span>
                         </label>
                     </div>
+                </div>
+                @if($hasDigitalOrIngame)
+                    <div class="flex items-start pt-2 border-t -mx-2 px-2 py-2 rounded-lg transition-all duration-200"
+                         :class="showLegalWarning && !digitalWaiver ? 'bg-red-50 border border-red-400 ring-2 ring-red-500/20' : 'border-blue-200/70 bg-blue-50/70'">
+                        <div class="flex h-5 items-center">
+                            <input id="digital_waiver"
+                                   wire:model.live="digital_waiver_accepted"
+                                   type="checkbox"
+                                   :class="showLegalWarning && !digitalWaiver ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50 text-red-600 focus:ring-red-500' : 'border-blue-300 text-primary focus:ring-primary'"
+                                   class="h-4 w-4 rounded cursor-pointer transition-all">
+                        </div>
+                        <div class="ml-3 text-xs">
+                            <label for="digital_waiver"
+                                   :class="showLegalWarning && !digitalWaiver ? 'text-red-700 font-semibold' : 'text-blue-950 font-medium'"
+                                   class="cursor-pointer select-none leading-snug block transition-colors">
+                                Ich stimme ausdrücklich zu, dass mit der Ausführung des Vertrags über die <strong>digitalen Inhalte / Ingame-Gegenstände</strong> sofort nach Zahlungsabschluss (vor Ablauf der Widerrufsfrist) begonnen wird, und bestätige meine Kenntnis davon, dass mein <strong>Widerrufsrecht mit Beginn der Vertragsausführung erlischt (§ 356 Abs. 5 BGB)</strong>. <span class="text-red-500 font-bold">*</span>
+                            </label>
+                        </div>
+                    </div>
+                @endif
+                <div x-show="showLegalWarning && (!terms || !privacy || (requiresDigitalWaiver && !digitalWaiver))"
+                     x-cloak
+                     style="display: none;"
+                     class="flex items-center gap-2 text-red-700 bg-red-100/90 border border-red-300 rounded-lg px-3 py-2 text-xs font-bold animate-fade-in">
+                    <svg class="w-4 h-4 text-red-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <span>Bitte bestätige die rot markierten Pflichthaken, um fortzufahren.</span>
                 </div>
                 <p class="text-[11px] text-gray-500 leading-snug pt-1 border-t border-gray-200/70">
-                    <strong>Hinweis gemäß § 312g Abs. 2 Nr. 1 BGB:</strong> Für individuell nach Kundenspezifikation gravierte oder personalisierte Waren besteht kein Widerrufsrecht (Ihre 2-jährige gesetzliche Gewährleistung bei Mängeln bleibt unberührt).
+                    <strong>Hinweis gemäß § 312g Abs. 2 Nr. 1 BGB &amp; § 3 Abs. 7–9 AGB:</strong> Für individuell nach Kundenspezifikation gravierte oder personalisierte Waren besteht kein Widerrufsrecht (Ihre 2-jährige gesetzliche Gewährleistung bei Mängeln bleibt unberührt). Bei eigenen Motiven/Texten versichern Sie, alle Urheber- und Markenrechte zu besitzen, und stellen uns von Ansprüchen Dritter frei.
                 </p>
-                @if($errors->has('terms_accepted') || $errors->has('privacy_accepted'))
-                    <div class="text-red-500 text-xs mt-1 font-bold">Bitte stimme den rechtlichen Bedingungen zu.</div>
+                @if($errors->has('terms_accepted') || $errors->has('privacy_accepted') || $errors->has('digital_waiver_accepted'))
+                    <div class="text-red-500 text-xs mt-1 font-bold">
+                        {{ $errors->first('digital_waiver_accepted') ?: 'Bitte stimme allen rechtlichen Bedingungen zu.' }}
+                    </div>
                 @endif
             </div>
 
@@ -496,8 +551,12 @@
             <div class="mt-5">
                 <button id="submit-button"
                         type="submit"
-                        x-bind:disabled="!terms || !privacy"
-                        class="w-full rounded-full border border-transparent bg-gray-900 py-3.5 px-4 text-base font-bold text-white shadow-lg shadow-gray-900/20 hover:bg-black focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:shadow-none transition-all transform enabled:hover:-translate-y-0.5">
+                        x-bind:disabled="isProcessing"
+                        @click="if (!terms || !privacy || (requiresDigitalWaiver && !digitalWaiver)) { $event.preventDefault(); $event.stopPropagation(); showLegalWarning = true; document.getElementById('checkout-legal-box')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }"
+                        :class="(!terms || !privacy || (requiresDigitalWaiver && !digitalWaiver))
+                            ? 'bg-gray-300 text-gray-500 shadow-none hover:bg-gray-300'
+                            : 'bg-gray-900 text-white shadow-lg shadow-gray-900/20 hover:bg-black enabled:hover:-translate-y-0.5'"
+                        class="w-full rounded-full border border-transparent py-3.5 px-4 text-base font-bold focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:shadow-none transition-all transform cursor-pointer">
                     <span id="button-text">Zahlungspflichtig bestellen</span>
                     <div id="spinner" class="hidden flex items-center justify-center gap-2">
                         <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -509,33 +568,43 @@
                 </button>
                 <p class="text-[11px] text-gray-400 text-center mt-2.5">Durch Klicken auf den Button schließt du einen zahlungspflichtigen Kaufvertrag ab.</p>
 
-                {{-- Sinnstiftung: Freude schenken & Soziales leisten --}}
+                {{-- Sinnstiftung: Freude schenken, Soziales leisten & Funken sammeln --}}
                 <div class="mt-4 pt-3.5 border-t border-gray-100">
-                    <div class="relative overflow-hidden rounded-xl bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-amber-500/10 border border-amber-200/60 p-3 shadow-2xs">
-                        <div class="flex flex-col sm:flex-row items-center justify-between gap-2.5 text-center sm:text-left">
-                            <div class="flex items-center gap-2.5">
+                    <div class="relative overflow-hidden rounded-xl bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-amber-500/10 border border-amber-200/60 p-3.5 shadow-2xs">
+                        <div class="w-fit sm:w-full mx-auto flex flex-col sm:grid sm:grid-cols-3 items-start sm:items-center justify-between gap-2.5 sm:gap-2 text-left sm:text-center">
+                            <div class="flex sm:flex-col items-center gap-2.5 sm:gap-1.5">
                                 <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-xs shrink-0">
-                                    <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
-                                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
                                     </svg>
                                 </span>
                                 <div>
                                     <p class="text-xs font-bold text-gray-900 leading-tight tracking-tight">Freude schenken</p>
-                                    <p class="text-[11px] text-amber-900/80 font-medium leading-none mt-0.5">Mit Herz gefertigt</p>
+                                    <p class="text-[11px] sm:text-[10px] text-amber-900/80 font-medium leading-tight mt-0.5">Mit Herz gefertigt</p>
                                 </div>
                             </div>
 
-                            <div class="hidden sm:block w-px h-6 bg-amber-200/80"></div>
-
-                            <div class="flex items-center gap-2.5">
-                                <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-xs shrink-0">
+                            <div class="flex sm:flex-col items-center gap-2.5 sm:gap-1.5 sm:border-x sm:border-amber-200/70 sm:px-1">
+                                <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 text-white shadow-xs shrink-0">
                                     <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
                                         <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                                     </svg>
                                 </span>
                                 <div>
                                     <p class="text-xs font-bold text-gray-900 leading-tight tracking-tight">Soziales leisten</p>
-                                    <p class="text-[11px] text-amber-900/80 font-medium leading-none mt-0.5">Kinder aktiv unterstützen</p>
+                                    <p class="text-[11px] sm:text-[10px] text-amber-900/80 font-medium leading-tight mt-0.5">Kinder aktiv unterstützen</p>
+                                </div>
+                            </div>
+
+                            <div class="flex sm:flex-col items-center gap-2.5 sm:gap-1.5">
+                                <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 text-white shadow-xs shrink-0">
+                                    <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                                        <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"/>
+                                    </svg>
+                                </span>
+                                <div>
+                                    <p class="text-xs font-bold text-gray-900 leading-tight tracking-tight">Funken sammeln</p>
+                                    <p class="text-[11px] sm:text-[10px] text-amber-900/80 font-medium leading-tight mt-0.5">Treuepunkte &amp; Rabatte</p>
                                 </div>
                             </div>
                         </div>

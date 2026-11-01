@@ -161,6 +161,37 @@
     if (!empty($data['coupon_code'])) {
         $isGiftVoucher = \App\Models\Marketing\MarketingGiftVoucher::where('code', $data['coupon_code'])->exists();
     }
+
+    // Seelenfunken Treue-Bonus (Variante A = 100 % vom bezahlten Produktwert)
+    $bonusSparks = 0;
+    if ($model instanceof \App\Models\Order\OrderOrder) {
+        $bonusSparks = app(\App\Services\Gamification\GamificationService::class)->calculateOrderSparks($model);
+    } elseif ($model) {
+        $eligibleCents = 0;
+        if (isset($model->items) && $model->items && $model->items->isNotEmpty()) {
+            foreach ($model->items as $mItem) {
+                $isGv = ($mItem->product && $mItem->product->type === 'geschenkgutschein')
+                    || !empty($mItem->configuration['is_gift_voucher']);
+                if (!$isGv) {
+                    $eligibleCents += (int) ($mItem->total_price ?? ((int) $mItem->unit_price * (int) $mItem->quantity));
+                }
+            }
+        } else {
+            $eligibleCents = max(0, (int) $data['subtotal'] - (int) $data['volume_discount']);
+        }
+        if (!$isGiftVoucher && $data['discount_amount'] > 0) {
+            $eligibleCents = max(0, $eligibleCents - (int) $data['discount_amount']);
+        }
+        $bonusSparks = \App\Services\Gamification\GameConfig::calculateSparksForCents($eligibleCents);
+    } elseif ($totals) {
+        if (isset($totals['bonus_sparks'])) {
+            $bonusSparks = (int) $totals['bonus_sparks'];
+        } else {
+            $eligibleCents = max(0, (int) $data['subtotal'] - (int) $data['volume_discount'] - (!$isGiftVoucher ? (int) $data['discount_amount'] : 0));
+            $bonusSparks = \App\Services\Gamification\GameConfig::calculateSparksForCents($eligibleCents);
+        }
+    }
+    $data['bonus_sparks'] = $bonusSparks;
 @endphp
 
 <div class="{{ $containerClass }}">
@@ -295,6 +326,36 @@
                 <div class="text-[10px] uppercase tracking-widest font-black {{ $taxTextClass }}">Gemäß § 19 UStG wird keine MwSt. berechnet</div>
             @endif
         </div>
+
+        {{-- 7. Seelenfunken Treue-Bonus (100 % vom bezahlten Produktwert) bzw. Storno/Widerruf-Abzug --}}
+        @if(($data['bonus_sparks'] ?? 0) > 0)
+            @php
+                $isCancelledOrRefundedModel = $model && (
+                    in_array($model->status ?? '', ['cancelled', 'refunded'], true)
+                    || ($model->payment_status ?? '') === 'refunded'
+                    || in_array($model->type ?? '', ['cancellation', 'credit_note'], true)
+                );
+            @endphp
+            <div class="pt-3 mt-3 border-t {{ $dividerClass }} flex items-center justify-between gap-2 text-xs">
+                @if($isCancelledOrRefundedModel)
+                    <span class="flex items-center gap-1.5 font-bold text-rose-600 dark:text-rose-400">
+                        <span>✨</span>
+                        <span>Seelenfunken (Stornierung / Widerruf):</span>
+                    </span>
+                    <span class="px-2.5 py-0.5 rounded-full bg-rose-500/15 border border-rose-500/40 font-mono font-black text-rose-700 dark:text-rose-300 whitespace-nowrap">
+                        -{{ number_format($data['bonus_sparks'], 0, ',', '.') }} ✨ Funken
+                    </span>
+                @else
+                    <span class="flex items-center gap-1.5 font-bold {{ $isDark || $isAdaptive ? 'text-amber-600 dark:text-[#f5dca0]' : 'text-amber-800' }}">
+                        <span>✨</span>
+                        <span>Seelenfunken Treue-Bonus (100&nbsp;%):</span>
+                    </span>
+                    <span class="px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-[#C5A059]/40 font-mono font-black {{ $isDark || $isAdaptive ? 'text-amber-700 dark:text-[#f5dca0]' : 'text-amber-900' }} whitespace-nowrap">
+                        +{{ number_format($data['bonus_sparks'], 0, ',', '.') }} ✨ Funken
+                    </span>
+                @endif
+            </div>
+        @endif
 
     </div>
 </div>

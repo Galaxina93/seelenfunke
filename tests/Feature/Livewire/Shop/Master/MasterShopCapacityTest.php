@@ -21,7 +21,7 @@ class MasterShopCapacityTest extends TestCase
         parent::setUp();
         $this->actingAs(\App\Models\Admin\Admin::factory()->create(), 'admin');
         Cache::flush();
-        SystemSetting::truncate();
+        SystemSetting::query()->delete();
 
         SystemSetting::updateOrCreate(['key' => 'shop_daily_working_hours'], ['value' => 7]);
         SystemSetting::updateOrCreate(['key' => 'shop_minutes_per_order'], ['value' => 10]);

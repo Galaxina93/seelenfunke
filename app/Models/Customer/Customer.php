@@ -2,6 +2,18 @@
 
 namespace App\Models\Customer;
 
+
+use App\Support\Blueprint\Concerns\InteractsWithSystemBlueprint;
+use App\Support\Blueprint\Contracts\HasSystemBlueprint;
+use App\Support\Blueprint\Enums\ActorScope;
+use App\Support\Blueprint\Enums\AiAccessPolicy;
+use App\Support\Blueprint\Enums\ComplianceRegulation;
+use App\Support\Blueprint\Enums\DataSensitivity;
+use App\Support\Blueprint\Enums\ExternalChannel;
+use App\Support\Blueprint\Enums\LifecycleBehavior;
+use App\Support\Blueprint\Enums\RetentionPolicy;
+use App\Support\Blueprint\Enums\SystemDepartment;
+use App\Support\Blueprint\ModelBlueprint;
 use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -14,9 +26,38 @@ use Illuminate\Notifications\Notifiable;
 use Ramsey\Uuid\Uuid;
 use Laravel\Sanctum\HasApiTokens;
 
-class Customer extends Model implements Authenticatable, MustVerifyEmail
+class Customer extends Model implements Authenticatable, MustVerifyEmail, HasSystemBlueprint
 {
-    use HasFactory, HasUuids, softDeletes, AuthenticatableTrait, HasApiTokens, Notifiable;
+    
+    use InteractsWithSystemBlueprint;
+
+    /**
+     * Digitales Architektur- & Compliance-Typenschild (Living Documentation).
+     */
+    public static function blueprint(): ModelBlueprint
+    {
+        return ModelBlueprint::make(
+            label: 'Kundenkonto',
+            description: 'Registriertes oder über Gastbestellung angelegtes Kundenkonto für Shop, Auftragsstatus und Kundenportal.',
+            department: SystemDepartment::Customer,
+            navigationNodes: ['admin.customers.index', 'customer.dashboard'],
+            lifecycle: LifecycleBehavior::MasterData,
+            sensitivity: DataSensitivity::PersonalPII,
+            retention: RetentionPolicy::StatutoryWarranty_3Years,
+            aiAccess: AiAccessPolicy::ReadOnly,
+            actorsRead: [ActorScope::Customer, ActorScope::Admin, ActorScope::EmployeeProduction],
+            actorsWrite: [ActorScope::Customer, ActorScope::Admin],
+            regulations: [ComplianceRegulation::DSGVO_Art15_Art30, ComplianceRegulation::GoBD],
+            externalChannels: [ExternalChannel::IMAP_SMTP_Mail],
+            dependsOnSettings: [],
+            isGdprArt15Exportable: true,
+            customerForeignKey: 'id',
+            containsProductionAssets: false,
+            assetColumns: [],
+        );
+    }
+
+use HasFactory, HasUuids, softDeletes, AuthenticatableTrait, HasApiTokens, Notifiable;
 
     protected $fillable = [
         'first_name',

@@ -74,6 +74,12 @@
             <p class="text-xs text-gray-500 mt-1.5">
                 Bestätigung gesendet an <span class="font-medium text-gray-800">{{ $email ?? 'deine E-Mail' }}</span>
             </p>
+            @if(($earnedSparks ?? 0) > 0)
+                <div class="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold">
+                    <span>✨ Treue-Bonus für diesen Einkauf:</span>
+                    <span class="font-mono font-black">+{{ number_format($earnedSparks, 0, ',', '.') }} Seelenfunken</span>
+                </div>
+            @endif
             <div class="mt-3 pt-2.5 border-t border-gray-200/60 flex items-center justify-center gap-1.5 text-[11px] text-gray-500">
                 <svg class="w-3.5 h-3.5 text-primary/80 fill-current shrink-0" viewBox="0 0 24 24">
                     <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
@@ -258,14 +264,16 @@
 
         {{-- Action Buttons --}}
         <div class="mt-6 flex flex-col sm:flex-row gap-2.5 justify-center">
-            <a href="{{ route('shop') }}" class="w-full sm:w-auto px-7 py-3 bg-gray-900 text-white rounded-full text-xs sm:text-sm font-semibold hover:bg-black transition">
+            <a href="{{ route('customer.orders', array_filter(['order' => !empty($finalOrderId) ? $finalOrderId : (!empty($finalOrderNumber) ? $finalOrderNumber : null)])) }}"
+               class="w-full sm:w-auto px-7 py-3 bg-primary text-gray-900 hover:bg-primary-dark hover:text-white rounded-full text-xs sm:text-sm font-semibold transition shadow-sm flex items-center justify-center gap-2">
+                <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <span>Zur Bestellung</span>
+            </a>
+            <a href="{{ route('shop') }}" class="w-full sm:w-auto px-7 py-3 bg-gray-900 text-white rounded-full text-xs sm:text-sm font-semibold hover:bg-black transition flex items-center justify-center">
                 Weiter einkaufen
             </a>
-            @if(Auth::guard('customer')->check())
-                <a href="{{ route('customer.dashboard') }}" class="w-full sm:w-auto px-6 py-3 bg-gray-100 text-gray-700 hover:bg-gray-200/80 rounded-full text-xs sm:text-sm font-medium transition">
-                    Bestellung verfolgen
-                </a>
-            @endif
         </div>
 
     </div>

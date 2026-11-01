@@ -22,13 +22,18 @@ trait HandlesOrderCreation
     {
         // Wir validieren hier NUR die rechtlichen Checkboxen.
         // Die Adresse kommt später direkt von Apple/Google Pay.
-        $this->validate([
+        $rules = [
             'terms_accepted' => 'accepted',
             'privacy_accepted' => 'accepted',
             'country' => 'required', // Land brauchen wir für die Versandkostenberechnung
-        ], [
+        ];
+        if (method_exists($this, 'hasDigitalOrIngameItems') && $this->hasDigitalOrIngameItems()) {
+            $rules['digital_waiver_accepted'] = 'accepted';
+        }
+        $this->validate($rules, [
             'terms_accepted.accepted' => 'Bitte bestätige die AGB.',
             'privacy_accepted.accepted' => 'Bitte bestätige den Datenschutz.',
+            'digital_waiver_accepted.accepted' => 'Bitte bestätige die sofortige Ausführung digitaler Inhalte (§ 356 Abs. 5 BGB).',
         ]);
 
         return true;
@@ -277,6 +282,8 @@ trait HandlesOrderCreation
                     'postal_code' => $this->postal_code,
                     'city' => $this->city,
                     'country' => $this->country,
+                    'digital_waiver_accepted' => !empty($this->digital_waiver_accepted),
+                    'digital_waiver_accepted_at' => !empty($this->digital_waiver_accepted) ? now()->toIso8601String() : null,
                 ],
                 'shipping_address' => $shipping_data,
                 'volume_discount' => $totals['volume_discount'] ?? 0,
@@ -364,6 +371,10 @@ trait HandlesOrderCreation
                         $itemConfig['purchased_image_path'] = $resolvedPurchasedImg;
                     }
                 }
+                if (!empty($this->digital_waiver_accepted) && (($item->product->type ?? 'physical') === 'digital' || !empty($itemConfig['is_ingame_shop_item']))) {
+                    $itemConfig['digital_waiver_accepted'] = true;
+                    $itemConfig['digital_waiver_accepted_at'] = now()->toIso8601String();
+                }
 
                 $finalConfiguration = !empty($itemConfig) ? $itemConfig : $item->configuration;
                 $configFingerprint = !empty($finalConfiguration)
@@ -373,7 +384,7 @@ trait HandlesOrderCreation
                 $productTax = $item->product->tax_rate;
                 $order->items()->create([
                     'product_id' => $item->product_id,
-                    'product_name' => $item->product->name,
+                    'product_name' => !empty($finalConfiguration['ingame_item_name']) ? $finalConfiguration['ingame_item_name'] : $item->product->name,
                     'quantity' => $item->quantity,
                     'unit_price' => $item->unit_price,
                     'tax_rate' => $productTax !== null ? $productTax : shop_setting('default_tax_rate', 19.0),

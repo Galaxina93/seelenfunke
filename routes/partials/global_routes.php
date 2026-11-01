@@ -101,15 +101,22 @@ Route::get('/checkout', OrderCheckout::class)->name('checkout');
 Route::get('/checkout/success', OrderCheckoutSuccess::class)->name('checkout.success');
 
 // Angebot annehmen
-Route::get('/angebot/{token}/annehmen', OrderQuoteAcceptance::class)->name('quote.accept');
+Route::get('/angebot/{token}/annehmen', OrderQuoteAcceptance::class)
+    ->middleware('throttle:30,1')
+    ->name('quote.accept');
 
 // Bezahlungen über Bezahllink zuordenen und Bestellung als bezahlt markieren
 Route::post('stripe/webhook', [\App\Http\Controllers\StripeWebhookController::class, 'handle'])
     ->middleware('throttle:60,1');
 
 // Google Accounts
-Route::get('auth/{guard}/google', [GoogleAuthController::class, 'redirectToGoogle'])->name('auth.google');
-Route::get('auth/google/callback', [GoogleAuthController::class, 'handleGoogleCallback'])->name('google.callback');
+Route::get('auth/google/callback', [GoogleAuthController::class, 'handleGoogleCallback'])
+    ->middleware('throttle:20,1')
+    ->name('google.callback');
+Route::get('auth/{guard}/google', [GoogleAuthController::class, 'redirectToGoogle'])
+    ->whereIn('guard', ['customer', 'admin', 'employee'])
+    ->middleware('throttle:20,1')
+    ->name('auth.google');
 
 
 // --- 2. Hauptseiten ---

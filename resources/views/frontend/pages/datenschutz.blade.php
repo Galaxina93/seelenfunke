@@ -308,32 +308,30 @@
                 </div>
 
                 <div id="datenschutz-gamification" class="scroll-mt-28">
-                    <h2 class="text-2xl font-bold text-gray-900 mb-4">8. Gamification & Mini-Spiele (3D-Dashboard)</h2>
+                    <h2 class="text-2xl font-bold text-gray-900 mb-4">8. Seelenfunken-Treue- & Bonusprogramm</h2>
 
-                    <h3 class="font-bold text-lg mt-4">Urheberrecht und Bereitstellung</h3>
+                    <h3 class="font-bold text-lg mt-4">Urheberrecht an Grafiken und Illustrationen</h3>
                     <p>
-                        In unserem Kundenbereich stellen wir interaktive 3D-Ansichten und Mini-Spiele auf Basis von JavaScript (Three.js) zur Verfügung.
-                        Diese Elemente dienen der zusätzlichen Unterhaltung.
-                        <strong>Alle darin verwendeten 3D-Modelle, Texturen und Soundeffekte wurden von Mein-Seelenfunke selbst entworfen und erstellt.</strong>
+                        In unserem Kundenbereich stellen wir im Rahmen des kostenfreien Seelenfunken-Treueprogramms den illustrierten Begleiter „Funki“ (Stufen 1 bis 10) sowie zugehörige Hintergrundgrafiken zur Verfügung.
+                        <strong>Alle hierfür verwendeten Grafiken, Illustrationen und Animationen wurden von Mein-Seelenfunke entworfen und erstellt.</strong>
                         Sie unterliegen dem Urheberrecht und dürfen ohne ausdrückliche, schriftliche Genehmigung weder kopiert, modifiziert noch anderweitig gewerblich genutzt werden.
                     </p>
 
-                    <h3 class="font-bold text-lg mt-6">Lokale Datenspeicherung (Local Storage) und Spieldaten</h3>
+                    <h3 class="font-bold text-lg mt-6">Verarbeitung von Treuepunkten, Einmal-Token und Sitzungsdaten</h3>
                     <p>
-                        Um Ihnen die Mini-Spiele und interaktiven Begleiter nahtlos zur Verfügung zu stellen, speichern wir bestimmte technische Daten lokal in Ihrem Browser (sog. <strong>Local Storage / Session Storage</strong>) sowie in unserer Datenbank.
-                        Hierzu gehören insbesondere:
+                        Um Ihnen das Sammeln von Seelenfunken (durch Bestellungen sowie durch das optionale Entdecken von Seelenfunken auf den Shop-Seiten) und die Einlösung in persönliche Rabattgutscheine bereitzustellen und vor automatisiertem Missbrauch (Bots/Skripten) zu schützen, speichern und verarbeiten wir in unserer Datenbank sowie temporär in Ihrer Server-Session folgende Daten:
                     </p>
                     <ul class="list-disc list-inside mt-2 space-y-1">
-                        <li>Der aktuelle Spielstand und erreichte Highscores</li>
-                        <li>Die aufgebrauchte und verbleibende Energie Ihres Gefährten</li>
-                        <li>Visuelle und funktionelle Einstellungen (z.B. Audio-Lautstärken, Kamera-Positionen im 3D-Raum)</li>
+                        <li>Aktuelles Seelenfunken-Guthaben, insgesamt gesammelte Seelenfunken und erreichtes Funki-Level (Stufe 1 bis 10)</li>
+                        <li>Status der freiwilligen Aktivierung der Website-Funkensuche („Magie aktivieren“) sowie die tägliche Fundanzahl</li>
+                        <li>Persönlich eingelöste Rabattgutscheine (zur Zuordnung zu Ihrem Kundenkonto)</li>
+                        <li>Kurzlebige kryptografische Einmal-Token (Nonces) und Cooldown-Zeitstempel in der Server-Session zur Manipulations- und Bot-Abwehr</li>
                     </ul>
                     <p class="mt-4">
-                        Diese Datenverarbeitung ist zwingend erforderlich, um Ihnen das interaktive Erlebnis technisch bereitstellen zu können.
-                        Die Nutzung unseres Gamification-Angebots erfolgt freiwillig. Durch das initiale Aktivieren ("Magie aktivieren") in Ihrem Dashboard willigen Sie in diese lokale und temporäre Speicherung ein.
+                        Die Teilnahme an der interaktiven Funkensuche erfolgt freiwillig und kann jederzeit im Kundenkonto über das Funki-Profilfenster aktiviert oder pausiert werden.
                     </p>
                     <p class="mt-2 text-sm text-gray-500">
-                        <strong>Rechtsgrundlage:</strong> Die Verarbeitung erfolgt auf Grundlage Ihrer Einwilligung (Art. 6 Abs. 1 lit. a DSGVO) sowie – hinsichtlich der absolut notwendigen technischen Bereitstellung – gemäß § 25 Abs. 2 Nr. 2 TDDDG bzw. Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse am reibungslosen Ablauf des gebotenen Funktionsumfangs).
+                        <strong>Rechtsgrundlage:</strong> Die Verarbeitung erfolgt auf Grundlage Ihrer Einwilligung (Art. 6 Abs. 1 lit. a DSGVO), zur Durchführung des Treue- und Bonusprogramms im Rahmen Ihres Kundenkontos (Art. 6 Abs. 1 lit. b DSGVO) sowie zum Schutz vor technischer Manipulation (Art. 6 Abs. 1 lit. f DSGVO).
                     </p>
                 </div>
 

@@ -20,6 +20,7 @@ class EmergencyProtocol extends Component
     public $errorMessage = '';
 
     // Workflow state
+    #[Locked]
     public $currentStep = 1;
     #[Locked]
     public $todoStates = [];

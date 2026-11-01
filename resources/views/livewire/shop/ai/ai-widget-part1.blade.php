@@ -511,15 +511,44 @@
                     </div>
                 </div>
 
-                <!-- Kachel 3: Zustand / Fehler -->
+                <!-- Kachel 3: Zustand, Fehler & Architektur-Blueprint -->
                 <div id="brain-error-tile" class="flex-1 bg-black/95 backdrop-blur-sm border border-rose-500/40 rounded-2xl p-4 shadow-[0_10px_30px_-10px_rgba(244,63,94,0.4)] flex flex-col gap-2 h-48 relative">
-                    <span class="text-[10px] text-rose-400/80 font-bold uppercase tracking-widest flex-shrink-0">Zustand & Fehler</span>
+                    <span class="text-[10px] text-rose-400/80 font-bold uppercase tracking-widest flex-shrink-0">Typenschild & Status</span>
                     <div class="relative flex-1 w-full">
                         <div id="brain-error-content" class="absolute inset-0 overflow-y-auto custom-scrollbar text-xs font-mono text-rose-100/80 pr-2">
                             <!-- Wird per JS befüllt -->
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- 3D Architektur-Blueprint Schnellfilter -->
+            <div class="flex flex-wrap items-center justify-center gap-1.5 px-2" x-data="{ activeFilter: 'all' }">
+                <button type="button" @click="activeFilter = 'all'; if(window.filterBrainByBlueprint) window.filterBrainByBlueprint('all');"
+                        :class="activeFilter === 'all' ? 'bg-indigo-500 text-white border-indigo-400 shadow-[0_0_12px_rgba(99,102,241,0.5)]' : 'bg-black/80 text-indigo-200/80 border-indigo-500/30 hover:border-indigo-400'"
+                        class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-sm transition-all">
+                    Alle Knoten
+                </button>
+                <button type="button" @click="activeFilter = 'gobd'; if(window.filterBrainByBlueprint) window.filterBrainByBlueprint('gobd');"
+                        :class="activeFilter === 'gobd' ? 'bg-amber-500 text-black border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.6)]' : 'bg-black/80 text-amber-300/90 border-amber-500/30 hover:border-amber-400'"
+                        class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-sm transition-all">
+                    GoBD 10 Jahre
+                </button>
+                <button type="button" @click="activeFilter = 'gdpr_export'; if(window.filterBrainByBlueprint) window.filterBrainByBlueprint('gdpr_export');"
+                        :class="activeFilter === 'gdpr_export' ? 'bg-emerald-500 text-black border-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.6)]' : 'bg-black/80 text-emerald-300/90 border-emerald-500/30 hover:border-emerald-400'"
+                        class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-sm transition-all">
+                    Art. 15 DSGVO Export
+                </button>
+                <button type="button" @click="activeFilter = 'ai_protected'; if(window.filterBrainByBlueprint) window.filterBrainByBlueprint('ai_protected');"
+                        :class="activeFilter === 'ai_protected' ? 'bg-rose-500 text-white border-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.6)]' : 'bg-black/80 text-rose-300/90 border-rose-500/30 hover:border-rose-400'"
+                        class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-sm transition-all">
+                    KI-Schreibschutz
+                </button>
+                <button type="button" @click="activeFilter = 'channels'; if(window.filterBrainByBlueprint) window.filterBrainByBlueprint('channels');"
+                        :class="activeFilter === 'channels' ? 'bg-cyan-500 text-black border-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.6)]' : 'bg-black/80 text-cyan-300/90 border-cyan-500/30 hover:border-cyan-400'"
+                        class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-sm transition-all">
+                    Laser & Externe Kanäle
+                </button>
             </div>
 
             <div class="bg-black/90 backdrop-blur-sm border border-indigo-500/30 rounded-full shadow-[0_10px_40px_-10px_rgba(99,102,241,0.5)] p-2.5 flex items-center gap-3 transition-all focus-within:border-indigo-400/80 focus-within:shadow-[0_0_50px_-5px_rgba(99,102,241,0.6)] focus-within:bg-black/95 hover:bg-black/95 group" x-data="{ scanStatus: 'idle' }" @neural-scan-complete.window="scanStatus = 'success'; setTimeout(() => scanStatus = 'idle', 3000);">

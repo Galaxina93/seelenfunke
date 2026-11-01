@@ -123,6 +123,14 @@
                                        @click.stop>
                                         <i class="bi bi-box-arrow-up-right"></i> Order #{{ $order->order_number }}
                                     </a>
+                                    @php
+                                        $revOrderSparks = app(\App\Services\Gamification\GamificationService::class)->calculateOrderSparks($order);
+                                    @endphp
+                                    @if($revOrderSparks > 0)
+                                        <span class="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded {{ $isRefunded ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20' : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20' }}">
+                                            ✨ {{ $isRefunded ? '-' : '' }}{{ number_format($revOrderSparks, 0, ',', '.') }} Funken {{ $isRefunded ? '(abgezogen)' : '(Widerrufs-Abzug)' }}
+                                        </span>
+                                    @endif
                                 @endif
                             </div>
                             <p class="text-xs text-gray-500 dark:text-gray-400 ml-7">

@@ -122,10 +122,18 @@ try {
                     if ($commandClean === 'dhl:check-delivery-status') {
                         $dhlDeliveryStatusRegistered = true;
                     }
+                    if ($commandClean === 'gamification:award-loyalty-sparks') {
+                        $loyaltySparksRegistered = true;
+                    }
                     $event->withoutOverlapping();
                     if (!isset($_GET['sync_schedule']) && getenv('SYNC_SCHEDULE') !== '1') {
                         $event->runInBackground();
                     }
+                }
+
+                $outputLogFile = storage_path('logs/cron-' . md5($commandBase) . '.log');
+                if ($commandClean !== 'system:heartbeat') {
+                    $event->sendOutputTo($outputLogFile);
                 }
 
                 $event->onSuccess(function () use ($job) {
@@ -133,18 +141,42 @@ try {
                         'last_run_at' => now(),
                         'status' => 'success'
                     ]);
-                })->onFailure(function () use ($job) {
+                })->onFailure(function () use ($job, $commandBase, $outputLogFile) {
                     $job->update([
                         'last_run_at' => now(),
                         'status' => 'error'
                     ]);
 
-                    if (class_exists(SystemLog::class)) {
+                    $outputExcerpt = '';
+                    try {
+                        if (is_file($outputLogFile) && is_readable($outputLogFile)) {
+                            $rawOut = trim((string) @file_get_contents($outputLogFile));
+                            if ($rawOut !== '') {
+                                $outputExcerpt = mb_substr($rawOut, -1500);
+                            }
+                        }
+                    } catch (\Throwable $ignore) {
+                    }
+
+                    if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
+                        \App\Services\System\SystemErrorLogger::recordCommandFailure(
+                            $job->command,
+                            1,
+                            $outputExcerpt,
+                            [
+                                'cronjob_id' => $job->id,
+                                'cronjob_name' => $job->name,
+                                'schedule' => $job->schedule,
+                                'trigger' => 'scheduler_on_failure',
+                            ]
+                        );
+                    } elseif (class_exists(SystemLog::class)) {
                         SystemLog::create([
-                            'type' => 'system',
-                            'action_id' => 'system:cronjob_failed',
+                            'type' => 'scheduler',
+                            'action_id' => 'scheduler:cronjob_failed:' . $commandBase,
                             'title' => 'Cronjob fehlgeschlagen: ' . $job->name,
-                            'message' => 'Der Cronjob (' . $job->command . ') konnte nicht erfolgreich ausgeführt werden.',
+                            'message' => 'Der Cronjob (' . $job->command . ') konnte nicht erfolgreich ausgeführt werden.'
+                                . ($outputExcerpt !== '' ? ' Ausgabe: ' . $outputExcerpt : ''),
                             'status' => 'error',
                             'started_at' => now(),
                             'finished_at' => now(),
@@ -152,17 +184,27 @@ try {
                     }
                 });
             } catch (\Throwable $jobEx) {
-                // Logge Registrierungsfehler für diesen einzelnen Job
+                // Logge Registrierungsfehler für diesen einzelnen Job sofort ins SystemLog (/admin/global-logs)
                 try {
-                    \Illuminate\Support\Facades\Log::error("Fehler beim Registrieren von Job '{$job->name}' ({$job->command}): " . $jobEx->getMessage());
-                    
+                    if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
+                        \App\Services\System\SystemErrorLogger::recordException(
+                            $jobEx,
+                            'scheduler',
+                            'scheduler:registration_failed:' . ($job->command ?? 'unknown'),
+                            'Cronjob-Registrierung fehlgeschlagen: ' . ($job->name ?? $job->command),
+                            ['cronjob_id' => $job->id ?? null, 'command' => $job->command ?? null]
+                        );
+                    } else {
+                        \Illuminate\Support\Facades\Log::error("Fehler beim Registrieren von Job '{$job->name}' ({$job->command}): " . $jobEx->getMessage());
+                    }
+
                     $jobErrors = \Illuminate\Support\Facades\Cache::get('scheduler_job_errors', []);
                     $jobErrors[$job->id] = [
                         'message' => $jobEx->getMessage(),
                         'timestamp' => now()->toDateTimeString(),
                     ];
                     \Illuminate\Support\Facades\Cache::put('scheduler_job_errors', $jobErrors, now()->addMinutes(60));
-                    
+
                     $job->update(['status' => 'error']);
                 } catch (\Throwable $innerEx) {
                     // Falls DB/Cache blockiert
@@ -179,8 +221,17 @@ try {
             'line' => $e->getLine(),
             'timestamp' => now()->toDateTimeString(),
         ], now()->addMinutes(60));
-        
-        \Illuminate\Support\Facades\Log::error("Scheduler globaler Boot-Fehler: " . $e->getMessage());
+
+        if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
+            \App\Services\System\SystemErrorLogger::recordException(
+                $e,
+                'scheduler',
+                'scheduler:boot_exception',
+                'Scheduler Boot-Fehler'
+            );
+        } else {
+            \Illuminate\Support\Facades\Log::error("Scheduler globaler Boot-Fehler: " . $e->getMessage());
+        }
     } catch (\Throwable $innerEx) {
         // Falls DB/Cache blockiert
     }
@@ -192,12 +243,21 @@ if (!isset($heartbeatRegistered) || !$heartbeatRegistered) {
     Schedule::command('system:heartbeat')->everyMinute();
 }
 
-// Ausfallsicherer Fallback für DHL Sendungsstatus & Auto-Zustellung (läuft alle 2 Stunden tagsüber)
-if (!isset($dhlDeliveryStatusRegistered) || !$dhlDeliveryStatusRegistered) {
+// Ausfallsicherer Fallback für DHL Sendungsstatus & Auto-Zustellung (nur falls noch nicht in system_cronjobs hinterlegt)
+if ((!isset($dhlDeliveryStatusRegistered) || !$dhlDeliveryStatusRegistered)
+    && (!Schema::hasTable('system_cronjobs') || !SystemCronjob::where('command', 'dhl:check-delivery-status')->exists())) {
     Schedule::command('dhl:check-delivery-status')
         ->cron('0 8-20/2 * * *')
         ->withoutOverlapping()
         ->runInBackground();
+}
+
+// Ausfallsicherer Fallback für Seelenfunken-Geburtstags- & Jahrestags-Bonus (nur falls noch nicht in system_cronjobs hinterlegt)
+if ((!isset($loyaltySparksRegistered) || !$loyaltySparksRegistered)
+    && (!Schema::hasTable('system_cronjobs') || !SystemCronjob::where('command', 'gamification:award-loyalty-sparks')->exists())) {
+    Schedule::command('gamification:award-loyalty-sparks')
+        ->dailyAt('08:15')
+        ->withoutOverlapping();
 }
 
 Artisan::command('workspace:dateitrichter {--all : Verarbeitet alle Dokumente im gesamten Workspace}', function () {

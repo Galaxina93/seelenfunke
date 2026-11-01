@@ -86,6 +86,7 @@ class DigitalOrderProcessTest extends TestCase
             ->set('country', 'DE')
             ->set('terms_accepted', true)
             ->set('privacy_accepted', true)
+            ->set('digital_waiver_accepted', true)
             ->call('validateAndCreateOrder');
 
         $order = OrderOrder::latest()->first();
@@ -134,6 +135,7 @@ class DigitalOrderProcessTest extends TestCase
             ->set('country', 'DE')
             ->set('terms_accepted', true)
             ->set('privacy_accepted', true)
+            ->set('digital_waiver_accepted', true)
             ->call('validateAndCreateOrder');
 
         $order = OrderOrder::latest()->first();

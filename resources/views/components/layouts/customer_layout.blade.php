@@ -92,6 +92,19 @@
         hasUnreadSupport: {{ $hasUnreadTickets ? 'true' : 'false' }},
         showToast: false,
         toastMessage: '',
+        notifyOpen: false,
+        notifyMessage: '',
+        notifyType: 'success',
+        notifyTimer: null,
+        showNotifyToast(detail) {
+            const payload = Array.isArray(detail) ? (detail[0] || {}) : (detail || {});
+            if (!payload.message) return;
+            this.notifyMessage = payload.message;
+            this.notifyType = payload.type || 'success';
+            this.notifyOpen = true;
+            if (this.notifyTimer) clearTimeout(this.notifyTimer);
+            this.notifyTimer = setTimeout(() => { this.notifyOpen = false; }, 5000);
+        },
         initGlobalEcho() {
             @if($customerId)
             let attempts = 0;
@@ -126,6 +139,7 @@
       }"
       x-init="initGlobalEcho()"
       @clear-ticket-badge.window="hasUnreadSupport = false"
+      @notify.window="showNotifyToast($event.detail)"
       class="bg-slate-50 dark:bg-gray-950 text-gray-900 dark:text-white flex flex-col h-screen overflow-hidden selection:bg-primary selection:text-gray-900 font-sans relative transition-colors duration-300">
 
 {{-- HINTERGRUND UNIVERSUM --}}
@@ -151,23 +165,23 @@
 
 {{-- MOBILE BOTTOM NAVIGATION --}}
 <nav class="lg:hidden fixed bottom-0 left-0 w-full bg-white/95 dark:bg-gray-900/98 backdrop-blur-xl border-t border-gray-200 dark:border-gray-800 z-50 flex items-center justify-around px-2 py-2 pb-safe shadow-lg dark:shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
-    <a href="{{ route('customer.dashboard') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.dashboard') ? 'text-primary' : 'text-gray-500 dark:text-gray-400' }}">
+    <a href="{{ route('customer.dashboard') }}" wire:navigate class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.dashboard') ? 'text-primary' : 'text-gray-500 dark:text-gray-400' }}">
         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
         <span class="text-[9px] font-black uppercase tracking-widest">Dashboard</span>
     </a>
 
-    <a href="{{ route('customer.orders') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.orders') ? 'text-primary' : 'text-gray-500 dark:text-gray-400' }}">
+    <a href="{{ route('customer.orders') }}" wire:navigate class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.orders') ? 'text-primary' : 'text-gray-500 dark:text-gray-400' }}">
         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
         <span class="text-[9px] font-black uppercase tracking-widest">Bestellungen</span>
     </a>
 
-    <a href="{{ route('customer.invoices') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.invoices') ? 'text-primary' : 'text-gray-500 dark:text-gray-400' }}">
+    <a href="{{ route('customer.invoices') }}" wire:navigate class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.invoices') ? 'text-primary' : 'text-gray-500 dark:text-gray-400' }}">
         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
         <span class="text-[9px] font-black uppercase tracking-widest">Rechnungen</span>
     </a>
 
     {{-- NEU: MOBILE SUPPORT LINK --}}
-    <a href="{{route('customer.support')}}" @click="hasUnreadSupport = false" class="flex flex-col items-center gap-1 flex-1 py-1 {{request()->routeIs('customer.support')? 'text-primary' : 'text-gray-500 dark:text-gray-400'}}">
+    <a href="{{route('customer.support')}}" wire:navigate @click="hasUnreadSupport = false" class="flex flex-col items-center gap-1 flex-1 py-1 {{request()->routeIs('customer.support')? 'text-primary' : 'text-gray-500 dark:text-gray-400'}}">
         <div class="relative">
             <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
             <span x-show="hasUnreadSupport" style="display: none;" class="absolute -top-0.5 -right-1 flex h-2.5 w-2.5">
@@ -176,11 +190,6 @@
             </span>
         </div>
         <span class="text-[9px] font-black uppercase tracking-widest">Hilfe</span>
-    </a>
-
-    <a href="{{ route('customer.games') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.games*') || request()->routeIs('customer.gamification*') || request()->routeIs('customer.ranking*') ? 'text-emerald-500' : 'text-gray-500 dark:text-gray-400' }}">
-        <span class="text-xl leading-none h-6 flex items-center">🎮</span>
-        <span class="text-[9px] font-black uppercase tracking-widest">Spiele</span>
     </a>
 </nav>
 
@@ -203,6 +212,26 @@
                 <div class="text-[10px] text-primary mt-1.5 font-bold uppercase tracking-widest opacity-80 group-hover:opacity-100 transition-opacity">Zum Ticket springen &rarr;</div>
             </div>
         </a>
+    </div>
+    {{-- GLOBALES FEEDBACK-TOAST FÜR SPEICHERHINWEISE & BENACHRICHTIGUNGEN --}}
+    <div x-cloak
+         x-show="notifyOpen"
+         style="display: none;"
+         @click="notifyOpen = false"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 translate-y-4 scale-95"
+         x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+         x-transition:leave-end="opacity-0 translate-y-4 scale-95"
+         class="fixed top-5 right-4 sm:right-6 z-[10050] max-w-md cursor-pointer select-none">
+        <div class="px-4 py-3.5 rounded-2xl shadow-2xl border backdrop-blur-xl flex items-center gap-3 text-xs sm:text-sm font-bold"
+             :class="notifyType === 'error'
+                ? 'bg-white/95 dark:bg-gray-900/95 border-red-500/50 text-red-700 dark:text-red-300'
+                : 'bg-white/95 dark:bg-gray-900/95 border-emerald-500/50 text-emerald-800 dark:text-emerald-300'">
+            <span class="text-base shrink-0" x-text="notifyType === 'error' ? '⚠️' : '✓'"></span>
+            <span x-text="notifyMessage" class="leading-snug"></span>
+        </div>
     </div>
 @endif
 
@@ -250,6 +279,7 @@
         };
     }
 </script>
+@include('components.gamification.persistent-bgm-dock')
 @include('livewire.customer.partials.scripts-partials.funki_hub')
 </body>
 </html>

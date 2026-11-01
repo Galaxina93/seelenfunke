@@ -598,43 +598,43 @@
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
 
                     {{-- Säule 1 --}}
-                    <div class="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 flex flex-col group">
-                        <div class="w-14 h-14 rounded-2xl bg-amber-500/10 text-primary flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition-transform shadow-inner">
+                    <div class="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm flex flex-col cursor-default">
+                        <div class="w-14 h-14 rounded-2xl bg-amber-500/10 text-primary flex items-center justify-center text-3xl mb-6 shadow-inner select-none">
                             🧸
                         </div>
                         <h3 class="text-xl font-bold text-gray-900 mb-3">Kitas & Kinder vor Ort</h3>
                         <p class="text-sm text-gray-600 leading-relaxed flex-grow">
                             Unsere Hilfe geht direkt an Kindertagesstätten, Kindergärten und kleine Bildungseinrichtungen in Gifhorn und Umgebung, etwa mit handgefertigtem Holzspielzeug, Fördermaterialien und Projekten zum Mitmachen.
                         </p>
-                        <div class="mt-6 pt-4 border-t border-gray-100 flex items-center text-xs font-semibold text-primary">
+                        <div class="mt-6 pt-4 border-t border-gray-100 flex items-center text-xs font-medium text-stone-400 select-none">
                             <span>Regional & greifbar</span>
                         </div>
                     </div>
 
                     {{-- Säule 2 --}}
-                    <div class="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 flex flex-col group">
-                        <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition-transform shadow-inner">
+                    <div class="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm flex flex-col cursor-default">
+                        <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center text-3xl mb-6 shadow-inner select-none">
                             🎁
                         </div>
                         <h3 class="text-xl font-bold text-gray-900 mb-3">Fester Teil jeder Bestellung</h3>
                         <p class="text-sm text-gray-600 leading-relaxed flex-grow">
                             Kein Spendenaufruf an der Kasse, kein Cent Aufpreis für dich. Wir spenden bei jeder einzelnen Bestellung einen festen Betrag aus unseren eigenen Unternehmenserlösen direkt in den Herzensprojekte-Fonds.
                         </p>
-                        <div class="mt-6 pt-4 border-t border-gray-100 flex items-center text-xs font-semibold text-emerald-600">
+                        <div class="mt-6 pt-4 border-t border-gray-100 flex items-center text-xs font-medium text-stone-400 select-none">
                             <span>100% aus Unternehmensmitteln</span>
                         </div>
                     </div>
 
                     {{-- Säule 3 --}}
-                    <div class="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 flex flex-col group">
-                        <div class="w-14 h-14 rounded-2xl bg-blue-500/10 text-blue-600 flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition-transform shadow-inner">
+                    <div class="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm flex flex-col cursor-default">
+                        <div class="w-14 h-14 rounded-2xl bg-blue-500/10 text-blue-600 flex items-center justify-center text-3xl mb-6 shadow-inner select-none">
                             🤝
                         </div>
                         <h3 class="text-xl font-bold text-gray-900 mb-3">Persönlich & Transparent</h3>
                         <p class="text-sm text-gray-600 leading-relaxed flex-grow">
                             Wir übergeben Sachmittel und Unterstützung persönlich vor Ort. In unserer Community und auf unserem Blog teilen wir Einblicke, damit du genau siehst, wo die Freude bei den Kindern ankommt.
                         </p>
-                        <div class="mt-6 pt-4 border-t border-gray-100 flex items-center text-xs font-semibold text-blue-600">
+                        <div class="mt-6 pt-4 border-t border-gray-100 flex items-center text-xs font-medium text-stone-400 select-none">
                             <span>Nachvollziehbar & ehrlich</span>
                         </div>
                     </div>

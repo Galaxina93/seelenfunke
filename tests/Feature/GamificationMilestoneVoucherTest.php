@@ -228,11 +228,47 @@ class GamificationMilestoneVoucherTest extends TestCase
         $this->assertEquals(1, $voucher->fresh()->used_count);
         $this->assertFalse($voucher->fresh()->isValid());
 
-        // Im zentralen Spieler-Cockpit (GameGamesComponent) prüfen
-        Auth::guard('customer')->login($customer);
-        $component = new \App\Livewire\Customer\Gamification\GameGamesComponent();
-        $component->loadGamificationData($gameService, $profile);
+        // Im Seelenfunken-Service prüfen, dass eingelöste Gutscheine als "is_used = true" markiert sind
+        $vouchersByCode = collect($gameService->getCustomerActiveVouchers($customer))->keyBy('code');
+        $this->assertTrue($vouchersByCode->has($code));
+        $this->assertTrue($vouchersByCode[$code]['is_used']);
+    }
 
-        $this->assertTrue($component->unlockedCoupons['lvl_3']['is_used']);
+    public function test_customer_can_redeem_sparks_for_5_10_15_percent_vouchers_without_losing_funki_level()
+    {
+        $customer = $this->createCustomer('loyalty@example.com');
+        $gameService = app(GamificationService::class);
+        $profile = $gameService->getProfile($customer);
+
+        // Kunde hat 1.000 Lebenszeit-Funken (= Funki Level 5) und 800 einlösbare Funken
+        $profile->update([
+            'is_active' => true,
+            'level' => 5,
+            'funki_level' => 5,
+            'funken_balance' => 800,
+            'funken_total_earned' => 1000,
+        ]);
+
+        // 250 Funken gegen 5% Gutschein einlösen
+        $res5 = $gameService->redeemSparksForVoucher($customer, 'voucher_5');
+        $this->assertTrue($res5['success']);
+        $this->assertEquals(5, $res5['discount_percent']);
+        $this->assertEquals(550, $res5['new_balance']);
+
+        // 500 Funken gegen 10% Gutschein einlösen
+        $res10 = $gameService->redeemSparksForVoucher($customer, 'voucher_10');
+        $this->assertTrue($res10['success']);
+        $this->assertEquals(10, $res10['discount_percent']);
+        $this->assertEquals(50, $res10['new_balance']);
+
+        // Restguthaben 50 reicht nicht für 750er Gutschein (15%)
+        $res15 = $gameService->redeemSparksForVoucher($customer, 'voucher_15');
+        $this->assertFalse($res15['success']);
+
+        // Funki-Level (5) und Lebenszeit-Funken (1.000) bleiben unangetastet!
+        $profile->refresh();
+        $this->assertEquals(5, $profile->funki_level);
+        $this->assertEquals(1000, $profile->funken_total_earned);
+        $this->assertEquals(50, $profile->funken_balance);
     }
 }

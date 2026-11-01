@@ -100,8 +100,9 @@
          @touchstart="deselectAll($event)">
 
         {{-- AUTOMATISCHES JAHRESZEITEN- & FEIERTAGS-HINTERGRUNDVIDEO (2D & 3D im Hintergrund hinter dem Produkt) --}}
-        <template x-if="activeBgVideo && videoEnabled && !isCapturing">
+        <template x-if="activeBgVideo && videoEnabled">
             <video x-ref="bgVideo"
+                   data-snapshot-ignore="true"
                    :key="activeBgVideo"
                    :src="activeBgVideo"
                    x-init="$el.muted = true; $el.defaultMuted = true; $el.play().catch(() => {})"
@@ -115,7 +116,8 @@
 
         {{-- UNDO / REDO CONTROLS (ZURÜCK / VOR) - OBEN LINKS AUF GLEICHER EBENE WIE MAXIMAL --}}
         @if($context !== 'preview')
-        <div x-show="(showDrawingBoard || !config.modelPath) && !isCapturing && context !== 'preview'"
+        <div x-show="(showDrawingBoard || !config.modelPath) && context !== 'preview'"
+             data-snapshot-ignore="true"
              class="absolute top-3 left-3 z-40 flex items-center gap-0.5 p-1 rounded-xl shadow-md border backdrop-blur-md transition-all pointer-events-auto {{ $isDark ? 'bg-gray-900/95 border-gray-700/90 text-gray-100' : 'bg-white/95 border-gray-200/90 text-gray-800' }}">
             <button type="button"
                     @click.stop="undo()"
@@ -147,7 +149,7 @@
         </div>
 
         {{-- MAXIMAL / MINIMAL TOGGLE BUTTON --}}
-        <div x-show="!isCapturing && context !== 'preview'" class="absolute top-3 right-3 z-40 pointer-events-auto">
+        <div x-show="context !== 'preview'" data-snapshot-ignore="true" class="absolute top-3 right-3 z-40 pointer-events-auto">
             <button type="button"
                     @click.stop="toggleMaximize()"
                     class="px-2.5 py-1.5 rounded-xl shadow-md border backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer {{ $isDark ? 'bg-gray-900/95 border-gray-700/90 text-gray-200 hover:text-white hover:bg-gray-800' : 'bg-white/95 border-gray-200/90 text-gray-800 hover:text-gray-950 hover:bg-gray-100' }}"
@@ -205,7 +207,7 @@
                      : 'transform: translate3d(0,0,0); -webkit-transform: translate3d(0,0,0); backface-visibility: hidden; -webkit-backface-visibility: hidden; will-change: transform;'"
                  class="absolute inset-0 w-full h-full z-[15] object-contain pointer-events-none transition-opacity duration-500 {{ $isDark ? 'opacity-95 group-hover:opacity-100' : 'opacity-100' }}">
 
-            <div x-show="!isCapturing" class="absolute z-[22] border-2 border-emerald-500 bg-emerald-500/5 pointer-events-none transition-all duration-500"
+            <div data-snapshot-ignore="true" class="absolute z-[22] border-2 border-emerald-500 bg-emerald-500/5 pointer-events-none transition-all duration-500"
                  :style="`
                     top: ${config.area_shape === 'custom' ? 0 : config.area_top || 0}%;
                     left: ${config.area_shape === 'custom' ? 0 : config.area_left || 0}%;
@@ -222,8 +224,8 @@
             </div>
 
             {{-- Hilfslinien fürs Snapping --}}
-            <div x-show="showGuideX && !isCapturing" class="absolute top-0 bottom-0 border-l border-primary/60 border-dashed pointer-events-none transition-opacity" :style="'left: ' + areaCenterX + '%; z-index: 23;'"></div>
-            <div x-show="showGuideY && !isCapturing" class="absolute left-0 right-0 border-t border-primary/60 border-dashed pointer-events-none transition-opacity" :style="'top: ' + areaCenterY + '%; z-index: 23;'"></div>
+            <div x-show="showGuideX" data-snapshot-ignore="true" class="absolute top-0 bottom-0 border-l border-primary/60 border-dashed pointer-events-none transition-opacity" :style="'left: ' + areaCenterX + '%; z-index: 23;'"></div>
+            <div x-show="showGuideY" data-snapshot-ignore="true" class="absolute left-0 right-0 border-t border-primary/60 border-dashed pointer-events-none transition-opacity" :style="'top: ' + areaCenterY + '%; z-index: 23;'"></div>
 
             {{-- CLIP-CONTAINER FÜR ELEMENTE --}}
             <div class="absolute z-[25] overflow-hidden pointer-events-none transition-all duration-300"
@@ -240,7 +242,7 @@
                         };
                      `">
 
-                <div x-show="currentTexts.length === 0 && currentLogos.length === 0 && context !== 'preview' && !isCapturing" class="absolute inset-0 flex items-center justify-center pointer-events-auto">
+                <div x-show="currentTexts.length === 0 && currentLogos.length === 0 && context !== 'preview'" data-snapshot-ignore="true" class="absolute inset-0 flex items-center justify-center pointer-events-auto">
                     <button @click="addFallbackText()"
                             :class="isDarkSurface ? 'bg-gray-900/90 text-white border-gray-600 hover:bg-primary hover:text-gray-900 hover:border-primary' : '{{ $isDark ? 'bg-gray-900/90 text-gray-300 border-gray-700 hover:bg-primary hover:text-gray-900 hover:border-primary' : 'bg-white/90 text-gray-800 border-gray-200 hover:bg-primary hover:text-white hover:border-primary' }}'"
                             class="px-6 py-3 backdrop-blur-sm border rounded-2xl shadow-lg text-[10px] font-black uppercase tracking-widest transition-all">
@@ -273,8 +275,8 @@
                                  : (isDarkSurface ? 'border-transparent hover:border-primary/60 hover:bg-white/5' : 'border-transparent hover:border-gray-500 {{ $isDark ? 'hover:bg-white/5' : 'hover:bg-white/10' }}')">
 
                             {{-- ANIMIERTE SCHREIBBEREITSCHAFTS-ANZEIGE BEI LEEREM, FOKUSSIERTEM TEXTFELD --}}
-                            <template x-if="focusedTextId === textItem.id && (!textItem.text || textItem.text.length === 0) && !isCapturing && context !== 'preview'">
-                                <div class="pointer-events-none select-none">
+                            <template x-if="focusedTextId === textItem.id && (!textItem.text || textItem.text.length === 0) && context !== 'preview'">
+                                <div data-snapshot-ignore="true" class="pointer-events-none select-none">
                                     {{-- Schwebendes Status-Badge oberhalb des Textfelds --}}
                                     <div class="
                                         absolute -top-8 left-1/2 -translate-x-1/2 z-[210]
@@ -308,7 +310,7 @@
                                 </div>
                             </template>
 
-                            <template x-if="currentTexts[index] !== undefined && !isCapturing">
+                            <template x-if="currentTexts[index] !== undefined">
                                 <textarea x-model="textItem.text"
                                           :data-id="textItem.id"
                                           :rows="(textItem.text?.match(/\n/g) || []).length + 1"
@@ -342,28 +344,9 @@
                                           :placeholder="focusedTextId === textItem.id ? '' : 'Text eingeben...'">
                                 </textarea>
                             </template>
-                            <template x-if="currentTexts[index] !== undefined && isCapturing">
-                                <div x-text="textItem.text"
-                                     class="bg-transparent font-bold overflow-visible block p-0 m-0 border-0 outline-none shadow-none ring-0 select-none"
-                                     :class="alignMap[textItem.align || 'center']"
-                                     :style="`
-                                           width: ${textDims[textItem.id]?.width || 'auto'};
-                                           height: auto !important;
-                                           font-size: ${(20 * (textItem.size || 1)) * scaleFactor}px;
-                                           font-family: ${fontMap[textItem.font] || 'Arial'};
-                                           line-height: 1.15;
-                                           color: ${isDarkSurface ? 'rgba(248, 250, 252, 0.96)' : 'rgba(17, 24, 39, 0.95)'};
-                                           -webkit-text-fill-color: ${isDarkSurface ? '#f8fafc' : '#111827'};
-                                           filter: ${isDarkSurface
-                                               ? 'drop-shadow(0px 1px 3px rgba(0,0,0,0.9)) drop-shadow(0px 0px 6px rgba(255,255,255,0.25))'
-                                               : 'drop-shadow(0px 0px 3px rgba(255,255,255,0.75)) drop-shadow(0px 1px 2px rgba(0,0,0,0.25))'};
-                                           white-space: pre !important;
-                                       `">
-                                </div>
-                            </template>
 
                             <template x-if="selectedType==='text' && selectedIndex===index && context!=='preview' && currentTexts[index] !== undefined">
-                                <div>
+                                <div data-snapshot-ignore="true">
                                     <div @mousedown.stop="startAction($event,'text',index,'drag')" @touchstart.stop.prevent="startAction($event,'text',index,'drag')" class="active-control-corner absolute -top-4 -left-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-move transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-400 hover:text-primary' : 'bg-white border-gray-100 text-gray-500 hover:text-primary' }}" style="z-index:200;"><x-heroicon-m-arrows-pointing-out class="w-4 h-4 rotate-45" /></div>
                                     <div @mousedown.stop="startAction($event,'text',index,'rotate')" @touchstart.stop.prevent="startAction($event,'text',index,'rotate')" class="active-control-corner absolute -top-4 -right-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-alias transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-primary hover:text-primary-dark' : 'bg-white border-gray-100 text-primary hover:text-primary-dark' }}" style="z-index:200;"><x-heroicon-m-arrow-path class="w-4 h-4" /></div>
                                     <div @click.stop="deleteSelectedItem()" @touchstart.stop.prevent="deleteSelectedItem()" class="active-control-corner absolute -bottom-4 -left-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-pointer transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-red-400 hover:text-red-500' : 'bg-white border-gray-100 text-red-500 hover:text-red-700' }}" style="z-index:200;"><x-heroicon-m-trash class="w-4 h-4" /></div>
@@ -400,7 +383,7 @@
                             </template>
 
                             <template x-if="selectedType==='logo' && selectedIndex===index && context!=='preview' && currentLogos[index] !== undefined">
-                                <div>
+                                <div data-snapshot-ignore="true">
                                     <div @mousedown.stop="startAction($event,'logo',index,'drag')" @touchstart.stop.prevent="startAction($event,'logo',index,'drag')" class="active-control-corner absolute -top-4 -left-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-move transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-400 hover:text-primary' : 'bg-white border-gray-100 text-gray-500 hover:text-primary' }}" style="z-index:200;"><x-heroicon-m-arrows-pointing-out class="w-4 h-4 rotate-45" /></div>
                                     <div @mousedown.stop="startAction($event,'logo',index,'rotate')" @touchstart.stop.prevent="startAction($event,'logo',index,'rotate')" class="active-control-corner absolute -top-4 -right-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-alias transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-primary hover:text-primary-dark' : 'bg-white border-gray-100 text-primary hover:text-primary-dark' }}" style="z-index:200;"><x-heroicon-m-arrow-path class="w-4 h-4" /></div>
                                     <div @click.stop="deleteSelectedItem()" @touchstart.stop.prevent="deleteSelectedItem()" class="active-control-corner absolute -bottom-4 -left-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-pointer transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-red-400 hover:text-red-500' : 'bg-white border-gray-100 text-red-500 hover:text-red-700' }}" style="z-index:200;"><x-heroicon-m-trash class="w-4 h-4" /></div>
@@ -414,6 +397,7 @@
 
             {{-- KOMPAKTE SCHWEBENDE WERKZEUGLEISTE ALS FALLBACK FÜR ABGESCHNITTENE ICONS --}}
             <div x-show="selectedIndex !== null && showDrawingBoard && context !== 'preview'"
+                 data-snapshot-ignore="true"
                  x-transition
                  class="absolute bottom-6 left-1/2 -translate-x-1/2 backdrop-blur-xl shadow-2xl border rounded-2xl sm:rounded-full px-3 sm:px-4 py-1.5 sm:py-2 flex items-center gap-1 sm:gap-2 z-[200] pointer-events-auto schwebender-werkzeugkasten {{ $isDark ? 'bg-gray-950/90 border-gray-700' : 'bg-gray-900/90 border-gray-700' }}">
 

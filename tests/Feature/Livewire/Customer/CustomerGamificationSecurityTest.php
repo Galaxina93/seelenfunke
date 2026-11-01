@@ -2,14 +2,14 @@
 
 namespace Tests\Feature\Livewire\Customer;
 
-use App\Livewire\Customer\Gamification\GameGamesComponent;
-use App\Livewire\Customer\Gamification\GameProfileComponent;
+use App\Livewire\Customer\CustomerDashboardComponent;
 use App\Livewire\Customer\Gamification\GameSparkHuntComponent;
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerGamification;
 use App\Models\Marketing\MarketingVoucher;
 use App\Services\Gamification\GamificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -26,8 +26,8 @@ class CustomerGamificationSecurityTest extends TestCase
 
         $this->customer = Customer::create([
             'first_name' => 'Max',
-            'last_name' => 'Gamer',
-            'email' => 'gamer-' . uniqid() . '@example.com',
+            'last_name' => 'Sammler',
+            'email' => 'sammler-' . uniqid() . '@example.com',
             'password' => bcrypt('password123'),
         ]);
 
@@ -35,98 +35,14 @@ class CustomerGamificationSecurityTest extends TestCase
             ['customer_id' => $this->customer->id],
             [
                 'is_active' => true,
-                'energy_balance' => 5,
                 'funken_balance' => 0,
                 'funken_total_earned' => 0,
-                'funkenflug_highscore' => 100,
                 'level' => 1,
-                'active_title' => 'apprentice'
+                'funki_level' => 1,
             ]
         );
 
         $this->actingAs($this->customer, 'customer');
-    }
-
-    public function test_cannot_claim_reward_sparks_without_consuming_energy_session()
-    {
-        session()->forget('active_game_session');
-
-        Livewire::test(GameGamesComponent::class)
-            ->call('rewardGameSparks', 50);
-
-        $this->profile->refresh();
-        $this->assertEquals(0, $this->profile->funken_balance, 'Sparks must not be credited without active game session');
-    }
-
-    public function test_cannot_save_game_record_without_consuming_energy_session()
-    {
-        session()->forget('active_game_session');
-
-        Livewire::test(GameGamesComponent::class)
-            ->call('saveGameRecord', 999999, 500);
-
-        $this->profile->refresh();
-        $this->assertEquals(100, $this->profile->funkenflug_highscore, 'Highscore must not be updated without active game session');
-        $this->assertEquals(0, $this->profile->funken_balance, 'Sparks must not be awarded without active game session');
-    }
-
-    public function test_game_session_cannot_be_reused_multiple_times()
-    {
-        // 1. Start game properly
-        $component = Livewire::test(GameGamesComponent::class)
-            ->call('consumeEnergy');
-
-        $this->assertNotEmpty(session('active_game_session'));
-
-        // Manually adjust start time to simulate 10 seconds of gameplay
-        $sess = session('active_game_session');
-        $sess['started_at'] = now()->subSeconds(10)->timestamp;
-        session(['active_game_session' => $sess]);
-
-        // 2. Submit record first time
-        $component->call('saveGameRecord', 200, 10);
-        $this->profile->refresh();
-        $this->assertEquals(200, $this->profile->funkenflug_highscore);
-        $this->assertEquals(10, $this->profile->funken_balance);
-
-        // 3. Session should now be cleared
-        $this->assertNull(session('active_game_session'));
-
-        // 4. Second submission must be rejected
-        $component->call('saveGameRecord', 500, 50);
-        $this->profile->refresh();
-        $this->assertEquals(200, $this->profile->funkenflug_highscore, 'Second submission with consumed session must be rejected');
-        $this->assertEquals(10, $this->profile->funken_balance, 'Additional sparks must not be awarded');
-    }
-
-    public function test_game_record_distance_and_sparks_are_clamped_to_physical_bounds()
-    {
-        Livewire::test(GameGamesComponent::class)
-            ->call('consumeEnergy');
-
-        // Simulate 5 seconds elapsed
-        $sess = session('active_game_session');
-        $sess['started_at'] = now()->subSeconds(5)->timestamp;
-        session(['active_game_session' => $sess]);
-
-        // Attempt impossible distance for 5 seconds (e.g. 50,000 meters and 5,000 sparks)
-        Livewire::test(GameGamesComponent::class)
-            ->call('saveGameRecord', 50000, 5000);
-
-        $this->profile->refresh();
-        // 5 seconds * 85 max speed (incl. ship skin distance bonus) = 425 max distance
-        $this->assertLessThanOrEqual(425, $this->profile->funkenflug_highscore);
-        $this->assertLessThanOrEqual(40, $this->profile->funken_balance);
-    }
-
-    public function test_cannot_equip_unearned_title()
-    {
-        Livewire::test(GameGamesComponent::class)
-            ->call('selectTitle', 'seelengott')
-            ->assertDispatched('notify');
-
-        $this->profile->refresh();
-        $this->assertNotEquals('seelengott', $this->profile->active_title);
     }
 
     public function test_spark_hunt_is_visible_property_cannot_be_tampered()
@@ -137,11 +53,21 @@ class CustomerGamificationSecurityTest extends TestCase
         $component->set('isVisible', true);
     }
 
-    public function test_spark_hunt_collects_visible_spark_and_awards_funke()
+    public function test_spark_hunt_spark_token_property_cannot_be_tampered()
     {
-        // Mount repeatedly until the 30% spawn triggers (max 50 tries)
+        $component = Livewire::test(GameSparkHuntComponent::class);
+
+        $this->expectException(\Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException::class);
+        $component->set('sparkToken', 'forged-token');
+    }
+
+    public function test_spark_hunt_collects_visible_spark_and_enforces_reload_cooldown()
+    {
         $component = null;
-        for ($i = 0; $i < 50; $i++) {
+        for ($i = 0; $i < 120; $i++) {
+            Cache::forget('spark_hunt_cooldown_' . $this->customer->id);
+            session()->forget(['spark_hunt_active_token', 'spark_hunt_spawned_at']);
+
             $candidate = Livewire::test(GameSparkHuntComponent::class);
             if ($candidate->get('isVisible') === true) {
                 $component = $candidate;
@@ -149,17 +75,55 @@ class CustomerGamificationSecurityTest extends TestCase
             }
         }
 
-        $this->assertNotNull($component, 'Spark should spawn within 50 attempts');
+        $this->assertNotNull($component, 'Spark should spawn within 120 attempts when cooldown is cleared');
         $this->assertTrue($component->get('isVisible'));
+        $this->assertNotEmpty($component->get('sparkToken'));
 
         $component->call('collectSpark')
             ->assertDispatched('notify')
             ->assertDispatched('sparks-awarded')
-            ->assertSet('isVisible', false);
+            ->assertSet('isVisible', false)
+            ->assertSet('sparkToken', '');
 
         $this->profile->refresh();
         $this->assertEquals(1, $this->profile->funken_balance);
         $this->assertEquals(1, $this->profile->sparks_collected_today);
+
+        // Second call on same component (replay attack) must fail because single-use token was consumed
+        $component->call('collectSpark');
+        $this->profile->refresh();
+        $this->assertEquals(1, $this->profile->funken_balance);
+
+        // Reloading page immediately (F5) must NOT spawn a new spark because server-side 180s cooldown is active
+        $this->assertTrue(Cache::has('spark_hunt_cooldown_' . $this->customer->id));
+        $reloaded = Livewire::test(GameSparkHuntComponent::class);
+        $this->assertFalse($reloaded->get('isVisible'));
+    }
+
+    public function test_spark_hunt_rejects_collection_without_valid_session_token()
+    {
+        $component = null;
+        for ($i = 0; $i < 120; $i++) {
+            Cache::forget('spark_hunt_cooldown_' . $this->customer->id);
+            session()->forget(['spark_hunt_active_token', 'spark_hunt_spawned_at']);
+
+            $candidate = Livewire::test(GameSparkHuntComponent::class);
+            if ($candidate->get('isVisible') === true) {
+                $component = $candidate;
+                break;
+            }
+        }
+
+        $this->assertNotNull($component);
+
+        // Invalidate server-side session token before calling collectSpark
+        session()->forget('spark_hunt_token');
+
+        $component->call('collectSpark')
+            ->assertSet('isVisible', false);
+
+        $this->profile->refresh();
+        $this->assertEquals(0, $this->profile->funken_balance, 'Spark must not be awarded if server session token is missing/invalid');
     }
 
     public function test_upgrade_level_handles_race_conditions_cleanly()
@@ -175,12 +139,26 @@ class CustomerGamificationSecurityTest extends TestCase
         $this->profile->refresh();
         $this->assertEquals(3, $this->profile->level);
 
-        // Verify voucher was created once for level 3
         $this->assertCount(1, MarketingVoucher::where('title', 'like', '%Level 3 Belohnung%')->get());
 
-        // Calling coupon check again does not create a duplicate
         $res2 = $service->upgradeLevel($this->customer);
         $this->profile->refresh();
         $this->assertCount(1, MarketingVoucher::where('title', 'like', '%Level 3 Belohnung%')->get());
+    }
+
+    public function test_dashboard_voucher_redemption_rejects_invalid_tier_and_insufficient_balance()
+    {
+        $this->profile->update([
+            'funken_balance' => 200,
+            'funken_total_earned' => 200,
+            'funki_level' => 2,
+        ]);
+
+        Livewire::test(CustomerDashboardComponent::class)
+            ->call('redeemFunkenVoucher', 'invalid_tier')
+            ->call('redeemFunkenVoucher', 'voucher_5'); // requires 250
+
+        $this->profile->refresh();
+        $this->assertEquals(200, $this->profile->funken_balance);
     }
 }

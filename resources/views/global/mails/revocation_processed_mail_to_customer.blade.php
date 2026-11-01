@@ -147,6 +147,18 @@
                         </p>
                     </div>
 
+                    @php
+                        $revokedOrder = $revocation->linked_order ?? null;
+                        $revokedSparks = $revokedOrder ? app(\App\Services\Gamification\GamificationService::class)->calculateOrderSparks($revokedOrder) : 0;
+                    @endphp
+                    @if($revokedSparks > 0)
+                        <div style="background-color: #fffbeb; border-radius: 12px; padding: 16px 20px; margin-top: 18px; border: 1px solid #fde68a; border-left: 4px solid #C5A059;">
+                            <p style="font-size: 13px; color: #92400e; margin-bottom: 0 !important; line-height: 1.5;">
+                                <strong>✨ Hinweis zum Seelenfunken-Treueprogramm:</strong> Die für diese Bestellung gutgeschriebenen Seelenfunken (<strong>-{{ number_format($revokedSparks, 0, ',', '.') }} ✨ Funken</strong>) wurden im Zuge des Widerrufs entsprechend deinem Punktekonto verrechnet.
+                            </p>
+                        </div>
+                    @endif
+
                     <p style="margin-top: 25px !important;">Wir hoffen sehr, dich bald wieder bei uns begrüßen zu dürfen und wünschen dir bis dahin eine wundervolle Zeit!</p>
 
                     <p style="margin-top: 20px !important;">Solltest du noch Rückfragen haben, antworte gerne einfach auf diese E-Mail.</p>

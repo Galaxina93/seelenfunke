@@ -40,6 +40,10 @@ class ManagementEmployees extends Component
     public string $inviteStartDate = '';
     public bool $inviteIsFixedTerm = false;
     public string $inviteEndDate = '';
+    public string $inviteEmail = '';
+    public bool $inviteCanAccessProduction = true;
+    public bool $inviteCanAccessSupport = false;
+    public bool $inviteCanAccessInventory = false;
 
     #[Locked]
     public ?string $activeInviteId = null;
@@ -64,6 +68,9 @@ class ManagementEmployees extends Component
     public string $editWeeklyHours = '9,0';
     public int $editVacationDays = 20;
     public int $editVacationTaken = 0;
+    public bool $editCanAccessProduction = true;
+    public bool $editCanAccessSupport = false;
+    public bool $editCanAccessInventory = false;
 
     public bool $showExplanation = false;
 
@@ -102,6 +109,10 @@ class ManagementEmployees extends Component
         $this->inviteStartDate = now()->startOfMonth()->format('Y-m-d');
         $this->inviteIsFixedTerm = false;
         $this->inviteEndDate = '';
+        $this->inviteEmail = '';
+        $this->inviteCanAccessProduction = true;
+        $this->inviteCanAccessSupport = false;
+        $this->inviteCanAccessInventory = false;
         $this->showInviteModal = true;
     }
 
@@ -134,11 +145,17 @@ class ManagementEmployees extends Component
             'start_date' => $this->inviteStartDate ?: now()->toDateString(),
             'is_fixed_term' => $this->inviteIsFixedTerm,
             'end_date' => $this->inviteIsFixedTerm ? $this->inviteEndDate : null,
+            'invite_email' => trim($this->inviteEmail),
+            'can_access_production' => $this->inviteCanAccessProduction,
+            'can_access_support' => $this->inviteCanAccessSupport,
+            'can_access_inventory' => $this->inviteCanAccessInventory,
         ]);
 
         $this->showInviteModal = false;
         $this->activeInviteId = $slot->id;
-        session()->flash('success', 'Einladungslink & 6-stelliger Sicherheitscode wurden erfolgreich generiert.');
+        session()->flash('success', !empty(trim($this->inviteEmail))
+            ? 'Einladung erstellt und direkt per E-Mail versendet.'
+            : 'Einladungslink & 6-stelliger Code erstellt.');
     }
 
     public function showInvitationCredentials(string $id): void
@@ -167,6 +184,9 @@ class ManagementEmployees extends Component
         $this->editWeeklyHours = number_format((float) $contract->weekly_hours, 1, ',', '');
         $this->editVacationDays = (int) $contract->vacation_days_per_year;
         $this->editVacationTaken = (int) $contract->vacation_days_taken;
+        $this->editCanAccessProduction = (bool) $contract->can_access_production;
+        $this->editCanAccessSupport = (bool) $contract->can_access_support;
+        $this->editCanAccessInventory = (bool) $contract->can_access_inventory;
     }
 
     public function saveEditContract(EmployeeHrService $service): void
@@ -193,6 +213,9 @@ class ManagementEmployees extends Component
             'weekly_hours' => $weeklyHours,
             'vacation_days_per_year' => max(0, min(60, $this->editVacationDays)),
             'vacation_days_taken' => max(0, min(60, $this->editVacationTaken)),
+            'can_access_production' => $this->editCanAccessProduction,
+            'can_access_support' => $this->editCanAccessSupport,
+            'can_access_inventory' => $this->editCanAccessInventory,
         ]);
 
         if ($contract->signed_at) {
@@ -201,7 +224,34 @@ class ManagementEmployees extends Component
         }
 
         $this->editingContractId = null;
-        session()->flash('success', 'Vertragskonditionen & PDF-Dokumente wurden aktualisiert.');
+        session()->flash('success', 'Gespeichert.');
+    }
+
+    public function togglePermission(string $contractId, string $field): void
+    {
+        if (!in_array($field, ['can_access_production', 'can_access_support', 'can_access_inventory'], true)) {
+            return;
+        }
+
+        $contract = EmployeeContract::findOrFail($contractId);
+        $contract->update([
+            $field => !$contract->{$field},
+        ]);
+        session()->flash('success', 'Arbeitsbereich aktualisiert.');
+    }
+
+    public function approveLeave(string $entryId, EmployeeHrService $service): void
+    {
+        $entry = \App\Models\Employee\EmployeeTimeEntry::findOrFail($entryId);
+        $service->approveLeaveEntry($entry);
+        session()->flash('success', 'Eintrag genehmigt.');
+    }
+
+    public function rejectLeave(string $entryId, EmployeeHrService $service): void
+    {
+        $entry = \App\Models\Employee\EmployeeTimeEntry::findOrFail($entryId);
+        $service->rejectLeaveEntry($entry);
+        session()->flash('success', 'Eintrag abgelehnt.');
     }
 
     public function cancelEditContract(): void
@@ -385,6 +435,12 @@ class ManagementEmployees extends Component
 
         $activeInviteSlot = $this->activeInviteId ? EmployeeContract::find($this->activeInviteId) : null;
 
+        $pendingLeaveEntries = \App\Models\Employee\EmployeeTimeEntry::with(['contract.employee'])
+            ->whereIn('entry_type', ['vacation', 'sick'])
+            ->where('status', 'pending_approval')
+            ->orderBy('work_date')
+            ->get();
+
         return view('livewire.shop.management.management-employees', [
             'rows' => $rows,
             'activeCount' => $activeCount,
@@ -394,6 +450,7 @@ class ManagementEmployees extends Component
             'openPayslipsNetCents' => $openPayslipsNetCents,
             'monthTotalEmployerCostCents' => $monthTotalEmployerCostCents,
             'activeInviteSlot' => $activeInviteSlot,
+            'pendingLeaveEntries' => $pendingLeaveEntries,
         ]);
     }
 }

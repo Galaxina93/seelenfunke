@@ -24,6 +24,14 @@ class CustomerOrdersComponent extends Component
     public $editItemId = null;
     public $showSuccessMessageFor = null;
 
+    public function boot(): void
+    {
+        $user = Auth::guard('customer')->user();
+        if (!$user || !empty($user->needs_password_change)) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
         $user = Auth::guard('customer')->user();
@@ -32,8 +40,13 @@ class CustomerOrdersComponent extends Component
         }
 
         if (request()->has('order')) {
-            $orderId = request()->get('order');
-            $order = OrderOrder::where('id', $orderId)->where('customer_id', $user->id)->first();
+            $orderParam = trim((string) request()->get('order'));
+            $order = OrderOrder::where('customer_id', $user->id)
+                ->where(function ($q) use ($orderParam) {
+                    $q->where('id', $orderParam)
+                      ->orWhere('order_number', $orderParam);
+                })
+                ->first();
             if ($order) {
                 $this->selectedOrderId = $order->id;
             }

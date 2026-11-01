@@ -63,6 +63,30 @@ return Application::configure(basePath: dirname(__DIR__))
             }
         });
 
+        $exceptions->renderable(function (\Throwable $e, $request) {
+            try {
+                // Erfasse auch kritische HTTP-Ausnahmen (500+, 419 CSRF TokenMismatch, SuspiciousOperation),
+                // die von Laravels interner $dontReport-Liste standardmäßig übersprungen werden.
+                $isCsrfMismatch = $e instanceof \Illuminate\Session\TokenMismatchException
+                    || ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface && $e->getStatusCode() === 419);
+                $isServerHttpError = $e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+                    && $e->getStatusCode() >= 500;
+
+                if (($isCsrfMismatch || $isServerHttpError) && class_exists(\App\Services\System\SystemErrorLogger::class)) {
+                    $statusCode = $e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface ? $e->getStatusCode() : 419;
+                    \App\Services\System\SystemErrorLogger::recordException(
+                        $e,
+                        'system',
+                        $isCsrfMismatch ? 'system:http_419_csrf' : ('system:http_' . $statusCode),
+                        $isCsrfMismatch ? 'CSRF / Session abgelaufen (HTTP 419)' : ('HTTP Server-Fehler (' . $statusCode . ')')
+                    );
+                }
+            } catch (\Throwable $ignore) {
+            }
+
+            return null;
+        });
+
         $exceptions->dontFlash([
             'current_password',
             'password',

@@ -319,7 +319,7 @@ class AiFrontendSupportChat extends Component
 
         // 3. Prompt-Injection / System-Manipulation / Schwere Beleidigung -> Sofortiger Auto-Close (90 Strafpunkte + 10 Basis = 100)
         $isPromptInjection = preg_match(
-            '/(?:ignoriere|vergiss|überschreibe|umgehe|ignore|disregard|forget)\s+(?:alle\s+|all\s+|sämtliche\s+)?(?:vorherigen\s+|bisherigen\s+|previous\s+|prior\s+|deine\s+|obigen\s+)?(?:anweisungen|regeln|prompts?|instructions|rules|systemvorgaben)|\b(?:system\s*prompt|developer\s*mode|jailbreak|dan\s*mode)\b/iu',
+            '/(?:ignoriere|vergiss|überschreibe|umgehe|ignore|disregard|forget)\s+(?:alle\s+|all\s+|sämtliche\s+)?(?:vorherigen\s+|bisherigen\s+|previous\s+|prior\s+|deine\s+|obigen\s+)?(?:anweisungen|regeln|prompts?|instructions|rules|systemvorgaben)|\b(?:system\s*prompt|systemprompt|systemanweisungen|developer\s*mode|jailbreak|dan\s*mode|god\s*mode|admin\s*modus|root\s*access)\b|(?:gib|zeig|nenne|verrate|print|repeat)\s+(?:mir\s+)?(?:deinen\s+|den\s+|your\s+)?(?:system\s*prompt|prompt|systemanweisungen|instructions)|(?:ich\s+bin\s+(?:alina|der\s+admin|die\s+chefin|systemadministrator)|ich\s+befehle\s+dir)|(?:<script\b|union\s+select\b|drop\s+table\b)/iu',
             $normalized
         ) === 1;
 
@@ -353,7 +353,119 @@ class AiFrontendSupportChat extends Component
             return $result['_fast_track_response'] ?? 'Ich bitte um Verständnis, dass ich ausschließlich für Fragen zu unseren Produkten und Bestellungen zur Verfügung stehe.';
         }
 
+        // 4b. Manipulationsversuche / Betteln nach Gratis-Funken, Level-Manipulation, Gratis-Gutscheinen oder Preisänderungen (0 API-Tokens)
+        $isGamificationOrPriceManipulation = preg_match(
+            '/(?:schenk(?:e)?|gib|buch(?:e)?|überweis(?:e)?|füg(?:e)?|erhöh(?:e)?|setz(?:e)?|mach(?:e)?|generier(?:e)?|schalt(?:e)?)\s+(?:mir\s+|mein(?:e|en)?\s+)?.*?(?:gratis\s*funken|kostenlose\s*funken|seelenfunken\s*gut|\d+\s*(?:funken|seelenfunken)|level\s*(?:auf\s*)?(?:10|\d+)|zum\s+seelengott|preis\s+auf\s+0|100\s*%\s*rabatt|gratis\s*gutschein|kostenlosen\s*gutschein)/iu',
+            $normalized
+        ) === 1;
+
+        if ($isGamificationOrPriceManipulation) {
+            $lastDbMsg->update(['severity' => 15, 'tag' => 'PROVOCATION']);
+            return "Als Support-Begleiter habe ich **keinen Schreibzugriff** auf Funken-Guthaben, Funki-Level, Preise oder Gutscheine und kann keine Punkte manuell gutschreiben. ✨\n\n"
+                . "Du kannst dir **Seelenfunken** aber ganz einfach regulär sichern:\n"
+                . "- **Bei jedem Einkauf**: `1,00 € Warenwert = +1 ✨ Seelenfunke`\n"
+                . "- **Produktbewertung**: **+15 ✨** für jede freigegebene ehrliche Bewertung zu einem gekauften Artikel\n"
+                . "- **Geburtstag & Jahrestag**: **+50 ✨** jährlich (sobald dein Geburtsdatum unter [Mein Profil](/profile) hinterlegt ist)\n"
+                . "- **Shop-Entdeckung**: Bis zu 5 versteckte Seelenfunken täglich auf unseren Shop-Seiten (sobald **„Magie aktivieren“** im [Kunden-Dashboard](/dashboard) aktiv ist).";
+        }
+
+        // 5. Lokaler 0-Token Fast-Track für Fragen rund um Seelenfunken, Funki (Level 1–10), Musik & UI-Wegweiser
+        $localGamificationReply = $this->resolveLocalGamificationGuide($normalized);
+        if ($localGamificationReply !== null) {
+            return $localGamificationReply;
+        }
+
         return null;
+    }
+
+    /**
+     * Beantwortet gezielte Kundenfragen zur neuen Seelenfunken- & Funki-Spiellogik sowie den UI-Fundorten
+     * direkt auf dem Server (0 API-Tokens, 0 Latenz, 100 % präzise Wegbeschreibung inkl. Live-Kontostand).
+     */
+    protected function resolveLocalGamificationGuide(string $normalized): ?string
+    {
+        // Wenn gleichzeitig eine Bestellnummer, Ticketnummer oder ein konkretes Reklamations-/Versandanliegen genannt wird, an LLM/Tools übergeben
+        if (preg_match('/\b(?:ord-\d|tck-|reklamation|defekt|kaputt|beschädigt|fehlt|paket|dhl|sendungsverfolgung|tracking|lieferadresse|stornier|widerruf)/iu', $normalized) === 1) {
+            return null;
+        }
+
+        $isGamificationQuery = preg_match(
+            '/\b(?:seelenfunken|funken\s+sammeln|funken-suche|funken\s+einlösen|funken\s+guthaben|mein(?:e)?\s+funken|wie\s+viele\s+funken|magie\s+aktivieren|funki\s+öffnen|funki\s+modal|funki\s+level|evolutionsstufen|halle\s+der\s+helden|seelengott|titel\s+und\s+ränge|spielername|funki\s+musik|bgm_funki_game|musik\s+laufen\s+lassen|geburtstags-?funken|geburtstagsbonus|stammkunden-?bonus|hintergründe\s+freischalten)\b/iu',
+            $normalized
+        ) === 1;
+
+        if (!$isGamificationQuery) {
+            return null;
+        }
+
+        // Persönlichen Status des eingeloggten Kunden (falls vorhanden & DSGVO-Einwilligung aktiv) anhängen
+        $personalStatusBlock = '';
+        $customer = auth()->guard('customer')->user();
+        if ($customer) {
+            $customer->loadMissing('profile');
+            if ($customer->profile?->ai_data_consent) {
+                $stats = \App\Models\Customer\CustomerGamification::where('customer_id', $customer->id)->first();
+                if ($stats && $stats->is_active) {
+                    $totalEarned = max((int) $stats->funken_total_earned, (int) $stats->funken_balance);
+                    $level = \App\Services\Gamification\GameConfig::calculateFunkiLevel($totalEarned);
+                    $stageCfg = \App\Services\Gamification\GameConfig::getFunkiStageConfig($level);
+                    $missing = \App\Services\Gamification\GameConfig::getMissingSparksForNextLevel($totalEarned);
+                    $stageName = $stageCfg['name'] ?? ('Level ' . $level);
+                    $nextHint = $missing > 0 ? " (noch **{$missing} ✨** bis Level " . ($level + 1) . ")" : " (**Maximales Level 10 erreicht!**)";
+                    $personalStatusBlock = "\n\n**Dein aktueller Stand ({$customer->first_name}):**\n"
+                        . "- **Einlösbares Guthaben**: **" . (int) $stats->funken_balance . " ✨** | **Lebenszeit-Funken**: **{$totalEarned} ✨**\n"
+                        . "- **Funki-Stufe**: **Level {$level}** (*{$stageName}*){$nextHint}";
+                } elseif ($stats && ((int) $stats->funken_total_earned > 0 || (int) $stats->funken_balance > 0)) {
+                    $personalStatusBlock = "\n\n**Dein aktueller Stand ({$customer->first_name}):**\n"
+                        . "- Dein Seelenfunken-Sammeln ist aktuell **pausiert** (gespeichertes Guthaben: **" . (int) $stats->funken_balance . " ✨**). Du kannst es im [Kunden-Dashboard](/dashboard) unten in der mittleren Kachel **„✨ Seelenfunken & Prämien“** jederzeit mit einem Klick wieder aktivieren.";
+                } else {
+                    $personalStatusBlock = "\n\n**Tipp für dein Konto ({$customer->first_name}):**\n"
+                        . "- Du hast das Programm noch nicht gestartet. Öffne einfach dein [Kunden-Dashboard](/dashboard), klicke unten in der mittleren Kachel **„✨ Seelenfunken & Prämien“** auf **„Magie aktivieren“** und bestätige kurz die Teilnahmebedingungen!";
+                }
+            }
+        }
+
+        // Spezifische Detailfragen gezielt beantworten
+        if (preg_match('/\b(?:musik|sound|lautstärke|stumm|mute|bgm_funki_game|musik\s+laufen\s+lassen)\b/iu', $normalized) === 1) {
+            return "**So steuerst du die Funki-Musik & Soundeffekte:** 🎵\n"
+                . "- **Im Funki-Modal**: Sobald du im [Kunden-Dashboard](/dashboard) auf **„Funki öffnen“** klickst, findest du **oben rechts direkt neben dem „X“** den Lautstärkeregler, den Stumm-Button (Mute) und die Checkbox **„Musik laufen lassen“**.\n"
+                . "- **Auf allen Seiten weiterhören**: Wenn du **„Musik laufen lassen“** aktivierst, spielt die Musik beim Schließen des Modals und beim Seitenwechsel nahtlos weiter. Unten rechts (direkt über dem *„Nach oben scrollen“*-Pfeil) erscheint dann ein kompaktes Musik-Steuerfeld.\n"
+                . "- Deine Einstellungen werden automatisch in deinem Kundenkonto gespeichert." . $personalStatusBlock;
+        }
+
+        if (preg_match('/\b(?:halle\s+der\s+helden|spielername|echtname|rangliste)\b/iu', $normalized) === 1) {
+            return "**Alles zur Halle der Helden & deinem Spielernamen:** 🏛️\n"
+                . "- **Wo du sie findest**: Öffne dein [Kunden-Dashboard](/dashboard), klicke oben rechts auf **„Funki öffnen“** und wähle den 4. Reiter **„Halle der Helden“**.\n"
+                . "- **Anzeige-Einstellungen (Opt-In)**: Unten im Reiter **„Halle der Helden“** kannst du selbst entscheiden, ob du öffentlich sichtbar sein möchtest und ob dein **Spielername** (mind. 3 bis max. 20 Zeichen, einzigartig) oder dein **Echtname** angezeigt wird.\n"
+                . "- **Bewertungs-Steckbrief**: Auch bei deinen Produktbewertungen können andere Besucher auf dein animiertes Funki-Profilbild klicken, um deinen Helden-Steckbrief zu bestaunen!" . $personalStatusBlock;
+        }
+
+        if (preg_match('/\b(?:titel|ränge|seelengott|diamant)\b/iu', $normalized) === 1) {
+            return "**So funktionieren Titel, Ränge & das ultimative Ziel:** 🏆\n"
+                . "- **Wo du sie findest**: Im [Kunden-Dashboard](/dashboard) -> **„Funki öffnen“** -> Reiter **„Titel & Ränge“**.\n"
+                . "- **5 Titel-Kategorien**: Du schaltest durch Bestellungen, Warenwert, Einzelartikel, Produktbewertungen und gesammelte Funken jeweils 3 Stufen frei (Stufe 3 = **Diamant-Status** 💎).\n"
+                . "- **Ultimatives Ziel**: Sobald du alle **5 von 5 Titeln auf Maximum (Diamant)** gebracht und **Funki Level 10** erreicht hast, erhältst du den höchsten Ehrentitel **„Seelengott unter Sterblichen“**!" . $personalStatusBlock;
+        }
+
+        if (preg_match('/\b(?:geburtstag|geburtstags|jahrestag|stammkunde|stammkunden)\b/iu', $normalized) === 1) {
+            return "**Geburtstags- & Stammkunden-Funken (+50 ✨):** 🎂\n"
+                . "- **Wo du dein Geburtsdatum einträgst**: Öffne [Mein Profil](/profile) im Bereich **„Persönliche Daten“**, trage dein **Geburtsdatum** ein und klicke auf **„Speichern“** (inkl. 1x Selbst-Korrekturmöglichkeit bei Tippfehlern).\n"
+                . "- **+50 ✨ zum Geburtstag**: An deinem Geburtstag schreibt dir Funki automatisch **+50 ✨ Seelenfunken** gut (wenn *„Magie aktivieren“* aktiv ist).\n"
+                . "- **+50 ✨ Stammkunden-Jahrestag**: Zusätzlich erhältst du jedes Jahr an deinem Registrierungs-Jahrestag (wenn du im letzten Jahr mind. 1 Bestellung getätigt hast) weitere **+50 ✨**!" . $personalStatusBlock;
+        }
+
+        // Allgemeine Komplett-Übersicht + Wegweiser
+        return "**Hier findest du alles rund um Seelenfunken & deinen Begleiter Funki:** ✨\n\n"
+            . "1. **Wo du Funki öffnest & aktivierst**:\n"
+            . "   Gehe in dein [Kunden-Dashboard](/dashboard). Unten in der mittleren Kachel **„✨ Seelenfunken & Prämien“** kannst du das Programm mit **„Magie aktivieren“** starten (oder unten links im Funki-Modal jederzeit pausieren). Oben rechts öffnest du über **„Funki öffnen“** das Hauptfenster mit den 4 Reitern **„Rabatte“**, **„Level“**, **„Titel & Ränge“** und **„Halle der Helden“**.\n"
+            . "2. **Wie du Seelenfunken sammelst**:\n"
+            . "   - **Einkauf**: `1,00 € Warenwert = +1 ✨ Seelenfunke` (wird im Konfigurator, Checkout und auf der Rechnung angezeigt).\n"
+            . "   - **Produktbewertung**: **+15 ✨** für jede freigegebene ehrliche Bewertung auf der Produktseite.\n"
+            . "   - **Geburtstag & Jahrestag**: Jeweils **+50 ✨** (Geburtsdatum unter [Mein Profil](/profile) hinterlegen).\n"
+            . "   - **Auf Shop-Seiten**: Bis zu 5 versteckte Seelenfunken täglich im Shop anklicken.\n"
+            . "3. **Rabatte & Level 1–10**:\n"
+            . "   Im Reiter **„Rabatte“** tauschst du Funken gegen Gutscheine ein (**250 ✨ = 5 %**, **500 ✨ = 10 %**, **750 ✨ = 15 %**). Dein **Funki-Level (1–10)** samt animiertem Hintergrund richtet sich nach deinen *Lebenszeit-Funken* und sinkt beim Einlösen von Gutscheinen niemals!"
+            . $personalStatusBlock;
     }
 
     public function sendMessage()
@@ -694,9 +806,10 @@ class AiFrontendSupportChat extends Component
 
         foreach ($recentMessages as $msg) {
             $role = ($msg->sender === 'ai') ? 'assistant' : 'user';
+            $maxHistoryLen = ($role === 'assistant') ? 600 : self::MAX_MESSAGE_LENGTH;
             $payloadMessages[] = [
                 'role' => $role,
-                'content' => mb_substr((string) $msg->message, 0, self::MAX_MESSAGE_LENGTH)
+                'content' => mb_substr((string) $msg->message, 0, $maxHistoryLen)
             ];
         }
 

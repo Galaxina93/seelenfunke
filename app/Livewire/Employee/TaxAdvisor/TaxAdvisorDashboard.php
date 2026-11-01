@@ -752,6 +752,14 @@ class TaxAdvisorDashboard extends Component
             return true;
         })->values();
 
+        $employeeContracts = \Illuminate\Support\Facades\Schema::hasTable('employee_contracts')
+            ? \App\Models\Employee\EmployeeContract::with('employee')
+                ->where('is_archived', false)
+                ->whereNotNull('invitation_accepted_at')
+                ->orderByDesc('signed_at')
+                ->get()
+            : collect();
+
         return view('livewire.employee.tax-advisor.tax-advisor-dashboard', [
             'employee' => $employee,
             'companyMeta' => $financialService->getCompanyTaxMeta(),
@@ -767,6 +775,7 @@ class TaxAdvisorDashboard extends Component
             'shopSummary' => $shopSummary,
             'filteredInvoices' => $filteredInvoices,
             'filteredPayouts' => $filteredPayouts,
+            'employeeContracts' => $employeeContracts,
             'defaultTaxRate' => (float) shop_setting('default_tax_rate', 19.0),
         ]);
     }

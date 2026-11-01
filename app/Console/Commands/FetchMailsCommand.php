@@ -35,9 +35,10 @@ class FetchMailsCommand extends Command
         $accounts = MailAccount::all();
         if ($accounts->isEmpty()) {
             $this->info("Keine aktiven Mail-Konten gefunden.");
-            return;
+            return self::SUCCESS;
         }
 
+        $failedAccounts = 0;
         foreach ($accounts as $account) {
             $this->info("Postfach wird verarbeitet: {$account->email}...");
 
@@ -213,13 +214,16 @@ class FetchMailsCommand extends Command
 
                 $account->update(['status' => 'connected', 'last_sync_at' => now()]);
 
-            } catch (\Exception $e) {
-                Log::error("IMAP Fetch failed for {$account->email}: " . $e->getMessage());
-                $this->error("FEHLER beim Abruf von {$account->email} - siehe Laravel Logs.");
-                
+            } catch (\Throwable $e) {
+                $failedAccounts++;
+                Log::error("IMAP Fetch failed for {$account->email}: " . $e->getMessage(), ['exception' => $e]);
+                $this->error("FEHLER beim Abruf von {$account->email}: " . $e->getMessage());
+
                 $account->update(['status' => 'error']);
             }
         }
+
+        return $failedAccounts > 0 ? self::FAILURE : self::SUCCESS;
     }
 
     public static function sanitizeEmailHtml(?string $bodyHtml): ?string

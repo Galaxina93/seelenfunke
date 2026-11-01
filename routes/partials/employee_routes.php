@@ -124,6 +124,16 @@ Route::middleware(['auth:employee'])->group(function () {
                 'X-Content-Type-Options' => 'nosniff',
             ]);
         })->name('employee.payslip.pdf')->middleware('throttle:30,1');
+
+        // Laser-Gravur SVG Download für Packtisch & Laser (nur wenn Produktions-Zugriff freigeschaltet)
+        Route::get('/employee/order-item/{item}/laser-svg/{side}', function ($item, string $side) {
+            $employee = auth('employee')->user();
+            $contract = $employee?->employmentContract;
+            if (!$contract || !$contract->can_access_production) {
+                abort(403, 'Zugriff verweigert.');
+            }
+            return app(\App\Services\Export\FileDownloadService::class)->downloadLaserSvg((string) $item, $side);
+        })->name('employee.order-item.laser-svg')->middleware('throttle:60,1');
     });
 
     // Influencer & Affiliate Creator Portal (Strikt isoliert auf Rolle 'influencer')
@@ -210,6 +220,68 @@ Route::middleware(['auth:employee'])->group(function () {
                 'X-Content-Type-Options' => 'nosniff',
             ]);
         })->name('employee.tax-advisor.payout.pdf')->middleware('throttle:30,1');
+
+        // Steuerberater: Mitarbeiter-Arbeitsvertrag PDF
+        Route::get('/employee/tax-advisor/employee-contract/{contract}/pdf', function (\App\Models\Employee\EmployeeContract $contract) {
+            if (empty($contract->contract_pdf_path) || !Storage::disk('local')->exists((string) $contract->contract_pdf_path)) {
+                app(\App\Services\Employee\EmployeeHrService::class)->generateAndStoreContractPdf($contract);
+                $contract->refresh();
+            }
+            $path = (string) $contract->contract_pdf_path;
+            if ($path === '' || str_contains($path, '..') || str_contains($path, "\0") || !str_starts_with($path, 'buchhaltung/contracts/') || !Storage::disk('local')->exists($path)) {
+                abort(404);
+            }
+            $fullPath = Storage::disk('local')->path($path);
+            if (is_link($fullPath)) {
+                abort(403);
+            }
+            $cleanName = 'Arbeitsvertrag_' . preg_replace('/[^A-Za-z0-9_\-]/', '_', (string) $contract->contract_number) . '.pdf';
+            return response()->file($fullPath, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="' . $cleanName . '"',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
+        })->name('employee.tax-advisor.employee-contract.pdf')->middleware('throttle:30,1');
+
+        // Steuerberater: Mitarbeiter-Personalfragebogen (ELStAM / DEÜV) PDF
+        Route::get('/employee/tax-advisor/employee-questionnaire/{contract}/pdf', function (\App\Models\Employee\EmployeeContract $contract) {
+            if (empty($contract->questionnaire_pdf_path) || !Storage::disk('local')->exists((string) $contract->questionnaire_pdf_path)) {
+                app(\App\Services\Employee\EmployeeHrService::class)->generateAndStoreQuestionnairePdf($contract);
+                $contract->refresh();
+            }
+            $path = (string) $contract->questionnaire_pdf_path;
+            if ($path === '' || str_contains($path, '..') || str_contains($path, "\0") || !str_starts_with($path, 'buchhaltung/contracts/') || !Storage::disk('local')->exists($path)) {
+                abort(404);
+            }
+            $fullPath = Storage::disk('local')->path($path);
+            if (is_link($fullPath)) {
+                abort(403);
+            }
+            $cleanName = 'Personalbogen_' . preg_replace('/[^A-Za-z0-9_\-]/', '_', (string) $contract->contract_number) . '.pdf';
+            return response()->file($fullPath, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="' . $cleanName . '"',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
+        })->name('employee.tax-advisor.employee-questionnaire.pdf')->middleware('throttle:30,1');
+
+        // Steuerberater: Mitarbeiter-Stundenzettel PDF
+        Route::get('/employee/tax-advisor/employee-timesheet/{contract}/{year}/{month}/pdf', function (\App\Models\Employee\EmployeeContract $contract, int $year, int $month) {
+            $path = app(\App\Services\Employee\EmployeeHrService::class)->generateAndStoreTimesheetPdf($contract, $year, $month);
+            if (!$path || str_contains($path, '..') || str_contains($path, "\0") || !str_starts_with($path, 'buchhaltung/receipts/') || !Storage::disk('local')->exists($path)) {
+                abort(404);
+            }
+            $fullPath = Storage::disk('local')->path($path);
+            if (is_link($fullPath)) {
+                abort(403);
+            }
+            $cleanName = 'Stundenzettel_' . preg_replace('/[^A-Za-z0-9_\-]/', '_', (string) $contract->contract_number) . "_{$year}_{$month}.pdf";
+            return response()->file($fullPath, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="' . $cleanName . '"',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
+        })->name('employee.tax-advisor.employee-timesheet.pdf')->middleware('throttle:30,1');
     });
 
 });

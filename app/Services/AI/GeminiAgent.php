@@ -58,8 +58,9 @@ class GeminiAgent implements AiProviderInterface
         }
         $isOverride = str_contains($latestUserMessage, 'ich befehle dir');
 
-        $isAdmin = \App\Services\AI\AiAuthHelper::isAdmin();
-        $isEmployee = !$isAdmin && \App\Services\AI\AiAuthHelper::isEmployee();
+        $isPublicSupportChat = !empty(\App\Services\AI\AIFunctionsRegistry::getGlobalContext()['__chat_id']);
+        $isAdmin = !$isPublicSupportChat && \App\Services\AI\AiAuthHelper::isAdmin();
+        $isEmployee = !$isPublicSupportChat && !$isAdmin && \App\Services\AI\AiAuthHelper::isEmployee();
         
         $aiCommand = null;
         if ($isAdmin) {
@@ -77,7 +78,7 @@ class GeminiAgent implements AiProviderInterface
 
         $customerName = '';
         if (!$isAdmin && !$isEmployee && \App\Services\AI\AiAuthHelper::isCustomer()) {
-            $customerName = auth()->user()->first_name ?? (auth()->guard('customer')->user()->first_name ?? '');
+            $customerName = auth()->guard('customer')->user()->first_name ?? (auth()->user()->first_name ?? '');
         }
         $employeeName = '';
         if ($isEmployee) {
@@ -172,10 +173,16 @@ class GeminiAgent implements AiProviderInterface
             }
         }
 
-        $systemPromptText .= "Reasoning: high\n\n" .
-                             "[UI DATEN-VISUALISIERUNG & WERKZEUGE]\n" .
-                             "Wenn du ein System-Werkzeug ausführst, das strukturierte Arrays, Tabellen oder Objekt-Listen (Metriken, Gutscheine, Aufgaben etc.) zurückgibt, geht das System davon aus, dass diese den Nutzerin bereits visuell und grafisch formatiert in der UI angezeigt werden.\n" .
-                             "REGEL: Du darfst diese geladenen Datenpunkte NIEMALS in deiner eigenen Chat-Antwort auflisten oder im Detail vorlesen. Fasse stattdessen den Erfolg der Aktion in 1-2 lockeren Sätzen völlig abstrakt zusammen (z.B. 'Ich habe die Ansicht für dich geöffnet.' oder 'Alles klar, hier ist die Übersicht.').";
+        if ($isPublicSupportChat) {
+            $systemPromptText .= "Reasoning: low\n\n" .
+                                 "[ANTWORT- & TOKEN-DISZIPLIN IM KUNDENSUPPORT]\n" .
+                                 "Antworte präzise, herzlich und kompakt (ideal 2–6 Sätze oder kurze Aufzählungspunkte). Wenn du ein Support-Werkzeug aufrufst, präsentiere dem Kunden die relevanten Ergebnisse (z. B. Funken-Guthaben, Level, Bestellstatus oder Links) klar und übersichtlich im Chat und nenne immer den genauen Ort bzw. Klickpfad im Shop.";
+        } else {
+            $systemPromptText .= "Reasoning: high\n\n" .
+                                 "[UI DATEN-VISUALISIERUNG & WERKZEUGE]\n" .
+                                 "Wenn du ein System-Werkzeug ausführst, das strukturierte Arrays, Tabellen oder Objekt-Listen (Metriken, Gutscheine, Aufgaben etc.) zurückgibt, geht das System davon aus, dass diese den Nutzerin bereits visuell und grafisch formatiert in der UI angezeigt werden.\n" .
+                                 "REGEL: Du darfst diese geladenen Datenpunkte NIEMALS in deiner eigenen Chat-Antwort auflisten oder im Detail vorlesen. Fasse stattdessen den Erfolg der Aktion in 1-2 lockeren Sätzen völlig abstrakt zusammen (z.B. 'Ich habe die Ansicht für dich geöffnet.' oder 'Alles klar, hier ist die Übersicht.').";
+        }
 
         if ($isAdmin && file_exists(base_path('ai_map.md'))) {
             $systemPromptText .= "\n\n[ARCHITEKTUR-KARTE / INDEX]\n" .

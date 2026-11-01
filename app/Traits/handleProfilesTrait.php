@@ -141,6 +141,22 @@ trait handleProfilesTrait
 
         $validatedData = $this->validate($rules);
 
+        $oldBirthdayFormatted = ($this->guard === 'customer' && !empty($this->user->profile->birthday))
+            ? \Carbon\Carbon::parse($this->user->profile->birthday)->format('Y-m-d')
+            : null;
+        $newBirthdayFormatted = ($this->guard === 'customer' && !empty($validatedData['birthday']))
+            ? \Carbon\Carbon::parse($validatedData['birthday'])->format('Y-m-d')
+            : null;
+
+        if ($this->guard === 'customer' && $oldBirthdayFormatted !== null && $oldBirthdayFormatted !== $newBirthdayFormatted) {
+            $gameService = app(\App\Services\Gamification\GamificationService::class);
+            if ($this->user instanceof \App\Models\Customer\Customer && !$gameService->canCustomerChangeBirthday($this->user)) {
+                throw ValidationException::withMessages([
+                    'birthday' => ['Dein Geburtsdatum wurde laut Änderungsprotokoll bereits einmal korrigiert und kann nicht erneut selbstständig geändert werden.'],
+                ]);
+            }
+        }
+
         // Erfasse den Zustand VOR dem Update
         $oldData = [
             'first_name' => $this->user->first_name,
@@ -157,7 +173,7 @@ trait handleProfilesTrait
         ];
         if ($this->guard === 'customer') {
             $oldData['is_business'] = $this->user->profile->is_business;
-            $oldData['birthday'] = $this->user->profile->birthday;
+            $oldData['birthday'] = $oldBirthdayFormatted;
         }
         $oldData['ai_data_consent'] = (bool) ($this->user->profile->ai_data_consent ?? false);
 
@@ -196,7 +212,7 @@ trait handleProfilesTrait
 
         if ($this->guard === 'customer') {
             $this->user->profile->is_business = $validatedData['isBusiness'];
-            $this->user->profile->birthday = $validatedData['birthday'] ?: null;
+            $this->user->profile->birthday = $newBirthdayFormatted;
         }
 
         $newAiConsent = (bool) ($this->aiDataConsent ?? false);
@@ -233,7 +249,7 @@ trait handleProfilesTrait
         ];
         if ($this->guard === 'customer') {
             $newData['is_business'] = $this->user->profile->is_business;
-            $newData['birthday'] = $this->user->profile->birthday;
+            $newData['birthday'] = $newBirthdayFormatted;
         }
         $newData['ai_data_consent'] = (bool) $this->user->profile->ai_data_consent;
 
@@ -254,6 +270,7 @@ trait handleProfilesTrait
                 'status' => 'success',
                 'payload' => [
                     'actor' => 'Kunde (im Frontend)',
+                    'user_id' => (string) $this->user->id,
                     'target_user' => $this->user->email,
                     'changes' => $changes,
                     'ip' => request()->ip()
@@ -263,7 +280,24 @@ trait handleProfilesTrait
             ]);
         }
 
-        session()->flash('message', 'Profil erfolgreich aktualisiert.');
+        if ($this->guard === 'customer' && isset($changes['birthday']) && !empty($newBirthdayFormatted)) {
+            $bdayDisplay = \Carbon\Carbon::parse($newBirthdayFormatted)->format('d.m.Y');
+            $wasCorrection = !empty($oldBirthdayFormatted);
+            if ($this->user instanceof \App\Models\Customer\Customer) {
+                try {
+                    app(\App\Services\Gamification\GamificationService::class)->processAnnualLoyaltySparksForCustomer($this->user, true);
+                } catch (\Throwable $e) {
+                }
+            }
+            session()->flash(
+                'message',
+                $wasCorrection
+                    ? "Profil & Geburtsdatum ({$bdayDisplay}) erfolgreich einmalig korrigiert und fest gespeichert! ✨"
+                    : "Profil & Geburtsdatum ({$bdayDisplay}) erfolgreich gespeichert! ✨"
+            );
+        } else {
+            session()->flash('message', 'Profil erfolgreich aktualisiert.');
+        }
     }
 
     protected function updateUserPassword(): void

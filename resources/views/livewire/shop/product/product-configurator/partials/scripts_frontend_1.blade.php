@@ -689,18 +689,12 @@
                 let snapshotBackBase64 = null;
 
                 try {
+                    this.focusedTextId = null;
                     this.selectedIndex = null;
                     this.selectedType = null;
                     this.showFontMenu = this.showSizeMenu = this.showAlignMenu = this.showPosMenu = false;
-                    
-                    // UI Elemente (Guides, Box-Shadow Masken) vor dem Screenshot verstecken
-                    this.isCapturing = true;
 
-                    // Kurz warten, bis Alpine die UI-Overlays (Grüne Ränder) versteckt hat
-                    await new Promise(r => requestAnimationFrame(r));
-                    await new Promise(r => setTimeout(r, 100));
-
-                    // Snapshot-Erstellung mit TIMEOUT (max. 3.5 Sekunden), damit es auf Mobilgeräten NIEMALS hängt!
+                    // Snapshot-Erstellung mit TIMEOUT (max. 3.5 Sekunden), ohne das Live-DOM auf dem Bildschirm umzuschalten!
                     try {
                         const timeoutPromise = new Promise(resolve => setTimeout(resolve, 3500));
 
@@ -722,7 +716,6 @@
                             }
 
                             if (this.config.modelPath && engine) {
-                                
                                 // SICHERSTELLEN DASS DAS 3D MODEL GELADEN IST (mit maximal 2 Sekunden Wartezeit!)
                                 if (!this.modelLoaded) {
                                     if (typeof this._forceStart3D === 'function') this._forceStart3D();
@@ -739,7 +732,7 @@
                                 }
 
                                 if (this.modelLoaded && engine.renderer && engine.scene && engine.camera) {
-                                    // TEXTUREN ERZWINGEN ZU RENDERN (Falls der User nie in der 3D Ansicht war)
+                                    // TEXTUREN ERZWINGEN ZU RENDERN (Synchron für sofortigen GPU-Upload beim nächsten Render-Aufruf)
                                     try {
                                         engine.renderBothCanvases(
                                             Alpine.raw(this.texts),
@@ -749,10 +742,13 @@
                                             Alpine.raw(this.fontMap)
                                         );
                                     } catch (e) { console.error("Force Render failed:", e); }
-                                    
-                                    await new Promise(r => setTimeout(r, 100)); // Warten bis GPU die Textur hat
 
-                                    if (this.config.has_back_side) {
+                                    const hasBackContent = this.config.has_back_side && (
+                                        (this.texts_back && this.texts_back.some(t => t && t.text && String(t.text).trim() !== '')) ||
+                                        (this.logos_back && this.logos_back.length > 0)
+                                    );
+
+                                    if (hasBackContent) {
                                         const origPos = engine.camera.position.clone();
                                         const origTarget = engine.controls.target.clone();
 
@@ -775,7 +771,7 @@
                                             engine.scene.background = prevSceneBg;
                                         }
 
-                                        // Back Snapshot (Rückseite inkl. Hintergrundbild/-video statt schwarzem Hintergrund!)
+                                        // Back Snapshot (Rückseite inkl. Hintergrundbild/-video)
                                         if (engine.defaultCamPos) {
                                             engine.camera.position.copy(engine.defaultCamPos);
                                             engine.camera.position.z *= -1;
@@ -783,7 +779,7 @@
                                         } else {
                                             engine.camera.position.set(0, 0, -Math.abs(engine.camera.position.z));
                                         }
-                                        
+
                                         engine.controls.update();
                                         if (typeof engine.captureCompositeSnapshot === 'function') {
                                             snapshotBackBase64 = engine.captureCompositeSnapshot(this.$refs.bgVideo);
@@ -795,10 +791,11 @@
                                             engine.scene.background = prevSceneBg;
                                         }
 
-                                        // Restore
+                                        // Restore und sofort synchron neu rendern, damit die Bühne niemals zuckt!
                                         engine.camera.position.copy(origPos);
                                         engine.controls.target.copy(origTarget);
                                         engine.controls.update();
+                                        engine.renderer.render(engine.scene, engine.camera);
                                     } else {
                                         const origPos = engine.camera.position.clone();
                                         const origTarget = engine.controls.target.clone();
@@ -818,16 +815,16 @@
                                             snapshotBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
                                             engine.scene.background = prevSceneBg;
                                         }
-                                        
+
                                         engine.camera.position.copy(origPos);
                                         engine.controls.target.copy(origTarget);
                                         engine.controls.update();
+                                        engine.renderer.render(engine.scene, engine.camera);
                                     }
                                 }
                             } else {
-                                // 2D-Fallback-Modus
+                                // 2D-Fallback-Modus (Offscreen-Clone via html2canvas ohne Live-DOM-Flackern)
                                 if (!window.html2canvas) {
-                                    console.log("Loading html2canvas dynamically...");
                                     await new Promise((resolve) => {
                                         const script = document.createElement('script');
                                         script.src = '{{ asset('vendor/html2canvas/html2canvas.min.js') }}';
@@ -840,31 +837,48 @@
                                 if (window.html2canvas) {
                                     const containerToCapture = this.$refs.container || document.querySelector('.configurator-2d-preview');
                                     if (containerToCapture) {
-                                        const prevShowBoard = this.showDrawingBoard;
-                                        if (!this.showDrawingBoard) {
-                                            this.showDrawingBoard = true;
-                                            await new Promise(r => setTimeout(r, 80));
-                                        }
-                                        if (this.config.has_back_side) {
+                                        const h2cOpts = {
+                                            useCORS: true,
+                                            allowTaint: false,
+                                            backgroundColor: '#ffffff',
+                                            scale: 1.5,
+                                            ignoreElements: (el) => Boolean(el && el.hasAttribute && el.hasAttribute('data-snapshot-ignore')),
+                                            onclone: (clonedDoc) => {
+                                                clonedDoc.querySelectorAll('textarea[data-id]').forEach(ta => {
+                                                    const div = clonedDoc.createElement('div');
+                                                    div.textContent = ta.value || '';
+                                                    div.className = ta.className;
+                                                    div.style.cssText = ta.style.cssText;
+                                                    div.style.height = 'auto';
+                                                    div.style.overflow = 'visible';
+                                                    if (ta.parentNode) ta.parentNode.replaceChild(div, ta);
+                                                });
+                                            }
+                                        };
+
+                                        const hasBack2D = this.config.has_back_side && (
+                                            (this.texts_back && this.texts_back.some(t => t && t.text && String(t.text).trim() !== '')) ||
+                                            (this.logos_back && this.logos_back.length > 0)
+                                        );
+
+                                        if (hasBack2D) {
                                             let origSide = this.activeSide;
-                                            
+
                                             this.activeSide = 'front';
-                                            await new Promise(r => setTimeout(r, 150)); // wait for DOM
-                                            let canvasF = await window.html2canvas(containerToCapture, { useCORS: true, allowTaint: false, backgroundColor: '#ffffff', scale: 1.5 });
+                                            await new Promise(r => setTimeout(r, 80));
+                                            let canvasF = await window.html2canvas(containerToCapture, h2cOpts);
                                             snapshotBase64 = canvasF.toDataURL('image/jpeg', 0.85);
 
                                             this.activeSide = 'back';
-                                            await new Promise(r => setTimeout(r, 150)); // wait for DOM
-                                            let canvasB = await window.html2canvas(containerToCapture, { useCORS: true, allowTaint: false, backgroundColor: '#ffffff', scale: 1.5 });
+                                            await new Promise(r => setTimeout(r, 80));
+                                            let canvasB = await window.html2canvas(containerToCapture, h2cOpts);
                                             snapshotBackBase64 = canvasB.toDataURL('image/jpeg', 0.85);
 
                                             this.activeSide = origSide;
-                                            await new Promise(r => setTimeout(r, 50)); // restore
                                         } else {
-                                            let canvas = await window.html2canvas(containerToCapture, { useCORS: true, allowTaint: false, backgroundColor: '#ffffff', scale: 1.5 });
+                                            let canvas = await window.html2canvas(containerToCapture, h2cOpts);
                                             snapshotBase64 = canvas.toDataURL('image/jpeg', 0.85);
                                         }
-                                        this.showDrawingBoard = prevShowBoard;
                                     }
                                 }
                             }

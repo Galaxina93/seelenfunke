@@ -105,7 +105,7 @@ class AppServiceProvider extends ServiceProvider
                     Config::set('session.driver', 'file');
                 }
                 if (Config::get('queue.default') === 'redis') {
-                    Config::set('queue.default', 'database');
+                    Config::set('queue.default', Schema::hasTable('jobs') ? 'database' : 'sync');
                 }
                 \Illuminate\Support\Facades\Log::warning('Redis nicht erreichbar (' . $redisEx->getMessage() . ') – Automatischer Fallback auf File-Cache/Session aktiviert.');
 
@@ -211,18 +211,24 @@ class AppServiceProvider extends ServiceProvider
         \Illuminate\Support\Facades\Queue::before($heartbeatCallback);
         \Illuminate\Support\Facades\Queue::after($heartbeatCallback);
 
-        // 7. Lückenlose Fehler-Erfassung für /admin/global-logs (SystemLog):
-        //    a) Alle abgefangenen Log::error / Log::critical / Log::alert / Log::emergency Aufrufe
+        // 7. Lückenlose Fehler-Erfassung ("jede Mücke") für /admin/global-logs (SystemLog):
+        //    a) Alle abgefangenen Log::warning / Log::error / Log::critical / Log::alert / Log::emergency Aufrufe
         //    b) Fehlgeschlagene Queue-Jobs (JobFailed)
         //    c) Fehlgeschlagene Cron-/Scheduler-Tasks (ScheduledTaskFailed)
+        //    d) Alle mit Fehler-Exit-Code beendeten Artisan-/Cron-Befehle (CommandFinished)
         \Illuminate\Support\Facades\Event::listen(\Illuminate\Log\Events\MessageLogged::class, function (\Illuminate\Log\Events\MessageLogged $event) {
-            if (!in_array(strtolower($event->level), ['error', 'critical', 'alert', 'emergency'], true)) {
+            $lvl = strtolower((string) $event->level);
+            if (!in_array($lvl, ['warning', 'error', 'critical', 'alert', 'emergency'], true)) {
+                return;
+            }
+            $msg = (string) $event->message;
+            if ($lvl === 'warning' && (str_contains($msg, 'Deprecated') || str_contains($msg, 'Return type of'))) {
                 return;
             }
             if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
                 \App\Services\System\SystemErrorLogger::recordLogEvent(
                     $event->level,
-                    (string) $event->message,
+                    $msg,
                     is_array($event->context) ? $event->context : []
                 );
             }
@@ -259,6 +265,49 @@ class AppServiceProvider extends ServiceProvider
                         'cron_expression' => $event->task->expression ?? null,
                     ]
                 );
+            }
+        });
+
+        \Illuminate\Support\Facades\Event::listen(\Illuminate\Console\Events\CommandFinished::class, function (\Illuminate\Console\Events\CommandFinished $event) {
+            try {
+                $cmdName = trim((string) $event->command);
+                if ($cmdName === '' || in_array($cmdName, ['schedule:run', 'schedule:finish', 'list', 'help', 'tinker'], true)) {
+                    return;
+                }
+
+                $cronjob = null;
+                if (class_exists(\App\Models\System\SystemCronjob::class) && Schema::hasTable('system_cronjobs')) {
+                    $cronjob = \App\Models\System\SystemCronjob::where('command', $cmdName)->first();
+                }
+
+                if ($event->exitCode !== 0) {
+                    if ($cronjob) {
+                        $cronjob->update([
+                            'status' => 'error',
+                            'last_run_at' => now(),
+                        ]);
+                    }
+
+                    if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
+                        \App\Services\System\SystemErrorLogger::recordCommandFailure(
+                            $cmdName,
+                            (int) $event->exitCode,
+                            '',
+                            [
+                                'cronjob_id' => $cronjob?->id,
+                                'cronjob_name' => $cronjob?->name ?? $cmdName,
+                                'schedule' => $cronjob?->schedule,
+                                'trigger' => 'console_command_finished',
+                            ]
+                        );
+                    }
+                } elseif ($cronjob) {
+                    $cronjob->update([
+                        'status' => 'success',
+                        'last_run_at' => now(),
+                    ]);
+                }
+            } catch (\Throwable $ignore) {
             }
         });
     }

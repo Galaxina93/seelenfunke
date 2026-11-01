@@ -8,6 +8,14 @@ use App\Models\Order\OrderOrder;
 
 class CustomerInvoicesComponent extends Component
 {
+    public function boot(): void
+    {
+        $user = Auth::guard('customer')->user();
+        if (!$user || !empty($user->needs_password_change)) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
         if (!Auth::guard('customer')->check()) {

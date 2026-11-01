@@ -19,13 +19,13 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs font-bold text-gray-700 uppercase mb-1">E-Mail</label>
-                            <input type="email" wire:model="loginEmail" class="block w-full rounded-lg bg-gray-50 border-gray-300 shadow-sm focus:bg-white focus:border-primary focus:ring-primary sm:text-sm px-4 py-2.5">
+                            <input type="email" wire:model="loginEmail" class="block w-full rounded-lg bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 caret-gray-900 cursor-text shadow-sm hover:border-primary/60 hover:bg-white focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none sm:text-sm px-4 py-2.5 transition-all">
                             @error('loginEmail') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
                         <div x-data="{ showPw: false }">
                             <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Passwort</label>
                             <div class="relative">
-                                <input :type="showPw ? 'text' : 'password'" wire:model="loginPassword" class="block w-full rounded-lg bg-gray-50 border-gray-300 shadow-sm focus:bg-white focus:border-primary focus:ring-primary sm:text-sm pl-4 pr-10 py-2.5">
+                                <input :type="showPw ? 'text' : 'password'" wire:model="loginPassword" class="block w-full rounded-lg bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 caret-gray-900 cursor-text shadow-sm hover:border-primary/60 hover:bg-white focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none sm:text-sm pl-4 pr-10 py-2.5 transition-all">
                                 <button type="button" @click="showPw = !showPw" tabindex="-1" class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-primary focus:outline-none">
                                     <x-heroicon-o-eye x-show="!showPw" class="w-4 h-4" />
                                     <x-heroicon-o-eye-slash x-show="showPw" x-cloak class="w-4 h-4 text-primary" />
@@ -174,7 +174,7 @@
                     <div class="sm:col-span-2">
                         <label for="email" class="block text-sm font-medium text-gray-700">E-Mail Adresse <span class="text-red-500">*</span></label>
                         <input type="email" wire:model.live.blur="email" id="email"
-                               class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 shadow-sm focus:bg-white focus:border-primary focus:ring-primary sm:text-sm px-4 py-3 transition-colors @error('email') border-red-300 focus:border-red-500 focus:ring-red-500 @enderror"
+                               class="mt-1 block w-full rounded-lg bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 caret-gray-900 cursor-text shadow-sm hover:border-primary/60 hover:bg-white focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none sm:text-sm px-4 py-3 transition-all @error('email') border-red-300 focus:border-red-500 focus:ring-red-500/20 @enderror"
                                placeholder="max@muster.de">
                         @error('email') <span class="text-red-500 text-xs mt-1 block font-medium">{{ $message }}</span> @enderror
 
@@ -191,44 +191,44 @@
                     {{-- Name --}}
                     <div>
                         <label for="first_name" class="block text-sm font-medium text-gray-700">Vorname <span class="text-red-500">*</span></label>
-                        <input type="text" wire:model.live.blur="first_name" id="first_name" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 shadow-sm focus:bg-white focus:border-primary focus:ring-primary sm:text-sm px-4 py-3 @error('first_name') border-red-300 @enderror">
+                        <input type="text" wire:model.live.blur="first_name" id="first_name" class="mt-1 block w-full rounded-lg bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 caret-gray-900 cursor-text shadow-sm hover:border-primary/60 hover:bg-white focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none sm:text-sm px-4 py-3 transition-all @error('first_name') border-red-300 @enderror">
                         @error('first_name') <span class="text-red-500 text-xs mt-1 block font-medium">{{ $message }}</span> @enderror
                     </div>
                     <div>
                         <label for="last_name" class="block text-sm font-medium text-gray-700">Nachname <span class="text-red-500">*</span></label>
-                        <input type="text" wire:model.live.blur="last_name" id="last_name" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 shadow-sm focus:bg-white focus:border-primary focus:ring-primary sm:text-sm px-4 py-3 @error('last_name') border-red-300 @enderror">
+                        <input type="text" wire:model.live.blur="last_name" id="last_name" class="mt-1 block w-full rounded-lg bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 caret-gray-900 cursor-text shadow-sm hover:border-primary/60 hover:bg-white focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none sm:text-sm px-4 py-3 transition-all @error('last_name') border-red-300 @enderror">
                         @error('last_name') <span class="text-red-500 text-xs mt-1 block font-medium">{{ $message }}</span> @enderror
                     </div>
 
                     {{-- Firma --}}
                     <div class="sm:col-span-2">
                         <label for="company" class="block text-sm font-medium text-gray-700">Firma (Optional)</label>
-                        <input type="text" wire:model.live.blur="company" id="company" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 shadow-sm focus:bg-white focus:border-primary focus:ring-primary sm:text-sm px-4 py-3">
+                        <input type="text" wire:model.live.blur="company" id="company" class="mt-1 block w-full rounded-lg bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 caret-gray-900 cursor-text shadow-sm hover:border-primary/60 hover:bg-white focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none sm:text-sm px-4 py-3 transition-all">
                     </div>
 
                     {{-- Adresse --}}
                     <div class="sm:col-span-2">
                         <label for="address" class="block text-sm font-medium text-gray-700">Straße & Hausnummer <span class="text-red-500">*</span></label>
-                        <input type="text" wire:model.live.blur="address" id="address" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 shadow-sm focus:bg-white focus:border-primary focus:ring-primary sm:text-sm px-4 py-3 @error('address') border-red-300 @enderror">
+                        <input type="text" wire:model.live.blur="address" id="address" class="mt-1 block w-full rounded-lg bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 caret-gray-900 cursor-text shadow-sm hover:border-primary/60 hover:bg-white focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none sm:text-sm px-4 py-3 transition-all @error('address') border-red-300 @enderror">
                         @error('address') <span class="text-red-500 text-xs mt-1 block font-medium">{{ $message }}</span> @enderror
                     </div>
 
                     {{-- Stadt & PLZ --}}
                     <div>
                         <label for="postal_code" class="block text-sm font-medium text-gray-700">PLZ <span class="text-red-500">*</span></label>
-                        <input type="text" wire:model.live.blur="postal_code" id="postal_code" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 shadow-sm focus:bg-white focus:border-primary focus:ring-primary sm:text-sm px-4 py-3 @error('postal_code') border-red-300 @enderror">
+                        <input type="text" wire:model.live.blur="postal_code" id="postal_code" class="mt-1 block w-full rounded-lg bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 caret-gray-900 cursor-text shadow-sm hover:border-primary/60 hover:bg-white focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none sm:text-sm px-4 py-3 transition-all @error('postal_code') border-red-300 @enderror">
                         @error('postal_code') <span class="text-red-500 text-xs mt-1 block font-medium">{{ $message }}</span> @enderror
                     </div>
                     <div>
                         <label for="city" class="block text-sm font-medium text-gray-700">Stadt <span class="text-red-500">*</span></label>
-                        <input type="text" wire:model.live.blur="city" id="city" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 shadow-sm focus:bg-white focus:border-primary focus:ring-primary sm:text-sm px-4 py-3 @error('city') border-red-300 @enderror">
+                        <input type="text" wire:model.live.blur="city" id="city" class="mt-1 block w-full rounded-lg bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 caret-gray-900 cursor-text shadow-sm hover:border-primary/60 hover:bg-white focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none sm:text-sm px-4 py-3 transition-all @error('city') border-red-300 @enderror">
                         @error('city') <span class="text-red-500 text-xs mt-1 block font-medium">{{ $message }}</span> @enderror
                     </div>
 
                     {{-- Land --}}
                     <div class="sm:col-span-2">
                         <label for="country" class="block text-sm font-medium text-gray-700">Land <span class="text-red-500">*</span></label>
-                        <select wire:model.live="country" id="country" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 shadow-sm focus:bg-white focus:border-primary focus:ring-primary sm:text-sm px-4 py-3">
+                        <select wire:model.live="country" id="country" class="mt-1 block w-full rounded-lg bg-gray-50 border border-gray-300 text-gray-900 cursor-pointer shadow-sm hover:border-primary/60 hover:bg-white focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none sm:text-sm px-4 py-3 transition-all">
                             @foreach(shop_setting('active_countries', ['DE' => 'Deutschland']) as $code => $name)
                                 <option value="{{ $code }}">{{ $name }}</option>
                             @endforeach
@@ -262,36 +262,36 @@
 
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">Vorname <span class="text-red-500">*</span></label>
-                                <input type="text" wire:model.live.blur="shipping_first_name" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 sm:text-sm px-4 py-3 focus:bg-white focus:ring-primary focus:border-primary transition-colors @error('shipping_first_name') border-red-300 @enderror">
+                                <input type="text" wire:model.live.blur="shipping_first_name" class="mt-1 block w-full rounded-lg bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 caret-gray-900 cursor-text shadow-sm sm:text-sm px-4 py-3 hover:border-primary/60 hover:bg-white focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all @error('shipping_first_name') border-red-300 @enderror">
                                 @error('shipping_first_name') <span class="text-red-500 text-xs mt-1 block font-medium">{{ $message }}</span> @enderror
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">Nachname <span class="text-red-500">*</span></label>
-                                <input type="text" wire:model.live.blur="shipping_last_name" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 sm:text-sm px-4 py-3 focus:bg-white focus:ring-primary focus:border-primary transition-colors @error('shipping_last_name') border-red-300 @enderror">
+                                <input type="text" wire:model.live.blur="shipping_last_name" class="mt-1 block w-full rounded-lg bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 caret-gray-900 cursor-text shadow-sm sm:text-sm px-4 py-3 hover:border-primary/60 hover:bg-white focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all @error('shipping_last_name') border-red-300 @enderror">
                                 @error('shipping_last_name') <span class="text-red-500 text-xs mt-1 block font-medium">{{ $message }}</span> @enderror
                             </div>
                             <div class="sm:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700">Firma (Optional)</label>
-                                <input type="text" wire:model.live.blur="shipping_company" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 sm:text-sm px-4 py-3 focus:bg-white focus:ring-primary focus:border-primary transition-colors">
+                                <input type="text" wire:model.live.blur="shipping_company" class="mt-1 block w-full rounded-lg bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 caret-gray-900 cursor-text shadow-sm sm:text-sm px-4 py-3 hover:border-primary/60 hover:bg-white focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all">
                             </div>
                             <div class="sm:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700">Straße & Hausnummer <span class="text-red-500">*</span></label>
-                                <input type="text" id="shipping_address" wire:model.live.blur="shipping_address" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 sm:text-sm px-4 py-3 focus:bg-white focus:ring-primary focus:border-primary transition-colors @error('shipping_address') border-red-300 @enderror">
+                                <input type="text" id="shipping_address" wire:model.live.blur="shipping_address" class="mt-1 block w-full rounded-lg bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 caret-gray-900 cursor-text shadow-sm sm:text-sm px-4 py-3 hover:border-primary/60 hover:bg-white focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all @error('shipping_address') border-red-300 @enderror">
                                 @error('shipping_address') <span class="text-red-500 text-xs mt-1 block font-medium">{{ $message }}</span> @enderror
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">PLZ <span class="text-red-500">*</span></label>
-                                <input type="text" wire:model.live.blur="shipping_postal_code" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 sm:text-sm px-4 py-3 focus:bg-white focus:ring-primary focus:border-primary transition-colors @error('shipping_postal_code') border-red-300 @enderror">
+                                <input type="text" wire:model.live.blur="shipping_postal_code" class="mt-1 block w-full rounded-lg bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 caret-gray-900 cursor-text shadow-sm sm:text-sm px-4 py-3 hover:border-primary/60 hover:bg-white focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all @error('shipping_postal_code') border-red-300 @enderror">
                                 @error('shipping_postal_code') <span class="text-red-500 text-xs mt-1 block font-medium">{{ $message }}</span> @enderror
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">Stadt <span class="text-red-500">*</span></label>
-                                <input type="text" wire:model.live.blur="shipping_city" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 sm:text-sm px-4 py-3 focus:bg-white focus:ring-primary focus:border-primary transition-colors @error('shipping_city') border-red-300 @enderror">
+                                <input type="text" wire:model.live.blur="shipping_city" class="mt-1 block w-full rounded-lg bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 caret-gray-900 cursor-text shadow-sm sm:text-sm px-4 py-3 hover:border-primary/60 hover:bg-white focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all @error('shipping_city') border-red-300 @enderror">
                                 @error('shipping_city') <span class="text-red-500 text-xs mt-1 block font-medium">{{ $message }}</span> @enderror
                             </div>
                             <div class="sm:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700">Land <span class="text-red-500">*</span></label>
-                                <select wire:model.live="shipping_country" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 sm:text-sm px-4 py-3 focus:bg-white focus:ring-primary focus:border-primary cursor-pointer @error('shipping_country') border-red-300 @enderror">
+                                <select wire:model.live="shipping_country" class="mt-1 block w-full rounded-lg bg-gray-50 border border-gray-300 text-gray-900 cursor-pointer shadow-sm sm:text-sm px-4 py-3 hover:border-primary/60 hover:bg-white focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all @error('shipping_country') border-red-300 @enderror">
                                     @foreach(shop_setting('active_countries', ['DE' => 'Deutschland']) as $code => $name)
                                         <option value="{{ $code }}">{{ $name }}</option>
                                     @endforeach
@@ -330,7 +330,7 @@
             </div>
         </div>
 
-        <div id="payment-element">
+        <div id="payment-element" class="cursor-auto" style="color-scheme: light;">
             {{-- Stripe injiziert hier das klassische Iframe --}}
         </div>
 

@@ -2,6 +2,18 @@
 
 namespace App\Models\Accounting;
 
+
+use App\Support\Blueprint\Concerns\InteractsWithSystemBlueprint;
+use App\Support\Blueprint\Contracts\HasSystemBlueprint;
+use App\Support\Blueprint\Enums\ActorScope;
+use App\Support\Blueprint\Enums\AiAccessPolicy;
+use App\Support\Blueprint\Enums\ComplianceRegulation;
+use App\Support\Blueprint\Enums\DataSensitivity;
+use App\Support\Blueprint\Enums\ExternalChannel;
+use App\Support\Blueprint\Enums\LifecycleBehavior;
+use App\Support\Blueprint\Enums\RetentionPolicy;
+use App\Support\Blueprint\Enums\SystemDepartment;
+use App\Support\Blueprint\ModelBlueprint;
 use App\Models\Customer\Customer;
 use App\Models\Order\OrderOrder;
 use App\Traits\FormatsECommerceData;
@@ -11,9 +23,38 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
 
-class AccountingInvoice extends Model
+class AccountingInvoice extends Model implements HasSystemBlueprint
 {
-    use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
+    
+    use InteractsWithSystemBlueprint;
+
+    /**
+     * Digitales Architektur- & Compliance-Typenschild (Living Documentation).
+     */
+    public static function blueprint(): ModelBlueprint
+    {
+        return ModelBlueprint::make(
+            label: 'Rechnung, Gutschrift & Stornobeleg',
+            description: 'GoBD-konforme Ausgangsrechnungen, Stornorechnungen und Gutschriften inklusive unveränderlicher PDF-Archivierung.',
+            department: SystemDepartment::Accounting,
+            navigationNodes: ['admin.accounting.invoices', 'customer.orders.index'],
+            lifecycle: LifecycleBehavior::ImmutableAfterFinalized,
+            sensitivity: DataSensitivity::FinancialConfidential,
+            retention: RetentionPolicy::GoBD_10Years,
+            aiAccess: AiAccessPolicy::ReadOnly,
+            actorsRead: [ActorScope::Admin, ActorScope::Customer],
+            actorsWrite: [ActorScope::Admin, ActorScope::SystemCron],
+            regulations: [ComplianceRegulation::GoBD, ComplianceRegulation::DSGVO_Art15_Art30],
+            externalChannels: [ExternalChannel::DATEV_TaxExport, ExternalChannel::IMAP_SMTP_Mail, ExternalChannel::StripePayment],
+            dependsOnSettings: ['default_tax_rate', 'is_small_business', 'owner_tax_id'],
+            isGdprArt15Exportable: true,
+            customerForeignKey: 'customer_id',
+            containsProductionAssets: false,
+            assetColumns: [],
+        );
+    }
+
+use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
 
     protected $guarded = [];
 

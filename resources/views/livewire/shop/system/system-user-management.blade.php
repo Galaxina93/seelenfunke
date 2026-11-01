@@ -161,6 +161,86 @@
                                     </button>
                                 @endif
                             </div>
+
+                            {{-- PROFIL-, ADRESS-, GEBURTSTAGS- & DSGVO-ÄNDERUNGSPROTOKOLL (LOG) --}}
+                            <div class="p-4 bg-gray-50 dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner space-y-3">
+                                <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-gray-200 dark:border-gray-800">
+                                    <div class="flex items-center gap-2.5">
+                                        <div class="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                                            <x-heroicon-m-clock class="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                            <div class="text-xs font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                                                <span>Profil- &amp; DSGVO-Änderungsprotokoll (Log)</span>
+                                                <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-700">
+                                                    {{ count($editingUserLogs) }} Einträge
+                                                </span>
+                                            </div>
+                                            <div class="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
+                                                Protokolliert automatisch alle Änderungen an Name, E-Mail, Adresse, Geburtstag &amp; DSGVO-Freigaben.
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    @if($editingType === 'customer')
+                                        <span @class([
+                                            'px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border shrink-0',
+                                            'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' => $editingUserBirthdayCorrections === 0,
+                                            'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40' => $editingUserBirthdayCorrections >= 1,
+                                        ])>
+                                            🎂 Geburtstags-Korrekturen durch Kunde: {{ $editingUserBirthdayCorrections }} / 1
+                                        </span>
+                                    @endif
+                                </div>
+
+                                @if(empty($editingUserLogs))
+                                    <div class="py-6 px-4 text-center rounded-xl bg-white dark:bg-gray-900 border border-dashed border-gray-200 dark:border-gray-800">
+                                        <p class="text-xs font-semibold text-gray-500 dark:text-gray-400">Noch keine Profil-Änderungen für dieses Konto protokolliert.</p>
+                                    </div>
+                                @else
+                                    <div class="max-h-72 overflow-y-auto pr-1 space-y-2.5 custom-scrollbar">
+                                        @foreach($editingUserLogs as $logEntry)
+                                            <div class="p-3 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-2xs space-y-2">
+                                                <div class="flex flex-wrap items-center justify-between gap-2 text-[10px]">
+                                                    <div class="flex items-center gap-1.5">
+                                                        <span @class([
+                                                            'px-2 py-0.5 rounded font-black uppercase tracking-wider border text-[9px]',
+                                                            'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30' => !empty($logEntry['is_customer_actor']),
+                                                            'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30' => empty($logEntry['is_customer_actor']),
+                                                        ])>
+                                                            {{ !empty($logEntry['is_customer_actor']) ? '👤 Kunde' : '🛡️ Admin' }}
+                                                        </span>
+                                                        <span class="font-bold text-gray-700 dark:text-gray-300">{{ $logEntry['actor'] }}</span>
+                                                    </div>
+                                                    <span class="font-mono text-gray-500 dark:text-gray-400">
+                                                        {{ $logEntry['created_at'] }}
+                                                        @if(!empty($logEntry['created_at_human']))
+                                                            <span class="opacity-75">({{ $logEntry['created_at_human'] }})</span>
+                                                        @endif
+                                                    </span>
+                                                </div>
+
+                                                @if(!empty($logEntry['changes']))
+                                                    <div class="space-y-1 pt-1 border-t border-gray-100 dark:border-gray-800/80">
+                                                        @foreach($logEntry['changes'] as $change)
+                                                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] bg-gray-50 dark:bg-gray-950/70 px-2.5 py-1.5 rounded-lg border border-gray-100 dark:border-gray-800/60">
+                                                                <span class="font-bold text-gray-700 dark:text-gray-300 shrink-0">{{ $change['label'] }}:</span>
+                                                                <div class="flex flex-wrap items-center gap-1.5 font-mono text-[10px] min-w-0">
+                                                                    <span class="text-red-600 dark:text-red-400 line-through truncate max-w-[160px]" title="{{ $change['old'] }}">{{ $change['old'] }}</span>
+                                                                    <span class="text-gray-400">&rarr;</span>
+                                                                    <span class="text-emerald-600 dark:text-emerald-400 font-bold truncate max-w-[180px]" title="{{ $change['new'] }}">{{ $change['new'] }}</span>
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                @else
+                                                    <div class="text-[11px] text-gray-600 dark:text-gray-400">{{ $logEntry['title'] }}</div>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
                         @endif
                     </div>
 
@@ -215,15 +295,102 @@
                             </div>
                         </div>
 
-                        <div class="space-y-2">
-                            <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Telefon</label>
-                            <input type="text" wire:model="formData.phone_number" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Telefon</label>
+                                <input type="text" wire:model="formData.phone_number" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Geburtsdatum</label>
+                                <input type="date" wire:model="formData.birthday" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
+                            </div>
                         </div>
 
                         <div class="space-y-2">
                             <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Interne Notiz (Nur für Admins)</label>
                             <textarea wire:model="formData.internal_note" rows="3" placeholder="Besonderheiten, VIP Status..." class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none resize-none"></textarea>
                         </div>
+
+                        @if(!$isCreating && $editingType === 'customer')
+                            <div class="pt-4 border-t border-gray-100 dark:border-gray-800/60 space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2 text-amber-500">
+                                        <x-heroicon-s-sparkles class="w-5 h-5 drop-shadow-[0_0_8px_currentColor]" />
+                                        <h3 class="text-[10px] font-black uppercase tracking-widest">Seelenfunken, Funki & DSGVO-Freigaben</h3>
+                                    </div>
+                                    <label class="inline-flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" wire:model="formData.gamification_active" class="w-4 h-4 rounded border-gray-700 text-amber-500 focus:ring-amber-500">
+                                        <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Magie aktiv</span>
+                                    </label>
+                                </div>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-gray-50 dark:bg-gray-950 p-4 rounded-xl border border-gray-200 dark:border-gray-800">
+                                    <div class="space-y-1.5">
+                                        <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Einlösbare Funken</label>
+                                        <input type="number" min="0" wire:model="formData.funken_balance" class="w-full text-sm font-mono font-bold border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-amber-500 p-2.5 outline-none focus:ring-2 focus:ring-amber-500/40">
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Lebenszeit-Funken</label>
+                                        <input type="number" min="0" wire:model="formData.funken_total_earned" class="w-full text-sm font-mono font-bold border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-2.5 outline-none focus:ring-2 focus:ring-amber-500/40">
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Funki-Level (1–10)</label>
+                                        <select wire:model="formData.funki_level" class="w-full text-xs font-bold border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-2.5 outline-none focus:ring-2 focus:ring-amber-500/40">
+                                            @for($lvl = 1; $lvl <= 10; $lvl++)
+                                                <option value="{{ $lvl }}">Level {{ $lvl }} ({{ \App\Services\Gamification\GameConfig::getLevels()[$lvl]['title'] ?? '' }})</option>
+                                            @endfor
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {{-- DSGVO & Opt-In / Opt-Out Steuerung durch Admin --}}
+                                <div class="bg-gray-50 dark:bg-gray-950 p-4 rounded-xl border border-gray-200 dark:border-gray-800 space-y-3">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-[9px] font-black uppercase tracking-widest text-amber-500">DSGVO & Einwilligungen (Admin Opt-In / Opt-Out)</span>
+                                        <span class="text-[9px] font-bold text-gray-500">Haken jederzeit abwählbar</span>
+                                    </div>
+
+                                    <div class="space-y-2.5">
+                                        <label class="flex items-start gap-3 p-2.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-amber-500/40 transition">
+                                            <input type="checkbox" wire:model="formData.gamification_active" class="mt-0.5 w-4 h-4 rounded border-gray-700 text-amber-500 focus:ring-amber-500">
+                                            <div>
+                                                <span class="text-xs font-bold text-gray-900 dark:text-white block">Seelenfunken-Treueprogramm ("Magie aktivieren" AGB & Datenschutz)</span>
+                                                <span class="text-[10px] text-gray-500 block">Wenn abgewählt, wird die Teilnahme am Seelenfunken-Sammelprogramm für den Kunden deaktiviert.</span>
+                                            </div>
+                                        </label>
+
+                                        <label class="flex items-start gap-3 p-2.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-amber-500/40 transition">
+                                            <input type="checkbox" wire:model="formData.ranking_opt_in" class="mt-0.5 w-4 h-4 rounded border-gray-700 text-amber-500 focus:ring-amber-500">
+                                            <div>
+                                                <span class="text-xs font-bold text-gray-900 dark:text-white block">DSGVO: Sichtbarkeit in der Halle der Helden (Opt-In)</span>
+                                                <span class="text-[10px] text-gray-500 block">Wenn abgewählt, erscheint der Kunde nicht mehr öffentlich in der Halle der Helden.</span>
+                                            </div>
+                                        </label>
+
+                                        <label class="flex items-start gap-3 p-2.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-amber-500/40 transition">
+                                            <input type="checkbox" wire:model="formData.use_real_name" class="mt-0.5 w-4 h-4 rounded border-gray-700 text-amber-500 focus:ring-amber-500">
+                                            <div>
+                                                <span class="text-xs font-bold text-gray-900 dark:text-white block">DSGVO: Echtnamen statt Spielernamen öffentlich anzeigen</span>
+                                                <span class="text-[10px] text-gray-500 block">Wenn abgewählt, wird ausschließlich der Spielername (oder ein anonymisiertes Pseudonym) gezeigt.</span>
+                                            </div>
+                                        </label>
+
+                                        <label class="flex items-start gap-3 p-2.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-amber-500/40 transition">
+                                            <input type="checkbox" wire:model="formData.ai_data_consent" class="mt-0.5 w-4 h-4 rounded border-gray-700 text-amber-500 focus:ring-amber-500">
+                                            <div>
+                                                <span class="text-xs font-bold text-gray-900 dark:text-white block">DSGVO: KI-Support-Freigabe (Funki Zugriff auf persönliche Kontodaten)</span>
+                                                <span class="text-[10px] text-gray-500 block">Wenn abgewählt, wird die DSGVO-Einwilligung für KI-Personendaten widerrufen (Art. 7 Abs. 3 DSGVO).</span>
+                                            </div>
+                                        </label>
+                                    </div>
+
+                                    <div class="pt-1">
+                                        <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">Spielername (Halle der Helden & Bewertungs-Profil)</label>
+                                        <input type="text" maxlength="40" wire:model="formData.player_name" placeholder="z. B. Sternenwanderer..." class="w-full text-xs font-bold border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-2.5 outline-none focus:ring-2 focus:ring-amber-500/40">
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
                     </div>
                 </div>
 
@@ -432,6 +599,14 @@
                                             <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase tracking-widest" title="Zwei-Faktor-Authentifizierung aktiv">
                                                 <x-heroicon-m-shield-check class="w-3.5 h-3.5 shrink-0" />
                                                 <span>2FA Aktiv</span>
+                                            </div>
+                                        @endif
+
+                                        @if($user['user_type'] === 'customer' && !empty($user['gamification']))
+                                            <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] font-black uppercase tracking-widest">
+                                                <span>✨ Funki Lvl. {{ max(1, (int) ($user['gamification']['funki_level'] ?? 1)) }}</span>
+                                                <span class="opacity-60">•</span>
+                                                <span>{{ (int) ($user['gamification']['funken_balance'] ?? 0) }} Funken</span>
                                             </div>
                                         @endif
                                     </div>
