@@ -292,6 +292,9 @@ return new class extends Migration {
 
                 $table->boolean('is_active')->default(true)->index();
                 $table->boolean('is_archived')->default(false)->index();
+                $table->boolean('can_access_production')->default(true);
+                $table->boolean('can_access_support')->default(false);
+                $table->boolean('can_access_inventory')->default(false);
                 $table->text('internal_notes')->nullable();
                 $table->timestamps();
                 $table->softDeletes();

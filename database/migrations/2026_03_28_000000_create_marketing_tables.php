@@ -21,6 +21,11 @@ return new class extends Migration
             $table->string('verification_token')->nullable();
             $table->timestamp('verified_at')->nullable();
 
+            // Differenzierte E-Mail-Präferenzen (Seelenpost, Geburtstags-Funke, Kauf-Jubiläum)
+            $table->boolean('receive_newsletter')->default(true);
+            $table->boolean('receive_birthday_emails')->default(true);
+            $table->boolean('receive_anniversary_emails')->default(true);
+
             $table->timestamps();
         });
 
@@ -97,7 +102,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->uuid('influencer_id')->nullable()->index();
             $table->string('title'); // Z.B. "Februar Aktion"
-            $table->string('code')->nullable();  // Pattern für Auto
+            $table->string('code')->nullable()->unique('marketing_vouchers_code_unique');  // Pattern für Auto
             $table->string('recipient_email', 191)->nullable()->index();
             $table->enum('type', ['fixed', 'percent']);
             $table->integer('value');
@@ -314,10 +319,106 @@ return new class extends Migration
                 ->on('marketing_influencers')
                 ->onDelete('cascade');
         });
+
+        // Marketing Referrals (Freunde werben Freunde)
+        if (!Schema::hasTable('marketing_referrals')) {
+            Schema::create('marketing_referrals', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->string('referrer_email')->index();
+                $table->string('referrer_customer_id')->nullable()->index();
+                $table->string('referrer_first_name')->nullable();
+                $table->string('referrer_last_name')->nullable();
+                $table->string('code', 50)->unique();
+                $table->string('voucher_id')->index();
+                $table->integer('discount_percent')->default(10);
+                $table->integer('reward_cents')->default(500);
+                $table->unsignedInteger('successful_referrals_count')->default(0);
+                $table->boolean('is_active')->default(true);
+                $table->timestamps();
+            });
+        }
+
+        // Marketing Linktrees
+        if (!Schema::hasTable('marketing_linktrees')) {
+            Schema::create('marketing_linktrees', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->string('title');
+                $table->string('url');
+                $table->string('icon')->nullable();
+                $table->enum('type', ['standard', 'secure', 'highlight'])->default('standard');
+                $table->integer('sort_order')->default(0);
+                $table->boolean('is_active')->default(true);
+                $table->timestamps();
+            });
+        }
+
+        if (!Schema::hasTable('marketing_linktree_visits')) {
+            Schema::create('marketing_linktree_visits', function (Blueprint $table) {
+                $table->id();
+                $table->string('ip_hash');
+                $table->text('referrer')->nullable();
+                $table->string('device_type')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (!Schema::hasTable('marketing_linktree_clicks')) {
+            Schema::create('marketing_linktree_clicks', function (Blueprint $table) {
+                $table->id();
+                $table->uuid('link_id');
+                $table->string('ip_hash');
+                $table->string('device_type')->nullable();
+                $table->timestamps();
+
+                $table->foreign('link_id')->references('id')->on('marketing_linktrees')->onDelete('cascade');
+            });
+        }
+
+        // Marketing Tracking Links
+        if (!Schema::hasTable('marketing_tracking_links')) {
+            Schema::create('marketing_tracking_links', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('influencer_id')->nullable()->index();
+                $table->string('name');
+                $table->string('slug', 100)->unique();
+                $table->string('target_url', 2048)->default('/shop');
+                $table->string('channel', 40)->default('social');
+                $table->string('utm_source', 100);
+                $table->string('utm_medium', 100)->nullable();
+                $table->string('utm_campaign', 150)->nullable();
+                $table->unsignedBigInteger('clicks_count')->default(0);
+                $table->unsignedBigInteger('unique_clicks_count')->default(0);
+                $table->timestamp('last_clicked_at')->nullable();
+                $table->boolean('is_active')->default(true);
+                $table->timestamps();
+            });
+        }
+
+        if (!Schema::hasTable('marketing_tracking_link_hits')) {
+            Schema::create('marketing_tracking_link_hits', function (Blueprint $table) {
+                $table->id();
+                $table->uuid('tracking_link_id')->index();
+                $table->string('ip_hash', 64)->index();
+                $table->string('device_type', 20)->default('desktop');
+                $table->string('referrer', 255)->nullable();
+                $table->timestamps();
+
+                $table->foreign('tracking_link_id')
+                    ->references('id')
+                    ->on('marketing_tracking_links')
+                    ->onDelete('cascade');
+            });
+        }
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('marketing_tracking_link_hits');
+        Schema::dropIfExists('marketing_tracking_links');
+        Schema::dropIfExists('marketing_linktree_clicks');
+        Schema::dropIfExists('marketing_linktree_visits');
+        Schema::dropIfExists('marketing_linktrees');
+        Schema::dropIfExists('marketing_referrals');
         Schema::dropIfExists('marketing_influencer_commissions');
         Schema::dropIfExists('marketing_influencer_payouts');
         Schema::dropIfExists('marketing_influencers');

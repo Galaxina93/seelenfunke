@@ -103,6 +103,8 @@ return new class extends Migration
                 $table->timestamp('last_seen')->nullable();
                 $table->string('last_ip', 45)->nullable();
                 $table->timestamp('cart_reminder_unsubscribed_at')->nullable()->comment('Zeitstempel, falls der Kunde dem Erhalt von Warenkorb-Erinnerungen widersprochen hat (Opt-Out nach § 7 UWG / DSGVO)');
+                $table->boolean('receive_birthday_emails')->default(true)->comment('Opt-In/Opt-Out für automatische Geburtstags-Funken E-Mails');
+                $table->boolean('receive_anniversary_emails')->default(true)->comment('Opt-In/Opt-Out für automatische Kauf-Jubiläums / Vorfreude-Funken E-Mails');
                 $table->boolean('ai_data_consent')->default(false)->comment('DSGVO-Einwilligung (Art. 6 Abs. 1 lit. a DSGVO) zum KI-Datenzugriff im Support');
                 $table->timestamp('ai_data_consent_at')->nullable()->comment('Zeitstempel der letzten DSGVO-Einwilligung für den KI-Datenzugriff');
                 $table->softDeletes();
@@ -347,6 +349,21 @@ return new class extends Migration
                 $table->unsignedInteger('reserved_at')->nullable();
                 $table->unsignedInteger('available_at');
                 $table->unsignedInteger('created_at');
+            });
+        }
+
+        if (!Schema::hasTable('job_batches')) {
+            Schema::create('job_batches', function (Blueprint $table) {
+                $table->string('id')->primary();
+                $table->string('name');
+                $table->integer('total_jobs');
+                $table->integer('pending_jobs');
+                $table->integer('failed_jobs');
+                $table->longText('failed_job_ids');
+                $table->mediumText('options')->nullable();
+                $table->integer('cancelled_at')->nullable();
+                $table->integer('created_at');
+                $table->integer('finished_at')->nullable();
             });
         }
 
