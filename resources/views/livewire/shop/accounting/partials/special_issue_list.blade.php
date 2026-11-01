@@ -32,7 +32,7 @@
                 <div wire:ignore class="relative w-32 h-32 sm:w-36 sm:h-36 shrink-0 flex items-center justify-center">
                     <canvas id="categoryChart"></canvas>
                 </div>
-                <div class="flex-1 xl:w-64 space-y-2">
+                <div class="flex-1 xl:w-72 space-y-2">
                     <h3 class="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2 border-b border-gray-200 dark:border-gray-800 pb-1">Top Kostenverteilung</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
                         @foreach($chartLabels as $index => $label)
@@ -46,10 +46,20 @@
                                         <span class="w-2 h-2 rounded-full bg-[var(--theme-color)] shrink-0" style="opacity: {{ (int)$opacity / 100 }};"></span>
                                         <span class="font-bold text-gray-700 dark:text-gray-300 truncate" title="{{ $label }}">{{ \Illuminate\Support\Str::limit($label, 12) }}</span>
                                     </span>
-                                    <span class="font-mono font-bold text-gray-900 dark:text-white">{{ number_format($chartData[$index] ?? 0, 0, ',', '.') }}€</span>
+                                    <span class="font-mono font-bold text-gray-900 dark:text-white whitespace-nowrap shrink-0">{{ number_format($chartData[$index] ?? 0, 0, ',', '.') }}€</span>
                                 </div>
                             @endif
                         @endforeach
+                    </div>
+
+                    {{-- Summe aller Sonderausgaben --}}
+                    <div class="pt-2.5 mt-2 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between gap-3">
+                        <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 truncate">
+                            Gesamt Sonderausgaben
+                        </span>
+                        <span class="font-mono text-sm sm:text-base font-black text-gray-900 dark:text-white tracking-tight whitespace-nowrap shrink-0">
+                            {{ number_format($totalSpecialExpenses ?? collect($chartData ?? [])->sum(), 2, ',', '.') }} €
+                        </span>
                     </div>
                 </div>
             </div>

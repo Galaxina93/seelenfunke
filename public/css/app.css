@@ -6578,6 +6578,9 @@ video {
   --tw-bg-opacity: 1;
   background-color: rgb(245 245 244 / var(--tw-bg-opacity, 1));
 }
+.bg-stone-100\/80 {
+  background-color: rgb(245 245 244 / 0.8);
+}
 .bg-stone-200\/70 {
   background-color: rgb(231 229 228 / 0.7);
 }
@@ -10879,12 +10882,12 @@ video {
 .ring-red-500\/50 {
   --tw-ring-color: rgb(239 68 68 / 0.5);
 }
-.ring-rose-200 {
-  --tw-ring-opacity: 1;
-  --tw-ring-color: rgb(254 205 211 / var(--tw-ring-opacity, 1));
-}
 .ring-rose-500\/20 {
   --tw-ring-color: rgb(244 63 94 / 0.2);
+}
+.ring-stone-200 {
+  --tw-ring-opacity: 1;
+  --tw-ring-color: rgb(231 229 228 / var(--tw-ring-opacity, 1));
 }
 .ring-transparent {
   --tw-ring-color: transparent;
@@ -10901,6 +10904,10 @@ video {
 }
 .ring-yellow-500\/50 {
   --tw-ring-color: rgb(234 179 8 / 0.5);
+}
+.ring-rose-200 {
+  --tw-ring-opacity: 1;
+  --tw-ring-color: rgb(254 205 211 / var(--tw-ring-opacity, 1));
 }
 .ring-opacity-20 {
   --tw-ring-opacity: 0.2;
@@ -12794,9 +12801,6 @@ video {
 .hover\:bg-white\/5:hover {
   background-color: rgb(255 255 255 / 0.05);
 }
-.hover\:bg-white\/60:hover {
-  background-color: rgb(255 255 255 / 0.6);
-}
 .hover\:bg-yellow-100\/50:hover {
   background-color: rgb(254 249 195 / 0.5);
 }
@@ -12810,6 +12814,9 @@ video {
 .hover\:bg-yellow-800:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(133 77 14 / var(--tw-bg-opacity, 1));
+}
+.hover\:bg-white\/60:hover {
+  background-color: rgb(255 255 255 / 0.6);
 }
 .hover\:bg-opacity-80:hover {
   --tw-bg-opacity: 0.8;
@@ -21235,6 +21242,9 @@ video {
   .xl\:w-max {
     width: -moz-max-content;
     width: max-content;
+  }
+  .xl\:w-72 {
+    width: 18rem;
   }
   .xl\:max-w-\[140px\] {
     max-width: 140px;

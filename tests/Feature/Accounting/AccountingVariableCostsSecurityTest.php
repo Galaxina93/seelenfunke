@@ -87,4 +87,33 @@ class AccountingVariableCostsSecurityTest extends TestCase
             'deleted_at' => null,
         ]);
     }
+
+    public function test_displays_total_special_expenses_under_top_cost_distribution(): void
+    {
+        $admin = Admin::factory()->create();
+
+        AccountingSpecialIssue::create([
+            'admin_id' => $admin->id,
+            'title' => 'Rohlinge Einkauf',
+            'amount' => -125.50,
+            'category' => 'Material',
+            'is_business' => true,
+            'execution_date' => now()->toDateString(),
+        ]);
+
+        AccountingSpecialIssue::create([
+            'admin_id' => $admin->id,
+            'title' => 'Cloud Server',
+            'amount' => -74.25,
+            'category' => 'Software',
+            'is_business' => true,
+            'execution_date' => now()->toDateString(),
+        ]);
+
+        Livewire::actingAs($admin, 'admin')
+            ->test(AccountingVariableCosts::class)
+            ->assertSee('Top Kostenverteilung')
+            ->assertSee('Gesamt Sonderausgaben')
+            ->assertSee('199,75 €');
+    }
 }

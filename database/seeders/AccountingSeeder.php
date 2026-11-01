@@ -667,6 +667,22 @@ class AccountingSeeder extends Seeder
 
         $specialIssues = [
             [
+                'title'          => 'xTool F2 Ultra UV 5W UV-Lasergravierer (+ Conveyor), RA3 MagSwap Rotationsmodul, SafetyPro IF2 2.0 Rohrventilator & Pedal Switch',
+                'location'       => 'de.xtool.com (XTL Tech EU GmbH)',
+                'amount'         => -4907.51,
+                'date'           => '2026-11-01',
+                'category'       => 'Arbeitsmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => 'DE-99216',
+                'note'           => "Bestellbestätigungsnr.: CN4LVQI0Q | Rechnungsnr.: DE-99216 (01.11.2026 15:46:43)\nPositionen (inkl. 19% DE MwSt.):\n1x xTool F2 Ultra UV 5 W UV-Lasergravierer + Conveyor (SKU: P0101000396-P3010010 / X-P3010010): 4.739,00 € brutto abzgl. 460,00 € Rabatt (Code: XTBFCM460) = 4.279,00 € brutto\n1x xTool RA3 & RA3 Lite: Smartes MagSwap-Rotationsmodul für X1/P3/F-Serie (SKU: P5010454): 389,13 € brutto (327,00 € netto + 62,13 € MwSt.)\n1x xTool SafetyPro IF2 2.0 Rohrventilator (SKU: P0102000113, Vorbestellung): 198,73 € brutto (167,00 € netto + 31,73 € MwSt.)\n1x xTool F2/F1/F2 Ultra/F2 Ultra UV Pedal Switch (SKU: P5010340, Vorbestellung): 40,65 € brutto (34,16 € netto + 6,49 € MwSt.)\nGratisgeschenke (0,00 €): 3x K9-Rechteck-Kristall (SKU: P0104001272), 1 Monat Atomm Pro kostenlos (SKU: W0603000312)\nGesamtsumme: 4.907,51 € brutto (4.123,96 € netto zzgl. 783,55 € MwSt. | Versand: 0,00 €)\nZahlungsart: PayPal / Shopify-Zahlung (kontakt@mein-seelenfunke.de)\nHändler: xTool Deutschland / XTL Tech EU GmbH, Hermann-Klammt-Straße 1-3, 41460 Neuss, USt-IdNr.: DE459313945, E-Mail: service.de@xtool.com",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-01_xTool_F2-Ultra-UV-Komplettpaket-Rechnung-DE-99216.pdf',
+                    'buchhaltung/receipts/2026/11/2026-11-01_xTool_F2-Ultra-UV-Komplettpaket-Bestellbestaetigung-CN4LVQI0Q.png',
+                    'buchhaltung/receipts/2026/11/2026-11-01_xTool_AGB.pdf',
+                    'buchhaltung/receipts/2026/11/2026-11-01_xTool_Widerrufsrecht.pdf'
+                ]
+            ],
+            [
                 'title'          => '5x Edelstahl Laserrohling Anhänger, Herz, mit Collierschlaufe, 14 Karat vergoldet, 25 x 22 x 4 mm, Öse: 3 x 6 mm, Ion Plating(IP)',
                 'location'       => 'www.gluecksfieber.de',
                 'amount'         => -16.99,
@@ -687,10 +703,11 @@ class AccountingSeeder extends Seeder
                 'category'       => 'Beratung & Gründung',
                 'tax_rate'       => 0,
                 'invoice_number' => 'OGAN-2026-00000406',
-                'note'           => "Bezahlt via PayPal (Transaktionscode: 7N857731L42389422)\nBankkonto: Volksbank eG Braunschweig Wolfsburg x-6000\nAktenzeichen / Transaktionsnummer: OLAV-GEW001317632\nAuftragsnummer: GEWANZ-20261022-000454-KCHAXY",
+                'note'           => "Bezahlt via PayPal (Transaktionscode: 7N857731L42389422)\nBankkonto: Volksbank eG Braunschweig Wolfsburg x-6000\nAktenzeichen / Transaktionsnummer: OLAV-GEW001317632\nAuftragsnummer: GEWANZ-20261022-000454-KCHAXY\nReferenznummer Vorgang: A0007510 (Status: abgeschlossen am 28.10.2026 durch Bürgerbüro Stadt Gifhorn)",
                 'file_paths'     => [
                     'buchhaltung/receipts/2026/10/2026-10-22_Stadt-Gifhorn_Gewerbeanzeige-Zahlungsbeleg.pdf',
-                    'buchhaltung/receipts/2026/10/2026-10-22_Stadt-Gifhorn_PayPal-Zahlungsbeleg.pdf'
+                    'buchhaltung/receipts/2026/10/2026-10-22_Stadt-Gifhorn_PayPal-Zahlungsbeleg.pdf',
+                    'buchhaltung/receipts/2026/10/2026-10-28_Stadt-Gifhorn_Gewerbeanzeige-Vorgang-Abgeschlossen-A0007510.pdf'
                 ]
             ],
             [
