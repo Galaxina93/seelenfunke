@@ -42,7 +42,7 @@ class TaxAdvisorDashboard extends Component
     public function boot(): void
     {
         $employee = Auth::guard('employee')->user();
-        if (!$employee || !$employee->isTaxAdvisor()) {
+        if (!$employee || !$employee->isTaxAdvisor() || (method_exists($employee, 'isAccountActive') && !$employee->isAccountActive())) {
             abort(403, 'Zugriff nur für autorisierte Steuerberater.');
         }
     }

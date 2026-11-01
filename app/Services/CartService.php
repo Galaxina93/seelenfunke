@@ -408,17 +408,39 @@ class CartService
             $configuration['purchased_image_path'] = $catalogItem['image_path'] ?? 'shop/gamification/shop/energy_refill_5.jpg';
             unset($configuration['is_gift_voucher']);
         } elseif ($product->slug !== 'geschenkgutschein') {
-            if (isset($configuration['is_gift_voucher']) || isset($configuration['amount_cents']) || isset($configuration['is_ingame_shop_item'])) {
+            if (
+                isset($configuration['is_gift_voucher'])
+                || isset($configuration['amount_cents'])
+                || isset($configuration['is_ingame_shop_item'])
+                || isset($configuration['ingame_item_key'])
+                || isset($configuration['ingame_item_name'])
+                || isset($configuration['ingame_category'])
+            ) {
                 \App\Services\System\SystemSecurityService::logEvent(
                     'security:price_tampering_attempt',
                     'Gutschein-Parameter-Manipulation blockiert',
-                    "Versuch, Gutschein-Konfigurationswerte (is_gift_voucher / amount_cents) an Produkt '{$product->slug}' zu übergeben.",
+                    "Versuch, Gutschein-Konfigurationswerte (is_gift_voucher / amount_cents / ingame_item_*) an Produkt '{$product->slug}' zu übergeben.",
                     'error',
                     ['product_id' => $product->id, 'slug' => $product->slug]
                 );
-                unset($configuration['is_gift_voucher'], $configuration['amount_cents'], $configuration['is_ingame_shop_item'], $configuration['ingame_item_key']);
             }
+            unset(
+                $configuration['is_gift_voucher'],
+                $configuration['amount_cents'],
+                $configuration['is_ingame_shop_item'],
+                $configuration['ingame_item_key'],
+                $configuration['ingame_item_name'],
+                $configuration['ingame_category'],
+                $configuration['purchased_image_path']
+            );
         } else {
+            unset(
+                $configuration['is_ingame_shop_item'],
+                $configuration['ingame_item_key'],
+                $configuration['ingame_item_name'],
+                $configuration['ingame_category'],
+                $configuration['purchased_image_path']
+            );
             $rawCents = isset($configuration['amount_cents']) ? (int) $configuration['amount_cents'] : ((int) $product->price ?: 2500);
             if ($rawCents < 500 || $rawCents > 100000) {
                 \App\Services\System\SystemSecurityService::logEvent(

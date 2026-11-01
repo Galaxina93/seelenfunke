@@ -8,7 +8,7 @@
     @endif
     @section('og_type', 'product')
     @push('structured_data')
-        <script type="application/ld+json">{!! json_encode($product->buildStructuredDataSchema(route('landing-page', $landingPage->slug)), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
+        <script type="application/ld+json">{!! json_encode($product->buildStructuredDataSchema(route('landing-page', $landingPage->slug)), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) !!}</script>
     @endpush
 
     @if($landingPage->status !== 'active' || $product->status !== 'active')

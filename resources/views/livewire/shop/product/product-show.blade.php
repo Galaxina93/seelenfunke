@@ -3,7 +3,7 @@
     {{-- Produkt- & Breadcrumb Structured Data (JSON-LD) + OpenGraph Product Price --}}
     @push('structured_data')
         @if(!empty($productSchema))
-            <script type="application/ld+json">{!! json_encode($productSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
+            <script type="application/ld+json">{!! json_encode($productSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) !!}</script>
         @endif
     @endpush
     @push('head')

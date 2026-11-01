@@ -137,7 +137,7 @@
              x-transition:leave-start="opacity-100 translate-y-0"
              x-transition:leave-end="opacity-0 translate-y-2"
              :style="'bottom: ' + bottomOffsetPx + 'px; right: max(0.75rem, env(safe-area-inset-right, 0px));'"
-             class="fixed sm:!right-5 z-[9985] select-none transition-[bottom] duration-200 ease-out"
+             class="fixed sm:!right-5 z-[9985] w-[2.625rem] h-[2.625rem] sm:w-10 sm:h-10 select-none transition-[bottom] duration-200 ease-out"
              role="region"
              aria-label="Funki Musik-Steuerung">
 
@@ -145,9 +145,25 @@
             <button x-show="!expanded"
                     type="button"
                     @click="expanded = true"
+                    x-transition:enter="transition ease-out duration-200"
+                    x-transition:enter-start="opacity-0 scale-75"
+                    x-transition:enter-end="opacity-100 scale-100"
+                    x-transition:leave="transition ease-in duration-150"
+                    x-transition:leave-start="opacity-100 scale-100"
+                    x-transition:leave-end="opacity-0 scale-75"
                     title="Funki Musik öffnen"
                     aria-label="Funki Musik öffnen"
-                    class="w-[2.625rem] h-[2.625rem] sm:w-10 sm:h-10 rounded-full bg-white/96 dark:bg-gray-900/95 backdrop-blur-xl border border-[#C5A059]/50 dark:border-[#C5A059]/45 text-amber-700 dark:text-[#f5dca0] shadow-[0_6px_18px_rgba(0,0,0,0.14),0_0_0_1px_rgba(255,255,255,0.6)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.45)] flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-105 hover:border-[#C5A059]">
+                    class="
+                        absolute bottom-0 right-0 origin-center
+                        w-[2.625rem] h-[2.625rem] sm:w-10 sm:h-10 rounded-full
+                        bg-white/96 dark:bg-gray-900/95 backdrop-blur-xl
+                        border border-[#C5A059]/50 dark:border-[#C5A059]/45
+                        text-amber-700 dark:text-[#f5dca0]
+                        shadow-[0_6px_18px_rgba(0,0,0,0.14),0_0_0_1px_rgba(255,255,255,0.6)]
+                        dark:shadow-[0_8px_24px_rgba(0,0,0,0.45)]
+                        flex items-center justify-center cursor-pointer
+                        transition-all duration-200 hover:scale-105 hover:border-[#C5A059]
+                    ">
                 <template x-if="muted || volume === 0">
                     <svg class="w-4 h-4 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/>
@@ -165,12 +181,20 @@
             <div x-show="expanded"
                  x-cloak
                  x-transition:enter="transition ease-out duration-200"
-                 x-transition:enter-start="opacity-0 scale-90 origin-bottom-right"
-                 x-transition:enter-end="opacity-100 scale-100 origin-bottom-right"
-                 x-transition:leave="transition ease-in duration-150"
-                 x-transition:leave-start="opacity-100 scale-100 origin-bottom-right"
-                 x-transition:leave-end="opacity-0 scale-90 origin-bottom-right"
-                 class="bg-white/96 dark:bg-gray-900/95 backdrop-blur-xl border border-[#C5A059]/45 dark:border-[#C5A059]/40 rounded-2xl shadow-[0_10px_28px_rgba(0,0,0,0.16),0_0_0_1px_rgba(255,255,255,0.6)] dark:shadow-[0_12px_35px_rgba(0,0,0,0.45),0_0_20px_rgba(245,158,11,0.18)] p-2.5 sm:p-3 flex flex-col items-center gap-2 text-gray-900 dark:text-white w-[195px] sm:w-[215px] transition-all duration-300">
+                 x-transition:enter-start="opacity-0 scale-75 translate-y-1"
+                 x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                 x-transition:leave="transition ease-in-out duration-200"
+                 x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+                 x-transition:leave-end="opacity-0 scale-75 translate-y-1"
+                 class="
+                    absolute bottom-0 right-0 origin-bottom-right
+                    bg-white/96 dark:bg-gray-900/95 backdrop-blur-xl
+                    border border-[#C5A059]/45 dark:border-[#C5A059]/40 rounded-2xl
+                    shadow-[0_10px_28px_rgba(0,0,0,0.16),0_0_0_1px_rgba(255,255,255,0.6)]
+                    dark:shadow-[0_12px_35px_rgba(0,0,0,0.45),0_0_20px_rgba(245,158,11,0.18)]
+                    p-2.5 sm:p-3 flex flex-col items-center gap-2
+                    text-gray-900 dark:text-white w-[195px] sm:w-[215px]
+                 ">
 
                 {{-- Obere Zeile: Lautsprecher (Mute) + Status + Einklappen --}}
                 <div class="w-full flex items-center justify-between gap-2">

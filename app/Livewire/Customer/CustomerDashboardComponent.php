@@ -18,7 +18,9 @@ use Livewire\Component;
 #[Layout('components.layouts.customer_layout')]
 class CustomerDashboardComponent extends Component
 {
+    #[Locked]
     public $profileSteps = [];
+    #[Locked]
     public $recentOrders = [];
 
     #[Locked]
@@ -28,6 +30,7 @@ class CustomerDashboardComponent extends Component
     public bool $hasActivatedGamification = false;
 
     public bool $acceptTerms = false;
+    #[Locked]
     public $activeGiftVouchers = [];
 
     #[Locked]

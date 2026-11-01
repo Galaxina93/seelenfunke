@@ -4798,4 +4798,155 @@ class DeepSecurityScanRegressionTest extends TestCase
         $this->assertNotContains($exhaustedVoucher->id, $currentIds);
         $this->assertContains($publicActiveVoucher->id, $currentIds);
     }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_hardens_role_isolation_configurator_idor_draft_upload_ownership_cart_sanitization_and_json_ld_xss(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+
+        // 1. External partners (Influencer / Tax Advisor) must be blocked from SupportContactFormComponent & MarketingHerzensprojekte
+        $influencerUser = \App\Models\Employee\Employee::create([
+            'first_name' => 'Creator',
+            'last_name' => 'External',
+            'email' => 'creator-r36@seelenfunke.test',
+            'password' => bcrypt('Secret123!'),
+            'role' => 'influencer',
+            'is_active' => true,
+        ]);
+        $taxAdvisorUser = \App\Models\Employee\Employee::create([
+            'first_name' => 'Steuer',
+            'last_name' => 'External',
+            'email' => 'tax-r36@seelenfunke.test',
+            'password' => bcrypt('Secret123!'),
+            'role' => 'tax_advisor',
+            'is_active' => true,
+        ]);
+
+        \Livewire\Livewire::actingAs($influencerUser, 'employee')
+            ->test(\App\Livewire\Shop\Support\SupportContactFormComponent::class)
+            ->assertForbidden();
+
+        \Livewire\Livewire::actingAs($taxAdvisorUser, 'employee')
+            ->test(\App\Livewire\Shop\Support\SupportContactFormComponent::class)
+            ->assertForbidden();
+
+        \Livewire\Livewire::actingAs($influencerUser, 'employee')
+            ->test(\App\Livewire\Shop\Marketing\MarketingHerzensprojekte::class)
+            ->assertForbidden();
+
+        \Illuminate\Support\Facades\Auth::guard('employee')->logout();
+
+        // 2. ProductConfigurator must block unauthenticated template_admin/preview and foreign CartItem IDOR
+        $draftProduct = \App\Models\Product\Product::create([
+            'name' => 'R36 Draft Product',
+            'slug' => 'r36-draft-product',
+            'price' => 2900,
+            'status' => 'draft',
+            'type' => 'physical',
+            'is_personalizable' => true,
+        ]);
+
+        \Livewire\Livewire::test(\App\Livewire\Shop\Product\ProductConfigurator\ProductConfigurator::class, [
+            'product' => $draftProduct,
+            'context' => 'template_admin',
+        ])->assertForbidden();
+
+        \Livewire\Livewire::test(\App\Livewire\Shop\Product\ProductConfigurator\ProductConfigurator::class, [
+            'product' => $draftProduct,
+            'context' => 'preview',
+        ])->assertForbidden();
+
+        $activeProduct = \App\Models\Product\Product::create([
+            'name' => 'R36 Active Product',
+            'slug' => 'r36-active-product',
+            'price' => 2900,
+            'status' => 'active',
+            'type' => 'physical',
+            'is_personalizable' => true,
+        ]);
+
+        $victimCustomer = \App\Models\Customer\Customer::factory()->create();
+        $victimCart = \App\Models\Cart\Cart::create([
+            'customer_id' => $victimCustomer->id,
+            'session_id' => 'victim-session-r36',
+        ]);
+        $victimCartItem = \App\Models\Cart\CartItem::create([
+            'cart_id' => $victimCart->id,
+            'product_id' => $activeProduct->id,
+            'quantity' => 1,
+            'unit_price' => 2900,
+            'configuration' => ['notes' => 'Geheime Gravurnotiz des Opfers'],
+        ]);
+
+        $attackerCustomer = \App\Models\Customer\Customer::factory()->create();
+        \Livewire\Livewire::actingAs($attackerCustomer, 'customer')
+            ->test(\App\Livewire\Shop\Product\ProductConfigurator\ProductConfigurator::class, [
+                'product' => $activeProduct,
+                'context' => 'edit',
+                'cartItem' => $victimCartItem,
+            ])->assertForbidden();
+
+        // 3. ProductConfigurator::restoreDraftFiles() must reject files not owned by the current session
+        $victimUploadPath = 'bestellungen/cart-uploads/victim_family_photo_r36.jpg';
+        \Illuminate\Support\Facades\Storage::disk('public')->put($victimUploadPath, 'fake-image-bytes');
+
+        $comp = \Livewire\Livewire::actingAs($attackerCustomer, 'customer')
+            ->test(\App\Livewire\Shop\Product\ProductConfigurator\ProductConfigurator::class, [
+                'product' => $activeProduct,
+            ])
+            ->call('restoreDraftFiles', [$victimUploadPath]);
+
+        $this->assertSame([], $comp->get('uploaded_files'));
+        $comp->call('removeFile', 0);
+        $this->assertTrue(\Illuminate\Support\Facades\Storage::disk('public')->exists($victimUploadPath));
+
+        // 4. CartService::sanitizeConfiguration() must strip ingame_item_name even if is_ingame_shop_item is omitted
+        $sanitized = app(\App\Services\CartService::class)->sanitizeConfiguration($activeProduct, [
+            'notes' => 'Legit note',
+            'ingame_item_name' => 'Spoofed Product Name',
+            'ingame_item_key' => 'energy_refill_5',
+            'ingame_category' => 'consumable',
+        ]);
+        $this->assertArrayNotHasKey('ingame_item_name', $sanitized);
+        $this->assertArrayNotHasKey('ingame_item_key', $sanitized);
+        $this->assertArrayNotHasKey('ingame_category', $sanitized);
+
+        // 5. handleProfilesTrait::getBrowserSessions() must not expose session id or payload
+        \Illuminate\Support\Facades\DB::table('sessions')->insert([
+            'id' => 'secret-session-token-r36',
+            'user_id' => $attackerCustomer->id,
+            'ip_address' => '203.0.113.55',
+            'user_agent' => 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+            'payload' => base64_encode('secret_csrf_and_2fa_payload'),
+            'last_activity' => time(),
+        ]);
+
+        \App\Models\Customer\CustomerProfile::firstOrCreate(['customer_id' => $attackerCustomer->id]);
+        $profileDropdown = new \App\Livewire\Auth\AuthProfileDropdown();
+        $profileDropdown->user = $attackerCustomer;
+        $sessions = $profileDropdown->getBrowserSessions($attackerCustomer);
+        $this->assertNotEmpty($sessions);
+        $firstSession = (array) $sessions->first();
+        $this->assertArrayNotHasKey('id', $firstSession);
+        $this->assertArrayNotHasKey('payload', $firstSession);
+        $this->assertSame('Mobile', $firstSession['device_type'] ?? null);
+
+        // 6. Product::buildStructuredDataSchema() and JSON-LD must prevent </script> breakout
+        \App\Models\Product\ProductReview::create([
+            'product_id' => $activeProduct->id,
+            'customer_id' => $victimCustomer->id,
+            'rating' => 5,
+            'title' => '</script><script>alert(1)</script>Top Gravur',
+            'content' => 'Wunderschöne Qualität </script><script>evil()</script>',
+            'status' => 'approved',
+        ]);
+
+        $schema = $activeProduct->fresh(['reviews.customer'])->buildStructuredDataSchema('https://mein-seelenfunke.de/produkt/r36');
+        $reviewNode = $schema['@graph'][1]['review'][0] ?? [];
+        $this->assertStringNotContainsString('<script>', (string) ($reviewNode['name'] ?? ''));
+        $this->assertStringNotContainsString('</script>', (string) ($reviewNode['name'] ?? ''));
+
+        $encodedJsonLd = json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
+        $this->assertStringNotContainsString('</script>', (string) $encodedJsonLd);
+    }
 }

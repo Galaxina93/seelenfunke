@@ -1,7 +1,7 @@
 <div>
     @if(!empty($blogIndexSchema))
         @push('structured_data')
-            <script type="application/ld+json">{!! json_encode($blogIndexSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
+            <script type="application/ld+json">{!! json_encode($blogIndexSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) !!}</script>
         @endpush
     @endif
     <div class="bg-white min-h-screen">

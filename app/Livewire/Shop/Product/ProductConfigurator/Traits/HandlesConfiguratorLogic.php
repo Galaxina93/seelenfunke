@@ -260,13 +260,41 @@ trait HandlesConfiguratorLogic
         }
     }
 
+    protected function registerSessionOwnedUploads(array $paths): void
+    {
+        $owned = session('configurator_owned_uploads', []);
+        if (!is_array($owned)) {
+            $owned = [];
+        }
+        foreach ($paths as $p) {
+            if (is_string($p) && str_starts_with($p, 'bestellungen/cart-uploads/') && !str_contains($p, '..') && !in_array($p, $owned, true)) {
+                $owned[] = $p;
+            }
+        }
+        if (count($owned) > 50) {
+            $owned = array_slice($owned, -50);
+        }
+        session(['configurator_owned_uploads' => $owned]);
+    }
+
     public function restoreDraftFiles(array $files): void
     {
         if ($this->context === 'preview') return;
 
+        $isStaff = auth()->guard('admin')->check()
+            || \App\Services\AI\AiAuthHelper::isAdmin()
+            || \App\Services\AI\AiAuthHelper::isEmployee();
+        $ownedUploads = session('configurator_owned_uploads', []);
+        if (!is_array($ownedUploads)) {
+            $ownedUploads = [];
+        }
+
         $validFiles = [];
         foreach (array_slice($files, 0, 10) as $file) {
             if (!is_string($file) || str_contains($file, '..') || str_contains($file, "\0")) {
+                continue;
+            }
+            if (!$isStaff && !in_array($file, $ownedUploads, true) && !in_array($file, $this->uploaded_files ?? [], true)) {
                 continue;
             }
             if (str_starts_with($file, 'bestellungen/cart-uploads/') && Storage::disk('public')->exists($file)) {

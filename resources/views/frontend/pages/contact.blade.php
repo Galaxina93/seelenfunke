@@ -27,7 +27,7 @@
     title="Kontakt & Individuelle Gravur-Anfrage | Mein Seelenfunke"
     meta_description="Hast du Fragen zu deiner Wunschgravur, Sonderanfertigungen oder Firmenaufträgen? Kontaktiere die Mein Seelenfunke Manufaktur in Gifhorn direkt.">
     @push('structured_data')
-        <script type="application/ld+json">{!! json_encode($contactSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
+        <script type="application/ld+json">{!! json_encode($contactSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) !!}</script>
     @endpush
 
     <x-sections.page-container>

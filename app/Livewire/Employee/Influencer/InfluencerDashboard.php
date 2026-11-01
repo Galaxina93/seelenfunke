@@ -40,7 +40,7 @@ class InfluencerDashboard extends Component
     public function boot(): void
     {
         $employee = Auth::guard('employee')->user();
-        if (!$employee || !$employee->isInfluencer()) {
+        if (!$employee || !$employee->isInfluencer() || (method_exists($employee, 'isAccountActive') && !$employee->isAccountActive())) {
             abort(403, 'Zugriff nur für registrierte Creator.');
         }
     }

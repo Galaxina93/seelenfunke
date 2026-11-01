@@ -123,20 +123,23 @@ class MarketingNewsletterPage extends Component
 
         $ip = request()->ip();
         $throttleKey = 'newsletter_page_sub_' . $ip;
-        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
-            $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
-            \App\Services\System\SystemSecurityService::logEvent(
-                'security:newsletter_flood',
-                'Newsletter-Seiten-Flooding gedrosselt',
-                "Zu viele Newsletter-Anmeldungen von IP {$ip}.",
-                'warning',
-                ['ip_address' => $ip]
-            );
-            $this->addError('email', "Zu viele Anfragen. Bitte warte {$seconds} Sekunden.");
-            return;
+        try {
+            if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
+                $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
+                \App\Services\System\SystemSecurityService::logEvent(
+                    'security:newsletter_flood',
+                    'Newsletter-Seiten-Flooding gedrosselt',
+                    "Zu viele Newsletter-Anmeldungen von IP {$ip}.",
+                    'warning',
+                    ['ip_address' => $ip]
+                );
+                $this->addError('email', "Zu viele Anfragen. Bitte warte {$seconds} Sekunden.");
+                return;
+            }
+            \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 600);
+        } catch (\Throwable $e) {
+            // Falls ein flüchtiger File-Cache-Verzeichnis-Lock auftritt, Anmeldung nicht blockieren
         }
-        \Illuminate\Support\RateLimiter::class;
-        \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 600);
 
         self::ensurePreferenceColumns();
 
@@ -204,12 +207,16 @@ class MarketingNewsletterPage extends Component
 
         $ip = request()->ip();
         $throttleKey = 'newsletter_unsub_' . $ip;
-        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
-            $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
-            $this->addError('email', "Zu viele Anfragen. Bitte warte {$seconds} Sekunden.");
-            return;
+        try {
+            if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
+                $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
+                $this->addError('email', "Zu viele Anfragen. Bitte warte {$seconds} Sekunden.");
+                return;
+            }
+            \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 600);
+        } catch (\Throwable $e) {
+            // Falls ein flüchtiger File-Cache-Verzeichnis-Lock auftritt, Abmeldung nicht blockieren
         }
-        \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 600);
 
         self::ensurePreferenceColumns();
 

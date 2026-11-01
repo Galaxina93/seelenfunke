@@ -1279,15 +1279,17 @@ use HasFactory, HasUuids, SoftDeletes;
                     ? 'Anonymer Kunde'
                     : ($rev->customer_name
                         ?: ($rev->customer ? trim($rev->customer->first_name . ' ' . substr((string) $rev->customer->last_name, 0, 1) . '.') : 'Verifizierter Kunde'));
+                $cleanAuthorName = trim(strip_tags((string) $authorName));
+                $cleanReviewTitle = trim(strip_tags((string) ($rev->title ?: $this->name)));
                 $reviewNodes[] = [
                     '@type' => 'Review',
                     'author' => [
                         '@type' => 'Person',
-                        'name' => $authorName ?: 'Verifizierter Kunde',
+                        'name' => $cleanAuthorName ?: 'Verifizierter Kunde',
                     ],
                     'datePublished' => optional($rev->created_at)->format('Y-m-d') ?: now()->format('Y-m-d'),
                     'reviewBody' => trim(strip_tags((string) ($rev->comment ?? $rev->content ?? ''))),
-                    'name' => $rev->title ?: $this->name,
+                    'name' => $cleanReviewTitle ?: $this->name,
                     'reviewRating' => [
                         '@type' => 'Rating',
                         'ratingValue' => (string) ($rev->rating ?? 5),

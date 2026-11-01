@@ -196,7 +196,7 @@
     <link rel="alternate" type="text/plain" title="LLMs-Full.txt – AI Full Product & Shop Knowledge" href="{{ url('/llms-full.txt') }}">
 
     {{-- Global Schema.org JSON-LD (Organization + WebSite) --}}
-    <script type="application/ld+json">{!! json_encode($globalSchemaGraph, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
+    <script type="application/ld+json">{!! json_encode($globalSchemaGraph, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) !!}</script>
     @stack('structured_data')
     @stack('head')
 

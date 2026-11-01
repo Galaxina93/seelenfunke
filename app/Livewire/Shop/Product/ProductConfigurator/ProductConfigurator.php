@@ -78,24 +78,45 @@ class ProductConfigurator extends Component
             $this->selectedCategory = array_key_first($this->vectors);
         }
 
+        $isStaff = auth()->guard('admin')->check()
+            || \App\Services\AI\AiAuthHelper::isAdmin()
+            || \App\Services\AI\AiAuthHelper::isEmployee();
+
+        if ($context === 'template_admin' && !$isStaff) {
+            abort(403, 'Zugriff auf den Vorlagen-Editor verweigert.');
+        }
+
+        if ($context === 'preview' && !$isStaff && !auth()->guard('customer')->check()) {
+            abort(403, 'Zugriff auf den Vorschaumodus verweigert.');
+        }
+
         $this->product = ($product instanceof Product) ? $product : Product::findOrFail($product);
-        if (!in_array($context, ['template_admin', 'preview'], true) && !auth()->guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && $this->product->status !== 'active') {
+        if (!in_array($context, ['template_admin', 'preview'], true) && !$isStaff && $this->product->status !== 'active') {
             abort(404);
         }
         $this->configSettings = $configService->mergeWithDefaults($this->product->configurator_settings ?? []);
         $this->context = $context;
         $this->cartItem = $cartItem;
 
+        // IDOR-Schutz: Kunden dürfen nur eigene Warenkorbpositionen im Modus 'edit' öffnen
+        if ($this->context !== 'order_edit' && $this->cartItem instanceof \App\Models\Cart\CartItem) {
+            $activeCart = app(\App\Services\CartService::class)->getCart(false);
+            if (!$isStaff && (!$activeCart || (string) $this->cartItem->cart_id !== (string) $activeCart->id)) {
+                abort(403, 'Zugriff auf fremde Warenkorbposition verweigert.');
+            }
+        }
+
         // IDOR-Schutz: Kunden dürfen nur eigene Bestellpositionen im Modus 'order_edit' öffnen
         if ($this->context === 'order_edit' && $this->cartItem) {
             $orderItem = \App\Models\Order\OrderOrderItem::with('order')->find($this->cartItem->id ?? null);
             if ($orderItem && $orderItem->order) {
-                $isAdmin = auth()->guard('admin')->check();
                 $customerId = auth()->guard('customer')->id();
-                $isOwner = $customerId && $orderItem->order->customer_id === $customerId;
-                if (!$isAdmin && !$isOwner) {
+                $isOwner = $customerId && (string) $orderItem->order->customer_id === (string) $customerId;
+                if (!$isStaff && !$isOwner) {
                     abort(403, 'Zugriff auf fremde Bestellposition verweigert.');
                 }
+            } elseif (!$isStaff) {
+                abort(403, 'Zugriff auf Bestellposition verweigert.');
             }
         }
 
@@ -160,7 +181,10 @@ class ProductConfigurator extends Component
 
         $this->notes = $source['notes'] ?? '';
         $this->is_express = filter_var($source['is_express'] ?? false, FILTER_VALIDATE_BOOLEAN);
-        $this->uploaded_files = $source['files'] ?? [];
+        $this->uploaded_files = is_array($source['files'] ?? null) ? $source['files'] : [];
+        if (!empty($this->uploaded_files)) {
+            $this->registerSessionOwnedUploads($this->uploaded_files);
+        }
         $rawSnapshot = $source['snapshot_path'] ?? [];
         if (is_array($rawSnapshot)) {
             foreach ($rawSnapshot as $k => $p) {
@@ -483,6 +507,7 @@ class ProductConfigurator extends Component
 
             $this->reset('new_files');
             if (!empty($newPaths)) {
+                $this->registerSessionOwnedUploads($newPaths);
                 $this->addFilesToStage($newPaths);
             }
         }
@@ -644,6 +669,7 @@ class ProductConfigurator extends Component
 
         $finalPath = 'bestellungen/cart-uploads/' . $newFileName;
         $finalUrl = asset('storage/' . $finalPath);
+        $this->registerSessionOwnedUploads([$finalPath]);
 
         foreach ($this->uploaded_files as $idx => $uf) {
             if ($uf === $oldValue) {

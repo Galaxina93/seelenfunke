@@ -36,19 +36,23 @@ class MarketingNewsletterSignup extends Component
 
         $ip = request()->ip();
         $throttleKey = 'newsletter_sub_' . $ip;
-        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
-            $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
-            \App\Services\System\SystemSecurityService::logEvent(
-                'security:newsletter_flood',
-                'Newsletter-Flooding gedrosselt',
-                "Zu viele Newsletter-Anmeldungen von IP {$ip}.",
-                'warning',
-                ['ip_address' => $ip]
-            );
-            $this->addError('email', "Zu viele Anfragen. Bitte warte {$seconds} Sekunden.");
-            return;
+        try {
+            if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
+                $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
+                \App\Services\System\SystemSecurityService::logEvent(
+                    'security:newsletter_flood',
+                    'Newsletter-Flooding gedrosselt',
+                    "Zu viele Newsletter-Anmeldungen von IP {$ip}.",
+                    'warning',
+                    ['ip_address' => $ip]
+                );
+                $this->addError('email', "Zu viele Anfragen. Bitte warte {$seconds} Sekunden.");
+                return;
+            }
+            \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 600);
+        } catch (\Throwable $e) {
+            // Falls ein flüchtiger File-Cache-Verzeichnis-Lock auftritt, Anmeldung nicht blockieren
         }
-        \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 600);
 
         // 2. Prüfen, ob es den Nutzer schon gibt
         $subscriber = MarketingNewsletterSubscriber::where('email', $this->email)->first();

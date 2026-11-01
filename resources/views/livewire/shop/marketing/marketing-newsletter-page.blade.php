@@ -19,16 +19,28 @@
         </div>
 
         {{-- Tabs --}}
-        <div class="flex justify-center mb-8 bg-stone-100/80 p-1 rounded-2xl w-full border border-stone-200/60">
+        <div class="flex justify-center gap-1.5 mb-8 bg-stone-100 p-1.5 rounded-2xl w-full border border-stone-200" role="tablist">
             <button type="button"
+                    role="tab"
+                    aria-selected="{{ $activeTab === 'subscribe' ? 'true' : 'false' }}"
                     wire:click="switchTab('subscribe')"
-                    class="flex-1 py-2.5 px-4 rounded-xl text-sm font-bold transition-all duration-300 cursor-pointer {{ $activeTab === 'subscribe' ? 'bg-gradient-to-r from-[#d4b475] via-[#C5A059] to-[#b38e46] text-stone-950 shadow-sm' : 'text-stone-500 hover:text-stone-800' }}">
-                Anmelden
+                    @if($activeTab === 'subscribe')
+                        style="background: linear-gradient(135deg, #d4b475 0%, #C5A059 50%, #b38e46 100%); color: #1c1917; box-shadow: 0 4px 12px rgba(197, 160, 89, 0.35);"
+                    @endif
+                    class="flex-1 py-2.5 px-4 rounded-xl text-sm font-bold transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 {{ $activeTab === 'subscribe' ? 'bg-gradient-to-r from-[#d4b475] via-[#C5A059] to-[#b38e46] text-stone-950 shadow-md ring-1 ring-[#C5A059]' : 'bg-transparent text-stone-500 hover:text-stone-800 hover:bg-white/60' }}">
+                <i class="bi {{ $activeTab === 'subscribe' ? 'bi-envelope-check-fill' : 'bi-envelope-plus' }}"></i>
+                <span>Anmelden</span>
             </button>
             <button type="button"
+                    role="tab"
+                    aria-selected="{{ $activeTab === 'unsubscribe' ? 'true' : 'false' }}"
                     wire:click="switchTab('unsubscribe')"
-                    class="flex-1 py-2.5 px-4 rounded-xl text-sm font-bold transition-all duration-300 cursor-pointer {{ $activeTab === 'unsubscribe' ? 'bg-white text-rose-600 shadow-sm ring-1 ring-stone-200' : 'text-stone-500 hover:text-stone-800' }}">
-                Abmelden
+                    @if($activeTab === 'unsubscribe')
+                        style="background-color: #ffffff; color: #e11d48; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);"
+                    @endif
+                    class="flex-1 py-2.5 px-4 rounded-xl text-sm font-bold transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 {{ $activeTab === 'unsubscribe' ? 'bg-white text-rose-600 shadow-md ring-1 ring-rose-200' : 'bg-transparent text-stone-500 hover:text-stone-800 hover:bg-white/60' }}">
+                <i class="bi {{ $activeTab === 'unsubscribe' ? 'bi-sliders' : 'bi-envelope-dash' }}"></i>
+                <span>Abmelden</span>
             </button>
         </div>
 
@@ -91,6 +103,7 @@
                 </div>
 
                 <button type="submit"
+                        style="background: linear-gradient(135deg, #d4b475 0%, #C5A059 50%, #b38e46 100%); color: #1c1917;"
                         class="group relative w-full flex justify-center py-4 px-6 text-sm font-black uppercase tracking-wider rounded-2xl transition-all duration-300 bg-gradient-to-r from-[#d4b475] via-[#C5A059] to-[#b38e46] text-stone-950 shadow-lg shadow-[#C5A059]/25 hover:brightness-105 hover:-translate-y-0.5 active:scale-[0.99] cursor-pointer overflow-hidden">
                     <span wire:loading.remove wire:target="subscribe" class="flex items-center gap-2 relative z-20">
                         <span>Kostenlos abonnieren</span>
@@ -198,6 +211,7 @@
                     <div class="space-y-2.5 pt-1">
                         <button type="submit"
                                 @mouseenter="state = 'hover'" @mouseleave="state = 'normal'"
+                                style="background: linear-gradient(135deg, #d4b475 0%, #C5A059 50%, #b38e46 100%); color: #1c1917;"
                                 class="w-full flex justify-center py-3.5 px-6 text-xs sm:text-sm font-black uppercase tracking-wider rounded-2xl text-stone-900 bg-gradient-to-r from-[#d4b475] via-[#C5A059] to-[#b38e46] hover:brightness-105 shadow-md transition-all duration-300 cursor-pointer active:scale-[0.99]">
                             <span wire:loading.remove wire:target="unsubscribe" class="flex items-center gap-2">
                                 <i class="bi bi-check2-square"></i> Ausgewählte E-Mails abstellen

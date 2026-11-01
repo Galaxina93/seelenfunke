@@ -271,4 +271,27 @@ class MarketingNewsletterTest extends TestCase
             'receive_anniversary_emails' => false,
         ]);
     }
+
+    #[Test]
+    public function it_visually_highlights_active_anmelden_tab_and_anchors_bgm_minimize_transition_and_file_cache_permissions()
+    {
+        // 1. Seelenpost: Tab "Anmelden" ist visuell eindeutig als aktiv hervorgehoben
+        $component = Livewire::test(NewsletterPage::class)
+            ->assertSet('activeTab', 'subscribe')
+            ->assertSeeHtml('aria-selected="true"')
+            ->assertSeeHtml('bi-envelope-check-fill')
+            ->assertSeeHtml('linear-gradient(135deg, #d4b475 0%, #C5A059 50%, #b38e46 100%)');
+
+        $component->call('switchTab', 'unsubscribe')
+            ->assertSet('activeTab', 'unsubscribe')
+            ->assertSeeHtml('bi-sliders');
+
+        // 2. File-Cache-Store ist mit permission 0777 konfiguriert (verhindert LockableFile fopen ErrorException)
+        $this->assertSame(0777, config('cache.stores.file.permission'));
+
+        // 3. Funki Musik Dock: Eingeklapptes Icon und ausgeklapptes Panel teilen sich denselben bottom-0 right-0 Ankerpunkt
+        $bgmBlade = file_get_contents(resource_path('views/components/gamification/persistent-bgm-dock.blade.php'));
+        $this->assertStringContainsString('absolute bottom-0 right-0 origin-center', $bgmBlade);
+        $this->assertStringContainsString('absolute bottom-0 right-0 origin-bottom-right', $bgmBlade);
+    }
 }

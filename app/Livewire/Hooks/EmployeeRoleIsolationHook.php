@@ -30,8 +30,6 @@ class EmployeeRoleIsolationHook extends ComponentHook
         \App\Livewire\Shop\Marketing\MarketingNewsletterSignup::class,
         \App\Livewire\Shop\Marketing\MarketingBlogIndex::class,
         \App\Livewire\Shop\Marketing\MarketingBlogShow::class,
-        \App\Livewire\Shop\Marketing\MarketingHerzensprojekte::class,
-        \App\Livewire\Shop\Support\SupportContactFormComponent::class,
         \App\Livewire\Shop\System\SystemDeliveryDisplay::class,
     ];
 

@@ -373,7 +373,16 @@ trait handleProfilesTrait
             return collect();
         }
 
-        return DB::table('sessions')->where('user_id', $targetUserId)->orderBy('last_activity', 'desc')->get();
+        return DB::table('sessions')
+            ->select(['ip_address', 'user_agent', 'last_activity'])
+            ->where('user_id', $targetUserId)
+            ->orderBy('last_activity', 'desc')
+            ->get()
+            ->map(function ($session) {
+                $ua = (string) ($session->user_agent ?? '');
+                $session->device_type = preg_match('/(mobi|android|iphone|ipad|phone)/i', $ua) ? 'Mobile' : 'Desktop';
+                return $session;
+            });
     }
 
     protected function removeOtherSessions(): void

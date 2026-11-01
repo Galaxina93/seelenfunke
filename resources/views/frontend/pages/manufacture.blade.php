@@ -31,7 +31,7 @@
     meta_description="Blick hinter die Kulissen unserer Lasergravur-Manufaktur in Gifhorn: Gründerin Alina Steinhauer, optisches K9-Kristallglas, Naturschiefer & höchste Präzision."
     :og_image="asset('shop/projekt/about/gruender-profil-b.webp')">
     @push('structured_data')
-        <script type="application/ld+json">{!! json_encode($aboutSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
+        <script type="application/ld+json">{!! json_encode($aboutSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) !!}</script>
     @endpush
     <div x-data="{ showCertModal: false }">
         <x-sections.page-container>
