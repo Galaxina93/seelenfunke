@@ -33,7 +33,6 @@ class AnalyticsService
             'open_orders' => $this->checkOrders(),
             'open_credits' => $this->checkCredits(),
             'influencer_payouts' => $this->checkInfluencerPayouts(),
-            'employee_payroll' => $this->checkEmployeePayroll(),
             'unassigned_tx' => $this->checkUnassignedTx(),
             'open_tasks' => $this->checkTasks(),
             'routine' => $this->checkRoutine(),
@@ -364,40 +363,6 @@ class AnalyticsService
                 'requested_payouts_cents' => $requestedCents,
                 'open_commissions_count' => $openCommCount,
                 'open_commissions_cents' => $openCommCents,
-            ],
-        ];
-    }
-
-    private function checkEmployeePayroll(): ?array
-    {
-        if (
-            !class_exists(\App\Models\Employee\EmployeePayslip::class)
-            || !\Illuminate\Support\Facades\Schema::hasTable('employee_payslips')
-        ) {
-            return null;
-        }
-
-        $openQuery = \App\Models\Employee\EmployeePayslip::where('status', 'open');
-        $openCount = (clone $openQuery)->count();
-        $openNetCents = (int) (clone $openQuery)->sum('net_payout_cents');
-
-        if ($openCount > 0) {
-            $status = 'warning';
-            $msg = $openCount . ' Lohnabrechnung(en) (' . number_format($openNetCents / 100, 2, ',', '.') . ' € Netto) überweisen';
-        } else {
-            $status = 'success';
-            $msg = 'Alle Löhne überwiesen';
-        }
-
-        return [
-            'status' => $status,
-            'icon' => 'identification',
-            'title' => 'Mitarbeiter Löhne',
-            'message' => $msg,
-            'count' => $openCount,
-            'data' => [
-                'open_payslips_count' => $openCount,
-                'open_payslips_net_cents' => $openNetCents,
             ],
         ];
     }

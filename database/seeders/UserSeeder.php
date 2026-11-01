@@ -73,7 +73,7 @@ class UserSeeder extends Seeder
             ]
         );
 
-        // 3. Mitarbeiter-Benutzer (Marc Mitarbeiter inkl. Vertrag, Zeiterfassung & Lohnabrechnung)
+        // 3. Mitarbeiter-Benutzer (Marc Mitarbeiter)
         $employee = Employee::updateOrCreate(
             ['email' => 'mitarbeiter@mein-seelenfunke.de'],
             [
@@ -101,74 +101,6 @@ class UserSeeder extends Seeder
                 'ai_data_consent_at' => now(),
             ]
         );
-
-        $hrService = app(\App\Services\Employee\EmployeeHrService::class);
-        $hrService->ensureTablesExist();
-
-        if (\Illuminate\Support\Facades\Schema::hasTable('employee_contracts')) {
-            $contract = \App\Models\Employee\EmployeeContract::updateOrCreate(
-                ['employee_id' => $employee->id],
-                [
-                    'invitation_label' => 'Marc Mitarbeiter',
-                    'job_title' => 'Manufaktur- & Versand-Assistent',
-                    'department' => 'Produktion & Versand',
-                    'employment_type' => 'minijob',
-                    'compensation_type' => 'hourly',
-                    'hourly_rate_cents' => 1400,
-                    'monthly_gross_cents' => 50400,
-                    'weekly_hours' => 9.0,
-                    'vacation_days_per_year' => 20,
-                    'vacation_days_taken' => 2,
-                    'start_date' => now()->startOfYear()->toDateString(),
-                    'is_fixed_term' => false,
-                    'probation_months' => 3,
-                    'birth_date' => '1996-05-14',
-                    'birth_place' => 'Wolfsburg',
-                    'nationality' => 'Deutsch',
-                    'tax_id' => '12345678901',
-                    'tax_class' => 'I',
-                    'church_tax' => false,
-                    'social_security_number' => '12140596M012',
-                    'health_insurance_name' => 'Techniker Krankenkasse (TK)',
-                    'health_insurance_type' => 'statutory',
-                    'rv_exemption_requested' => true,
-                    'has_other_employment' => false,
-                    'account_holder' => 'Marc Mitarbeiter',
-                    'iban' => 'DE89370400440532013000',
-                    'bic' => 'COBADEFFXXX',
-                    'bank_name' => 'Commerzbank',
-                    'signature_name' => 'Marc Mitarbeiter',
-                    'signature_data' => 'DIGITAL-SIGNATURE:Marc Mitarbeiter',
-                    'signed_at' => now()->subDays(15),
-                    'signed_ip_hash' => hash('sha256', '127.0.0.1'),
-                    'contract_number' => 'AV-' . date('Y') . '-0001',
-                    'invitation_accepted_at' => now()->subDays(15),
-                    'is_active' => true,
-                    'is_archived' => false,
-                ]
-            );
-
-            if (\App\Models\Employee\EmployeeTimeEntry::where('contract_id', $contract->id)->count() === 0) {
-                $hrService->recordTimeEntry($contract, [
-                    'work_date' => now()->startOfMonth()->addDays(1)->toDateString(),
-                    'start_time' => '09:00',
-                    'end_time' => '13:30',
-                    'break_minutes' => 0,
-                    'activity_note' => 'Lasergravur & Qualitätskontrolle',
-                ]);
-                $hrService->recordTimeEntry($contract, [
-                    'work_date' => now()->startOfMonth()->addDays(4)->toDateString(),
-                    'start_time' => '09:00',
-                    'end_time' => '16:00',
-                    'break_minutes' => 30,
-                    'activity_note' => 'Versandvorbereitung & Geschenkverpackungen',
-                ]);
-            }
-
-            $hrService->generateAndStoreContractPdf($contract);
-            $hrService->generateAndStoreQuestionnairePdf($contract);
-            $hrService->createOrUpdatePayslip($contract, (int) now()->year, (int) now()->month);
-        }
 
         // 4. Influencer- / Creator-Testbenutzer (Lara Living)
         $influencerEmployee = Employee::updateOrCreate(

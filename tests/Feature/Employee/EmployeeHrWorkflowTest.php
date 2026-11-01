@@ -25,7 +25,7 @@ class EmployeeHrWorkflowTest extends TestCase
     use RefreshDatabase;
 
     #[Test]
-    public function user_seeder_creates_employee_with_signed_contract_time_entries_and_payslip(): void
+    public function user_seeder_creates_employee_without_dummy_payroll_entries(): void
     {
         Storage::fake('local');
 
@@ -35,17 +35,8 @@ class EmployeeHrWorkflowTest extends TestCase
         $this->assertNotNull($employee);
         $this->assertTrue($employee->isInternalEmployee());
 
-        $contract = $employee->employmentContract;
-        $this->assertNotNull($contract);
-        $this->assertNotNull($contract->signed_at);
-        $this->assertNotEmpty($contract->contract_pdf_path);
-        $this->assertNotEmpty($contract->questionnaire_pdf_path);
-
-        Storage::disk('local')->assertExists($contract->contract_pdf_path);
-        Storage::disk('local')->assertExists($contract->questionnaire_pdf_path);
-
-        $this->assertGreaterThanOrEqual(2, $contract->timeEntries()->count());
-        $this->assertEquals(1, $contract->payslips()->count());
+        $this->assertNull($employee->employmentContract);
+        $this->assertEquals(0, EmployeePayslip::count());
     }
 
     #[Test]
@@ -162,11 +153,9 @@ class EmployeeHrWorkflowTest extends TestCase
         $this->assertEquals('open', $payslip->status);
         $this->assertEquals(9750, $payslip->gross_amount_cents); // 6,5 Std. * 15,00 € = 97,50 €
 
-        // Prüfe Master Analytics To-Do Liste
+        // Prüfe Master Analytics To-Do Liste (Mitarbeiter Löhne ist dort nicht mehr enthalten)
         $checks = app(AnalyticsService::class)->getHealthChecks();
-        $this->assertArrayHasKey('employee_payroll', $checks);
-        $this->assertEquals('warning', $checks['employee_payroll']['status']);
-        $this->assertGreaterThanOrEqual(1, $checks['employee_payroll']['count']);
+        $this->assertArrayNotHasKey('employee_payroll', $checks);
 
         // Admin markiert Lohnabrechnung als überwiesen
         Livewire::actingAs($admin, 'admin')
