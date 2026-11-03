@@ -17,7 +17,10 @@
         {{-- KERN-MAßE --}}
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
             <div class="space-y-2">
-                <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Ø Arbeitsbereich Oben</label>
+                <div class="flex items-center justify-between">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Ø Arbeitsbereich Oben</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'xtool_rotary_diameter_help'])
+                </div>
                 <div class="relative">
                     <input type="number" x-model.number="configSettings.xtool_d_top" step="0.1" class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all shadow-inner" placeholder="z.B. 80">
                     <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>
@@ -25,7 +28,10 @@
             </div>
 
             <div class="space-y-2">
-                <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Ø Arbeitsbereich Unten</label>
+                <div class="flex items-center justify-between">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Ø Arbeitsbereich Unten</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'xtool_rotary_diameter_help'])
+                </div>
                 <div class="relative">
                     <input type="number" x-model.number="configSettings.xtool_d_bottom" step="0.1" class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all shadow-inner" placeholder="z.B. 60">
                     <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>
@@ -33,7 +39,10 @@
             </div>
 
             <div class="space-y-2">
-                <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Reine Gravierhöhe</label>
+                <div class="flex items-center justify-between">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Reine Gravierhöhe</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'xtool_plane_height_help'])
+                </div>
                 <div class="relative">
                     <input type="number" x-model.number="configSettings.xtool_height" step="0.1" class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all shadow-inner" placeholder="z.B. 150">
                     <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>
@@ -44,7 +53,10 @@
         {{-- SPERRZONEN (Abstände) --}}
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 border-t border-gray-200 dark:border-gray-800 pt-6">
             <div class="space-y-2">
-                <label class="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Sperrzone Oben (Trinkrand)</label>
+                <div class="flex items-center justify-between">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Sperrzone Oben (Trinkrand)</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'xtool_safezone_help'])
+                </div>
                 <div class="relative">
                     <input type="number" x-model.number="configSettings.xtool_offset_top" step="0.1" class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 focus:border-amber-500 rounded-xl px-4 py-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500/50 outline-none transition-all shadow-inner" placeholder="z.B. 30">
                     <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>
@@ -53,7 +65,10 @@
             </div>
 
             <div class="space-y-2">
-                <label class="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Sperrzone Unten (Boden)</label>
+                <div class="flex items-center justify-between">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Sperrzone Unten (Boden)</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'xtool_safezone_help'])
+                </div>
                 <div class="relative">
                     <input type="number" x-model.number="configSettings.xtool_offset_bottom" step="0.1" class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 focus:border-amber-500 rounded-xl px-4 py-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500/50 outline-none transition-all shadow-inner" placeholder="z.B. 40">
                     <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>
@@ -107,7 +122,10 @@
     <div x-show="configSettings.overlay_type === 'plane'" x-transition style="display: none;" class="space-y-6">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div class="space-y-2">
-                <label class="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">Gravier-Breite (X)</label>
+                <div class="flex items-center justify-between">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">Gravier-Breite (X)</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'xtool_plane_width_help'])
+                </div>
                 <div class="relative">
                     <input type="number" x-model.number="configSettings.xtool_plane_width" step="0.1" class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 focus:border-blue-500 rounded-xl px-4 py-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all shadow-inner" placeholder="z.B. 50">
                     <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>
@@ -116,7 +134,10 @@
             </div>
 
             <div class="space-y-2">
-                <label class="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">Gravier-Höhe (Y)</label>
+                <div class="flex items-center justify-between">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">Gravier-Höhe (Y)</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'xtool_plane_height_help'])
+                </div>
                 <div class="relative">
                     <input type="number" x-model.number="configSettings.xtool_plane_height" step="0.1" class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 focus:border-blue-500 rounded-xl px-4 py-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all shadow-inner" placeholder="z.B. 50">
                     <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>

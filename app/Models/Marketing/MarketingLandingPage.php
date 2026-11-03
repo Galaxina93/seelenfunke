@@ -78,7 +78,7 @@ use HasUuids;
     public static function resolveShopContext(): array
     {
         $companyName = trim((string) shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'))) ?: 'Mein Seelenfunke';
-        $companyCity = trim((string) shop_setting('company_city', 'Gifhorn')) ?: 'Gifhorn';
+        $companyCity = trim((string) shop_setting('company_city', shop_setting('owner_city', 'Gifhorn'))) ?: 'Gifhorn';
         $companyCountryCode = strtoupper(trim((string) shop_setting('company_country', 'DE'))) ?: 'DE';
         $activeCountries = shop_setting('active_countries', ['DE' => 'Deutschland']);
         $companyCountryName = (is_array($activeCountries) && !empty($activeCountries[$companyCountryCode]))
@@ -267,12 +267,13 @@ use HasUuids;
     public static function sanitizeLegalCopy(string $text): string
     {
         $replacements = [
-            '/\bgarantiert\s+/iu'          => '',
-            '/\bzu\s+100%\s+/iu'           => '',
+            '/\bMade\s+in\s+Germany\b/iu'    => 'Handveredelt in Deutschland',
+            '/\bgarantiert\s+/iu'            => '',
+            '/\bzu\s+100%\s+/iu'             => '',
             '/\b100%\s+spülmaschinenfest/iu' => 'spülmaschinengeeignet',
-            '/\bspülmaschinenfest/iu'      => 'spülmaschinengeeignet',
-            '/\bunverwüstlich\b/iu'        => 'widerstandsfähig',
-            '/\babsolut\s+präzise/iu'      => 'präzise',
+            '/\bspülmaschinenfest/iu'        => 'spülmaschinengeeignet',
+            '/\bunverwüstlich\b/iu'          => 'widerstandsfähig',
+            '/\babsolut\s+präzise/iu'        => 'präzise',
         ];
 
         return trim((string) preg_replace(array_keys($replacements), array_values($replacements), $text));
@@ -305,7 +306,7 @@ use HasUuids;
             return [
                 'title'      => "{$name} | {$companyName} Manufaktur",
                 'headline'   => 'Freude schenken mit Stil: Der Seelenfunken Wertgutschein',
-                'sales_copy' => $rawDesc ?: 'Verschenke besondere Momente mit unserem Seelenfunken Geschenkgutschein. Wähle flexibel deinen Wunschbetrag, füge eine persönliche Widmung hinzu und erhalte ihn wahlweise digital per E-Mail oder als gedruckte Klappkarte.',
+                'sales_copy' => $rawDesc ?: 'Verschenke besondere Momente mit unserem Seelenfunken Geschenkgutschein. Wähle flexibel deinen Wunschbetrag, füge eine persönliche Widmung hinzu und erhalte ihn wahlweise digital per E-Mail oder als lasergravierte goldene Metallkarte im edlen Umschlag.',
                 'cta_text'   => 'Jetzt Gutschein gestalten',
             ];
         }
@@ -473,13 +474,13 @@ use HasUuids;
         $hasBackSide = !empty($settings['has_back_side']);
 
         if ($isVoucher) {
-            $heroBadge = 'Wertgutschein • Per E-Mail (PDF) oder Postkarte';
+            $heroBadge = 'Wertgutschein • Per E-Mail (PDF) oder goldene Metallkarte';
             $heroMiniBadges = [
-                ['icon' => 'gift', 'title' => '5 € – 1.000 € wählbar', 'subtitle' => 'Dein Wunschbetrag in Euro'],
-                ['icon' => 'bolt', 'title' => 'PDF & Postkarte', 'subtitle' => 'Zwei Versandarten'],
+                ['icon' => 'gift', 'title' => '5 € bis 1.000 € wählbar', 'subtitle' => 'Dein Wunschbetrag in Euro'],
+                ['icon' => 'bolt', 'title' => 'PDF & Goldkarte', 'subtitle' => 'Zwei Versandarten'],
                 ['icon' => 'heart', 'title' => 'Persönliche Widmung', 'subtitle' => 'Individueller Grußtext'],
             ];
-            $highlightsSubtitle = "Ob als kurzfristiges Geschenk per E-Mail oder als gedruckte Klappkarte – der Wertgutschein von {$companyName} lässt dem Beschenkten die freie Auswahl.";
+            $highlightsSubtitle = "Ob als kurzfristiges Geschenk per E-Mail oder als lasergravierte goldene Metallkarte im schwarzen Edel-Umschlag: Der Wertgutschein von {$companyName} lässt dem Beschenkten die freie Auswahl.";
             $highlights = [
                 [
                     'icon'  => 'sparkles',
@@ -489,7 +490,7 @@ use HasUuids;
                 [
                     'icon'  => 'mail',
                     'title' => 'Digital oder per Post',
-                    'text'  => 'Nach Zahlungseingang als druckfertiges PDF per E-Mail verfügbar oder optional als gedruckte Klappkarte bestellbar.',
+                    'text'  => 'Nach Zahlungseingang als druckfertiges PDF per E-Mail verfügbar oder optional als lasergravierte goldene Metallkarte im schwarzen Umschlag mit Siegel bestellbar.',
                 ],
                 [
                     'icon'  => 'shield',
@@ -501,7 +502,7 @@ use HasUuids;
             $storyHeadline = 'Wenn der Beschenkte sein Unikat selbst gestalten möchte';
             $storyPoints = [
                 'Wählbarer Wunschbetrag von 5,00 € bis 1.000,00 € (in 5er-Schritten)',
-                'Als PDF zum Selbstausdrucken oder als gedruckte Karte erhältlich',
+                'Als PDF zum Selbstausdrucken oder als lasergravierte goldene Metallkarte erhältlich',
                 'Restguthaben bleibt innerhalb der Gültigkeitsdauer erhalten',
                 'Gültig für 3 Jahre ab Ende des Kaufjahres (§ 195 BGB)',
             ];

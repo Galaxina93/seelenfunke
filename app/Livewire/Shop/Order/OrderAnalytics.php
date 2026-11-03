@@ -52,14 +52,11 @@ class OrderAnalytics extends Component
     public function calculateMetrics()
     {
         $query = OrderOrder::query()
-            ->with(['items.product'])
-            ->whereHas('items.product', function ($q) {
-                $q->where('type', 'physical'); // ONLY Physical Items
-            });
+            ->with(['items.product']);
 
         // Date Filtering
         if ($this->dateRange !== 'all') {
-            $days = min(3650, max(1, (int) $this->dateRange));
+            $days = in_array((int)$this->dateRange, [7, 30, 90, 365], true) ? (int)$this->dateRange : 30;
             $query->where('created_at', '>=', now()->subDays($days));
         }
 
@@ -92,6 +89,9 @@ class OrderAnalytics extends Component
         $b2c = 0;
 
         foreach ($orders as $order) {
+            if (($order->payment_status ?? '') !== 'paid') {
+                continue;
+            }
             $isB2b = !empty($order->billing_address['company'] ?? null);
             if ($isB2b) {
                 $b2b++;
@@ -149,6 +149,9 @@ class OrderAnalytics extends Component
         $hourCounts = array_fill(0, 24, 0);
 
         foreach ($orders as $order) {
+            if (($order->payment_status ?? '') !== 'paid') {
+                continue;
+            }
             $hour = (int)$order->created_at->format('H');
             $hourCounts[$hour]++;
         }
@@ -170,11 +173,14 @@ class OrderAnalytics extends Component
         $returningCustomers = 0;
 
         foreach ($orders as $order) {
+            if (($order->payment_status ?? '') !== 'paid') {
+                continue;
+            }
             $email = $order->email ?? ($order->shipping_address['email'] ?? ($order->billing_address['email'] ?? null));
             $customerId = $order->customer_id ?? null;
 
             if ($email || $customerId) {
-                // Check if this customer has a COMPLETED order BEFORE this specific order's creation date
+                // Check if this customer has a paid order BEFORE this specific order's creation date
                 $hasPrior = OrderOrder::where(function ($q) use ($email, $customerId) {
                         if ($customerId) {
                             $q->orWhere('customer_id', $customerId);
@@ -185,7 +191,8 @@ class OrderAnalytics extends Component
                               ->orWhere('billing_address->email', $email);
                         }
                     })
-                    ->where('status', 'completed')
+                    ->where('payment_status', 'paid')
+                    ->whereNotIn('status', ['cancelled', 'refunded'])
                     ->where('created_at', '<', $order->created_at)
                     ->exists();
 
@@ -243,15 +250,15 @@ class OrderAnalytics extends Component
         $productNames = [];
 
         foreach ($orders as $order) {
-            // Only count successfully sold metrics
-            if (!in_array($order->status, ['cancelled', 'failed', 'refunded'])) {
+            // Only count successfully sold & paid metrics
+            if (($order->payment_status ?? '') === 'paid' && !in_array($order->status, ['cancelled', 'failed', 'refunded'])) {
                 foreach ($order->items as $item) {
-                    if ($item->product && $item->product->type === 'physical') {
+                    if ($item->product || $item->product_id) {
                         $pid = $item->product_id;
                         if (!isset($productCounts[$pid])) {
                             $productCounts[$pid] = 0;
                             // Ensure string length is safely capped for Chart arrays
-                            $productNames[$pid] = mb_strimwidth($item->product->name ?? 'Unbekannt', 0, 20, '...');
+                            $productNames[$pid] = mb_strimwidth($item->product->name ?? ($item->product_name ?? 'Unbekannt'), 0, 20, '...');
                         }
                         $productCounts[$pid] += $item->quantity;
                     }
@@ -292,6 +299,9 @@ class OrderAnalytics extends Component
         $dayCounts = array_fill_keys(array_values($days), 0);
 
         foreach ($orders as $order) {
+            if (($order->payment_status ?? '') !== 'paid') {
+                continue;
+            }
             // Format N outputs 1 for Monday to 7 for Sunday
             $dayOfWeek = $order->created_at->format('N');
             $dayName = $days[(int)$dayOfWeek];
@@ -308,7 +318,8 @@ class OrderAnalytics extends Component
     {
         $query = OrderQuoteRequest::query();
         if ($this->dateRange !== 'all') {
-            $query->where('created_at', '>=', now()->subDays((int)$this->dateRange));
+            $days = in_array((int)$this->dateRange, [7, 30, 90, 365], true) ? (int)$this->dateRange : 30;
+            $query->where('created_at', '>=', now()->subDays($days));
         }
         $quotes = $query->get();
         // Group by Date for timeline
@@ -334,7 +345,8 @@ class OrderAnalytics extends Component
     {
         $query = OrderRevocation::query();
         if ($this->dateRange !== 'all') {
-            $query->where('created_at', '>=', now()->subDays((int)$this->dateRange));
+            $days = in_array((int)$this->dateRange, [7, 30, 90, 365], true) ? (int)$this->dateRange : 30;
+            $query->where('created_at', '>=', now()->subDays($days));
         }
         $revocations = $query->get();
         $grouped = $revocations->groupBy(function($r) {

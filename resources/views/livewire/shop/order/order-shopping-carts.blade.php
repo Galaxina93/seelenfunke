@@ -360,6 +360,29 @@
                                         </p>
                                     @endif
 
+                                    @if(!empty($item->configuration['addons_summary']) && is_array($item->configuration['addons_summary']))
+                                        <div class="flex flex-wrap gap-1.5 justify-center sm:justify-start my-1">
+                                            @foreach($item->configuration['addons_summary'] as $addon)
+                                                @if(!empty($addon['name']))
+                                                    @php
+                                                        $scAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addon);
+                                                    @endphp
+                                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700/50">
+                                                        @if($scAddonImg)
+                                                            <img src="{{ $scAddonImg }}" alt="{{ $addon['name'] }}" class="w-4 h-4 rounded object-cover border border-amber-300/60 shrink-0">
+                                                        @else
+                                                            <span>🎁</span>
+                                                        @endif
+                                                        <span>{{ $addon['name'] }}</span>
+                                                        @if(($addon['price_cents'] ?? 0) > 0)
+                                                            <span>(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }} €)</span>
+                                                        @endif
+                                                    </span>
+                                                @endif
+                                            @endforeach
+                                        </div>
+                                    @endif
+
                                     <div class="flex flex-wrap gap-2 justify-center sm:justify-start my-2">
                                         @if(!empty($item->configuration['text']))
                                             <span class="inline-flex items-center gap-1 text-[10px] uppercase font-bold text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 px-2 py-1 rounded">

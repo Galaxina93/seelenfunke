@@ -60,11 +60,9 @@
                     </div>
 
                     <div>
-                        <h3 class="font-bold text-lg text-gray-900 mb-2">5. Nachhaltigkeit und soziale Verantwortung</h3>
+                        <h3 class="font-bold text-lg text-gray-900 mb-2">5. Verantwortungsvolle Fertigung und Sorgfalt</h3>
                         <p>
-                            Wir bemühen uns um möglichst umweltschonende Prozesse und legen auch bei unseren Partner:innen
-                            Wert auf nachhaltiges Handeln.
-                            Unsere Produkte werden unter fairen Bedingungen hergestellt und vertrieben.
+                            Wir fertigen und veredeln unsere Produkte auftragsbezogen erst nach Bestelleingang in unserer Manufaktur, um unnötige Überproduktion zu vermeiden, und achten bei der Auswahl unserer Materialien und Partner auf Langlebigkeit sowie faire Arbeitsbedingungen.
                         </p>
                     </div>
 
@@ -82,7 +80,7 @@
                             ❤️ Gemeinsam schaffen wir eine respektvolle und vertrauensvolle Community.
                         </p>
                         <p class="mt-2 text-sm text-gray-600">
-                            Vielen Dank für dein Vertrauen – schön, dass du Teil der <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}-Community</strong> bist.
+                            Vielen Dank für dein Vertrauen. Schön, dass du Teil der <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}-Community</strong> bist.
                         </p>
                         <p class="mt-2 text-sm">
                             📩 Kontakt: <a href="mailto:{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}" class="text-primary hover:underline">{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}</a>

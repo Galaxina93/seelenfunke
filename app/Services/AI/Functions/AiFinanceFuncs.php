@@ -591,17 +591,20 @@ trait AiFinanceFuncs
             $date = $args['date'] ?? date('Y-m-d');
             $isNet = $args['is_net'] ?? true;
 
-            $query = \App\Models\Accounting\AccountingInvoice::whereDate('invoice_date', $date)
-                ->whereIn('status', ['paid', 'cancelled'])
-                ->whereIn('type', ['invoice', 'cancellation', 'credit_note']);
+            $invoices = \App\Models\Accounting\AccountingInvoice::whereDate('invoice_date', $date)
+                ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
+                ->where(function ($q) {
+                    $q->where('status', 'paid')
+                        ->orWhere(function ($sub) {
+                            $sub->where('status', 'cancelled')->whereNotNull('paid_at');
+                        });
+                })
+                ->get(['type', 'total', 'tax_amount']);
 
-            if ($isNet) {
-                $query->selectRaw('SUM(total - tax_amount) as sum_total');
-            } else {
-                $query->selectRaw('SUM(total) as sum_total');
-            }
-            
-            $revenueCents = $query->value('sum_total') ?? 0;
+            $revenueCents = $invoices->sum(function ($inv) use ($isNet) {
+                $raw = $isNet ? ((int) $inv->total - (int) $inv->tax_amount) : (int) $inv->total;
+                return \App\Services\FinancialService::signedInvoiceCents($inv->type, $raw);
+            });
             $revenueEuro = $revenueCents / 100;
 
             return [
@@ -998,7 +1001,8 @@ trait AiFinanceFuncs
                 ? \Carbon\Carbon::parse($args['first_payment_date'])->format('Y-m-d')
                 : now()->format('Y-m-d');
             $requiresContract = isset($args['requires_contract']) ? (bool)$args['requires_contract'] : false;
-            $taxRate = isset($args['tax_rate']) ? (int)$args['tax_rate'] : ($isBusiness ? 19 : null);
+            $isSmallBusiness = app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness();
+            $taxRate = isset($args['tax_rate']) ? (int)$args['tax_rate'] : ($isBusiness ? ($isSmallBusiness ? 0 : (int) round((float) shop_setting('default_tax_rate', 19))) : null);
 
             // Determine Target Group
             $targetGroup = null;
@@ -2002,12 +2006,18 @@ trait AiFinanceFuncs
             $adminId = self::getAdminId();
 
             $amount = (float) str_replace(',', '.', (string) $args['amount']);
-            // WICHTIG: Sonderausgaben / Belegkosten sind im System stets negativ!
-            if ($amount > 0) {
+            $categoryName = $args['category'] ?: 'Sonstiges';
+            $isIncome = !empty($args['is_income'])
+                || (($args['type'] ?? '') === 'income')
+                || stripos((string) $categoryName, 'einnahme') !== false
+                || stripos((string) ($args['title'] ?? ''), 'einnahme') !== false;
+            // WICHTIG: Sonderausgaben / Belegkosten sind im System negativ, außer explizit als Einnahme markiert!
+            if ($amount > 0 && !$isIncome) {
                 $amount = -$amount;
             }
 
-            $categoryName = $args['category'] ?: 'Sonstiges';
+            $isSmallBusiness = app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness();
+            $defaultTaxRate = $isSmallBusiness ? 0.0 : (float) shop_setting('default_tax_rate', 19.0);
 
             $entry = \App\Models\Accounting\AccountingSpecialIssue::create([
                 'admin_id' => $adminId,
@@ -2016,7 +2026,7 @@ trait AiFinanceFuncs
                 'amount' => $amount,
                 'execution_date' => $args['execution_date'],
                 'is_business' => $args['is_business'],
-                'tax_rate' => $args['is_business'] ? ($args['tax_rate'] ?? 19.0) : null,
+                'tax_rate' => $args['is_business'] ? ($args['tax_rate'] ?? $defaultTaxRate) : null,
                 'invoice_number' => $args['is_business'] ? ($args['invoice_number'] ?? null) : null,
                 'location' => 'KI-Schnellerfassung'
             ]);
@@ -2120,8 +2130,14 @@ trait AiFinanceFuncs
             }
             if (isset($args['amount'])) {
                 $amount = (float) str_replace(',', '.', (string) $args['amount']);
-                // WICHTIG: Sonderausgaben / Belegkosten sind im System stets negativ!
-                if ($amount > 0) {
+                $checkCat = (string) ($args['category'] ?? $entry->category ?? '');
+                $checkTitle = (string) ($args['title'] ?? $entry->title ?? '');
+                $isIncome = !empty($args['is_income'])
+                    || (($args['type'] ?? '') === 'income')
+                    || stripos($checkCat, 'einnahme') !== false
+                    || stripos($checkTitle, 'einnahme') !== false;
+                // WICHTIG: Sonderausgaben / Belegkosten sind im System negativ, außer explizit als Einnahme markiert!
+                if ($amount > 0 && !$isIncome) {
                     $amount = -$amount;
                 }
                 $entry->amount = $amount;

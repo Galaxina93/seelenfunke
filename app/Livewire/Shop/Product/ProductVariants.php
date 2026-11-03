@@ -4,34 +4,45 @@ namespace App\Livewire\Shop\Product;
 
 use App\Models\Product\Product;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Attributes\On;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 class ProductVariants extends Component
 {
+    use WithFileUploads;
+
     #[\Livewire\Attributes\Locked]
     public Product $product;
 
     // Die Matrix der Endprodukte
     public array $variants = [];
 
+    // Optionale Zusatz-Optionen / Verpackungs-Upgrades & Bundle-Extras mit Aufpreis
+    public array $addons = [];
+
+    // Temporäre Datei-Uploads für Addon-Vorschaubilder
+    public array $addonUploads = [];
+
     public function boot(): void
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
 
     public function mount(Product $product)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
         $this->product = $product;
         // Wir laden die bereinigten Varianten aus dem Product-Model.
         $this->variants = $this->product->getSanitizedVariantsData(true);
+        $this->addons = $this->loadSanitizedAddons();
     }
 
     #[On('product-updated')]
@@ -39,6 +50,205 @@ class ProductVariants extends Component
     {
         $this->product->refresh();
         $this->variants = $this->product->getSanitizedVariantsData(true);
+        $this->addons = $this->loadSanitizedAddons();
+    }
+
+    protected function loadSanitizedAddons(): array
+    {
+        if (!$this->product->isPhysical()) {
+            return [];
+        }
+
+        return $this->product->getEffectiveAddons(false);
+    }
+
+    public function addAddon(string $presetName = '', string $presetDesc = '', string $presetPrice = '3.90', ?string $presetImage = null): void
+    {
+        if (!$this->product->isPhysical() || count($this->addons) >= 30) {
+            return;
+        }
+
+        $lowerPreset = mb_strtolower(trim($presetName));
+        $canonicalId = Str::uuid()->toString();
+        if ($lowerPreset !== '') {
+            if (str_contains($lowerPreset, 'schmuckbox') || str_contains($lowerPreset, 'geschenkbox')) {
+                $canonicalId = 'gift_box_westpack';
+            } elseif (str_contains($lowerPreset, 'geschenkpapier')) {
+                $canonicalId = 'gift_wrap_black_gold';
+            }
+
+            // Verhindere Duplikate bei Klick auf Schnell-Buttons
+            foreach ($this->addons as $idx => $existing) {
+                $exId = (string) ($existing['id'] ?? '');
+                $exName = mb_strtolower(trim((string) ($existing['name'] ?? '')));
+                if ($exId === $canonicalId || ($exName !== '' && $exName === $lowerPreset)) {
+                    $this->addons[$idx]['is_active'] = true;
+                    $this->addons[$idx]['price'] = $presetPrice;
+                    $this->addons[$idx]['price_cents'] = max(0, (int) round(((float) str_replace(',', '.', $presetPrice)) * 100));
+                    $this->saveAddons();
+                    return;
+                }
+            }
+        }
+
+        $newAddon = [
+            'id'          => $canonicalId,
+            'name'        => $presetName,
+            'description' => $presetDesc,
+            'price'       => $presetPrice,
+            'price_cents' => max(0, (int) round(((float) str_replace(',', '.', $presetPrice)) * 100)),
+            'image_path'  => $presetImage,
+            'is_active'   => true,
+        ];
+        $newAddon['image_path'] = Product::resolveAddonImagePath($newAddon);
+        $newAddon['image_url'] = Product::resolveAddonImageUrl($newAddon['image_path']);
+
+        $this->addons[] = $newAddon;
+
+        $this->saveAddons();
+    }
+
+    protected function isDeletableCustomAddonImage(?string $path): bool
+    {
+        if (!is_string($path) || $path === '' || str_contains($path, '..') || str_contains($path, "\0") || str_contains($path, '\\')) {
+            return false;
+        }
+        $protectedDefaults = [
+            'produkte/addons/edle-schmuckbox-schwarz-gold.jpg',
+            'produkte/addons/geschenkpapier-schwarz-gold.jpg',
+        ];
+        if (in_array($path, $protectedDefaults, true)) {
+            return false;
+        }
+        return str_starts_with($path, 'produkte/addons/') || str_starts_with($path, 'products/addons/');
+    }
+
+    public function updatedAddonUploads($file, $index): void
+    {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+
+        $idx = (int) $index;
+        if (!isset($this->addons[$idx]) || !$file) {
+            return;
+        }
+
+        $this->validate([
+            "addonUploads.{$idx}" => 'image|mimes:jpeg,png,jpg,webp,gif|max:5120',
+        ]);
+
+        // Serverseitige MIME- & Bilddimensions-Prüfung (Schutz gegen Polyglot-Uploads & manipulierte Header)
+        $realPath = $file->getRealPath();
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $realMime = $realPath ? finfo_file($finfo, $realPath) : '';
+        finfo_close($finfo);
+
+        $allowedMimeExtMap = [
+            'image/jpeg' => 'jpg',
+            'image/png'  => 'png',
+            'image/webp' => 'webp',
+            'image/gif'  => 'gif',
+        ];
+        $imgDimensions = $realPath ? @getimagesize($realPath) : false;
+
+        if (
+            !isset($allowedMimeExtMap[$realMime])
+            || $imgDimensions === false
+            || ($imgDimensions[0] ?? 0) <= 0
+            || ($imgDimensions[1] ?? 0) <= 0
+            || ($imgDimensions[0] ?? 0) > 6000
+            || ($imgDimensions[1] ?? 0) > 6000
+        ) {
+            unset($this->addonUploads[$idx]);
+            return;
+        }
+
+        // Falls ein altes hochgeladenes Bild (in storage/app/public/produkte/addons) existiert, aufräumen (Standard-Assets schützen)
+        $oldPath = $this->addons[$idx]['image_path'] ?? null;
+        if ($this->isDeletableCustomAddonImage($oldPath) && Storage::disk('public')->exists($oldPath)) {
+            Storage::disk('public')->delete($oldPath);
+        }
+
+        $safeFilename = Str::uuid()->toString() . '.' . $allowedMimeExtMap[$realMime];
+        $storedPath = $file->storeAs('produkte/addons', $safeFilename, 'public');
+        $this->addons[$idx]['image_path'] = $storedPath;
+        $this->addons[$idx]['image_url'] = Product::resolveAddonImageUrl($storedPath);
+        unset($this->addonUploads[$idx]);
+
+        $this->saveAddons();
+    }
+
+    public function removeAddonImage(int $index): void
+    {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+
+        if (!isset($this->addons[$index])) {
+            return;
+        }
+
+        $oldPath = $this->addons[$index]['image_path'] ?? null;
+        if ($this->isDeletableCustomAddonImage($oldPath) && Storage::disk('public')->exists($oldPath)) {
+            Storage::disk('public')->delete($oldPath);
+        }
+
+        $this->addons[$index]['image_path'] = null;
+        $this->addons[$index]['image_url'] = null;
+        $this->saveAddons();
+    }
+
+    public function removeAddon(int $index): void
+    {
+        if (isset($this->addons[$index])) {
+            $oldPath = $this->addons[$index]['image_path'] ?? null;
+            if ($this->isDeletableCustomAddonImage($oldPath) && Storage::disk('public')->exists($oldPath)) {
+                Storage::disk('public')->delete($oldPath);
+            }
+            unset($this->addons[$index]);
+            $this->addons = array_values($this->addons);
+            $this->saveAddons();
+        }
+    }
+
+    public function saveAddons(): void
+    {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+
+        $cleanAddons = [];
+        foreach (array_slice($this->addons, 0, 30) as $addon) {
+            if (!is_array($addon)) {
+                continue;
+            }
+            $name = trim(strip_tags((string) ($addon['name'] ?? '')));
+            $desc = trim(strip_tags((string) ($addon['description'] ?? '')));
+            $rawPrice = (float) str_replace(',', '.', (string) ($addon['price'] ?? '0'));
+            $priceCents = max(0, min(500000, (int) round($rawPrice * 100)));
+            $imagePath = Product::resolveAddonImagePath($addon);
+
+            $cleanAddons[] = [
+                'id'          => !empty($addon['id']) ? (string) $addon['id'] : Str::uuid()->toString(),
+                'name'        => mb_substr($name, 0, 120),
+                'description' => mb_substr($desc, 0, 250),
+                'price'       => number_format($priceCents / 100, 2, '.', ''),
+                'price_cents' => $priceCents,
+                'image_path'  => $imagePath,
+                'image_url'   => Product::resolveAddonImageUrl($imagePath),
+                'is_active'   => (bool) ($addon['is_active'] ?? true),
+            ];
+        }
+
+        $this->addons = $cleanAddons;
+        $settings = is_array($this->product->configurator_settings) ? $this->product->configurator_settings : [];
+        $settings['addons'] = $cleanAddons;
+        $this->product->configurator_settings = $settings;
+        $this->product->save();
+
+        $this->dispatch('product-updated');
+        $this->dispatch('variants-saved');
     }
 
     public function generateMatrix()
@@ -149,7 +359,7 @@ class ProductVariants extends Component
 
     public function saveVariants()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 

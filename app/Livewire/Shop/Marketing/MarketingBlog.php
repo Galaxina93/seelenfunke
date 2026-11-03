@@ -20,7 +20,7 @@ class MarketingBlog extends Component
 
     public string $themingDepartment = 'Marketing';
 
-    use WithPagination, WithFileUploads, WithDepartmentTheming;
+    use WithPagination, WithFileUploads;
 
     // View State
     public $viewMode = 'list'; // 'list', 'create', 'edit'
@@ -50,14 +50,14 @@ class MarketingBlog extends Component
 
     public function boot(): void
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
 
     public function mount()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
@@ -136,7 +136,7 @@ class MarketingBlog extends Component
         // Kategorien immer frisch laden für das Dropdown & Modal
         $categories = MarketingBlogCategory::orderBy('name')->get();
 
-        $shopBrand = \App\Models\System\SystemSetting::where('key', 'company_name')->value('value') ?? 'Mein Seelenfunke';
+        $shopBrand = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
         $admins = \App\Models\Admin\Admin::orderBy('first_name')->get();
 
         return view('livewire.shop.marketing.marketing-blog', [
@@ -155,7 +155,7 @@ class MarketingBlog extends Component
         $this->viewMode = 'create';
         $this->published_at = now()->format('Y-m-d\TH:i');
         $this->status = 'draft';
-        $this->author_name = \App\Models\System\SystemSetting::where('key', 'company_name')->value('value') ?? 'Mein Seelenfunke';
+        $this->author_name = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
     }
 
     public function edit($id)
@@ -194,7 +194,7 @@ class MarketingBlog extends Component
 
     public function save()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
             abort(403);
         }
 
@@ -261,7 +261,7 @@ class MarketingBlog extends Component
 
     public function delete($id)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
             abort(403);
         }
 
@@ -293,7 +293,7 @@ class MarketingBlog extends Component
 
     public function createCategory()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
             abort(403);
         }
 
@@ -314,7 +314,7 @@ class MarketingBlog extends Component
 
     public function deleteCategory($id)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
             abort(403);
         }
 

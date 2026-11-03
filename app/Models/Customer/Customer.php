@@ -212,7 +212,7 @@ use HasFactory, HasUuids, softDeletes, AuthenticatableTrait, HasApiTokens, Notif
         }
 
         // 2. Rechtssicherheits-Schalter (Standard: true, nur mit Einwilligung)
-        $requireConsent = shop_setting('cart_abandoned_require_consent', true);
+        $requireConsent = filter_var(shop_setting('cart_abandoned_require_consent', true), FILTER_VALIDATE_BOOLEAN);
         if ($requireConsent) {
             return $this->hasMarketingConsent();
         }

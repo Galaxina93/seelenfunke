@@ -20,9 +20,7 @@
                         {{ $quote->created_at->format('d.m.Y H:i') }}
                     </span>
                     @if($quote->is_express)
-                        <span class="text-[9px] lg:text-[10px] font-black bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-2.5 py-1 rounded-md border border-red-200 dark:border-red-500/30 uppercase tracking-widest whitespace-nowrap flex items-center gap-1.5 shadow-none dark:shadow-[0_0_15px_rgba(239,68,68,0.15)]">
-                            <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-none dark:shadow-[0_0_8px_currentColor]"></span> Express
-                        </span>
+                        <x-shop.express-info iconClass="w-3.5 h-3.5" class="text-[9px] lg:text-[10px] font-black text-gray-800 dark:text-gray-100 px-2.5 py-1 rounded-md border border-primary/40 uppercase tracking-widest whitespace-nowrap shadow-2xs" />
                     @endif
                 </h1>
             </div>

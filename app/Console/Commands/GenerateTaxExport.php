@@ -77,14 +77,34 @@ class GenerateTaxExport extends Command
         // 1. UMSÄTZE (Einnahmen inkl. Gutschriften & Kleinunternehmer-Prüfung)
         $orders = OrderOrder::whereYear('created_at', $year)
             ->whereMonth('created_at', $month)
-            ->where('payment_status', 'paid')
+            ->where(function ($q) {
+                $q->where('payment_status', 'paid')
+                    ->orWhere(function ($sub) {
+                        $sub->where('payment_status', 'refunded')->whereNotNull('paid_at');
+                    });
+            })
+            ->get();
+
+        $manualInvoices = \App\Models\Accounting\AccountingInvoice::whereNull('order_id')
+            ->whereYear('invoice_date', $year)
+            ->whereMonth('invoice_date', $month)
+            ->where('type', 'invoice')
+            ->where(function ($q) {
+                $q->where('status', 'paid')
+                    ->orWhere(function ($sub) {
+                        $sub->where('status', 'cancelled')->whereNotNull('paid_at');
+                    });
+            })
             ->get();
 
         $creditNotes = \App\Models\Accounting\AccountingInvoice::with('order')
             ->whereYear('invoice_date', $year)
             ->whereMonth('invoice_date', $month)
             ->whereIn('type', ['credit_note', 'cancellation'])
-            ->whereIn('status', ['paid', 'cancelled'])
+            ->where(function ($q) {
+                $q->where('status', 'paid')
+                    ->orWhereNotNull('paid_at');
+            })
             ->get();
 
         $taxService = app(\App\Services\Tax\TaxSettingService::class);
@@ -117,6 +137,22 @@ class GenerateTaxExport extends Command
             } else {
                 $vatCollected += $tax;
             }
+        }
+
+        foreach ($manualInvoices as $manualInv) {
+            $total = abs($manualInv->total / 100);
+            $tax = abs($manualInv->tax_amount / 100);
+
+            if ($isYearSmallBusiness) {
+                $tax = 0;
+            } elseif ($tax == 0 && ($isMidyearSwitch || $manualInv->is_small_business)) {
+                $rate = (float) shop_setting('default_tax_rate', 19.0);
+                $net = $total / (1 + ($rate / 100));
+                $tax = $total - $net;
+            }
+
+            $revenueGross += $total;
+            $vatCollected += $tax;
         }
 
         foreach ($creditNotes as $cn) {
@@ -256,18 +292,23 @@ class GenerateTaxExport extends Command
             'zahllast' => $zahllast,
             'profit' => $profit,
             'progress' => min(100, (int) round($progress)),
-            'order_count' => $orders->count(),
+            'order_count' => $orders->count() + $manualInvoices->count(),
             'expense_count' => $totalBusinessItems,
             'submission_type' => 'Erstübermittlung',
             'company' => [
-                'name' => shop_setting('company_name', 'Mein Seelenfunke'),
+                'name' => shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')),
                 'owner' => $proprietor ?: shop_setting('owner_name', ''),
-                'street' => trim(shop_setting('company_street', '') . ' ' . shop_setting('company_street_number', '')),
-                'city' => trim(shop_setting('company_zip', '') . ' ' . shop_setting('company_city', '')),
+                'street' => shop_setting('company_street')
+                    ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', ''))
+                    : shop_setting('owner_street', ''),
+                'city' => shop_setting('company_city')
+                    ? trim(shop_setting('company_zip', '') . ' ' . shop_setting('company_city'))
+                    : shop_setting('owner_city', ''),
                 'tax_id' => $taxId ?: 'n.a.',
-                'ust_id' => shop_setting('owner_ust_id', 'n.a.'),
+                'ust_id' => shop_setting('company_ust_id', shop_setting('owner_ust_id', 'n.a.')),
             ],
             'raw_orders' => $orders,
+            'raw_manual_invoices' => $manualInvoices,
             'raw_credits' => $creditNotes,
             'raw_specials' => $businessSpecials,
             'raw_fixed' => $businessFixed,
@@ -328,7 +369,7 @@ class GenerateTaxExport extends Command
                     : (Storage::disk('public')->exists($cleanPath) ? Storage::disk('public')->path($cleanPath) : null);
                 if ($source && File::exists($source) && !is_link($source)) {
                     $ext = preg_replace('/[^a-zA-Z0-9]/', '', (string) pathinfo($source, PATHINFO_EXTENSION)) ?: 'pdf';
-                    $filename = "Fixkosten_" . (Str::slug($fixed->name) ?: 'vertrag') . ".{$ext}";
+                    $filename = "Fixkosten_" . (Str::slug($fixed->name) ?: 'vertrag') . '_' . substr((string) $fixed->id, 0, 8) . ".{$ext}";
                     File::copy($source, $receiptsDir . '/' . $filename);
                 }
             }
@@ -376,6 +417,14 @@ class GenerateTaxExport extends Command
             $orderNum = $sanitizeCsvField((string) $order->order_number);
             $text = $sanitizeCsvField("Bestellung " . $order->order_number);
             $csv .= '"'.$amount.'";"S";"1200";"8400";"'.$date.'";"'.$orderNum.'";"'.$text.'"' . "\n";
+        }
+
+        foreach ($data['raw_manual_invoices'] ?? [] as $manualInv) {
+            $amount = number_format(abs($manualInv->total / 100), 2, ',', '');
+            $date = ($manualInv->invoice_date ?? $manualInv->created_at ?? now())->format('dm');
+            $invNum = $sanitizeCsvField((string) $manualInv->invoice_number);
+            $text = $sanitizeCsvField("Rechnung " . $manualInv->invoice_number);
+            $csv .= '"'.$amount.'";"S";"1200";"8400";"'.$date.'";"'.$invNum.'";"'.$text.'"' . "\n";
         }
 
         foreach ($data['raw_credits'] ?? [] as $credit) {

@@ -185,6 +185,7 @@ class MasterShopCapacity extends Component
             ['key' => 'shop_capacity_autopilot'],
             ['value' => $this->autoPilotEnabled ? 'true' : 'false']
         );
+        Cache::forget('global_shop_settings');
 
         $this->calculateCapacity();
         \Illuminate\Support\Facades\Artisan::call('shop:capacity-engine');

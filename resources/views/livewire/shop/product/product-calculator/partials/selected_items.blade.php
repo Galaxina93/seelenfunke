@@ -22,11 +22,12 @@
                         $prod = $dbProducts[$item['product_id']] ?? null;
                         $tiers = $prod['tier_pricing'] ?? [];
                         usort($tiers, fn($a, $b) => $a['qty'] <=> $b['qty']);
+                        $totalProductQty = collect($selectedItems ?? $cartItems ?? [])->where('product_id', $item['product_id'])->sum('qty');
 
                         $currentTier = null;
                         $nextTier = null;
                         foreach($tiers as $t) {
-                            if($item['qty'] >= $t['qty']) {
+                            if($totalProductQty >= $t['qty']) {
                                 $currentTier = $t;
                             } else {
                                 $nextTier = $t;
@@ -37,8 +38,35 @@
                     <tr class="hover:bg-gray-50/50 transition">
                         <td class="px-4 py-3 align-middle">
                             <div class="font-bold">{{ $item['name'] }}</div>
+                            @if(!empty($item['configuration']['variant_name']))
+                                <div class="text-[10px] font-black uppercase tracking-widest text-primary mt-0.5">
+                                    Ausführung: {{ $item['configuration']['variant_name'] }}
+                                </div>
+                            @endif
+                            @if(!empty($item['configuration']['addons_summary']) && is_array($item['configuration']['addons_summary']))
+                                <div class="mt-1 flex flex-wrap gap-1">
+                                    @foreach($item['configuration']['addons_summary'] as $addon)
+                                        @if(!empty($addon['name']))
+                                            @php
+                                                $calcAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addon);
+                                            @endphp
+                                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80">
+                                                @if($calcAddonImg)
+                                                    <img src="{{ $calcAddonImg }}" alt="{{ $addon['name'] }}" class="w-4 h-4 rounded object-cover border border-amber-300/60 shrink-0">
+                                                @else
+                                                    <span>🎁</span>
+                                                @endif
+                                                <span>{{ $addon['name'] }}</span>
+                                                @if(($addon['price_cents'] ?? 0) > 0)
+                                                    <span class="text-amber-600">(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }}&nbsp;€)</span>
+                                                @endif
+                                            </span>
+                                        @endif
+                                    @endforeach
+                                </div>
+                            @endif
                             @if($currentTier)
-                                <div class="text-[10px] text-green-600 font-bold uppercase flex items-center gap-1">
+                                <div class="text-[10px] text-green-600 font-bold uppercase flex items-center gap-1 mt-0.5">
                                     <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.64.304 1.24.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"/></svg>
                                     {{ $currentTier['percent'] }}% Mengenrabatt aktiv
                                 </div>
@@ -52,9 +80,9 @@
                             @if($nextTier)
                                 @php
                                     $prevQty = $currentTier ? $currentTier['qty'] : 0;
-                                    $range = $nextTier['qty'] - $prevQty;
-                                    $progress = (($item['qty'] - $prevQty) / $range) * 100;
-                                    $needed = $nextTier['qty'] - $item['qty'];
+                                    $range = max(1, $nextTier['qty'] - $prevQty);
+                                    $progress = (($totalProductQty - $prevQty) / $range) * 100;
+                                    $needed = max(0, $nextTier['qty'] - $totalProductQty);
                                 @endphp
                                 <div class="mt-1 w-24 mx-auto">
                                     <div class="flex justify-between text-[8px] text-gray-400 mb-0.5">
@@ -91,10 +119,11 @@
                         $prod = $dbProducts[$item['product_id']] ?? null;
                         $tiers = $prod['tier_pricing'] ?? [];
                         usort($tiers, fn($a, $b) => $a['qty'] <=> $b['qty']);
+                        $totalProductQty = collect($selectedItems ?? $cartItems ?? [])->where('product_id', $item['product_id'])->sum('qty');
                         $currentTier = null;
                         $nextTier = null;
                         foreach($tiers as $t) {
-                            if($item['qty'] >= $t['qty']) $currentTier = $t;
+                            if($totalProductQty >= $t['qty']) $currentTier = $t;
                             else { $nextTier = $t; break; }
                         }
                     @endphp
@@ -102,8 +131,35 @@
                         <div class="flex justify-between items-start">
                             <div class="flex flex-col">
                                 <span class="font-bold text-gray-900 text-base">{{ $item['name'] }}</span>
+                                @if(!empty($item['configuration']['variant_name']))
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-primary mt-0.5">
+                                        Ausführung: {{ $item['configuration']['variant_name'] }}
+                                    </span>
+                                @endif
+                                @if(!empty($item['configuration']['addons_summary']) && is_array($item['configuration']['addons_summary']))
+                                    <div class="mt-1 flex flex-wrap gap-1">
+                                        @foreach($item['configuration']['addons_summary'] as $addon)
+                                            @if(!empty($addon['name']))
+                                                @php
+                                                    $calcMobAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addon);
+                                                @endphp
+                                                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80">
+                                                    @if($calcMobAddonImg)
+                                                        <img src="{{ $calcMobAddonImg }}" alt="{{ $addon['name'] }}" class="w-4 h-4 rounded object-cover border border-amber-300/60 shrink-0">
+                                                    @else
+                                                        <span>🎁</span>
+                                                    @endif
+                                                    <span>{{ $addon['name'] }}</span>
+                                                    @if(($addon['price_cents'] ?? 0) > 0)
+                                                        <span class="text-amber-600">(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }}&nbsp;€)</span>
+                                                    @endif
+                                                </span>
+                                            @endif
+                                        @endforeach
+                                    </div>
+                                @endif
                                 @if($currentTier)
-                                    <span class="text-[10px] text-green-600 font-bold uppercase">{{ $currentTier['percent'] }}% Rabatt aktiv</span>
+                                    <span class="text-[10px] text-green-600 font-bold uppercase mt-0.5">{{ $currentTier['percent'] }}% Rabatt aktiv</span>
                                 @endif
                             </div>
                             <span class="font-bold text-gray-900 font-mono">
@@ -118,14 +174,14 @@
                                 @if($nextTier)
                                     @php
                                         $prevQty = $currentTier ? $currentTier['qty'] : 0;
-                                        $range = $nextTier['qty'] - $prevQty;
-                                        $progress = (($item['qty'] - $prevQty) / $range) * 100;
+                                        $range = max(1, $nextTier['qty'] - $prevQty);
+                                        $progress = (($totalProductQty - $prevQty) / $range) * 100;
                                     @endphp
                                     <div class="w-32">
                                         <div class="w-full bg-gray-100 rounded-full h-1 border border-gray-200">
                                             <div class="bg-green-500 h-full" style="width: {{ $progress }}%"></div>
                                         </div>
-                                        <div class="text-[8px] text-gray-400 mt-0.5">Noch {{ $nextTier['qty'] - $item['qty'] }} bis {{ $nextTier['percent'] }}%</div>
+                                        <div class="text-[8px] text-gray-400 mt-0.5">Noch {{ max(0, $nextTier['qty'] - $totalProductQty) }} bis {{ $nextTier['percent'] }}%</div>
                                     </div>
                                 @endif
                             </div>
@@ -160,7 +216,7 @@
                     $formattedPercent = number_format($expressPercent, 0, ',', '.');
                     $formattedMin = number_format($expressMin / 100, 2, ',', '.');
                     
-                    $shopCapacityLevel = (int)\Illuminate\Support\Facades\Cache::get('shop_capacity_level', \App\Models\System\SystemSetting::where('key', 'shop_capacity_level')->value('value') ?? 0);
+                    $shopCapacityLevel = (int) \Illuminate\Support\Facades\Cache::get('shop_capacity_level', shop_setting('shop_capacity_level', 0));
                     $expressDisabled = $shopCapacityLevel >= 2;
                 @endphp
 
@@ -182,7 +238,7 @@
                             <div class="flex justify-between items-center flex-wrap gap-2">
                                 {{-- Titel mit Icon --}}
                                 <h3 class="font-bold text-gray-800 flex items-center gap-2">
-                                    <span>🚀 Eiliges express Geschenk?</span>
+                                    <x-shop.express-info label="Express-Service" />
                                     @if($isExpress)
                                         <span class="text-[10px] bg-primary text-white px-2 py-0.5 rounded-full uppercase tracking-wide font-bold animate-pulse">Aktiv</span>
                                     @endif
@@ -236,7 +292,7 @@
 
                 @if($shippingCost > 0)
                     <div class="text-sm text-gray-600">
-                        Versand ({{ $form['country'] }}): {{ number_format($shippingCost, 2, ',', '.') }}&nbsp;€
+                        <a href="{{ route('versand') }}" target="_blank" class="underline hover:text-primary">Versand</a> ({{ $form['country'] }}): {{ number_format($shippingCost, 2, ',', '.') }}&nbsp;€
                     </div>
 
                     @if($form['country'] === 'DE')
@@ -252,13 +308,16 @@
                 @else
                     <div class="text-sm text-green-600 font-bold flex items-center justify-end gap-1">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                        Versand ({{ $form['country'] }}): Kostenlos
+                        <a href="{{ route('versand') }}" target="_blank" class="underline hover:text-green-700">Versand</a> ({{ $form['country'] }}): Kostenlos
                     </div>
                 @endif
 
                 {{-- Express Anzeige falls aktiv --}}
                 @if($isExpress)
-                    <div class="text-sm text-red-600">Express-Service: {{ number_format($expressCharge / 100, 2, ',', '.') }}&nbsp;€</div>
+                    <div class="text-sm text-gray-600 flex items-center justify-end gap-1.5">
+                        <x-shop.express-info />:
+                        <span class="font-medium text-gray-900">+ {{ number_format($expressCharge / 100, 2, ',', '.') }}&nbsp;€</span>
+                    </div>
                 @endif
 
                 {{-- Steuerliche Aufschlüsselung (Informativ am Ende) --}}

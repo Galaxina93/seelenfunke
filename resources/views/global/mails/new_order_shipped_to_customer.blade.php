@@ -1,8 +1,6 @@
 {{-- HTML TREE --}}
 @include('global.mails.partials.mail_html_tree', ['title' => 'Deine Bestellung ist unterwegs'])
 
-<body>
-
 <div class="container">
 
     {{-- LOGO --}}
@@ -30,7 +28,7 @@
     {{-- TRACKING HINWEIS --}}
     <div style="margin-top: 30px; padding: 15px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; font-size: 13px; color: #166534; line-height: 1.5;">
         <strong>📦 Nächster Schritt:</strong><br>
-        Das Paket sollte innerhalb der nächsten 1-3 Werktage bei dir eintreffen. Wir wünschen dir ganz viel Freude damit!
+        Die reguläre Postlaufzeit beträgt ab Versandübergabe erfahrungsgemäß ca. 1–3 Werktage (innerhalb Deutschlands). Wir wünschen dir ganz viel Freude mit deinem Unikat!
     </div>
 
     @if(!empty($data['tracking_numbers']) && count($data['tracking_numbers']) > 0)

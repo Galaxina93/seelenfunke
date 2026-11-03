@@ -140,7 +140,7 @@
                                                     <div class="text-sm text-gray-400">{{ $order->customer_name }}</div>
                                                 </div>
                                                 <div class="text-right flex-shrink-0">
-                                                    <div class="font-bold text-amber-500">{{ number_format($order->total_price, 2, ',', '.') }} €</div>
+                                                    <div class="font-bold text-amber-500">{{ number_format($order->total_price / 100, 2, ',', '.') }} €</div>
                                                     <div class="text-xs text-gray-500">{{ $order->payment_method ?? 'K.A.' }}</div>
                                                 </div>
                                             </div>

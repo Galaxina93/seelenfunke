@@ -21,7 +21,7 @@ class EmployeeInvitationMail extends Mailable
 
     public function envelope(): Envelope
     {
-        $company = function_exists('shop_setting') ? shop_setting('company_name', 'Mein Seelenfunke') : 'Mein Seelenfunke';
+        $company = function_exists('shop_setting') ? shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) : 'Mein Seelenfunke';
 
         return new Envelope(
             subject: 'Deine Einladung ins Team von ' . $company,

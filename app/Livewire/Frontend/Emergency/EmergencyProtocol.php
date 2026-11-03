@@ -201,8 +201,19 @@ class EmergencyProtocol extends Component
     protected function getSafeEmergencySettings(): array
     {
         $settings = SystemSetting::pluck('value', 'key')->toArray();
+        $allowedEmergencyKeys = [
+            'emergency_keepass_location',
+            'emergency_master_password_location',
+            'emergency_contact_notary',
+            'emergency_contact_tax_advisor',
+            'emergency_contact_family',
+            'emergency_hardware_pins',
+        ];
         foreach (array_keys($settings) as $key) {
-            if (preg_match('/(password|secret|token|key|pin|hash|credential)/i', (string) $key)) {
+            if (in_array((string) $key, $allowedEmergencyKeys, true)) {
+                continue;
+            }
+            if (preg_match('/(password|secret|token|key|hash|credential)/i', (string) $key)) {
                 unset($settings[$key]);
             }
         }

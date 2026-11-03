@@ -74,7 +74,7 @@
                     {{ $stats['orders_count'] }}
                 </div>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-2 font-mono">
-                    à {{ number_format($stats['cents_per_order'] / 100, 2, ',', '.') }} € pro Bestellung
+                    à {{ number_format($stats['cents_per_order'] / 100, 2, ',', '.') }} € {{ $stats['unit_label'] ?? 'pro Artikel' }}
                 </p>
             </div>
         </div>
@@ -271,26 +271,42 @@
             <div class="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 sm:p-8 max-w-2xl space-y-6 shadow-sm transition-colors">
                 <div>
                     <h3 class="text-base font-bold text-gray-900 dark:text-white">Spenden-Einstellungen</h3>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Konfiguriere den automatischen Zufluss pro getätigter Bestellung.</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Konfiguriere den automatischen Zufluss in den Herzens-Topf (dynamisch mit allen Shop-Texten & Checkout gekoppelt).</p>
                 </div>
 
-                <div class="space-y-4">
+                <div class="space-y-5">
                     <div>
                         <label class="block text-xs font-mono uppercase text-gray-600 dark:text-gray-400 mb-1">
-                            Fester Spendenbeitrag pro Bestellung (in Cents)
+                            Berechnungsmodus
+                        </label>
+                        <select
+                            wire:model.live="donationMode"
+                            class="w-full sm:w-80 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-800 rounded-xl px-4 py-2.5 text-sm text-gray-900 dark:text-white focus:border-[var(--theme-color)] focus:outline-none"
+                        >
+                            <option value="per_item">Pro verkauftem Artikel (Stück)</option>
+                            <option value="per_order">Pauschal pro Bestellung (Auftrag)</option>
+                        </select>
+                        <p class="text-[11px] text-gray-500 mt-1">
+                            Steuert sowohl die automatische Verbuchung bei Zahlungseingang als auch alle § 5a UWG Transparenztexte im gesamten Shop.
+                        </p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-mono uppercase text-gray-600 dark:text-gray-400 mb-1">
+                            Fester Spendenbeitrag {{ $donationMode === 'per_item' ? 'pro Artikel' : 'pro Bestellung' }} (in Cents)
                         </label>
                         <div class="flex items-center gap-3">
                             <input 
                                 type="number" 
-                                wire:model="centsPerOrder" 
+                                wire:model.live="centsPerOrder" 
                                 class="w-48 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-800 rounded-xl px-4 py-2.5 text-sm text-gray-900 dark:text-white font-mono focus:border-[var(--theme-color)] focus:outline-none"
                             >
                             <span class="text-xs text-gray-600 dark:text-gray-400">
-                                = <strong>{{ number_format(((int)$centsPerOrder) / 100, 2, ',', '.') }} €</strong> pro bezahlter Auftrag
+                                = <strong>{{ number_format(((int)$centsPerOrder) / 100, 2, ',', '.') }} €</strong> {{ $donationMode === 'per_item' ? 'pro verkauftem Artikel' : 'pro bezahltem Auftrag' }}
                             </span>
                         </div>
                         <p class="text-[11px] text-gray-500 mt-1">
-                            Standard: 200 Cents (2,00 €). Dieser Betrag wird automatisch bei jeder bezahlten Bestellung in den Herzens-Topf eingebucht.
+                            Standard: 50 Cents (0,50 € pro Artikel). Dieser Betrag wird automatisch bei jeder bezahlten Bestellung in den Herzens-Topf eingebucht und auf allen Frontend-Seiten live angezeigt.
                         </p>
                     </div>
 

@@ -99,6 +99,7 @@ class SystemUserManagement extends Component
             'last_name' => '',
             'email' => '',
             'password' => '',
+            'birthday' => null,
             'phone_number' => '',
             'street' => '',
             'house_number' => '',
@@ -109,6 +110,10 @@ class SystemUserManagement extends Component
             'vat_id' => '',
             'internal_note' => '',
             'is_verified' => true,
+            'funken_balance' => 0,
+            'funken_total_earned' => 0,
+            'funki_level' => 1,
+            'gamification_active' => true,
         ];
     }
 
@@ -120,6 +125,7 @@ class SystemUserManagement extends Component
             'formData.last_name' => 'required|string|max:255',
             'formData.email' => 'required|email|unique:'.($this->createType === 'admin' ? 'admins' : ($this->createType === 'customer' ? 'customers' : 'employees')).',email',
             'formData.password' => 'required|string|min:8',
+            'formData.birthday' => 'nullable|date',
             'formData.phone_number' => 'nullable|string|max:50',
             'formData.street' => 'nullable|string|max:255',
             'formData.house_number' => 'nullable|string|max:30',
@@ -154,7 +160,8 @@ class SystemUserManagement extends Component
             $profile = $user->profile()->firstOrCreate([]);
             $isBusiness = $this->formData['customer_type'] === 'business';
 
-            $profile->update([
+            $profileData = [
+                'birthday' => !empty($this->formData['birthday']) ? \Carbon\Carbon::parse($this->formData['birthday'])->format('Y-m-d') : null,
                 'phone_number' => $this->formData['phone_number'],
                 'street' => $this->formData['street'],
                 'house_number' => $this->formData['house_number'],
@@ -165,7 +172,29 @@ class SystemUserManagement extends Component
                 'vat_id' => $isBusiness ? $this->formData['vat_id'] : null,
                 'internal_note' => $this->formData['internal_note'],
                 'email_verified_at' => $this->formData['is_verified'] ? now() : null,
-            ]);
+            ];
+
+            if ($this->createType === 'customer') {
+                $profileData['funken_balance'] = max(0, (int) ($this->formData['funken_balance'] ?? 0));
+                $profileData['funken_total_earned'] = max(0, (int) ($this->formData['funken_total_earned'] ?? 0));
+                $profileData['funki_level'] = max(1, min(10, (int) ($this->formData['funki_level'] ?? 1)));
+                $profileData['gamification_active'] = (bool) ($this->formData['gamification_active'] ?? true);
+            }
+
+            $profile->update($profileData);
+        }
+
+        if ($this->createType === 'customer' && $user instanceof Customer) {
+            app(\App\Services\Gamification\GamificationService::class)->adminAdjustCustomerGamification(
+                $user,
+                max(0, (int) ($this->formData['funken_balance'] ?? 0)),
+                max(0, (int) ($this->formData['funken_total_earned'] ?? 0)),
+                max(1, min(10, (int) ($this->formData['funki_level'] ?? 1))),
+                (bool) ($this->formData['gamification_active'] ?? true),
+                (bool) ($this->formData['ranking_opt_in'] ?? false),
+                (bool) ($this->formData['use_real_name'] ?? false),
+                (string) ($this->formData['player_name'] ?? '')
+            );
         }
 
         $adminEmail = Auth::guard('admin')->user()->email ?? 'System';

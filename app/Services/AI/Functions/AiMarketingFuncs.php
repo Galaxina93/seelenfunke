@@ -165,6 +165,7 @@ trait AiMarketingFuncs
             'min_order_value' => $dbMinOrder,
             'mode' => 'manual',
             'valid_from' => now(),
+            'used_count' => 0,
         ]);
 
         return [

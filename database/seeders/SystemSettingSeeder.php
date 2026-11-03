@@ -30,9 +30,11 @@ class SystemSettingSeeder extends Seeder
             // Shop Status & Steuern
             'is_small_business'         => 'false',
             'default_tax_rate'          => '19',
+            'reduced_tax_rate'          => '7',
             'active_tax_rates'          => json_encode([19, 7, 0]),
             'prices_entered_gross'      => 'true',
             'maintenance_mode'          => 'false',
+            'send_order_email_to_admin' => 'true',
 
             // Inhaber Daten (Echte Daten von Alina - für juristische Erwähnungen)
             'owner_name'                => 'Mein Seelenfunke',
@@ -58,13 +60,13 @@ class SystemSettingSeeder extends Seeder
 
             'owner_phone'               => '+49 (0) 159 019 668 64',
             'owner_tax_id'              => '19/143/11624',
-            'owner_ust_id'              => 'DE123456789',
+            'owner_ust_id'              => 'DE359662265',
             'owner_court'               => 'Amtsgericht Gifhorn',
             'owner_website'             => 'www.mein-seelenfunke.de',
 
             // Bankdaten
-            'owner_bank_name'           => 'OWNER_BANK_NAME',
-            'owner_bank_address'        => 'OWNER_BANK_ADDRESS',
+            'owner_bank_name'           => 'Volksbank BraWo',
+            'owner_bank_address'        => '',
             'owner_bic'                 => '123456789',
             'owner_iban'                => 'DE123456789123456',
 
@@ -83,18 +85,25 @@ class SystemSettingSeeder extends Seeder
             'express_surcharge_percent' => '20',    // 20% des Netto-Warenwerts
             'express_surcharge_min'     => '500',   // Minimum 5,00 €
             'packaging_weight_grams'    => '350',   // 350g Leergewicht für Verpackung
+            'packaging_weight_envelope_grams' => '30', // 30g Leergewicht für Umschlag
+            'shipping_buffer_grams'     => '50',    // 50g Sicherheitspuffer Paket
+            'shipping_buffer_envelope_grams' => '10', // 10g Sicherheitspuffer Umschlag
 
             // Produkt & Lager Einstellungen
-            'inventory_low_stock_threshold' => '100',     // Warnung ab 50 Stück
+            'inventory_low_stock_threshold' => '5', // Warnung ab 5 Stück
             'skip_shipping_for_digital'     => 'true', // false = Digitale Produkte haben auch Versandkosten / true = Versand fällt weg bei D. Produkten
 
-            // Stripe Konfiguration
+            // Stripe Konfiguration & Gebühren-Kalkulation
             'stripe_publishable_key'    => '',
             'stripe_secret_key'         => '',
             'stripe_webhook_secret'     => '',
+            'stripe_fee_percent'        => '2.50',
+            'stripe_fee_fixed_cents'    => '30',
 
-            // Sonstiges & Marketing-Autopilot
+            // Sonstiges, Herzensprojekt & Marketing-Autopilot
             'order_quote_validity_days'          => '14',
+            'herzensprojekt_cents_per_order'     => '50', // 0,50 € pro Artikel
+            'herzensprojekt_mode'                => 'per_item',
             'marketing_autopilot_offers_enabled' => 'true',
 
             // Produktions-Kapazitäten

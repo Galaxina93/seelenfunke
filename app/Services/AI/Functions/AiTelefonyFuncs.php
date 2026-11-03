@@ -111,6 +111,47 @@ trait AiTelefonyFuncs
         return null;
     }
 
+    private static function hasTelephonyContactConsent($contactOrName): bool
+    {
+        if (is_object($contactOrName)) {
+            $email = $contactOrName->email ?? null;
+            $firstName = $contactOrName->first_name ?? '';
+            $lastName = $contactOrName->last_name ?? '';
+        } else {
+            $email = null;
+            $parts = preg_split('/\s+/', trim((string) $contactOrName), 2);
+            $firstName = $parts[0] ?? '';
+            $lastName = $parts[1] ?? '';
+        }
+
+        $customer = null;
+        if (!empty($email)) {
+            $customer = \App\Models\Customer\Customer::with('profile')
+                ->whereRaw('LOWER(email) = ?', [strtolower(trim((string) $email))])
+                ->first();
+        }
+        if (!$customer && $firstName !== '') {
+            $q = \App\Models\Customer\Customer::with('profile')
+                ->whereRaw('LOWER(first_name) = ?', [strtolower($firstName)]);
+            if ($lastName !== '') {
+                $q->whereRaw('LOWER(last_name) = ?', [strtolower($lastName)]);
+            }
+            $customer = $q->first();
+        }
+
+        if ($customer) {
+            return $customer->hasAiDataConsent();
+        }
+
+        // Interne ManagementContact-Einträge (Team/Lieferanten ohne Customer-Account) prüfen:
+        // Falls gar kein Customer-Datensatz existiert, nur zulassen wenn explizit interner Kontakt
+        if (is_object($contactOrName) && $contactOrName instanceof \App\Models\Management\ManagementContact) {
+            return !$contactOrName->customer_id;
+        }
+
+        return false;
+    }
+
     public static function executeTelephonyCallContactDraft(array $args)
     {
         if ($denied = self::assertTelephonyAdminAccess()) {
@@ -122,6 +163,13 @@ trait AiTelefonyFuncs
 
         $p = self::findPersonProfile($args['first_name']);
         if (!$p) return ['status' => 'error', 'message' => 'Person nicht gefunden.'];
+
+        if (!self::hasTelephonyContactConsent($p)) {
+            return [
+                'status' => 'error',
+                'message' => 'DSGVO-Schutz: Die Person / der Kunde hat der KI-Datenverarbeitung nicht zugestimmt. Es dürfen keine personenbezogenen Daten oder Telefonate über die KI verarbeitet werden.',
+            ];
+        }
 
         if (empty($p->phone)) {
             return ['status' => 'error', 'message' => "Für {$p->first_name} ist keine Telefonnummer im Profil hinterlegt."];
@@ -164,6 +212,13 @@ trait AiTelefonyFuncs
 
         $p = self::findPersonProfile($args['first_name']);
         if (!$p) return ['status' => 'error', 'message' => 'Person nicht gefunden.'];
+
+        if (!self::hasTelephonyContactConsent($p)) {
+            return [
+                'status' => 'error',
+                'message' => 'DSGVO-Schutz: Die Person / der Kunde hat der KI-Datenverarbeitung nicht zugestimmt. Es dürfen keine personenbezogenen Daten oder Telefonate über die KI verarbeitet werden.',
+            ];
+        }
 
         if (empty($p->phone)) {
             return ['status' => 'error', 'message' => "Für {$p->first_name} ist keine Telefonnummer im Profil hinterlegt."];
@@ -261,15 +316,21 @@ trait AiTelefonyFuncs
 
         $result = [];
         foreach ($calls as $c) {
+            $hasConsent = self::hasTelephonyContactConsent($c->contact_name);
+            $namesToMask = array_filter(preg_split('/\s+/', (string) $c->contact_name));
+            $rawTranscript = json_encode(json_decode((string) $c->transcript, true));
             $result[] = [
                 'id' => $c->id,
-                'contact' => $c->contact_name,
+                'contact' => \App\Services\AI\AiAuthHelper::sanitizeCustomerName($c->contact_name, $hasConsent),
+                'gdpr_ai_consent' => $hasConsent,
                 'status' => $c->status,
                 'duration_seconds' => $c->duration_seconds,
-                'objective' => $c->objective,
-                'summary_fazit' => $c->summary,
-                'next_steps' => json_decode($c->next_steps, true),
-                'transcript_preview' => substr(json_encode(json_decode($c->transcript, true)), 0, 500) . '...',
+                'objective' => \App\Services\AI\AiAuthHelper::redactPiiText((string) $c->objective, $hasConsent, $namesToMask),
+                'summary_fazit' => \App\Services\AI\AiAuthHelper::redactPiiText((string) $c->summary, $hasConsent, $namesToMask),
+                'next_steps' => $hasConsent ? json_decode($c->next_steps, true) : [],
+                'transcript_preview' => $hasConsent
+                    ? substr((string) $rawTranscript, 0, 500) . '...'
+                    : '[Transkript DSGVO-geschützt – die Person / der Kunde hat keine KI-Freigabe erteilt]',
                 'created_at' => $c->created_at->format('Y-m-d H:i:s')
             ];
         }

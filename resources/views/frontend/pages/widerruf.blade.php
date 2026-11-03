@@ -1,17 +1,90 @@
 <x-layouts.frontend_layout
     title="Widerrufsbelehrung & Elektronischer Widerruf | Mein Seelenfunke"
-    meta_description="Informationen zum gesetzlichen Widerrufsrecht, Ausnahmen bei personalisierten Gravur-Artikeln und elektronisches Widerrufsformular.">
-    <div class="px-4 py-12 md:py-16 sm:px-6 lg:px-8 bg-gray-50/50 min-h-screen">
+    meta_description="Gesetzliche Widerrufsbelehrung, Ausnahmen bei personalisierten Gravur-Artikeln (§ 312g Abs. 2 Nr. 1 BGB), Muster-Widerrufsformular und elektronische Widerrufsfunktion (§ 356a BGB).">
+    @php
+        $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
+        $ownerName = shop_setting('owner_proprietor', 'Alina Steinhauer');
+        $street = shop_setting('company_street')
+            ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', ''))
+            : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26');
+        $zip = shop_setting('company_zip', '38518');
+        $city = shop_setting('company_city', shop_setting('owner_city', 'Gifhorn'));
+        $email = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
+        $phone = shop_setting('company_phone', shop_setting('owner_phone', '+49 159 019 668 64'));
+    @endphp
+    <div class="px-4 pt-28 pb-16 lg:pt-32 lg:pb-24 sm:px-6 lg:px-8 bg-gray-50/50 min-h-screen">
         <div class="max-w-3xl mx-auto space-y-12">
             
             <div class="text-center">
-                <h1 class="text-3xl md:text-4xl font-black text-gray-900 mb-4 tracking-tight">Elektronischer Widerruf</h1>
+                <h1 class="text-3xl md:text-4xl font-black text-gray-900 mb-4 tracking-tight">Widerrufsbelehrung &amp; Elektronischer Widerruf</h1>
                 <p class="text-lg text-gray-600 max-w-2xl mx-auto">
-                    Nutzen Sie dieses Formular, um Ihre Vertragserklärung über nicht-personalisierte Waren (falls zutreffend) auf elektronischem Wege fristgerecht zu widerrufen.
+                    Nachfolgend finden Sie das elektronische Widerrufsformular (§ 356a BGB) sowie unsere vollständige gesetzliche Widerrufsbelehrung für Verbraucher (§ 13 BGB).
                 </p>
             </div>
 
             <livewire:shop.order.order-revocation-form />
+
+            {{-- Vollständige gesetzliche Widerrufsbelehrung direkt auf /widerruf (Art. 246a § 1 Abs. 2 EGBGB) --}}
+            <div id="widerrufsbelehrung" class="scroll-mt-28 bg-white border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-xs space-y-6 text-sm text-gray-700 leading-relaxed">
+                <div class="border-b border-gray-100 pb-4">
+                    <span class="text-[11px] font-bold uppercase tracking-widest text-primary block mb-1">Gesetzliche Verbraucherinformationen</span>
+                    <h2 class="text-xl sm:text-2xl font-serif font-bold text-gray-900">Widerrufsbelehrung für Verbraucher (§ 13 BGB)</h2>
+                </div>
+
+                <div class="space-y-3">
+                    <h3 class="font-bold text-base text-gray-900">Widerrufsrecht</h3>
+                    <p>
+                        Sie haben das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen. Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag, an dem Sie oder ein von Ihnen benannter Dritter, der nicht der Beförderer ist, die letzte Ware in Besitz genommen haben bzw. hat (bei Verträgen über digitale Inhalte, die nicht auf einem körperlichen Datenträger geliefert werden: ab dem Tag des Vertragsabschlusses).
+                    </p>
+                    <p>
+                        Um Ihr Widerrufsrecht auszuüben, müssen Sie uns:
+                    </p>
+                    <div class="p-4 rounded-xl bg-gray-50 border border-gray-200 font-medium text-gray-900">
+                        {{ $companyName }} – Inh. {{ $ownerName }}<br>
+                        {{ $street }}, {{ $zip }} {{ $city }}, Deutschland<br>
+                        E-Mail: <a href="mailto:{{ $email }}" class="text-primary underline">{{ $email }}</a><br>
+                        Telefon: {{ $phone }}
+                    </div>
+                    <p>
+                        mittels einer eindeutigen Erklärung (z.&nbsp;B. ein mit der Post versandter Brief oder eine E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren. Sie können dafür das beigefügte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist. Sie können den Widerruf auch direkt elektronisch über unser obenstehendes <strong>Online-Widerrufsformular (§ 356a BGB)</strong> auf dieser Seite erklären; machen Sie von dieser Möglichkeit Gebrauch, so werden wir Ihnen unverzüglich (z.&nbsp;B. per E-Mail) eine Bestätigung über den Eingang eines solchen Widerrufs auf einem dauerhaften Datenträger übermitteln. Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.
+                    </p>
+                </div>
+
+                <div class="space-y-3">
+                    <h3 class="font-bold text-base text-gray-900">Folgen des Widerrufs</h3>
+                    <p>
+                        Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen, die wir von Ihnen erhalten haben, einschließlich der Lieferkosten (mit Ausnahme der zusätzlichen Kosten, die sich daraus ergeben, dass Sie eine andere Art der Lieferung als die von uns angebotene, günstigste Standardlieferung gewählt haben), unverzüglich und spätestens binnen vierzehn Tagen ab dem Tag zurückzuzahlen, an dem die Mitteilung über Ihren Widerruf dieses Vertrags bei uns eingegangen ist. Für diese Rückzahlung verwenden wir dasselbe Zahlungsmittel, das Sie bei der ursprünglichen Transaktion eingesetzt haben, es sei denn, mit Ihnen wurde ausdrücklich etwas anderes vereinbart; in keinem Fall werden Ihnen wegen dieser Rückzahlung Entgelte berechnet.
+                    </p>
+                    <p>
+                        Wir können die Rückzahlung verweigern, bis wir die Waren wieder zurückerhalten haben oder bis Sie den Nachweis erbracht haben, dass Sie die Waren zurückgesandt haben, je nachdem, welches der frühere Zeitpunkt ist. Sie haben die Waren unverzüglich und in jedem Fall spätestens binnen vierzehn Tagen ab dem Tag, an dem Sie uns über den Widerruf dieses Vertrags unterrichten, an uns zurückzusenden oder zu übergeben. Die Frist ist gewahrt, wenn Sie die Waren vor Ablauf der Frist von vierzehn Tagen absenden. Sie tragen die unmittelbaren Kosten der Rücksendung der Waren. Sie müssen für einen etwaigen Wertverlust der Waren nur aufkommen, wenn dieser Wertverlust auf einen zur Prüfung der Beschaffenheit, Eigenschaften und Funktionsweise der Waren nicht notwendigen Umgang mit ihnen zurückzuführen ist (§ 357a Abs. 1 BGB).
+                    </p>
+                </div>
+
+                <div class="p-4 rounded-xl bg-amber-50/80 border border-amber-200/80 space-y-2 text-amber-950">
+                    <h3 class="font-bold text-base text-amber-950">Gesetzliche Ausschluss- und Erlöschensgründe (§ 312g Abs. 2 Nr. 1 &amp; § 356 Abs. 5 BGB)</h3>
+                    <p>
+                        • <strong>Personalisierte Waren (§ 312g Abs. 2 Nr. 1 BGB):</strong> Das Widerrufsrecht besteht <strong>nicht</strong> bei Verträgen zur Lieferung von Waren, die nicht vorgefertigt sind und für deren Herstellung eine individuelle Auswahl oder Bestimmung durch den Verbraucher maßgeblich ist oder die eindeutig auf die persönlichen Bedürfnisse des Verbrauchers zugeschnitten sind (z.&nbsp;B. Artikel mit individueller Lasergravur nach Kundenwunsch wie Namen, Daten, Wunschtexten oder hochgeladenen Fotos/Motiven). Ihre gesetzlichen Mängelrechte (2 Jahre Gewährleistung bei Transportschäden, Materialfehlern oder fehlerhafter Gravur) bleiben hiervon uneingeschränkt bestehen.
+                    </p>
+                    <p>
+                        • <strong>Digitale Inhalte (§ 356 Abs. 5 BGB):</strong> Bei Verträgen über die Bereitstellung von nicht auf einem körperlichen Datenträger befindlichen digitalen Inhalten erlischt das Widerrufsrecht vorzeitig, wenn Sie ausdrücklich zugestimmt haben, dass wir mit der Vertragserfüllung vor Ablauf der Widerrufsfrist beginnen, Sie Ihre Kenntnis bestätigt haben, dass durch Ihre Zustimmung mit Beginn der Vertragserfüllung Ihr Widerrufsrecht erlischt, und wir Ihnen eine entsprechende Bestätigung gemäß § 312f BGB zur Verfügung gestellt haben.
+                    </p>
+                </div>
+
+                <div class="pt-4 border-t border-gray-100 space-y-2">
+                    <h3 class="font-bold text-base text-gray-900">Muster-Widerrufsformular (Anlage 2 zu Art. 246a § 1 Abs. 2 S. 1 Nr. 1 EGBGB)</h3>
+                    <p class="text-xs text-gray-500 italic">(Wenn Sie den Vertrag widerrufen wollen, dann füllen Sie bitte dieses Formular aus und senden Sie es zurück oder nutzen Sie unser elektronisches Formular oben auf dieser Seite.)</p>
+                    <div class="p-4 rounded-xl bg-gray-50 border border-gray-200 text-xs sm:text-sm space-y-1.5 font-mono text-gray-800">
+                        <p>An: {{ $companyName }}, Inh. {{ $ownerName }}, {{ $street }}, {{ $zip }} {{ $city }}, Telefon: {{ $phone }}, E-Mail: {{ $email }}</p>
+                        <p>— Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*) abgeschlossenen Vertrag über den Kauf der folgenden Waren (*) / die Erbringung der folgenden Dienstleistung (*)</p>
+                        <p>— Bestellt am (*) / erhalten am (*)</p>
+                        <p>— Name des/der Verbraucher(s)</p>
+                        <p>— Anschrift des/der Verbraucher(s)</p>
+                        <p>— Unterschrift des/der Verbraucher(s) (nur bei Mitteilung auf Papier)</p>
+                        <p>— Datum</p>
+                        <p class="text-[11px] text-gray-500 pt-1">(*) Unzutreffendes streichen.</p>
+                    </div>
+                </div>
+            </div>
 
             {{-- Infobox: Abgrenzung zu Reklamation & Gesetzlicher Gewährleistung --}}
             <div class="bg-gradient-to-r from-blue-50/90 via-indigo-50/50 to-blue-50/90 border border-blue-200/80 rounded-2xl p-6 sm:p-8 shadow-xs">
@@ -29,7 +102,7 @@
                             </span>
                         </div>
                         <p class="text-sm text-blue-900/90 leading-relaxed">
-                            Möchten Sie einen Artikel reklamieren, weil er beschädigt oder fehlerhaft ist? Hierfür müssen Sie <strong>keinen Widerruf</strong> erklären. Nach EU-Recht steht Ihnen die <strong>gesetzliche Gewährleistung der Vertragsmäßigkeit von mindestens 2 Jahren</strong> zu – mit Anspruch auf kostenlose Nachbesserung (Reparatur) oder Neulieferung.
+                            Möchten Sie einen Artikel reklamieren, weil er beschädigt oder fehlerhaft ist? Hierfür müssen Sie <strong>keinen Widerruf</strong> erklären. Nach EU-Recht steht Ihnen die <strong>gesetzliche Gewährleistung der Vertragsmäßigkeit von mindestens 2 Jahren</strong> zu, inklusive Anspruch auf kostenlose Nachbesserung (Reparatur) oder Neulieferung.
                         </p>
                         <div class="pt-2 flex flex-wrap items-center gap-4 text-xs font-semibold">
                             <a href="{{ route('agb') }}#gewaehrleistung" class="inline-flex items-center gap-1.5 text-primary hover:text-primary-dark underline underline-offset-4 transition-colors">

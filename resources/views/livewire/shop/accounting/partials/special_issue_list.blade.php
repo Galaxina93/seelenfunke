@@ -231,8 +231,10 @@
                                             <select wire:change="updateSpecialField('{{ $special['id'] }}', 'tax_rate', $event.target.value)"
                                                     class="bg-transparent text-[10px] font-bold text-gray-600 dark:text-gray-400 outline-none cursor-pointer appearance-none text-right pr-1">
                                                 @php
-                                                    $rates = $activeTaxRates ?? [19, 7, 0];
-                                                    $currentTax = (float)($special['tax_rate'] ?? 19);
+                                                    $defaultRate = (float)shop_setting('default_tax_rate', 19);
+                                                    $reducedRate = (float)shop_setting('reduced_tax_rate', 7);
+                                                    $rates = $activeTaxRates ?? [$defaultRate, $reducedRate, 0];
+                                                    $currentTax = (float)($special['tax_rate'] ?? $defaultRate);
                                                     if (!in_array($currentTax, $rates)) {
                                                         $rates[] = $currentTax;
                                                         rsort($rates);
@@ -344,8 +346,10 @@
                                         <select wire:change="updateSpecialField('{{ $special['id'] }}', 'tax_rate', $event.target.value)"
                                                 class="bg-transparent text-[10px] font-bold text-gray-600 dark:text-gray-400 outline-none cursor-pointer appearance-none text-right pr-1">
                                             @php
-                                                $rates = $activeTaxRates ?? [19, 7, 0];
-                                                $currentTax = (float)($special['tax_rate'] ?? 19);
+                                                $defaultRate = (float)shop_setting('default_tax_rate', 19);
+                                                $reducedRate = (float)shop_setting('reduced_tax_rate', 7);
+                                                $rates = $activeTaxRates ?? [$defaultRate, $reducedRate, 0];
+                                                $currentTax = (float)($special['tax_rate'] ?? $defaultRate);
                                                 if (!in_array($currentTax, $rates)) {
                                                     $rates[] = $currentTax;
                                                     rsort($rates);

@@ -206,15 +206,16 @@ class AIFunctionsRegistry
     public static function execute(string $name, array $args = [], $agent = null)
     {
         // Rollen-Schranke: Nicht-Administratoren unterliegen strikter Rollentrennung
-        if (AiAuthHelper::check() && !AiAuthHelper::isAdmin()) {
+        if ((AiAuthHelper::check() || AiAuthHelper::isExternalPartner() || \Illuminate\Support\Facades\Auth::guard('employee')->check()) && !AiAuthHelper::isAdmin()) {
+            $actorId = AiAuthHelper::getUserId() ?? AiAuthHelper::getEmployeeId();
             // Admin-Werkzeuge zuerst prüfen, damit ROLE VIOLATION präzise protokolliert und zurückgegeben wird
             if (self::isToolRestrictedForEmployee($name)) {
                 \App\Services\System\SystemSecurityService::logEvent(
                     'security:ai_privilege_escalation_blocked',
                     'KI-Rechteausweitung durch Nicht-Admin blockiert',
-                    "Benutzer (ID: " . AiAuthHelper::getUserId() . ") versuchte das Admin-Werkzeug '{$name}' auszuführen.",
+                    "Benutzer (ID: " . $actorId . ") versuchte das Admin-Werkzeug '{$name}' auszuführen.",
                     'error',
-                    ['tool' => $name, 'user_id' => AiAuthHelper::getUserId()]
+                    ['tool' => $name, 'user_id' => $actorId]
                 );
                 return [
                     'error' => true,
@@ -224,15 +225,15 @@ class AIFunctionsRegistry
             }
 
             // Externe Partner (Influencer / Steuerberater), Kunden oder pausierte Mitarbeiter dürfen nur öffentliche Support-Tools nutzen
-            if (!AiAuthHelper::isEmployee()) {
+            if (!AiAuthHelper::isEmployee() || AiAuthHelper::isExternalPartner()) {
                 $publicAllowed = str_starts_with($name, 'support_') || $name === 'system_get_current_time';
                 if (!$publicAllowed) {
                     \App\Services\System\SystemSecurityService::logEvent(
                         'security:ai_partner_sandbox_blocked',
                         'KI-Rechteausweitung durch Nicht-Mitarbeiter / Partner blockiert',
-                        "Benutzer (ID: " . AiAuthHelper::getUserId() . ") versuchte das interne Werkzeug '{$name}' auszuführen.",
+                        "Benutzer (ID: " . $actorId . ") versuchte das interne Werkzeug '{$name}' auszuführen.",
                         'error',
-                        ['tool' => $name, 'user_id' => AiAuthHelper::getUserId()]
+                        ['tool' => $name, 'user_id' => $actorId]
                     );
                     return [
                         'error' => true,
@@ -337,7 +338,7 @@ class AIFunctionsRegistry
                 }
 
                 try {
-                    $email = config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
+                    $email = shop_setting('owner_email_backup') ?: shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
                     $body = "Das KI-Werkzeug '{$name}' ist abgestürzt.\n\nFehler-Details:\n" . $e->getMessage() . "\n\n" . ($markdownPath ? "Die neuronale Struktur der fehlerhaften Datei liegt im Anhang bei." : "Die Dateistruktur konnte nicht generiert werden.");
                     $attachments = $markdownPath ? [$markdownPath] : [];
                     $agentName = $agent ? $agent->name : 'System';

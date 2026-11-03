@@ -54,9 +54,11 @@ class ProductConfigurator extends Component
 
     public array $fonts = [];
     public array $vectors = [];
+    public array $quotes = [];
     public array $backgroundThemes = [];
     public string $backgroundTheme = 'standard';
     public string $selectedCategory = 'Allgemein';
+    public string $selectedQuoteCategory = '';
     public $design = 'light';
 
     public $alignmentOptions = [
@@ -67,15 +69,20 @@ class ProductConfigurator extends Component
 
     public $variantId = null;
     public $variantName = null;
+    public array $selectedAddons = [];
 
     public function mount(ConfiguratorService $configService, $product, $context = 'add', $cartItem = null, $initialData = [], $qty = null)
     {
         $this->fonts = $configService->getFonts();
         $this->vectors = $configService->getStandardVectors();
+        $this->quotes = $configService->getStandardQuotes();
         $this->backgroundThemes = $configService->getBackgroundThemes();
         
         if (!empty($this->vectors)) {
             $this->selectedCategory = array_key_first($this->vectors);
+        }
+        if (!empty($this->quotes)) {
+            $this->selectedQuoteCategory = array_key_first($this->quotes);
         }
 
         $isStaff = auth()->guard('admin')->check()
@@ -181,6 +188,12 @@ class ProductConfigurator extends Component
 
         $this->notes = $source['notes'] ?? '';
         $this->is_express = filter_var($source['is_express'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        if (isset($source['selected_addons']) && is_array($source['selected_addons'])) {
+            $validAddonIds = array_column($this->availableAddons, 'id');
+            $this->selectedAddons = array_values(array_intersect(array_map('strval', $source['selected_addons']), $validAddonIds));
+        } else {
+            $this->selectedAddons = [];
+        }
         $this->uploaded_files = is_array($source['files'] ?? null) ? $source['files'] : [];
         if (!empty($this->uploaded_files)) {
             $this->registerSessionOwnedUploads($this->uploaded_files);
@@ -282,6 +295,82 @@ class ProductConfigurator extends Component
         });
     }
 
+    #[Computed]
+    public function availableAddons(): array
+    {
+        if (!$this->product->isPhysical()) {
+            return [];
+        }
+
+        return array_map(fn(array $addon) => [
+            'id'          => (string) $addon['id'],
+            'name'        => (string) $addon['name'],
+            'description' => (string) ($addon['description'] ?? ''),
+            'price_cents' => (int) ($addon['price_cents'] ?? 0),
+            'image_path'  => $addon['image_path'] ?? \App\Models\Product\Product::resolveAddonImagePath($addon),
+            'image_url'   => $addon['image_url'] ?? \App\Models\Product\Product::resolveAddonImageUrl($addon),
+        ], $this->product->getEffectiveAddons(true));
+    }
+
+    public function toggleAddon(string $addonId): void
+    {
+        if ($this->context === 'preview') {
+            return;
+        }
+
+        $validIds = array_column($this->availableAddons, 'id');
+        if (!in_array($addonId, $validIds, true)) {
+            return;
+        }
+
+        if (in_array($addonId, $this->selectedAddons, true)) {
+            $this->selectedAddons = array_values(array_diff($this->selectedAddons, [$addonId]));
+            $isEnabled = false;
+        } else {
+            $this->selectedAddons[] = $addonId;
+            $this->selectedAddons = array_values(array_unique($this->selectedAddons));
+            $isEnabled = true;
+        }
+
+        $this->calculatePrice();
+
+        if (!in_array($this->context, ['template_admin', 'preview', 'order_edit'], true)) {
+            $addonMeta = collect($this->availableAddons)->firstWhere('id', $addonId);
+            if ($addonMeta) {
+                ProductTrackingService::trackAddonToggled(
+                    $this->product->id ?? null,
+                    (string) $addonMeta['id'],
+                    (string) $addonMeta['name'],
+                    $isEnabled,
+                    ((int) ($addonMeta['price_cents'] ?? 0)) * max(1, (int) $this->qty),
+                    $addonMeta['image_path'] ?? null,
+                    $this->context === 'calculator' ? 'calculator' : 'configurator'
+                );
+            }
+        }
+    }
+
+    public function resolveSelectedAddonsSummary(): array
+    {
+        if (empty($this->selectedAddons)) {
+            return [];
+        }
+
+        $summary = [];
+        foreach ($this->availableAddons as $addon) {
+            if (in_array($addon['id'], $this->selectedAddons, true)) {
+                $summary[] = [
+                    'id'          => $addon['id'],
+                    'name'        => $addon['name'],
+                    'price_cents' => (int) $addon['price_cents'],
+                    'image_path'  => $addon['image_path'] ?? null,
+                ];
+            }
+        }
+
+        return $summary;
+    }
+
     // NEU: Reagiert auf die Änderung im Dropdown
     public function updatedVariantId($value)
     {
@@ -297,6 +386,16 @@ class ProductConfigurator extends Component
 
         $this->calculatePrice();
 
+        $surchargeCents = 0;
+        if ($variant && isset($variant['price']) && $variant['price'] !== '') {
+            $surchargeCents = (int) round(((float) str_replace(',', '.', (string) $variant['price'])) * 100);
+        }
+        $displayUnitCents = (int) $this->product->price + $surchargeCents;
+        if ($this->product->tax_included === false && !\App\Services\TaxSettingService::isSmallBusiness()) {
+            $taxRate = (float) ($this->product->tax_rate ?? \App\Services\TaxSettingService::defaultTaxRate());
+            $displayUnitCents = (int) round($displayUnitCents * (1 + ($taxRate / 100)));
+        }
+
         $variantMeta = $this->variantId
             ? ($this->product->resolveVariantImageMeta($this->variantId) ?? $this->product->resolveMainImageMeta(null, true))
             : $this->product->resolveMainImageMeta(null, true);
@@ -304,7 +403,7 @@ class ProductConfigurator extends Component
         $this->dispatch('variant-selected',
             variantId: $this->variantId,
             variantName: $this->variantName,
-            formattedPrice: number_format($this->currentPrice / 100, 2, ',', '.') . ' €',
+            formattedPrice: number_format($displayUnitCents / 100, 2, ',', '.') . ' €',
             imageUrl: $variantMeta['url'] ?? null,
             imageIsAi: (bool) ($variantMeta['is_ai_generated'] ?? false),
             imageLabel: $variantMeta['label'] ?? null
@@ -372,7 +471,7 @@ class ProductConfigurator extends Component
             ProductTrackingService::trackExpressToggled(
                 $this->product->id ?? null,
                 filter_var($this->is_express, FILTER_VALIDATE_BOOLEAN),
-                (int) round($this->totalPrice ?? 0),
+                (int) round($this->expressFee * 100),
                 $this->context === 'calculator' ? 'calculator' : 'configurator'
             );
         }
@@ -897,6 +996,8 @@ class ProductConfigurator extends Component
                     'is_digital' => $this->isDigital,
                     'variant_id' => $this->variantId,
                     'variant_name' => $this->variantName,
+                    'selected_addons' => array_values($this->selectedAddons),
+                    'addons_summary' => $this->resolveSelectedAddonsSummary(),
                     'snapshot_path' => $finalSnapshotPath,
                     'is_express' => $this->is_express,
                     'background_theme' => $this->backgroundTheme,
@@ -908,8 +1009,12 @@ class ProductConfigurator extends Component
 
                 if ($this->context === 'add') {
                     $cartService->addItem($this->product, $this->qty, $configData);
-                    $this->dispatch('cart-updated');
+                    $this->dispatch('cart-updated', openPreview: false);
                     $this->dispatch('notify', message: 'In den Warenkorb gelegt!');
+
+                    $addonsSummary = is_array($configData['addons_summary'] ?? null) ? $configData['addons_summary'] : [];
+                    $addonsUnitCents = array_sum(array_map(fn($a) => max(0, (int) ($a['price_cents'] ?? 0)), $addonsSummary));
+                    $addonsRevenueCents = $addonsUnitCents * max(1, (int) $this->qty);
 
                     ProductTrackingService::trackConfiguratorSaved(
                         $this->product->id ?? null,
@@ -919,6 +1024,9 @@ class ProductConfigurator extends Component
                             'is_express' => filter_var($this->is_express, FILTER_VALIDATE_BOOLEAN),
                             'symbols_count' => count($this->logos) + count($this->logos_back),
                             'files_count' => count($this->uploaded_files),
+                            'selected_addons' => $configData['selected_addons'] ?? [],
+                            'addons_summary' => $addonsSummary,
+                            'addons_revenue_cents' => $addonsRevenueCents,
                         ]
                     );
 
@@ -964,9 +1072,11 @@ class ProductConfigurator extends Component
 
                     if (!$isAdmin) {
                         // Kunden dürfen im Nachbesserungsmodus ('order_edit') ausschließlich Gestaltungselemente ändern,
-                        // niemals jedoch preis- oder leistungsrelevante Parameter (Variante, Express-Status, Menge, Produkttyp).
+                        // niemals jedoch preis- oder leistungsrelevante Parameter (Variante, Aufpreis-Extras, Express-Status, Menge, Produkttyp).
                         $configData['variant_id'] = $existingConfig['variant_id'] ?? null;
                         $configData['variant_name'] = $existingConfig['variant_name'] ?? null;
+                        $configData['selected_addons'] = $existingConfig['selected_addons'] ?? [];
+                        $configData['addons_summary'] = $existingConfig['addons_summary'] ?? [];
                         $configData['is_express'] = $existingConfig['is_express'] ?? (bool) ($orderItem->order->is_express ?? false);
                         $configData['qty'] = (int) ($existingConfig['qty'] ?? $orderItem->quantity ?? 1);
                         $configData['type'] = $existingConfig['type'] ?? ($this->product->type ?? 'physical');
@@ -1028,6 +1138,12 @@ class ProductConfigurator extends Component
 
             session()->flash('error', 'Die Konfiguration konnte nicht gespeichert werden.');
         }
+    }
+
+    public function getExpressFeeProperty(): float
+    {
+        $expressCents = max(0, (int) round(($this->totalPrice ?? 0) - (($this->currentPrice ?? 0) * max(1, (int) $this->qty))));
+        return $expressCents / 100;
     }
 
     public function getPreviewImageProperty()

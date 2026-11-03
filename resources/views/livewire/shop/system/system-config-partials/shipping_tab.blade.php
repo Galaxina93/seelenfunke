@@ -18,6 +18,7 @@
                     <input type="number" step="0.01" wire:model="settings.shipping_cost" class="{{ $inputClass }} !text-lg !font-bold !pr-10">
                     <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">€</span>
                 </div>
+                @error('settings.shipping_cost') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
             </div>
 
             <div>
@@ -29,6 +30,7 @@
                     <input type="number" step="0.01" wire:model="settings.shipping_cost_voucher" class="{{ $inputClass }} !text-lg !font-bold !pr-10">
                     <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">€</span>
                 </div>
+                @error('settings.shipping_cost_voucher') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
             </div>
 
             <div>
@@ -40,28 +42,35 @@
                     <input type="number" step="0.01" wire:model="settings.shipping_free_threshold" class="{{ $inputClass }} !text-lg !font-bold !pr-10 !text-emerald-400 !border-emerald-500/30 focus:!ring-emerald-500/20 focus:!border-emerald-400">
                     <span class="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500/50 font-bold">€</span>
                 </div>
+                @error('settings.shipping_free_threshold') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
             </div>
 
             <div>
                 <div class="flex items-center gap-2 mb-2 ml-1">
-                    <label class="{{ $labelClass }} !mb-0 !ml-0">Express-Zuschlag (%)</label>
+                    <label class="{{ $labelClass }} !mb-0 !ml-0 inline-flex items-center gap-1">
+                        <x-shop.express-info label="Express-Zuschlag (%)" iconClass="w-3.5 h-3.5" />
+                    </label>
                     @include('components.alerts.info-tooltip', ['key' => 'express_surcharge_percent'])
                 </div>
                 <div class="relative">
-                    <input type="number" step="0.1" wire:model="settings.express_surcharge_percent" class="{{ $inputClass }} !text-lg !font-bold !pr-10 !text-red-400 !border-red-500/30 focus:!ring-red-500/20 focus:!border-red-400">
-                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-red-500/50 font-bold">%</span>
+                    <input type="number" step="0.1" wire:model="settings.express_surcharge_percent" class="{{ $inputClass }} !text-lg !font-bold !pr-10">
+                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-primary font-bold">%</span>
                 </div>
+                @error('settings.express_surcharge_percent') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
             </div>
 
             <div>
                 <div class="flex items-center gap-2 mb-2 ml-1">
-                    <label class="{{ $labelClass }} !mb-0 !ml-0">Express Mindestwert (€)</label>
+                    <label class="{{ $labelClass }} !mb-0 !ml-0 inline-flex items-center gap-1">
+                        <x-shop.express-info label="Express Mindestwert (€)" iconClass="w-3.5 h-3.5" />
+                    </label>
                     @include('components.alerts.info-tooltip', ['key' => 'express_surcharge_min'])
                 </div>
                 <div class="relative">
-                    <input type="number" step="0.01" wire:model="settings.express_surcharge_min" class="{{ $inputClass }} !text-lg !font-bold !pr-10 !text-red-400 !border-red-500/30 focus:!ring-red-500/20 focus:!border-red-400">
-                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-red-500/50 font-bold">€</span>
+                    <input type="number" step="0.01" wire:model="settings.express_surcharge_min" class="{{ $inputClass }} !text-lg !font-bold !pr-10">
+                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-primary font-bold">€</span>
                 </div>
+                @error('settings.express_surcharge_min') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
             </div>
 
             <div>
@@ -73,6 +82,43 @@
                     <input type="number" step="1" wire:model="settings.packaging_weight_grams" class="{{ $inputClass }} !text-lg !font-bold !pr-10 !text-[var(--theme-color)] !border-[var(--theme-color-30)] focus:!ring-[var(--theme-color-20)] focus:!border-blue-400">
                     <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--theme-color-50)] font-bold">g</span>
                 </div>
+                @error('settings.packaging_weight_grams') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
+            </div>
+
+            <div>
+                <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Tara-Gewicht Umschlag</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'packaging_weight_envelope_grams'])
+                </div>
+                <div class="relative">
+                    <input type="number" step="1" wire:model="settings.packaging_weight_envelope_grams" class="{{ $inputClass }} !text-lg !font-bold !pr-10 !text-[var(--theme-color)] !border-[var(--theme-color-30)] focus:!ring-[var(--theme-color-20)] focus:!border-blue-400">
+                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--theme-color-50)] font-bold">g</span>
+                </div>
+                @error('settings.packaging_weight_envelope_grams') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
+            </div>
+
+            <div>
+                <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Gewichtspuffer Paket</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'shipping_buffer_grams'])
+                </div>
+                <div class="relative">
+                    <input type="number" step="1" wire:model="settings.shipping_buffer_grams" class="{{ $inputClass }} !text-lg !font-bold !pr-10 !text-[var(--theme-color)] !border-[var(--theme-color-30)] focus:!ring-[var(--theme-color-20)] focus:!border-blue-400">
+                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--theme-color-50)] font-bold">g</span>
+                </div>
+                @error('settings.shipping_buffer_grams') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
+            </div>
+
+            <div>
+                <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Gewichtspuffer Umschlag</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'shipping_buffer_envelope_grams'])
+                </div>
+                <div class="relative">
+                    <input type="number" step="1" wire:model="settings.shipping_buffer_envelope_grams" class="{{ $inputClass }} !text-lg !font-bold !pr-10 !text-[var(--theme-color)] !border-[var(--theme-color-30)] focus:!ring-[var(--theme-color-20)] focus:!border-blue-400">
+                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--theme-color-50)] font-bold">g</span>
+                </div>
+                @error('settings.shipping_buffer_envelope_grams') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
             </div>
         </div>
 

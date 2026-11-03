@@ -1,5 +1,5 @@
 <x-layouts.frontend_layout>
-    <div class="min-h-[70vh] bg-slate-50/50 flex items-center justify-center px-4 py-16 sm:px-6 lg:px-8 font-sans">
+    <div class="min-h-[70vh] bg-slate-50/50 flex items-center justify-center px-4 pt-28 pb-16 sm:px-6 lg:px-8 font-sans">
         <div class="max-w-md w-full bg-white p-8 sm:p-10 rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 relative overflow-hidden transition-all duration-500">
             
             @if($status === 'success')

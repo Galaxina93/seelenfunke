@@ -181,8 +181,10 @@ class OrderQuoteRequests extends Component
 
                 // WICHTIG: Express Daten & Versandkosten übernehmen!
                 'is_express' => $quote->is_express,
+                'express_price' => $quote->express_price ?? 0,
                 'deadline' => $quote->deadline,
                 'shipping_price' => $quote->shipping_price ?? 0,
+                'is_small_business' => $isSmallBusiness,
 
                 'billing_address' => [
                     'first_name' => $quote->first_name,
@@ -209,7 +211,7 @@ class OrderQuoteRequests extends Component
                 'discount_amount' => $quote->discount_amount ?? 0,
                 'coupon_code'     => $quote->coupon_code ?? null,
 
-                'subtotal_price' => $isSmallBusiness ? max(0, $quote->gross_total - ($quote->shipping_price ?? 0) - ($quote->express_price ?? 0)) : $quote->net_total,
+                'subtotal_price' => max(0, (int) $quote->gross_total + (int) ($quote->discount_amount ?? 0) - (int) ($quote->shipping_price ?? 0) - (int) ($quote->express_price ?? 0)),
                 'tax_amount' => $isSmallBusiness ? 0 : $quote->tax_total,
                 'total_price' => $quote->gross_total,
                 'notes' => 'Aus Angebot ' . $quote->quote_number . ' generiert. ' . $quote->admin_notes,
@@ -255,7 +257,7 @@ class OrderQuoteRequests extends Component
         // ---------------------------------------------------------
         $paymentUrl = null;
         try {
-            $stripeSecret = config('services.stripe.secret');
+            $stripeSecret = config('services.stripe.secret') ?: shop_setting('stripe_secret_key');
             if($stripeSecret && $type === 'stripe_link') {
                 Stripe::setApiKey($stripeSecret);
 

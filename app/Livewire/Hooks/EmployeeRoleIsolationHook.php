@@ -14,6 +14,8 @@ class EmployeeRoleIsolationHook extends ComponentHook
     private const PUBLIC_SHOP_COMPONENTS = [
         \App\Livewire\Shop\Cart\Cart::class,
         \App\Livewire\Shop\Cart\CartIcon::class,
+        \App\Livewire\Shop\Wishlist\WishlistIcon::class,
+        \App\Livewire\Shop\Wishlist\WishlistPage::class,
         \App\Livewire\Shop\Order\OrderCheckout\OrderCheckout::class,
         \App\Livewire\Shop\Order\OrderCheckout\OrderCheckoutSuccess::class,
         \App\Livewire\Shop\Order\OrderQuoteAcceptance::class,
@@ -38,6 +40,7 @@ class EmployeeRoleIsolationHook extends ComponentHook
      */
     private const PROTECTED_CUSTOMER_COMPONENTS = [
         \App\Livewire\Customer\CustomerDashboardComponent::class,
+        \App\Livewire\Customer\CustomerFunkiComponent::class,
         \App\Livewire\Customer\CustomerOrdersComponent::class,
         \App\Livewire\Customer\CustomerInvoicesComponent::class,
         \App\Livewire\Customer\CustomerTicketsComponent::class,

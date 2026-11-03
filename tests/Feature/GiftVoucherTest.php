@@ -724,6 +724,8 @@ class GiftVoucherTest extends TestCase
             'price' => 3990, // 39.90 €
             'status' => 'active',
             'type' => 'physical',
+            'track_quantity' => false,
+            'quantity' => 10,
         ]);
 
         // 2. Create a gift voucher with 50.00 € balance

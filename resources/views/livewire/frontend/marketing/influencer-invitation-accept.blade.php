@@ -128,11 +128,11 @@
                                 <button type="button" @click="showPw = !showPw" tabindex="-1"
                                         class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-primary focus:outline-none transition-colors"
                                         title="Passwort anzeigen/verbergen">
-                                    <svg x-show="!showPw" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <svg x-show="showPw" x-cloak class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                     </svg>
-                                    <svg x-show="showPw" x-cloak class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <svg x-show="!showPw" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a10.05 10.05 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                                     </svg>
                                 </button>
@@ -147,11 +147,11 @@
                                 <button type="button" @click="showPwConfirm = !showPwConfirm" tabindex="-1"
                                         class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-primary focus:outline-none transition-colors"
                                         title="Passwort anzeigen/verbergen">
-                                    <svg x-show="!showPwConfirm" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <svg x-show="showPwConfirm" x-cloak class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                     </svg>
-                                    <svg x-show="showPwConfirm" x-cloak class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <svg x-show="!showPwConfirm" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a10.05 10.05 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                                     </svg>
                                 </button>
@@ -289,7 +289,7 @@
                         <label class="flex items-start gap-3 cursor-pointer pt-1">
                             <input type="checkbox" wire:model="termsAccepted" class="mt-0.5 rounded border-gray-300 text-primary focus:ring-primary">
                             <span class="text-xs text-gray-700 leading-relaxed">
-                                Ich akzeptiere die <a href="{{ route('agb') }}#creator-partnerprogramm" target="_blank" class="font-semibold text-primary hover:text-primary-dark underline underline-offset-2">Kooperationsbedingungen für das Seelenfunke Creator Partnerprogramm (§ 10 AGB)</a>, habe den <a href="{{ route('widerruf') }}#creator-partnerprogramm" target="_blank" class="font-semibold text-primary hover:text-primary-dark underline underline-offset-2">Hinweis zur Widerrufsbelehrung (B2B)</a> sowie die <a href="{{ route('datenschutz') }}" target="_blank" class="font-semibold text-primary hover:text-primary-dark underline underline-offset-2">Datenschutzerklärung</a> zur Kenntnis genommen und bin mit der Abrechnung im Gutschriftsverfahren (§ 14 Abs. 2 S. 2 UStG) einverstanden. *
+                                Ich akzeptiere die <a href="{{ route('agb') }}#creator-partnerprogramm" target="_blank" class="font-semibold text-primary hover:text-primary-dark underline underline-offset-2">Kooperationsbedingungen für das Seelenfunke Creator Partnerprogramm (§ 10 AGB)</a> (inkl. der gesetzlichen Pflicht zur eindeutigen Werbekennzeichnung mit „Werbung“ oder „Anzeige“ gem. §&nbsp;5a Abs.&nbsp;4 UWG bei jeder Veröffentlichung von Affiliate-Links oder Rabattcodes), habe den <a href="{{ route('widerruf') }}#creator-partnerprogramm" target="_blank" class="font-semibold text-primary hover:text-primary-dark underline underline-offset-2">Hinweis zur Widerrufsbelehrung (B2B)</a> sowie die <a href="{{ route('datenschutz') }}" target="_blank" class="font-semibold text-primary hover:text-primary-dark underline underline-offset-2">Datenschutzerklärung</a> zur Kenntnis genommen und bin mit der Abrechnung im Gutschriftsverfahren (§&nbsp;14 Abs.&nbsp;2 S.&nbsp;2 UStG) einverstanden. *
                             </span>
                         </label>
                         @error('termsAccepted') <span class="text-red-600 text-xs font-medium block">{{ $message }}</span> @enderror

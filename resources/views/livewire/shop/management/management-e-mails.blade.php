@@ -35,10 +35,6 @@
      @settings-opened.window="typeof mobileView !== 'undefined' ? mobileView = 'settings' : null"
      class="h-[calc(100vh-8rem)] flex bg-white/90 dark:bg-gray-950/50 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-gray-800 overflow-hidden dark:shadow-2xl relative w-full transition-colors duration-300">
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
     {{-- COLUMN 1: Folders & Accounts --}}
     <div class="absolute inset-0 z-30 lg:relative lg:z-10 w-full bg-gray-50/90 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col shrink-0 transition-transform duration-300"
          :style="'width: ' + (window.innerWidth >= 1024 ? sidebarWidth + 'px' : '100%')"
@@ -813,12 +809,12 @@
                                 /* Eingabefelder im Compose Modal & CKEditor: Mauszeiger und Caret immer sichtbar */
                                 .compose-input {
                                     caret-color: var(--theme-color, #C5A059);
-                                    cursor: text !important;
+                                    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='24' viewBox='0 0 16 24'%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' fill='none' stroke='%23ffffff' stroke-width='4.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' fill='none' stroke='%23111827' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 8 12, text !important;
                                 }
                                 :is(.dark) .compose-input {
                                     color-scheme: dark;
                                     caret-color: #E6C687 !important;
-                                    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='24' viewBox='0 0 16 24'%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' stroke='%23ffffff' stroke-width='2.2' stroke-linecap='round' filter='drop-shadow(0 0 1.2px %23000000)'/%3E%3C/svg%3E") 8 12, text !important;
+                                    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='24' viewBox='0 0 16 24'%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' fill='none' stroke='%23000000' stroke-width='4.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 8 12, text !important;
                                 }
 
                                 /* Rahmen und Basis */

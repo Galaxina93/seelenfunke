@@ -21,12 +21,13 @@
             if (!empty($normCats) && $product->categories->contains(fn($c) => in_array(mb_strtolower(trim($c->name)), $normCats, true))) {
                 return true;
             }
-            if (!empty($materialKeywords)) {
+            if (!empty($materialKeywords) && $product->type === 'physical' && $product->slug !== 'geschenkgutschein') {
                 $matAttr = mb_strtolower((string) ($product->attributes['Material'] ?? ''));
+                $formAttr = mb_strtolower((string) ($product->attributes['Form'] ?? ''));
                 $matConf = mb_strtolower((string) ($product->configurator_settings['material_type'] ?? ''));
                 foreach ($materialKeywords as $kw) {
                     $kwLower = mb_strtolower($kw);
-                    if (str_contains($matAttr, $kwLower) || str_contains($matConf, $kwLower)) {
+                    if (str_contains($matAttr, $kwLower) || str_contains($formAttr, $kwLower) || str_contains($matConf, $kwLower)) {
                         return true;
                     }
                 }
@@ -85,8 +86,8 @@
                 'Ideal für Schlüsselbund & Alltag',
             ],
             'category_names' => ['Schmuck & Anhänger', 'Accessoires'],
-            'material_keywords' => [],
-            'slugs' => [],
+            'material_keywords' => ['halskette', 'ankerkette', 'collier', 'schlüsselanhänger', 'hundemarke'],
+            'slugs' => ['goldenes-seelen-herz', 'seelen-talisman', 'seelen-pfote-hundemarke'],
             'type' => null,
             'icon_svg' => '<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" />',
         ],
@@ -102,7 +103,7 @@
                 'Gutscheine digital oder als edle Karte',
                 'Für Geburtstage, Hochzeiten & Feste',
             ],
-            'category_names' => ['Geschenksets'],
+            'category_names' => ['Gutscheine', 'Wertgutscheine'],
             'material_keywords' => [],
             'slugs' => ['geschenkgutschein'],
             'type' => null,
@@ -121,7 +122,7 @@
                 'Natürliche Bruchkanten-Optik',
             ],
             'category_names' => ['Schiefer & Natur', 'Schiefer', 'Holz & Natur'],
-            'material_keywords' => ['schiefer', 'slate', 'holz', 'wood'],
+            'material_keywords' => ['schiefer', 'slate', 'holz', 'wood', 'naturstein'],
             'slugs' => [],
             'type' => null,
             'icon_svg' => '<path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />',
@@ -138,7 +139,7 @@
                 'Persönliche Machbarkeitsprüfung',
                 'Direkte Beratung aus der Manufaktur',
             ],
-            'category_names' => ['Beratung', 'Express-Service', 'Sonderanfertigung'],
+            'category_names' => ['Beratung', 'Express-Service', 'Sonderanfertigung', 'B2B'],
             'material_keywords' => [],
             'slugs' => [],
             'type' => 'service',
@@ -146,10 +147,10 @@
         ],
     ];
 
-    $claimedProductIds = [];
+    $usedHeroProductIds = [];
     $usedImagePaths = [];
 
-    $resolvedTiles = collect($rawTiles)->map(function (array $tile) use ($matchProducts, $categoriesByName, &$claimedProductIds, &$usedImagePaths) {
+    $resolvedTiles = collect($rawTiles)->map(function (array $tile) use ($matchProducts, $categoriesByName, &$usedHeroProductIds, &$usedImagePaths) {
         $allMatched = $matchProducts(
             $tile['category_names'],
             $tile['slugs'],
@@ -157,13 +158,10 @@
             $tile['material_keywords']
         );
 
-        // Deduplizierung: Jedes Produkt vertritt unter "Veredelungen & Materialien" maximal eine Kachel,
-        // damit ein einzelnes Produkt (z. B. in zwei Kategorien) nicht doppelt angezeigt wird.
-        $matched = $allMatched->reject(fn($p) => in_array($p->id, $claimedProductIds, true))->values();
-
-        foreach ($matched as $p) {
-            $claimedProductIds[] = $p->id;
-        }
+        // Jede Kachel benötigt mindestens ein eigenes repräsentatives Produkt, das noch nicht
+        // als Titel-Produkt einer vorherigen Kachel verwendet wurde (verhindert Doppel-Kacheln bei nur 1 Produkt).
+        $unclaimedCandidates = $allMatched->reject(fn($p) => in_array($p->id, $usedHeroProductIds, true))->values();
+        $matched = $unclaimedCandidates->isNotEmpty() ? $allMatched->values() : collect();
 
         // Prüfe, welche davon real lieferbar / vorbestellbar sind
         $inStockProducts = $matched->filter(function ($p) {
@@ -178,9 +176,9 @@
         $unikateCount = $inStockProducts->filter(fn($p) => $p->slug !== 'geschenkgutschein')->count();
         $voucherCount = $inStockProducts->filter(fn($p) => $p->slug === 'geschenkgutschein')->count();
 
-        // Niedrigster Preis (unter Berücksichtigung aktiver Angebote, exkl. 0-€-Gutschein-Basis)
-        $pricedProducts = $inStockProducts->filter(fn($p) => (int) $p->price > 0);
-        $minPriceCents = $pricedProducts->isNotEmpty() ? (int) $pricedProducts->min('price') : null;
+        // Niedrigster Brutto-Endpreis (§ 3 Abs. 1 PAngV, exkl. 0-€-Gutschein-Basis)
+        $pricedProducts = $inStockProducts->filter(fn($p) => (int) $p->gross_price > 0);
+        $minPriceCents = $pricedProducts->isNotEmpty() ? (int) $pricedProducts->min(fn($p) => (int) $p->gross_price) : null;
 
         if ($unikateCount > 0 && $voucherCount > 0) {
             $stockBadgeText = $unikateCount . ' ' . ($unikateCount === 1 ? 'Unikat' : 'Unikate') . ' & Gutschein';
@@ -197,7 +195,7 @@
         }
 
         // Prüfe, ob in dieser Kachel gerade ein Feiertags-/Aktionsangebot aktiv ist
-        $saleProduct = $inStockProducts->first(fn($p) => !empty($p->compare_at_price) && (int) $p->compare_at_price > (int) $p->price);
+        $saleProduct = $inStockProducts->first(fn($p) => !empty($p->compare_at_price) && (int) $p->compare_at_price > (int) $p->gross_price);
         $saleBadge = $saleProduct ? ($saleProduct->configurator_settings['autopilot_badge_text'] ?? 'Angebot aktiv') : null;
 
         // Ziel-URL im Shop (wenn nur 1 eigenständiges Produkt wie der Gutschein in der Kachel liegt, direkt oder gefiltert)
@@ -217,8 +215,17 @@
                 : ($matched->count() === 1 ? route('product.show', $matched->first()->slug) : route('shop')));
 
         // Dynamisches Produktbild (passend zu Jahreszeit / Feiertag) + KI-Kennzeichnung
+        // Bevorzugt ein Produkt, das noch nicht als Titelbild einer anderen Kachel genutzt wurde
         $tile['is_ai_generated'] = false;
-        $productsForTile = $inStockProducts->isNotEmpty() ? $inStockProducts : $matched;
+        $baseCandidates = $inStockProducts->isNotEmpty() ? $inStockProducts : $matched;
+        $preferredSlugs = $tile['slugs'] ?? [];
+        $productsForTile = $baseCandidates->sortBy(function ($p) use ($usedHeroProductIds, $preferredSlugs) {
+            $alreadyHero = in_array($p->id, $usedHeroProductIds, true) ? 100 : 0;
+            $slugIdx = array_search($p->slug, $preferredSlugs, true);
+            $slugScore = ($slugIdx !== false) ? $slugIdx : 50;
+            return $alreadyHero + $slugScore;
+        })->values();
+
         if ($productsForTile->isNotEmpty()) {
             foreach ($productsForTile as $candidateProduct) {
                 $meta = $candidateProduct->resolveMainImageMeta(null, true, $usedImagePaths);
@@ -226,6 +233,7 @@
                     $tile['image'] = $meta['url'];
                     $tile['alt'] = $candidateProduct->name . ' – ' . $tile['title'];
                     $tile['is_ai_generated'] = (bool) ($meta['is_ai_generated'] ?? false);
+                    $usedHeroProductIds[] = $candidateProduct->id;
                     if (!empty($meta['path'])) {
                         $usedImagePaths[] = $meta['path'];
                     }
@@ -378,7 +386,7 @@
             Veredelungen & Materialien für Ihre Unikate
         </h2>
         <p class="mt-4 text-gray-600 text-base max-w-3xl mx-auto">
-            Entdecken Sie unsere aktuell im Bestand verfügbaren <strong>Manufaktur-Materialien und Geschenk-Welten</strong> sowie kommende Erweiterungen, an denen wir in Gifhorn bereits arbeiten.
+            Entdecken Sie unsere aktuell im Bestand verfügbaren <strong>Manufaktur-Materialien und Geschenk-Welten</strong> sowie kommende Erweiterungen, an denen wir in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }} bereits arbeiten.
         </p>
     </header>
 
@@ -538,4 +546,8 @@
             @endif
         @endforeach
     </div>
+
+    <p class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 text-center text-xs text-gray-500">
+        * Alle angegebenen „ab“-Preise verstehen sich {{ ((bool) shop_setting('is_small_business', false)) ? 'als Endpreise gem. § 19 UStG' : 'inkl. gesetzl. MwSt.' }}, <a href="{{ route('versand') }}" class="underline hover:text-gray-700">zzgl. Versandkosten</a>.
+    </p>
 </section>

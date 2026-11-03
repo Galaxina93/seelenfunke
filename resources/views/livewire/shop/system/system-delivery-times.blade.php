@@ -90,10 +90,12 @@
                     <div>
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Von</label>
                         <input type="date" wire:model.live="vacationStartDate" class="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 outline-none transition-all shadow-sm dark:shadow-inner">
+                        @error('vacationStartDate') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
                     </div>
                     <div>
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Bis</label>
                         <input type="date" wire:model.live="vacationEndDate" class="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 outline-none transition-all shadow-sm dark:shadow-inner">
+                        @error('vacationEndDate') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
                     </div>
                 </div>
                 <div>
@@ -103,7 +105,7 @@
                 </div>
 
                 <button x-data="{ saved: false }"
-                        @click="$wire.saveSettings().then(() => { saved = true; setTimeout(() => saved = false, 2500) })"
+                        @click="$wire.saveSettings().then((ok) => { if (ok) { saved = true; setTimeout(() => saved = false, 2500); } })"
                         :class="saved ? 'bg-emerald-500 text-gray-900 shadow-[0_0_15px_rgba(16,185,129,0.4)]' : 'bg-amber-500 hover:bg-amber-400 text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(245,158,11,0.3)]'"
                         class="w-full py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2">
                     <span x-show="!saved" wire:loading.remove wire:target="saveSettings">Speichern</span>
@@ -149,12 +151,12 @@
             <div class="space-y-5 transition-all duration-300 {{ $isSickMode ? 'opacity-100' : 'opacity-40 grayscale pointer-events-none' }}">
                 <div>
                     <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Kunden-Meldung (Wird im Shop angezeigt)</label>
-                    <textarea wire:model="sickDescription" rows="4" class="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-red-900 dark:text-red-100/80 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-red-500/30 focus:border-red-500 outline-none transition-all shadow-sm dark:shadow-inner resize-none"></textarea>
+                    <textarea wire:model.blur="sickDescription" rows="4" class="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-red-900 dark:text-red-100/80 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-red-500/30 focus:border-red-500 outline-none transition-all shadow-sm dark:shadow-inner resize-none"></textarea>
                     <p class="text-[9px] text-red-500/60 mt-1.5 ml-1 font-medium">Dem Kunden wird automatisch eine Verzögerung von 6 Tagen zur aktuellen Lieferzeit mitgeteilt.</p>
                 </div>
 
                 <button x-data="{ saved: false }"
-                        @click="$wire.saveSettings().then(() => { saved = true; setTimeout(() => saved = false, 2500) })"
+                        @click="$wire.saveSettings().then((ok) => { if (ok) { saved = true; setTimeout(() => saved = false, 2500); } })"
                         :class="saved ? 'bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)]' : 'bg-red-500 hover:bg-red-400 text-white shadow-sm dark:shadow-[0_0_15px_rgba(239,68,68,0.3)]'"
                         class="w-full py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2">
                     <span x-show="!saved" wire:loading.remove wire:target="saveSettings">Speichern</span>

@@ -1,8 +1,6 @@
 {{-- HTML TREE (Lädt Styles & Head) --}}
 @include('global.mails.partials.mail_html_tree', ['title' => 'Zahlung erfolgreich'])
 
-<body>
-
 <div class="container">
 
     {{-- LOGO --}}

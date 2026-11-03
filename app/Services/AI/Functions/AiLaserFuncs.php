@@ -118,7 +118,7 @@ trait AiLaserFuncs
             // Handle action
             if ($action === 'email') {
                 if (empty($recipient) || !filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
-                    $recipient = config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
+                    $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
                 }
 
                 Mail::to($recipient)->send(new AiAgentMessageMail(

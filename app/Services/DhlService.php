@@ -103,12 +103,17 @@ class DhlService
         $billingNumber = $this->ekp . $participation;
 
         // Extract street and house number. Often shops combine them into 'address'.
-        $streetFullName = $shipping['address'] ?? ($shipping['street'] ?? '');
-        preg_match('/^([^\d]+)\s*(.+)?$/', $streetFullName, $matches);
-
-        // Strip trailing commas from the street name which break DHL validation
-        $streetName   = rtrim(trim($matches[1] ?? $streetFullName), ',');
-        $streetNumber = trim($matches[2] ?? '');
+        $streetFullName = trim((string) ($shipping['address'] ?? ($shipping['street'] ?? '')));
+        if (preg_match('/^(.*?)\s+(\d+\s*[a-zA-Z]?(?:[\/\-]\d+\s*[a-zA-Z]?)?)$/u', $streetFullName, $matches)) {
+            $streetName   = rtrim(trim($matches[1]), ',');
+            $streetNumber = trim($matches[2]);
+        } elseif (preg_match('/^([^\d]+)\s*(.+)?$/u', $streetFullName, $matches)) {
+            $streetName   = rtrim(trim($matches[1] ?? $streetFullName), ',');
+            $streetNumber = trim($matches[2] ?? '');
+        } else {
+            $streetName   = rtrim($streetFullName, ',');
+            $streetNumber = '';
+        }
 
         // If for any reason streetName is empty after trim, fallback to original to prevent DHL error
         if (empty($streetName)) {
@@ -183,10 +188,34 @@ class DhlService
             'IT' => 'ITA',
             'ES' => 'ESP',
             'NL' => 'NLD',
-            // Add more as needed, defaulting to DEU if empty
+            'BE' => 'BEL',
+            'LU' => 'LUX',
+            'DK' => 'DNK',
+            'PL' => 'POL',
+            'CZ' => 'CZE',
+            'SE' => 'SWE',
+            'FI' => 'FIN',
+            'NO' => 'NOR',
+            'IE' => 'IRL',
+            'PT' => 'PRT',
+            'GR' => 'GRC',
+            'HU' => 'HUN',
+            'RO' => 'ROU',
+            'BG' => 'BGR',
+            'HR' => 'HRV',
+            'SI' => 'SVN',
+            'SK' => 'SVK',
+            'EE' => 'EST',
+            'LV' => 'LVA',
+            'LT' => 'LTU',
+            'MT' => 'MLT',
+            'CY' => 'CYP',
+            'GB' => 'GBR',
+            'UK' => 'GBR',
+            'LI' => 'LIE',
         ];
 
-        return $map[strtoupper($code)] ?? 'DEU';
+        return $map[strtoupper(trim($code))] ?? 'DEU';
     }
 
     protected function handleResponse($response, OrderOrder $order): array

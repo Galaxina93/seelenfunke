@@ -159,7 +159,7 @@
         .clear { clear: both; }
 
         .badge-express {
-            color: #dc2626;
+            color: #333333;
             font-weight: bold;
             text-transform: uppercase;
             font-size: 9px;
@@ -174,13 +174,17 @@
     $isSmallBusiness = (bool)shop_setting('is_small_business', false);
     $ownerName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
     $proprietor = shop_setting('owner_proprietor', 'Alina Steinhauer');
-    $ownerStreet = shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) . ' ' . shop_setting('company_street_number', '26');
-    $ownerCity = shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city', shop_setting('owner_city', 'Gifhorn'));
+    $ownerStreet = shop_setting('company_street')
+        ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', ''))
+        : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26');
+    $ownerCity = shop_setting('company_city')
+        ? trim(shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city'))
+        : shop_setting('owner_city', '38518 Gifhorn');
     $ownerEmail = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
     $ownerWeb = shop_setting('owner_website', 'www.mein-seelenfunke.de');
-    $ownerIban = shop_setting('owner_iban', 'Wird nachgereicht');
+    $ownerIban = shop_setting('owner_iban', '');
     $taxId = shop_setting('owner_tax_id', '19/143/11624');
-    $ustId = shop_setting('owner_ust_id');
+    $ustId = shop_setting('company_ust_id', shop_setting('owner_ust_id'));
     $court = shop_setting('owner_court', 'Gifhorn');
 
     $billingAddr = $data['billing_address'] ?? [];
@@ -280,9 +284,9 @@
                 </td>
                 <td style="vertical-align: top; text-align: right;">
                     @if(!empty($data['express']))
-                        <div class="badge-express">EXPRESS-SERVICE</div>
+                        <div class="badge-express">EXPRESS-SERVICE <span style="font-family: 'DejaVu Sans', sans-serif; color: #C5A059; font-weight: bold;">&#10003;</span></div>
                         @if(!empty($data['deadline']))
-                            <div style="font-size: 9px; color: #dc2626; margin-top: 2px;">Termin: {{ \Carbon\Carbon::parse($data['deadline'])->format('d.m.Y') }}</div>
+                            <div style="font-size: 9px; color: #666666; margin-top: 2px;">Termin: {{ \Carbon\Carbon::parse($data['deadline'])->format('d.m.Y') }}</div>
                         @endif
                     @endif
                 </td>
@@ -295,7 +299,7 @@
         <p>
             <strong>{{ $ownerName }}</strong> | Inh. {{ $proprietor }}<br>
             {{ $ownerStreet }}, {{ $ownerCity }} | <a href="{{ $ownerWeb }}">{{ str_replace(['http://', 'https://'], '', $ownerWeb) }}</a><br>
-            IBAN: {{ $ownerIban }} | Steuernummer: {{ $taxId }} | Gerichtsstand: {{ $court }}
+            @if(!empty($ownerIban)) IBAN: {{ $ownerIban }} | @endif Steuernummer: {{ $taxId }} @if($ustId) | USt-IdNr.: {{ $ustId }} @endif | Gerichtsstand (für Kaufleute): {{ $court }}
         </p>
         <p style="margin-top: 10px;">
             <a href="{{ url('/agb') }}">AGB</a> &nbsp; | &nbsp;

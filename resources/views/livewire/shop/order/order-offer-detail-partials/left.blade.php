@@ -1,25 +1,22 @@
 <div class="w-full lg:w-1/2 h-auto lg:h-full lg:overflow-y-auto bg-gray-50/50 dark:bg-gray-950/30 custom-scrollbar z-10 lg:border-r border-gray-200 dark:border-gray-800">
     <div class="p-6 md:p-8 space-y-8">
 
-        {{-- 1. EXPRESS ALERT --}}
+        {{-- 1. EXPRESS INFO --}}
         @if($model->is_express)
-            <div class="bg-gradient-to-r from-red-500/10 to-transparent border-l-4 border-red-500 p-5 rounded-r-2xl shadow-sm">
-                <div class="flex items-start gap-4">
-                    <div class="p-2 bg-red-500/20 text-red-400 rounded-full animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.2)] shrink-0">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                    </div>
-                    <div>
-                        <h3 class="text-red-400 font-black uppercase tracking-widest text-xs drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">Express Auftrag</h3>
-                        @if($model->deadline)
-                            <p class="text-gray-900 dark:text-white text-sm font-bold mt-1 tracking-wide">
-                                🏁 Deadline: <span class="text-red-400">{{ \Carbon\Carbon::parse($model->deadline)->format('d.m.Y') }}</span>
-                            </p>
-                        @else
-                            <p class="text-gray-600 dark:text-gray-400 text-[11px] mt-1.5 font-medium leading-relaxed">
-                                Bitte vor allen Standard-Aufträgen priorisiert fertigen und versenden. Innerhalb der Express-Aufträge selbst gilt das <strong>First-In, First-Out (FIFO) Prinzip</strong>: Chronologisch nach Bestelleingang abarbeiten.
-                            </p>
-                        @endif
-                    </div>
+            <div class="bg-white dark:bg-gray-900 border-l-4 border-primary p-5 rounded-r-2xl border border-gray-200 dark:border-gray-800 shadow-2xs">
+                <div>
+                    <h3 class="text-gray-900 dark:text-white font-black uppercase tracking-widest text-xs inline-flex items-center gap-1.5">
+                        <x-shop.express-info />
+                    </h3>
+                    @if($model->deadline)
+                        <p class="text-gray-900 dark:text-white text-sm font-bold mt-1 tracking-wide">
+                            🏁 Deadline: <span class="text-primary">{{ \Carbon\Carbon::parse($model->deadline)->format('d.m.Y') }}</span>
+                        </p>
+                    @else
+                        <p class="text-gray-600 dark:text-gray-400 text-[11px] mt-1.5 font-medium leading-relaxed">
+                            Bitte vor allen Standard-Aufträgen priorisiert fertigen und versenden. Innerhalb der Express-Aufträge selbst gilt das <strong>First-In, First-Out (FIFO) Prinzip</strong>: Chronologisch nach Bestelleingang abarbeiten.
+                        </p>
+                    @endif
                 </div>
             </div>
         @endif
@@ -178,6 +175,31 @@
                                 {{-- Config Hints --}}
                                 @if(!empty($conf))
                                     <div class="mt-3 flex flex-wrap gap-2">
+                                        @if(!empty($conf['variant_name']))
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-primary/10 text-primary border border-primary/30 shadow-sm">
+                                                Ausführung: {{ $conf['variant_name'] }}
+                                            </span>
+                                        @endif
+                                        @if(!empty($conf['addons_summary']) && is_array($conf['addons_summary']))
+                                            @foreach($conf['addons_summary'] as $addon)
+                                                @if(!empty($addon['name']))
+                                                    @php
+                                                        $leftAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addon);
+                                                    @endphp
+                                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-sm">
+                                                        @if($leftAddonImg)
+                                                            <img src="{{ $leftAddonImg }}" alt="{{ $addon['name'] }}" class="w-4 h-4 rounded object-cover border border-amber-500/40 shrink-0">
+                                                        @else
+                                                            <span>🎁</span>
+                                                        @endif
+                                                        <span>{{ $addon['name'] }}</span>
+                                                        @if(($addon['price_cents'] ?? 0) > 0)
+                                                            <span>(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }} €)</span>
+                                                        @endif
+                                                    </span>
+                                                @endif
+                                            @endforeach
+                                        @endif
                                         @if(!empty($conf['is_gift_voucher']))
                                             @if(($conf['delivery_method'] ?? 'email') === 'post')
                                                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-sm">
@@ -193,6 +215,24 @@
                                                     Für: {{ $conf['recipient_name'] }}
                                                 </span>
                                             @endif
+                                            @php
+                                                $itemGiftVouchers = $isOrder ? \App\Models\Marketing\MarketingGiftVoucher::where('order_item_id', $item->id)->get() : collect();
+                                            @endphp
+                                            @foreach($itemGiftVouchers as $igv)
+                                                <a href="{{ route('customer.gift-voucher.download', ['voucher' => $igv->id, 'format' => 'laser_svg']) }}"
+                                                   onclick="event.stopPropagation()"
+                                                   class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/40 hover:bg-amber-500 hover:text-gray-950 transition-colors shadow-sm"
+                                                   title="86×54mm Laser-Vorlage (SVG) für goldene Metallkarte herunterladen ({{ $igv->code }})">
+                                                    ⚡ Laser 86×54mm ({{ $igv->code }})
+                                                </a>
+                                                <a href="{{ route('customer.gift-voucher.download', $igv->id) }}"
+                                                   target="_blank"
+                                                   onclick="event.stopPropagation()"
+                                                   class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500 hover:text-white transition-colors shadow-sm"
+                                                   title="Gutschein {{ $igv->code }} als A4-PDF öffnen / drucken">
+                                                    🖨️ PDF ({{ $igv->code }})
+                                                </a>
+                                            @endforeach
                                         @endif
                                         @if(!empty($conf['text']))
                                             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700 shadow-sm">
@@ -304,6 +344,12 @@
                             if ($isVoucher) {
                                 $giftVouchers = \App\Models\Marketing\MarketingGiftVoucher::where('order_item_id', $previewItem->id)->get();
                                 foreach ($giftVouchers as $gv) {
+                                    $allFiles[] = [
+                                        'label' => 'Laser-Vorlage 86×54mm Goldkarte (' . $gv->code . ')',
+                                        'download_url' => route('customer.gift-voucher.download', ['voucher' => $gv->id, 'format' => 'laser_svg']),
+                                        'ext' => 'svg',
+                                        'created_at' => $gv->created_at,
+                                    ];
                                     $allFiles[] = [
                                         'label' => 'Gutschein PDF (' . $gv->code . ')',
                                         'download_url' => route('customer.gift-voucher.download', $gv->id),

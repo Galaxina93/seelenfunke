@@ -783,15 +783,76 @@ class InfluencerService
                 $attributionSource = 'coupon';
             }
 
-            // Netto-Warenwert (ohne Versand- und Expresskosten, nach Abzug von Rabatten) über den zentralen PriceCalcService berechnen
-            $grossMerchandiseCents = max(
-                0,
-                (int) $order->subtotal_price - (int) $order->discount_amount - (int) $order->volume_discount
-            );
+            // Netto-Warenwert (ohne Versand- und Expresskosten, ohne gekaufte Geschenkgutscheine, nach Abzug von echten Rabatten) über den zentralen PriceCalcService berechnen
+            $order->loadMissing('items.product');
 
-            $effectiveTaxRate = ((bool) $order->is_small_business || (int) $order->tax_amount === 0)
-                ? 0.0
-                : (float) shop_setting('default_tax_rate', 19.0);
+            $giftVoucherItemsGrossCents = 0;
+            $eligibleItemsGrossCents = 0;
+            $eligibleItemsWeightedTaxSum = 0.0;
+            $hasExplicitItemTaxRate = false;
+
+            foreach ($order->items as $item) {
+                $isGiftVoucherItem = !empty($item->configuration['is_gift_voucher'])
+                    || ($item->product && ($item->product->slug === 'geschenkgutschein' || (method_exists($item->product, 'isGiftVoucher') && $item->product->isGiftVoucher())))
+                    || mb_strtolower(trim((string) $item->product_name)) === 'geschenkgutschein';
+
+                if ($isGiftVoucherItem) {
+                    $giftVoucherItemsGrossCents += max(0, (int) $item->total_price);
+                } else {
+                    $itemGross = max(0, (int) $item->total_price);
+                    $eligibleItemsGrossCents += $itemGross;
+                    if (isset($item->tax_rate) && $item->tax_rate !== null) {
+                        $eligibleItemsWeightedTaxSum += $itemGross * (float) $item->tax_rate;
+                        $hasExplicitItemTaxRate = true;
+                    } elseif ($item->product) {
+                        $eligibleItemsWeightedTaxSum += $itemGross * (float) $item->product->tax_rate;
+                        $hasExplicitItemTaxRate = true;
+                    }
+                }
+            }
+
+            // Prüfen, ob $order->coupon_code ein eingelöster Wertgutschein (Zahlungsmittel, kein Aktionsrabatt) ist
+            $isGiftVoucherRedemption = false;
+            if (!empty($order->coupon_code) && Schema::hasTable('marketing_gift_vouchers')) {
+                $cleanOrderCoupon = strtoupper(trim((string) $order->coupon_code));
+                $isGiftVoucherRedemption = MarketingGiftVoucher::where('code', $cleanOrderCoupon)->exists();
+            }
+
+            $promotionalDiscountCents = $isGiftVoucherRedemption ? 0 : (int) $order->discount_amount;
+
+            $grossMerchandiseCents = ($order->items->isNotEmpty() && $eligibleItemsGrossCents === 0)
+                ? 0
+                : max(
+                    0,
+                    (int) $order->subtotal_price - $giftVoucherItemsGrossCents - $promotionalDiscountCents - (int) $order->volume_discount
+                );
+
+            if ((bool) $order->is_small_business) {
+                $effectiveTaxRate = 0.0;
+            } elseif ($hasExplicitItemTaxRate && $eligibleItemsGrossCents > 0) {
+                $effectiveTaxRate = round($eligibleItemsWeightedTaxSum / $eligibleItemsGrossCents, 4);
+            } elseif ((int) $order->tax_amount > 0) {
+                $taxableGrossBase = max(0, (int) $order->total_price + ($isGiftVoucherRedemption ? (int) $order->discount_amount : 0) - $giftVoucherItemsGrossCents);
+                if ($taxableGrossBase > (int) $order->tax_amount) {
+                    $netTotalApprox = $taxableGrossBase - (int) $order->tax_amount;
+                    $derivedRate = round(((int) $order->tax_amount / $netTotalApprox) * 100, 2);
+                    $defaultRate = (float) shop_setting('default_tax_rate', 19.0);
+                    $reducedRate = (float) shop_setting('reduced_tax_rate', 7.0);
+                    if (abs($derivedRate - $defaultRate) <= 0.5) {
+                        $effectiveTaxRate = $defaultRate;
+                    } elseif (abs($derivedRate - $reducedRate) <= 0.5) {
+                        $effectiveTaxRate = $reducedRate;
+                    } else {
+                        $effectiveTaxRate = $derivedRate;
+                    }
+                } else {
+                    $effectiveTaxRate = (float) shop_setting('default_tax_rate', 19.0);
+                }
+            } elseif ((bool) shop_setting('is_small_business', false)) {
+                $effectiveTaxRate = 0.0;
+            } else {
+                $effectiveTaxRate = (float) shop_setting('default_tax_rate', 19.0);
+            }
 
             $netMerchandiseCents = app(\App\Services\PriceCalcService::class)->getNetFromGross($grossMerchandiseCents, $effectiveTaxRate);
 

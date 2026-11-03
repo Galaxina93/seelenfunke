@@ -53,7 +53,7 @@
 <div id="footer">
     <table class="footer-table">
         <tr>
-            <td style="text-align: left; width: 33%;"><strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong> | Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}</td>
+            <td style="text-align: left; width: 33%;"><strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong> | Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}</td>
             <td style="text-align: center; width: 33%; color: #111827;" class="page-number"></td>
             <td style="text-align: right; width: 33%;"><a href="{{ url('/') }}">{{ str_replace(['http://', 'https://'], '', shop_setting('owner_website', 'www.mein-seelenfunke.de')) }}</a></td>
         </tr>
@@ -66,7 +66,7 @@
     <div class="erp-tag">Generiert durch: Seelenfunke ERP Analytics</div>
     <div class="plan-year-title">REPORTING-DATUM: {{ $date }}</div>
     <div class="doc-meta">
-        <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong>, {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}, {{ shop_setting('owner_city', '38518 Gifhorn') }}
+        <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong>, {{ shop_setting('company_street') ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', '26')) : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}, {{ shop_setting('company_city') ? trim(shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city')) : shop_setting('owner_city', '38518 Gifhorn') }}
     </div>
 </div>
 

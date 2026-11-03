@@ -20,7 +20,7 @@ class MarketingNewsletter extends Component
 
     public string $themingDepartment = 'Marketing';
 
-    use WithPagination, WithDepartmentTheming;
+    use WithPagination;
 
     public $activeTab = 'templates'; // 'templates', 'subscribers', 'archive'
     public $search = '';
@@ -50,7 +50,7 @@ class MarketingNewsletter extends Component
 
     public function boot(): void
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
             abort(403, 'Nicht autorisierter Zugriff auf die Newsletter-Verwaltung.');
         }
     }
@@ -333,7 +333,7 @@ class MarketingNewsletter extends Component
             'christmas' => 'Weihnachten (24.12.)',
             'new_year' => 'Neujahr (01.01.)',
             'sale_summer' => 'Sommer Sale (01.07.)',
-            'sale_winter' => 'Winter Sale (15.01.)',
+            'sale_winter' => 'Winter-Sale (04.01.)',
         ];
     }
 
@@ -346,7 +346,7 @@ class MarketingNewsletter extends Component
             case 'christmas': return Carbon::create($year, 12, 24);
             case 'new_year': return Carbon::create($year, 1, 1);
             case 'sale_summer': return Carbon::create($year, 7, 1);
-            case 'sale_winter': return Carbon::create($year, 1, 15);
+            case 'sale_winter': return Carbon::create($year, 1, 4);
             case 'easter': return $this->getEasterDate($year);
             case 'mothers_day': return Carbon::create($year, 5, 1)->nthOfMonth(2, Carbon::SUNDAY);
             case 'fathers_day': return $this->getEasterDate($year)->addDays(39);

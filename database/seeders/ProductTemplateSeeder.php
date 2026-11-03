@@ -38,35 +38,86 @@ class ProductTemplateSeeder extends Seeder
     }
 
     /**
-     * Berechnet optimale 2D-Koordinaten & Größen je nach Produktgeometrie (Kristall, Herz, Glas, Barren, Hundeknochen).
+     * Berechnet optimale 2D-Koordinaten, Textgrößen & Umbrüche exakt abgestimmt auf die jeweilige
+     * Produktgeometrie und Clipping-Kontur (Kristall, Alu-Herz, Weizenglas, Dog-Tag Talisman, Hundeknochen, 14k Gold-Herz).
      */
-    private function getLayoutMetrics(string $slug, float $defaultTextSize = 1.5, int $defaultLogoSize = 90): array
+    private function getLayoutMetrics(string $slug, string $holiday = 'default'): array
     {
         return match ($slug) {
             'seelen-kristall' => [
-                'logo_x' => 50, 'logo_y' => 32, 'logo_size' => $defaultLogoSize,
-                'text_x' => 50, 'text_y' => 60, 'text_size' => $defaultTextSize,
+                'logo_x' => 50, 'logo_y' => 33, 'logo_size' => 82,
+                'text_x' => 50, 'text_y' => 58,
+                'text_size' => match ($holiday) {
+                    'weihnachten'  => 1.25,
+                    'ostern'       => 1.30,
+                    'hochzeit'     => 1.35,
+                    'geburtstag'   => 1.20,
+                    'valentinstag' => 1.35,
+                    'halloween'    => 1.15,
+                    'muttertag'    => 1.38,
+                    'vatertag'     => 1.20,
+                    default        => 1.25,
+                },
                 'back_texts' => [],
             ],
             'seelen-anhaenger' => [
-                'logo_x' => 50, 'logo_y' => 33, 'logo_size' => min(80, $defaultLogoSize),
-                'text_x' => 50, 'text_y' => 58, 'text_size' => round($defaultTextSize - 0.1, 2),
+                'logo_x' => 50, 'logo_y' => 36, 'logo_size' => 66,
+                'text_x' => 50, 'text_y' => 54,
+                'text_size' => match ($holiday) {
+                    'weihnachten'  => 1.05,
+                    'ostern'       => 1.12,
+                    'hochzeit'     => 1.18,
+                    'geburtstag'   => 1.02,
+                    'valentinstag' => 1.15,
+                    'halloween'    => 0.96,
+                    'muttertag'    => 1.20,
+                    'vatertag'     => 1.02,
+                    default        => 1.08,
+                },
                 'back_texts' => [
                     [
                         'id' => Str::uuid()->toString(),
-                        'text' => "Für immer verbunden\n♥",
+                        'text' => "Für immer\nverbunden ♥",
                         'font' => 'Montserrat',
                         'align' => 'center',
                         'x' => 50,
-                        'y' => 50,
-                        'size' => 1.15,
+                        'y' => 48,
+                        'size' => 0.98,
                         'rotation' => 0,
                     ],
                 ],
             ],
+            'weizenglas-personalisiert' => [
+                'logo_x' => 50, 'logo_y' => 34, 'logo_size' => 74,
+                'text_x' => 50, 'text_y' => 55,
+                'text_size' => match ($holiday) {
+                    'weihnachten'  => 1.05,
+                    'ostern'       => 1.10,
+                    'hochzeit'     => 1.15,
+                    'geburtstag'   => 1.00,
+                    'valentinstag' => 1.15,
+                    'halloween'    => 0.96,
+                    'muttertag'    => 1.18,
+                    'vatertag'     => 1.00,
+                    default        => 1.05,
+                },
+                'back_texts' => [],
+            ],
             'seelen-talisman' => [
-                'logo_x' => 50, 'logo_y' => 57, 'logo_size' => 54,
-                'text_x' => 50, 'text_y' => 74, 'text_size' => 1.05,
+                // Schmale Hochformat-Plakette (X: 35.2..64.8 => 29.6% Gesamtbreite, Y: 46.8..93.8)
+                'logo_x' => 50, 'logo_y' => 56, 'logo_size' => 46,
+                'text_x' => 50, 'text_y' => 73,
+                'text_size' => match ($holiday) {
+                    'weihnachten'  => 0.62,
+                    'ostern'       => 0.74,
+                    'hochzeit'     => 0.74,
+                    'geburtstag'   => 0.76,
+                    'valentinstag' => 0.76,
+                    'halloween'    => 0.58,
+                    'muttertag'    => 0.82,
+                    'vatertag'     => 0.68,
+                    default        => 0.72,
+                },
                 'back_texts' => [
                     [
                         'id' => Str::uuid()->toString(),
@@ -74,47 +125,71 @@ class ProductTemplateSeeder extends Seeder
                         'font' => 'Montserrat',
                         'align' => 'center',
                         'x' => 50,
-                        'y' => 69,
-                        'size' => 1.0,
+                        'y' => 70,
+                        'size' => 0.70,
                         'rotation' => 0,
                     ],
                 ],
             ],
             'seelen-pfote-hundemarke' => [
-                'logo_x' => 46, 'logo_y' => 44, 'logo_size' => 44,
-                'text_x' => 46, 'text_y' => 56, 'text_size' => 1.15,
+                // Knochenform mit Pfoten-Durchbruch rechts (nutzbare Breite links/mitte X: 18..60 => Zentrum X=41, Mittelsteg Y: 37.5..62.5)
+                'logo_x' => 41, 'logo_y' => 43, 'logo_size' => 32,
+                'text_x' => 41, 'text_y' => 53.5,
+                'text_size' => match ($holiday) {
+                    'weihnachten'  => 0.72,
+                    'ostern'       => 0.65,
+                    'hochzeit'     => 0.78,
+                    'geburtstag'   => 0.64,
+                    'valentinstag' => 0.72,
+                    'halloween'    => 0.62,
+                    'muttertag'    => 0.72,
+                    'vatertag'     => 0.64,
+                    default        => 0.68,
+                },
                 'back_texts' => [
                     [
                         'id' => Str::uuid()->toString(),
-                        'text' => "Tel: 0176 / 123 456 78\nBitte ruf Frauchen an!",
+                        'text' => "Tel: 0176 / 1234567\nBitte Frauchen rufen!",
                         'font' => 'Montserrat',
                         'align' => 'center',
-                        'x' => 46,
+                        'x' => 41,
                         'y' => 50,
-                        'size' => 1.0,
+                        'size' => 0.60,
                         'rotation' => 0,
                     ],
                 ],
             ],
             'goldenes-seelen-herz' => [
-                'logo_x' => 50, 'logo_y' => 47, 'logo_size' => 52,
-                'text_x' => 50, 'text_y' => 64, 'text_size' => 1.15,
+                // 14k Gold-Herz (25x22 mm, Kerbe oben Y=42.2, Spitze unten Y=90.5, sichere Innenbreite bei Y=61.5 ca. 40%)
+                'logo_x' => 50, 'logo_y' => 49, 'logo_size' => 42,
+                'text_x' => 50, 'text_y' => 61.5,
+                'text_size' => match ($holiday) {
+                    'weihnachten'  => 0.80,
+                    'ostern'       => 0.86,
+                    'hochzeit'     => 0.88,
+                    'geburtstag'   => 0.80,
+                    'valentinstag' => 0.88,
+                    'halloween'    => 0.72,
+                    'muttertag'    => 0.92,
+                    'vatertag'     => 0.78,
+                    default        => 0.82,
+                },
                 'back_texts' => [
                     [
                         'id' => Str::uuid()->toString(),
-                        'text' => "Für immer im Herzen\n♥",
+                        'text' => "Für immer\nim Herzen ♥",
                         'font' => 'Montserrat',
                         'align' => 'center',
                         'x' => 50,
-                        'y' => 57,
-                        'size' => 1.05,
+                        'y' => 58,
+                        'size' => 0.80,
                         'rotation' => 0,
                     ],
                 ],
             ],
             default => [
-                'logo_x' => 50, 'logo_y' => 32, 'logo_size' => 92,
-                'text_x' => 50, 'text_y' => 58, 'text_size' => $defaultTextSize,
+                'logo_x' => 50, 'logo_y' => 34, 'logo_size' => 76,
+                'text_x' => 50, 'text_y' => 56, 'text_size' => 1.10,
                 'back_texts' => [],
             ],
         };
@@ -123,10 +198,15 @@ class ProductTemplateSeeder extends Seeder
     private function createChristmasTemplate(Product $product): void
     {
         $slug = $product->slug;
-        $m = $this->getLayoutMetrics($slug, 1.5, 90);
-        $textContent = $slug === 'seelen-pfote-hundemarke'
-            ? "BALU\nFrohe Weihnachten!"
-            : "Frohe Weihnachten!\n- Familie Mustermann -";
+        $m = $this->getLayoutMetrics($slug, 'weihnachten');
+        $textContent = match ($slug) {
+            'seelen-pfote-hundemarke' => "BALU\nFrohe Weihnachten",
+            'seelen-talisman'         => "Frohe\nWeihnachten!\nFamilie Mustermann",
+            'goldenes-seelen-herz',
+            'seelen-anhaenger',
+            'weizenglas-personalisiert' => "Frohe Weihnachten!\nFamilie Mustermann",
+            default                   => "Frohe Weihnachten!\n- Familie Mustermann -",
+        };
 
         $config = [
             'text' => $textContent,
@@ -180,8 +260,11 @@ class ProductTemplateSeeder extends Seeder
     private function createEasterTemplate(Product $product): void
     {
         $slug = $product->slug;
-        $m = $this->getLayoutMetrics($slug, 1.65, 90);
-        $textContent = $slug === 'seelen-pfote-hundemarke' ? "BALU\nSpürhund im Dienst" : 'Frohes Osterfest!';
+        $m = $this->getLayoutMetrics($slug, 'ostern');
+        $textContent = match ($slug) {
+            'seelen-pfote-hundemarke' => "BALU\nOster-Spürhund",
+            default                   => "Frohes\nOsterfest!",
+        };
 
         $config = [
             'text' => $textContent,
@@ -235,10 +318,11 @@ class ProductTemplateSeeder extends Seeder
     private function createWeddingTemplate(Product $product): void
     {
         $slug = $product->slug;
-        $m = $this->getLayoutMetrics($slug, 1.55, 90);
-        $textContent = $slug === 'seelen-pfote-hundemarke'
-            ? "BALU\nSeelenhund auf Lebenszeit"
-            : "Lieblingsmensch\n24.08.2026";
+        $m = $this->getLayoutMetrics($slug, 'hochzeit');
+        $textContent = match ($slug) {
+            'seelen-pfote-hundemarke' => "BALU\nSeelenhund",
+            default                   => "Lieblingsmensch\n24.08.2026",
+        };
 
         $config = [
             'text' => $textContent,
@@ -292,8 +376,11 @@ class ProductTemplateSeeder extends Seeder
     private function createBirthdayTemplate(Product $product): void
     {
         $slug = $product->slug;
-        $m = $this->getLayoutMetrics($slug, 1.38, 85);
-        $textContent = $slug === 'seelen-pfote-hundemarke' ? "BALU\nIch bin gechipt!" : 'Happy Birthday!';
+        $m = $this->getLayoutMetrics($slug, 'geburtstag');
+        $textContent = match ($slug) {
+            'seelen-pfote-hundemarke' => "BALU\nIch bin gechipt!",
+            default                   => "Happy\nBirthday!",
+        };
 
         $config = [
             'text' => $textContent,
@@ -347,10 +434,11 @@ class ProductTemplateSeeder extends Seeder
     private function createValentinesTemplate(Product $product): void
     {
         $slug = $product->slug;
-        $m = $this->getLayoutMetrics($slug, 1.5, 88);
-        $textContent = $slug === 'seelen-pfote-hundemarke'
-            ? "BALU\nLiebling auf 4 Pfoten"
-            : "Für immer Dein\n- 14. Februar -";
+        $m = $this->getLayoutMetrics($slug, 'valentinstag');
+        $textContent = match ($slug) {
+            'seelen-pfote-hundemarke' => "BALU\nLiebling auf 4 Pfoten",
+            default                   => "Für immer Dein\n- 14. Februar -",
+        };
 
         $config = [
             'text' => $textContent,
@@ -404,11 +492,15 @@ class ProductTemplateSeeder extends Seeder
     private function createHalloweenTemplate(Product $product): void
     {
         $slug = $product->slug;
-        $m = $this->getLayoutMetrics($slug, 1.4, 88);
-        $subline = $slug === 'weizenglas-personalisiert' ? '- Hexengebräu -' : '- Seelenzauber -';
-        $textContent = $slug === 'seelen-pfote-hundemarke'
-            ? "BALU\nKleiner Nachtwächter"
-            : "Magische Nacht\n{$subline}";
+        $m = $this->getLayoutMetrics($slug, 'halloween');
+        $textContent = match ($slug) {
+            'seelen-pfote-hundemarke'   => "BALU\nNachtwächter",
+            'seelen-talisman'           => "Magische\nNacht\nSeelenzauber",
+            'goldenes-seelen-herz',
+            'seelen-anhaenger'          => "Magische Nacht\nSeelenzauber",
+            'weizenglas-personalisiert' => "Magische Nacht\n- Hexengebräu -",
+            default                     => "Magische Nacht\n- Seelenzauber -",
+        };
 
         $config = [
             'text' => $textContent,
@@ -462,10 +554,11 @@ class ProductTemplateSeeder extends Seeder
     private function createMothersDayTemplate(Product $product): void
     {
         $slug = $product->slug;
-        $m = $this->getLayoutMetrics($slug, 1.5, 88);
-        $textContent = $slug === 'seelen-pfote-hundemarke'
-            ? "BALU\nFrauchens Liebling"
-            : "Beste Mama\nder Welt";
+        $m = $this->getLayoutMetrics($slug, 'muttertag');
+        $textContent = match ($slug) {
+            'seelen-pfote-hundemarke' => "BALU\nFrauchens Liebling",
+            default                   => "Beste Mama\nder Welt",
+        };
 
         $config = [
             'text' => $textContent,
@@ -519,14 +612,15 @@ class ProductTemplateSeeder extends Seeder
     private function createFathersDayTemplate(Product $product): void
     {
         $slug = $product->slug;
-        $m = $this->getLayoutMetrics($slug, 1.4, 86);
+        $m = $this->getLayoutMetrics($slug, 'vatertag');
         $vectorRel = $slug === 'weizenglas-personalisiert'
             ? 'vectors/Symbole/bierkrug.svg'
             : 'vectors/Symbole/siegerpokal.svg';
 
-        $textContent = $slug === 'seelen-pfote-hundemarke'
-            ? "BALU\nHerrchens bester Kumpel"
-            : "Bester Papa\nder Welt!";
+        $textContent = match ($slug) {
+            'seelen-pfote-hundemarke' => "BALU\nBester Kumpel",
+            default                   => "Bester Papa\nder Welt!",
+        };
 
         $config = [
             'text' => $textContent,

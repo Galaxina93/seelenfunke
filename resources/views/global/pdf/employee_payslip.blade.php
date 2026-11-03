@@ -140,10 +140,10 @@
         <tr>
             <td class="address-box">
                 <div class="address-label">Arbeitgeber</div>
-                <strong>{{ shop_setting('company_name', 'Mein Seelenfunke') }}</strong><br>
-                Inh. {{ shop_setting('owner_name', 'Alina Steinhauer') }}<br>
-                {{ shop_setting('company_street', 'Carl-Goerdeler-Ring') }} {{ shop_setting('company_street_number', '26') }}<br>
-                {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}
+                <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong><br>
+                Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
+                {{ shop_setting('company_street') ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', '')) : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}<br>
+                {{ shop_setting('company_city') ? trim(shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city')) : shop_setting('owner_city', '38518 Gifhorn') }}
             </td>
             <td style="width: 4%;"></td>
             <td class="address-box">

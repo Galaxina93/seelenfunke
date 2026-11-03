@@ -194,7 +194,9 @@
             </div>
 
             {{-- Produkt Grid --}}
-            <div wire:loading.class="opacity-50 blur-sm pointer-events-none" class="transition-all duration-300">
+            <div wire:loading.class="opacity-50 blur-sm pointer-events-none"
+                 wire:target="search, filterType, filterPersonalizable, filterSale, toggleSaleFilter, filterCategory, filterHoliday, resetFilters, gotoPage, nextPage, previousPage"
+                 class="transition-all duration-300">
                 @if($products->isEmpty())
                     <div class="text-center py-20 bg-white rounded-3xl border border-gray-100 shadow-sm animate-fade-in-up">
                         <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-50 text-gray-300 mb-6">
@@ -221,11 +223,38 @@
                         }
                         .sf-card-img {
                             transform: scale(1) translateZ(0);
-                            transition: transform 1.35s cubic-bezier(0.22, 0.61, 0.36, 1);
-                            will-change: transform;
+                            transition:
+                                transform 1.35s cubic-bezier(0.22, 0.61, 0.36, 1),
+                                opacity 0.55s cubic-bezier(0.22, 0.61, 0.36, 1);
+                            will-change: transform, opacity;
                         }
                         .sf-card.sf-is-active .sf-card-img {
                             transform: scale(1.045) translateZ(0);
+                        }
+                        .sf-card.sf-has-hover.sf-is-active .sf-card-main-layer {
+                            opacity: 0;
+                        }
+                        .sf-card-hover-layer {
+                            opacity: 0;
+                            transform: scale(1) translateZ(0);
+                            transition:
+                                opacity 0.55s cubic-bezier(0.22, 0.61, 0.36, 1),
+                                transform 1.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+                            will-change: transform, opacity;
+                        }
+                        .sf-card.sf-has-hover.sf-is-active .sf-card-hover-layer {
+                            opacity: 1;
+                            transform: scale(1.045) translateZ(0);
+                        }
+                        .sf-card.sf-has-hover.sf-is-active .sf-ai-badge-main {
+                            opacity: 0;
+                        }
+                        .sf-ai-badge-hover {
+                            opacity: 0;
+                            transition: opacity 0.45s ease;
+                        }
+                        .sf-card.sf-has-hover.sf-is-active .sf-ai-badge-hover {
+                            opacity: 1;
                         }
                         .sf-card-sheen {
                             position: absolute;
@@ -314,6 +343,10 @@
                                 cardEl._sfEnterTime = performance.now();
                                 cardEl.classList.add('sf-is-active');
                             }
+                            const hoverVid = cardEl.querySelector('video[data-sf-hover-video]');
+                            if (hoverVid) {
+                                hoverVid.play().catch(() => {});
+                            }
                         };
                         window.sfCardHoverLeave = function(cardEl) {
                             clearTimeout(cardEl._sfLeaveTimer);
@@ -323,6 +356,11 @@
                             const waitMs = Math.max(0, minForward - elapsed);
                             cardEl._sfLeaveTimer = setTimeout(() => {
                                 cardEl.classList.remove('sf-is-active');
+                                const hoverVid = cardEl.querySelector('video[data-sf-hover-video]');
+                                if (hoverVid) {
+                                    hoverVid.pause();
+                                    hoverVid.currentTime = 0;
+                                }
                                 cardEl._sfCleanupTimer = setTimeout(() => {
                                     cardEl._sfBusy = false;
                                 }, 1350);
@@ -344,20 +382,48 @@
                                 $productUrl = $projectedTemplate ? route('product.show', ['product' => $product->slug, 't' => $projectedTemplate->id]) : route('product.show', $product->slug);
                                 $resolvedMainMeta = $projectedTemplate && $projectedTemplate->preview_image
                                     ? [
+                                        'type'            => 'image',
+                                        'path'            => $projectedTemplate->preview_image,
                                         'url'             => $projectedTemplate->preview_image_url,
+                                        'poster_url'      => $projectedTemplate->preview_image_url,
                                         'is_ai_generated' => (bool) ($projectedTemplate->is_ai_generated ?? true),
                                     ]
-                                    : $product->resolveMainImageMeta();
+                                    : $product->resolveMainMediaMeta();
+                                $resolvedMainMediaType = $resolvedMainMeta['type'] ?? 'image';
                                 $resolvedMainImageUrl = $resolvedMainMeta['url'] ?? null;
+                                $resolvedMainPosterUrl = $resolvedMainMeta['poster_url'] ?? null;
                                 $isAiCardImage = (bool) ($resolvedMainMeta['is_ai_generated'] ?? false);
+
+                                $resolvedHoverMeta = !$isSoldOut
+                                    ? $product->resolveHoverMediaMeta($resolvedMainMeta['path'] ?? null)
+                                    : null;
+                                $hasHoverMedia = !empty($resolvedHoverMeta['url']);
+                                $resolvedHoverMediaType = $resolvedHoverMeta['type'] ?? 'image';
+                                $resolvedHoverMediaUrl = $resolvedHoverMeta['url'] ?? null;
+                                $isAiHoverMedia = (bool) ($resolvedHoverMeta['is_ai_generated'] ?? false);
                             @endphp
 
                             <div onmouseenter="window.sfCardHoverEnter && window.sfCardHoverEnter(this)"
                                  onmouseleave="window.sfCardHoverLeave && window.sfCardHoverLeave(this)"
-                                 class="sf-card group relative flex flex-col h-full bg-white rounded-[2rem] p-3 border border-gray-100 shadow-sm {{ $isSoldOut ? 'opacity-80' : '' }}">
+                                 class="sf-card {{ $hasHoverMedia ? 'sf-has-hover' : '' }} group relative flex flex-col h-full bg-white rounded-[2rem] p-3 border border-gray-100 shadow-sm {{ $isSoldOut ? 'opacity-80' : '' }}">
 
                                 {{-- Bild Container --}}
                                 <div class="aspect-square bg-gray-50 rounded-3xl overflow-hidden mb-5 relative border border-gray-100">
+
+                                    @php
+                                        $isWishlisted = in_array((string) $product->id, $wishlistProductIds ?? [], true);
+                                    @endphp
+                                    <button type="button"
+                                            x-data="{ wishlisted: @js($isWishlisted) }"
+                                            @click.prevent="wishlisted = !wishlisted; if (window.sfTriggerWishlistHeartEffect) window.sfTriggerWishlistHeartEffect($event, wishlisted); $wire.toggleWishlist('{{ $product->id }}')"
+                                            :class="wishlisted ? 'bg-red-500 text-white scale-105 shadow-[0_0_15px_rgba(239,68,68,0.45)]' : 'bg-white/90 text-gray-500 hover:text-red-500 hover:bg-white'"
+                                            class="absolute bottom-3 left-3 z-30 w-9 h-9 rounded-full backdrop-blur-md shadow-md flex items-center justify-center transition-all duration-200 cursor-pointer"
+                                            :title="wishlisted ? 'Von Wunschliste entfernen' : 'Auf die Wunschliste'"
+                                            aria-label="Wunschliste">
+                                        <svg class="w-4 h-4 transition-transform duration-200" :class="wishlisted ? 'fill-current scale-110' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
+                                        </svg>
+                                    </button>
 
                                     {{-- Product Type Badges --}}
                                     @if(!$isSoldOut && !$isBackorder)
@@ -377,26 +443,56 @@
                                         </div>
                                     @endif
 
-                                    <a href="{{ $productUrl }}" class="block w-full h-full">
+                                    <a href="{{ $productUrl }}" class="block w-full h-full relative">
 
-                                        <div class="w-full h-full {{ $isSoldOut ? 'grayscale opacity-50' : '' }}">
-                                            @if($resolvedMainImageUrl)
+                                        <div class="w-full h-full relative {{ $isSoldOut ? 'grayscale opacity-50' : '' }}">
+                                            @if($resolvedMainImageUrl && $resolvedMainMediaType === 'video')
+                                                <video src="{{ $resolvedMainImageUrl }}"
+                                                       @if($resolvedMainPosterUrl) poster="{{ $resolvedMainPosterUrl }}" @endif
+                                                       @if($isAiCardImage) data-is-ai-generated="true" @endif
+                                                       data-sf-main-video
+                                                       class="w-full h-full object-cover sf-card-main-layer {{ !$isSoldOut ? 'sf-card-img' : '' }}"
+                                                       muted autoplay loop playsinline></video>
+                                            @elseif($resolvedMainImageUrl)
                                                 <img src="{{ $resolvedMainImageUrl }}"
                                                      alt="{{ $projectedTemplate ? $projectedTemplate->name : $product->name }}"
                                                      @if($isAiCardImage) data-is-ai-generated="true" @endif
-                                                     class="w-full h-full object-cover {{ !$isSoldOut ? 'sf-card-img' : '' }}">
-                                            @elseif(is_array($product->media_gallery) && count($product->media_gallery) > 0 && isset($product->media_gallery[0]['type']) && $product->media_gallery[0]['type'] === 'video')
-                                                <video src="{{ asset('storage/'.$product->media_gallery[0]['path']) }}" class="w-full h-full object-cover" muted autoplay loop playsinline></video>
+                                                     class="w-full h-full object-cover sf-card-main-layer {{ !$isSoldOut ? 'sf-card-img' : '' }}">
                                             @else
                                                 <div class="flex items-center justify-center h-full text-gray-300">
                                                     <svg class="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                                                 </div>
                                             @endif
+
+                                            @if($hasHoverMedia && $resolvedHoverMediaUrl)
+                                                @if($resolvedHoverMediaType === 'video')
+                                                    <video src="{{ $resolvedHoverMediaUrl }}"
+                                                           @if($isAiHoverMedia) data-is-ai-generated="true" @endif
+                                                           data-sf-hover-video
+                                                           preload="metadata"
+                                                           muted loop playsinline
+                                                           class="absolute inset-0 w-full h-full object-cover sf-card-hover-layer pointer-events-none"></video>
+                                                @else
+                                                    <img src="{{ $resolvedHoverMediaUrl }}"
+                                                         alt="{{ $resolvedHoverMeta['label'] ?? ($product->name . ' – Hover-Ansicht') }}"
+                                                         loading="lazy"
+                                                         decoding="async"
+                                                         @if($isAiHoverMedia) data-is-ai-generated="true" @endif
+                                                         class="absolute inset-0 w-full h-full object-cover sf-card-hover-layer pointer-events-none">
+                                                @endif
+                                            @endif
                                         </div>
 
                                         @if($resolvedMainImageUrl && $isAiCardImage)
                                             <span style="font-size: 7px; line-height: 1; padding: 2px 5px; background: rgba(0,0,0,0.36); color: rgba(255,255,255,0.68);"
-                                                  class="pointer-events-none select-none absolute bottom-2 right-2 z-20 backdrop-blur-sm font-normal tracking-normal rounded border border-white/10">
+                                                  class="sf-ai-badge-main transition-opacity duration-300 pointer-events-none select-none absolute bottom-2 right-2 z-20 backdrop-blur-sm font-normal tracking-normal rounded border border-white/10">
+                                                KI-generiert
+                                            </span>
+                                        @endif
+
+                                        @if($hasHoverMedia && $isAiHoverMedia)
+                                            <span style="font-size: 7px; line-height: 1; padding: 2px 5px; background: rgba(0,0,0,0.36); color: rgba(255,255,255,0.68);"
+                                                  class="sf-ai-badge-hover pointer-events-none select-none absolute bottom-2 right-2 z-20 backdrop-blur-sm font-normal tracking-normal rounded border border-white/10">
                                                 KI-generiert
                                             </span>
                                         @endif
@@ -551,7 +647,7 @@
                                                     @if($product->slug === 'geschenkgutschein' || ($product->price == 0 && $product->is_personalizable))
                                                         ab 5,00 €
                                                     @else
-                                                        {{ number_format($product->price / 100, 2, ',', '.') }} €
+                                                        {{ number_format($product->gross_price / 100, 2, ',', '.') }} €
                                                     @endif
                                                 </span>
                                                 @if(!$isSoldOut && $product->compare_at_price > $product->price)
@@ -572,7 +668,7 @@
                                                 @if(shop_setting('is_small_business', false))
                                                     Keine MwSt. gem. § 19 UStG · <a href="{{ route('versand') }}" target="_blank" class="hover:text-gray-600 underline">zzgl. Versand</a>
                                                 @else
-                                                    inkl. MwSt. <a href="{{ route('versand') }}" target="_blank" class="hover:text-gray-600 underline">zzgl. Versand</a>
+                                                    {{ $product->tax_included ? 'inkl. MwSt.' : 'zzgl. MwSt.' }} <a href="{{ route('versand') }}" target="_blank" class="hover:text-gray-600 underline">zzgl. Versand</a>
                                                 @endif
                                             </span>
                                         </div>

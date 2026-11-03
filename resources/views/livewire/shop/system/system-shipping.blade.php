@@ -370,9 +370,11 @@
                                             <button wire:click="addRate" class="bg-emerald-500 hover:bg-emerald-400 text-gray-900 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all">Add</button>
                                         </div>
                                     </div>
-                                    @if($errors->any())
+                                    @if($errors->hasAny(['newRate.*']))
                                         <div class="mt-3 text-red-400 text-[9px] font-bold uppercase tracking-widest space-y-1">
-                                            @foreach($errors->all() as $error) <div>{{$error}}</div> @endforeach
+                                            @foreach($errors->get('newRate.*') as $fieldErrs)
+                                                @foreach($fieldErrs as $error) <div>{{$error}}</div> @endforeach
+                                            @endforeach
                                         </div>
                                     @endif
                                 </div>

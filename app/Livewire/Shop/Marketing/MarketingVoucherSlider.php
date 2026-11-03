@@ -30,7 +30,10 @@ class MarketingVoucherSlider extends Component
         $referralVoucherIds = MarketingReferral::whereNotNull('voucher_id')->pluck('voucher_id')->all();
 
         $hasManual = MarketingVoucher::where('mode', 'manual')
-            ->whereNull('recipient_email')
+            ->where(function ($q) {
+                $q->whereNull('recipient_email')
+                  ->orWhere('recipient_email', '');
+            })
             ->whereNull('influencer_id')
             ->where('title', 'not like', 'Freunde-Empfehlung%')
             ->where('code', 'not like', 'FUNKI-%')
@@ -43,12 +46,15 @@ class MarketingVoucherSlider extends Component
         }
 
         $hasAuto = MarketingVoucher::where('mode', 'auto')
-            ->where('is_active', true)
+            ->where(function ($q) {
+                $q->whereNull('recipient_email')
+                  ->orWhere('recipient_email', '');
+            })
             ->where(function ($q) {
                 $q->whereNull('trigger_event')
                   ->orWhereNotIn('trigger_event', ['birthday', 'registered_date']);
             })
-            ->whereMonth('valid_from', now()->month)
+            ->current()
             ->exists();
 
         if ($hasAuto) {
@@ -86,7 +92,10 @@ class MarketingVoucherSlider extends Component
 
         // 1. Lade alle öffentlichen manuellen Gutscheine (keine Freunde-Empfehlung Codes, keine Influencer-Codes und keine persönlichen Belohnungen)
         $manualVouchers = MarketingVoucher::where('mode', 'manual')
-            ->whereNull('recipient_email')
+            ->where(function ($q) {
+                $q->whereNull('recipient_email')
+                  ->orWhere('recipient_email', '');
+            })
             ->whereNull('influencer_id')
             ->where('title', 'not like', 'Freunde-Empfehlung%')
             ->where('code', 'not like', 'FUNKI-%')
@@ -96,17 +105,24 @@ class MarketingVoucherSlider extends Component
 
         // 2. Lade NUR den aktiven öffentlichen Auto-Gutschein für den AKTUELLEN MONAT (ohne persönliche Trigger)
         $activeAutoVouchers = MarketingVoucher::where('mode', 'auto')
-            ->where('is_active', true)
+            ->where(function ($q) {
+                $q->whereNull('recipient_email')
+                  ->orWhere('recipient_email', '');
+            })
             ->where(function ($q) {
                 $q->whereNull('trigger_event')
                   ->orWhereNotIn('trigger_event', ['birthday', 'registered_date']);
             })
-            ->whereMonth('valid_from', now()->month)
+            ->current()
             ->get();
 
         // 3. Verarbeite die Auto-Gutscheine (Platzhalter ersetzen)
         foreach ($activeAutoVouchers as $auto) {
-            $auto->code = $this->generateCouponCode($auto->code, 'Shop');
+            $newCode = $this->generateCouponCode($auto->code, 'Shop');
+            if ($newCode !== $auto->code) {
+                $auto->code = $newCode;
+                $auto->saveQuietly();
+            }
         }
 
         $vouchers = $manualVouchers->merge($activeAutoVouchers);

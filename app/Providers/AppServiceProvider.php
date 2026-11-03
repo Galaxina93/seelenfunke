@@ -146,8 +146,8 @@ class AppServiceProvider extends ServiceProvider
                 if (Schema::hasTable('shop_settings') || Schema::hasTable('shop-settings')) {
 
                     // Settings aus dem Cache laden (oder aus DB holen und cachen)
-                    $settings = Cache::rememberForever('global_shop_settings', function () {
-                        return SystemSetting::pluck('value', 'key')->toArray();
+                    $settings = Cache::remember('global_shop_settings', 60, function () {
+                        return SystemSetting::pluck('value', 'key');
                     });
 
                     // Stripe Konfiguration zur Laufzeit überschreiben
@@ -164,8 +164,13 @@ class AppServiceProvider extends ServiceProvider
                         Config::set('services.stripe.webhook.secret', $settings['stripe_webhook_secret']);
                         Config::set('services.stripe.webhook_secret', $settings['stripe_webhook_secret']);
                     }
+
+                    $backupMail = $settings['owner_email_backup'] ?? $settings['owner_email'] ?? $settings['company_email'] ?? null;
+                    if (!empty($backupMail)) {
+                        Config::set('backup.notifications.mail.to', $backupMail);
+                    }
                 }
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 // Falls die Datenbank noch gar nicht konfiguriert ist, failen wir hier leise,
                 // damit die Anwendung / Konsole weiterhin erreichbar bleibt.
             }

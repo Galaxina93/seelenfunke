@@ -21,8 +21,11 @@
                 <span class="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-cyan-500 rounded-full"></span>
             </div>
             <div>
-                <h3 class="text-white font-bold text-sm tracking-wide">{{ $agentName }}</h3>
-                <p class="text-cyan-100 text-xs font-medium">Support & Beratung</p>
+                <div class="flex items-center gap-1.5">
+                    <h3 class="text-white font-bold text-sm tracking-wide">{{ $agentName }}</h3>
+                    <span class="px-1.5 py-0.5 rounded bg-white/20 text-white text-[9px] font-black uppercase tracking-wider">KI-Assistent</span>
+                </div>
+                <p class="text-cyan-100 text-xs font-medium">Automatisierter KI-Support &amp; Beratung</p>
             </div>
         </div>
         <div class="flex items-center space-x-2">
@@ -55,7 +58,7 @@
                 </div>
                 <div>
                     <p class="text-sm font-semibold text-gray-700">Wie kann ich dir helfen?</p>
-                    <p class="text-xs text-gray-500 mt-1">Stelle Fragen zu Produkten, deiner Bestellung oder Reklamationen. Ich bin 24/7 für dich da!</p>
+                    <p class="text-xs text-gray-500 mt-1">Ich bin dein digitaler KI-Support-Assistent (Art. 50 KI-VO). Stelle Fragen zu Produkten, deiner Bestellung oder Reklamationen. Bei Bedarf leite ich dein Anliegen an unser Team weiter.</p>
                 </div>
             </div>
         @endif
@@ -207,7 +210,7 @@
                     <div class="text-center mt-2">
                         <span class="text-[9px] text-gray-400 uppercase tracking-widest font-semibold flex justify-center items-center gap-1">
                             <svg class="w-3 h-3 text-cyan-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg>
-                            Mein-Seelenfunke - Support
+                            KI-Assistent (Art. 50 KI-VO) · Antworten werden automatisiert generiert
                         </span>
                     </div>
                 @endif

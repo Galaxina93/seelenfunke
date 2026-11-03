@@ -57,14 +57,13 @@ class ContactForm extends Component
             return;
         }
 
-        // 3. Sicherheits-Validierung, bevor Mails gesendet werden
+        // 3. Sicherheits-Validierung, bevor Mails gesendet werden (Rechtsgrundlage: Art. 6 Abs. 1 lit. b/f DSGVO)
         $this->validate([
             'first_name' => 'required|string|max:100',
             'last_name' => 'required|string|max:100',
             'email' => 'required|email|max:255',
             'phone' => 'nullable|string|max:50',
             'message' => 'required|string|min:5|max:5000',
-            'data_protection' => 'accepted'
         ]);
 
         \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 600);

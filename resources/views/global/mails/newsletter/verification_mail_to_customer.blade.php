@@ -11,13 +11,13 @@
     {{-- 3. HAUPTINHALT --}}
     <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #444; line-height: 1.6; font-size: 14px; margin-bottom: 30px;">
         
-        <h1 style="font-family: Georgia, serif; color: #111827; font-size: 24px; font-weight: bold; line-height: 1.3; margin-top: 0; margin-bottom: 20px;">Lass uns deine Anmeldung bestätigen ✨</h1>
+        <h1 style="font-family: Georgia, serif; color: #111827; font-size: 24px; font-weight: bold; line-height: 1.3; margin-top: 0; margin-bottom: 20px;">Bitte bestätige deine Newsletter-Anmeldung</h1>
 
         <p style="margin-bottom: 15px;">Hallo,</p>
 
-        <p style="margin-bottom: 15px;">schön, dass du dabei bist! Vielen Dank für dein Interesse an unserem Newsletter. Wir freuen uns sehr darauf, dir bald Einblicke hinter die Kulissen unserer Manufaktur, Inspirationen und exklusive Neuigkeiten zu unseren Unikaten zusenden zu dürfen.</p>
+        <p style="margin-bottom: 15px;">wir haben eine Anfrage zum Abonnement unseres E-Mail-Newsletters (Seelenpost) mit dieser E-Mail-Adresse erhalten.</p>
 
-        <p style="margin-bottom: 25px;">Damit wir wissen, dass die Anfrage wirklich von dir kommt, klicke bitte auf den goldenen Button unten:</p>
+        <p style="margin-bottom: 25px;">Um deine E-Mail-Adresse im Rahmen des gesetzlichen Double-Opt-In-Verfahrens zu verifizieren und die Anmeldung abzuschließen, klicke bitte auf den nachfolgenden Button:</p>
 
         {{-- 4. CTA BUTTON --}}
         <div style="text-align: center; margin-top: 30px; margin-bottom: 40px;">

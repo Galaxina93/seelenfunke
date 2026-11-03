@@ -34,11 +34,19 @@
             {{-- Dynamischer Hinweis unter dem Dropdown --}}
             <div class="mt-1.5 text-xs text-gray-500 animate-fade-in">
                 @if($form['country'] === 'DE')
-                    <span class="text-green-600 font-bold">Tipp:</span> Versandkostenfrei ab 50,00 € Warenwert (DE). Sonst pauschal 4,90 €.
+                    @php
+                        $calcFreeThresholdEuro = number_format(((int) shop_setting('shipping_free_threshold', 5000)) / 100, 2, ',', '.');
+                        $calcShippingCostEuro = number_format(((int) shop_setting('shipping_cost', 490)) / 100, 2, ',', '.');
+                    @endphp
+                    <span class="text-green-600 font-bold">Tipp:</span> Versandkostenfrei ab {{ $calcFreeThresholdEuro }} € Warenwert (DE). Sonst pauschal {{ $calcShippingCostEuro }} €.
                 @else
                     <span class="text-blue-600 font-bold">Hinweis:</span> Versandkosten werden nach Gewicht & Zone berechnet.
                 @endif
             </div>
+        </div>
+
+        <div class="col-span-1 sm:col-span-2 text-xs text-gray-500 leading-relaxed bg-white/80 border border-gray-200/80 rounded-lg p-3 mt-1">
+            <strong class="text-gray-700">Datenschutzhinweis (Art. 13 DSGVO):</strong> Wir verarbeiten Ihre eingegebenen Kontaktdaten ausschließlich zur Erstellung und Zusendung Ihres unverbindlichen Angebots per E-Mail (Art. 6 Abs. 1 lit. b DSGVO). Weitere Informationen finden Sie in unserer <a href="{{ route('datenschutz') }}" target="_blank" class="text-primary underline font-semibold hover:text-primary-dark">Datenschutzerklärung</a>.
         </div>
 
         <div class="col-span-1 sm:col-span-2 pt-6 border-t border-gray-100 mt-4 min-h-[100px] flex items-center justify-center sm:justify-end">

@@ -366,7 +366,7 @@ class AiFrontendSupportChat extends Component
                 . "- **Bei jedem Einkauf**: `1,00 € Warenwert = +1 ✨ Seelenfunke`\n"
                 . "- **Produktbewertung**: **+15 ✨** für jede freigegebene ehrliche Bewertung zu einem gekauften Artikel\n"
                 . "- **Geburtstag & Jahrestag**: **+50 ✨** jährlich (sobald dein Geburtsdatum unter [Mein Profil](/profile) hinterlegt ist)\n"
-                . "- **Shop-Entdeckung**: Bis zu 5 versteckte Seelenfunken täglich auf unseren Shop-Seiten (sobald **„Magie aktivieren“** im [Kunden-Dashboard](/dashboard) aktiv ist).";
+                . "- **Shop-Entdeckung**: Bis zu " . \App\Services\Gamification\GameConfig::DAILY_SPARK_LIMIT . " versteckte Seelenfunken täglich auf unseren Shop-Seiten (sobald **„Magie aktivieren“** im [Kunden-Dashboard](/dashboard) aktiv ist).";
         }
 
         // 5. Lokaler 0-Token Fast-Track für Fragen rund um Seelenfunken, Funki (Level 1–10), Musik & UI-Wegweiser
@@ -385,7 +385,7 @@ class AiFrontendSupportChat extends Component
     protected function resolveLocalGamificationGuide(string $normalized): ?string
     {
         // Wenn gleichzeitig eine Bestellnummer, Ticketnummer oder ein konkretes Reklamations-/Versandanliegen genannt wird, an LLM/Tools übergeben
-        if (preg_match('/\b(?:ord-\d|tck-|reklamation|defekt|kaputt|beschädigt|fehlt|paket|dhl|sendungsverfolgung|tracking|lieferadresse|stornier|widerruf)/iu', $normalized) === 1) {
+        if (preg_match('/\b(?:ord-\d|tck-|msf-|reklamation|defekt|kaputt|beschädigt|fehlt|paket|dhl|sendungsverfolgung|tracking|lieferadresse|stornier|widerruf)/iu', $normalized) === 1) {
             return null;
         }
 
@@ -443,7 +443,7 @@ class AiFrontendSupportChat extends Component
         if (preg_match('/\b(?:titel|ränge|seelengott|diamant)\b/iu', $normalized) === 1) {
             return "**So funktionieren Titel, Ränge & das ultimative Ziel:** 🏆\n"
                 . "- **Wo du sie findest**: Im [Kunden-Dashboard](/dashboard) -> **„Funki öffnen“** -> Reiter **„Titel & Ränge“**.\n"
-                . "- **5 Titel-Kategorien**: Du schaltest durch Bestellungen, Warenwert, Einzelartikel, Produktbewertungen und gesammelte Funken jeweils 3 Stufen frei (Stufe 3 = **Diamant-Status** 💎).\n"
+                . "- **5 Kategorien (Bestellungen, Warenwert, Einzelartikel, Bewertungen, Funken-Sammler) und 4 Stufen (Bronze, Silber, Gold, Diamant)**: Du schaltest durch Bestellungen, Warenwert, Einzelartikel, Produktbewertungen und gesammelte Funken jeweils 4 Stufen (Bronze, Silber, Gold, Diamant) frei (Stufe 4 = **Diamant-Status** 💎).\n"
                 . "- **Ultimatives Ziel**: Sobald du alle **5 von 5 Titeln auf Maximum (Diamant)** gebracht und **Funki Level 10** erreicht hast, erhältst du den höchsten Ehrentitel **„Seelengott unter Sterblichen“**!" . $personalStatusBlock;
         }
 
@@ -462,9 +462,9 @@ class AiFrontendSupportChat extends Component
             . "   - **Einkauf**: `1,00 € Warenwert = +1 ✨ Seelenfunke` (wird im Konfigurator, Checkout und auf der Rechnung angezeigt).\n"
             . "   - **Produktbewertung**: **+15 ✨** für jede freigegebene ehrliche Bewertung auf der Produktseite.\n"
             . "   - **Geburtstag & Jahrestag**: Jeweils **+50 ✨** (Geburtsdatum unter [Mein Profil](/profile) hinterlegen).\n"
-            . "   - **Auf Shop-Seiten**: Bis zu 5 versteckte Seelenfunken täglich im Shop anklicken.\n"
+            . "   - **Auf Shop-Seiten**: Bis zu " . \App\Services\Gamification\GameConfig::DAILY_SPARK_LIMIT . " versteckte Seelenfunken täglich im Shop anklicken.\n"
             . "3. **Rabatte & Level 1–10**:\n"
-            . "   Im Reiter **„Rabatte“** tauschst du Funken gegen Gutscheine ein (**250 ✨ = 5 %**, **500 ✨ = 10 %**, **750 ✨ = 15 %**). Dein **Funki-Level (1–10)** samt animiertem Hintergrund richtet sich nach deinen *Lebenszeit-Funken* und sinkt beim Einlösen von Gutscheinen niemals!"
+            . "   Im Reiter **„Rabatte“** tauschst du Funken gegen Gutscheine ein (**60 ✨ = 5 %**, **150 ✨ = 10 %**, **350 ✨ = 15 %**). Dein **Funki-Level (1–10)** samt animiertem Hintergrund richtet sich nach deinen *Lebenszeit-Funken* und sinkt beim Einlösen von Gutscheinen niemals!"
             . $personalStatusBlock;
     }
 

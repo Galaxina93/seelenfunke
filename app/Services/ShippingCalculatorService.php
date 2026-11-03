@@ -190,13 +190,14 @@ class ShippingCalculatorService
 
         // FALL 2: Rate gefunden
         if ($bestRate) {
-            $finalCost = $bestRate->price;
-            $isFree = ($finalCost === 0);
+            $finalCost = (int) $bestRate->price;
 
             // Sicherheits-Check für DE
             if ($countryCode === 'DE' && $finalCost > 0) {
                 $finalCost = $globalDefaultCost;
             }
+
+            $isFree = ($finalCost <= 0);
 
             return [
                 'cost' => $finalCost,
@@ -206,10 +207,13 @@ class ShippingCalculatorService
         }
 
         // FALL 3: Fallback
+        $fallbackCost = ($countryCode === 'DE') ? $globalDefaultCost : 2990;
+        $fallbackFree = ($fallbackCost <= 0);
+
         return [
-            'cost' => ($countryCode === 'DE') ? $globalDefaultCost : 2990,
-            'is_free' => false,
-            'missing' => $missing
+            'cost' => $fallbackCost,
+            'is_free' => $fallbackFree,
+            'missing' => $fallbackFree ? 0 : $missing
         ];
     }
 }

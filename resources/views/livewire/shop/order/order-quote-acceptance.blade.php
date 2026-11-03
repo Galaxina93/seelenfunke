@@ -1,4 +1,4 @@
-<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="min-h-screen bg-gray-50 flex flex-col items-center py-12 px-4 sm:px-6 lg:px-8">
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="min-h-screen bg-gray-50 flex flex-col items-center pt-28 pb-16 px-4 sm:px-6 lg:px-8">
 
     <div class="w-full max-w-4xl">
 
@@ -113,7 +113,7 @@
                             <div>
                                 <h4 class="font-bold text-amber-900 mb-1">Hinweis zur Produktionszeit</h4>
                                 <p class="text-amber-800/90 leading-relaxed">
-                                    Einer oder mehrere Artikel überschreiten unseren sofortigen Lagerbestand. Dies ist üblich – wir fertigen die fehlenden Stücke speziell für Sie an oder ordern Hersteller-Kontingente nach. Bitte beachten Sie die konkreten Wiederbeschaffungszeiten (ETA) direkt bei den betroffenen Positionen unten.
+                                    Einer oder mehrere Artikel überschreiten unseren sofortigen Lagerbestand. Dies ist üblich: Wir fertigen die fehlenden Stücke speziell für Sie an oder ordern Hersteller-Kontingente nach. Bitte beachten Sie die konkreten Wiederbeschaffungszeiten (ETA) direkt bei den betroffenen Positionen unten.
                                 </p>
                             </div>
                         </div>
@@ -135,6 +135,33 @@
                                 <tr class="hover:bg-gray-50/50 transition">
                                     <td class="px-4 py-3 align-middle">
                                         <div class="font-bold text-gray-900">{{ $item->product_name }}</div>
+                                        @if(!empty($item->configuration['variant_name']))
+                                            <div class="text-[10px] font-black uppercase tracking-widest text-primary mt-0.5">
+                                                Ausführung: {{ $item->configuration['variant_name'] }}
+                                            </div>
+                                        @endif
+                                        @if(!empty($item->configuration['addons_summary']) && is_array($item->configuration['addons_summary']))
+                                            <div class="mt-1 flex flex-wrap gap-1">
+                                                @foreach($item->configuration['addons_summary'] as $addon)
+                                                    @if(!empty($addon['name']))
+                                                        @php
+                                                            $qaAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addon);
+                                                        @endphp
+                                                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80">
+                                                            @if($qaAddonImg)
+                                                                <img src="{{ $qaAddonImg }}" alt="{{ $addon['name'] }}" class="w-4 h-4 rounded object-cover border border-amber-300/60 shrink-0">
+                                                            @else
+                                                                <span>🎁</span>
+                                                            @endif
+                                                            <span>{{ $addon['name'] }}</span>
+                                                            @if(($addon['price_cents'] ?? 0) > 0)
+                                                                <span class="text-amber-600">(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }}&nbsp;€)</span>
+                                                            @endif
+                                                        </span>
+                                                    @endif
+                                                @endforeach
+                                            </div>
+                                        @endif
                                         @if(!empty($item->configuration['text']))
                                             <div class="text-xs text-gray-500 mt-0.5">Gravur: "{{ Str::limit($item->configuration['text'], 30) }}"</div>
                                         @endif
@@ -217,18 +244,15 @@
 
                                 {{-- 2. Express (Brutto) --}}
                                 @if($hasExpress)
-                                    <div class="flex justify-between text-sm text-blue-600 font-medium">
-                                        <div class="flex items-center gap-1">
-                                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                                            <span>Express-Service</span>
-                                        </div>
-                                        <span>{{ number_format($expressCost / 100, 2, ',', '.') }} €</span>
+                                    <div class="flex justify-between items-center text-sm text-gray-600">
+                                        <x-shop.express-info />
+                                        <span class="font-medium text-gray-900">+ {{ number_format($expressCost / 100, 2, ',', '.') }} €</span>
                                     </div>
                                 @endif
 
                                 {{-- 3. Versandkosten (Brutto) --}}
                                 <div class="flex justify-between text-sm text-gray-600">
-                                    <span>Versand & Verpackung</span>
+                                    <span><a href="{{ route('versand') }}" target="_blank" class="underline hover:text-gray-900">Versand & Verpackung</a></span>
                                     @if($shippingCost > 0)
                                         <span>{{ number_format($shippingCost / 100, 2, ',', '.') }} €</span>
                                     @else
@@ -374,6 +398,12 @@
                             @endif
 
                         </div>
+
+                        @if($quote->isValid())
+                            <p class="mt-3 text-[11px] text-gray-500 text-center leading-relaxed">
+                                Im nächsten Schritt (Kasse) überprüfst du deine Adress- und Zahlungsdaten vor dem verbindlichen Bestellabschluss gemäß unseren <a href="{{ route('agb') }}" target="_blank" class="underline hover:text-gray-800">AGB</a> und der <a href="{{ route('widerruf') }}" target="_blank" class="underline hover:text-gray-800">Widerrufsbelehrung</a>.
+                            </p>
+                        @endif
 
                         {{-- 3. Ablehnen --}}
                         @if($quote->isValid())

@@ -4,13 +4,159 @@
         <button wire:click="switchTab('list')" @class(['px-4 sm:px-6 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all border-b-2 whitespace-nowrap', $activeTab === 'list' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-gray-300'])>
             Alle Belege
         </button>
-        <button wire:click="switchTab('e_invoices')" @class(['px-4 sm:px-6 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all border-b-2 whitespace-nowrap', $activeTab === 'e_invoices' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-gray-300'])>
-            E-Rechnungen
+        <button wire:click="switchTab('e_invoices')" @class(['px-4 sm:px-6 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all border-b-2 whitespace-nowrap flex items-center gap-2', $activeTab === 'e_invoices' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-gray-300'])>
+            <span>E-Rechnungen (ZUGFeRD / XRechnung)</span>
+            <span class="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/30 text-[9px] font-black">EN16931</span>
         </button>
         <button wire:click="switchTab('archive')" @class(['px-4 sm:px-6 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all border-b-2 whitespace-nowrap', $activeTab === 'archive' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-gray-300'])>
             PDF-Archiv (Storage)
         </button>
     </div>
+
+    @if($activeTab === 'e_invoices' || $parsedEInvoice || $parsedEInvoiceError)
+        {{-- E-RECHNUNG EINLESEN, VALIDIEREN & VERARBEITEN PANEL --}}
+        <div class="mb-8 bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] border border-gray-200 dark:border-gray-800 p-5 sm:p-7 shadow-sm dark:shadow-2xl animate-fade-in">
+            <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-5 border-b border-gray-100 dark:border-gray-800">
+                <div>
+                    <div class="flex items-center gap-2.5">
+                        <span class="px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-500 dark:text-blue-400 text-[10px] font-black uppercase tracking-widest">EN16931 Reader & Validator</span>
+                        <h3 class="text-base sm:text-lg font-serif font-bold text-gray-900 dark:text-white">E-Rechnung einlesen & verarbeiten</h3>
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Lade eine Eingangs-E-Rechnung (<code class="text-blue-400 font-mono">.xml</code> XRechnung/UBL/CII oder <code class="text-blue-400 font-mono">.pdf</code> mit eingebettetem ZUGFeRD-XML) hoch, um alle Positionen, EN16931-Regeln und Summen zu prüfen oder direkt als Betriebsausgabe zu verbuchen.
+                    </p>
+                </div>
+                <div class="flex items-center gap-3 w-full lg:w-auto">
+                    <label class="flex-1 lg:flex-none cursor-pointer bg-[var(--theme-color)] text-gray-900 hover:opacity-95 px-5 py-2.5 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-sm transition-all">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                        <span>XML / ZUGFeRD-PDF auswählen</span>
+                        <input type="file" wire:model="eInvoiceUpload" accept=".xml,.pdf,text/xml,application/xml,application/pdf" class="hidden">
+                    </label>
+                    @if($parsedEInvoice || $parsedEInvoiceError)
+                        <button type="button" wire:click="clearParsedEInvoice" class="px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 text-xs font-bold text-gray-500 hover:text-red-400 transition-colors">
+                            Zurücksetzen
+                        </button>
+                    @endif
+                </div>
+            </div>
+
+            <div wire:loading wire:target="eInvoiceUpload" class="py-4 text-xs font-bold text-blue-400 flex items-center gap-2">
+                <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                E-Rechnung wird nach EN16931-Standard analysiert...
+            </div>
+
+            @if($parsedEInvoiceError)
+                <div class="mt-4 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 dark:text-red-400 text-xs font-bold">
+                    {{ $parsedEInvoiceError }}
+                </div>
+            @endif
+
+            @if($parsedEInvoice)
+                <div class="mt-6 space-y-6">
+                    {{-- Kopfdaten & Parteien --}}
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="p-4 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800">
+                            <div class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Beleg & Format</div>
+                            <div class="text-base font-bold text-gray-900 dark:text-white font-mono">{{ $parsedEInvoice['invoice_number'] ?: 'Ohne Nr.' }}</div>
+                            <div class="text-xs text-gray-500 mt-1">{{ $parsedEInvoice['type_label'] }} · Datum: {{ $parsedEInvoice['issue_date'] ?: '-' }}</div>
+                            @if(!empty($parsedEInvoice['due_date']))
+                                <div class="text-xs text-amber-500 font-semibold mt-0.5">Fällig am: {{ $parsedEInvoice['due_date'] }}</div>
+                            @endif
+                            <div class="mt-2 text-[10px] font-mono text-blue-400 truncate" title="{{ $parsedEInvoice['profile'] }}">{{ $parsedEInvoice['format'] }}</div>
+                        </div>
+
+                        <div class="p-4 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800">
+                            <div class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Aussteller / Lieferant (Seller)</div>
+                            <div class="text-sm font-bold text-gray-900 dark:text-white">{{ $parsedEInvoice['seller']['name'] ?: '-' }}</div>
+                            <div class="text-xs text-gray-500 mt-0.5">{{ $parsedEInvoice['seller']['street'] }}, {{ $parsedEInvoice['seller']['zip'] }} {{ $parsedEInvoice['seller']['city'] }}</div>
+                            @if(!empty($parsedEInvoice['seller']['vat_id']))
+                                <div class="text-[11px] text-gray-400 mt-1 font-mono">USt-IdNr.: {{ $parsedEInvoice['seller']['vat_id'] }}</div>
+                            @endif
+                            @if(!empty($parsedEInvoice['seller']['iban']))
+                                <div class="text-[11px] text-emerald-500 font-mono mt-0.5">IBAN: {{ $parsedEInvoice['seller']['iban'] }}</div>
+                            @endif
+                        </div>
+
+                        <div class="p-4 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800">
+                            <div class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Summen & EN16931-Prüfung</div>
+                            <div class="flex justify-between text-xs text-gray-500">
+                                <span>Netto (Steuerbasis):</span>
+                                <span class="font-mono font-bold text-gray-800 dark:text-gray-200">{{ number_format($parsedEInvoice['totals']['tax_basis_net'] ?? 0, 2, ',', '.') }} €</span>
+                            </div>
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>Umsatzsteuer ({{ number_format($parsedEInvoice['totals']['tax_rate'] ?? 0, 0) }}%):</span>
+                                <span class="font-mono font-bold text-gray-800 dark:text-gray-200">{{ number_format($parsedEInvoice['totals']['tax_total'] ?? 0, 2, ',', '.') }} €</span>
+                            </div>
+                            <div class="flex justify-between text-sm font-bold text-gray-900 dark:text-white mt-2 pt-2 border-t border-gray-200 dark:border-gray-800">
+                                <span>Gesamtbetrag (Brutto):</span>
+                                <span class="font-mono text-emerald-500">{{ number_format($parsedEInvoice['totals']['grand_total_gross'] ?? 0, 2, ',', '.') }} €</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- EN16931 Validierungs-Checks --}}
+                    <div class="flex flex-wrap gap-2">
+                        @foreach(($parsedEInvoice['validation_checks'] ?? []) as $check)
+                            <div class="px-3 py-1.5 rounded-xl border text-[11px] flex items-center gap-2 {{ $check['passed'] ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400' }}">
+                                <span class="font-black">{{ $check['passed'] ? '✓' : '!' }}</span>
+                                <span class="font-bold">{{ $check['rule'] }}:</span>
+                                <span class="opacity-80">{{ $check['message'] }}</span>
+                            </div>
+                        @endforeach
+                    </div>
+
+                    {{-- Positionen der E-Rechnung --}}
+                    @if(!empty($parsedEInvoice['items']))
+                        <div class="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-800">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-gray-50 dark:bg-gray-950 text-[10px] uppercase font-black tracking-wider text-gray-500 border-b border-gray-200 dark:border-gray-800">
+                                    <tr>
+                                        <th class="px-4 py-2.5">#</th>
+                                        <th class="px-4 py-2.5">Art.-Nr.</th>
+                                        <th class="px-4 py-2.5">Bezeichnung</th>
+                                        <th class="px-4 py-2.5 text-right">Menge</th>
+                                        <th class="px-4 py-2.5 text-right">Einzelpreis (Netto)</th>
+                                        <th class="px-4 py-2.5 text-right">MwSt.</th>
+                                        <th class="px-4 py-2.5 text-right">Gesamt (Netto)</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100 dark:divide-gray-800/60">
+                                    @foreach($parsedEInvoice['items'] as $lineItem)
+                                        <tr>
+                                            <td class="px-4 py-2 font-mono text-gray-400">{{ $lineItem['line_id'] }}</td>
+                                            <td class="px-4 py-2 font-mono text-gray-500">{{ $lineItem['sku'] ?: '-' }}</td>
+                                            <td class="px-4 py-2 font-semibold text-gray-900 dark:text-white">{{ $lineItem['name'] }}</td>
+                                            <td class="px-4 py-2 text-right font-mono">{{ number_format($lineItem['quantity'], 2, ',', '.') }}</td>
+                                            <td class="px-4 py-2 text-right font-mono">{{ number_format($lineItem['net_unit_price'], 4, ',', '.') }} €</td>
+                                            <td class="px-4 py-2 text-right font-mono">{{ number_format($lineItem['tax_rate'], 0) }}%</td>
+                                            <td class="px-4 py-2 text-right font-mono font-bold text-gray-900 dark:text-white">{{ number_format($lineItem['line_total_net'], 2, ',', '.') }} €</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+
+                    {{-- Aktions-Leiste: Als Betriebsausgabe verbuchen oder in Editor übernehmen --}}
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-gray-100 dark:border-gray-800">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-gray-500">Kategorie für Verbuchung:</span>
+                            <input type="text" wire:model="eInvoiceExpenseCategory" class="px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 text-xs font-bold text-gray-900 dark:text-white" placeholder="Wareneinkauf & Material">
+                        </div>
+                        <div class="flex flex-wrap gap-2.5">
+                            <button type="button" wire:click="applyEInvoiceToManualEditor" class="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 text-xs font-black uppercase tracking-wider text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all">
+                                Als Vorlage in Rechnungs-Editor öffnen
+                            </button>
+                            <button type="button" wire:click="importEInvoiceAsExpense" class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-black uppercase tracking-wider shadow-sm transition-all flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                <span>Als Betriebsausgabe / Sonderausgabe verbuchen ({{ number_format($parsedEInvoice['totals']['grand_total_gross'] ?? 0, 2, ',', '.') }} €)</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            @endif
+        </div>
+    @endif
 
     @if($activeTab === 'archive')
         {{-- Storage Archive View --}}

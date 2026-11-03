@@ -18,14 +18,14 @@ class AccountingInvoicePreview extends Component
 
     public function boot(): void
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
 
     public function mount()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
@@ -44,7 +44,7 @@ class AccountingInvoicePreview extends Component
 
     public function cancelInvoice(InvoiceService $service)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -67,7 +67,7 @@ class AccountingInvoicePreview extends Component
      */
     public function downloadPdf(InvoiceService $service)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -100,6 +100,7 @@ class AccountingInvoicePreview extends Component
             $isSmallBusiness = $invoice->is_small_business !== null
                 ? (bool)$invoice->is_small_business
                 : app(\App\Services\Tax\TaxSettingService::class)->isSmallBusinessForYear($invoice->invoice_date?->year ?? now()->year);
+            $docSign = in_array($invoice->type, ['cancellation', 'credit_note'], true) ? -1 : 1;
             // Fix: Check if item is object (getItemsAttribute map) or array (from database)
             $items = $invoice->items;
             $defaultTax = (float)shop_setting('default_tax_rate', 19.0);
@@ -107,7 +108,7 @@ class AccountingInvoicePreview extends Component
                 $totalPrice = is_object($item) ? $item->total_price : ($item['total_price'] ?? 0);
                 $taxRate = is_object($item) ? ($item->tax_rate ?? $defaultTax) : ($item['tax_rate'] ?? $defaultTax);
 
-                $line = (float)$totalPrice;
+                $line = abs((float)$totalPrice);
                 if ($isSmallBusiness) {
                     $totalsPreview['net'] += $line;
                     $totalsPreview['tax'] += 0;
@@ -121,6 +122,33 @@ class AccountingInvoicePreview extends Component
                     $totalsPreview['gross'] += $line;
                 }
             }
+
+            $extrasGross = abs((float)($invoice->shipping_cost ?? 0)) + abs((float)($invoice->express_price ?? 0));
+            if ($extrasGross > 0) {
+                if ($isSmallBusiness) {
+                    $totalsPreview['net'] += $extrasGross;
+                    $totalsPreview['gross'] += $extrasGross;
+                } else {
+                    $taxDiv = 1 + ($defaultTax / 100);
+                    $extrasNet = $extrasGross / $taxDiv;
+                    $totalsPreview['net'] += $extrasNet;
+                    $totalsPreview['tax'] += ($extrasGross - $extrasNet);
+                    $totalsPreview['gross'] += $extrasGross;
+                }
+            }
+
+            $discountsGross = abs((float)($invoice->discount_amount ?? 0)) + abs((float)($invoice->volume_discount ?? 0));
+            if ($discountsGross > 0 && $totalsPreview['gross'] > 0) {
+                $newGross = max(0.0, $totalsPreview['gross'] - $discountsGross);
+                $ratio = $newGross / $totalsPreview['gross'];
+                $totalsPreview['gross'] = $newGross;
+                $totalsPreview['net'] *= $ratio;
+                $totalsPreview['tax'] *= $ratio;
+            }
+
+            $totalsPreview['net'] *= $docSign;
+            $totalsPreview['tax'] *= $docSign;
+            $totalsPreview['gross'] *= $docSign;
         }
 
         return view('livewire.shop.accounting.accounting-invoice-preview', compact('invoice', 'totalsPreview'));

@@ -142,6 +142,14 @@ this.applyModelTransforms();
 }
 }, { deep: true });
 
+this.$watch('$wire.step4SubStep', (val) => {
+if (val === 3 && this.modelPath) {
+this.$nextTick(() => {
+setTimeout(() => this.reinit3D(), 60);
+});
+}
+});
+
 this.$nextTick(() => {
 if (this.modelPath) {
 this.init3D();
@@ -154,6 +162,12 @@ this.showDrawingBoard = true;
 init3D() {
 const container = this.$refs.adminContainer3d;
 if (!container) return;
+if (container.offsetWidth === 0 || container.offsetHeight === 0) {
+if (this.$wire && this.$wire.step4SubStep === 3) {
+setTimeout(() => this.init3D(), 80);
+}
+return;
+}
 
 let eng = this.getEngine();
 eng.scene = new window.THREE.Scene();

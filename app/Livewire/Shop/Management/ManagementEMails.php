@@ -83,14 +83,14 @@ class ManagementEMails extends Component
 
     public function boot(): void
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
     }
 
     public function mount()
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
 
@@ -155,7 +155,7 @@ class ManagementEMails extends Component
             'task_list_id' => $listId,
             'title' => 'E-Mail: ' . ($mail->subject ?: 'Ohne Betreff'),
             'ai_plan' => "Absender: {$mail->from_name} <{$mail->from_email}>\nDatum: {$dateStr}\n\n{$bodySnippet}",
-            'priority' => ($mail->priority === 'high') ? 'high' : 'medium',
+            'priority' => in_array($mail->priority, ['high', 'hoch'], true) ? 'hoch' : 'mittel',
             'position' => $maxPos + 1,
             'relevant_from' => now(),
         ]);
@@ -228,6 +228,7 @@ class ManagementEMails extends Component
                 $this->smtp_port = $account->smtp_port;
                 $this->smtp_encryption = $account->smtp_encryption;
                 $this->signature = $account->signature;
+                $this->is_default = (bool) $account->is_default;
                 $this->is_commercial = $account->is_commercial ?? true;
             }
         }
@@ -343,7 +344,11 @@ class ManagementEMails extends Component
             $data['password'] = $this->password;
         }
 
-        MailAccount::updateOrCreate(['id' => $this->editAccountId], $data);
+        $savedAccount = MailAccount::updateOrCreate(['id' => $this->editAccountId], $data);
+
+        if ($this->is_default) {
+            MailAccount::where('id', '!=', $savedAccount->id)->update(['is_default' => false]);
+        }
 
         $this->closeAccountSettings();
         session()->flash('success_message', 'E-Mail Konto wurde erfolgreich gespeichert.');
@@ -808,12 +813,21 @@ class ManagementEMails extends Component
 
             // Save forwarded attachments in the DB for the sent message so they appear in Sent folder
             foreach ($attachmentDataParams as $att) {
+                $finalPath = $att['path'];
+                if (!empty($att['is_uploaded']) || str_starts_with((string) $finalPath, 'temp/mail-attachments/')) {
+                    $newPath = 'leitung/crm/mail-attachments/' . basename((string) $finalPath);
+                    if (\Illuminate\Support\Facades\Storage::exists($finalPath)) {
+                        \Illuminate\Support\Facades\Storage::move($finalPath, $newPath);
+                        $finalPath = $newPath;
+                    }
+                }
+
                 \App\Models\Management\Mail\MailAttachment::create([
                     'mail_message_id' => $sentMessage->id,
                     'filename' => $att['filename'],
                     'content_type' => $att['mime'],
                     'size' => $att['size'],
-                    'path' => $att['path'],
+                    'path' => $finalPath,
                 ]);
             }
 

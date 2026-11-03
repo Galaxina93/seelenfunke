@@ -199,7 +199,7 @@ class ExportProjectForAI extends Command
         // 2. Blade & JS
         if ($isBlade) {
             $content = preg_replace('/\{\{--.*?--\}\}/s', '', $content);
-            $content = preg_replace('//s', '', $content);
+            $content = preg_replace('/<!--.*?-->/s', '', $content);
         }
 
         if ($extension === 'js') {

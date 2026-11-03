@@ -59,6 +59,7 @@ use HasFactory;
         'items',
         'attachments',
         'status',
+        'timestamp',
         'legal_check_at',
         'product_type',
         'rejection_reason',

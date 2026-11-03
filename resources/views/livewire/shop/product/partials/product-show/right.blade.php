@@ -3,19 +3,47 @@
      @scroll-to-config-stage.window="setTimeout(() => { const el = document.getElementById('configurator-workspace-box') || document.getElementById('configurator-start'); if (el) { const y = el.getBoundingClientRect().top + window.pageYOffset - 76; window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' }); } }, 60)">
 
     <div id="configurator-start" class="lg:sticky lg:top-24 w-full scroll-mt-24">
-        <h1 class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 mb-4 leading-tight">
-            {{ $this->product->name }}
-        </h1>
+        <div class="flex items-start justify-between gap-4 mb-4">
+            <h1 class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 leading-tight">
+                {{ $this->product->name }}
+            </h1>
+            <button type="button"
+                    x-data="{ wishlisted: @js((bool) ($isWishlisted ?? false)) }"
+                    @click.prevent="wishlisted = !wishlisted; if (window.sfTriggerWishlistHeartEffect) window.sfTriggerWishlistHeartEffect($event, wishlisted); $wire.toggleWishlist()"
+                    :class="wishlisted ? 'bg-red-50 border-red-200 text-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'bg-white border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200'"
+                    class="shrink-0 w-11 h-11 rounded-2xl border transition-all duration-200 flex items-center justify-center shadow-sm cursor-pointer"
+                    :title="wishlisted ? 'Von deiner Wunschliste entfernen' : 'Auf deiner Wunschliste merken'"
+                    aria-label="Wunschliste">
+                <svg class="w-5 h-5 transition-transform duration-200" :class="wishlisted ? 'fill-current scale-110' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
+                </svg>
+            </button>
+        </div>
 
         <div class="flex items-center gap-4 mb-6">
             {{-- Preis --}}
+            @php
+                $initialDisplayCents = (int) $this->product->gross_price;
+                if (!empty($currentConfig['variant_id']) && is_array($this->product->variants_data)) {
+                    $initialVariant = collect($this->product->variants_data)->firstWhere('id', $currentConfig['variant_id']);
+                    if ($initialVariant && isset($initialVariant['price']) && $initialVariant['price'] !== '') {
+                        $variantSurchargeCents = (int) round(((float) str_replace(',', '.', (string) $initialVariant['price'])) * 100);
+                        if ($this->product->tax_included === false && !filter_var(shop_setting('is_small_business', false), FILTER_VALIDATE_BOOLEAN)) {
+                            $initialTaxRate = (float) ($this->product->tax_rate ?? shop_setting('default_tax_rate', 19.0));
+                            $variantSurchargeCents = (int) round($variantSurchargeCents * (1 + ($initialTaxRate / 100)));
+                        }
+                        $initialDisplayCents += $variantSurchargeCents;
+                    }
+                }
+                $initialDisplayFormatted = number_format($initialDisplayCents / 100, 2, ',', '.') . ' €';
+            @endphp
             <div class="flex flex-col">
                 <div class="flex items-baseline gap-3 flex-wrap">
-                    <span x-data="{ displayPrice: '{{ number_format($this->product->price / 100, 2, ',', '.') }} €' }"
+                    <span x-data="{ displayPrice: @js($initialDisplayFormatted) }"
                           @variant-selected.window="if ($event.detail && $event.detail.formattedPrice) { displayPrice = $event.detail.formattedPrice; }"
                           x-text="displayPrice"
                           class="text-2xl font-bold text-[var(--theme-color)] transition-all">
-                        {{ number_format($this->product->price / 100, 2, ',', '.') }} €
+                        {{ $initialDisplayFormatted }}
                     </span>
                     @if($this->product->compare_at_price > $this->product->price)
                         <span class="text-lg text-gray-400 line-through decoration-red-400">
@@ -43,7 +71,7 @@
                         $isService       = $type === 'service';
                         $isPhysical      = $type === 'physical';
 
-                        $isFree          = !$isPhysical || ($this->product->price >= $freeThreshold);
+                        $isFree          = !$isPhysical || ($this->product->gross_price >= $freeThreshold);
 
                         $isTrulyOutOfStock = $this->product->track_quantity &&
                                              $this->product->quantity <= 0 &&
@@ -182,6 +210,9 @@
                             <p class="text-xs text-gray-500">Persönliche Beratung & Dienstleistung</p>
                         </div>
                     </div>
+                    <livewire:shop.product.product-configurator.product-configurator :product="$product" context="add" />
+                </div>
+            </div>
         @elseif(!$this->product->isPersonalizable())
             <div class="bg-white rounded-2xl border border-gray-200 shadow-xl p-8 transition-all hover:shadow-2xl w-full">
                 <div class="flex flex-col gap-6">
@@ -285,7 +316,7 @@
                                 <div class="flex-1 min-w-0">
                                     <h4 class="font-bold text-blue-900 text-xs sm:text-sm mb-0.5">Ausschluss vom Widerrufsrecht</h4>
                                     <p class="text-[11px] text-blue-800/90 leading-snug">
-                                        Jede Vorlage wird individuell für dich gefertigt und ist daher – <span class="font-bold">auch ohne eigene Änderungen</span> – vom <a href="{{ route('agb') }}#widerruf" target="_blank" class="underline font-bold hover:text-blue-900 transition-colors">Widerrufsrecht ausgeschlossen</a>.
+                                        Jede Vorlage wird individuell für dich gefertigt und ist daher (<span class="font-bold">auch ohne eigene Änderungen</span>) vom <a href="{{ route('agb') }}#widerruf" target="_blank" class="underline font-bold hover:text-blue-900 transition-colors">Widerrufsrecht ausgeschlossen</a>.
                                     </p>
                                 </div>
                             </div>
@@ -350,9 +381,9 @@
                     <p class="text-[10px] text-gray-500 mt-1">Optimiert für alle Geräte</p>
                 </div>
                 <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
-                    <span class="text-2xl mb-2 block">🌿</span>
-                    <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Nachhaltig</h4>
-                    <p class="text-[10px] text-gray-500 mt-1">Kein Versand, keine Verpackung</p>
+                    <span class="text-2xl mb-2 block">📄</span>
+                    <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Papierlos &amp; Digital</h4>
+                    <p class="text-[10px] text-gray-500 mt-1">Kein physischer Versand nötig</p>
                 </div>
             @elseif($isService)
                 <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
@@ -490,15 +521,15 @@
                             <p class="font-bold text-gray-900 mb-0.5">Hersteller & Verantwortliche Person in der EU (Art. 19 GPSR):</p>
                             <p>
                                 {{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }} – Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
-                                {{ shop_setting('company_street', 'Carl-Goerdeler-Ring') }} {{ shop_setting('company_street_number', '26') }}, {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}, Deutschland<br>
-                                E-Mail: <a href="mailto:{{ shop_setting('company_email', 'kontakt@mein-seelenfunke.de') }}" class="text-[var(--theme-color)] underline">{{ shop_setting('company_email', 'kontakt@mein-seelenfunke.de') }}</a> | SKU: <span class="font-mono text-gray-800">{{ $product->sku ?: ('MSF-' . $product->id) }}</span>
+                                {{ shop_setting('company_street') ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', '')) : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}, {{ shop_setting('company_city') ? trim(shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city')) : shop_setting('owner_city', '38518 Gifhorn') }}, Deutschland<br>
+                                E-Mail: <a href="mailto:{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}" class="text-[var(--theme-color)] underline">{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}</a> | SKU: <span class="font-mono text-gray-800">{{ $product->sku ?: ('MSF-' . $product->id) }}</span>
                             </p>
                         </div>
                         <div>
                             <p class="font-bold text-gray-900 mb-0.5">Sicherheits- & Pflegehinweise:</p>
                             <ul class="list-disc list-inside space-y-1">
-                                <li>Dekorations-, Erinnerungs- bzw. Gebrauchsartikel – kein Kinderspielzeug.</li>
-                                <li>Bei Artikeln mit Schlüsselringen/Ösen: Achtung – verschluckbare Kleinteile (Erstickungsgefahr für Kinder unter 36 Monaten).</li>
+                                <li>Dekorations-, Erinnerungs- bzw. Gebrauchsartikel (kein Kinderspielzeug).</li>
+                                <li>Bei Artikeln mit Schlüsselringen/Ösen: Achtung, verschluckbare Kleinteile (Erstickungsgefahr für Kinder unter 36 Monaten).</li>
                                 <li>Bei Glas- und Schieferartikeln: Vor Stürzen schützen (Schnittgefahr bei Glas-/Schieferbruch); Kristallglas vor dauerhafter direkter Sonneneinstrahlung nahe brennbaren Materialien schützen.</li>
                                 <li>Pflege: Mit einem weichen, leicht angefeuchteten Tuch ohne aggressive Reinigungsmittel abwischen (nicht spülmaschinengeeignet).</li>
                             </ul>

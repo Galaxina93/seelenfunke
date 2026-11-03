@@ -48,7 +48,7 @@ class OrderShoppingCarts extends Component
 
         $this->cartYellowLimit = (int) shop_setting('cart_abandoned_yellow_hours', 3);
         $this->cartRedLimit = (int) shop_setting('cart_abandoned_red_hours', 24);
-        $this->cartRequireConsent = (bool) shop_setting('cart_abandoned_require_consent', true);
+        $this->cartRequireConsent = filter_var(shop_setting('cart_abandoned_require_consent', true), FILTER_VALIDATE_BOOLEAN);
     }
 
     public function saveSettings()
@@ -71,7 +71,7 @@ class OrderShoppingCarts extends Component
 
         SystemSetting::updateOrCreate(
             ['key' => 'cart_abandoned_require_consent'],
-            ['value' => $this->cartRequireConsent ? '1' : '0']
+            ['value' => $this->cartRequireConsent ? 'true' : 'false']
         );
 
         Cache::forget('global_shop_settings');

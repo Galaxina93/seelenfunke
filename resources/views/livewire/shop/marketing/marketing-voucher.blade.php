@@ -620,11 +620,24 @@
                                 @endif
                             </td>
                             <td class="px-6 sm:px-8 py-5 text-right">
-                                <button wire:click="toggleGiftVoucherStatus('{{ $gv->id }}')" 
-                                        class="p-2.5 rounded-xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-500 hover:bg-[var(--theme-color-10)] hover:border-[var(--theme-color-30)] hover:text-[var(--theme-color)] transition-all shadow-sm dark:shadow-inner" 
-                                        title="{{ $gv->is_active ? 'Deaktivieren' : 'Aktivieren' }}">
-                                    <x-heroicon-m-power class="w-4 h-4" />
-                                </button>
+                                <div class="inline-flex items-center justify-end gap-2">
+                                    <a href="{{ route('customer.gift-voucher.download', ['voucher' => $gv->id, 'format' => 'laser_svg']) }}"
+                                       class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500 hover:text-gray-950 transition-all shadow-sm"
+                                       title="86×54mm Laser-SVG für goldene Metallkarte herunterladen ({{ $gv->code }})">
+                                        <x-heroicon-m-bolt class="w-4 h-4" />
+                                    </a>
+                                    <a href="{{ route('customer.gift-voucher.download', $gv->id) }}"
+                                       target="_blank"
+                                       class="p-2.5 rounded-xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-500 hover:bg-[var(--theme-color-10)] hover:border-[var(--theme-color-30)] hover:text-[var(--theme-color)] transition-all shadow-sm dark:shadow-inner"
+                                       title="Gutschein-PDF herunterladen / drucken ({{ $gv->code }})">
+                                        <x-heroicon-m-printer class="w-4 h-4" />
+                                    </a>
+                                    <button wire:click="toggleGiftVoucherStatus('{{ $gv->id }}')" 
+                                            class="p-2.5 rounded-xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-500 hover:bg-[var(--theme-color-10)] hover:border-[var(--theme-color-30)] hover:text-[var(--theme-color)] transition-all shadow-sm dark:shadow-inner" 
+                                            title="{{ $gv->is_active ? 'Deaktivieren' : 'Aktivieren' }}">
+                                        <x-heroicon-m-power class="w-4 h-4" />
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                         @if($gv->logs->isNotEmpty())

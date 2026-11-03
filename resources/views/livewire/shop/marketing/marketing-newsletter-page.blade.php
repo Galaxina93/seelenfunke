@@ -88,10 +88,10 @@
                         </div>
                         <div class="text-xs leading-relaxed">
                             <label for="privacy" class="font-bold cursor-pointer select-none transition-colors @error('privacy_accepted') text-rose-700 @else text-stone-800 hover:text-[#9a6f1a] @enderror">
-                                Datenschutz akzeptieren
+                                Einwilligung zum E-Mail-Newsletter (Seelenpost)
                             </label>
                             <p class="mt-0.5 @error('privacy_accepted') text-rose-600 @else text-stone-500 @enderror">
-                                Details in der <a href="{{ route('datenschutz') }}" class="text-[#9a6f1a] font-bold hover:underline underline-offset-2">Datenschutzerklärung</a>.
+                                Ich willige ein, regelmäßig Informationen zu neuen Unikaten, Manufaktur-Einblicken und Angeboten von Mein Seelenfunke per E-Mail zu erhalten. Widerruf jederzeit kostenlos möglich (Art.&nbsp;7 Abs.&nbsp;3 DSGVO). Hinweise zur Verarbeitung in unserer <a href="{{ route('datenschutz') }}" class="text-[#9a6f1a] font-bold hover:underline underline-offset-2">Datenschutzerklärung</a>.
                             </p>
                         </div>
                     </div>

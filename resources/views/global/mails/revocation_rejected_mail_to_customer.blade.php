@@ -152,35 +152,35 @@
                     @elseif($revocation->rejection_reason === 'damaged')
                     <div class="link-info">
                         <p style="font-size: 14px; color: #991b1b; font-weight: bold; margin-bottom: 8px !important;">
-                            Widerruf leider nicht möglich: Gebrauchsspuren
+                            Hinweis zum Zustand der Ware &amp; Wertersatz (§ 357a Abs. 1 BGB)
                         </p>
                         <p style="font-size: 14px; color: #991b1b; margin-bottom: 0 !important; line-height: 1.5;">
-                            Wir mussten leider feststellen, dass der Artikel deutliche Gebrauchsspuren oder Beschädigungen aufweist. 
+                            Wir mussten bei der Prüfung feststellen, dass der Artikel Gebrauchsspuren oder Beschädigungen aufweist, die auf einen zur Prüfung der Beschaffenheit, Eigenschaften und Funktionsweise der Ware nicht notwendigen Umgang zurückzuführen sind.
                         </p>
                     </div>
-                    <p style="margin-top: 25px !important;">Damit wir unseren hohen Qualitätsstandard für all unsere Schmuckstücke und Geschenke halten können, nehmen wir ausschließlich unbenutzte und völlig einwandfreie Ware zurück. Wir bitten hierfür um dein Verständnis.</p>
+                    <p style="margin-top: 25px !important;">Gemäß § 357a Abs. 1 BGB besteht in diesem Fall eine Verpflichtung zum Wertersatz in Höhe des eingetretenen Wertverlusts. Wir bitten hierfür um dein Verständnis.</p>
                     
                     @elseif($revocation->rejection_reason === 'expired')
                     <div class="link-info">
                         <p style="font-size: 14px; color: #991b1b; font-weight: bold; margin-bottom: 8px !important;">
-                            Widerrufsfrist überschritten
+                            Widerrufsfrist überschritten (§ 355 Abs. 2 BGB)
                         </p>
                         <p style="font-size: 14px; color: #991b1b; margin-bottom: 0 !important; line-height: 1.5;">
-                            Die Rückgabefrist für unsere liebevoll verpackten Pakete beträgt 14 Tage ab Erhalt der Ware. Leider ist uns deine Nachricht erst nach Ablauf dieser Frist eingegangen.
+                            Die gesetzliche Widerrufsfrist beträgt 14 Tage ab Erhalt der Ware. Leider ist uns deine Widerrufserklärung erst nach Ablauf dieser gesetzlichen Frist zugegangen.
                         </p>
                     </div>
-                    <p style="margin-top: 25px !important;">Deshalb können wir den Widerruf leider nicht mehr bearbeiten. Wir hoffen sehr, du hast dafür Verständnis.</p>
+                    <p style="margin-top: 25px !important;">Deshalb können wir den Widerruf leider nicht mehr annehmen. Deine gesetzlichen Gewährleistungsrechte bei Sachmängeln bleiben hiervon selbstverständlich unberührt.</p>
                     
                     @else
                     <div class="link-info">
                         <p style="font-size: 14px; color: #991b1b; font-weight: bold; margin-bottom: 8px !important;">
-                            Rückgabe leider ausgeschlossen
+                            Gesetzlicher Ausschluss- bzw. Erlöschensgrund (§ 312g Abs. 2 / § 356 Abs. 5 BGB)
                         </p>
                         <p style="font-size: 14px; color: #991b1b; margin-bottom: 0 !important; line-height: 1.5;">
-                            Nach genauer Überprüfung können wir den Widerruf aus rechtlichen oder hygienischen Gründen leider nicht freigeben.
+                            Nach sorgfältiger Prüfung greift für diesen Vertrag ein gesetzlicher Ausschluss- oder Erlöschensgrund des Widerrufsrechts (insbesondere § 312g Abs. 2 Nr. 1 BGB bei individuell nach Kundenspezifikation gefertigten Waren oder § 356 Abs. 5 BGB bei digitalen Inhalten nach Ausführungsbeginn).
                         </p>
                     </div>
-                    <p style="margin-top: 25px !important;">Gerade bei unseren sensiblen Geschenk- und Schmuckartikeln müssen wir hierbei strenge Vorgaben einhalten, weshalb eine Rückabwicklung in diesem Fall nicht möglich ist. Wir bitten um dein Verständnis.</p>
+                    <p style="margin-top: 25px !important;">Deine gesetzlichen Mängelrechte (2 Jahre Gewährleistung bei Transportschäden oder Fehlgravuren) bleiben hiervon uneingeschränkt bestehen.</p>
                     @endif
                     
                     <p style="margin-top: 25px !important;">Solltest du noch Rückfragen haben, antworte gerne einfach auf diese E-Mail.</p>
@@ -191,12 +191,27 @@
                     </div>
                 </div>
 
+                @php
+                    $footerCompany = function_exists('shop_setting') ? shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) : 'Mein Seelenfunke';
+                    $footerOwner   = function_exists('shop_setting') ? shop_setting('owner_proprietor', 'Alina Steinhauer') : 'Alina Steinhauer';
+                    $footerStreet  = function_exists('shop_setting') ? trim(shop_setting('company_street', 'Carl-Goerdeler-Ring') . ' ' . shop_setting('company_street_number', '26')) : 'Carl-Goerdeler-Ring 26';
+                    $footerCity    = function_exists('shop_setting') ? trim(shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city', 'Gifhorn')) : '38518 Gifhorn';
+                    $footerEmail   = function_exists('shop_setting') ? shop_setting('company_email', 'kontakt@mein-seelenfunke.de') : 'kontakt@mein-seelenfunke.de';
+                    $footerPhone   = function_exists('shop_setting') ? shop_setting('company_phone', '+49 159 019 668 64') : '+49 159 019 668 64';
+                    $footerUstId   = function_exists('shop_setting') ? shop_setting('company_ust_id', shop_setting('owner_ust_id', '')) : '';
+                @endphp
                 <div class="footer">
-                    <p style="margin-bottom: 10px !important;">&copy; {{ date('Y') }} Mein Seelenfunke — Handveredelte Unikate</p>
+                    <p style="margin-bottom: 6px !important;"><strong>{{ $footerCompany }}</strong> — Inhaberin: {{ $footerOwner }}</p>
+                    <p style="margin-bottom: 6px !important; font-size: 11px;">
+                        {{ $footerStreet }} &bull; {{ $footerCity }} &bull; Deutschland<br>
+                        E-Mail: {{ $footerEmail }}@if(!empty($footerPhone)) &bull; Tel.: {{ $footerPhone }}@endif
+                        @if(!empty($footerUstId))<br>USt-IdNr.: {{ $footerUstId }}@endif
+                    </p>
                     <p>
                         <a href="{{ url('/impressum') }}">Impressum</a> &nbsp;•&nbsp;
                         <a href="{{ url('/datenschutz') }}">Datenschutz</a> &nbsp;•&nbsp;
-                        <a href="{{ url('/agb') }}">AGB & Widerruf</a>
+                        <a href="{{ url('/agb') }}">AGB</a> &nbsp;•&nbsp;
+                        <a href="{{ url('/widerruf') }}">Widerrufsbelehrung</a>
                     </p>
                 </div>
             </div>

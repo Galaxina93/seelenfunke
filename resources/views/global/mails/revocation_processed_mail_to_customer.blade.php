@@ -143,7 +143,7 @@
                             Info zur Rückerstattung:
                         </p>
                         <p style="font-size: 14px; color: #065f46; margin-bottom: 0 !important; line-height: 1.5;">
-                            Die Gutschrift erfolgt in Kürze über dieselbe Zahlungsmethode, die du bei deiner ursprünglichen Bestellung verwendet hast. Bitte beachte, dass es je nach Zahlungsanbieter (z. B. PayPal, Kreditkarte, Klarna) mitunter einige Werktage in Anspruch nehmen kann, bis der Betrag auf deinem Konto sichtbar ist.
+                            Die Gutschrift erfolgt in Kürze über dieselbe Zahlungsmethode, die du bei deiner ursprünglichen Bestellung verwendet hast. Bitte beachte, dass es je nach Zahlungsanbieter (z. B. Kreditkarte, Klarna, SEPA-Banküberweisung) mitunter einige Werktage in Anspruch nehmen kann, bis der Betrag auf deinem Konto sichtbar ist.
                         </p>
                     </div>
 
@@ -169,12 +169,27 @@
                     </div>
                 </div>
 
+                @php
+                    $footerCompany = function_exists('shop_setting') ? shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) : 'Mein Seelenfunke';
+                    $footerOwner   = function_exists('shop_setting') ? shop_setting('owner_proprietor', 'Alina Steinhauer') : 'Alina Steinhauer';
+                    $footerStreet  = function_exists('shop_setting') ? trim(shop_setting('company_street', 'Carl-Goerdeler-Ring') . ' ' . shop_setting('company_street_number', '26')) : 'Carl-Goerdeler-Ring 26';
+                    $footerCity    = function_exists('shop_setting') ? trim(shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city', 'Gifhorn')) : '38518 Gifhorn';
+                    $footerEmail   = function_exists('shop_setting') ? shop_setting('company_email', 'kontakt@mein-seelenfunke.de') : 'kontakt@mein-seelenfunke.de';
+                    $footerPhone   = function_exists('shop_setting') ? shop_setting('company_phone', '+49 159 019 668 64') : '+49 159 019 668 64';
+                    $footerUstId   = function_exists('shop_setting') ? shop_setting('company_ust_id', shop_setting('owner_ust_id', '')) : '';
+                @endphp
                 <div class="footer">
-                    <p style="margin-bottom: 10px !important;">&copy; {{ date('Y') }} Mein Seelenfunke — Handveredelte Unikate</p>
+                    <p style="margin-bottom: 6px !important;"><strong>{{ $footerCompany }}</strong> — Inhaberin: {{ $footerOwner }}</p>
+                    <p style="margin-bottom: 6px !important; font-size: 11px;">
+                        {{ $footerStreet }} &bull; {{ $footerCity }} &bull; Deutschland<br>
+                        E-Mail: {{ $footerEmail }}@if(!empty($footerPhone)) &bull; Tel.: {{ $footerPhone }}@endif
+                        @if(!empty($footerUstId))<br>USt-IdNr.: {{ $footerUstId }}@endif
+                    </p>
                     <p>
                         <a href="{{ url('/impressum') }}">Impressum</a> &nbsp;•&nbsp;
                         <a href="{{ url('/datenschutz') }}">Datenschutz</a> &nbsp;•&nbsp;
-                        <a href="{{ url('/agb') }}">AGB & Widerruf</a>
+                        <a href="{{ url('/agb') }}">AGB</a> &nbsp;•&nbsp;
+                        <a href="{{ url('/widerruf') }}">Widerrufsbelehrung</a>
                     </p>
                 </div>
             </div>

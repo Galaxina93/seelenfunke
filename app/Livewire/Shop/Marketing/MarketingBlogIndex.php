@@ -63,15 +63,17 @@ class MarketingBlogIndex extends Component
         $posts = $query->paginate(9);
         $categories = MarketingBlogCategory::whereIn('id', MarketingBlogPost::published()->whereNotNull('blog_category_id')->pluck('blog_category_id'))->orderBy('name')->get();
 
-        $blogTitle = 'Magazin, Geschenk-Ratgeber & Lasergravur-Inspiration | Mein Seelenfunke';
-        $blogMetaDesc = 'Inspiration, Geschenkideen, Ratgeber zur Lasergravur auf K9-Kristallglas & Edelstahl sowie Einblicke hinter die Kulissen der Manufaktur Mein Seelenfunke.';
+        $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
+        $city = shop_setting('company_city', shop_setting('owner_city', 'Gifhorn'));
+        $blogTitle = "Magazin, Geschenk-Ratgeber & Lasergravur-Inspiration | {$companyName}";
+        $blogMetaDesc = "Inspiration, Geschenkideen, Ratgeber zur Lasergravur auf K9-Kristallglas & Edelstahl sowie Einblicke hinter die Kulissen der Manufaktur {$companyName}.";
         $canonicalUrl = route('marketing/marketing/blog');
 
         if (!empty($this->categorySlug)) {
             $activeCat = $categories->firstWhere('slug', $this->categorySlug);
             if ($activeCat) {
-                $blogTitle = "{$activeCat->name} – Magazin & Ratgeber | Mein Seelenfunke";
-                $blogMetaDesc = "Alle Beiträge, Ratgeber und Hintergrundberichte in der Kategorie {$activeCat->name} aus der Manufaktur Mein Seelenfunke in Gifhorn.";
+                $blogTitle = "{$activeCat->name} – Magazin & Ratgeber | {$companyName}";
+                $blogMetaDesc = "Alle Beiträge, Ratgeber und Hintergrundberichte in der Kategorie {$activeCat->name} aus der Manufaktur {$companyName} in {$city}.";
                 $canonicalUrl = route('marketing/marketing/blog', ['kategorie' => $activeCat->slug]);
             }
         }

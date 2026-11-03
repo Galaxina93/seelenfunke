@@ -338,7 +338,7 @@ class ProductReviews extends Component
                 $totalMedia = count($mediaPaths) > 0;
 
                 if ($review->status === 'rejected' || $hasNewMedia) {
-                    $targetStatus = $totalMedia ? 'pending' : 'approved';
+                    $targetStatus = 'pending';
                 } else {
                     $targetStatus = $review->status;
                 }
@@ -355,6 +355,11 @@ class ProductReviews extends Component
                 $awardedSparks = 0;
                 if ($targetStatus === 'approved') {
                     $awardedSparks = app(GamificationService::class)->rewardReviewFunken($review->fresh() ?? $review);
+                } else {
+                    $profile = \App\Models\Customer\CustomerGamification::where('customer_id', $customerId)->first();
+                    if ($profile) {
+                        app(GamificationService::class)->syncDynamicTitles($profile);
+                    }
                 }
 
                 $msg = $targetStatus === 'pending'
@@ -436,7 +441,11 @@ class ProductReviews extends Component
 
             $userReview = ProductReview::where('product_id', $this->product->id)
                 ->where('customer_id', $customerId)
-                ->with(['customer.profile', 'customer.gamification'])
+                ->with([
+                    'customer:id,first_name,last_name,created_at',
+                    'customer.profile:id,customer_id,photo_path',
+                    'customer.gamification',
+                ])
                 ->first();
 
             if ($userReview) {
@@ -479,7 +488,11 @@ class ProductReviews extends Component
 
         $query = ProductReview::where('product_id', $this->product->id)
             ->where('status', 'approved')
-            ->with(['customer.profile', 'customer.gamification']);
+            ->with([
+                'customer:id,first_name,last_name,created_at',
+                'customer.profile:id,customer_id,photo_path',
+                'customer.gamification',
+            ]);
 
         if ($userReview) {
             $query->where('id', '!=', $userReview->id);

@@ -33,7 +33,7 @@
 @endphp
 <x-layouts.frontend_layout
     title="B2B & Projekt-Kalkulator für Lasergravur & Großbestellungen | Mein Seelenfunke"
-    meta_description="Kalkuliere individuelle Lasergravuren, Pokale, Mitarbeitergeschenke und Serienfertigungen sofort online – inklusive Staffelrabatten & Express-Option.">
+    meta_description="Kalkuliere individuelle Lasergravuren, Pokale, Mitarbeitergeschenke und Serienfertigungen sofort online, inklusive Staffelrabatten & Express-Option.">
     @push('structured_data')
         <script type="application/ld+json">{!! json_encode($calcSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) !!}</script>
     @endpush

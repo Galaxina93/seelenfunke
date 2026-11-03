@@ -512,9 +512,26 @@
                                         </div>
                                         <div>
                                             <div class="text-[9px] text-gray-500 uppercase tracking-widest mb-1.5 font-bold">MwSt %</div>
+                                            @php
+                                                $defaultRate = (float) shop_setting('default_tax_rate', 19);
+                                                $reducedRate = (float) shop_setting('reduced_tax_rate', 7);
+                                                $rawActiveRates = shop_setting('active_tax_rates', [$defaultRate, $reducedRate, 0]);
+                                                if (is_string($rawActiveRates)) {
+                                                    $decodedRates = json_decode($rawActiveRates, true);
+                                                    $rawActiveRates = is_array($decodedRates) ? $decodedRates : [$defaultRate, $reducedRate, 0];
+                                                }
+                                                $customRates = collect(is_array($rawActiveRates) ? $rawActiveRates : [])
+                                                    ->map(fn($r) => (float) $r)
+                                                    ->reject(fn($r) => in_array($r, [$defaultRate, $reducedRate, 0.0], true))
+                                                    ->unique()
+                                                    ->values();
+                                            @endphp
                                             <select wire:model="creditItems.{{$index}}.tax_rate" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-800 text-gray-900 dark:text-white text-sm rounded-lg px-3 py-2 focus:ring-2 focus:ring-[var(--theme-color-30)] outline-none appearance-none cursor-pointer">
-                                                <option value="19">19%</option>
-                                                <option value="7">7%</option>
+                                                <option value="{{ $defaultRate }}">{{ $defaultRate }}%</option>
+                                                <option value="{{ $reducedRate }}">{{ $reducedRate }}%</option>
+                                                @foreach($customRates as $customRate)
+                                                    <option value="{{ $customRate }}">{{ $customRate }}%</option>
+                                                @endforeach
                                                 <option value="0">0%</option>
                                             </select>
                                         </div>

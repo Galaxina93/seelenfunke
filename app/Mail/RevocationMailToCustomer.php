@@ -58,7 +58,10 @@ class RevocationMailToCustomer extends Mailable
                     continue;
                 }
                 $normalized = ltrim($path, '/');
-                if (!str_starts_with($normalized, 'revocations/')) {
+                if (!str_starts_with($normalized, 'revocations/') && !str_starts_with($normalized, 'bestellungen/private/revocations/')) {
+                    continue;
+                }
+                if (!\Illuminate\Support\Facades\Storage::disk('local')->exists($normalized)) {
                     continue;
                 }
                 $attachments[] = \Illuminate\Mail\Mailables\Attachment::fromStorageDisk('local', $normalized);

@@ -154,13 +154,17 @@ trait AiContactFuncs
                 } elseif ($isCustomerContact) {
                     $hasConsent = false;
                 }
-            } elseif ($isCustomerContact) {
+            } else {
                 $matchedCust = \App\Models\Customer\Customer::with('profile')
                     ->whereRaw('LOWER(first_name) = ? AND LOWER(last_name) = ?', [
                         strtolower(trim((string) $p->first_name)),
                         strtolower(trim((string) $p->last_name))
                     ])->first();
-                $hasConsent = $matchedCust ? $matchedCust->hasAiDataConsent() : false;
+                if ($matchedCust) {
+                    $hasConsent = $matchedCust->hasAiDataConsent();
+                } elseif ($isCustomerContact) {
+                    $hasConsent = false;
+                }
             }
             $nameLabel = $hasConsent ? $p->full_name : 'Anonyme Person (Keine DSGVO-KI-Freigabe)';
             return "- {$nameLabel} (" . ($p->relation_type ?? 'Unbekannt') . ")";
@@ -216,19 +220,24 @@ trait AiContactFuncs
                 } elseif ($isCustomerContact) {
                     $hasConsent = false;
                 }
-            } elseif ($isCustomerContact) {
+            } else {
                 $matchedCust = \App\Models\Customer\Customer::with('profile')
                     ->whereRaw('LOWER(first_name) = ? AND LOWER(last_name) = ?', [
                         strtolower(trim((string) $bestMatch->first_name)),
                         strtolower(trim((string) $bestMatch->last_name))
                     ])->first();
-                $hasConsent = $matchedCust ? $matchedCust->hasAiDataConsent() : false;
+                if ($matchedCust) {
+                    $hasConsent = $matchedCust->hasAiDataConsent();
+                } elseif ($isCustomerContact) {
+                    $hasConsent = false;
+                }
             }
 
             $displayName = $hasConsent
                 ? ($bestMatch->full_name . ($bestMatch->nickname ? " (\"{$bestMatch->nickname}\")" : ''))
                 : 'Anonyme Person (Keine DSGVO-KI-Freigabe)';
 
+            $namesToMask = [$bestMatch->first_name, $bestMatch->last_name, $bestMatch->nickname, $bestMatch->email];
             $contextParts = [
                 "[PERSONEN PROFIL GEFUNDEN]",
                 "Name: {$displayName}",
@@ -238,12 +247,15 @@ trait AiContactFuncs
                 "Telefon: " . ($hasConsent ? ($bestMatch->phone ?? 'Keine') : '[Telefon DSGVO-geschützt]'),
             ];
             if ($bestMatch->system_instructions) {
-                $contextParts[] = "\n--- SYSTEM INSTRUKTIONEN ---\n" . $bestMatch->system_instructions;
+                $sysInst = $hasConsent
+                    ? $bestMatch->system_instructions
+                    : \App\Services\AI\AiAuthHelper::redactPiiText((string) $bestMatch->system_instructions, false, $namesToMask);
+                $contextParts[] = "\n--- SYSTEM INSTRUKTIONEN ---\n" . $sysInst;
             }
             if ($bestMatch->ai_learned_facts) {
                 $facts = $hasConsent
                     ? $bestMatch->ai_learned_facts
-                    : \App\Services\AI\AiAuthHelper::redactPiiText((string) $bestMatch->ai_learned_facts, false, [$bestMatch->first_name, $bestMatch->last_name, $bestMatch->nickname]);
+                    : \App\Services\AI\AiAuthHelper::redactPiiText((string) $bestMatch->ai_learned_facts, false, $namesToMask);
                 $contextParts[] = "\n--- GELERNTES WISSEN ---\n" . $facts;
             }
 

@@ -2,7 +2,7 @@
     <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-10 relative overflow-hidden">
         <div class="hidden dark:block absolute top-0 right-0 w-64 h-64 bg-[var(--theme-color)]/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
 
-        <h3 class="text-lg sm:text-xl font-serif font-bold text-gray-900 dark:text-white mb-8 border-b border-gray-100 dark:border-gray-800 pb-5 flex items-center gap-3 tracking-wide mt-12">
+        <h3 class="text-lg sm:text-xl font-serif font-bold text-gray-900 dark:text-white mb-8 border-b border-gray-100 dark:border-gray-800 pb-5 flex items-center gap-3 tracking-wide">
             <div class="p-2.5 rounded-xl bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] shadow-inner shrink-0">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
             </div>
@@ -21,40 +21,63 @@
             <div class="md:col-span-2 h-px bg-gray-100 dark:bg-gray-800 my-2"></div>
 
             <div>
-                <label class="{{ $labelClass }}">Straße</label>
+                <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Straße</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'company_street'])
+                </div>
                 <input type="text" wire:model="settings.company_street" class="{{ $inputClass }}">
             </div>
 
             <div>
-                <label class="{{ $labelClass }}">Hausnummer</label>
+                <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Hausnummer</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'company_street_number'])
+                </div>
                 <input type="text" wire:model="settings.company_street_number" class="{{ $inputClass }}">
             </div>
 
             <div>
-                <label class="{{ $labelClass }}">Postleitzahl</label>
+                <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Postleitzahl</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'company_zip'])
+                </div>
                 <input type="text" wire:model="settings.company_zip" class="{{ $inputClass }}">
             </div>
 
             <div>
-                <label class="{{ $labelClass }}">Stadt</label>
+                <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Stadt</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'company_city'])
+                </div>
                 <input type="text" wire:model="settings.company_city" class="{{ $inputClass }}">
             </div>
 
             <div class="md:col-span-2">
-                <label class="{{ $labelClass }}">Land (z.B. DE, AT, CH)</label>
-                <input type="text" wire:model="settings.company_country" class="{{ $inputClass }} uppercase font-mono max-w-[120px]">
+                <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Land (z.B. DE, AT, CH)</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'company_country'])
+                </div>
+                <input type="text" maxlength="2" wire:model="settings.company_country" class="{{ $inputClass }} uppercase font-mono max-w-[120px]">
+                @error('settings.company_country') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
             </div>
 
             <div class="md:col-span-2 h-px bg-gray-100 dark:bg-gray-800 my-2"></div>
 
             <div>
-                <label class="{{ $labelClass }}">Öffentliche Telefonnummer</label>
+                <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Öffentliche Telefonnummer</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'company_phone'])
+                </div>
                 <input type="text" wire:model="settings.company_phone" class="{{ $inputClass }}">
             </div>
 
             <div>
-                <label class="{{ $labelClass }}">Öffentliche Firmen-Email</label>
-                <input type="text" wire:model="settings.company_email" class="{{ $inputClass }}">
+                <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Öffentliche Firmen-Email</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'company_email'])
+                </div>
+                <input type="email" wire:model="settings.company_email" class="{{ $inputClass }}">
+                @error('settings.company_email') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
             </div>
         </div>
 
@@ -127,6 +150,7 @@
                             </div>
                         </div>
                         <input type="email" wire:model.blur="settings.owner_email" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl px-4 py-3 text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] outline-none shadow-sm dark:shadow-inner transition-all placeholder:text-gray-400 dark:placeholder:text-gray-600">
+                        @error('settings.owner_email') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
                     </div>
 
                     {{-- 2. Impressum --}}
@@ -141,6 +165,7 @@
                             </div>
                         </div>
                         <input type="email" wire:model.blur="settings.owner_email_impressum" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl px-4 py-3 text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] outline-none shadow-sm dark:shadow-inner transition-all placeholder:text-gray-400 dark:placeholder:text-gray-600">
+                        @error('settings.owner_email_impressum') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
                     </div>
 
                     {{-- 3. Rechnungen --}}
@@ -155,6 +180,7 @@
                             </div>
                         </div>
                         <input type="email" wire:model.blur="settings.owner_email_invoices" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl px-4 py-3 text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] outline-none shadow-sm dark:shadow-inner transition-all placeholder:text-gray-400 dark:placeholder:text-gray-600">
+                        @error('settings.owner_email_invoices') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
                     </div>
 
                     {{-- 4. Backup --}}
@@ -169,6 +195,7 @@
                             </div>
                         </div>
                         <input type="email" wire:model.blur="settings.owner_email_backup" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl px-4 py-3 text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] outline-none shadow-sm dark:shadow-inner transition-all placeholder:text-gray-400 dark:placeholder:text-gray-600">
+                        @error('settings.owner_email_backup') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
                     </div>
                 </div>
             </div>

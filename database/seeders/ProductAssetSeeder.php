@@ -90,6 +90,46 @@ class ProductAssetSeeder extends Seeder
 
         // 5. Technische Maßblätter (*-dimensions.jpg) für alle physischen Produkte sicherstellen
         $this->generateAllDimensionSheets($publicProductsPath);
+
+        // 6. Alle Lifestyle-/Hoverbilder (*-lifestyle.jpg) web-optimiert & komprimiert (800x800 Progressive JPEG) halten
+        $this->optimizeLifestyleHoverImages($publicProductsPath);
+    }
+
+    /**
+     * Komprimiert und optimiert alle Lifestyle-/Anwendungsfall-Hoverbilder (*-lifestyle.jpg)
+     * auf 800x800 Pixel Progressive-JPEG (Qualität 80), damit der Hover-Effekt im Shop verzögerungsfrei lädt.
+     */
+    private function optimizeLifestyleHoverImages(string $publicProductsPath): void
+    {
+        if (!extension_loaded('gd')) {
+            return;
+        }
+
+        foreach (glob($publicProductsPath . '/*/*-lifestyle.jpg') ?: [] as $filePath) {
+            if (!is_file($filePath)) {
+                continue;
+            }
+            $info = @getimagesize($filePath);
+            $sizeBytes = @filesize($filePath) ?: 0;
+            if ($info && $info[0] === 800 && $info[1] === 800 && $sizeBytes > 0 && $sizeBytes <= 145000) {
+                continue;
+            }
+
+            $src = @imagecreatefromjpeg($filePath);
+            if (!$src) {
+                continue;
+            }
+
+            $w = imagesx($src);
+            $h = imagesy($src);
+            $dst = imagecreatetruecolor(800, 800);
+            imagecopyresampled($dst, $src, 0, 0, 0, 0, 800, 800, $w, $h);
+            imageinterlace($dst, true);
+            imagejpeg($dst, $filePath, 80);
+            imagedestroy($src);
+            imagedestroy($dst);
+            clearstatcache(true, $filePath);
+        }
     }
 
     /**
@@ -1251,7 +1291,7 @@ class ProductAssetSeeder extends Seeder
 
             // Dezentes Manufaktur-Header-Badge & Untertitel
             $drawCenter($im, 11.5, 512, 68, $goldCol, $fontSansBold, $badgeTopText);
-            $drawCenter($im, 14.0, 512, 945, $whiteCol, $fontSerifBold, 'Das Goldene Seelen-Herz • 14k Ion-Plating Edelstahl');
+            $drawCenter($im, 14.0, 512, 945, $whiteCol, $fontSerifBold, 'Das Goldene Seelen-Herz • Inkl. 44–50 cm Gold-Ankerkette');
             $drawCenter($im, 11.0, 512, 972, $mutedCol, $fontSans, $subCaption);
 
             imagejpeg($im, $outFile, 92);
@@ -1264,8 +1304,8 @@ class ProductAssetSeeder extends Seeder
             [22, 18, 15],
             [10, 8, 7],
             ['♥', 'Für immer', 'im Herzen'],
-            'MEIN-SEELENFUNKE MANUFAKTUR • 14 KARAT VERGOLDET',
-            'Edelstahl-Herz mit Collierschlaufe (25 × 22 × 4 mm) • Präzisions-Faserlasergravur'
+            'MEIN-SEELENFUNKE MANUFAKTUR • KOMPLETT-SET INKL. HALSKETTE',
+            'Edelstahl-Herz (25 × 22 × 4 mm) + Gold-Ankerkette (44 + 6 cm) • Ion-Plating (IP)'
         );
 
         $renderScene(
@@ -1274,7 +1314,7 @@ class ProductAssetSeeder extends Seeder
             [12, 10, 8],
             ['24.08.2026', '52°28\'N • 10°32\'E', 'Dein Seelenmensch'],
             'BEIDSEITIGE LASER-VEREDELUNG • RÜCKSEITEN-ANSICHT',
-            'Rückseite individuell gravierbar mit Wunschdatum, Koordinaten oder Widmung'
+            'Rückseite kostenlos gravierbar mit Wunschdatum, Koordinaten oder Widmung'
         );
 
         $renderScene(
@@ -1282,8 +1322,8 @@ class ProductAssetSeeder extends Seeder
             [34, 26, 19],
             [15, 11, 8],
             ['Mama ♥', 'Du bist unser', 'Goldstück'],
-            'INKLUSIVE COLLIERSCHLAUFE (ÖSE 3 × 6 MM) • GESCHENKFERTIG',
-            'Langlebige 14k Ion-Plating Vergoldung auf antiallergischem Chirurgen-Edelstahl'
+            'INKLUSIVE 44–50 CM GOLD-ANKERKETTE • SOFORT TRAGFERTIG',
+            'Wasserfeste Echtgold-Ion-Plating-Veredelung auf antiallergischem 304 Edelstahl'
         );
 
         // 2. Alle 8 saisonalen Feiertags-Vorlagenbilder in storage/app/public/produkte/product-templates/
@@ -1307,8 +1347,8 @@ class ProductAssetSeeder extends Seeder
                 $topRgb,
                 $botRgb,
                 $lines,
-                'SAISONALE GESCHENK-EDITION • MEIN-SEELENFUNKE',
-                '14 Karat vergoldeter Edelstahl-Herz-Anhänger mit Collierschlaufe (25 × 22 × 4 mm)'
+                'SAISONALE GESCHENK-EDITION • INKL. 44–50 CM HALSKETTE',
+                'Vergoldeter Edelstahl-Herzanhänger (25 × 22 × 4 mm) inkl. Gold-Ankerkette'
             );
         }
     }
@@ -1435,7 +1475,7 @@ class ProductAssetSeeder extends Seeder
                 'slug' => 'goldenes-seelen-herz',
                 'outFileName' => 'goldenes-seelen-herz-dimensions.jpg',
                 'title' => 'Das Goldene Seelen-Herz – Maße & Details',
-                'subtitle' => 'Massiver 14k vergoldeter Edelstahl-Herzanhänger (Ion-Plating) mit Collierschlaufe',
+                'subtitle' => 'Massiver vergoldeter Edelstahl-Herzanhänger (Ion-Plating) inkl. 44–50 cm Gold-Ankerkette',
                 'overlayTop' => 185,
                 'horizArrows' => [
                     ['x1' => 481, 'x2' => 543, 'y' => 202, 'dashedYFrom1' => 225, 'dashedYFrom2' => 225, 'labelPos' => 'above', 'label' => 'Collierschlaufe: Öse 3 × 6 mm'],
@@ -1448,9 +1488,9 @@ class ProductAssetSeeder extends Seeder
                 'callouts' => [],
                 'specs' => [
                     ['label' => 'Herz-Maß', 'value' => '25 × 22 × 4 mm', 'sub' => 'Massives 4,0 mm Vollmaterial'],
-                    ['label' => 'Oberfläche', 'value' => '14 Karat Vergoldet', 'sub' => 'Kratzfestes Ion-Plating (IP)'],
-                    ['label' => 'Collierschlaufe', 'value' => 'Öse 3 × 6 mm', 'sub' => 'Für Halsketten & Bänder'],
-                    ['label' => 'Herkunft & Gravur', 'value' => 'Made in Germany', 'sub' => 'Beidseitige Faserlaser-Gravur'],
+                    ['label' => 'Halskette (Inkl.)', 'value' => '44 + 6 cm (1,5 mm)', 'sub' => 'Gold-Ankerkette (Karabiner)'],
+                    ['label' => 'Oberfläche', 'value' => 'Echtgold Ion-Plating', 'sub' => 'Wasserfest & anlaufgeschützt'],
+                    ['label' => 'Herkunft & Gravur', 'value' => 'Handveredelt in DE', 'sub' => 'Beidseitige Faserlaser-Gravur'],
                 ],
             ],
         ];

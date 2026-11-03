@@ -575,7 +575,7 @@ trait AiProductFuncs
                     'type' => $product->type,
                     'status' => $product->status,
                     'sku' => $product->sku,
-                    'price_eur' => round($product->price / 100, 2),
+                    'price_eur' => round($product->gross_price / 100, 2),
                     'net_price_eur' => round($netPrice / 100, 2),
                     'purchase_price_eur' => round($purchase / 100, 2),
                     'laser_cost_eur' => round($laserCost / 100, 2),
@@ -637,7 +637,14 @@ trait AiProductFuncs
                 if ($priceEur < 0 || $priceEur > 1000000) {
                     return ['status' => 'error', 'message' => 'Verkaufspreis darf nicht negativ oder unplausibel hoch sein.'];
                 }
-                $updates['price'] = (int)round($priceEur * 100);
+                $priceCents = (int)round($priceEur * 100);
+                if (!shop_setting('prices_entered_gross', true) && !app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness()) {
+                    $taxRate = (float)$product->tax_rate;
+                    if ($taxRate > 0) {
+                        $priceCents = (int)round($priceCents / (1 + ($taxRate / 100)));
+                    }
+                }
+                $updates['price'] = $priceCents;
             }
             if (isset($args['compare_price_eur'])) {
                 $compPrice = (float)$args['compare_price_eur'];
@@ -805,7 +812,7 @@ trait AiProductFuncs
                 'quantity' => $quantity,
                 'cost_value' => $costValue,
                 'reason' => substr(trim($args['reason']), 0, 255),
-                'recorded_by' => auth('admin')->id() ?? 1,
+                'recorded_by' => \App\Services\AI\AiAuthHelper::getUserId() ?? \App\Models\Admin\Admin::value('id'),
             ]);
 
             $product->reduceStock($quantity);
@@ -953,7 +960,7 @@ trait AiProductFuncs
 
             // Normalerweise steht das Keyword nur Session-basiert bereit, daher Hardcodierter Fallback mit AI Hinweis
             $run = ProductNicheCrawlerRun::create([
-                'admin_id' => 1,
+                'admin_id' => \App\Services\AI\AiAuthHelper::getUserId() ?? \App\Models\Admin\Admin::value('id'),
                 'name' => $args['name'],
                 'keyword' => 'AI Initiated Scan Output',
                 'platform' => $platforms,

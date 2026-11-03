@@ -13,7 +13,7 @@
             Gruppe anlegen
         </h3>
         <div class="space-y-4 max-w-sm mx-auto">
-            <input type="text" wire:model="newGroupName" placeholder="Name der Gruppe" class="w-full text-sm rounded-xl border border-gray-300 dark:border-gray-800 bg-white dark:bg-gray-950 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] text-center p-3.5 outline-none shadow-sm dark:shadow-inner transition-all cursor-pointer">
+            <input type="text" wire:model="newGroupName" placeholder="Name der Gruppe" class="w-full text-sm rounded-xl border border-gray-300 dark:border-gray-800 bg-white dark:bg-gray-950 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] text-center p-3.5 outline-none shadow-sm dark:shadow-inner transition-all cursor-text">
 
             <select wire:model="newGroupType" class="w-full text-sm rounded-xl border border-gray-300 dark:border-gray-800 bg-white dark:bg-gray-950 text-gray-700 dark:text-gray-400 focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] text-center p-3.5 outline-none shadow-sm dark:shadow-inner transition-all appearance-none cursor-pointer">
                 <option value="expense" class="bg-gray-900 text-white">Ausgabe</option>

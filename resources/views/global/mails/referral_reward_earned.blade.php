@@ -35,6 +35,9 @@
     <p style="font-size: 13px; color: #6b7280; line-height: 1.6;">
         Du kannst deinen Empfehlungscode <strong>{{ $referral->code }}</strong> übrigens beliebig oft an weitere Freunde und Bekannte weitergeben. Für jede erfolgreiche Neukunden-Bestellung schenken wir dir jedes Mal weitere 5 € Einkaufsguthaben!
     </p>
+    <p style="font-size: 11px; color: #9ca3af; line-height: 1.5;">
+        Teilnahmebedingungen: Der 10-%-Empfehlungscode gilt ausschließlich für Neukunden bei ihrer ersten Bestellung (keine Eigenwerbung). Die 5,00 € Gutschrift auf deinem persönlichen Sammel-Gutschein erfolgt nach vollständigem Zahlungseingang der geworbenen Bestellung. Restguthaben bleibt für Folgekäufe erhalten; eine Barauszahlung ist ausgeschlossen (Gültigkeit: 3 Jahre gem. §§ 195, 199 BGB).
+    </p>
 
     {{-- FOOTER --}}
     @include('global.mails.partials.mail_footer')

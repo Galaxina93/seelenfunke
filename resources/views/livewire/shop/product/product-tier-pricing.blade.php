@@ -1,4 +1,4 @@
-<div x-data="{ open: false }">
+<div x-data="{ open: true }">
     <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 animate-fade-in-up transition-colors hover:border-gray-300 dark:hover:border-gray-700">
 
         {{-- Header (Klickbar zum Aufklappen) & Controls --}}
@@ -10,19 +10,9 @@
                     <svg class="w-5 h-5 transition-transform duration-300" :class="open ? 'rotate-180 text-[var(--theme-color)]' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                 </div>
 
-                <div class="flex items-center gap-2">
-                    <h3 class="text-xl font-serif font-bold text-gray-900 dark:text-white tracking-wide group-hover:text-[var(--theme-color)] transition-colors">Staffelpreise</h3>
-
-                    {{-- Tooltip (Click.stop, damit das Accordion nicht triggert) --}}
-                    <div x-data="{ showInfo: false }" class="relative inline-block ml-1" @click.stop>
-                        <button @mouseenter="showInfo = true" @mouseleave="showInfo = false" type="button" class="text-gray-500 hover:text-[var(--theme-color)] transition-colors flex items-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
-                        </button>
-                        <div x-show="showInfo" x-cloak x-transition.opacity class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-64 p-4 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 text-xs font-medium leading-relaxed rounded-xl shadow-md dark:shadow-2xl z-50 text-center">
-                            {{ $infoTexts['tier_pricing'] }}
-                            <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-200 dark:border-t-gray-800"></div>
-                        </div>
-                    </div>
+                <div class="flex items-center gap-2" @click.stop>
+                    <h3 @click="open = !open" class="text-xl font-serif font-bold text-gray-900 dark:text-white tracking-wide group-hover:text-[var(--theme-color)] transition-colors">Staffelpreise (Mengenrabatte)</h3>
+                    @include('components.alerts.info-tooltip', ['text' => $infoTexts['tier_pricing'] ?? 'Mengenrabatte im Shop (z. B. ab 3 Stück 5 % Rabatt, ab 5 Stück 10 % Rabatt). Steigert den durchschnittlichen Warenkorbwert (AOV).'])
                 </div>
             </div>
 

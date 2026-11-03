@@ -83,81 +83,89 @@ class FetchMailsCommand extends Command
                             : (is_object($rawMessageId) && method_exists($rawMessageId, '__toString') ? (string) $rawMessageId : (string) $rawMessageId);
                         $normalizedMessageId = trim($normalizedMessageId);
 
-                    // Skip if we already stored it for this account
-                    if ($normalizedMessageId !== '' && MailMessage::where('mail_account_id', $account->id)->where('message_id', $normalizedMessageId)->exists()) {
-                        continue;
-                    }
+                        $fromObj = $message->getFrom()[0] ?? null;
+                        $fromEmail = $fromObj ? $fromObj->mail : 'unknown';
+                        // Decode MIME strings for names (like "=?utf-8?Q?..." to readable names)
+                        $rawFromName = $fromObj ? $fromObj->personal : '';
+                        $fromName = mb_decode_mimeheader((string)$rawFromName) ?: $rawFromName;
 
-                    $bodyHtml = $message->hasHTMLBody() ? $message->getHTMLBody() : null;
-                    $bodyText = $message->hasTextBody() ? $message->getTextBody() : null;
+                        // Decode MIME encoded subjects
+                        $rawSubject = (string)$message->getSubject();
+                        $decodedSubject = mb_decode_mimeheader($rawSubject) ?: $rawSubject;
 
-                    // Sanitize HTML body to strip out tracking pixels and XSS payloads
-                    if ($bodyHtml) {
-                        $bodyHtml = self::sanitizeEmailHtml($bodyHtml);
-                    }
+                        $receivedAt = $message->getDate() ? Carbon::parse($message->getDate()) : null;
 
-                    $fromObj = $message->getFrom()[0] ?? null;
-                    $fromEmail = $fromObj ? $fromObj->mail : 'unknown';
-                    // Decode MIME strings for names (like "=?utf-8?Q?..." to readable names)
-                    $rawFromName = $fromObj ? $fromObj->personal : '';
-                    $fromName = mb_decode_mimeheader((string)$rawFromName) ?: $rawFromName;
+                        if ($normalizedMessageId === '') {
+                            $fromAddress = $fromEmail;
+                            $subject = $decodedSubject;
+                            $normalizedMessageId = 'fallback_' . sha1($account->id . '|' . $fromAddress . '|' . $subject . '|' . ($receivedAt ? $receivedAt->toIso8601String() : ''));
+                        }
 
-                    $toObj = $message->getTo()[0] ?? null;
-                    $toEmail = $toObj ? $toObj->mail : $account->email;
+                        // Skip if we already stored it for this account
+                        if ($normalizedMessageId !== '' && MailMessage::where('mail_account_id', $account->id)->where('message_id', $normalizedMessageId)->exists()) {
+                            continue;
+                        }
 
-                    $ccEmails = [];
-                    if (method_exists($message, 'getCc')) {
-                        $ccObjs = $message->getCc();
-                        if ($ccObjs) {
-                            foreach ($ccObjs as $ccObj) {
-                                if (!empty($ccObj->mail)) {
-                                    $ccEmails[] = $ccObj->mail;
+                        $bodyHtml = $message->hasHTMLBody() ? $message->getHTMLBody() : null;
+                        $bodyText = $message->hasTextBody() ? $message->getTextBody() : null;
+
+                        // Sanitize HTML body to strip out tracking pixels and XSS payloads
+                        if ($bodyHtml) {
+                            $bodyHtml = self::sanitizeEmailHtml($bodyHtml);
+                        }
+
+                        $toObj = $message->getTo()[0] ?? null;
+                        $toEmail = $toObj ? $toObj->mail : $account->email;
+
+                        $ccEmails = [];
+                        if (method_exists($message, 'getCc')) {
+                            $ccObjs = $message->getCc();
+                            if ($ccObjs) {
+                                foreach ($ccObjs as $ccObj) {
+                                    if (!empty($ccObj->mail)) {
+                                        $ccEmails[] = $ccObj->mail;
+                                    }
                                 }
                             }
                         }
-                    }
-                    $ccEmail = !empty($ccEmails) ? implode(', ', array_unique($ccEmails)) : null;
+                        $ccEmail = !empty($ccEmails) ? implode(', ', array_unique($ccEmails)) : null;
 
-                    // Execute Auto-Routing Rules here (Spam/Folders)
-                    $targetFolder = 'INBOX';
-                    $routingRule = \App\Models\Management\Mail\MailRule::where('mail_account_id', $account->id)
-                        ->where('condition_field', 'from_email')
-                        ->where('condition_value', $fromEmail)
-                        ->first();
+                        // Execute Auto-Routing Rules here (Spam/Folders)
+                        $targetFolder = 'INBOX';
+                        $routingRule = \App\Models\Management\Mail\MailRule::where('mail_account_id', $account->id)
+                            ->where('condition_field', 'from_email')
+                            ->where('condition_value', $fromEmail)
+                            ->first();
 
-                    if ($routingRule) {
-                        if ($routingRule->action === 'mark_spam') {
-                            $targetFolder = 'Junk';
-                        } elseif ($routingRule->action === 'delete') {
-                            $targetFolder = 'Trash';
-                        } elseif ($routingRule->action === 'archive') {
-                            $targetFolder = 'Archive';
-                        } else {
-                            $cleanFolder = mb_substr(preg_replace('/[\x00-\x1F\x7F\/\\\\]/', '', str_replace('..', '', trim((string) $routingRule->action))), 0, 64);
-                            $targetFolder = $cleanFolder !== '' ? $cleanFolder : 'INBOX';
+                        if ($routingRule) {
+                            if ($routingRule->action === 'mark_spam') {
+                                $targetFolder = 'Junk';
+                            } elseif ($routingRule->action === 'delete') {
+                                $targetFolder = 'Trash';
+                            } elseif ($routingRule->action === 'archive') {
+                                $targetFolder = 'Archive';
+                            } else {
+                                $cleanFolder = mb_substr(preg_replace('/[\x00-\x1F\x7F\/\\\\]/', '', str_replace('..', '', trim((string) $routingRule->action))), 0, 64);
+                                $targetFolder = $cleanFolder !== '' ? $cleanFolder : 'INBOX';
+                            }
                         }
-                    }
 
-                    // Decode MIME encoded subjects
-                    $rawSubject = (string)$message->getSubject();
-                    $decodedSubject = mb_decode_mimeheader($rawSubject) ?: $rawSubject;
-
-                    $mailMessage = MailMessage::create([
-                        'mail_account_id' => $account->id,
-                        'message_id' => $normalizedMessageId !== '' ? $normalizedMessageId : uniqid('msg_'),
-                        'folder' => $targetFolder,
-                        'subject' => $decodedSubject ?: 'Kein Betreff',
-                        'from_name' => str_replace('"', '', $fromName),
-                        'from_email' => $fromEmail,
-                        'to_email' => $toEmail,
-                        'cc_email' => $ccEmail,
-                        'body_plain' => $bodyText,
-                        'body_html' => $bodyHtml,
-                        'is_read' => false,
-                        'is_archived' => false,
-                        'has_attachments' => $message->hasAttachments(),
-                        'received_at' => Carbon::parse($message->getDate())
-                    ]);
+                        $mailMessage = MailMessage::create([
+                            'mail_account_id' => $account->id,
+                            'message_id' => $normalizedMessageId !== '' ? $normalizedMessageId : uniqid('msg_'),
+                            'folder' => $targetFolder,
+                            'subject' => $decodedSubject ?: 'Kein Betreff',
+                            'from_name' => str_replace('"', '', $fromName),
+                            'from_email' => $fromEmail,
+                            'to_email' => $toEmail,
+                            'cc_email' => $ccEmail,
+                            'body_plain' => $bodyText,
+                            'body_html' => $bodyHtml,
+                            'is_read' => false,
+                            'is_archived' => false,
+                            'has_attachments' => $message->hasAttachments(),
+                            'received_at' => $receivedAt ?? now()
+                        ]);
 
                     if ($message->hasAttachments()) {
                         $attachments = $message->getAttachments();

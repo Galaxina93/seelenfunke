@@ -1070,7 +1070,7 @@ trait AiSupportFuncs
                     elseif ($name === 'cart' || $uri === 'warenkorb') $actionName = 'Warenkorb';
                     elseif ($name === 'checkout' || $uri === 'checkout') $actionName = 'Kasse (Checkout)';
                     elseif ($name === 'contact' || $uri === 'kontakt') $actionName = 'Kontakt & Support';
-                    elseif ($name === 'marketing/marketing/blog' || $uri === 'marketing/marketing/blog') $actionName = 'Magazin / Blog';
+                    elseif ($name === 'marketing/blog' || $uri === 'marketing/blog' || $name === 'blog' || $uri === 'blog') $actionName = 'Magazin / Blog';
                     elseif ($name === 'manufacture' || $uri === 'manufaktur') $actionName = 'Unsere Manufaktur';
                     elseif ($uri === 'dashboard' || $name === 'customer.dashboard') $actionName = 'Kunden-Dashboard (Funki öffnen, Seelenfunken & Prämien, Level 1–10, Rabatte, Titel & Halle der Helden)';
                     elseif ($uri === 'profile' || $name === 'customer.profile') $actionName = 'Kundenprofil & Einstellungen (Persönliche Daten, Geburtsdatum für +50 ✨ Geburtstags-Bonus, Adressen, Datenschutz)';
@@ -1422,7 +1422,8 @@ trait AiSupportFuncs
             if (empty($term)) return ['status' => 'error', 'message' => 'Suchbegriff fehlt.'];
 
             $termEsc = addcslashes($term, '%_\\');
-            $chats = SupportCustomerChat::where(function ($q) use ($termEsc) {
+            $chats = SupportCustomerChat::with('customer.profile')
+                ->where(function ($q) use ($termEsc) {
                     $q->where('top_topic', 'LIKE', "%{$termEsc}%")
                       ->orWhere('ai_summary', 'LIKE', "%{$termEsc}%")
                       ->orWhere('mentioned_product', 'LIKE', "%{$termEsc}%");
@@ -1437,12 +1438,17 @@ trait AiSupportFuncs
 
             $result = [];
             foreach ($chats as $chat) {
+                $hasConsent = \App\Services\AI\AiAuthHelper::hasCustomerAiConsent($chat->customer, $chat->customer_id);
+                $namesToMask = $chat->customer ? array_filter([$chat->customer->first_name, $chat->customer->last_name, $chat->customer->email]) : [];
+                $rawName = $chat->customer ? trim($chat->customer->first_name . ' ' . $chat->customer->last_name) : '';
                 $result[] = [
                     'id' => $chat->id,
+                    'customer' => \App\Services\AI\AiAuthHelper::sanitizeCustomerName($rawName, $hasConsent),
+                    'gdpr_ai_consent' => $hasConsent,
                     'status' => $chat->status,
                     'rating' => $chat->rating,
                     'top_topic' => $chat->top_topic,
-                    'summary' => $chat->ai_summary,
+                    'summary' => \App\Services\AI\AiAuthHelper::redactPiiText((string) $chat->ai_summary, $hasConsent, $namesToMask),
                     'date' => $chat->updated_at->format('Y-m-d H:i')
                 ];
             }
@@ -1462,7 +1468,7 @@ trait AiSupportFuncs
             $limit = min(max((int)($args['limit'] ?? 5), 1), 50);
             $filter = trim($args['status_filter'] ?? '');
 
-            $query = SupportCustomerChat::orderBy('updated_at', 'desc');
+            $query = SupportCustomerChat::with('customer.profile')->orderBy('updated_at', 'desc');
             if (!empty($filter)) {
                 $query->where('status', $filter);
             }
@@ -1475,12 +1481,17 @@ trait AiSupportFuncs
 
             $result = [];
             foreach ($chats as $chat) {
+                $hasConsent = \App\Services\AI\AiAuthHelper::hasCustomerAiConsent($chat->customer, $chat->customer_id);
+                $namesToMask = $chat->customer ? array_filter([$chat->customer->first_name, $chat->customer->last_name, $chat->customer->email]) : [];
+                $rawName = $chat->customer ? trim($chat->customer->first_name . ' ' . $chat->customer->last_name) : '';
                 $result[] = [
                     'id' => $chat->id,
+                    'customer' => \App\Services\AI\AiAuthHelper::sanitizeCustomerName($rawName, $hasConsent),
+                    'gdpr_ai_consent' => $hasConsent,
                     'status' => $chat->status,
                     'rating' => $chat->rating,
                     'top_topic' => $chat->top_topic,
-                    'summary' => $chat->ai_summary,
+                    'summary' => \App\Services\AI\AiAuthHelper::redactPiiText((string) $chat->ai_summary, $hasConsent, $namesToMask),
                     'date' => $chat->updated_at->format('Y-m-d H:i')
                 ];
             }
@@ -1534,7 +1545,8 @@ trait AiSupportFuncs
         try {
             $limit = min(max((int)($args['limit'] ?? 5), 1), 50);
 
-            $chats = SupportCustomerChat::where(function ($q) {
+            $chats = SupportCustomerChat::with('customer.profile')
+                ->where(function ($q) {
                     $q->where('rating', '<=', 2)
                       ->orWhere('status', 'needs_employee');
                 })
@@ -1548,12 +1560,17 @@ trait AiSupportFuncs
 
             $result = [];
             foreach ($chats as $chat) {
+                $hasConsent = \App\Services\AI\AiAuthHelper::hasCustomerAiConsent($chat->customer, $chat->customer_id);
+                $namesToMask = $chat->customer ? array_filter([$chat->customer->first_name, $chat->customer->last_name, $chat->customer->email]) : [];
+                $rawName = $chat->customer ? trim($chat->customer->first_name . ' ' . $chat->customer->last_name) : '';
                 $result[] = [
                     'id' => $chat->id,
+                    'customer' => \App\Services\AI\AiAuthHelper::sanitizeCustomerName($rawName, $hasConsent),
+                    'gdpr_ai_consent' => $hasConsent,
                     'status' => $chat->status,
                     'rating' => $chat->rating,
                     'top_topic' => $chat->top_topic,
-                    'summary' => $chat->ai_summary,
+                    'summary' => \App\Services\AI\AiAuthHelper::redactPiiText((string) $chat->ai_summary, $hasConsent, $namesToMask),
                     'date' => $chat->updated_at->format('Y-m-d H:i')
                 ];
             }
@@ -1610,11 +1627,23 @@ trait AiSupportFuncs
             $tickets = \App\Models\Support\SupportTicket::with('customer.profile')
                 ->where(function ($query) use ($termEsc) {
                     $query->where('ticket_number', 'LIKE', "%{$termEsc}%")
-                        ->orWhere('subject', 'LIKE', "%{$termEsc}%")
+                        ->orWhere(function ($sub) use ($termEsc) {
+                            $sub->where('subject', 'LIKE', "%{$termEsc}%")
+                                ->where(function ($consentQ) {
+                                    $consentQ->whereNull('customer_id')
+                                        ->orWhereHas('customer.profile', function ($pq) {
+                                            $pq->where('ai_data_consent', true);
+                                        });
+                                });
+                        })
                         ->orWhereHas('customer', function ($q) use ($termEsc) {
-                            $q->where('email', 'LIKE', "%{$termEsc}%")
-                              ->orWhere('first_name', 'LIKE', "%{$termEsc}%")
-                              ->orWhere('last_name', 'LIKE', "%{$termEsc}%");
+                            $q->whereHas('profile', function ($pq) {
+                                $pq->where('ai_data_consent', true);
+                            })->where(function ($nq) use ($termEsc) {
+                                $nq->where('email', 'LIKE', "%{$termEsc}%")
+                                   ->orWhere('first_name', 'LIKE', "%{$termEsc}%")
+                                   ->orWhere('last_name', 'LIKE', "%{$termEsc}%");
+                            });
                         });
                 })
                 ->orderBy('updated_at', 'desc')
@@ -1631,11 +1660,14 @@ trait AiSupportFuncs
                 $rawCustomer = $ticket->customer
                     ? trim($ticket->customer->first_name . ' ' . $ticket->customer->last_name . ' (' . $ticket->customer->email . ')')
                     : '';
+                $namesToMask = $ticket->customer
+                    ? array_filter([$ticket->customer->first_name, $ticket->customer->last_name, $ticket->customer->email])
+                    : [];
 
                 $result[] = [
                     'ticket_number' => $ticket->ticket_number,
                     'status' => $ticket->status,
-                    'subject' => $ticket->subject,
+                    'subject' => \App\Services\AI\AiAuthHelper::redactPiiText((string) $ticket->subject, $hasConsent, $namesToMask),
                     'customer' => \App\Services\AI\AiAuthHelper::sanitizeCustomerName($rawCustomer, $hasConsent),
                     'gdpr_ai_consent' => $hasConsent,
                     'date' => $ticket->updated_at->format('Y-m-d H:i')

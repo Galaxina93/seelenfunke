@@ -1,19 +1,18 @@
-<div x-data="{ open: false }" x-show="modelPath" style="display: none;" class="bg-gray-50 dark:bg-gray-950 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-inner group transition-colors hover:border-gray-300 dark:hover:border-gray-700 w-full overflow-hidden">
-    <div @click="open = !open" class="flex items-center justify-between cursor-pointer transition-all" :class="open ? 'border-b border-gray-200 dark:border-gray-800 pb-4' : ''">
-        <h4 class="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest flex items-center gap-3 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
-            <span class="w-5 h-5 rounded-lg bg-gray-200 dark:bg-gray-800 flex items-center justify-center text-gray-800 dark:text-white shadow-inner shrink-0 transition-colors group-hover:bg-[var(--theme-color)] group-hover:text-gray-900">2</span>
-            3D-Modell
-        </h4>
+<div x-data="{ open: false }" x-show="modelPath" style="display: none;" class="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm dark:shadow-lg w-full">
+    <div @click="open = !open" class="w-full flex items-center justify-between p-5 bg-gray-100/50 dark:bg-gray-950/50 hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors cursor-pointer" :class="open ? 'rounded-t-2xl border-b border-gray-200 dark:border-gray-800' : 'rounded-2xl'">
+        <div class="flex items-center gap-3">
+            <span class="w-6 h-6 rounded-lg bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-400 flex items-center justify-center text-[10px] font-black shadow-inner">2</span>
+            <h4 class="text-xs font-black text-gray-900 dark:text-white uppercase tracking-widest">3D-Modell</h4>
+            @include('components.alerts.info-tooltip', ['key' => 'model_transform_help'])
+        </div>
 
-        <div class="flex items-center gap-3 shrink-0">
-            <button type="button" @click.stop="resetModel()" x-show="open" x-transition class="text-[9px] text-gray-500 font-black uppercase tracking-widest hover:text-red-500 transition-colors bg-white dark:bg-gray-900 hover:bg-red-500/10 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800 hover:border-red-500/30 shadow-inner">Alle Reset</button>
-            <div class="p-1 text-gray-500 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
-                <svg class="w-4 h-4 transition-transform duration-300" :class="open ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-            </div>
+        <div class="flex items-center gap-4 shrink-0">
+            <span @click.stop="resetModel()" x-show="open" x-transition class="text-[9px] font-black uppercase tracking-widest text-gray-500 hover:text-red-500 transition-colors bg-white dark:bg-gray-900 hover:bg-red-500/10 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800 hover:border-red-500/30 cursor-pointer">Alle Reset</span>
+            <svg class="w-5 h-5 text-gray-500 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
         </div>
     </div>
 
-    <div x-show="open" x-collapse style="display: none;">
+    <div x-show="open" x-collapse style="display: none;" class="p-5">
         @php
             $rangeInputClassModel = "w-16 shrink-0 px-2 py-1.5 text-[10px] text-center font-mono font-bold rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-inner focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all";
             $labelClassModel = "text-[9px] font-black text-gray-500 uppercase tracking-widest w-20 shrink-0 text-left";
@@ -24,7 +23,7 @@
             $resetBtnClass = "p-1.5 text-gray-500 dark:text-gray-600 hover:text-[var(--theme-color)] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-50)] rounded-lg transition-all shadow-inner shrink-0";
         @endphp
 
-        <div class="flex flex-col gap-4 pt-5">
+        <div class="flex flex-col gap-4">
 
             <div class="flex items-center gap-2 w-full">
                 <span class="{{ $labelClassModel }}">Material</span>

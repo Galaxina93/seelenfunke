@@ -19,16 +19,20 @@ class RevocationPdfController extends Controller
         $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
         $ownerProprietor = shop_setting('owner_proprietor', 'Alina Steinhauer');
 
-        $companyStreet = shop_setting('company_street');
-        $streetNumber = shop_setting('company_street_number');
-        if ($companyStreet) {
-            $street = trim($companyStreet . ' ' . $streetNumber);
+        $companyStreet = trim((string) shop_setting('company_street', ''));
+        $streetNumber = trim((string) shop_setting('company_street_number', ''));
+        if ($companyStreet !== '') {
+            if ($streetNumber !== '' && !preg_match('/\b' . preg_quote($streetNumber, '/') . '$/u', $companyStreet)) {
+                $street = trim($companyStreet . ' ' . $streetNumber);
+            } else {
+                $street = $companyStreet;
+            }
         } else {
             $street = shop_setting('owner_street', 'Carl-Goerdeler-Ring 26');
         }
 
         $zip = shop_setting('company_zip', '38518');
-        $city = shop_setting('company_city', 'Gifhorn');
+        $city = shop_setting('company_city', shop_setting('owner_city', 'Gifhorn'));
         $countryCode = strtoupper((string) shop_setting('company_country', 'DE'));
 
         $activeCountries = shop_setting('active_countries', []);

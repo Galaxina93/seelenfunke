@@ -154,14 +154,18 @@
 
         @php
             // Absenderdaten aus Shop-Settings
-            $senderName = shop_setting('owner_proprietor', '');
-            $senderStreetAndHouse = shop_setting('owner_street', '');
-            $senderZipAndCity = shop_setting('owner_city', '');
+            $senderName = shop_setting('owner_proprietor', shop_setting('company_name', 'Alina Steinhauer'));
+            $senderStreetAndHouse = shop_setting('company_street')
+                ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', ''))
+                : shop_setting('owner_street', '');
+            $senderZipAndCity = shop_setting('company_city')
+                ? trim(shop_setting('company_zip', '') . ' ' . shop_setting('company_city'))
+                : shop_setting('owner_city', '');
             
             $senderLine = trim($senderName . ' • ' . $senderStreetAndHouse . ' • ' . $senderZipAndCity, ' •');
             
-            $ownerPhone = shop_setting('owner_phone', '');
-            $ownerEmail = shop_setting('owner_email', '');
+            $ownerPhone = shop_setting('company_phone', shop_setting('owner_phone', ''));
+            $ownerEmail = shop_setting('company_email', shop_setting('owner_email', ''));
             $ownerWebsite = shop_setting('owner_website', '');
         @endphp
 

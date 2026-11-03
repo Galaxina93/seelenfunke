@@ -121,8 +121,8 @@ class CalendarEventCreated extends Mailable
      */
     public static function buildIcsForEvents(iterable $events, array $options = []): string
     {
-        $organizerEmail = config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
-        $organizerName = $options['agent_name'] ?? 'Mein-Seelenfunke Kalender';
+        $organizerEmail = shop_setting('company_email', shop_setting('owner_email', config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de'));
+        $organizerName = $options['agent_name'] ?? (shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) . ' Kalender');
         $defaultLocation = $options['location'] ?? null;
         $attendeeEmail = $options['attendee_email'] ?? null;
 

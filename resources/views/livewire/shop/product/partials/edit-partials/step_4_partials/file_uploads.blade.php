@@ -35,6 +35,7 @@
                         <label class="block text-[10px] font-black uppercase tracking-[0.2em] text-amber-600 dark:text-amber-400 dark:drop-shadow-[0_0_8px_currentColor]">
                             Vorlage-Paket & Themen-Hintergründe
                         </label>
+                        @include('components.alerts.info-tooltip', ['key' => 'template_package_help'])
                         @if($activePkgKey !== 'custom' && isset($templatePackages[$activePkgKey]))
                             <span class="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
                                 Paket aktiv: {{ $activePkgKey }}
@@ -158,7 +159,10 @@
     @endphp
     <div class="flex flex-col sm:flex-row items-start sm:items-center gap-6 p-6 sm:p-8 bg-gray-50 dark:bg-gray-900/50 backdrop-blur-md rounded-[2rem] border border-gray-200 dark:border-gray-800 shadow-inner group transition-colors hover:border-gray-300 dark:hover:border-gray-700">
         <div class="flex-1">
-            <label class="block text-[10px] font-black uppercase tracking-[0.2em] text-gray-700 dark:text-gray-300 mb-2 dark:drop-shadow-[0_0_8px_currentColor]">2D Vorschau Overlay (PNG)</label>
+            <div class="flex items-center gap-2 mb-2">
+                <label class="block text-[10px] font-black uppercase tracking-[0.2em] text-gray-700 dark:text-gray-300 dark:drop-shadow-[0_0_8px_currentColor]">2D Vorschau Overlay (PNG)</label>
+                @include('components.alerts.info-tooltip', ['key' => 'preview_overlay_help'])
+            </div>
             <p class="text-xs text-gray-500 mb-3 font-medium">Dient als Zeichenbrett für den Arbeitsbereich.</p>
             @if($product->preview_image_path)
                 <div class="mt-3 flex flex-col gap-1.5">
@@ -246,6 +250,7 @@
         <div class="flex-1 relative z-10">
             <div class="flex flex-wrap items-center gap-3 mb-2">
                 <label class="block text-[10px] font-black uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400 dark:drop-shadow-[0_0_8px_currentColor]">3D-Modell (.glb)</label>
+                @include('components.alerts.info-tooltip', ['key' => 'three_d_model_help'])
                 <label class="inline-flex items-center gap-1.5 cursor-pointer text-[9px] font-mono text-blue-700/80 dark:text-blue-300/80 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20" title="Optimiert neue .glb Dateien beim Hochladen automatisch verlustfrei (Mesh-Simplification & Textur-Skalierung)">
                     <input type="checkbox" wire:model.live="autoOptimize3dOnUpload" class="rounded border-blue-400 text-blue-600 focus:ring-blue-500 w-3 h-3">
                     <span>Auto-Optimierung beim Upload</span>
@@ -373,7 +378,10 @@
     <div class="flex flex-col sm:flex-row items-start sm:items-center gap-6 p-6 sm:p-8 bg-purple-500/5 dark:bg-purple-900/10 backdrop-blur-md rounded-[2rem] border border-purple-200 dark:border-purple-500/20 shadow-inner relative overflow-visible group hover:border-purple-300 dark:hover:border-purple-500/40 transition-colors">
         <div class="hidden dark:block absolute right-0 top-0 w-32 h-32 bg-purple-500/10 rounded-full blur-[50px] -mr-10 -mt-10 pointer-events-none"></div>
         <div class="flex-1 relative z-10">
-            <label class="block text-[10px] font-black uppercase tracking-[0.2em] text-purple-600 dark:text-purple-400 mb-2 dark:drop-shadow-[0_0_8px_currentColor]">3D Hintergrund (.jpg/.png & .mp4 Video)</label>
+            <div class="flex items-center gap-2 mb-2">
+                <label class="block text-[10px] font-black uppercase tracking-[0.2em] text-purple-600 dark:text-purple-400 dark:drop-shadow-[0_0_8px_currentColor]">3D Hintergrund (.jpg/.png & .mp4 Video)</label>
+                @include('components.alerts.info-tooltip', ['key' => 'three_d_bg_help'])
+            </div>
             <p class="text-xs text-purple-950/60 dark:text-purple-200/50 mb-3 font-medium">Wird als hochauflösender Bühnen-Hintergrund & WebGL-Reflexion geladen (unterstützt Bilder & kurze Loop-Videos).</p>
             @if($product->three_d_background_path)
                 <div class="mt-3 flex flex-col gap-1.5">

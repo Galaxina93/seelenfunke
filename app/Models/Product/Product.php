@@ -46,7 +46,7 @@ class Product extends Model implements HasSystemBlueprint
             actorsWrite: [ActorScope::Admin, ActorScope::EmployeeProduction],
             regulations: [ComplianceRegulation::GPSR_EU_2023_988, ComplianceRegulation::EU_AI_Act_Art50, ComplianceRegulation::PAngV, ComplianceRegulation::VerpackG_LUCID, ComplianceRegulation::BGB_312g_CustomGoods],
             externalChannels: [ExternalChannel::LaserMachine_SVG_PDF, ExternalChannel::GoogleGemini_AI],
-            dependsOnSettings: ['default_tax_rate', 'is_small_business'],
+            dependsOnSettings: ['default_tax_rate', 'reduced_tax_rate', 'is_small_business', 'prices_entered_gross'],
             isGdprArt15Exportable: false,
             customerForeignKey: null,
             containsProductionAssets: false,
@@ -108,7 +108,7 @@ use HasFactory, HasUuids, SoftDeletes;
 
     public function getFormattedPriceAttribute()
     {
-        return number_format($this->price / 100, 2, ',', '.') . ' €';
+        return number_format($this->gross_price / 100, 2, ',', '.') . ' €';
     }
 
     public function getStatusColorAttribute()
@@ -134,7 +134,7 @@ use HasFactory, HasUuids, SoftDeletes;
             return 0.00;
         }
 
-        if ($this->tax_class === 'zero') {
+        if ($this->tax_class === 'zero' || $this->slug === 'geschenkgutschein') {
             return 0.00;
         }
 
@@ -172,8 +172,8 @@ use HasFactory, HasUuids, SoftDeletes;
 
     /**
      * Liefert den aktuellen Herkunfts-Siegel-Modus des Produkts:
-     * - 'made_in_germany'        -> "Made in Germany"
-     * - 'handcrafted_in_germany' -> "Handveredelt in Deutschland"
+     * - 'handcrafted_in_germany' -> "Handveredelt in Deutschland" (UWG-konformer Standard für in DE veredelte Rohlinge)
+     * - 'made_in_germany'        -> Wird aus UWG-Gründen (§ 5 UWG / Madrider Abkommen) ebenfalls als "Handveredelt in Deutschland" ausgegeben
      * - 'none'                   -> Kein Siegel
      */
     public function getOriginBadgeMode(): string
@@ -181,17 +181,12 @@ use HasFactory, HasUuids, SoftDeletes;
         $settings = is_array($this->configurator_settings) ? $this->configurator_settings : [];
         $explicit = $settings['origin_badge'] ?? null;
 
-        if (in_array($explicit, ['made_in_germany', 'handcrafted_in_germany', 'none'], true)) {
-            return $explicit;
+        if ($explicit === 'none') {
+            return 'none';
         }
 
         if ($this->type !== 'physical') {
             return 'none';
-        }
-
-        // Logischer Standardwert für bestehende physische Produkte, falls noch nicht explizit gesetzt
-        if (in_array($this->slug, ['weizenglas-personalisiert', 'goldenes-seelen-herz'], true)) {
-            return 'made_in_germany';
         }
 
         return 'handcrafted_in_germany';
@@ -203,9 +198,8 @@ use HasFactory, HasUuids, SoftDeletes;
     public function getOriginBadgeLabel(): ?string
     {
         return match ($this->getOriginBadgeMode()) {
-            'made_in_germany'        => 'Made in Germany',
-            'handcrafted_in_germany' => 'Handveredelt in Deutschland',
-            default                  => null,
+            'made_in_germany', 'handcrafted_in_germany' => 'Handveredelt in Deutschland',
+            default                                     => null,
         };
     }
 
@@ -479,6 +473,495 @@ use HasFactory, HasUuids, SoftDeletes;
     public function hasDigitalFile(): bool
     {
         return !empty($this->digital_download_path);
+    }
+
+    /**
+     * Prüft, ob dieses physische Produkt in die flache Westpack Frankfurt ECO Schmuckschachtel (86 x 86 x 17 mm) passt.
+     */
+    public function supportsJewelryGiftBox(): bool
+    {
+        if (!$this->isPhysical()) {
+            return false;
+        }
+
+        if (in_array((string) $this->slug, ['seelen-kristall', 'weizenglas-personalisiert'], true)) {
+            return false;
+        }
+
+        return ($this->shipping_class === 'brief')
+            || in_array((string) $this->slug, [
+                'seelen-anhaenger',
+                'seelen-talisman',
+                'seelen-pfote-hundemarke',
+                'goldenes-seelen-herz',
+            ], true)
+            || ((int) $this->weight > 0 && (int) $this->weight <= 100);
+    }
+
+    /**
+     * Liefert die Standard-Verpackungs-/Geschenk-Upgrades im einheitlichen Schwarz-Gold-Look
+     * ausschließlich für physische Produkte ($this->type === 'physical').
+     * Digitale Produkte und Dienstleistungen erhalten niemals Verpackungs-Addons.
+     */
+    public function getDefaultPhysicalAddons(): array
+    {
+        if (!$this->isPhysical()) {
+            return [];
+        }
+
+        $addons = [];
+
+        // Für Schmuck-, Schlüssel- & Herzanhänger zusätzlich die Westpack Frankfurt ECO Schmuckschachtel (+4,90 €) anbieten
+        if ($this->supportsJewelryGiftBox()) {
+            $addons[] = [
+                'id'          => 'gift_box_westpack',
+                'name'        => 'Edle Schmuckbox (Schwarz-Gold)',
+                'description' => 'Mattschwarze Juwelierschachtel mit Samteinlage & Gold-Logo statt Versandtasche',
+                'price'       => '4.90',
+                'price_cents' => 490,
+                'image_path'  => 'produkte/addons/edle-schmuckbox-schwarz-gold.jpg',
+                'is_active'   => true,
+            ];
+        }
+
+        // Jedes physische Produkt erhält den einheitlichen, edlen Schwarz-Gold Geschenkpapier-Service (+3,90 €)
+        $addons[] = [
+            'id'          => 'gift_wrap_black_gold',
+            'name'        => 'Geschenkpapier (Schwarz-Gold-Look)',
+            'description' => 'Von Hand in edles Schwarz-Gold-Geschenkpapier eingeschlagen – direkt verschenkfertig',
+            'price'       => '3.90',
+            'price_cents' => 390,
+            'image_path'  => 'produkte/addons/geschenkpapier-schwarz-gold.jpg',
+            'is_active'   => true,
+        ];
+
+        return $addons;
+    }
+
+    /**
+     * Ermittelt den relativen, manipulationssicheren Bildpfad für ein Aufpreis-Extra / Verpackungs-Upgrade
+     * gemäß Projektstruktur (storage/app/public/produkte/addons/...).
+     */
+    public static function resolveAddonImagePath(array $addon): ?string
+    {
+        $rawPath = isset($addon['image_path']) && is_string($addon['image_path']) ? trim($addon['image_path']) : '';
+
+        // Automatische Migration alter Platzhalter-Pfade auf die neuen fotorealistischen Studio-Assets in produkte/addons/
+        if ($rawPath === 'shop/frontend/process/edle_verpackung.webp') {
+            return 'produkte/addons/edle-schmuckbox-schwarz-gold.jpg';
+        }
+        if ($rawPath === 'shop/product/geschenkpapier.webp') {
+            return 'produkte/addons/geschenkpapier-schwarz-gold.jpg';
+        }
+
+        if (
+            $rawPath !== ''
+            && !str_contains($rawPath, '..')
+            && !str_contains($rawPath, "\0")
+            && !str_contains($rawPath, '\\')
+            && !str_contains($rawPath, ':')
+            && !preg_match('#^(https?:)?//#i', $rawPath)
+        ) {
+            $cleanRel = ltrim(preg_replace('#^/?storage/#', '', $rawPath), '/');
+            if (str_starts_with($cleanRel, 'products/addons/')) {
+                $cleanRel = 'produkte/addons/' . substr($cleanRel, strlen('products/addons/'));
+            }
+            if (str_starts_with($cleanRel, 'produkte/') || str_starts_with($cleanRel, 'shop/')) {
+                return $cleanRel;
+            }
+        }
+
+        $id = strtolower(trim((string) ($addon['id'] ?? '')));
+        $name = mb_strtolower(trim((string) ($addon['name'] ?? '')));
+
+        if ($id === 'gift_box_westpack' || str_contains($name, 'schmuckbox') || str_contains($name, 'geschenkbox') || str_contains($name, 'edle box') || str_contains($name, 'schachtel')) {
+            return 'produkte/addons/edle-schmuckbox-schwarz-gold.jpg';
+        }
+
+        if ($id === 'gift_wrap_black_gold' || str_contains($name, 'geschenkpapier') || str_contains($name, 'geschenkverpackung')) {
+            return 'produkte/addons/geschenkpapier-schwarz-gold.jpg';
+        }
+
+        return null;
+    }
+
+    /**
+     * Wandelt ein Addon-Array oder einen relativen Addon-Bildpfad in eine lokale Asset-/Storage-URL um (SSRF- & LFI-sicher).
+     */
+    public static function resolveAddonImageUrl(array|string|null $addonOrPath): ?string
+    {
+        $relPath = is_array($addonOrPath)
+            ? self::resolveAddonImagePath($addonOrPath)
+            : (is_string($addonOrPath) ? self::resolveAddonImagePath(['image_path' => $addonOrPath]) : null);
+
+        if (!$relPath) {
+            return null;
+        }
+
+        if (str_starts_with($relPath, 'shop/')) {
+            return asset($relPath);
+        }
+
+        $cleanStorageRel = ltrim(preg_replace('#^/?storage/#', '', $relPath), '/');
+        return asset('storage/' . $cleanStorageRel);
+    }
+
+    /**
+     * Liefert die bereinigten, deduplizierten Aufpreis-Extras / Geschenkverpackungen für dieses Produkt.
+     * WICHTIG: Nur physische Produkte ($this->type === 'physical') vertreten diese Option!
+     */
+    public function getEffectiveAddons(bool $onlyActive = true): array
+    {
+        if (!$this->isPhysical()) {
+            return [];
+        }
+
+        $settings = is_array($this->configurator_settings) ? $this->configurator_settings : [];
+        $rawAddons = (isset($settings['addons']) && is_array($settings['addons']) && count($settings['addons']) > 0)
+            ? $settings['addons']
+            : $this->getDefaultPhysicalAddons();
+
+        $supportsBox = $this->supportsJewelryGiftBox();
+
+        // 1. Kanonisierung & Deduplizierung bestehender Einträge (verhindert doppelte Geschenkbox- oder Geschenkpapier-Kacheln)
+        $normalizedById = [];
+        $hasAnyBoxAddon = false;
+
+        foreach ($rawAddons as $addon) {
+            if (!is_array($addon) || empty($addon['name'])) {
+                continue;
+            }
+
+            $rawId = trim((string) ($addon['id'] ?? ''));
+            $rawName = trim((string) $addon['name']);
+            $lowerName = mb_strtolower($rawName);
+            $rawDesc = trim((string) ($addon['description'] ?? ''));
+            $isActive = (bool) ($addon['is_active'] ?? true);
+
+            $priceCents = isset($addon['price_cents'])
+                ? max(0, (int) $addon['price_cents'])
+                : max(0, (int) round(((float) str_replace(',', '.', (string) ($addon['price'] ?? 0))) * 100));
+
+            $looksLikeBox = str_contains($lowerName, 'geschenkbox')
+                || str_contains($lowerName, 'schmuckbox')
+                || str_contains($lowerName, 'schmuckschachtel')
+                || str_contains($lowerName, 'juwelierschachtel')
+                || str_contains($lowerName, 'edle box');
+
+            // Standard-Schmuckbox ('gift_box_westpack') sowie Legacy-UUID-Geschenkboxen auf 'gift_box_westpack' vereinheitlichen
+            $isPresetBoxAddon = ($rawId === 'gift_box_westpack')
+                || ($supportsBox && (
+                    str_contains($lowerName, 'schmuckbox')
+                    || str_contains($lowerName, 'schmuckschachtel')
+                    || str_contains($lowerName, 'juwelierschachtel')
+                    || (str_contains($lowerName, 'geschenkbox') && ($rawId === '' || \Illuminate\Support\Str::isUuid($rawId)))
+                ));
+
+            $isPresetWrapAddon = ($rawId === 'gift_wrap_black_gold')
+                || str_contains($lowerName, 'geschenkpapier')
+                || ($rawName === 'Geschenkpapier (Schwarz-Gold-Look)');
+
+            if ($isPresetBoxAddon) {
+                if (!$supportsBox || $hasAnyBoxAddon) {
+                    continue;
+                }
+                $canonicalId = 'gift_box_westpack';
+                $rawName = 'Edle Schmuckbox (Schwarz-Gold)';
+                $rawDesc = ($rawDesc !== '' && !str_contains($rawDesc, 'Luftpolstertasche'))
+                    ? $rawDesc
+                    : 'Mattschwarze Juwelierschachtel mit Samteinlage & Gold-Logo statt Versandtasche';
+                if ($priceCents === 290 || $priceCents === 0) {
+                    $priceCents = 490;
+                }
+                $hasAnyBoxAddon = true;
+            } elseif ($isPresetWrapAddon) {
+                $canonicalId = 'gift_wrap_black_gold';
+                $rawName = 'Geschenkpapier (Schwarz-Gold-Look)';
+                $rawDesc = $rawDesc !== '' ? $rawDesc : 'Von Hand in edles Schwarz-Gold-Geschenkpapier eingeschlagen – direkt verschenkfertig';
+                if ($priceCents === 0 || $priceCents === 290) {
+                    $priceCents = 390;
+                }
+            } else {
+                if (in_array((string) $this->slug, ['seelen-kristall', 'weizenglas-personalisiert'], true) && $looksLikeBox) {
+                    continue;
+                }
+                if ($looksLikeBox) {
+                    if ($hasAnyBoxAddon) {
+                        continue;
+                    }
+                    $hasAnyBoxAddon = true;
+                }
+                $canonicalId = $rawId !== '' ? $rawId : \Illuminate\Support\Str::uuid()->toString();
+            }
+
+            if (isset($normalizedById[$canonicalId])) {
+                continue;
+            }
+
+            $imagePath = self::resolveAddonImagePath(array_merge($addon, [
+                'id'   => $canonicalId,
+                'name' => $rawName,
+            ]));
+
+            $normalizedById[$canonicalId] = [
+                'id'          => $canonicalId,
+                'name'        => $rawName,
+                'description' => $rawDesc,
+                'price'       => number_format($priceCents / 100, 2, '.', ''),
+                'price_cents' => $priceCents,
+                'image_path'  => $imagePath,
+                'image_url'   => self::resolveAddonImageUrl($imagePath),
+                'is_active'   => $isActive,
+            ];
+        }
+
+        // 2. Sicherstellen, dass alle Standard-Optionen (Schmuckbox 4,90 € bei Schmuck & Geschenkpapier 2,90 € bei allen physischen Produkten) vorhanden sind
+        foreach ($this->getDefaultPhysicalAddons() as $defaultAddon) {
+            $defId = $defaultAddon['id'];
+            if ($defId === 'gift_box_westpack' && $hasAnyBoxAddon) {
+                continue;
+            }
+            if (!isset($normalizedById[$defId])) {
+                $defImgPath = self::resolveAddonImagePath($defaultAddon);
+                $normalizedById[$defId] = array_merge($defaultAddon, [
+                    'image_path' => $defImgPath,
+                    'image_url'  => self::resolveAddonImageUrl($defImgPath),
+                ]);
+            }
+        }
+
+        // 3. Sinnvolle Reihenfolge: Zuerst Schmuckbox (falls vorhanden), dann Geschenkpapier, danach sonstige Extras
+        $ordered = [];
+        if (isset($normalizedById['gift_box_westpack'])) {
+            $ordered[] = $normalizedById['gift_box_westpack'];
+            unset($normalizedById['gift_box_westpack']);
+        }
+        if (isset($normalizedById['gift_wrap_black_gold'])) {
+            $ordered[] = $normalizedById['gift_wrap_black_gold'];
+            unset($normalizedById['gift_wrap_black_gold']);
+        }
+        foreach ($normalizedById as $extra) {
+            $ordered[] = $extra;
+        }
+
+        if ($onlyActive) {
+            $ordered = array_values(array_filter($ordered, fn(array $a) => !empty($a['is_active'])));
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * Berechnet den echten Reife- & Erstell-Status (0–100 %) des Produkts über alle Bereiche
+     * (Basisdaten, Kalkulation, Lieferant, Medien, Kategorien, Maße, LUCID-Verpackung, Lager, 3D/2D & Gravur-Vorlagen).
+     */
+    public function getReadinessReport(): array
+    {
+        $isPhysical = $this->isPhysical();
+        $isPersonalizable = $this->isPersonalizable();
+        $isVoucher = $this->isGiftVoucher();
+
+        $checks = [];
+
+        // 1. Basisdaten & VK (Schritt 1)
+        $hasValidName = !empty(trim((string) $this->name)) && !str_starts_with(trim((string) $this->name), 'Neues Produkt ');
+        $hasValidSlug = !empty($this->slug) && !str_starts_with((string) $this->slug, 'draft-');
+        $hasValidPrice = ((int) $this->price > 0) || $isVoucher;
+        $hasValidSku = !empty(trim((string) $this->sku));
+        $hasDescription = !empty(trim(strip_tags((string) $this->description)));
+        $basicsPassed = $hasValidName && $hasValidSlug && $hasValidPrice && $hasValidSku && $hasDescription;
+
+        $basicsMissingParts = [];
+        if (!$hasValidName || !$hasValidSlug) $basicsMissingParts[] = 'Name/Slug';
+        if (!$hasValidPrice) $basicsMissingParts[] = 'VK-Preis';
+        if (!$hasValidSku) $basicsMissingParts[] = 'SKU';
+        if (!$hasDescription) $basicsMissingParts[] = 'Beschreibung';
+
+        $checks[] = [
+            'key'           => 'basics',
+            'step'          => 1,
+            'sub_step'      => 2,
+            'section'       => 'collection',
+            'label'         => 'Basisdaten & VK',
+            'short_missing' => 'Basisdaten / VK',
+            'passed'        => $basicsPassed,
+            'detail'        => $basicsPassed
+                ? 'Name, SKU, Beschreibung & VK vollständig'
+                : 'Fehlt: ' . implode(', ', $basicsMissingParts),
+        ];
+
+        if ($isPhysical) {
+            // 2. Kalkulation / EK (Schritt 1 -> Unter-Step 2)
+            $ekPassed = ((int) $this->purchase_price > 0);
+            $checks[] = [
+                'key'           => 'economics',
+                'step'          => 1,
+                'sub_step'      => 2,
+                'section'       => 'collection',
+                'label'         => 'EK & Kalkulation',
+                'short_missing' => 'EK-Preis fehlt',
+                'passed'        => $ekPassed,
+                'detail'        => $ekPassed
+                    ? 'Netto-EK (' . number_format($this->purchase_price / 100, 2, ',', '.') . ' €) hinterlegt'
+                    : 'Netto-Einkaufspreis für Margen-Kalkulation fehlt',
+            ];
+
+            // 3. Lieferant & Nachbestell-Link (Schritt 1 -> Unter-Step 5)
+            $hasSupplier = !empty($this->product_supplier_id);
+            $hasReorderUrl = !empty(trim((string) $this->reorder_url));
+            $supplierPassed = $hasSupplier && $hasReorderUrl;
+            $supplierName = $this->relationLoaded('supplier') ? ($this->supplier?->name ?? 'Lieferant') : 'Lieferant';
+
+            $checks[] = [
+                'key'           => 'supplier',
+                'step'          => 1,
+                'sub_step'      => 5,
+                'section'       => 'suppliers',
+                'label'         => 'Lieferant & Link',
+                'short_missing' => !$hasSupplier ? 'Kein Lieferant' : 'Kein Bestell-Link',
+                'passed'        => $supplierPassed,
+                'detail'        => $supplierPassed
+                    ? $supplierName . ' + B2B-Link verknüpft'
+                    : (!$hasSupplier && !$hasReorderUrl ? 'Lieferant & Nachbestell-Link fehlen' : (!$hasSupplier ? 'Lieferant nicht zugewiesen' : 'B2B-Nachbestell-Link fehlt')),
+            ];
+        }
+
+        // 4. Medien / Hauptbild (Schritt 2)
+        $hasGalleryImage = false;
+        foreach ($this->media_gallery ?? [] as $media) {
+            if (is_array($media) && ($media['type'] ?? '') === 'image' && !empty($media['path'])) {
+                $hasGalleryImage = true;
+                break;
+            }
+        }
+        $activeTemplates = $this->relationLoaded('templates')
+            ? $this->templates->where('is_active', true)
+            : $this->templates()->where('is_active', true)->get();
+
+        $hasSeasonalImage = $activeTemplates->filter(fn ($t) => !empty($t->preview_image))->isNotEmpty();
+        $mediaPassed = $hasGalleryImage || $hasSeasonalImage || !empty($this->preview_image_path);
+
+        $checks[] = [
+            'key'           => 'media',
+            'step'          => 2,
+            'section'       => 'collection',
+            'label'         => 'Medien & Galerie',
+            'short_missing' => 'Hauptbild fehlt',
+            'passed'        => $mediaPassed,
+            'detail'        => $mediaPassed
+                ? 'Produktbilder vorhanden'
+                : 'Mindestens 1 Galeriebild oder Saison-Vorlagenbild erforderlich',
+        ];
+
+        // 5. Kategorien (Schritt 3)
+        $categoryCount = $this->relationLoaded('categories')
+            ? $this->categories->count()
+            : $this->categories()->count();
+        $categoriesPassed = $categoryCount > 0;
+
+        $checks[] = [
+            'key'           => 'categories',
+            'step'          => 3,
+            'sub_step'      => 1,
+            'section'       => 'collection',
+            'label'         => 'Kategorien',
+            'short_missing' => 'Keine Kategorie',
+            'passed'        => $categoriesPassed,
+            'detail'        => $categoriesPassed
+                ? $categoryCount . ' Shop-' . ($categoryCount === 1 ? 'Kategorie' : 'Kategorien') . ' zugewiesen'
+                : 'Noch keiner Shop-Kategorie zugeordnet',
+        ];
+
+        if ($isPhysical) {
+            // 6. Verpackung & LUCID (Schritt 3 -> Unter-Step 4 / Tab Verpackung)
+            $packagings = $this->relationLoaded('packagings')
+                ? $this->packagings
+                : $this->packagings()->get();
+            $hasPackagingRows = $packagings->isNotEmpty();
+            $hasCatalogLink = $packagings->whereNotNull('packaging_item_id')->isNotEmpty();
+            $packagingPassed = $hasPackagingRows && ((int) $this->packaging_weight > 0 || $packagings->sum('weight_grams') > 0);
+
+            $checks[] = [
+                'key'           => 'packaging',
+                'step'          => 3,
+                'sub_step'      => 4,
+                'section'       => 'packaging',
+                'label'         => 'Verpackung & LUCID',
+                'short_missing' => 'Keine Verpackung',
+                'passed'        => $packagingPassed,
+                'detail'        => $packagingPassed
+                    ? ($hasCatalogLink ? 'Katalog-Verpackung & LUCID-Gewichte verknüpft' : 'LUCID-Gewichte hinterlegt')
+                    : 'Verpackungsmaterial & LUCID-Grammatur fehlen',
+            ];
+
+            // 7. Physische Maße & Gewicht (Schritt 3 -> Unter-Step 4)
+            $dimensionsPassed = ((int) $this->weight > 0) && ((float) $this->width > 0) && ((float) $this->height > 0);
+            $checks[] = [
+                'key'           => 'dimensions',
+                'step'          => 3,
+                'sub_step'      => 4,
+                'section'       => 'collection',
+                'label'         => 'Maße & Gewicht',
+                'short_missing' => 'Maße / Gewicht',
+                'passed'        => $dimensionsPassed,
+                'detail'        => $dimensionsPassed
+                    ? "{$this->width}×{$this->height}×{$this->length} mm · {$this->weight} g"
+                    : 'Produktmaße (B×H) oder Eigengewicht fehlen',
+            ];
+        }
+
+        if ($isPhysical && $isPersonalizable) {
+            // 9. 3D/2D Konfigurator Setup (Schritt 4 -> Unter-Step 1)
+            $has3dOr2d = (!$this->three_d_active || !empty($this->three_d_model_path)) && !empty($this->preview_image_path);
+            $checks[] = [
+                'key'           => 'configurator',
+                'step'          => 4,
+                'sub_step'      => 1,
+                'section'       => 'collection',
+                'label'         => '3D / 2D Konfigurator',
+                'short_missing' => '3D/2D Datei fehlt',
+                'passed'        => $has3dOr2d,
+                'detail'        => $has3dOr2d
+                    ? ($this->three_d_active ? '3D-Modell (.glb) & Overlay aktiv' : '2D-Konfigurator aktiv')
+                    : '3D-Modell (.glb) oder Konfigurator-Vorschaubild fehlt',
+            ];
+
+            // 10. Gravur-Vorlagen (Schritt 4 -> Unter-Step 4 / Tab Vorlagen)
+            $activeTplCount = $activeTemplates->count();
+            $templatesPassed = $activeTplCount > 0;
+            $checks[] = [
+                'key'           => 'templates',
+                'step'          => 4,
+                'sub_step'      => 4,
+                'section'       => 'templates',
+                'label'         => 'Gravur-Vorlagen',
+                'short_missing' => 'Keine Vorlage',
+                'passed'        => $templatesPassed,
+                'detail'        => $templatesPassed
+                    ? $activeTplCount . ' aktive ' . ($activeTplCount === 1 ? 'Gravur-Vorlage' : 'Gravur-Vorlagen')
+                    : 'Noch keine Design-/Saison-Vorlage für dieses Produkt angelegt',
+            ];
+        }
+
+        $totalCount = count($checks);
+        $passedCount = count(array_filter($checks, fn (array $c) => $c['passed']));
+        $score = $totalCount > 0 ? (int) round(($passedCount / $totalCount) * 100) : 100;
+        $missing = array_values(array_filter($checks, fn (array $c) => !$c['passed']));
+
+        $byStep = [1 => [], 2 => [], 3 => [], 4 => []];
+        foreach ($checks as $check) {
+            $byStep[$check['step']][] = $check;
+        }
+
+        return [
+            'score'        => $score,
+            'passed_count' => $passedCount,
+            'total_count'  => $totalCount,
+            'is_ready'     => $passedCount === $totalCount,
+            'checks'       => $checks,
+            'missing'      => $missing,
+            'by_step'      => $byStep,
+        ];
     }
 
     /**
@@ -833,10 +1316,26 @@ use HasFactory, HasUuids, SoftDeletes;
         }
 
         if (is_array($this->media_gallery) && count($this->media_gallery) > 0) {
+            // Zuerst explizit als Hauptbild (is_main = true) markiertes Bild bevorzugen
+            foreach ($this->media_gallery as $media) {
+                if (is_array($media) && ($media['type'] ?? 'image') === 'image' && !empty($media['path']) && !empty($media['is_main'])) {
+                    if (!in_array($media['path'], $excludeImagePaths, true)) {
+                        return [
+                            'type'            => 'image',
+                            'path'            => $media['path'],
+                            'url'             => ProductTemplate::resolveImageUrl($media['path']),
+                            'is_ai_generated' => filter_var($media['is_ai_generated'] ?? true, FILTER_VALIDATE_BOOLEAN),
+                            'label'           => $media['alt'] ?? $this->name,
+                        ];
+                    }
+                }
+            }
+
             foreach ($this->media_gallery as $media) {
                 if (is_array($media) && ($media['type'] ?? 'image') === 'image' && !empty($media['path'])) {
                     if (!in_array($media['path'], $excludeImagePaths, true)) {
                         return [
+                            'type'            => 'image',
                             'path'            => $media['path'],
                             'url'             => ProductTemplate::resolveImageUrl($media['path']),
                             'is_ai_generated' => filter_var($media['is_ai_generated'] ?? true, FILTER_VALIDATE_BOOLEAN),
@@ -845,6 +1344,7 @@ use HasFactory, HasUuids, SoftDeletes;
                     }
                 } elseif (is_string($media) && $media !== '' && !in_array($media, $excludeImagePaths, true)) {
                     return [
+                        'type'            => 'image',
                         'path'            => $media,
                         'url'             => ProductTemplate::resolveImageUrl($media),
                         'is_ai_generated' => true,
@@ -856,6 +1356,7 @@ use HasFactory, HasUuids, SoftDeletes;
 
         if (!empty($this->preview_image_path) && !in_array($this->preview_image_path, $excludeImagePaths, true)) {
             return [
+                'type'            => 'image',
                 'path'            => $this->preview_image_path,
                 'url'             => ProductTemplate::resolveImageUrl($this->preview_image_path),
                 'is_ai_generated' => false,
@@ -864,11 +1365,127 @@ use HasFactory, HasUuids, SoftDeletes;
         }
 
         return [
+            'type'            => 'image',
             'path'            => null,
             'url'             => null,
             'is_ai_generated' => false,
             'label'           => null,
         ];
+    }
+
+    /**
+     * Liefert universelle strukturierte Metadaten zur Hauptansicht des Produkts (unterstützt sowohl Bild als auch Video).
+     * Wurde in "2. Medien -> Galerie & Marketing" ein Video als Hauptansicht (is_main = true bzw. Position 0) definiert,
+     * liefert diese Methode type = 'video' samt Poster-Fallback-URL.
+     *
+     * @return array{type: string, path: ?string, url: ?string, poster_url: ?string, is_ai_generated: bool, label: ?string}
+     */
+    public function resolveMainMediaMeta(?string $explicitHoliday = null, bool $allowSeasonal = true, array $excludePaths = [], ?\Carbon\CarbonInterface $referenceDate = null): array
+    {
+        $gallery = is_array($this->media_gallery) ? $this->media_gallery : [];
+
+        // 1. Prüfen, ob explizit ein Video als Hauptansicht (is_main = true oder Position 0 ohne anderweitiges is_main) gesetzt wurde
+        $explicitMainItem = null;
+        foreach ($gallery as $media) {
+            if (is_array($media) && !empty($media['is_main']) && !empty($media['path'])) {
+                $explicitMainItem = $media;
+                break;
+            }
+        }
+        if ($explicitMainItem === null && isset($gallery[0]) && is_array($gallery[0]) && !empty($gallery[0]['path'])) {
+            $explicitMainItem = $gallery[0];
+        }
+
+        if (
+            is_array($explicitMainItem)
+            && ($explicitMainItem['type'] ?? 'image') === 'video'
+            && !in_array($explicitMainItem['path'], $excludePaths, true)
+        ) {
+            $fallbackImgMeta = $this->resolveMainImageMeta($explicitHoliday, $allowSeasonal, $excludePaths, $referenceDate);
+            return [
+                'type'            => 'video',
+                'path'            => $explicitMainItem['path'],
+                'url'             => ProductTemplate::resolveImageUrl($explicitMainItem['path']),
+                'poster_url'      => $fallbackImgMeta['url'] ?? null,
+                'is_ai_generated' => filter_var($explicitMainItem['is_ai_generated'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'label'           => $explicitMainItem['alt'] ?? $this->name,
+            ];
+        }
+
+        // 2. Reguläre Hauptbild-Auflösung (inkl. Saison-/Feiertags-Automatik)
+        $imgMeta = $this->resolveMainImageMeta($explicitHoliday, $allowSeasonal, $excludePaths, $referenceDate);
+        if (!empty($imgMeta['url'])) {
+            return [
+                'type'            => 'image',
+                'path'            => $imgMeta['path'] ?? null,
+                'url'             => $imgMeta['url'],
+                'poster_url'      => $imgMeta['url'],
+                'is_ai_generated' => (bool) ($imgMeta['is_ai_generated'] ?? false),
+                'label'           => $imgMeta['label'] ?? $this->name,
+            ];
+        }
+
+        // 3. Fallback: Falls überhaupt kein Bild existiert, aber ein Video in der Galerie vorhanden ist
+        foreach ($gallery as $media) {
+            if (is_array($media) && ($media['type'] ?? '') === 'video' && !empty($media['path']) && !in_array($media['path'], $excludePaths, true)) {
+                return [
+                    'type'            => 'video',
+                    'path'            => $media['path'],
+                    'url'             => ProductTemplate::resolveImageUrl($media['path']),
+                    'poster_url'      => null,
+                    'is_ai_generated' => filter_var($media['is_ai_generated'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                    'label'           => $media['alt'] ?? $this->name,
+                ];
+            }
+        }
+
+        return [
+            'type'            => 'image',
+            'path'            => null,
+            'url'             => null,
+            'poster_url'      => null,
+            'is_ai_generated' => false,
+            'label'           => null,
+        ];
+    }
+
+    /**
+     * Liefert die universellen Metadaten zum definierten Hover-Medium (Bild oder Video aus media_gallery mit is_hover = true).
+     * Gibt null zurück, falls kein Hover-Medium definiert ist oder dessen Pfad identisch zur aktiven Hauptansicht ist.
+     *
+     * @return ?array{type: string, path: string, url: ?string, is_ai_generated: bool, label: string}
+     */
+    public function resolveHoverMediaMeta(?string $excludeMainPath = null): ?array
+    {
+        if (!is_array($this->media_gallery) || count($this->media_gallery) === 0) {
+            return null;
+        }
+
+        foreach ($this->media_gallery as $media) {
+            if (!is_array($media) || empty($media['is_hover']) || empty($media['path'])) {
+                continue;
+            }
+
+            if ($excludeMainPath !== null && $media['path'] === $excludeMainPath) {
+                continue;
+            }
+
+            $type = (($media['type'] ?? 'image') === 'video') ? 'video' : 'image';
+            $url = ProductTemplate::resolveImageUrl($media['path']);
+            if (!$url) {
+                continue;
+            }
+
+            return [
+                'type'            => $type,
+                'path'            => $media['path'],
+                'url'             => $url,
+                'is_ai_generated' => filter_var($media['is_ai_generated'] ?? ($type === 'image'), FILTER_VALIDATE_BOOLEAN),
+                'label'           => $media['alt'] ?? ($this->name . ' – Hover-Ansicht'),
+            ];
+        }
+
+        return null;
     }
 
     /**
@@ -1017,8 +1634,15 @@ use HasFactory, HasUuids, SoftDeletes;
             return 0;
         }
 
-        $feePercent = (float) shop_setting('stripe_fee_percent', 2.50);
-        $feeFixedCents = (int) shop_setting('stripe_fee_fixed_cents', 30);
+        $rawPercent = shop_setting('stripe_fee_percent', 2.50);
+        $feePercent = (float) str_replace(',', '.', (string) $rawPercent);
+
+        $rawFixed = shop_setting('stripe_fee_fixed_cents', 30);
+        if (is_string($rawFixed) && (str_contains($rawFixed, '.') || str_contains($rawFixed, ','))) {
+            $feeFixedCents = (int) round(((float) str_replace(',', '.', $rawFixed)) * 100);
+        } else {
+            $feeFixedCents = (int) $rawFixed;
+        }
 
         return (int) round(($grossCents * ($feePercent / 100)) + $feeFixedCents);
     }
@@ -1069,7 +1693,12 @@ use HasFactory, HasUuids, SoftDeletes;
             }
         }
 
-        $shippingCostEur = number_format(((int) shop_setting('shipping_cost', 490)) / 100, 2, '.', '');
+        $freeThresholdCents = (int) shop_setting('shipping_free_threshold', 5000);
+        $defaultShipCents = (int) shop_setting('shipping_cost', 490);
+        $effectiveShipCents = (!$this->isPhysical() || (int) $this->gross_price >= $freeThresholdCents)
+            ? 0
+            : $defaultShipCents;
+        $shippingCostEur = number_format($effectiveShipCents / 100, 2, '.', '');
 
         $returnPolicy = $this->isPersonalizable()
             ? [
@@ -1090,7 +1719,7 @@ use HasFactory, HasUuids, SoftDeletes;
             '@type' => 'OfferShippingDetails',
             'shippingRate' => [
                 '@type' => 'MonetaryAmount',
-                'value' => $this->isPhysical() ? $shippingCostEur : '0.00',
+                'value' => $shippingCostEur,
                 'currency' => 'EUR',
             ],
             'shippingDestination' => [
@@ -1114,7 +1743,10 @@ use HasFactory, HasUuids, SoftDeletes;
             ],
         ];
 
-        $basePriceEur = number_format($this->price / 100, 2, '.', '');
+        $effectiveGrossCents = ($this->slug === 'geschenkgutschein' && (int) $this->gross_price <= 0)
+            ? 500
+            : (int) $this->gross_price;
+        $basePriceEur = number_format($effectiveGrossCents / 100, 2, '.', '');
         $priceValidUntil = now()->addYear()->format('Y-m-d');
         $availabilityUrl = $this->isAvailable()
             ? 'https://schema.org/InStock'
@@ -1128,11 +1760,24 @@ use HasFactory, HasUuids, SoftDeletes;
         if (count($activeVariants) > 1) {
             $variantOffers = [];
             $pricesFloat = [];
+            $calculator = new PriceCalcService();
             foreach ($activeVariants as $v) {
-                $varPriceFloat = (isset($v['price']) && $v['price'] !== '')
-                    ? (float) $v['price']
-                    : ($this->price / 100);
+                $surchargeCents = (isset($v['price']) && $v['price'] !== '')
+                    ? (int) round(((float) str_replace(',', '.', (string) $v['price'])) * 100)
+                    : 0;
+                $varRawCents = (int) $this->price + $surchargeCents;
+                $varGrossCents = $this->tax_included
+                    ? $varRawCents
+                    : $calculator->getGrossFromNet($varRawCents, (float) $this->tax_rate);
+                $varPriceFloat = $varGrossCents / 100;
                 $pricesFloat[] = $varPriceFloat;
+
+                $varShipCents = (!$this->isPhysical() || $varGrossCents >= $freeThresholdCents)
+                    ? 0
+                    : $defaultShipCents;
+                $varShippingDetails = $shippingDetails;
+                $varShippingDetails['shippingRate']['value'] = number_format($varShipCents / 100, 2, '.', '');
+
                 $variantOffers[] = [
                     '@type' => 'Offer',
                     'name' => (string) ($v['name'] ?? $this->name),
@@ -1149,7 +1794,7 @@ use HasFactory, HasUuids, SoftDeletes;
                         '@id' => url('/#organization'),
                     ],
                     'hasMerchantReturnPolicy' => $returnPolicy,
-                    'shippingDetails' => $shippingDetails,
+                    'shippingDetails' => $varShippingDetails,
                 ];
             }
 
@@ -1263,7 +1908,9 @@ use HasFactory, HasUuids, SoftDeletes;
             $productNode['category'] = $this->categories->pluck('name')->implode(', ');
         }
 
-        $approvedReviews = $this->reviews;
+        $approvedReviews = $this->relationLoaded('reviews')
+            ? $this->reviews->where('status', 'approved')
+            : $this->reviews()->where('status', 'approved')->get();
         if ($approvedReviews && $approvedReviews->count() > 0) {
             $productNode['aggregateRating'] = [
                 '@type' => 'AggregateRating',
@@ -1278,7 +1925,7 @@ use HasFactory, HasUuids, SoftDeletes;
                 $authorName = $rev->is_anonymous
                     ? 'Anonymer Kunde'
                     : ($rev->customer_name
-                        ?: ($rev->customer ? trim($rev->customer->first_name . ' ' . substr((string) $rev->customer->last_name, 0, 1) . '.') : 'Verifizierter Kunde'));
+                        ?: ($rev->customer ? trim($rev->customer->first_name . ' ' . mb_substr(trim((string) $rev->customer->last_name), 0, 1) . '.') : 'Verifizierter Kunde'));
                 $cleanAuthorName = trim(strip_tags((string) $authorName));
                 $cleanReviewTitle = trim(strip_tags((string) ($rev->title ?: $this->name)));
                 $reviewNodes[] = [
@@ -1306,6 +1953,15 @@ use HasFactory, HasUuids, SoftDeletes;
             ? "{$this->width} × {$this->height}" . ($this->length > 0 ? " × {$this->length} mm" : ' mm') . ($this->weight > 0 ? " (Gewicht ca. {$this->weight} g)" : '')
             : 'den in den Produkteigenschaften angegebenen Originalmaßen';
 
+        $companyCityFaq = shop_setting('company_city', shop_setting('owner_city', 'Gifhorn'));
+        if ($this->slug === 'geschenkgutschein') {
+            $deliveryFaqAnswer = 'Digitale Geschenkgutscheine stehen nach Zahlungseingang sofort als PDF-Download bereit. Bei Wahl des Postversands wird die lasergravierte goldene Metallkarte im schwarzen Edel-Umschlag mit goldenem Siegel innerhalb von 3 bis 5 Werktagen versendet.';
+        } elseif ($this->type === 'digital') {
+            $deliveryFaqAnswer = 'Digitale Produkte stehen unmittelbar nach Zahlungseingang als Sofort-Download bereit.';
+        } else {
+            $deliveryFaqAnswer = 'Jedes Unikat wird in unserer Manufaktur in ' . $companyCityFaq . ' (Deutschland) einzeln per Laser veredelt, handgeprüft und innerhalb von 3–5 Werktagen sorgfältig gepolstert per DHL mit Sendungsverfolgung versendet.';
+        }
+
         $faqNode = [
             '@type' => 'FAQPage',
             '@id' => $canonicalUrl . '#faq',
@@ -1323,7 +1979,7 @@ use HasFactory, HasUuids, SoftDeletes;
                     'name' => "Ist die Lasergravur bei „{$this->name}“ im Preis inbegriffen?",
                     'acceptedAnswer' => [
                         '@type' => 'Answer',
-                        'text' => 'Ja, die individuelle Personalisierung im interaktiven 2D-Editor und 3D-Echtzeit-Konfigurator (Wunschtext, Schriftart, Motiv oder eigenes Logo) ist im angezeigten Preis von ' . number_format($this->price / 100, 2, ',', '.') . ' € bereits vollständig enthalten.',
+                        'text' => 'Ja, die individuelle Personalisierung im interaktiven 2D-Editor und 3D-Echtzeit-Konfigurator (Wunschtext, Schriftart, Motiv oder eigenes Logo) ist im angezeigten Preis von ' . number_format($effectiveGrossCents / 100, 2, ',', '.') . ' € bereits vollständig enthalten.',
                     ],
                 ],
                 [
@@ -1331,7 +1987,7 @@ use HasFactory, HasUuids, SoftDeletes;
                     'name' => 'Wie schnell erfolgt die Anfertigung und Lieferung?',
                     'acceptedAnswer' => [
                         '@type' => 'Answer',
-                        'text' => 'Jedes Unikat wird in unserer Manufaktur in Gifhorn (Deutschland) einzeln per Laser veredelt, handgeprüft und innerhalb von 1–3 Werktagen versichert per DHL versendet.',
+                        'text' => $deliveryFaqAnswer,
                     ],
                 ],
             ],

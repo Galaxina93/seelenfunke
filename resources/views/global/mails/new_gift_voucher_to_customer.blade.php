@@ -24,12 +24,15 @@
 
     {{-- GUTSCHEINCODE BOX --}}
     <div style="margin-top: 30px; margin-bottom: 30px; padding: 25px; background-color: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 8px; text-align: center;">
-        <h3 style="margin-top: 0; color: #1f2937; font-size: 14px; text-transform: uppercase; tracking-wider: 1px;">Dein Gutscheincode:</h3>
+        <h3 style="margin-top: 0; color: #1f2937; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Dein Gutscheincode:</h3>
         <div style="display: inline-block; padding: 12px 24px; background-color: #ffffff; border: 2px dashed #fbbf24; border-radius: 6px; font-family: monospace; font-size: 22px; font-weight: bold; color: #d97706; letter-spacing: 1px; margin-bottom: 15px;">
             {{ $voucher->code }}
         </div>
         <p style="font-size: 13px; color: #6b7280; line-height: 1.5; margin: 0;">
-            Gib diesen Code einfach bei deiner nächsten Bestellung im Warenkorb oder während des Checkouts im Gutscheinfeld ein. Der Betrag wird direkt von deiner Bestellung abgezogen.
+            Gib diesen Code einfach bei deiner nächsten Bestellung im Warenkorb oder während des Checkouts im Gutscheinfeld ein. Der Betrag wird direkt von deiner Bestellung abgezogen. Ein etwaiges Restguthaben bleibt auf deinem Gutscheincode für zukünftige Einkäufe erhalten.
+        </p>
+        <p style="font-size: 11px; color: #9ca3af; line-height: 1.4; margin-top: 8px; margin-bottom: 0;">
+            Gültigkeit: {{ $voucher->valid_until ? 'bis zum ' . $voucher->valid_until->format('d.m.Y') : '3 Jahre zum Jahresende ab Ausstellungsdatum (§§ 195, 199 BGB)' }} • Keine Barauszahlung des Gutscheinwerts.
         </p>
     </div>
 

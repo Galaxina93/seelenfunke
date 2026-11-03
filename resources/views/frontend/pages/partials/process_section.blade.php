@@ -7,7 +7,7 @@
                 Vom Rohling zum <span class="text-[#8a6820]">personalisierten Unikat</span>
             </h2>
             <p class="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
-                Transparenz schafft Vertrauen. Ihr Unikat ist keine Lagerware. Erfahren Sie hier, wie wir Ihr Produkt Schritt für Schritt in unserer Manufaktur in Gifhorn fertigen – von der Datenprüfung bis zum sicheren Versand.
+                Transparenz schafft Vertrauen. Ihr Unikat ist keine anonyme Massenware: Erfahren Sie hier, wie Ihr Wunschmotiv in unserer Manufaktur in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }} Schritt für Schritt vom edlen Rohling zum persönlichen Erinnerungsstück veredelt wird.
             </p>
         </div>
 
@@ -25,32 +25,32 @@
                         [
                             'video' => 'beratung',
                             'image' => '/shop/frontend/process/beratung.webp',
-                            'title' => 'Auftrag & Design',
-                            'text' => 'Alles beginnt mit Ihrer Idee. Wir prüfen Ihre Daten oder erstellen gemeinsam ein Layout, das perfekt auf das Glas abgestimmt ist.'
+                            'title' => '3D-Design & Prüfung',
+                            'text' => 'Im interaktiven 2D/3D-Konfigurator gestalten Sie Ihr Wunschmotiv live mit Texten, Sprüchen oder Symbolen. Wir prüfen jede Datei vorab auf optimale Gravurschärfe.'
                         ],
                         [
                             'video' => 'lasergravur',
                             'image' => '/shop/frontend/process/lasergravur.webp',
-                            'title' => 'High-End Laser',
-                            'text' => 'Mit modernster Lasertechnologie wird Ihr Motiv dauerhaft und gestochen scharf in das Material eingearbeitet. Präzision im Mikrometerbereich.'
+                            'title' => 'Dual-Laser-Präzision',
+                            'text' => 'Ob K9-Kristallglas per Kaltlicht-Laser oder 14k Gold-Schmuck, Edelstahl und eloxiertes Aluminium per MOPA-Faserlaser: Ihre Gravur entsteht dauerhaft im Mikrometerbereich.'
                         ],
                         [
                             'video' => '4_augen',
                             'image' => '/shop/frontend/process/handveredelung.webp',
-                            'title' => 'Veredelung & Check',
-                            'text' => 'Jedes Stück wird von Hand gereinigt, poliert und durchläuft unsere strenge 4-Augen-Qualitätsprüfung. Nur Makelloses verlässt das Haus.'
+                            'title' => 'Handfinish & Endkontrolle',
+                            'text' => 'Nach der Gravur wird jedes Stück von Hand gereinigt, poliert und persönlich unter Werklicht auf makellose Kanten und perfekten Gravurkontrast geprüft.'
                         ],
                         [
                             'video' => 'edle_verpackung',
                             'image' => '/shop/frontend/process/edle_verpackung.webp',
-                            'title' => 'Edle Verpackung',
-                            'text' => 'Der erste Eindruck zählt. Ihr Unikat wird direkt in unserer hochwertigen Geschenkbox verpackt und ist somit bereit zur feierlichen Übergabe.'
+                            'title' => 'Manufaktur-Verpackung',
+                            'text' => 'Ihr Unikat wird liebevoll in Seidenpapier, Schmuckbeutel oder unsere edle Geschenkbox mit passgenauem Schaumstoff-Inlay und goldenem „Mein Seelenfunke“-Siegel gebettet.'
                         ],
                         [
                             'video' => 'sicherer_versand',
                             'image' => '/shop/frontend/process/sicherer_versand.webp',
-                            'title' => 'Sorgfältiger Versand',
-                            'text' => 'Wir verpacken bruchsicher in speziellen Kartonagen. Ihr Paket wird sicher und gut gepolstert an unseren Logistikpartner übergeben.'
+                            'title' => 'Sicherer DHL-Versand',
+                            'text' => 'Stoßsicher gepolstert in nachhaltigem Waben- und Schutzpapier übergeben wir Ihr Paket direkt an DHL.'
                         ]
                     ];
                 @endphp
@@ -107,7 +107,7 @@
                                 @else
                                     {{-- Klassische Bild-Logik --}}
                                     <img src="{{ asset($step['image']) }}"
-                                         onerror="this.src='https://placehold.co/200x200/f8f8f8/CCCCCC?text={{ $index+1 }}'; this.style.objectFit='cover';"
+                                         onerror="this.style.display='none';"
                                          alt="Prozess-Schritt: {{ $step['title'] }} - {{ $step['text'] }}"
                                          loading="lazy"
                                          class="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500">

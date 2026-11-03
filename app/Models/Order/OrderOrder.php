@@ -57,6 +57,8 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
 
     protected $table = 'order_orders';
 
+    protected bool $cancellationAlreadyHandled = false;
+
     protected $fillable = [
         'order_number',
         'customer_id',
@@ -170,9 +172,12 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
 
             // 2. Synchronize "cancelled" or "refunded" status
             if (
-                ($order->isDirty('payment_status') && $order->payment_status === 'refunded') ||
-                ($order->isDirty('status') && in_array($order->status, ['cancelled', 'refunded']))
+                !$order->cancellationAlreadyHandled && (
+                    ($order->isDirty('payment_status') && $order->payment_status === 'refunded') ||
+                    ($order->isDirty('status') && in_array($order->status, ['cancelled', 'refunded']))
+                )
             ) {
+                $order->cancellationAlreadyHandled = true;
                 $invoices = $order->invoices()->where('type', 'invoice')->whereIn('status', ['paid', 'open'])->get();
                 foreach ($invoices as $invoice) {
                     try {
@@ -259,7 +264,16 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
 
     public function getShippingTaxAmountAttribute()
     {
-        if ($this->shipping_price <= 0 || shop_setting('is_small_business', false)) {
+        $isSmallBusiness = $this->is_small_business !== null
+            ? (bool) $this->is_small_business
+            : (bool) shop_setting('is_small_business', false);
+
+        $shippingAddr = is_array($this->shipping_address) ? $this->shipping_address : [];
+        $billingAddr = is_array($this->billing_address) ? $this->billing_address : [];
+        $targetCountry = strtoupper((string) ($shippingAddr['country'] ?? $billingAddr['country'] ?? 'DE'));
+        $euCountries = ['DE', 'AT', 'BE', 'BG', 'CY', 'CZ', 'DK', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK'];
+
+        if ($this->shipping_price <= 0 || $isSmallBusiness || !in_array($targetCountry, $euCountries, true)) {
             return 0;
         }
         $taxRate = (float)shop_setting('default_tax_rate', 19.00);
@@ -575,6 +589,7 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
 
                         for ($i = 0; $i < $item->quantity; $i++) {
                             $code = \App\Models\Marketing\MarketingGiftVoucher::generateCode();
+                            $rawPersonalMsg = $config['personal_message'] ?? $config['message'] ?? null;
                             \App\Models\Marketing\MarketingGiftVoucher::create([
                                 'code' => $code,
                                 'order_item_id' => $item->id,
@@ -582,7 +597,7 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
                                 'current_balance' => $paidVoucherValue,
                                 'recipient_name' => (string) ($config['recipient_name'] ?? $order->customer_name ?: 'Beschenkte Person'),
                                 'recipient_email' => $config['recipient_email'] ?? null,
-                                'personal_message' => isset($config['personal_message']) ? mb_substr($config['personal_message'], 0, 160) : null,
+                                'personal_message' => $rawPersonalMsg !== null ? mb_substr((string) $rawPersonalMsg, 0, 160) : null,
                                 'delivery_method' => $config['delivery_method'] ?? 'email',
                                 'is_active' => true,
                                 'valid_until' => now()->addYears(3)->endOfYear(),
@@ -708,6 +723,11 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
      */
     public function handleCancellation(string $reason = 'Stornierung', ?string $previousStatus = null, ?string $previousPaymentStatus = null): void
     {
+        if ($this->cancellationAlreadyHandled) {
+            return;
+        }
+        $this->cancellationAlreadyHandled = true;
+
         $effectiveStatus = $previousStatus ?? $this->getOriginal('status') ?? $this->status;
         $effectivePaymentStatus = $previousPaymentStatus ?? $this->getOriginal('payment_status') ?? $this->payment_status;
         $wasPaid = in_array($effectivePaymentStatus, ['paid', 'refunded'], true);

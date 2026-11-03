@@ -51,7 +51,9 @@
                         </div>
 
                         {{-- Das Bild "Funki" (Dynamisch mit Alpine.js) --}}
-                        <div class="relative w-full flex justify-center lg:justify-start py-6" x-data="{ showRose: @entangle('data_protection') }">
+                        <div class="relative w-full flex justify-center lg:justify-start py-6"
+                             x-data="{ showRose: false }"
+                             @contact-typing.window="showRose = $event.detail.active">
                             {{-- Schein hinter dem Bild ändert sich leicht, wenn die Rose aktiv ist --}}
                             <div class="absolute inset-0 bg-gradient-to-r blur-3xl rounded-full opacity-30 transform scale-75 transition-colors duration-500"
                                  :class="showRose ? 'from-pink-500/20 to-transparent' : 'from-primary/20 to-transparent'"></div>
@@ -65,7 +67,10 @@
 
                         {{-- Kontakt Details --}}
                         <div class="space-y-6">
-                            <a href="mailto:kontakt@mein-seelenfunke.de"
+                            @php
+                                $contactSupportEmail = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
+                            @endphp
+                            <a href="mailto:{{ $contactSupportEmail }}"
                                title="Senden Sie uns eine E-Mail"
                                class="group flex items-center space-x-4 p-4 rounded-2xl border border-gray-200 bg-white hover:border-primary/50 hover:bg-stone-50 hover:shadow-md transition-all duration-300">
                                 <div class="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center text-primary-dark group-hover:bg-primary group-hover:text-gray-900 transition-colors">
@@ -73,7 +78,7 @@
                                 </div>
                                 <div>
                                     <p class="text-xs text-gray-500 uppercase tracking-wide">Schreib uns</p>
-                                    <p class="text-gray-900 font-semibold group-hover:text-primary-dark transition-colors">kontakt@mein-seelenfunke.de</p>
+                                    <p class="text-gray-900 font-semibold group-hover:text-primary-dark transition-colors">{{ $contactSupportEmail }}</p>
                                 </div>
                             </a>
 
@@ -149,30 +154,20 @@
                                     <label for="message" class="text-xs font-bold text-gray-700 uppercase tracking-wider">Deine Nachricht</label>
                                     <span class="text-xs text-gray-500"><span x-text="count"></span>/500</span>
                                 </div>
-                                <textarea wire:model="message" x-ref="msg" x-on:input="count = $refs.msg.value.length" id="message" rows="5" maxlength="500" required aria-required="true"
+                                <textarea wire:model="message" x-ref="msg" x-on:input="count = $refs.msg.value.length; $dispatch('contact-typing', { active: count > 0 })" id="message" rows="5" maxlength="500" required aria-required="true"
                                           class="w-full rounded-xl border border-gray-300 bg-gray-50/50 shadow-sm px-4 py-3 text-gray-900 placeholder-gray-400 transition-all focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/20 focus:outline-none resize-none cursor-text"></textarea>
                                 @error('message') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                             </div>
 
-                            {{-- Checkbox --}}
-                            <div class="flex items-start gap-3 pt-2">
-                                <div class="flex items-center h-5">
-                                    <input wire:model.live="data_protection" type="checkbox" id="checkbox-2" required aria-required="true"
-                                           class="w-5 h-5 rounded border-gray-300 bg-white text-primary focus:ring-primary focus:ring-offset-white cursor-pointer">
-                                </div>
-                                <label for="checkbox-2" class="text-sm text-gray-600 leading-relaxed cursor-pointer">
-                                    Ich habe die <a href="/datenschutz" target="_blank" title="Datenschutzerklärung lesen" class="text-[#8a6820] font-semibold hover:text-primary-dark transition-colors underline decoration-[#8a6820]/60 underline-offset-4">Datenschutzbestimmungen</a> gelesen und erkenne diese ausdrücklich an.
-                                </label>
+                            {{-- Datenschutz-Transparenzhinweis gem. Art. 13 DSGVO (keine Zwangseinwilligung) --}}
+                            <div class="rounded-xl bg-gray-50/80 border border-gray-200/80 px-4 py-3 text-xs text-gray-600 leading-relaxed">
+                                <strong class="text-gray-800">Hinweis zum Datenschutz (Art. 13 DSGVO):</strong> Deine Angaben aus diesem Kontaktformular werden ausschließlich zur Bearbeitung deiner Anfrage gemäß Art.&nbsp;6 Abs.&nbsp;1 lit.&nbsp;b bzw. lit.&nbsp;f DSGVO verarbeitet. Weitere Informationen findest du in unserer <a href="{{ route('datenschutz') }}" target="_blank" title="Datenschutzerklärung lesen" class="text-[#8a6820] font-semibold hover:text-primary-dark transition-colors underline decoration-[#8a6820]/60 underline-offset-4">Datenschutzerklärung</a>.
                             </div>
 
                             {{-- Button Area --}}
-                            <div class="pt-6">
+                            <div class="pt-4">
                                 <button type="submit"
-                                        @if(!$data_protection) disabled @endif
-                                        class="w-full flex justify-center items-center gap-2 py-4 px-6 rounded-xl text-sm font-bold uppercase tracking-widest transition-all duration-300 transform shadow-md
-                                        {{ $data_protection
-                                            ? 'bg-gradient-to-r from-primary-light to-primary text-gray-900 hover:brightness-105 active:scale-95 cursor-pointer hover:-translate-y-0.5'
-                                            : 'bg-gray-200 text-gray-600 cursor-not-allowed' }}">
+                                        class="w-full flex justify-center items-center gap-2 py-4 px-6 rounded-xl text-sm font-bold uppercase tracking-widest transition-all duration-300 transform shadow-md bg-gradient-to-r from-primary-light to-primary text-gray-900 hover:brightness-105 active:scale-95 cursor-pointer hover:-translate-y-0.5">
 
                                     <svg wire:loading wire:target="sending" class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

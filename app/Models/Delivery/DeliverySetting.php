@@ -66,7 +66,7 @@ protected $guarded = [];
         $min = $activeTime ? (int)$activeTime->min_days : 3;
         $max = $activeTime ? (int)$activeTime->max_days : 5;
 
-        $isVacation = (bool)($setting && $setting->is_vacation_mode && $setting->vacation_end_date);
+        $isVacation = (bool)($setting && $setting->is_vacation_mode && $setting->vacation_end_date && !$setting->vacation_end_date->copy()->endOfDay()->isPast());
         $isSick = (bool)($setting && $setting->is_sick_mode);
 
         if ($isSick) {
@@ -75,7 +75,7 @@ protected $guarded = [];
         }
 
         // Basis-Startdatum: Entweder Urlaubsende oder jetzt
-        $baseDate = ($isVacation && $setting->vacation_end_date->isFuture())
+        $baseDate = ($isVacation && !$setting->vacation_end_date->copy()->endOfDay()->isPast())
             ? $setting->vacation_end_date->copy()
             : now();
 

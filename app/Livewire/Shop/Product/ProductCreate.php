@@ -119,21 +119,81 @@ class ProductCreate extends Component
     public $quantity = 0;
     public $continue_selling = false;
 
-    // --- Info Texte ---
+    // --- Info Texte & Kompakte Rechtshinweise (GPSR, LUCID, CE, LFGB, TextilG) ---
     public $infoTexts = [
         'name' => 'Der offizielle Produktname für Shop, Rechnungen und Lieferscheine.',
-        'price' => 'Verkaufspreis. Brutto oder Netto je nach Einstellung.',
-        'sku' => 'SKU (Stock Keeping Unit) - Eindeutige Artikelnummer (Pflichtfeld).',
+        'price' => 'Verkaufspreis im Shop (Brutto/Netto gemäß Steuereinstellung).',
+        'purchase_price' => 'Dein realer Netto-Einkaufspreis des Rohlings. Wird für Margen- & Unit-Economics-Berechnung verwendet.',
+        'legal_type' => 'Produktsicherheit: Typische Deko-Gegenstände dürfen KEIN CE-Zeichen tragen (bei Spielzeug-Optik Hinweis: „Kein Spielzeug“). Bedarfsgegenstände mit Lebensmittelkontakt (z. B. Gläser, Bretter) erfordern Konformitätserklärung & Glas-Gabel-Symbol.',
+        'description' => 'Produktbeschreibung im Shop. Pflichtangaben beachten: Bei Textilien Faserzusammensetzung nennen (z. B. „100 % Baumwolle“); bei Deko in Spielzeug-Optik Warnhinweis aufnehmen.',
+        'sku' => 'SKU (Stock Keeping Unit) – Eindeutige Artikelnummer (Pflichtfeld).',
         'barcode' => 'EAN / GTIN für Scanner und externe Marktplätze.',
-        'brand' => 'Marke oder Hersteller.',
-        'seo' => 'Meta-Daten für Suchmaschinen.',
-        'slug' => 'Der URL-Pfad des Produkts.',
+        'brand' => 'Marke / Hersteller. GPSR-Pflicht (seit 13.12.2024): Jedes physische Produkt bzw. dessen Verpackung muss zwingend mit Namen und Postanschrift des Herstellers gekennzeichnet sein.',
+        'supplier' => 'Zugeordneter B2B-Lieferant für Einkauf, Lieferzeiten und Nachbestellungen.',
+        'reorder_url' => 'Direkter Link zum Rohling im B2B-Shop des Lieferanten. Erkennt bekannte Lieferanten automatisch anhand der Domain.',
+        'seo' => 'Meta-Titel (optimal max. 60 Zeichen) & Meta-Description (max. 160 Zeichen) für Google-Suchergebnisse.',
+        'slug' => 'Der sprechende URL-Pfad des Produkts unter /produkt/...',
+        'categories_help' => 'Ordne das Produkt einer oder mehreren Shop-Kategorien zu, damit Kunden es über die Navigation und Filter im Shop finden.',
+        'attributes_help' => 'Technische & optische Eigenschaften (z. B. Material, Größe, Veredelung). Gesetzlicher Hinweis: Bei Textilien exakte Faserzusammensetzung angeben; bei mehreren kommagetrennten Werten können daraus in Unter-Schritt 3 Varianten gebildet werden.',
+        'variants_help' => 'Erzeugt aus kommagetrennten Eigenschaften (z. B. Größe oder Farbe) automatisch kaufbare Produktvarianten mit eigener SKU, eigenem Preis und Bestand.',
+        'lucid_shipping_overview' => 'Verpackungsgesetz (LUCID) & physische Versanddaten. Jede Versand- und Produktverpackung muss bei einem Dualen System lizenziert sein (Recycling-Symbole sind in DE freiwillig, bei Versand nach Frankreich gilt Triman-Pflicht).',
+        'packaging_catalog_pick' => '1-Klick Zuweisung aus deinem Verpackungskatalog: Übernimmt automatisch den Verpackungs-EK, das Tara-Gewicht, die Versandklasse sowie die exakten LUCID-Materialfraktionen (Papier/Pappe, Kunststoff, Verbund).',
+        'product_weight_grams' => 'Reines Netto-Eigengewicht des Artikels ohne Versandverpackung in Gramm (wird für die Produktbeschreibung und zusammen mit Tara für das DHL-Versandgewicht genutzt).',
+        'packaging_weight_grams' => 'Tara-Gewicht der Verpackung in Gramm. VerpackG-Pflicht (LUCID): Fließt in die Jahresmengenmeldung für dein Duales System ein.',
+        'shipping_class' => 'Steuert die Versandkosten-Logik und das Versandformat (z. B. Großbrief / Luftpolsterversandtasche bis 20 mm Höhe vs. DHL Paket).',
+        'dimensions_mm' => 'Exakte Produktmaße (Länge × Breite × Höhe in Millimetern). Wichtig für die Maßskizze im Shop, die Konfigurator-Proportionen und die Prüfung auf Großbrief-Tauglichkeit.',
+        'inventory_overview' => 'Steuert die Bestandsführung im Lager sowie die Buchbarkeit im Shop.',
+        'track_quantity' => 'Wenn aktiv, wird bei jeder Bestellung der Lagerbestand automatisch reduziert und bei niedrigem Bestand eine Nachbestell-Warnung ausgelöst.',
+        'stock_quantity' => 'Aktuell physisch im Lager vorhandene Stückzahl der Rohlinge (bei Varianten ohne eigenen Bestand gilt dieser Eltern-Bestand).',
+        'continue_selling' => 'Wenn aktiv, bleibt das Produkt im Shop bestellbar, auch wenn der Lagerbestand rechnerisch auf 0 fällt (z. B. bei kurzfristig nachbestellbaren Rohlingen).',
+        'unit_economics_overview' => 'Interne Stückkosten-Kalkulation (Unit Economics) für deine reale Netto-Marge in den „Wahren Zahlen“ und im Angebots-Autopiloten.',
+        'laser_runtime_minutes' => 'Durchschnittliche Gravur- bzw. Bearbeitungsdauer pro Stück am Laser in Minuten.',
+        'electricity_wear_factor' => 'Maschinenstundensatz inkl. Stromverbrauch, Absaugfilter und Laserquellen-Verschleiß pro Minute (in Cent/Min.).',
+        'packaging_cost' => 'Netto-Einkaufspreis der verwendeten Standard-Versandverpackung inkl. Inlay/Polsterung (wird bei Katalog-Auswahl in Unter-Schritt 4 automatisch befüllt).',
+        'marketing_cost_percent' => 'Kalkulatorischer Anteil für Ads / Kundenakquise (CAC) in Prozent vom Netto-Verkaufspreis.',
+        'stripe_fees' => 'Zahlungsanbieter-Gebühren (Kreditkarte, Klarna, Apple Pay, PayPal) werden anhand deiner globalen Shop-Einstellungen automatisch in der Margen-Analyse berücksichtigt.',
+        'tier_pricing' => 'Mengenrabatte im Shop (z. B. ab 3 Stück 5 % Rabatt, ab 5 Stück 10 % Rabatt). Steigert den durchschnittlichen Warenkorbwert (AOV) bei Geschenkartikeln.',
+        'configurator_files_help' => 'Lade hier die grafischen Assets für den 2D- und 3D-Live-Konfigurator hoch oder wähle ein fertiges Vorlage-Paket.',
+        'template_package_help' => 'Weist mit einem Klick das passende 2D-Overlay (PNG), den 3D-Bühnenhintergrund sowie die atmosphärischen Themen-Videos (z. B. Weihnachten, Valentinstag) zu.',
+        'preview_overlay_help' => 'Freigestelltes 2D-Produktbild (.png mit Transparenz). Dient als Zeichenbrett im 2D-Konfigurator und als Grundlage für die Platzierung der Gravurfläche.',
+        'three_d_model_help' => 'Interaktives 3D-Modell im .glb-Format. Beim Upload werden Polygone und Texturen auf Wunsch automatisch für schnelle Ladezeiten im Shop optimiert.',
+        'three_d_bg_help' => 'Hochauflösender Bühnen-Hintergrund (.jpg/.png oder kurzes .mp4 Loop-Video) für die 3D-Ansicht sowie für realistische Glas-/Metall-Reflexionen (WebGL Environment).',
+        'xtool_params_help' => 'Exakte physikalische Millimeter-Maße der Gravurfläche für den maßstabsgetreuen 1:1 SVG-Laser-Export an xTool Creative Space (Flachbett oder Rotary/Zylinder).',
+        'xtool_plane_width_help' => 'Tatsächliche Breite des 100%-Gravurbereichs in Millimetern auf dem flachen Werkstück (X-Achse).',
+        'xtool_plane_height_help' => 'Tatsächliche Höhe des 100%-Gravurbereichs in Millimetern auf dem flachen Werkstück (Y-Achse).',
+        'xtool_rotary_diameter_help' => 'Durchmesser des Glases/Zylinders in Millimetern oben und unten am Beginn bzw. Ende der Gravurzone (für die Mantelflächen-Abwicklung im Rotary-Modus).',
+        'xtool_safezone_help' => 'Nicht gravierbare Randbereiche (z. B. Trinkrand oben oder Rollen-Einspannung/ Glasboden unten) in Millimetern.',
+        'configurator_workspace_help' => 'Richte hier das grüne Gravur-Zeichenbrett (2D) sowie die Position, Rotation und Projektion (Flach vs. Zylindrisch) auf dem 3D-Modell ein.',
+        'working_area_help' => 'Steuert Position (X/Y), Größe (Breite/Höhe) und Form (Eckig, Rund, Polygon) des erlaubten Gravurbereichs auf dem 2D-Overlay.',
+        'model_transform_help' => 'Passt Skalierung, Position und Grund-Rotation des 3D-Modells im Kamera-Sichtfeld an.',
+        'overlay_transform_help' => 'Steuert, wie die Kunden-Gravur auf die 3D-Oberfläche projiziert wird (Größe, Versatz, Rotation und Material-Effekt wie Glas-Frosting oder Metall-Gravur).',
+        'product_templates_help' => 'Fertige Design- und Anlass-Vorlagen (z. B. Muttertag, Weihnachten, Hochzeit), die Kunden im Konfigurator mit 1 Klick laden können und die als automatisches Saison-Hauptbild dienen.',
         'Lager' => 'Bestandsführung aktivieren.',
         'Technik' => 'Herstellungsverfahren (z.B. Lasergravur, 3D-Druck).',
     ];
 
+    public int $step1SubStep = 1;
+    public int $step3SubStep = 1;
+    public int $step4SubStep = 1;
+
     // --- Konfigurator Settings (ERWEITERT UM CUSTOM POINTS) ---
     public $configSettings = [];
+
+    // --- Zentrale Produkt-Suite Tabs ('collection', 'packaging', 'suppliers', 'templates') ---
+    #[\Livewire\Attributes\Url(as: 'section', except: 'collection')]
+    public string $activeSection = 'collection';
+
+    public ?string $templatePreselectProductId = null;
+    public ?string $templatePreselectId = null;
+    public bool $templateStartCreate = false;
+    public int $templateEmbedVersion = 1;
+
+    // --- Inline Schnell-Anlage Lieferant in Schritt 1 ---
+    public bool $showQuickSupplierForm = false;
+    public string $quickSupplierName = '';
+    public string $quickSupplierCountry = 'DE';
+    public string $quickSupplierWebsite = '';
+    public string $quickSupplierLeadDays = '5';
 
     // --- 1-Klick KI-Produkt-Generator Modal ---
     public bool $showQuickAiModal = false;
@@ -165,17 +225,17 @@ class ProductCreate extends Component
 
     public function boot(): void
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
     }
 
     public function mount(ConfiguratorService $configService) {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
 
-        $savedLayout = \App\Models\System\SystemSetting::where('key', 'admin_products_layout_mode')->value('value');
+        $savedLayout = shop_setting('admin_products_layout_mode', 'list');
         if (in_array($savedLayout, ['large', 'medium', 'list'], true)) {
             $this->layoutMode = $savedLayout;
         }
@@ -196,16 +256,269 @@ class ProductCreate extends Component
             ['key' => 'admin_products_layout_mode'],
             ['value' => $mode]
         );
+        \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
+    }
+
+    public function setActiveSection(string $section): void
+    {
+        if (!in_array($section, ['collection', 'packaging', 'suppliers', 'templates'], true)) {
+            return;
+        }
+
+        if ($this->viewMode === 'edit') {
+            $this->viewMode = 'list';
+        }
+
+        if ($section !== 'templates') {
+            $this->templatePreselectProductId = null;
+            $this->templatePreselectId = null;
+            $this->templateStartCreate = false;
+        }
+
+        $this->activeSection = $section;
+    }
+
+    public function goToStep1SubStep(int $subStep): void
+    {
+        $this->step1SubStep = max(1, min(5, $subStep));
+    }
+
+    public function getStep3AllowedSubSteps(): array
+    {
+        if ($this->type === 'physical') {
+            return [1, 2, 3, 4, 5, 6];
+        }
+        if ($this->type === 'service') {
+            return [1, 2, 3, 5];
+        }
+        return [1, 2, 3];
+    }
+
+    public function goToStep3SubStep(int $subStep): void
+    {
+        $allowed = $this->getStep3AllowedSubSteps();
+        if (in_array($subStep, $allowed, true)) {
+            $this->step3SubStep = $subStep;
+        } else {
+            $this->step3SubStep = $allowed[0] ?? 1;
+        }
+    }
+
+    public function goToStep4SubStep(int $subStep): void
+    {
+        $this->step4SubStep = max(1, min(4, $subStep));
+    }
+
+    public function openProductInStep(string $productId, int $step, int $subStep = 1): void
+    {
+        $this->activeSection = 'collection';
+        $this->edit($productId);
+        $targetStep = max(1, min($step, $this->totalSteps));
+        if ($this->product->completion_step < $targetStep) {
+            $this->product->updateQuietly(['completion_step' => $targetStep]);
+        }
+        $this->currentStep = $targetStep;
+        if ($targetStep === 1) {
+            $this->step1SubStep = max(1, min(5, $subStep));
+        } elseif ($targetStep === 3) {
+            $this->goToStep3SubStep($subStep);
+        } elseif ($targetStep === 4) {
+            $this->goToStep4SubStep($subStep);
+        }
+    }
+
+    public function updatedReorderUrl($value): void
+    {
+        $url = trim((string) $value);
+        if ($url === '' || !preg_match('#^https?://([^/]+)#i', $url, $m)) {
+            return;
+        }
+
+        $host = strtolower(preg_replace('/^www\./i', '', $m[1]));
+
+        // Falls noch kein Lieferant gewählt ist: Prüfen, ob ein Lieferant zur Domain passt
+        if (empty($this->supplier_id)) {
+            foreach (\App\Models\Product\ProductSupplier::all() as $sup) {
+                $supSite = strtolower((string) $sup->website);
+                $supName = strtolower((string) $sup->name);
+                if (($supSite !== '' && str_contains($supSite, $host))
+                    || (str_contains($host, 'gluecksfieber') && str_contains($supName, 'glücksfieber'))
+                    || (str_contains($host, 'printequipment') && str_contains($supName, 'print equipment'))
+                    || (str_contains($host, 'westpack') && str_contains($supName, 'westpack'))
+                    || (str_contains($host, 'karton.eu') && str_contains($supName, 'karton'))
+                    || (str_contains($host, 'temu') && str_contains($supName, 'temu'))
+                ) {
+                    $this->supplier_id = $sup->id;
+                    break;
+                }
+            }
+        }
+
+        // Vorbelegung für das Schnell-Lieferanten-Formular
+        if ($this->quickSupplierWebsite === '') {
+            $this->quickSupplierWebsite = 'https://' . $m[1];
+        }
+        if ($this->quickSupplierName === '') {
+            $domainBase = explode('.', $host)[0] ?? $host;
+            $this->quickSupplierName = ucfirst($domainBase);
+        }
+    }
+
+    public function createQuickSupplier(): void
+    {
+        $name = trim($this->quickSupplierName);
+        if ($name === '') {
+            $this->addError('quickSupplierName', 'Bitte Lieferantennamen eingeben.');
+            return;
+        }
+
+        $website = trim($this->quickSupplierWebsite);
+        if ($website !== '' && !preg_match('#^https?://#i', $website)) {
+            $website = 'https://' . $website;
+        }
+
+        $countryCode = strtoupper(substr(trim($this->quickSupplierCountry ?: 'DE'), 0, 2));
+        $countryMap = [
+            'DE' => 'Deutschland',
+            'AT' => 'Österreich',
+            'CH' => 'Schweiz',
+            'DK' => 'Dänemark',
+            'CN' => 'China',
+            'NL' => 'Niederlande',
+            'PL' => 'Polen',
+        ];
+
+        $supplier = \App\Models\Product\ProductSupplier::create([
+            'name' => $name,
+            'company_name' => $name,
+            'country_code' => $countryCode,
+            'country' => $countryMap[$countryCode] ?? $countryCode,
+            'website' => $website ?: null,
+            'lead_time_land_days' => max(1, (int) $this->quickSupplierLeadDays),
+            'shipping_method' => $countryCode === 'CN' ? 'air' : 'land',
+        ]);
+
+        unset($this->suppliers);
+        $this->supplier_id = $supplier->id;
+        if (isset($this->product) && $this->product->exists) {
+            $this->product->update(['product_supplier_id' => $supplier->id]);
+        }
+
+        $this->showQuickSupplierForm = false;
+        $this->quickSupplierName = '';
+        $this->quickSupplierWebsite = '';
+        session()->flash('success', "Lieferant „{$supplier->name}“ angelegt und verknüpft.");
+    }
+
+    public function assignCatalogPackaging(int $catalogItemId, string $mode = 'replace'): void
+    {
+        if (!isset($this->product) || !$this->product->exists) {
+            return;
+        }
+
+        $item = \App\Models\Product\ProductPackagingItem::findOrFail($catalogItemId);
+
+        if ($mode === 'replace') {
+            $this->product->packagings()->delete();
+        }
+
+        $primaryGrams = max(1, (int) ($item->primary_weight_grams ?: $item->weight_grams ?: 10));
+        $this->product->packagings()->create([
+            'packaging_item_id' => $item->id,
+            'label'             => $item->name,
+            'material_type'     => $item->primary_material_type ?: 'paper',
+            'weight_grams'      => $primaryGrams,
+        ]);
+
+        if (!empty($item->secondary_material_type) && (int) $item->secondary_weight_grams > 0) {
+            $this->product->packagings()->create([
+                'packaging_item_id' => $item->id,
+                'label'             => $item->name . ' (Einlage/Polster)',
+                'material_type'     => $item->secondary_material_type,
+                'weight_grams'      => (int) $item->secondary_weight_grams,
+            ]);
+        }
+
+        $this->recalculateProductPackagingTotals($item);
+        session()->flash('success', "Verpackung „{$item->name}“ inkl. LUCID-Aufteilung zugewiesen.");
+    }
+
+    public function removeProductPackagingEntry(int $packagingId): void
+    {
+        if (!isset($this->product) || !$this->product->exists) {
+            return;
+        }
+
+        $this->product->packagings()->where('id', $packagingId)->delete();
+        $this->recalculateProductPackagingTotals();
+    }
+
+    protected function recalculateProductPackagingTotals(?\App\Models\Product\ProductPackagingItem $latestItem = null): void
+    {
+        $this->product->load('packagings.packagingItem');
+        $totalGrams = (int) $this->product->packagings->sum('weight_grams');
+        $uniqueCatalogItems = $this->product->packagings
+            ->pluck('packagingItem')
+            ->filter()
+            ->unique('id');
+
+        $totalCostCents = (int) $uniqueCatalogItems->sum('unit_cost_cents');
+        if ($totalCostCents === 0 && $latestItem) {
+            $totalCostCents = (int) $latestItem->unit_cost_cents;
+        }
+
+        $this->packaging_weight = $totalGrams;
+        if ($totalCostCents > 0) {
+            $this->packaging_cost_input = number_format($totalCostCents / 100, 2, '.', '');
+        }
+        if ($latestItem && $latestItem->height_mm > 0 && $latestItem->height_mm <= 20 && empty($this->shipping_class)) {
+            $this->shipping_class = 'brief';
+        }
+
+        $this->product->update([
+            'packaging_weight' => $totalGrams,
+            'packaging_cost'   => $totalCostCents > 0 ? $totalCostCents : $this->product->packaging_cost,
+            'shipping_class'   => $this->shipping_class ?: $this->product->shipping_class,
+        ]);
+    }
+
+    public function toggleProductTemplateActive(string $templateId): void
+    {
+        if (!isset($this->product) || !$this->product->exists) {
+            return;
+        }
+
+        $tpl = \App\Models\Product\ProductTemplate::where('product_id', $this->product->id)
+            ->where('id', $templateId)
+            ->first();
+
+        if ($tpl) {
+            $tpl->update(['is_active' => !$tpl->is_active]);
+            $this->product->load('templates');
+        }
+    }
+
+    public function openTemplateEditorForProduct(?string $templateId = null, bool $startCreate = false): void
+    {
+        if (isset($this->product) && $this->product->exists) {
+            $this->save(false);
+            $this->templatePreselectProductId = $this->product->id;
+        }
+        $this->templatePreselectId = $templateId;
+        $this->templateStartCreate = $startCreate;
+        $this->templateEmbedVersion++;
+        $this->viewMode = 'list';
+        $this->activeSection = 'templates';
     }
 
     #[On('product-updated')]
     public function refreshProduct()
     {
-        // Lädt das Model neu aus der DB und hält Attribute & Varianten-Einstellungen synchron
+        // Lädt das Model neu aus der DB und hält Attribute, Varianten & Addons synchron
         $this->product->refresh();
         $this->productAttributes = array_merge($this->productAttributes, $this->product->attributes ?? []);
         $freshSettings = is_array($this->product->configurator_settings) ? $this->product->configurator_settings : [];
-        foreach (['excluded_variant_attributes', 'included_variant_attributes'] as $syncKey) {
+        foreach (['excluded_variant_attributes', 'included_variant_attributes', 'addons'] as $syncKey) {
             if (array_key_exists($syncKey, $freshSettings)) {
                 $this->configSettings[$syncKey] = $freshSettings[$syncKey];
             }
@@ -266,6 +579,28 @@ class ProductCreate extends Component
 
     public function createDraft()
     {
+        $defaultConfig = app(ConfiguratorService::class)->getDefaultSettings();
+        $defaultAttributes = [
+            'Material' => '',
+            'Druck' => '',
+            'Technik' => 'Präzisions-Lasergravur',
+            'Größe' => '',
+            'Gewicht' => '',
+            'Verpackung' => '',
+            'Lieferzeit' => '2-4 Werktage',
+            'Farbe' => '',
+            'Format' => '',
+            'Seiten' => '',
+            'Sprache' => 'Deutsch',
+            'Auslieferung' => 'Sofort-Download',
+            'Dauer' => '',
+            'Ort' => 'Online',
+            'Experte' => '',
+        ];
+
+        $this->configSettings = $defaultConfig;
+        $this->productAttributes = $defaultAttributes;
+
         $draft = Product::create([
             'name' => 'Neues Produkt ' . date('H:i'),
             'slug' => 'draft-' . Str::uuid(),
@@ -278,19 +613,92 @@ class ProductCreate extends Component
             'track_quantity' => true,
             'quantity' => 0,
             'price' => 0,
+            'purchase_price' => 0,
+            'packaging_cost' => 14,
+            'packaging_weight' => 15,
+            'shipping_class' => 'brief',
+            'laser_runtime_minutes' => 1,
+            'electricity_wear_factor' => 5,
+            'marketing_cost_percent' => 15.00,
             'media_gallery' => [],
             'tier_pricing' => [],
-            'attributes' => $this->productAttributes,
-            'configurator_settings' => $this->configSettings,
+            'attributes' => $defaultAttributes,
+            'configurator_settings' => $defaultConfig,
             'completion_step' => 1
         ]);
+
+        $settings = $draft->configurator_settings ?? [];
+        $settings['addons'] = $draft->getEffectiveAddons(false);
+        $draft->updateQuietly(['configurator_settings' => $settings]);
+
+        $this->syncDefaultProductPackaging($draft);
 
         $this->edit($draft->id);
     }
 
+    public function syncDefaultProductPackaging(Product $product): void
+    {
+        if (!$product->isPhysical()) {
+            $product->packagings()->delete();
+            return;
+        }
+
+        $slug = mb_strtolower((string) $product->slug);
+        $name = mb_strtolower((string) $product->name);
+
+        $isBrief = ($product->shipping_class === 'brief')
+            || ((int) $product->weight > 0 && (int) $product->weight <= 100 && !str_contains($slug, 'kristall') && !str_contains($slug, 'glas'));
+
+        $pkgWeight = max(15, (int) ($product->packaging_weight ?: ($isBrief ? 15 : 150)));
+
+        $catalogSku = 'PKG-ENV-A1';
+        if (str_contains($slug, 'weizenglas') || str_contains($name, 'glas')) {
+            $catalogSku = 'PKG-BOX-GLASS';
+        } elseif (!$isBrief || str_contains($slug, 'kristall') || str_contains($slug, 'schiefer') || str_contains($name, 'kristall') || str_contains($name, 'schiefer')) {
+            $catalogSku = 'PKG-BOX-CRYSTAL';
+        }
+
+        $catalogItem = \App\Models\Product\ProductPackagingItem::where('sku', $catalogSku)->first();
+        $itemId = $catalogItem?->id;
+        $itemLabel = $catalogItem?->name;
+
+        $product->packagings()->delete();
+        $product->packagings()->createMany(
+            $isBrief
+                ? [
+                    [
+                        'packaging_item_id' => $itemId,
+                        'label' => $itemLabel ?? 'Luftpolsterversandtasche DIN A6 / C6 (Gr. A/1)',
+                        'material_type' => 'composite',
+                        'weight_grams' => max(1, $pkgWeight - 3),
+                    ],
+                    [
+                        'packaging_item_id' => $itemId,
+                        'label' => $itemLabel ?? 'Luftpolsterversandtasche DIN A6 / C6 (Gr. A/1)',
+                        'material_type' => 'paper',
+                        'weight_grams' => 3,
+                    ],
+                ]
+                : [
+                    [
+                        'packaging_item_id' => $itemId,
+                        'label' => $itemLabel ?? 'Versandkarton mit Schutzpolster',
+                        'material_type' => 'paper',
+                        'weight_grams' => max(10, $pkgWeight - 20),
+                    ],
+                    [
+                        'packaging_item_id' => $itemId,
+                        'label' => $itemLabel ?? 'Versandkarton mit Schutzpolster',
+                        'material_type' => 'plastic',
+                        'weight_grams' => 20,
+                    ],
+                ]
+        );
+    }
+
     public function edit($id)
     {
-        $this->product = Product::findOrFail($id);
+        $this->product = Product::with(['templates', 'supplier', 'packagings.packagingItem', 'categories'])->findOrFail($id);
 
         // Basisdaten
         $this->name = $this->product->name;
@@ -359,17 +767,40 @@ class ProductCreate extends Component
             ];
         })->toArray();
 
-        // Arrays Mergen
-        $this->productAttributes = array_merge($this->productAttributes, $this->product->attributes ?? []);
+        // Arrays sauber aus Default-Basis + Produktdaten mergen (kein Leak zwischen verschiedenen Produkten)
+        $defaultAttributes = [
+            'Material' => '',
+            'Druck' => '',
+            'Technik' => '',
+            'Größe' => '',
+            'Gewicht' => '',
+            'Verpackung' => '',
+            'Lieferzeit' => '3-5 Werktage',
+            'Farbe' => '',
+            'Format' => '',
+            'Seiten' => '',
+            'Sprache' => 'Deutsch',
+            'Auslieferung' => 'Sofort-Download',
+            'Dauer' => '',
+            'Ort' => 'Online',
+            'Experte' => '',
+        ];
+        $this->productAttributes = array_merge($defaultAttributes, $this->product->attributes ?? []);
 
-        $savedConfig = $this->product->configurator_settings ?? [];
+        $defaultConfig = app(ConfiguratorService::class)->getDefaultSettings();
+        $savedConfig = is_array($this->product->configurator_settings) ? $this->product->configurator_settings : [];
 
         // Sicherstellen, dass custom_points immer existiert (Fallout-Schutz)
         if(!isset($savedConfig['custom_points'])) {
-            $savedConfig['custom_points'] = $this->configSettings['custom_points'];
+            $savedConfig['custom_points'] = $defaultConfig['custom_points'] ?? [];
         }
 
-        $this->configSettings = array_merge($this->configSettings, $savedConfig);
+        $this->configSettings = array_merge($defaultConfig, $savedConfig);
+        if ($this->product->isPhysical()) {
+            $this->configSettings['addons'] = $this->product->getEffectiveAddons(false);
+        } else {
+            unset($this->configSettings['addons']);
+        }
         $this->configSettings['auto_seasonal_main_image'] = array_key_exists('auto_seasonal_main_image', $savedConfig)
             ? filter_var($savedConfig['auto_seasonal_main_image'], FILTER_VALIDATE_BOOLEAN)
             : ($this->is_personalizable && $this->type === 'physical');
@@ -385,6 +816,7 @@ class ProductCreate extends Component
         // Step Berechnung korrigieren (Falls man von Physical auf Digital gewechselt hat und Step auf 4 stand)
         $dbStep = ($this->product->completion_step > 0) ? $this->product->completion_step : 1;
         $this->currentStep = min($dbStep, $this->totalSteps);
+        $this->step1SubStep = 1;
     }
 
     public function updatedNewDigitalFile()
@@ -486,7 +918,7 @@ class ProductCreate extends Component
 
     /**
      * 1-Klick Herkunfts-Siegel Switch: Schaltet direkt in der Kachelansicht ("Deine Kollektion")
-     * zwischen "Made in Germany" -> "Handveredelt in Deutschland" -> "Kein Siegel (Aus)" um.
+     * rechtskonform zwischen "Handveredelt in Deutschland" und "Kein Siegel (Aus)" um (§ 127 MarkenG / § 5 UWG).
      */
     public function toggleOriginBadge(string $id): void
     {
@@ -496,32 +928,25 @@ class ProductCreate extends Component
         }
 
         $current = $prod->getOriginBadgeMode();
-        $next = match ($current) {
-            'made_in_germany'        => 'handcrafted_in_germany',
-            'handcrafted_in_germany' => 'none',
-            default                  => 'made_in_germany',
-        };
+        $next = ($current === 'handcrafted_in_germany') ? 'none' : 'handcrafted_in_germany';
 
         $settings = is_array($prod->configurator_settings) ? $prod->configurator_settings : [];
         $settings['origin_badge'] = $next;
         $prod->configurator_settings = $settings;
 
         $attrs = is_array($prod->attributes) ? $prod->attributes : [];
-        if ($next === 'made_in_germany') {
-            $attrs['Herkunft'] = 'Made in Germany (Deutscher Fachhandel & Laser-Veredelung in DE)';
-        } elseif ($next === 'handcrafted_in_germany') {
-            $attrs['Herkunft'] = 'Handveredelt in Deutschland (Laser-Manufaktur Gifhorn)';
+        if ($next === 'handcrafted_in_germany') {
+            $city = shop_setting('company_city', shop_setting('owner_city', 'Gifhorn'));
+            $attrs['Herkunft'] = "Handveredelt in Deutschland (Laser-Manufaktur {$city})";
         } else {
             unset($attrs['Herkunft']);
         }
         $prod->attributes = $attrs;
         $prod->save();
 
-        $label = match ($next) {
-            'made_in_germany'        => '🇩🇪 Made in Germany',
-            'handcrafted_in_germany' => '🇩🇪 Handveredelt in Deutschland',
-            default                  => 'Ausgeblendet',
-        };
+        $label = ($next === 'handcrafted_in_germany')
+            ? '🇩🇪 Handveredelt in Deutschland'
+            : 'Ausgeblendet';
 
         session()->flash('success', "Herkunfts-Siegel für „{$prod->name}“ auf {$label} gesetzt.");
     }
@@ -1056,7 +1481,7 @@ class ProductCreate extends Component
             'description' => "{$name} – Individuell in unserer Manufaktur Mein-Seelenfunke per Hochpräzisions-Laser für Sie veredelt. Jedes Exemplar ({$width} x {$height} x {$length} mm, ca. {$weight} g) wird nach Ihren Wünschen im Live-3D-Konfigurator gestaltet, abriebfest graviert und sorgfältig geprüft versendet.",
             'short_description' => "Personalisiertes Unikat ({$width} x {$height} mm) mit hochpräziser Lasergravur aus der Manufaktur Mein-Seelenfunke.",
             'price' => $priceCents,
-            'compare_at_price' => (int) round($priceCents * 1.2),
+            'compare_at_price' => null,
             'purchase_price' => $ekCents,
             'laser_runtime_minutes' => 1,
             'electricity_wear_factor' => $wearFactorCents,
@@ -1085,13 +1510,18 @@ class ProductCreate extends Component
                 'Größe' => "{$width} x {$height} x {$length} mm",
                 'Gewicht' => "ca. {$weight} g",
                 'Veredelung' => 'Präzisions-Lasergravur',
-                'Lieferzeit' => '2-4 Werktage',
+                'Herkunft' => 'Handveredelt in Deutschland (Laser-Manufaktur Gifhorn)',
+                'Lieferzeit' => '3-5 Werktage',
             ],
             'tier_pricing' => [],
             'seo_title' => "{$name} | Mit eigener Gravur gestalten | Mein-Seelenfunke",
-            'seo_description' => "{$name} ({$width} x {$height} mm) individuell gravieren lassen im 3D-Live-Konfigurator von Mein-Seelenfunke. Schneller Versand aus deutscher Manufaktur.",
+            'seo_description' => "{$name} ({$width} x {$height} mm) individuell gravieren lassen im 3D-Live-Konfigurator von Mein-Seelenfunke. Handveredelt in unserer Manufaktur in Gifhorn (Lieferzeit: 3–5 Werktage).",
             'completion_step' => 4,
         ]);
+
+        $createdSettings = is_array($created->configurator_settings) ? $created->configurator_settings : [];
+        $createdSettings['addons'] = $created->getEffectiveAddons(false);
+        $created->updateQuietly(['configurator_settings' => $createdSettings]);
 
         $catNames = $isEnvelope
             ? ['Metall & Alu', 'Schmuck & Anhänger', 'Bestseller']
@@ -1104,19 +1534,8 @@ class ProductCreate extends Component
             ['qty' => 10, 'percent' => 15],
         ]);
 
-        // Automatische Pflege der Verpackungsseite (/admin/product-packaging & LUCID)
-        $created->packagings()->delete();
-        $created->packagings()->createMany(
-            $isEnvelope
-                ? [
-                    ['material_type' => 'composite', 'weight_grams' => 12],
-                    ['material_type' => 'paper',     'weight_grams' => 3],
-                ]
-                : [
-                    ['material_type' => 'paper',   'weight_grams' => max(10, $packagingWeightGrams - 20)],
-                    ['material_type' => 'plastic', 'weight_grams' => 20],
-                ]
-        );
+        // Automatische Pflege der Verpackungsseite (/admin/product-packaging & LUCID inkl. Katalog-Verknüpfung)
+        $this->syncDefaultProductPackaging($created);
 
         \App\Models\Marketing\MarketingLandingPage::syncForProduct($created);
 
@@ -1143,7 +1562,8 @@ class ProductCreate extends Component
         if ($step > $this->totalSteps) return;
 
         if ($step > $this->currentStep) {
-            if (!$this->canProceed()) return;
+            $canJump = ($this->currentStep === 1) ? $this->canProceedStep1() : $this->canProceed();
+            if (!$canJump) return;
             $this->save(false);
         }
         $this->currentStep = $step;
@@ -1152,6 +1572,28 @@ class ProductCreate extends Component
     public function nextStep()
     {
         if(!$this->canProceed()) return;
+
+        if ($this->currentStep === 1 && $this->step1SubStep < 5) {
+            $this->save(false);
+            $this->step1SubStep++;
+            return;
+        }
+
+        if ($this->currentStep === 3) {
+            $allowed = $this->getStep3AllowedSubSteps();
+            $currentIndex = array_search($this->step3SubStep, $allowed, true);
+            if ($currentIndex !== false && $currentIndex < count($allowed) - 1) {
+                $this->save(false);
+                $this->step3SubStep = $allowed[$currentIndex + 1];
+                return;
+            }
+        }
+
+        if ($this->currentStep === 4 && $this->step4SubStep < 4) {
+            $this->save(false);
+            $this->step4SubStep++;
+            return;
+        }
 
         // Fortschritt speichern
         if($this->currentStep >= $this->product->completion_step) {
@@ -1162,27 +1604,96 @@ class ProductCreate extends Component
 
         if($this->currentStep < $this->totalSteps) {
             $this->currentStep++;
+            if ($this->currentStep === 3) {
+                $this->step3SubStep = 1;
+            } elseif ($this->currentStep === 4) {
+                $this->step4SubStep = 1;
+            }
         }
     }
 
     public function prevStep()
     {
-        if($this->currentStep > 1) $this->currentStep--;
+        if ($this->currentStep === 1 && $this->step1SubStep > 1) {
+            $this->step1SubStep--;
+            return;
+        }
+
+        if ($this->currentStep === 3) {
+            $allowed = $this->getStep3AllowedSubSteps();
+            $currentIndex = array_search($this->step3SubStep, $allowed, true);
+            if ($currentIndex !== false && $currentIndex > 0) {
+                $this->step3SubStep = $allowed[$currentIndex - 1];
+                return;
+            }
+        }
+
+        if ($this->currentStep === 4 && $this->step4SubStep > 1) {
+            $this->step4SubStep--;
+            return;
+        }
+
+        if($this->currentStep > 1) {
+            $this->currentStep--;
+            if ($this->currentStep === 1) {
+                $this->step1SubStep = 5;
+            } elseif ($this->currentStep === 3) {
+                $allowed = $this->getStep3AllowedSubSteps();
+                $this->step3SubStep = end($allowed) ?: 1;
+            } elseif ($this->currentStep === 4) {
+                $this->step4SubStep = 4;
+            }
+        }
+    }
+
+    protected function normalizePriceInputs(): void
+    {
+        foreach (['price_input', 'purchase_price_input', 'compare_price_input', 'packaging_cost_input'] as $field) {
+            if ($this->{$field} !== null && $this->{$field} !== '') {
+                $this->{$field} = str_replace(',', '.', trim((string) $this->{$field}));
+            }
+        }
+    }
+
+    public function canProceedStep1(): bool
+    {
+        $this->normalizePriceInputs();
+        $price = (float) $this->price_input;
+        $purchase = (float) $this->purchase_price_input;
+
+        $validBasic = !empty($this->name) && $price > 0 && !empty($this->sku) && !empty($this->slug_input) && !empty($this->type);
+
+        if ($this->type === 'physical') {
+            return $validBasic && $this->purchase_price_input !== '' && $purchase >= 0;
+        }
+
+        return $validBasic;
     }
 
     public function canProceed()
     {
+        $this->normalizePriceInputs();
         if ($this->currentStep === 1) {
             $price = (float) $this->price_input;
             $purchase = (float) $this->purchase_price_input;
-            
-            $validBasic = !empty($this->name) && $price > 0 && !empty($this->sku) && !empty($this->slug_input) && !empty($this->type);
-            
-            if ($this->type === 'physical') {
-                return $validBasic && $this->purchase_price_input !== '' && $purchase >= 0;
+
+            if ($this->step1SubStep === 1) {
+                return !empty($this->type);
             }
-            
-            return $validBasic;
+            if ($this->step1SubStep === 2) {
+                $validStep2 = !empty($this->name) && $price > 0;
+                return $this->type === 'physical'
+                    ? ($validStep2 && $this->purchase_price_input !== '' && $purchase >= 0)
+                    : $validStep2;
+            }
+            if ($this->step1SubStep === 3) {
+                return true;
+            }
+            if ($this->step1SubStep === 4) {
+                return !empty($this->slug_input) || !empty($this->name);
+            }
+
+            return $this->canProceedStep1();
         }
         if ($this->currentStep === 2) {
             // Mindestens ein Bild prüfen (oder Auto-Saisonbild mit vorhandener Vorlage)
@@ -1226,6 +1737,8 @@ class ProductCreate extends Component
 
     public function save($notify = true)
     {
+        $this->normalizePriceInputs();
+
         // 1. Basisdaten
         $this->product->name = $this->name;
         $this->product->type = $this->type; // Typ speichern
@@ -1309,7 +1822,28 @@ class ProductCreate extends Component
             $this->product->packaging_cost = null;
         }
 
-        // 8. JSON Arrays
+        // 8. JSON Arrays (frische Sub-Component-Werte wie Addons & Varianten-Filter aus DB synchronisieren)
+        $latestDbSettings = Product::where('id', $this->product->id)->value('configurator_settings');
+        if (is_string($latestDbSettings)) {
+            $latestDbSettings = json_decode($latestDbSettings, true) ?: [];
+        }
+        if (is_array($latestDbSettings)) {
+            foreach (['excluded_variant_attributes', 'included_variant_attributes', 'addons'] as $syncKey) {
+                if (array_key_exists($syncKey, $latestDbSettings)) {
+                    $this->configSettings[$syncKey] = $latestDbSettings[$syncKey];
+                }
+            }
+        }
+
+        $this->product->attributes = $this->productAttributes;
+        $this->product->tier_pricing = $this->tiers;
+
+        $this->product->configurator_settings = $this->configSettings;
+        if ($this->type === 'physical') {
+            $this->configSettings['addons'] = $this->product->getEffectiveAddons(false);
+        } else {
+            unset($this->configSettings['addons']);
+        }
         $this->product->configurator_settings = $this->configSettings;
 
         // 9. Fortschritt aktualisieren
@@ -1321,21 +1855,12 @@ class ProductCreate extends Component
         $this->product->save();
 
         // Automatische LUCID-Verpackungsanlage (/admin/product-packaging), falls physisches Produkt noch keine Einträge hat
-        if ($this->type === 'physical' && $this->product->packagings()->count() === 0) {
-            $isBrief = ($this->product->shipping_class === 'brief')
-                || ((int) $this->product->weight > 0 && (int) $this->product->weight <= 100);
-            $pkgWeight = max(15, (int) ($this->product->packaging_weight ?: ($isBrief ? 15 : 150)));
-            $this->product->packagings()->createMany(
-                $isBrief
-                    ? [
-                        ['material_type' => 'composite', 'weight_grams' => max(1, $pkgWeight - 3)],
-                        ['material_type' => 'paper',     'weight_grams' => 3],
-                    ]
-                    : [
-                        ['material_type' => 'paper',   'weight_grams' => max(10, $pkgWeight - 20)],
-                        ['material_type' => 'plastic', 'weight_grams' => 20],
-                    ]
-            );
+        if ($this->type === 'physical') {
+            if ($this->product->packagings()->count() === 0) {
+                $this->syncDefaultProductPackaging($this->product);
+            }
+        } else {
+            $this->product->packagings()->delete();
         }
 
         \App\Models\Marketing\MarketingLandingPage::syncForProduct($this->product);
@@ -1359,7 +1884,13 @@ class ProductCreate extends Component
             $filename = time() . '_' . Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME)) . '.jpg';
             $fullPath = $folder . '/' . $filename;
             $this->resizeAndSaveImage($file->getRealPath(), $fullPath);
-            $gallery[] = ['type' => 'image', 'path' => $fullPath, 'is_ai_generated' => true];
+            $gallery[] = [
+                'type' => 'image',
+                'path' => $fullPath,
+                'is_main' => count($gallery) === 0,
+                'is_hover' => false,
+                'is_ai_generated' => true,
+            ];
         }
 
         $this->product->media_gallery = $gallery;
@@ -1378,22 +1909,66 @@ class ProductCreate extends Component
         $filename = time() . '_vid_' . (Str::slug(pathinfo($originalName, PATHINFO_FILENAME)) ?: 'video') . '.' . $safeExt;
         $path = $this->new_video->storeAs($folder, $filename, 'public');
         $gallery = $this->product->media_gallery ?? [];
-        $gallery[] = ['type' => 'video', 'path' => $path];
+        $gallery[] = [
+            'type' => 'video',
+            'path' => $path,
+            'is_main' => count($gallery) === 0,
+            'is_hover' => false,
+            'is_ai_generated' => false,
+        ];
         $this->product->media_gallery = $gallery;
         $this->product->save();
         $this->new_video = null;
+        session()->flash('success', 'Video hochgeladen!');
     }
 
     public function setMainImage($index)
     {
-        $gallery = $this->product->media_gallery;
-        if(isset($gallery[$index])) {
+        $gallery = is_array($this->product->media_gallery) ? $this->product->media_gallery : [];
+        if (isset($gallery[$index]) && is_array($gallery[$index])) {
             $item = $gallery[$index];
             unset($gallery[$index]);
+            foreach ($gallery as $k => $g) {
+                if (is_array($g)) {
+                    $gallery[$k]['is_main'] = false;
+                }
+            }
+            $item['is_main'] = true;
+            $item['is_hover'] = false;
             array_unshift($gallery, $item);
             $this->product->media_gallery = array_values($gallery);
             $this->product->save();
+            $this->product->refresh();
         }
+    }
+
+    public function setMainMedia($index)
+    {
+        $this->setMainImage($index);
+    }
+
+    public function setHoverImage($index)
+    {
+        $gallery = is_array($this->product->media_gallery) ? $this->product->media_gallery : [];
+        if (isset($gallery[$index]) && is_array($gallery[$index])) {
+            $currentlyHover = !empty($gallery[$index]['is_hover']);
+            foreach ($gallery as $k => $g) {
+                if (is_array($g)) {
+                    $gallery[$k]['is_hover'] = false;
+                }
+            }
+            if (!$currentlyHover) {
+                $gallery[$index]['is_hover'] = true;
+            }
+            $this->product->media_gallery = array_values($gallery);
+            $this->product->save();
+            $this->product->refresh();
+        }
+    }
+
+    public function setHoverMedia($index)
+    {
+        $this->setHoverImage($index);
     }
 
     private function resizeAndSaveImage($sourcePath, $destinationPath)
@@ -1880,7 +2455,7 @@ class ProductCreate extends Component
 
     public function render()
     {
-        $query = Product::with('templates')
+        $query = Product::with(['templates', 'supplier', 'packagings.packagingItem', 'categories'])
             ->withCount([
                 'reviews as approved_reviews_count' => function ($q) {
                     $q->where('status', 'approved');
@@ -1927,7 +2502,7 @@ class ProductCreate extends Component
         } elseif ($this->sortBy === 'filter_draft') {
             $query->where('status', 'draft');
         } elseif ($this->sortBy === 'filter_low_stock') {
-            $lowThreshold = (int) (\App\Models\System\SystemSetting::where('key', 'inventory_low_stock_threshold')->value('value') ?? 5);
+            $lowThreshold = (int) shop_setting('inventory_low_stock_threshold', 5);
             $query->where('track_quantity', true)->where('quantity', '<', $lowThreshold);
         } elseif ($this->sortBy === 'filter_physical') {
             $query->where('type', 'physical');
@@ -1938,6 +2513,10 @@ class ProductCreate extends Component
         $products = ($this->viewMode === 'list') ? $query->latest()->get() : collect();
 
         if ($this->viewMode === 'list' && $products->isNotEmpty()) {
+            if ($this->sortBy === 'filter_incomplete') {
+                $products = $products->filter(fn ($p) => !($p->getReadinessReport()['is_ready'] ?? true))->values();
+            }
+
             $products = match ($this->sortBy) {
                 'bestseller' => $products->sortByDesc(fn ($p) => [
                     (int) ($p->total_sold_qty ?? 0),
@@ -1975,9 +2554,17 @@ class ProductCreate extends Component
             };
         }
 
+        $suiteCounts = [
+            'products'  => Product::count(),
+            'packaging' => \App\Models\Product\ProductPackagingItem::where('is_active', true)->count(),
+            'suppliers' => \App\Models\Product\ProductSupplier::count(),
+            'templates' => \App\Models\Product\ProductTemplate::where('is_active', true)->count(),
+        ];
+
         return view('livewire.shop.product.product-create', [
             'products' => $products,
-            'canProceed' => $this->canProceed()
+            'canProceed' => $this->canProceed(),
+            'suiteCounts' => $suiteCounts,
         ]);
     }
 
@@ -1985,5 +2572,14 @@ class ProductCreate extends Component
     public function suppliers()
     {
         return \App\Models\Product\ProductSupplier::orderBy('name')->get();
+    }
+
+    #[Computed]
+    public function packagingCatalogItems()
+    {
+        return \App\Models\Product\ProductPackagingItem::where('is_active', true)
+            ->orderBy('category')
+            ->orderBy('name')
+            ->get();
     }
 }

@@ -92,7 +92,7 @@
                     <div class="relative z-10">
                         <h2 class="text-2xl font-serif font-bold mb-4">Wir helfen Ihnen gerne persönlich weiter!</h2>
                         <p class="text-gray-300 mb-8 max-w-2xl leading-relaxed">
-                            Stoßen Sie auf unüberwindbare Barrieren oder benötigen Sie Hilfe bei der Bestellung Ihres Unikats? Als inhabergeführtes Unternehmen ist uns Ihr direktes Feedback besonders wichtig. Melden Sie sich einfach bei uns – wir finden eine Lösung.
+                            Stoßen Sie auf unüberwindbare Barrieren oder benötigen Sie Hilfe bei der Bestellung Ihres Unikats? Als inhabergeführtes Unternehmen ist uns Ihr direktes Feedback besonders wichtig. Melden Sie sich einfach bei uns, wir finden eine Lösung.
                         </p>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-8">
@@ -119,8 +119,8 @@
                                 <address class="text-sm text-gray-300 not-italic leading-relaxed">
                                     {{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}<br>
                                     Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
-                                    {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}<br>
-                                    {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}
+                                    {{ shop_setting('company_street') ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', '')) : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}<br>
+                                    {{ shop_setting('company_city') ? trim(shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city')) : shop_setting('owner_city', '38518 Gifhorn') }}
                                 </address>
                             </div>
                         </div>
@@ -142,16 +142,26 @@
                     </article>
 
                     <article>
-                        <h2 class="text-xl font-serif font-bold mb-4">Durchsetzungsverfahren</h2>
+                        <h2 class="text-xl font-serif font-bold mb-4">Schlichtungs- & Marktüberwachungsverfahren</h2>
                         <p class="text-sm text-gray-700 mb-4 leading-relaxed">
-                            Sollten Sie der Ansicht sein, dass wir Ihre Hinweise zur Barrierefreiheit nicht zufriedenstellend bearbeitet haben, können Sie sich an die zuständige Schlichtungsstelle wenden (gem. § 16 BFSG):
+                            Sollten Sie der Ansicht sein, dass wir Ihre Hinweise zur Barrierefreiheit nicht zufriedenstellend bearbeitet haben, können Sie sich gemäß § 34 BFSG i.V.m. § 16 BGG an die zuständige Schlichtungsstelle oder gemäß § 28, § 32 Abs. 2 BFSG i.V.m. Anlage 3 Nr. 1 lit. c BFSG an die zuständige Marktüberwachungsbehörde wenden:
                         </p>
-                        <div class="text-sm bg-gray-50 p-5 rounded-xl border border-gray-200">
-                            <strong class="block text-gray-900 mb-1">Schlichtungsstelle (BGG)</strong>
-                            <p class="text-gray-600">
-                                Mauerstraße 53, 10117 Berlin<br>
-                                E-Mail: <a href="mailto:info@schlichtungsstelle-bgg.de" class="text-primary hover:underline">info@schlichtungsstelle-bgg.de</a>
-                            </p>
+                        <div class="space-y-3">
+                            <div class="text-sm bg-gray-50 p-5 rounded-xl border border-gray-200">
+                                <strong class="block text-gray-900 mb-1">Schlichtungsstelle nach dem Behindertengleichstellungsgesetz (BGG)</strong>
+                                <p class="text-gray-600">
+                                    Mauerstraße 53, 10117 Berlin<br>
+                                    E-Mail: <a href="mailto:info@schlichtungsstelle-bgg.de" class="text-primary hover:underline">info@schlichtungsstelle-bgg.de</a> · Web: <a href="https://www.schlichtungsstelle-bgg.de" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">www.schlichtungsstelle-bgg.de</a>
+                                </p>
+                            </div>
+                            <div class="text-sm bg-gray-50 p-5 rounded-xl border border-gray-200">
+                                <strong class="block text-gray-900 mb-1">Marktüberwachungsstelle der Länder für die Barrierefreiheit von Produkten und Dienstleistungen (MLBF AöR)</strong>
+                                <p class="text-gray-600">
+                                    c/o Ministerium für Arbeit, Soziales, Gesundheit und Gleichstellung Sachsen-Anhalt<br>
+                                    Postfach 39 11 55, 39135 Magdeburg<br>
+                                    E-Mail: <a href="mailto:MLBF@ms.sachsen-anhalt.de" class="text-primary hover:underline">MLBF@ms.sachsen-anhalt.de</a>
+                                </p>
+                            </div>
                         </div>
                     </article>
                 </div>

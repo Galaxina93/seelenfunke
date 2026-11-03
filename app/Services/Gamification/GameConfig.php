@@ -342,8 +342,8 @@ class GameConfig
     }
 
     /**
-     * Einmalig einlösbare Rabatt-Gutscheine gegen gesammelte Seelenfunken:
-     * 250 Funken = 5 %, 500 Funken = 10 %, 750 Funken = 15 %
+     * Einmalig einlösbare Rabatt-Gutscheine gegen gesammelte Seelenfunken (psychologisch progressiv gestaffelt):
+     * 60 Funken = 5 % (12 ✨/%), 150 Funken = 10 % (15 ✨/%), 350 Funken = 15 % (23,3 ✨/%)
      */
     public static function getRedeemableVouchers(): array
     {
@@ -352,7 +352,7 @@ class GameConfig
                 'key'         => 'voucher_5',
                 'percent'     => 5,
                 'value'       => 5,
-                'cost_sparks' => 250,
+                'cost_sparks' => 60,
                 'name'        => '5% Rabatt-Gutschein',
                 'badge'       => '5% RABATT',
                 'code_prefix' => 'FUNKI-5P',
@@ -362,7 +362,7 @@ class GameConfig
                 'key'         => 'voucher_10',
                 'percent'     => 10,
                 'value'       => 10,
-                'cost_sparks' => 500,
+                'cost_sparks' => 150,
                 'name'        => '10% Rabatt-Gutschein',
                 'badge'       => '10% RABATT',
                 'code_prefix' => 'FUNKI-10P',
@@ -372,7 +372,7 @@ class GameConfig
                 'key'         => 'voucher_15',
                 'percent'     => 15,
                 'value'       => 15,
-                'cost_sparks' => 750,
+                'cost_sparks' => 350,
                 'name'        => '15% Rabatt-Gutschein',
                 'badge'       => '15% PREMIUM-RABATT',
                 'code_prefix' => 'FUNKI-15P',
@@ -387,10 +387,10 @@ class GameConfig
     public static function getLevelRewards(): array
     {
         return [
-            3  => ['type' => 'percentage', 'value' => 5,  'name' => '5% Rabatt-Gutschein',  'cost_sparks' => 250],
-            5  => ['type' => 'percentage', 'value' => 8,  'name' => '8% Rabatt-Gutschein',  'cost_sparks' => 400],
-            8  => ['type' => 'percentage', 'value' => 10, 'name' => '10% Rabatt-Gutschein', 'cost_sparks' => 500],
-            10 => ['type' => 'percentage', 'value' => 15, 'name' => '15% Seelengott-Rabatt', 'cost_sparks' => 750],
+            3  => ['type' => 'percentage', 'value' => 5,  'name' => '5% Rabatt-Gutschein',  'cost_sparks' => 60],
+            5  => ['type' => 'percentage', 'value' => 8,  'name' => '8% Rabatt-Gutschein',  'cost_sparks' => 110],
+            8  => ['type' => 'percentage', 'value' => 10, 'name' => '10% Rabatt-Gutschein', 'cost_sparks' => 150],
+            10 => ['type' => 'percentage', 'value' => 15, 'name' => '15% Seelengott-Rabatt', 'cost_sparks' => 350],
         ];
     }
 

@@ -174,11 +174,17 @@
                 <div style="font-size: 11pt; line-height: 1.5; padding-top: 20px;">
                     
                     @php
-                        $senderName = $settings['owner_proprietor'] ?? 'Keine Angabe';
-                        $senderStreetAndHouse = $settings['company_street'] ?? '';
-                        $senderZipAndCity = ($settings['company_zip'] ?? '') . ' ' . ($settings['company_city'] ?? '');
-                        $ownerPhone = $settings['company_phone'] ?? '';
-                        $ownerEmail = $settings['company_email'] ?? '';
+                        $senderName = !empty($settings['owner_proprietor']) ? $settings['owner_proprietor'] : 'Alina Steinhauer';
+                        $senderStreetAndHouse = trim(($settings['company_street'] ?? '') . ' ' . ($settings['company_street_number'] ?? ''));
+                        if ($senderStreetAndHouse === '') {
+                            $senderStreetAndHouse = $settings['owner_street'] ?? 'Carl-Goerdeler-Ring 26';
+                        }
+                        $senderZipAndCity = trim(($settings['company_zip'] ?? '') . ' ' . ($settings['company_city'] ?? ''));
+                        if ($senderZipAndCity === '') {
+                            $senderZipAndCity = $settings['owner_city'] ?? '38518 Gifhorn';
+                        }
+                        $ownerPhone = $settings['company_phone'] ?? ($settings['owner_phone'] ?? '');
+                        $ownerEmail = $settings['company_email'] ?? ($settings['owner_email'] ?? '');
                     @endphp
 
                     <!-- Empfänger -->

@@ -84,7 +84,7 @@
         html.dark {
             color-scheme: dark;
         }
-        html.light {
+        html.light, html:not(.dark) {
             color-scheme: light;
         }
         /* Universelle Sichtbarkeit des Mauszeigers & Carets in Input- und Textarea-Feldern */
@@ -98,18 +98,24 @@
             color-scheme: dark;
             caret-color: #E6C687;
         }
-        /* Dual-Tone High-Contrast I-Beam Cursor für helle & dunkle Eingabefelder (verhindert unsichtbare Maus auf Windows) */
-        html.light input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(:disabled),
-        html.light textarea:not(:disabled),
-        html.light [contenteditable="true"],
-        html.light .cursor-text {
-            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='24' viewBox='0 0 16 24'%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' stroke='%23111827' stroke-width='2.2' stroke-linecap='round' filter='drop-shadow(0 0 1.2px %23ffffff)'/%3E%3C/svg%3E") 8 12, text !important;
+        /* Dual-Vector High-Contrast I-Beam Cursor für helle & dunkle Eingabefelder (verhindert unsichtbare Maus auf Windows/Chrome) */
+        html:not(.dark) input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="image"]):not(:disabled):not(.cursor-pointer):not(.cursor-not-allowed):not(.cursor-wait),
+        html:not(.dark) textarea:not(:disabled):not(.cursor-pointer):not(.cursor-not-allowed),
+        html:not(.dark) [contenteditable="true"],
+        html:not(.dark) .cursor-text {
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='24' viewBox='0 0 16 24'%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' fill='none' stroke='%23ffffff' stroke-width='4.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' fill='none' stroke='%23111827' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 8 12, text !important;
         }
-        html.dark input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(:disabled),
-        html.dark textarea:not(:disabled),
+        html.dark input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="image"]):not(:disabled):not(.cursor-pointer):not(.cursor-not-allowed):not(.cursor-wait),
+        html.dark textarea:not(:disabled):not(.cursor-pointer):not(.cursor-not-allowed),
         html.dark [contenteditable="true"],
-        html.dark .cursor-text {
-            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='24' viewBox='0 0 16 24'%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' stroke='%23ffffff' stroke-width='2.2' stroke-linecap='round' filter='drop-shadow(0 0 1.2px %23000000)'/%3E%3C/svg%3E") 8 12, text !important;
+        html.dark .cursor-text,
+        input[class*="bg-gray-9"]:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(:disabled):not(.cursor-pointer),
+        input[class*="bg-slate-9"]:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(:disabled):not(.cursor-pointer),
+        input[class*="bg-black"]:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(:disabled):not(.cursor-pointer),
+        textarea[class*="bg-gray-9"]:not(:disabled):not(.cursor-pointer),
+        textarea[class*="bg-slate-9"]:not(:disabled):not(.cursor-pointer),
+        textarea[class*="bg-black"]:not(:disabled):not(.cursor-pointer) {
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='24' viewBox='0 0 16 24'%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' fill='none' stroke='%23000000' stroke-width='4.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 8 12, text !important;
         }
     </style>
 </head>
@@ -390,7 +396,7 @@
                         </div>
 
                         <div class="flex-1 flex justify-end min-w-0">
-                            @livewire('auth.auth-profile-dropdown')
+                            @livewire('auth.auth-profile-dropdown', ['allowThemeSwitch' => ($guard !== 'customer')])
                         </div>
 
                     </div>

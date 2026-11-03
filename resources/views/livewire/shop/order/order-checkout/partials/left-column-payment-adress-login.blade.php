@@ -76,7 +76,8 @@
     @endif
 
     {{-- Kontakt & Rechnung mit FIXED Auto-Collapse Logik --}}
-    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
+    <div id="checkout-billing-section"
+         class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
          wire:key="checkout-address-section"
          x-data="{
             isOpen: true,
@@ -90,7 +91,7 @@
                 return this.isValid(val) && /\d+/.test(String(val));
             },
 
-            checkCompletion() {
+            checkCompletion(allowCollapse = false) {
                 let e = $wire.email;
                 let f = $wire.first_name;
                 let l = $wire.last_name;
@@ -109,16 +110,18 @@
 
                 let shippingComplete = !hasShipping || (this.isValid(sf) && this.isValid(sl) && this.isValidAddress(sa) && this.isValid(sp) && this.isValid(sc));
 
-                if (this.isBillingComplete && shippingComplete) {
-                    this.isOpen = false;
-                } else {
+                if (!this.isBillingComplete || !shippingComplete) {
                     this.isOpen = true;
+                } else if (allowCollapse) {
+                    this.isOpen = false;
                 }
             }
          }"
-         x-init="checkCompletion()"
-         @checkout-updated.window="checkCompletion()"
-         @checkout-processing-done.window="checkCompletion()">
+         x-init="checkCompletion(true)"
+         @checkout-updated.window="checkCompletion(false)"
+         @checkout-address-changed.window="checkCompletion(false)"
+         @checkout-open-billing.window="isOpen = true"
+         @checkout-processing-done.window="checkCompletion(false)">
 
         <div class="p-6 sm:p-8 flex justify-between items-center cursor-pointer hover:bg-gray-50/50 transition-colors" @click="isOpen = !isOpen">
             <h2 class="text-xl font-serif font-bold text-gray-900 flex items-center gap-2">
@@ -234,9 +237,14 @@
                             @endforeach
                         </select>
 
+                        @php
+                            $targetCountry = ($has_separate_shipping && !empty($shipping_country)) ? $shipping_country : $country;
+                        @endphp
                         <div class="mt-2 text-xs text-gray-500 animate-fade-in">
-                            @if($country === 'DE')
-                                <span class="text-green-600 font-bold">Tipp:</span> Versandkostenfrei ab {{ number_format(shop_setting('shipping_free_threshold', 5000) / 100, 2, ',', '.') }} € Warenwert. Sonst {{ number_format(shop_setting('shipping_flat_de', 490) / 100, 2, ',', '.') }} €.
+                            @if($targetCountry === 'DE')
+                                <span class="text-green-600 font-bold">Tipp:</span> Versandkostenfrei ab {{ number_format(shop_setting('shipping_free_threshold', 5000) / 100, 2, ',', '.') }} € Warenwert. Sonst {{ number_format(shop_setting('shipping_cost', 490) / 100, 2, ',', '.') }} €.
+                            @elseif($targetCountry === 'CH')
+                                <span class="text-amber-600 font-bold">Zollhinweis (Schweiz):</span> Lieferung erfolgt umsatzsteuerfrei (Steuerfreie Ausfuhrlieferung). Es können Einfuhrumsatzsteuer & Zollgebühren anfallen.
                             @else
                                 <span class="text-blue-600 font-bold">Hinweis:</span> Internationale Versandkosten werden nach Gewicht & Zone berechnet.
                             @endif
@@ -245,6 +253,19 @@
                         @error('country') <span class="text-red-500 text-xs mt-1 block font-medium">{{ $message }}</span> @enderror
                     </div>
                 </div>
+
+                {{-- OPTIONALES KUNDENKONTO (DSK-Beschluss vom 24.03.2022 / Art. 5 Abs. 1 lit. c DSGVO) --}}
+                @if(!auth('customer')->check())
+                    <div class="mt-6 pt-5 border-t border-gray-100">
+                        <label for="create_account" class="flex items-start gap-3 bg-amber-50/50 p-4 rounded-xl border border-amber-200/70 cursor-pointer hover:bg-amber-50 transition-colors select-none">
+                            <input id="create_account" type="checkbox" wire:model.live="create_account" class="mt-0.5 h-5 w-5 text-primary rounded border-gray-300 focus:ring-primary cursor-pointer shrink-0">
+                            <span class="text-xs sm:text-sm text-gray-700 leading-snug">
+                                <strong class="font-bold text-gray-900 block">Kostenloses Kundenkonto anlegen (Optional)</strong>
+                                <span class="text-xs text-gray-500">Erhalte per E-Mail ein Zugangs-Passwort für deine Bestellübersicht, nachträgliche Design-Korrektur &amp; Seelenfunken-Treuepunkte. Ohne Auswahl bestellst du als Gast.</span>
+                            </span>
+                        </label>
+                    </div>
+                @endif
 
                 {{-- ERWEITERUNG ABWEICHENDE LIEFERADRESSE --}}
                 <div class="mt-8 pt-6 border-t border-gray-100">
@@ -317,15 +338,21 @@
             </h2>
 
             {{-- Trust Badges / Icons der Zahlungsmittel --}}
-            <div class="hidden sm:flex flex-wrap justify-end gap-2 opacity-70">
-                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
-                    <img src="{{ asset('shop/frontend/payments/mastercard.svg') }}" class="h-4">
+            <div class="hidden sm:flex flex-wrap justify-end gap-2 opacity-85">
+                <div class="h-6 px-2 flex items-center justify-center rounded bg-gray-50 border border-gray-200" title="Visa">
+                    <img src="{{ asset('shop/frontend/payments/visa.svg') }}" alt="Visa" loading="lazy" class="h-3 w-auto object-contain">
                 </div>
-                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
-                    <img src="{{ asset('shop/frontend/payments/paypal.svg') }}" class="h-4">
+                <div class="h-6 px-2 flex items-center justify-center rounded bg-gray-50 border border-gray-200" title="Mastercard">
+                    <img src="{{ asset('shop/frontend/payments/mastercard.svg') }}" alt="Mastercard" loading="lazy" class="h-4 w-auto object-contain">
                 </div>
-                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
-                    <img src="{{ asset('shop/frontend/payments/klarna.svg') }}" class="h-4">
+                <div class="h-6 px-2 flex items-center justify-center rounded bg-gray-50 border border-gray-200" title="PayPal">
+                    <img src="{{ asset('shop/frontend/payments/paypal.svg') }}" alt="PayPal" loading="lazy" class="h-3.5 w-auto object-contain">
+                </div>
+                <div class="h-6 px-2 flex items-center justify-center rounded bg-gray-50 border border-gray-200" title="Klarna">
+                    <img src="{{ asset('shop/frontend/payments/klarna.svg') }}" alt="Klarna" loading="lazy" class="h-4 w-auto object-contain">
+                </div>
+                <div class="h-6 px-2 flex items-center justify-center rounded bg-gray-50 border border-gray-200" title="SEPA">
+                    <img src="{{ asset('shop/frontend/payments/sepa.svg') }}" alt="SEPA" loading="lazy" class="h-4 w-auto object-contain">
                 </div>
             </div>
         </div>

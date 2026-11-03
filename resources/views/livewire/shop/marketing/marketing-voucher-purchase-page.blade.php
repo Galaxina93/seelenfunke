@@ -91,7 +91,7 @@
                             <svg class="w-5 h-5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5a2 2 0 10-2 2h2zm-2 4h12M5 15h14" /></svg>
                             <div>
                                 <strong class="text-gray-800">Postalischer Versand (+ {{ number_format($this->shippingCost, 2, ',', '.') }} €):</strong>
-                                <p class="mt-0.5">Wir drucken deinen Gutschein auf einer Klappkarte und versenden ihn in dem edlen schwarzen Umschlag mit goldenem Siegel-Aufkleber an deine Lieferadresse.</p>
+                                <p class="mt-0.5">Wir gravieren deinen Gutschein per Laser auf eine edle goldene Metallkarte und versenden sie im schwarzen Umschlag mit goldenen Linien und goldenem Wachssiegel-Aufkleber an deine Lieferadresse.</p>
                             </div>
                         @endif
                     </div>
@@ -125,7 +125,7 @@
                     <span class="inline-block px-3 py-1 bg-primary/10 border border-primary/20 rounded-full text-xs font-semibold tracking-wider text-primary mb-3 uppercase">Exklusives Geschenk</span>
                     <h2 class="text-2xl sm:text-3xl font-serif font-bold text-gray-900 tracking-wide mb-2">Deinen Gutschein konfigurieren</h2>
                     <p class="text-gray-600 text-sm sm:text-base leading-relaxed">
-                        In 3 einfachen Schritten zu deinem persönlichen Geschenkgutschein – wir begleiten dich Schritt für Schritt bis zum Warenkorb.
+                        In 3 einfachen Schritten zu deinem persönlichen Geschenkgutschein. Wir begleiten dich Schritt für Schritt bis zum Warenkorb.
                     </p>
                 </div>
 
@@ -284,7 +284,8 @@
                         {{-- Footer Navigation Schritt 1 --}}
                         <div class="mt-8 pt-6 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
                             <div class="text-xs text-gray-500">
-                                Gewählter Gutscheinwert: <strong class="text-gray-900 font-serif text-base ml-1">{{ number_format($this->selectedAmount, 2, ',', '.') }} €</strong>
+                                <div>Gewählter Gutscheinwert: <strong class="text-gray-900 font-serif text-base ml-1">{{ number_format($this->selectedAmount, 2, ',', '.') }} €</strong></div>
+                                <div class="text-[11px] text-gray-400 mt-0.5">Mehrzweck-Gutschein (§ 3 Abs. 14 UStG) · E-Mail-Versand gratis (Goldene Metallkarte im Edel-Umschlag <a href="{{ route('versand') }}" target="_blank" class="underline hover:text-gray-600">zzgl. {{ number_format($this->postShippingCost, 2, ',', '.') }} € Versand</a>)</div>
                             </div>
                             <button type="button"
                                     wire:click="nextStep"
@@ -348,7 +349,7 @@
                                           placeholder="Schreibe eine liebevolle Widmung für die Gutscheinkarte..."
                                           class="w-full bg-white border-2 @error('personalMessage') border-red-500 focus:border-red-500 @else border-gray-300 focus:border-primary @enderror rounded-2xl py-3.5 px-5 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"></textarea>
                                 <div class="flex justify-between items-center mt-1.5 px-1">
-                                    <span class="text-[11px] text-gray-500">Wird auf dem Gutschein unter dem Empfängernamen abgedruckt</span>
+                                    <span class="text-[11px] text-gray-500">Wird auf dem Gutschein unter dem Empfängernamen verewigt</span>
                                     <span class="text-[11px] {{ mb_strlen((string) $personalMessage) > 160 ? 'text-red-600 font-bold' : 'text-gray-500 font-medium' }}">{{ mb_strlen((string) $personalMessage) }}/160</span>
                                 </div>
                                 @error('personalMessage')
@@ -390,7 +391,7 @@
                                 <span class="text-xs font-semibold text-gray-400">Schritt 3 von 3</span>
                             </div>
                             <p class="text-xs sm:text-sm text-gray-500">
-                                Entscheide, ob dein Gutschein sofort digital per E-Mail oder als gedruckte Karte im edlen Umschlag mit goldenem Wachssiegel per Post versendet werden soll.
+                                Entscheide, ob dein Gutschein sofort digital per E-Mail oder als lasergravierte goldene Metallkarte im edlen schwarzen Umschlag mit goldenem Siegel per Post versendet werden soll.
                             </p>
                         </div>
 
@@ -412,7 +413,7 @@
                                     <span class="text-sm font-bold {{ $deliveryMethod === 'post' ? 'text-primary' : 'text-gray-800' }}">✉️ Per Post im Umschlag</span>
                                     <span class="text-xs px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-bold">+ {{ number_format($this->postShippingCost, 2, ',', '.') }} €</span>
                                 </div>
-                                <span class="text-xs text-gray-500 leading-relaxed">Gedruckte Klappkarte im schwarzen Umschlag mit goldenem Siegel-Aufkleber.</span>
+                                <span class="text-xs text-gray-500 leading-relaxed">Lasergravierte goldene Metallkarte im schwarzen Umschlag mit goldenem Siegel.</span>
                             </button>
                         </div>
 
@@ -435,7 +436,7 @@
                                 @elseif($this->isStep3Valid)
                                     <span class="text-emerald-700 text-xs font-semibold mt-1.5 flex items-center gap-1.5 ml-1">
                                         <svg class="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                                        E-Mail-Adresse ist gültig – dein Gutschein ist bereit für den Warenkorb!
+                                        E-Mail-Adresse ist gültig. Dein Gutschein ist bereit für den Warenkorb!
                                     </span>
                                 @else
                                     <span class="text-[11px] text-gray-500 mt-1.5 block ml-1">Pflichtfeld · Hierhin wird der Gutschein digital nach Abschluss des Kaufs versendet.</span>
@@ -457,11 +458,11 @@
                                         </li>
                                         <li class="flex items-center gap-2 text-gray-700">
                                             <svg class="w-4 h-4 text-green-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
-                                            <span>Goldener Herzkranz-Siegel-Aufkleber</span>
+                                            <span>Goldenes Siegel</span>
                                         </li>
                                         <li class="flex items-center gap-2 text-gray-700">
                                             <svg class="w-4 h-4 text-green-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
-                                            <span>Hochwertig gedruckte Gutschein-Klappkarte</span>
+                                            <span>Lasergravierte goldene Metallkarte (Scheckkartenformat)</span>
                                         </li>
                                     </ul>
                                 </div>
@@ -502,6 +503,10 @@
                                     {{ number_format($this->finalTotal, 2, ',', '.') }}&nbsp;€
                                 </span>
                             </div>
+
+                            <p class="text-[11px] text-gray-500 leading-relaxed bg-white/80 border border-gray-200/70 rounded-xl px-3.5 py-2.5">
+                                Mehrzweck-Wertgutschein gem. § 3 Abs. 14 UStG (Endbetrag; die Umsatzsteuer wird bei Einlösung berechnet). Gesetzliche Gültigkeit: <strong>3 Jahre</strong> ab Ende des Kaufjahres (§ 195 BGB). Es gilt das gesetzliche 14-tägige <a href="{{ route('widerruf') }}" target="_blank" class="underline font-semibold text-gray-700 hover:text-primary">Widerrufsrecht</a> sowie unsere <a href="{{ route('agb') }}" target="_blank" class="underline font-semibold text-gray-700 hover:text-primary">AGB</a>.
+                            </p>
 
                             {{-- Aktions-Buttons: In den Warenkorb legen über die volle Breite --}}
                             <div class="space-y-3 pt-1">

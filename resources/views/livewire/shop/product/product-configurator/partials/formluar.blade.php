@@ -5,11 +5,11 @@
     @if($context !== 'preview')
         {{-- HAUPT-BUTTONS (Zentriert nebeneinander) --}}
         <div class="flex flex-col items-center gap-3">
-            <div class="flex items-center justify-center gap-3 sm:gap-6 w-full">
+            <div class="flex flex-wrap items-center justify-center gap-2.5 sm:gap-4 w-full">
                 {{-- 1. SYMBOLE --}}
                 <button type="button"
                         @click="toggleTab('symbols')"
-                        class="flex flex-col items-center justify-center w-24 sm:w-28 h-20 sm:h-24 p-2 rounded-2xl border transition-colors duration-200 group select-none cursor-pointer"
+                        class="flex flex-col items-center justify-center w-22 sm:w-26 h-20 sm:h-24 p-2 rounded-2xl border transition-colors duration-200 group select-none cursor-pointer"
                         :class="activeTab === 'symbols'
                             ? 'border-green-500 ring-2 ring-green-500/25 bg-green-500/10 text-green-600 dark:text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.15)]'
                             : '{{ $isDark ? 'border-gray-800 bg-gray-900/90 text-gray-400 hover:border-gray-700 hover:text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 shadow-sm' }}'">
@@ -17,11 +17,24 @@
                     <span class="text-[10px] sm:text-xs font-bold uppercase tracking-wider">Symbole</span>
                 </button>
 
+                {{-- 1b. SPRÜCHE & WIDMUNGEN („KREATIV-STARTHILFE“) --}}
+                @if(!empty($quotes))
+                    <button type="button"
+                            @click="toggleTab('quotes')"
+                            class="flex flex-col items-center justify-center w-22 sm:w-26 h-20 sm:h-24 p-2 rounded-2xl border transition-colors duration-200 group select-none cursor-pointer"
+                            :class="activeTab === 'quotes'
+                                ? 'border-green-500 ring-2 ring-green-500/25 bg-green-500/10 text-green-600 dark:text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.15)]'
+                                : '{{ $isDark ? 'border-gray-800 bg-gray-900/90 text-gray-400 hover:border-gray-700 hover:text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 shadow-sm' }}'">
+                        <x-heroicon-o-chat-bubble-bottom-center-text class="w-6 h-6 sm:w-7 sm:h-7 mb-1.5 transition-transform group-hover:scale-110" />
+                        <span class="text-[10px] sm:text-xs font-bold uppercase tracking-wider">Sprüche</span>
+                    </button>
+                @endif
+
                 @if($configSettings['allow_logo'])
                     {{-- 2. EIGENE DATEIEN --}}
                     <button type="button"
                             @click="toggleTab('files')"
-                            class="flex flex-col items-center justify-center w-24 sm:w-28 h-20 sm:h-24 p-2 rounded-2xl border transition-colors duration-200 group select-none relative cursor-pointer"
+                            class="flex flex-col items-center justify-center w-22 sm:w-26 h-20 sm:h-24 p-2 rounded-2xl border transition-colors duration-200 group select-none relative cursor-pointer"
                             :class="activeTab === 'files'
                                 ? 'border-green-500 ring-2 ring-green-500/25 bg-green-500/10 text-green-600 dark:text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.15)]'
                                 : '{{ $isDark ? 'border-gray-800 bg-gray-900/90 text-gray-400 hover:border-gray-700 hover:text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 shadow-sm' }}'">
@@ -38,7 +51,7 @@
                 {{-- 3. DESIGN SICHERN (DISKETTE) --}}
                 <button type="button"
                         @click="saveDraft"
-                        class="flex flex-col items-center justify-center w-24 sm:w-28 h-20 sm:h-24 p-2 rounded-2xl border transition-colors duration-200 group select-none cursor-pointer"
+                        class="flex flex-col items-center justify-center w-22 sm:w-26 h-20 sm:h-24 p-2 rounded-2xl border transition-colors duration-200 group select-none cursor-pointer"
                         :class="isDraftSaving
                             ? 'border-green-500 ring-2 ring-green-500/25 bg-green-500/10 text-green-600 dark:text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.15)]'
                             : '{{ $isDark ? 'border-gray-800 bg-gray-900/90 text-gray-400 hover:border-[#C5A059] hover:text-[#C5A059]' : 'border-slate-200 bg-white text-slate-600 hover:border-[#C5A059] hover:text-[#C5A059] shadow-sm' }}'">
@@ -151,6 +164,74 @@
                 </div>
             </div>
         </div>
+
+        {{-- 1b. SPRUCH- & WIDMUNGS-BIBLIOTHEK („KREATIV-STARTHILFE“) --}}
+        @if(!empty($quotes))
+            <div x-show="activeTab === 'quotes'"
+                 x-data="{ activeQuoteCat: @js($selectedQuoteCategory ?: array_key_first($quotes)) }"
+                 x-transition:enter="transition-opacity ease-out duration-150"
+                 x-transition:enter-start="opacity-0"
+                 x-transition:enter-end="opacity-100"
+                 class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-black uppercase tracking-widest flex items-center gap-2 {{ $isDark ? 'text-gray-200' : 'text-slate-900' }}">
+                        <span class="w-8 h-px {{ $isDark ? 'bg-gray-700' : 'bg-slate-200' }}"></span>
+                        Kreativ-Starthilfe: Sprüche & Widmungen
+                    </h3>
+                    <button type="button" @click="activeTab = null" class="text-xs text-gray-400 hover:text-gray-200 px-2 py-1 rounded-lg transition-colors cursor-pointer">
+                        Schließen ✕
+                    </button>
+                </div>
+
+                <div class="border rounded-[2rem] p-5 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-slate-50 border-slate-200' }}">
+                    <p class="text-xs mb-3 {{ $isDark ? 'text-gray-400' : 'text-slate-500' }}">
+                        Wähle einen Anlass und tippe auf einen Spruch, um ihn direkt auf der Gravurfläche einzufügen (du kannst ihn danach frei anpassen):
+                    </p>
+
+                    <div class="flex gap-2 p-1 overflow-x-auto custom-scrollbar border-b pb-4 mb-4 {{ $isDark ? 'border-gray-800' : 'border-slate-200' }}">
+                        @foreach($quotes as $qCategory => $qItems)
+                            <button type="button"
+                                    @click="activeQuoteCat = @js($qCategory)"
+                                    :class="activeQuoteCat === @js($qCategory)
+                                        ? '{{ $isDark ? 'bg-[#C5A059] text-gray-900 border-[#C5A059] shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'bg-[#C5A059] text-white border-[#C5A059] shadow-md' }}'
+                                        : '{{ $isDark ? 'bg-gray-800 text-gray-400 border-gray-700 hover:text-gray-200 hover:border-gray-600' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 hover:text-slate-700' }}'"
+                                    class="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all shadow-sm border cursor-pointer">
+                                {{ $qCategory }} ({{ count($qItems) }})
+                            </button>
+                        @endforeach
+                    </div>
+
+                    @foreach($quotes as $qCategory => $qItems)
+                        <div x-show="activeQuoteCat === @js($qCategory)"
+                             class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+                            @forelse($qItems as $quoteItem)
+                                <button type="button"
+                                        @click="applyQuoteToStage(@js($quoteItem['text']))"
+                                        class="text-left p-3.5 rounded-2xl border transition-all group cursor-pointer flex flex-col justify-between gap-1.5 hover:border-[#C5A059] hover:shadow-[0_0_15px_rgba(197,160,89,0.2)] {{ $isDark ? 'bg-gray-950/70 border-gray-800 text-gray-200' : 'bg-white border-slate-200 text-slate-800 shadow-xs' }}">
+                                    @if(!empty($quoteItem['title']))
+                                        <div class="flex items-center justify-between gap-2">
+                                            <span class="text-[10px] font-black uppercase tracking-widest text-[#C5A059]">
+                                                {{ $quoteItem['title'] }}
+                                            </span>
+                                            <span class="text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity text-[#C5A059]">
+                                                + Übernehmen
+                                            </span>
+                                        </div>
+                                    @endif
+                                    <p class="text-xs sm:text-sm font-serif leading-snug">
+                                        „{{ $quoteItem['text'] }}“
+                                    </p>
+                                </button>
+                            @empty
+                                <div class="col-span-full text-center text-xs py-8 {{ $isDark ? 'text-gray-500' : 'text-slate-400' }}">
+                                    Keine Sprüche in dieser Kategorie vorhanden.
+                                </div>
+                            @endforelse
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
 
         @if($configSettings['allow_logo'])
             {{-- AUSKLAPPBARER BEREICH: EIGENE DATEIEN --}}
@@ -338,18 +419,199 @@
     @endif
 
     {{-- BESONDERE WÜNSCHE AN DIE MANUFAKTUR --}}
-    <div class="pt-6 border-t {{ $isDark ? 'border-gray-800' : 'border-slate-100' }}" x-data="{ count: @entangle('notes').live?.length || 0 }">
-        <label class="text-[10px] font-black uppercase tracking-[0.2em] mb-3 flex justify-between {{ $isDark ? 'text-gray-500' : 'text-slate-400' }}">
+    <div class="pt-5 border-t {{ $isDark ? 'border-gray-800' : 'border-slate-100' }}" x-data="{ count: @entangle('notes').live?.length || 0 }">
+        <label class="text-[10px] font-black uppercase tracking-[0.2em] mb-2.5 flex justify-between {{ $isDark ? 'text-gray-500' : 'text-slate-400' }}">
             <span>Besondere Wünsche an die Manufaktur</span>
             <span class="text-[9px]" :class="count >= 400 ? 'text-red-500 font-bold' : '{{ $isDark ? 'text-gray-600' : 'text-slate-300' }}'" x-text="count + ' / 400'">0 / 400</span>
         </label>
         <textarea wire:model="notes"
                   maxlength="400"
                   x-on:input="count = $el.value.length"
-                  rows="5"
-                  class="w-full border-none rounded-[1.5rem] p-5 text-sm font-medium focus:ring-2 focus:ring-primary/20 transition-all resize-none shadow-inner {{ $isDark ? 'bg-gray-900 text-gray-300 placeholder-gray-600' : 'bg-slate-50 text-slate-700' }}"
+                  :rows="isMaximized ? 3 : 4"
+                  rows="4"
+                  class="w-full border-none rounded-[1.25rem] p-4 text-sm font-medium focus:ring-2 focus:ring-primary/20 transition-all resize-none shadow-inner {{ $isDark ? 'bg-gray-900 text-gray-300 placeholder-gray-600' : 'bg-slate-50 text-slate-700' }}"
                   placeholder="Geben Sie hier Details zu Ihrer gewünschten Gravur an..."
                   {{ $context === 'preview' ? 'readonly' : '' }}></textarea>
     </div>
+
+    {{-- VERPACKUNGS-UPGRADES & BUNDLE-EXTRAS (IN DER RECHTEN STUDIO-SPALTE BZW. UNTER DEN WÜNSCHEN) --}}
+    @if($context !== 'preview' && $context !== 'template_admin' && $context !== 'order_edit' && $this->type === 'physical' && !$isDigital && !$isService && count($this->availableAddons) > 0)
+        <div class="pt-5 border-t space-y-2.5 animate-fade-in-up {{ $isDark ? 'border-gray-800' : 'border-slate-100' }}"
+             x-data="{ previewAddon: null }"
+             @keydown.escape.window="if (previewAddon) previewAddon = null">
+            <span class="block text-[10px] font-black uppercase tracking-widest {{ $isDark ? 'text-gray-400' : 'text-gray-500' }}">
+                🎁 Verpackung &amp; Extras (Optional hinzubuchen)
+            </span>
+            <div class="grid grid-cols-1 gap-2.5">
+                @foreach($this->availableAddons as $addon)
+                    @php
+                        $isAddonSelected = in_array($addon['id'], $selectedAddons, true);
+                        $addonFormattedPrice = number_format(((int) $addon['price_cents']) / 100, 2, ',', '.');
+                        $addonImageUrl = $addon['image_url'] ?? \App\Models\Product\Product::resolveAddonImageUrl($addon);
+                    @endphp
+                    <div wire:click="toggleAddon('{{ $addon['id'] }}')"
+                         role="button"
+                         tabindex="0"
+                         @keydown.enter.prevent="$wire.toggleAddon('{{ $addon['id'] }}')"
+                         @keydown.space.prevent="$wire.toggleAddon('{{ $addon['id'] }}')"
+                         class="w-full text-left border rounded-xl p-3 transition-all flex items-center justify-between gap-3 cursor-pointer group {{ $isAddonSelected ? ($isDark ? 'bg-amber-900/20 border-primary ring-1 ring-primary/50 shadow-sm' : 'bg-amber-50/80 border-primary ring-1 ring-primary/40 shadow-xs') : ($isDark ? 'bg-gray-900 border-gray-800 hover:border-primary/40' : 'bg-white border-gray-200 hover:border-primary/40 shadow-2xs') }}">
+                        <div class="flex items-center gap-3 min-w-0 flex-1">
+                            {{-- Checkbox links neben dem Bild --}}
+                            <span class="w-5 h-5 rounded flex items-center justify-center border shrink-0 transition-colors {{ $isAddonSelected ? 'bg-primary border-primary text-gray-900 shadow-2xs' : ($isDark ? 'border-gray-600 bg-gray-950 group-hover:border-primary/60' : 'border-gray-300 bg-white group-hover:border-primary/60') }}">
+                                @if($isAddonSelected)
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                @endif
+                            </span>
+
+                            {{-- Vorschaubild mit Klick-Zoom (Lightbox) --}}
+                            @if($addonImageUrl)
+                                <div @click.stop="previewAddon = @js([
+                                        'id' => $addon['id'],
+                                        'name' => $addon['name'],
+                                        'description' => $addon['description'] ?? '',
+                                        'price' => $addonFormattedPrice,
+                                        'image' => $addonImageUrl,
+                                    ])"
+                                     title="Bild groß anzeigen"
+                                     class="relative w-12 h-12 sm:w-14 sm:h-14 rounded-xl overflow-hidden border shrink-0 cursor-zoom-in group/img {{ $isAddonSelected ? 'border-primary ring-2 ring-primary/30' : ($isDark ? 'border-gray-700 bg-gray-950 hover:border-primary/60' : 'border-gray-200 bg-gray-50 hover:border-primary/60') }}">
+                                    <img src="{{ $addonImageUrl }}" alt="{{ $addon['name'] }}" class="w-full h-full object-cover group-hover/img:scale-110 transition-transform duration-300">
+                                    <span class="absolute bottom-0.5 right-0.5 w-4 h-4 rounded bg-black/65 text-white flex items-center justify-center backdrop-blur-2xs opacity-85 group-hover/img:opacity-100 transition-all shadow-xs">
+                                        <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"/>
+                                        </svg>
+                                    </span>
+                                </div>
+                            @endif
+
+                            <div class="min-w-0 flex-1">
+                                <span class="text-xs sm:text-sm font-bold block leading-tight {{ $isDark ? 'text-gray-100' : 'text-gray-800' }}">
+                                    {{ $addon['name'] }}
+                                </span>
+                                @if(!empty($addon['description']))
+                                    <span class="text-[11px] block mt-0.5 leading-snug line-clamp-2 {{ $isDark ? 'text-gray-400' : 'text-gray-500' }}">
+                                        {{ $addon['description'] }}
+                                    </span>
+                                @endif
+                            </div>
+                        </div>
+                        <span class="font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-lg text-xs whitespace-nowrap shrink-0">
+                            + {{ $addonFormattedPrice }}&nbsp;€
+                        </span>
+                    </div>
+                @endforeach
+            </div>
+
+            {{-- LIGHTBOX MODAL FÜR GROSSANSICHT DES VERPACKUNGSBILDES --}}
+            <template x-teleport="body">
+                <div x-show="previewAddon !== null"
+                     x-cloak
+                     x-transition.opacity.duration.200ms
+                     @click="previewAddon = null"
+                     class="fixed inset-0 z-[2147483647] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
+                    <div @click.stop
+                         x-show="previewAddon !== null"
+                         x-transition:enter="transition ease-out duration-200"
+                         x-transition:enter-start="opacity-0 scale-95"
+                         x-transition:enter-end="opacity-100 scale-100"
+                         class="relative w-full max-w-md rounded-2xl overflow-hidden border shadow-2xl {{ $isDark ? 'bg-gray-900 border-gray-800 text-gray-100' : 'bg-white border-gray-200 text-gray-900' }}">
+                        <button type="button"
+                                @click="previewAddon = null"
+                                class="absolute top-3 right-3 z-10 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center transition cursor-pointer shadow-md"
+                                title="Schließen">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                        <div class="w-full aspect-square bg-black/5 overflow-hidden">
+                            <img :src="previewAddon?.image"
+                                 :alt="previewAddon?.name"
+                                 class="w-full h-full object-cover">
+                        </div>
+                        <div class="p-5 space-y-3">
+                            <div class="flex items-start justify-between gap-3">
+                                <h4 class="font-bold text-base leading-snug" x-text="previewAddon?.name"></h4>
+                                <span class="font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-lg text-xs whitespace-nowrap shrink-0">
+                                    + <span x-text="previewAddon?.price"></span>&nbsp;€
+                                </span>
+                            </div>
+                            <p x-show="previewAddon?.description"
+                               x-text="previewAddon?.description"
+                               class="text-xs leading-relaxed {{ $isDark ? 'text-gray-400' : 'text-gray-600' }}"></p>
+                            <div class="pt-1 flex justify-end gap-2">
+                                <button type="button"
+                                        @click="previewAddon = null"
+                                        class="px-4 py-2 rounded-xl text-xs font-bold border transition cursor-pointer {{ $isDark ? 'border-gray-700 text-gray-300 hover:bg-gray-800' : 'border-gray-200 text-gray-700 hover:bg-gray-50' }}">
+                                    Schließen
+                                </button>
+                                <button type="button"
+                                        @click="if (previewAddon?.id) { $wire.toggleAddon(previewAddon.id); previewAddon = null; }"
+                                        class="px-4 py-2 rounded-xl text-xs font-bold bg-primary text-gray-900 hover:brightness-95 transition cursor-pointer shadow-xs">
+                                    Auswahl umschalten
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    @endif
+
+    {{-- EXPRESS-OPTION (IN DER RECHTEN STUDIO-SPALTE BZW. UNTER VERPACKUNG & EXTRAS) --}}
+    @if($context !== 'preview' && $context !== 'template_admin' && $context !== 'order_edit' && $this->type === 'physical' && $this->product->isPersonalizable())
+        @php
+            $expressPercent = (float)shop_setting('express_surcharge_percent', 20.0);
+            $expressMin = (int)shop_setting('express_surcharge_min', 500);
+
+            $currentConfigTotal = $currentPrice * $qty;
+            $calculatedExpress = (int) round($currentConfigTotal * ($expressPercent / 100));
+            $expressCharge = max($expressMin, $calculatedExpress);
+
+            $formattedPrice = number_format($expressCharge / 100, 2, ',', '.');
+            $formattedPercent = number_format($expressPercent, 0, ',', '.');
+            $formattedMin = number_format($expressMin / 100, 2, ',', '.');
+
+            $shopCapacityLevel = (int) \Illuminate\Support\Facades\Cache::get('shop_capacity_level', shop_setting('shop_capacity_level', 0));
+            $expressDisabled = $shopCapacityLevel >= 2;
+        @endphp
+        <div class="pt-4 border-t relative w-full transition-all duration-300 animate-fade-in-up {{ $isDark ? 'border-gray-800' : 'border-slate-100' }}">
+            <label class="block border rounded-xl p-3.5 transition-all group relative overflow-hidden {{ $expressDisabled ? ($isDark ? 'bg-gray-900 border-gray-800 opacity-70 cursor-not-allowed' : 'bg-gray-50 border-gray-200 opacity-70 cursor-not-allowed') : ($is_express ? ($isDark ? 'bg-amber-900/20 border-amber-500/50 ring-1 ring-amber-500/50 cursor-pointer' : 'bg-amber-50 border-amber-300 ring-1 ring-amber-300 cursor-pointer') : ($isDark ? 'bg-gray-900 border-gray-800 hover:border-primary/50 cursor-pointer' : 'bg-white border-gray-200 hover:border-primary/50 shadow-2xs hover:shadow-sm cursor-pointer')) }}">
+                @if($expressDisabled)
+                    <div class="absolute inset-0 z-10 cursor-not-allowed" title="Express aktuell deaktiviert." @click.prevent></div>
+                @endif
+
+                <div class="flex items-start gap-3">
+                    <div class="pt-0.5">
+                        <input wire:model.live="is_express" type="checkbox" class="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary {{ $expressDisabled ? 'opacity-50' : 'cursor-pointer' }}" {{ $expressDisabled ? 'disabled' : '' }}>
+                    </div>
+
+                    <div class="flex-1 min-w-0">
+                        <div class="flex justify-between items-center flex-wrap gap-2">
+                            <h3 class="text-xs sm:text-sm font-bold flex items-center gap-1.5 {{ $isDark ? 'text-gray-100' : 'text-gray-800' }}">
+                                <x-shop.express-info label="🚀 Eiliges Geschenk (Express)?" />
+                                @if($is_express)
+                                    <span class="text-[9px] bg-primary text-gray-900 px-2 py-0.5 rounded-full uppercase tracking-wide font-black animate-pulse">Aktiv</span>
+                                @endif
+                            </h3>
+
+                            <span class="font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-lg text-xs whitespace-nowrap">
+                                + {{ $formattedPrice }}&nbsp;€ <span class="text-[9px] text-gray-400 font-normal">Aufpreis</span>
+                            </span>
+                        </div>
+
+                        <p class="text-[11px] mt-1 leading-snug {{ $isDark ? 'text-gray-400' : 'text-gray-500' }}">
+                            Priorisierte Fertigung in der Manufaktur ({{ $formattedPercent }}% Basis-Aufschlag, mind. {{ $formattedMin }}&nbsp;€).
+                        </p>
+
+                        @if($expressDisabled)
+                            <div class="mt-2 text-[10px] font-bold text-amber-600 bg-amber-50/10 p-2 border border-amber-500/20 rounded-lg flex items-start gap-1.5">
+                                <svg class="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                Aufgrund hohem Produktionsvolumen kurzzeitig deaktiviert.
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            </label>
+        </div>
+    @endif
 
 </div>

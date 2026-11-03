@@ -114,14 +114,19 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
      */
     public function getItemsAttribute()
     {
+        if (!empty($this->custom_items) && is_array($this->custom_items)) {
+            return collect($this->custom_items)->map(fn($i) => (object)$i);
+        }
+
         if ($this->order_id && $this->order) {
-            $defaultTax = (float)shop_setting('default_tax_rate', 19.0);
-            return $this->order->items->map(function($item) use ($defaultTax) {
+            $isSmall = (bool)($this->is_small_business ?? $this->order->is_small_business ?? shop_setting('is_small_business', false));
+            $defaultTax = $isSmall ? 0.0 : (float)shop_setting('default_tax_rate', 19.0);
+            return $this->order->items->map(function($item) use ($defaultTax, $isSmall) {
                 return (object)[
                     'product_name' => $item->product_name,
                     'quantity' => $item->quantity,
                     'unit_price' => $item->unit_price,
-                    'tax_rate' => $item->tax_rate ?? $defaultTax,
+                    'tax_rate' => $isSmall ? 0.0 : ($item->tax_rate ?? $defaultTax),
                     'total_price' => $item->unit_price * $item->quantity,
                     'configuration' => $item->configuration,
                     'type' => $item->product?->type ?? 'physical',
@@ -148,7 +153,7 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
      */
     public static function calculateTax($amount, $countryCode = 'DE')
     {
-        if ((bool)shop_setting('is_small_business', false)) {
+        if (app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness()) {
             return 0;
         }
 
@@ -195,6 +200,9 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
     {
         if (!is_null($value)) {
             return (bool)$value;
+        }
+        if (((int) ($this->attributes['express_price'] ?? 0)) !== 0) {
+            return true;
         }
         return $this->order->is_express ?? false;
     }
@@ -279,7 +287,7 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
             'number' => $this->invoice_number,
             'type_code' => $this->isCreditNote() ? '381' : '380',
             'currency' => 'EUR',
-            'tax_registration' => shop_setting('owner_tax_id'),
+            'tax_registration' => shop_setting('company_ust_id', shop_setting('owner_ust_id')) ?: shop_setting('owner_tax_id'),
         ];
     }
 

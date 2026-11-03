@@ -18,7 +18,7 @@
 
     {{-- Spezialmodi Banner (Feiertage / Krankheit) mit Feedback-Button --}}
     @php
-        $shopCapacityLevel = (int)\Illuminate\Support\Facades\Cache::get('shop_capacity_level', \App\Models\System\SystemSetting::where('key', 'shop_capacity_level')->value('value') ?? 0);
+        $shopCapacityLevel = (int) \Illuminate\Support\Facades\Cache::get('shop_capacity_level', shop_setting('shop_capacity_level', 0));
     @endphp
 
     @if($type === 'physical' && $setting)
@@ -91,7 +91,7 @@
                   <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                   <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
                 </span>
-                {{ $isService ? 'Plätze verfügbar' : 'Auf Lager' }}{{ !$isService && isset($activeTime) && $activeTime->name === 'Standard' ? ', sofort lieferbar' : '' }}
+                {{ $isService ? 'Plätze verfügbar' : ($product->isPersonalizable() ? 'Rohling auf Lager – bereit zur Veredelung' : 'Auf Lager') }}
             </span>
         @elseif($product->continue_selling_when_out_of_stock)
             <span class="inline-flex items-center gap-1.5 text-amber-600 font-medium">

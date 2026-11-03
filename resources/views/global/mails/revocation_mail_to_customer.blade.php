@@ -218,12 +218,27 @@
                     </div>
                 </div>
 
+                @php
+                    $footerCompany = function_exists('shop_setting') ? shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) : 'Mein Seelenfunke';
+                    $footerOwner   = function_exists('shop_setting') ? shop_setting('owner_proprietor', 'Alina Steinhauer') : 'Alina Steinhauer';
+                    $footerStreet  = function_exists('shop_setting') ? (shop_setting('company_street') ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', '')) : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26')) : 'Carl-Goerdeler-Ring 26';
+                    $footerCity    = function_exists('shop_setting') ? (shop_setting('company_city') ? trim(shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city')) : shop_setting('owner_city', '38518 Gifhorn')) : '38518 Gifhorn';
+                    $footerEmail   = function_exists('shop_setting') ? shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) : 'kontakt@mein-seelenfunke.de';
+                    $footerPhone   = function_exists('shop_setting') ? shop_setting('company_phone', shop_setting('owner_phone', '+49 159 019 668 64')) : '+49 159 019 668 64';
+                    $footerUstId   = function_exists('shop_setting') ? shop_setting('company_ust_id', shop_setting('owner_ust_id', '')) : '';
+                @endphp
                 <div class="footer">
-                    <p style="margin-bottom: 10px !important;">&copy; {{ date('Y') }} Mein Seelenfunke — Handveredelte Unikate</p>
+                    <p style="margin-bottom: 6px !important;"><strong>{{ $footerCompany }}</strong> | Inh. {{ $footerOwner }}</p>
+                    <p style="margin-bottom: 8px !important; font-size: 11px;">
+                        {{ $footerStreet }}, {{ $footerCity }} &bull; Deutschland<br>
+                        E-Mail: <a href="mailto:{{ $footerEmail }}">{{ $footerEmail }}</a>@if(!empty($footerPhone)) &bull; Tel.: {{ $footerPhone }}@endif
+                        @if(!empty($footerUstId))<br>USt-IdNr.: {{ $footerUstId }}@endif
+                    </p>
                     <p>
                         <a href="{{ url('/impressum') }}">Impressum</a> &nbsp;•&nbsp;
                         <a href="{{ url('/datenschutz') }}">Datenschutz</a> &nbsp;•&nbsp;
-                        <a href="{{ url('/agb') }}">AGB & Widerruf</a>
+                        <a href="{{ url('/widerruf') }}">Widerrufsbelehrung</a> &nbsp;•&nbsp;
+                        <a href="{{ url('/agb') }}">AGB</a>
                     </p>
                 </div>
             </div>

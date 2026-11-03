@@ -3,7 +3,6 @@
      @close-ticket-modal-hide.window="showCloseModal = false"
      @customer-ticket-message-received.window="$wire.receiveMessage($event.detail)"
 >
-    <script type="module" src="{{ asset('vendor/emoji-picker-element/index.js') }}"></script>
 
     {{-- HEADER --}}
     <div class="mb-8 lg:mb-10 flex flex-col sm:flex-row sm:items-end justify-between gap-6">
@@ -309,11 +308,25 @@
                 @else
                     <form wire:submit.prevent="sendReply" class="w-full relative">
 
+                        @if($uploadError)
+                            <div class="mb-3 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/50 text-xs font-semibold text-red-600 dark:text-red-400">
+                                {{ $uploadError }}
+                            </div>
+                        @endif
+
                         @if($chatAttachments)
                             <div class="mb-3 flex flex-wrap gap-2 bg-gray-100 dark:bg-gray-900 p-2 rounded-xl border border-gray-200 dark:border-gray-800 shadow-inner">
                                 @foreach($chatAttachments as $index => $photo)
-                                    <div class="relative w-12 h-12 rounded overflow-hidden border border-gray-300 dark:border-gray-700 group">
-                                        <img src="{{ $photo->temporaryUrl() }}" class="w-full h-full object-cover">
+                                    @php
+                                        $ext = strtolower((string) $photo->getClientOriginalExtension());
+                                        $isImagePreview = in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true) && method_exists($photo, 'isPreviewable') && $photo->isPreviewable();
+                                    @endphp
+                                    <div class="relative w-12 h-12 rounded overflow-hidden border border-gray-300 dark:border-gray-700 group flex items-center justify-center bg-white dark:bg-gray-800">
+                                        @if($isImagePreview)
+                                            <img src="{{ $photo->temporaryUrl() }}" class="w-full h-full object-cover">
+                                        @else
+                                            <span class="text-[10px] font-mono font-bold uppercase text-gray-600 dark:text-gray-300 px-1 truncate">{{ $ext ?: 'DATEI' }}</span>
+                                        @endif
                                         <button type="button" wire:click="removeAttachment({{ $index }}, 'chatAttachments')" class="absolute inset-0 bg-red-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg></button>
                                     </div>
                                 @endforeach
@@ -383,12 +396,12 @@
                 <span class="text-red-500 text-2xl">⚠️</span> Ticket wirklich schließen?
             </h3>
 
-            <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">Damit wir unseren Service verbessern können, teile uns bitte kurz mit, warum du dieses Ticket schließt.</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">Optional kannst du uns noch kurz mitteilen, ob dein Anliegen gelöst wurde.</p>
 
             <form wire:submit.prevent="closeTicket">
                 <div class="mb-6">
-                    <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2">Schließgrund / Feedback *</label>
-                    <textarea wire:model="closeReason" rows="3" placeholder="Hat sich das Problem von selbst gelöst? Fehlen Informationen?..." class="w-full bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-red-500 outline-none transition-colors @error('closeReason') border-2 border-red-500 @else border border-gray-200 dark:border-gray-800 @enderror"></textarea>
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2">Schließgrund / Feedback (optional)</label>
+                    <textarea wire:model="closeReason" rows="3" placeholder="Optional: Hat sich das Problem gelöst?..." class="w-full bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-red-500 outline-none transition-colors @error('closeReason') border-2 border-red-500 @else border border-gray-200 dark:border-gray-800 @enderror"></textarea>
                     @error('closeReason') <span class="text-red-500 text-xs mt-1 block font-bold">{{ $message }}</span> @enderror
                 </div>
 

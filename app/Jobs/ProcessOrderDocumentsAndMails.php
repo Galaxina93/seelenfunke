@@ -130,7 +130,7 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
             // 2a. Kundenbestätigung direkt synchron via SMTP senden
             try {
                 Mail::to($this->order->email)
-                    ->sendNow(new NewOrderMailToCustomer($mailData, $pdfPath, $xmlPath, $snapshotPaths));
+                    ->sendNow(new NewOrderMailToCustomer($mailData, $pdfPath, $xmlPath, $snapshotPaths, $this->order));
 
                 // Klartext-Initialpasswort sofort nach erfolgreichem Versand aus der Datenbank entfernen
                 if ($this->order->customer && !empty($this->order->customer->temporary_password)) {
@@ -140,7 +140,7 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
                 Log::error("Kunden-Bestellbestätigung konnte nicht gesendet werden für {$this->order->order_number}: " . $customerEx->getMessage());
             }
 
-            // 2a-2. Separate Geschenkgutschein-E-Mails im Hintergrund-Job versenden (entlastet den Checkout-Request bei hohem Traffic von DomPDF & SMTP)
+            // 2a-2. Separate Geschenkgutschein-E-Mails im Hintergrund-Job versenden (nur wenn abweichende Empfänger-E-Mail angegeben wurde, da der Käufer das PDF bereits in NewOrderMailToCustomer erhält)
             try {
                 $emailVouchers = \App\Models\Marketing\MarketingGiftVoucher::whereIn('order_item_id', $this->order->items->pluck('id'))
                     ->where('is_active', true)
@@ -148,9 +148,8 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
                     ->get();
 
                 foreach ($emailVouchers as $voucher) {
-                    $recipientTarget = $voucher->recipient_email ?: $this->order->email;
-                    if (!empty($recipientTarget)) {
-                        Mail::to($recipientTarget)
+                    if (!empty($voucher->recipient_email) && strcasecmp(trim((string) $voucher->recipient_email), trim((string) $this->order->email)) !== 0) {
+                        Mail::to(trim((string) $voucher->recipient_email))
                             ->sendNow(new \App\Mail\NewGiftVoucherToCustomer($voucher));
                     }
                 }
@@ -163,11 +162,11 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
             $mailData['customer_needs_password_change'] = false;
 
             // 2b. Admin-Benachrichtigung direkt synchron via SMTP senden
-            if (shop_setting('send_order_email_to_admin', true)) {
+            if (filter_var(shop_setting('send_order_email_to_admin', true), FILTER_VALIDATE_BOOLEAN)) {
                 try {
                     $adminEmail = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
                     Mail::to($adminEmail)
-                        ->sendNow(new NewOrderMailToAdmin($mailData, $pdfPath, $xmlPath, $snapshotPaths));
+                        ->sendNow(new NewOrderMailToAdmin($mailData, $pdfPath, $xmlPath, $snapshotPaths, $this->order));
                 } catch (\Throwable $adminEx) {
                     Log::error("Admin-Bestellbestätigung konnte nicht gesendet werden für {$this->order->order_number}: " . $adminEx->getMessage());
                 }

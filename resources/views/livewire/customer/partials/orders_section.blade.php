@@ -20,9 +20,7 @@
                     <h1 class="text-3xl md:text-4xl font-serif font-bold text-white flex items-center sm:justify-end gap-4 mb-2">
                         Bestellung #{{ $selectedOrder->order_number }}
                         @if($selectedOrder->is_express)
-                            <span class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest bg-gradient-to-r from-red-500/20 to-pink-600/20 text-red-400 border border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.2)]">
-                                🚀 Express
-                            </span>
+                            <x-shop.express-info class="px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-widest text-gray-100 border border-primary/40" />
                         @endif
                     </h1>
                     <p class="text-sm text-gray-500 font-bold uppercase tracking-widest">
@@ -149,6 +147,35 @@
                                             <p class="text-sm text-gray-400 font-medium">
                                                 {{ $item->quantity }}x à {{ number_format(($item->unit_price / 100), 2, ',', '.') }} €
                                             </p>
+                                            @if(!empty($item->configuration['variant_name']) || (!empty($item->configuration['addons_summary']) && is_array($item->configuration['addons_summary'])))
+                                                <div class="mt-2.5 flex flex-wrap gap-1.5">
+                                                    @if(!empty($item->configuration['variant_name']))
+                                                        <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-primary/15 text-primary border border-primary/30">
+                                                            Ausführung: {{ $item->configuration['variant_name'] }}
+                                                        </span>
+                                                    @endif
+                                                    @if(!empty($item->configuration['addons_summary']) && is_array($item->configuration['addons_summary']))
+                                                        @foreach($item->configuration['addons_summary'] as $addon)
+                                                            @if(!empty($addon['name']))
+                                                                @php
+                                                                    $secAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addon);
+                                                                @endphp
+                                                                <span class="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                                                    @if($secAddonImg)
+                                                                        <img src="{{ $secAddonImg }}" alt="{{ $addon['name'] }}" class="w-5 h-5 rounded object-cover border border-amber-400/40 shrink-0">
+                                                                    @else
+                                                                        <span>🎁</span>
+                                                                    @endif
+                                                                    <span>{{ $addon['name'] }}</span>
+                                                                    @if(($addon['price_cents'] ?? 0) > 0)
+                                                                        <span class="text-amber-400/90">(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }} €)</span>
+                                                                    @endif
+                                                                </span>
+                                                            @endif
+                                                        @endforeach
+                                                    @endif
+                                                </div>
+                                            @endif
                                         </div>
 
                                         <div class="mt-6 flex flex-col items-start gap-4">
@@ -365,7 +392,7 @@
                                 <div class="flex items-center gap-3 mb-1">
                                     <span class="font-bold text-white text-lg tracking-wide">#{{ $o->order_number }}</span>
                                     @if($o->is_express)
-                                        <span class="bg-red-500/10 text-red-400 text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-red-500/30">Express</span>
+                                        <x-shop.express-info iconClass="w-3.5 h-3.5" class="text-gray-200 text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-primary/40" />
                                     @endif
                                 </div>
                                 <p class="text-xs font-medium text-gray-500 uppercase tracking-widest">{{ $o->created_at->format('d. F Y') }} <span class="mx-2 text-gray-700">|</span> {{ $o->items->count() }} Artikel</p>

@@ -16,8 +16,12 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
+use App\Models\Accounting\AccountingSpecialIssue;
+use App\Models\Admin\Admin;
 use App\Models\System\SystemLog;
+use App\Services\AccountingEInvoiceParserService;
 
 #[Layout('components.layouts.backend_layout')]
 class AccountingInvoice extends Component
@@ -27,12 +31,19 @@ class AccountingInvoice extends Component
     public string $themingDepartment = 'Buchhaltung';
 
     use WithPagination;
+    use WithFileUploads;
 
     public $search = '';
     public $filterType = '';
     public $isCreatingManual = false;
     public $selectedCustomerId = null;
     public $activeTab = 'list'; // list, e_invoices, archive
+
+    // E-Rechnung Import & Analyse (XRechnung / ZUGFeRD)
+    public $eInvoiceUpload = null;
+    public ?array $parsedEInvoice = null;
+    public ?string $parsedEInvoiceError = null;
+    public string $eInvoiceExpenseCategory = 'Wareneinkauf & Material';
 
     // Feedback States
     public $saveSuccess = false;
@@ -94,7 +105,7 @@ class AccountingInvoice extends Component
 
     public function boot(): void
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Nicht autorisierter Zugriff auf die Rechnungsverwaltung.');
         }
     }
@@ -148,13 +159,26 @@ class AccountingInvoice extends Component
             'header_text' => $invoice->header_text,
             'footer_text' => $invoice->footer_text,
             'is_e_invoice' => (bool)$invoice->is_e_invoice,
-            'items' => collect($invoice->custom_items)->map(fn($item) => [
-                'product_name' => $item['product_name'],
-                'quantity' => $item['quantity'],
-                'unit_price' => $item['unit_price'] / 100,
-                'tax_rate' => $item['tax_rate']
-            ])->toArray(),
-            'shipping_cost' => $invoice->shipping_cost / 100,
+            'items' => collect($invoice->custom_items)->map(function($item) use ($invoice) {
+                $taxRate = (float)($item['tax_rate'] ?? shop_setting('default_tax_rate', 19.0));
+                if (isset($item['net_unit_price'])) {
+                    $netEuro = $item['net_unit_price'] / 100;
+                } elseif (!$invoice->is_small_business && $taxRate > 0) {
+                    $netEuro = round(($item['unit_price'] ?? 0) / (1 + ($taxRate / 100))) / 100;
+                } else {
+                    $netEuro = ($item['unit_price'] ?? 0) / 100;
+                }
+
+                return [
+                    'product_name' => $item['product_name'],
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $netEuro,
+                    'tax_rate' => $item['tax_rate']
+                ];
+            })->toArray(),
+            'shipping_cost' => (!$invoice->is_small_business && (float)shop_setting('default_tax_rate', 19.0) > 0)
+                ? (round($invoice->shipping_cost / (1 + ((float)shop_setting('default_tax_rate', 19.0) / 100))) / 100)
+                : ($invoice->shipping_cost / 100),
             'discount_amount' => $invoice->discount_amount / 100,
             'volume_discount' => $invoice->volume_discount / 100,
         ];
@@ -388,7 +412,10 @@ class AccountingInvoice extends Component
             $items = [];
 
             // --- SCHRITT 1: Positionen berechnen (Basis: Eingabe ist NETTO) ---
-            $isSmallBusiness = (bool)shop_setting('is_small_business', false);
+            $invoiceDateObj = !empty($this->manualInvoice['invoice_date'])
+                ? Carbon::parse($this->manualInvoice['invoice_date'])
+                : now();
+            $isSmallBusiness = app(\App\Services\Tax\TaxSettingService::class)->isSmallBusinessForYear((int)$invoiceDateObj->year);
 
             foreach ($this->manualInvoice['items'] as $item) {
                 // A. Eingabewerte normalisieren
@@ -419,6 +446,7 @@ class AccountingInvoice extends Component
                     'product_name' => $item['product_name'],
                     'quantity' => $qty,
                     'unit_price' => $calculatedGrossUnitCent, // Brutto-Einzelpreis in Cent
+                    'net_unit_price' => $netUnitCent,         // Netto-Einzelpreis in Cent (für Entwurfs-Bearbeitung)
                     'total_price' => $lineGrossTotalCent,     // Brutto-Gesamtpreis in Cent
                     'tax_rate' => $taxRate,
                     'configuration' => $item['configuration'] ?? null
@@ -449,6 +477,10 @@ class AccountingInvoice extends Component
             // --- SCHRITT 4: Endsummen ---
             // Total = (Summe Items Brutto + Versand Brutto) - Rabatte
             $grandTotalCent = max(0, ($itemsGrossSum + $shippingGrossCent) - $totalDiscountCent);
+
+            if ($totalDiscountCent > 0 && $maxDiscountCent > 0 && !$isSmallBusiness) {
+                $totalTaxAmount = (int) round($totalTaxAmount * ($grandTotalCent / $maxDiscountCent));
+            }
 
 
             // --- SCHRITT 5: Speichern in DB ---
@@ -498,7 +530,7 @@ class AccountingInvoice extends Component
             // --- SCHRITT 6: Dokumente generieren (Fehlertolerant) ---
 
             // A) PDF (Archivierung)
-            if ($finalStatus === 'paid') {
+            if (in_array($finalStatus, ['open', 'paid'], true)) {
                 try {
                     app(InvoiceService::class)->storePdf($invoice);
                 } catch (\Exception $e) {
@@ -507,7 +539,7 @@ class AccountingInvoice extends Component
             }
 
             // B) E-Rechnung (XML)
-            if ($this->manualInvoice['is_e_invoice'] && $finalStatus === 'paid') {
+            if ($this->manualInvoice['is_e_invoice'] && in_array($finalStatus, ['open', 'paid'], true)) {
                 try {
                     $this->processEInvoice($invoice);
                 } catch (\Exception $e) {
@@ -712,6 +744,178 @@ class AccountingInvoice extends Component
         $this->resetPage();
     }
 
+    /**
+     * Wird automatisch ausgelöst, wenn eine E-Rechnung (.xml oder ZUGFeRD-.pdf) hochgeladen wird.
+     */
+    public function updatedEInvoiceUpload(): void
+    {
+        $this->parsedEInvoice = null;
+        $this->parsedEInvoiceError = null;
+
+        if (!$this->eInvoiceUpload) {
+            return;
+        }
+
+        try {
+            $realPath = $this->eInvoiceUpload->getRealPath();
+            $parser = app(AccountingEInvoiceParserService::class);
+            $this->parsedEInvoice = $parser->parseFile($realPath);
+            $this->activeTab = 'e_invoices';
+            $this->dispatch('notify', [
+                'type' => 'success',
+                'message' => 'E-Rechnung (' . ($this->parsedEInvoice['invoice_number'] ?: 'Beleg') . ') erfolgreich eingelesen & EN16931-validiert.',
+            ]);
+        } catch (\Throwable $e) {
+            $this->parsedEInvoiceError = $e->getMessage();
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'E-Rechnung konnte nicht gelesen werden: ' . $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Parst einen XML-String direkt (ideal für schnellen Import oder Tests).
+     */
+    public function parseEInvoiceXmlString(string $xmlContent): void
+    {
+        $this->parsedEInvoice = null;
+        $this->parsedEInvoiceError = null;
+
+        try {
+            $parser = app(AccountingEInvoiceParserService::class);
+            $this->parsedEInvoice = $parser->parseXmlString($xmlContent);
+            $this->activeTab = 'e_invoices';
+        } catch (\Throwable $e) {
+            $this->parsedEInvoiceError = $e->getMessage();
+        }
+    }
+
+    public function clearParsedEInvoice(): void
+    {
+        $this->eInvoiceUpload = null;
+        $this->parsedEInvoice = null;
+        $this->parsedEInvoiceError = null;
+    }
+
+    /**
+     * Verbucht die eingelesene Eingangs-E-Rechnung direkt als betriebliche Sonderausgabe (AccountingSpecialIssue).
+     */
+    public function importEInvoiceAsExpense(): void
+    {
+        if (empty($this->parsedEInvoice) || empty($this->parsedEInvoice['valid'])) {
+            session()->flash('error', 'Keine gültige E-Rechnung zum Verbuchen geladen.');
+            return;
+        }
+
+        $parsed = $this->parsedEInvoice;
+        $adminId = auth('admin')->id() ?: Admin::query()->value('id');
+        if (!$adminId) {
+            session()->flash('error', 'Kein Admin-Konto für die Verbuchung gefunden.');
+            return;
+        }
+
+        $storedFiles = [];
+        if ($this->eInvoiceUpload) {
+            try {
+                $ext = strtolower($this->eInvoiceUpload->getClientOriginalExtension() ?: 'xml');
+                $safeNum = preg_replace('/[^a-zA-Z0-9_\-]/', '_', (string)($parsed['invoice_number'] ?: 'einvoice'));
+                $storedPath = $this->eInvoiceUpload->storeAs(
+                    'buchhaltung/incoming_einvoices',
+                    $safeNum . '_' . time() . '.' . $ext,
+                    'local'
+                );
+                if ($storedPath) {
+                    $storedFiles[] = $storedPath;
+                }
+            } catch (\Throwable $e) {
+                // Datei-Archivierung optional
+            }
+        }
+
+        $sellerName = trim((string)($parsed['seller']['name'] ?? '')) ?: 'Lieferant';
+        $invNumber = trim((string)($parsed['invoice_number'] ?? ''));
+        $grossTotal = abs((float)($parsed['totals']['grand_total_gross'] ?? 0));
+        $taxRate = (int)round((float)($parsed['totals']['tax_rate'] ?? shop_setting('default_tax_rate', 19)));
+
+        $itemLines = collect($parsed['items'] ?? [])
+            ->map(fn ($it) => ($it['quantity'] ?? 1) . 'x ' . ($it['name'] ?? 'Position') . ' (' . number_format((float)($it['line_total_net'] ?? 0), 2, ',', '.') . ' € Netto)')
+            ->implode('; ');
+
+        $noteParts = array_filter([
+            "Format: " . ($parsed['format'] ?? 'EN16931'),
+            $invNumber ? "Rechnungs-Nr.: {$invNumber}" : null,
+            !empty($parsed['seller']['vat_id']) ? "USt-IdNr.: {$parsed['seller']['vat_id']}" : null,
+            !empty($parsed['seller']['iban']) ? "IBAN: {$parsed['seller']['iban']}" : null,
+            $itemLines ? "Positionen: {$itemLines}" : null,
+        ]);
+
+        AccountingSpecialIssue::create([
+            'admin_id' => $adminId,
+            'title' => $invNumber ? "{$sellerName} ({$invNumber})" : $sellerName,
+            'location' => $parsed['seller']['city'] ?? null,
+            'category' => $this->eInvoiceExpenseCategory ?: 'Wareneinkauf & Material',
+            'amount' => -1 * $grossTotal,
+            'execution_date' => !empty($parsed['issue_date']) ? $parsed['issue_date'] : now()->format('Y-m-d'),
+            'note' => implode(' | ', $noteParts),
+            'is_business' => true,
+            'tax_rate' => $taxRate,
+            'invoice_number' => $invNumber ?: null,
+            'file_paths' => $storedFiles,
+        ]);
+
+        $this->clearParsedEInvoice();
+        session()->flash('success', "E-Rechnung {$invNumber} von {$sellerName} (" . number_format($grossTotal, 2, ',', '.') . " €) wurde erfolgreich als Betriebsausgabe / Sonderausgabe verbucht.");
+        $this->dispatch('notify', [
+            'type' => 'success',
+            'message' => "E-Rechnung {$invNumber} erfolgreich als Betriebsausgabe verbucht!",
+        ]);
+    }
+
+    /**
+     * Übernimmt die Positionen & Daten einer eingelesenen E-Rechnung als Vorlage in den manuellen Rechnungs-Editor.
+     */
+    public function applyEInvoiceToManualEditor(): void
+    {
+        if (empty($this->parsedEInvoice) || empty($this->parsedEInvoice['valid'])) {
+            return;
+        }
+
+        $parsed = $this->parsedEInvoice;
+        $this->resetManualInvoice();
+
+        $buyerName = trim((string)($parsed['buyer']['name'] ?? ''));
+        $nameParts = preg_split('/\s+/', $buyerName, 2);
+
+        $this->manualInvoice['company'] = '';
+        $this->manualInvoice['first_name'] = $nameParts[0] ?? 'Kunde';
+        $this->manualInvoice['last_name'] = $nameParts[1] ?? ($nameParts[0] ?? 'Kunde');
+        $this->manualInvoice['customer_email'] = $parsed['buyer']['email'] ?: 'kunde@example.com';
+        $this->manualInvoice['address'] = $parsed['buyer']['street'] ?? '';
+        $this->manualInvoice['postal_code'] = $parsed['buyer']['zip'] ?? '';
+        $this->manualInvoice['city'] = $parsed['buyer']['city'] ?? '';
+        $this->manualInvoice['country'] = $parsed['buyer']['country'] ?: 'DE';
+        $this->manualInvoice['reference_number'] = $parsed['buyer_reference'] ?: ($parsed['invoice_number'] ?? '');
+        $this->manualInvoice['is_e_invoice'] = true;
+
+        $mappedItems = [];
+        foreach (($parsed['items'] ?? []) as $it) {
+            $mappedItems[] = [
+                'product_name' => $it['name'] ?? 'Position',
+                'quantity' => (float)($it['quantity'] ?? 1),
+                'unit_price' => (float)($it['net_unit_price'] ?? 0),
+                'tax_rate' => (float)($it['tax_rate'] ?? shop_setting('default_tax_rate', 19.0)),
+            ];
+        }
+
+        if (!empty($mappedItems)) {
+            $this->manualInvoice['items'] = $mappedItems;
+        }
+
+        $this->isCreatingManual = true;
+        $this->clearParsedEInvoice();
+    }
+
     public function downloadPdfByFilename($filename)
     {
         $safeName = basename((string) $filename);
@@ -769,7 +973,10 @@ class AccountingInvoice extends Component
         ];
 
         if($this->isCreatingManual) {
-            $isSmallBusiness = (bool)shop_setting('is_small_business', false);
+            $previewYear = !empty($this->manualInvoice['invoice_date'])
+                ? (int) Carbon::parse($this->manualInvoice['invoice_date'])->year
+                : (int) now()->year;
+            $isSmallBusiness = app(\App\Services\Tax\TaxSettingService::class)->isSmallBusinessForYear($previewYear);
             foreach($this->manualInvoice['items'] as $item) {
                 $inputNetPrice = (float)($item['unit_price'] ?? 0);
                 $qty = (float)($item['quantity'] ?? 0);
@@ -794,9 +1001,15 @@ class AccountingInvoice extends Component
             $totalsPreview['gross'] += $shippingGross;
 
             $discounts = (float)($this->manualInvoice['discount_amount'] ?? 0) + (float)($this->manualInvoice['volume_discount'] ?? 0);
-            $totalsPreview['gross'] = max(0, $totalsPreview['gross'] - $discounts);
+            $grossBeforeDiscount = $totalsPreview['gross'];
+            $totalsPreview['gross'] = round(max(0, $grossBeforeDiscount - $discounts), 2);
             if ($isSmallBusiness) {
-                $totalsPreview['net'] = max(0, $totalsPreview['net'] - $discounts);
+                $totalsPreview['net'] = $totalsPreview['gross'];
+                $totalsPreview['tax'] = 0.0;
+            } elseif ($discounts > 0 && $grossBeforeDiscount > 0) {
+                $ratio = $totalsPreview['gross'] / $grossBeforeDiscount;
+                $totalsPreview['tax'] = round($totalsPreview['tax'] * $ratio, 2);
+                $totalsPreview['net'] = round($totalsPreview['gross'] - $totalsPreview['tax'], 2);
             }
         }
 

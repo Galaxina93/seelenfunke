@@ -173,9 +173,26 @@
                         </div>
                         <div>
                             <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1 ml-1">MwSt.-Satz</label>
+                            @php
+                                $defaultRate = (float) shop_setting('default_tax_rate', 19);
+                                $reducedRate = (float) shop_setting('reduced_tax_rate', 7);
+                                $rawActiveRates = shop_setting('active_tax_rates', [$defaultRate, $reducedRate, 0]);
+                                if (is_string($rawActiveRates)) {
+                                    $decodedRates = json_decode($rawActiveRates, true);
+                                    $rawActiveRates = is_array($decodedRates) ? $decodedRates : [$defaultRate, $reducedRate, 0];
+                                }
+                                $customRates = collect(is_array($rawActiveRates) ? $rawActiveRates : [])
+                                    ->map(fn($r) => (float) $r)
+                                    ->reject(fn($r) => in_array($r, [$defaultRate, $reducedRate, 0.0], true))
+                                    ->unique()
+                                    ->values();
+                            @endphp
                             <select wire:model="specialTaxRate" class="{{ $inputClass }} !py-3 !text-xs appearance-none cursor-pointer">
-                                <option value="{{ shop_setting('default_tax_rate', 19) }}" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">{{ shop_setting('default_tax_rate', 19) }}% MwSt. (Standard)</option>
-                                <option value="7" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">7% MwSt. (Ermäßigt)</option>
+                                <option value="{{ $defaultRate }}" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">{{ $defaultRate }}% MwSt. (Standard)</option>
+                                <option value="{{ $reducedRate }}" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">{{ $reducedRate }}% MwSt. (Ermäßigt)</option>
+                                @foreach($customRates as $customRate)
+                                    <option value="{{ $customRate }}" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">{{ $customRate }}% MwSt.</option>
+                                @endforeach
                                 <option value="0" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">0% / Steuerfrei</option>
                             </select>
                         </div>

@@ -101,6 +101,17 @@ class SystemSettingTest extends TestCase
         SystemSetting::create(['key' => 'null_value', 'value' => null]);
 
         $this->assertEquals('', shop_setting('empty_string'));
+        $this->assertEquals('Fallback Value', shop_setting('empty_string', 'Fallback Value'));
         $this->assertNull(shop_setting('null_value'));
+        $this->assertEquals('Null Fallback', shop_setting('null_value', 'Null Fallback'));
+    }
+
+    public function test_it_automatically_switches_is_small_business_after_scheduled_end_year()
+    {
+        SystemSetting::create(['key' => 'is_small_business', 'value' => 'true']);
+        SystemSetting::create(['key' => 'small_business_scheduled_end_year', 'value' => (string) (now()->year - 1)]);
+        Cache::forget('global_shop_settings');
+
+        $this->assertFalse(shop_setting('is_small_business', false));
     }
 }

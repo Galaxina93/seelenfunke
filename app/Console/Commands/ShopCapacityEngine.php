@@ -32,8 +32,9 @@ class ShopCapacityEngine extends Command
         $this->info("Starte Shop Capacity Engine...");
 
         $dailyHours = (float) SystemSetting::where('key', 'shop_daily_working_hours')->value('value') ?: 7.0;
-        $minutesPerOrder = (int) SystemSetting::where('key', 'shop_minutes_per_order')->value('value') ?: 10;
-        $buffer = (int) SystemSetting::where('key', 'shop_capacity_buffer')->value('value') ?: 12;
+        $minutesPerOrder = (float) SystemSetting::where('key', 'shop_minutes_per_order')->value('value') ?: 10.0;
+        $rawBuffer = SystemSetting::where('key', 'shop_capacity_buffer')->value('value');
+        $buffer = ($rawBuffer !== null && $rawBuffer !== '') ? max(0, (int) $rawBuffer) : 12;
 
         $t1 = (int) SystemSetting::where('key', 'shop_capacity_threshold_1')->value('value') ?: 60;
         $t2 = (int) SystemSetting::where('key', 'shop_capacity_threshold_2')->value('value') ?: 85;
@@ -92,10 +93,14 @@ class ShopCapacityEngine extends Command
             ['key' => 'shop_capacity_level'],
             ['value' => $level]
         );
+        Cache::forget('global_shop_settings');
 
         // 5. Autopilot Eingriffe
         $autoPilot = filter_var(Cache::get('shop_capacity_autopilot', SystemSetting::where('key', 'shop_capacity_autopilot')->value('value') ?? false), FILTER_VALIDATE_BOOLEAN);
-        $isVacationMode = filter_var(SystemSetting::where('key', 'is_vacation_mode')->value('value') ?? false, FILTER_VALIDATE_BOOLEAN);
+        $deliverySetting = \App\Models\Delivery\DeliverySetting::first();
+        $isVacationMode = filter_var(SystemSetting::where('key', 'is_vacation_mode')->value('value') ?? false, FILTER_VALIDATE_BOOLEAN)
+            || (bool) ($deliverySetting?->is_vacation_mode ?? false)
+            || (bool) ($deliverySetting?->is_sick_mode ?? false);
 
         if ($isVacationMode) {
             $this->warn("Vacation mode is ON. Skipping delivery time mutations.");

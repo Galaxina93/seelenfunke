@@ -230,7 +230,7 @@
 </table>
 
 <div class="footer">
-    Dieser Bericht wurde automatisch generiert von "Mein Seelenfunke" | {{ date('d.m.Y H:i:s') }}
+    Dieser Bericht wurde automatisch generiert von "{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}" | {{ date('d.m.Y H:i:s') }}
 </div>
 </body>
 </html>

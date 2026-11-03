@@ -1,5 +1,5 @@
 {{-- FIX: Wenn Context = 'edit', dann kein sticky, damit es im Warenkorb Modal scrollt! --}}
-<div :class="isMaximized ? 'configurator-studio-preview custom-scrollbar flex flex-col items-center justify-start lg:justify-center p-2 sm:p-4 lg:p-6 border-b lg:border-b-0 lg:border-r select-none {{ $isDark ? 'bg-gray-950 border-gray-800' : 'bg-gray-50/50 border-gray-200' }}' : 'flex flex-col items-center z-40 border-b shadow-[0_4px_30px_rgba(0,0,0,0.03)] shrink-0 select-none pb-8 {{ $context === 'edit' ? 'relative' : 'sticky top-0' }} {{ $isDark ? 'bg-gray-950/80 backdrop-blur-xl border-gray-800' : 'bg-gray-50/30 border-gray-100' }}'"
+<div :class="isMaximized ? 'configurator-studio-preview custom-scrollbar flex flex-col items-center justify-start p-2 sm:p-4 lg:p-5 border-b lg:border-b-0 lg:border-r select-none {{ $isDark ? 'bg-gray-950 border-gray-800' : 'bg-gray-50/50 border-gray-200' }}' : 'flex flex-col items-center z-40 border-b shadow-[0_4px_30px_rgba(0,0,0,0.03)] shrink-0 select-none pb-8 {{ $context === 'edit' ? 'relative' : 'sticky top-0' }} {{ $isDark ? 'bg-gray-950/80 backdrop-blur-xl border-gray-800' : 'bg-gray-50/30 border-gray-100' }}'"
      :style="isMaximized ? 'min-width: 0;' : ''"
      x-ref="stage">
 
@@ -11,7 +11,7 @@
          x-transition:leave="transition ease-in duration-200"
          x-transition:leave-start="opacity-100 translate-y-0 scale-100"
          x-transition:leave-end="opacity-0 -translate-y-2 scale-98"
-         class="w-full max-w-[455px] md:max-w-[600px] px-1 sm:px-2 mt-2.5 mb-2">
+         class="w-full max-w-[455px] md:max-w-[600px] px-1 sm:px-2 mt-1 mb-2 shrink-0">
         <div class="flex items-start gap-2.5 px-3 py-2.5 sm:p-3 rounded-xl border shadow-sm transition-all duration-300 {{ $isDark ? 'bg-blue-950/40 border-blue-800/60 text-blue-200 shadow-[0_0_20px_rgba(37,99,235,0.1)]' : 'bg-blue-50/90 border-blue-200 text-blue-900' }}">
             {{-- ICON (SOFORTIGER WECHSEL OHNE VERZÖGERUNG) --}}
             <div class="shrink-0 mt-0.5">
@@ -31,7 +31,7 @@
                         Hinweis zur 3D-Vorschau
                     </p>
                     <p class="{{ $isDark ? 'text-blue-200/90' : 'text-blue-800' }}">
-                        Die 3D-Ansicht dient zur räumlichen Orientierung. Unsere Experten prüfen und optimieren die Ausrichtung vor der Gravur – minimale fertigungsbedingte Abweichungen sind möglich.
+                        Die 3D-Ansicht dient zur räumlichen Orientierung. Unsere Experten prüfen und optimieren die Ausrichtung vor der Gravur, minimale fertigungsbedingte Abweichungen sind möglich. Die 3D-Ansicht kann leicht vom Original abweichen.
                     </p>
                 </div>
 
@@ -82,7 +82,7 @@
     </div>
 
     {{-- 2D / 3D TOGGLE UNTERHALB DER HINWEISE --}}
-    <div x-show="config.modelPath" class="mt-1 mb-3 flex justify-center relative z-50">
+    <div x-show="config.modelPath" class="mt-0.5 mb-2.5 flex justify-center relative z-50 shrink-0">
         <div class="p-1 rounded-full shadow-sm border inline-flex items-center gap-1 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
             <button type="button" @click="showDrawingBoard = true" class="px-5 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300 cursor-pointer" :class="showDrawingBoard ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : '{{ $isDark ? 'text-gray-500 hover:text-white hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50' }}'">2D Editor</button>
             <button type="button" @click="showDrawingBoard = false" class="px-5 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300 cursor-pointer" :class="!showDrawingBoard ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : '{{ $isDark ? 'text-gray-500 hover:text-white hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50' }}'">3D Ansicht</button>
@@ -93,7 +93,7 @@
     <div class="relative overflow-hidden border-[6px] group transition-[border-color,box-shadow,background-color] duration-200 {{ $isDark ? 'bg-gray-900 border-gray-800 ring-1 ring-gray-700' : 'bg-white border-white ring-1 ring-gray-100' }}"
          :class="isMaximized ? 'shadow-2xl rounded-2xl' : 'w-full max-w-[455px] md:max-w-[600px] aspect-square shadow-[0_10px_40px_rgba(0,0,0,0.08)]'"
          :style="isMaximized
-             ? 'width: min(92vw, min(62vh, 680px)); height: min(92vw, min(62vh, 680px)); aspect-ratio: 1 / 1; flex-shrink: 0;' + (activeBgImage ? ` background-image: url('${activeBgImage}'); background-size: cover; background-position: center;` : '')
+             ? 'width: min(90vw, min(58vh, 600px)); height: min(90vw, min(58vh, 600px)); aspect-ratio: 1 / 1; flex-shrink: 0;' + (activeBgImage ? ` background-image: url('${activeBgImage}'); background-size: cover; background-position: center;` : '')
              : (activeBgImage ? `background-image: url('${activeBgImage}'); background-size: cover; background-position: center;` : '')"
          x-ref="container"
          @mousedown="deselectAll($event)"
@@ -193,7 +193,8 @@
         </div>
 
         {{-- 2D Ansicht & Zeichenbrett --}}
-        <div x-show="showDrawingBoard || !config.modelPath"
+        <div wire:ignore
+             x-show="showDrawingBoard || !config.modelPath"
              class="absolute inset-0 w-full h-full z-20 pointer-events-auto"
              style="isolation: isolate; transform: translateZ(0); -webkit-transform: translateZ(0);">
 
@@ -228,7 +229,7 @@
             <div x-show="showGuideY" data-snapshot-ignore="true" class="absolute left-0 right-0 border-t border-primary/60 border-dashed pointer-events-none transition-opacity" :style="'top: ' + areaCenterY + '%; z-index: 23;'"></div>
 
             {{-- CLIP-CONTAINER FÜR ELEMENTE --}}
-            <div class="absolute z-[25] overflow-hidden pointer-events-none transition-all duration-300"
+            <div class="absolute z-[25] overflow-hidden pointer-events-none"
                  :style="`
                         top: ${config.area_shape === 'custom' ? 0 : (config.area_top ?? 0)}%;
                         left: ${config.area_shape === 'custom' ? 0 : (config.area_left ?? 0)}%;
@@ -262,10 +263,10 @@
                          @mousedown.stop="startAction($event,'text',index,'drag')"
                          @touchstart.stop="startAction($event,'text',index,'drag')">
 
-                        <div class="relative transition-all duration-300 rounded-lg p-1.5 border-[1.5px] cursor-text"
-                             @click.stop="if (!isDragging && !isResizing && !isRotating && textItem && textItem.id) { focusedTextId = textItem.id; selectItem('text', index); const ta = $el.querySelector('textarea[data-id]'); if (ta && document.activeElement !== ta) ta.focus(); }"
+                        <div class="relative transition-colors duration-150 rounded-lg p-1.5 border-[1.5px] cursor-move"
+                             @click.stop="if (!isDragging && !isResizing && !isRotating && !_justTransformed && currentTexts[index] && currentTexts[index].id) { focusedTextId = currentTexts[index].id; selectItem('text', index); const ta = $el.querySelector('textarea[data-id]'); if (ta && document.activeElement !== ta) ta.focus(); }"
                              :class="selectedType==='text' && selectedIndex===index && context!=='preview'
-                                 ? (focusedTextId === textItem.id
+                                 ? (focusedTextId === currentTexts[index]?.id
                                      ? (isDarkSurface
                                          ? 'border-primary border-solid bg-gray-950/35 backdrop-blur-[3px] config-typing-ready-box-dark'
                                          : 'border-primary border-solid {{ $isDark ? 'bg-gray-900/35' : 'bg-white/65' }} backdrop-blur-sm config-typing-ready-box-light')
@@ -275,7 +276,7 @@
                                  : (isDarkSurface ? 'border-transparent hover:border-primary/60 hover:bg-white/5' : 'border-transparent hover:border-gray-500 {{ $isDark ? 'hover:bg-white/5' : 'hover:bg-white/10' }}')">
 
                             {{-- ANIMIERTE SCHREIBBEREITSCHAFTS-ANZEIGE BEI LEEREM, FOKUSSIERTEM TEXTFELD --}}
-                            <template x-if="focusedTextId === textItem.id && (!textItem.text || textItem.text.length === 0) && context !== 'preview'">
+                            <template x-if="currentTexts[index] && focusedTextId === currentTexts[index].id && (!currentTexts[index].text || currentTexts[index].text.length === 0) && context !== 'preview'">
                                 <div data-snapshot-ignore="true" class="pointer-events-none select-none">
                                     {{-- Schwebendes Status-Badge oberhalb des Textfelds --}}
                                     <div class="
@@ -296,12 +297,12 @@
 
                                     {{-- Animierter Blink-Cursor + sanfter Fokus-Impuls direkt im leeren Eingabefeld --}}
                                     <div class="absolute inset-1.5 flex items-center"
-                                         :class="textItem.align === 'left' ? 'justify-start pl-1' : (textItem.align === 'right' ? 'justify-end pr-1' : 'justify-center')">
+                                         :class="currentTexts[index].align === 'left' ? 'justify-start pl-1' : (currentTexts[index].align === 'right' ? 'justify-end pr-1' : 'justify-center')">
                                         <div class="flex items-center gap-1">
                                             <span class="inline-block rounded-full config-blinking-caret"
                                                   :style="`
                                                       width: 2.5px;
-                                                      height: ${Math.max(18, Math.round((20 * (textItem.size || 1)) * scaleFactor * 1.05))}px;
+                                                      height: ${Math.max(18, Math.round((20 * (currentTexts[index].size || 1)) * scaleFactor * 1.05))}px;
                                                       background: ${isDarkSurface ? '#fbbf24' : '#C5A059'};
                                                       box-shadow: 0 0 8px rgba(197, 160, 89, 0.9), 0 0 2px rgba(0, 0, 0, 0.6);
                                                   `"></span>
@@ -311,37 +312,39 @@
                             </template>
 
                             <template x-if="currentTexts[index] !== undefined">
-                                <textarea x-model="textItem.text"
-                                          :data-id="textItem.id"
-                                          :rows="(textItem.text?.match(/\n/g) || []).length + 1"
+                                <textarea x-model="currentTexts[index].text"
+                                          :data-id="currentTexts[index].id"
+                                          :rows="(currentTexts[index].text?.match(/\n/g) || []).length + 1"
                                           x-init="
-                                                $watch('textItem.text', () => fitTextarea(textItem.id, $el));
-                                                $watch('textItem.size', () => $nextTick(() => fitTextarea(textItem.id, $el)));
-                                                $watch('textItem.font', () => setTimeout(() => fitTextarea(textItem.id, $el), 50));
-                                                $nextTick(() => fitTextarea(textItem.id, $el));
+                                                if (currentTexts[index]) fitTextarea(currentTexts[index].id, $el);
+                                                $watch('currentTexts[index]?.text', () => { if (currentTexts[index]) fitTextarea(currentTexts[index].id, $el); });
+                                                $watch('currentTexts[index]?.size', () => $nextTick(() => { if (currentTexts[index]) fitTextarea(currentTexts[index].id, $el); }));
+                                                $watch('currentTexts[index]?.font', () => setTimeout(() => { if (currentTexts[index]) fitTextarea(currentTexts[index].id, $el); }, 50));
+                                                $nextTick(() => { if (currentTexts[index]) fitTextarea(currentTexts[index].id, $el); });
                                           "
-                                          @focus="focusedTextId = textItem.id; selectItem('text', index)"
-                                          @click.stop="focusedTextId = textItem.id; selectItem('text', index)"
-                                          @input="handleTextInput(textItem, $el)"
-                                          @blur="if (focusedTextId === textItem.id) { focusedTextId = null; } recordHistory()"
+                                          @focus="if (currentTexts[index]) { focusedTextId = currentTexts[index].id; selectItem('text', index); }"
+                                          @click.stop="if (!_justTransformed && currentTexts[index]) { focusedTextId = currentTexts[index].id; selectItem('text', index); }"
+                                          @input="handleTextInput(currentTexts[index], $el, index)"
+                                          @blur="if (currentTexts[index] && focusedTextId === currentTexts[index].id) { focusedTextId = null; } recordHistory()"
                                           wrap="off"
-                                          class="bg-transparent font-bold resize-none overflow-hidden block whitespace-pre p-0 m-0 border-0 outline-none shadow-none ring-0 focus:placeholder-transparent"
-                                          :class="[alignMap[textItem.align || 'center'], focusedTextId === textItem.id ? 'select-text cursor-text' : 'select-none cursor-text']"
+                                          class="bg-transparent font-bold resize-none overflow-hidden block whitespace-pre m-0 border-0 outline-none shadow-none ring-0 focus:placeholder-transparent select-text"
+                                          :class="[alignMap[currentTexts[index]?.align || 'center'], focusedTextId === currentTexts[index]?.id ? 'cursor-text' : 'cursor-move']"
                                           :style="`
-                                                width: ${textDims[textItem.id]?.width || 'auto'};
-                                                height: ${textDims[textItem.id]?.height || 'auto'};
-                                                font-size: ${(20 * (textItem.size || 1)) * scaleFactor}px;
-                                                font-family: ${fontMap[textItem.font] || 'Arial'};
-                                                line-height: 1.15;
+                                                width: ${ensureTextDims(currentTexts[index]).width};
+                                                height: ${ensureTextDims(currentTexts[index]).height};
+                                                padding: 4px 10px;
+                                                font-size: ${(20 * (currentTexts[index]?.size || 1)) * scaleFactor}px;
+                                                font-family: ${fontMap[currentTexts[index]?.font] || 'Arial'};
+                                                line-height: 1.28;
                                                 color: ${isDarkSurface ? 'rgba(248, 250, 252, 0.96)' : 'rgba(17, 24, 39, 0.95)'};
                                                 -webkit-text-fill-color: ${isDarkSurface ? '#f8fafc' : '#111827'};
-                                                caret-color: ${(focusedTextId === textItem.id && (!textItem.text || textItem.text.length === 0)) ? 'transparent' : '#C5A059'};
+                                                caret-color: ${(focusedTextId === currentTexts[index]?.id && (!currentTexts[index]?.text || currentTexts[index]?.text.length === 0)) ? 'transparent' : '#C5A059'};
                                                 filter: ${isDarkSurface
                                                     ? 'drop-shadow(0px 1px 3px rgba(0,0,0,0.9)) drop-shadow(0px 0px 6px rgba(255,255,255,0.25))'
                                                     : 'drop-shadow(0px 0px 3px rgba(255,255,255,0.75)) drop-shadow(0px 1px 2px rgba(0,0,0,0.25))'};
                                                 white-space: pre !important;
                                             `"
-                                          :placeholder="focusedTextId === textItem.id ? '' : 'Text eingeben...'">
+                                          :placeholder="focusedTextId === currentTexts[index]?.id ? '' : 'Text eingeben...'">
                                 </textarea>
                             </template>
 
@@ -369,14 +372,14 @@
                          @mousedown.stop="startAction($event,'logo',index,'drag')"
                          @touchstart.stop="startAction($event,'logo',index,'drag')">
 
-                        <div class="relative transition-all rounded-lg ring-2"
+                        <div class="relative transition-colors duration-150 rounded-lg ring-2"
                              :class="selectedType==='logo' && selectedIndex===index && context!=='preview'
                                  ? (isDarkSurface ? 'ring-primary bg-white/10 backdrop-blur-[2px] shadow-[0_0_15px_rgba(197,160,89,0.25)]' : 'ring-primary {{ $isDark ? 'bg-white/10' : 'bg-white/40' }} backdrop-blur-sm shadow-lg')
                                  : (isDarkSurface ? 'ring-transparent hover:ring-primary/60 hover:bg-white/5' : 'ring-transparent hover:ring-gray-500 {{ $isDark ? 'hover:bg-white/5' : 'hover:bg-white/10' }}')">
                             <template x-if="currentLogos[index] !== undefined">
-                                <img crossorigin="anonymous"
-                                     :src="currentLogos[index].url"
-                                     class="w-full h-auto pointer-events-none rounded-lg transition-all duration-200"
+                                <img :src="currentLogos[index].url"
+                                     decoding="sync"
+                                     class="w-full h-auto pointer-events-none rounded-lg"
                                      :style="isDarkSurface
                                          ? 'filter: brightness(0) invert(1) opacity(0.93) drop-shadow(0px 1px 3px rgba(0,0,0,0.85)) drop-shadow(0px 0px 5px rgba(255,255,255,0.2));'
                                          : 'opacity: 0.92; filter: drop-shadow(0px 0px 3px rgba(255,255,255,0.75)) drop-shadow(0px 1px 2px rgba(0,0,0,0.25));'">
@@ -498,14 +501,16 @@
 
     {{-- VORDERSEITE / RÜCKSEITE SWITCH (Direkt unter dem Rahmen) --}}
     <div x-show="config.has_back_side" x-cloak class="mt-6 shadow-sm border rounded-full p-1 flex items-center justify-center relative z-50 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
-        <button @click="activeSide = 'front'"
+        <button type="button"
+                @click="switchSide('front')"
                 :class="activeSide === 'front' ? 'bg-primary text-white shadow-md' : '{{ $isDark ? 'text-gray-500 hover:text-white' : 'text-gray-500 hover:text-gray-800' }}'"
-                class="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300 w-36 text-center">
+                class="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300 w-36 text-center cursor-pointer">
             Vorderseite
         </button>
-        <button @click="activeSide = 'back'; if (texts_back.length === 0 && logos_back.length === 0) { addFallbackText(); }"
+        <button type="button"
+                @click="switchSide('back')"
                 :class="activeSide === 'back' ? 'bg-purple-500 text-white shadow-md' : '{{ $isDark ? 'text-gray-500 hover:text-white' : 'text-gray-500 hover:text-gray-800' }}'"
-                class="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300 w-36 text-center">
+                class="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300 w-36 text-center cursor-pointer">
             Rückseite
         </button>
     </div>

@@ -52,7 +52,7 @@
 <div id="footer">
     <table class="footer-table">
         <tr>
-            <td style="text-align: left; width: 33%;"><strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong> | {{ $title ?? 'KI-Bericht' }}</td>
+            <td style="text-align: left; width: 33%;"><strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong> | {{ $title ?? 'KI-Bericht' }}</td>
             <td style="text-align: center; width: 33%; color: #111827;" class="page-number"></td>
             <td style="text-align: right; width: 33%;">Generiert von KI Agent: {{ $agentName ?? 'System' }}</td>
         </tr>

@@ -1,8 +1,6 @@
 {{-- HTML TREE --}}
 @include('global.mails.partials.mail_html_tree', ['title' => 'Du hast noch Artikel in deinem Warenkorb'])
 
-<body>
-
 <div class="container">
 
     {{-- LOGO --}}
@@ -21,8 +19,23 @@
         
         <ul style="padding-left: 20px; margin-bottom: 0;">
             @foreach($cart->items as $item)
+                @php
+                    $remConf = is_array($item->configuration) ? $item->configuration : [];
+                    $remAddons = [];
+                    if (!empty($remConf['addons_summary']) && is_array($remConf['addons_summary'])) {
+                        foreach ($remConf['addons_summary'] as $a) {
+                            if (!empty($a['name'])) $remAddons[] = $a['name'];
+                        }
+                    }
+                @endphp
                 <li style="margin-bottom: 8px;">
                     <strong>{{ $item->quantity }}x</strong> {{ $item->product->name ?? 'Produkt' }}
+                    @if(!empty($remConf['variant_name']))
+                        <span style="font-size: 12px; color: #64748b;">(Ausführung: {{ $remConf['variant_name'] }})</span>
+                    @endif
+                    @if(!empty($remAddons))
+                        <div style="font-size: 12px; color: #92400e; margin-top: 2px;">🎁 Verpackung &amp; Extras: {{ implode(', ', $remAddons) }}</div>
+                    @endif
                 </li>
             @endforeach
         </ul>
@@ -43,20 +56,18 @@
     </div>
 
     {{-- RECHTLICHER HINWEIS & WIDERSPRUCHSRECHT (§ 7 Abs. 3 UWG / Art. 21 DSGVO) --}}
-    @if(!empty($unsubscribeUrl))
     <div style="margin-top: 30px; padding: 15px 20px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; border-radius: 6px; font-size: 11px; color: #64748b; line-height: 1.6;">
         <p style="margin: 0 0 6px 0;">
-            <strong>Hinweis zum Datenschutz & Werbewiderspruch:</strong> Du erhältst diese Service-Nachricht, da du ein Kundenkonto bei uns besitzt und für Benachrichtigungen zu Produkten oder Newslettern angemeldet bist.
+            <strong>Hinweis zum Datenschutz &amp; Werbewiderspruch:</strong> Du erhältst diese Service-Nachricht, da du ein Kundenkonto bei uns besitzt und Benachrichtigungen aktiviert hast.
         </p>
         <p style="margin: 0;">
             Wenn du in Zukunft <strong>keine Erinnerungen an offene Warenkörbe</strong> mehr erhalten möchtest, kannst du der Verwendung deiner Daten zu diesem Zweck jederzeit kostenfrei (ohne andere Kosten als die Übermittlungskosten nach den Basistarifen deines Providers) widersprechen:
             <br>
-            <a href="{{ $unsubscribeUrl }}" style="color: #475569; text-decoration: underline; font-weight: bold;">
+            <a href="{{ $unsubscribeUrl ?? url('/newsletter?tab=unsubscribe') }}" style="color: #475569; text-decoration: underline; font-weight: bold;">
                 👉 Hier klicken, um dich von weiteren Warenkorb-Erinnerungen abzumelden
             </a>
         </p>
     </div>
-    @endif
 
     {{-- FOOTER --}}
     @include('global.mails.partials.mail_footer')

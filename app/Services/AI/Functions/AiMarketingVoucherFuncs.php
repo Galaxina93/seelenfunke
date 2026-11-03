@@ -67,7 +67,7 @@ trait AiMarketingVoucherFuncs
                     'type' => 'object',
                     'properties' => [
                         'id' => [
-                            'type' => 'integer',
+                            'type' => 'string',
                             'description' => 'ID des Gutscheins.'
                         ]
                     ],
@@ -82,7 +82,7 @@ trait AiMarketingVoucherFuncs
                     'type' => 'object',
                     'properties' => [
                         'id' => [
-                            'type' => 'integer',
+                            'type' => 'string',
                             'description' => 'ID des zu löschenden Gutscheins.'
                         ]
                     ],
@@ -123,7 +123,7 @@ trait AiMarketingVoucherFuncs
             $query->where('mode', $args['mode']);
         }
         
-        $vouchers = $query->get(['id', 'code', 'type', 'value', 'mode', 'is_active', 'usage_limit', 'min_order_value', 'valid_from', 'valid_until', 'used']);
+        $vouchers = $query->get(['id', 'code', 'type', 'value', 'mode', 'is_active', 'usage_limit', 'min_order_value', 'valid_from', 'valid_until', 'used_count']);
         
         // Werte für den Agenten bereinigen
         $vouchers->transform(function($v) {
@@ -188,7 +188,7 @@ trait AiMarketingVoucherFuncs
             'min_order_value' => $dbMinOrder,
             'mode' => 'manual',
             'valid_from' => now(),
-            'used' => 0
+            'used_count' => 0
         ]);
 
         return ['status' => 'success', 'message' => 'Gutschein erfolgreich erstellt.', 'id' => $voucher->id];
@@ -230,6 +230,8 @@ trait AiMarketingVoucherFuncs
         $topCoupons = DB::table('order_orders')
             ->whereNotNull('coupon_code')
             ->where('created_at', '>=', $start)
+            ->whereNotIn('status', ['cancelled', 'refunded', 'draft'])
+            ->where('payment_status', 'paid')
             ->select('coupon_code', DB::raw('count(*) as total_uses'), DB::raw('sum(total_price) as generated_revenue_cents'))
             ->groupBy('coupon_code')
             ->orderByDesc('total_uses')

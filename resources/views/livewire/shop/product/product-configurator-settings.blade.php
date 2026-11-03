@@ -11,11 +11,11 @@
                 </span>
             </div>
             <p class="text-gray-500 dark:text-gray-400 mt-2 text-sm font-medium">
-                Verwalte das Konfigurator-Anleitungsvideo, die animierten 3D-Bühnenhintergründe & Kaminfeuer-/Jahreszeiten-Videos sowie die gesamte Symbol- & Gravurmotiv-Bibliothek an einem zentralen Ort.
+                Verwalte das Konfigurator-Anleitungsvideo, die animierten 3D-Bühnenhintergründe, die Symbol-Bibliothek sowie die Spruch- & Widmungs-Bibliothek („Kreativ-Starthilfe“ inkl. KI-Generator) an einem zentralen Ort.
             </p>
         </div>
         <div class="relative z-10 flex flex-wrap gap-3">
-            <a href="{{ route('admin.product-templates') }}" wire:navigate class="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-[var(--theme-color)] px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 border border-gray-200 dark:border-gray-700 shadow-xs">
+            <a href="{{ route('admin.products', ['section' => 'templates']) }}" wire:navigate class="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-[var(--theme-color)] px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 border border-gray-200 dark:border-gray-700 shadow-xs">
                 <x-heroicon-o-clipboard-document-list class="w-4 h-4 text-[var(--theme-color)]" />
                 Zu den Vorlagen
             </a>
@@ -934,6 +934,432 @@
                 <x-heroicon-o-sparkles class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-700 mb-2" />
                 <p class="text-sm font-bold text-gray-600 dark:text-gray-400">Keine Symbole für diesen Filter gefunden.</p>
                 <p class="text-xs text-gray-400 mt-1">Wähle eine andere Kategorie oder lade oben neue SVG-Dateien per Drag & Drop hoch.</p>
+            </div>
+        @endif
+    </div>
+
+    {{-- ========================================================================= --}}
+    {{-- 4. SPRUCH- & WIDMUNGS-BIBLIOTHEK („KREATIV-STARTHILFE“) + KI-GENERATOR    --}}
+    {{-- ========================================================================= --}}
+    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] border border-gray-200 dark:border-gray-800 p-6 sm:p-8 shadow-sm dark:shadow-2xl space-y-6">
+
+        {{-- Sektion-Header + Statistik-Badges --}}
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-gray-100 dark:border-gray-800">
+            <div>
+                <div class="flex flex-wrap items-center gap-2.5">
+                    <h2 class="text-gray-900 dark:text-white font-serif font-bold text-xl tracking-wide flex items-center gap-2">
+                        <x-heroicon-o-chat-bubble-bottom-center-text class="w-6 h-6 text-[var(--theme-color)]" />
+                        Spruch- & Widmungs-Bibliothek („Kreativ-Starthilfe“)
+                    </h2>
+                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        {{ $quoteStats['active'] ?? 0 }} aktiv im Konfigurator
+                    </span>
+                    @if(($quoteStats['archived'] ?? 0) > 0)
+                        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                            {{ $quoteStats['archived'] }} archiviert
+                        </span>
+                    @endif
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Feste Gravur-Sprüche & Widmungen im Konfigurator-Reiter „Sprüche“ gegen die „Angst vor dem leeren Blatt“. Kann hier jederzeit manuell ergänzt oder per Knopfdruck durch die KI erweitert werden.
+                </p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2.5">
+                <button type="button"
+                        wire:click="$toggle('showQuoteCategoryManager')"
+                        class="px-4 py-2 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer {{ $showQuoteCategoryManager ? 'bg-[var(--theme-color-15)] border-[var(--theme-color)] text-[var(--theme-color)]' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-[var(--theme-color)]' }}">
+                    <x-heroicon-o-folder-plus class="w-4 h-4" />
+                    <span>Anlass-Kategorien verwalten ({{ count($quoteCategories ?? []) }})</span>
+                </button>
+            </div>
+        </div>
+
+        @if (session()->has('quotes_success'))
+            <div class="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2">
+                <x-heroicon-o-check-circle class="w-4 h-4 shrink-0" />
+                <span>{{ session('quotes_success') }}</span>
+            </div>
+        @endif
+
+        {{-- KATEGORIEN-MANAGER FÜR SPRÜCHE (EIN-/AUSKLAPPBAR) --}}
+        @if($showQuoteCategoryManager)
+            <div class="p-5 rounded-3xl bg-gray-50/90 dark:bg-gray-950/70 border border-gray-200 dark:border-gray-800 space-y-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                        <h3 class="text-xs font-black uppercase tracking-widest text-gray-900 dark:text-white flex items-center gap-2">
+                            <x-heroicon-o-tag class="w-4 h-4 text-[var(--theme-color)]" />
+                            Spruch-Anlässe & Kategorien sortieren oder umbenennen
+                        </h3>
+                        <p class="text-[11px] text-gray-500 mt-0.5">
+                            Die Reihenfolge bestimmt direkt die Tabs unter „Sprüche“ im Kunden-Konfigurator.
+                        </p>
+                    </div>
+
+                    <form wire:submit.prevent="createQuoteCategory" class="flex items-center gap-2">
+                        <input type="text"
+                               wire:model="newQuoteCategoryName"
+                               placeholder="Neuer Anlass (z.B. Ruhestand)..."
+                               class="px-3.5 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-[var(--theme-color)]" />
+                        <button type="submit"
+                                class="px-4 py-2 rounded-xl bg-[var(--theme-color)] text-gray-900 font-black text-[10px] uppercase tracking-widest hover:brightness-110 transition-all cursor-pointer">
+                            + Anlegen
+                        </button>
+                    </form>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                    @foreach($quoteCategories as $idx => $qCat)
+                        <div class="flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+                            @if($renamingQuoteCategory === $qCat)
+                                <form wire:submit.prevent="saveRenameQuoteCategory" class="flex items-center gap-1.5 flex-1">
+                                    <input type="text"
+                                           wire:model="renameQuoteCategoryValue"
+                                           class="w-full px-2.5 py-1 rounded-lg border border-[var(--theme-color)] bg-gray-50 dark:bg-gray-950 text-xs font-bold text-gray-900 dark:text-white focus:outline-none" />
+                                    <button type="submit" class="p-1 text-emerald-500 hover:bg-emerald-500/10 rounded-lg cursor-pointer" title="Speichern">
+                                        <x-heroicon-o-check class="w-4 h-4" />
+                                    </button>
+                                    <button type="button" wire:click="cancelRenameQuoteCategory" class="p-1 text-gray-400 hover:bg-gray-500/10 rounded-lg cursor-pointer" title="Abbrechen">
+                                        <x-heroicon-o-x-mark class="w-4 h-4" />
+                                    </button>
+                                </form>
+                            @else
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <span class="text-xs font-bold text-gray-900 dark:text-white truncate">{{ $qCat }}</span>
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 dark:bg-gray-800 text-gray-500">
+                                        {{ $quoteCategoryCounts[$qCat] ?? 0 }}
+                                    </span>
+                                </div>
+                                <div class="flex items-center gap-1 shrink-0">
+                                    <button type="button" wire:click="moveQuoteCategory('{{ $qCat }}', 'up')" @disabled($idx === 0)
+                                            class="p-1 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-25 cursor-pointer" title="Nach vorne">
+                                        <x-heroicon-o-chevron-up class="w-3.5 h-3.5" />
+                                    </button>
+                                    <button type="button" wire:click="moveQuoteCategory('{{ $qCat }}', 'down')" @disabled($idx === count($quoteCategories) - 1)
+                                            class="p-1 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-25 cursor-pointer" title="Nach hinten">
+                                        <x-heroicon-o-chevron-down class="w-3.5 h-3.5" />
+                                    </button>
+                                    <button type="button" wire:click="startRenameQuoteCategory('{{ $qCat }}')"
+                                            class="p-1 rounded-lg text-gray-400 hover:text-[var(--theme-color)] cursor-pointer" title="Umbenennen">
+                                        <x-heroicon-o-pencil-square class="w-3.5 h-3.5" />
+                                    </button>
+                                    @if(count($quoteCategories) > 1)
+                                        <button type="button"
+                                                wire:click="removeQuoteCategory('{{ $qCat }}')"
+                                                wire:confirm="Anlass-Kategorie „{{ $qCat }}“ löschen? Enthaltene Sprüche bleiben erhalten und werden verschoben."
+                                                class="p-1 rounded-lg text-gray-400 hover:text-red-500 cursor-pointer" title="Kategorie entfernen">
+                                            <x-heroicon-o-trash class="w-3.5 h-3.5" />
+                                        </button>
+                                    @endif
+                                </div>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
+        {{-- ZWEI-SPALTEN STUDIO: 1. MANUELL ANLEGEN | 2. KI-SPRUCH-GENERATOR PER KNOPFDRUCK --}}
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+            {{-- Spalte A: Manuell neuen Spruch eintragen --}}
+            <form wire:submit.prevent="saveNewQuote" class="p-5 rounded-3xl bg-gray-50/70 dark:bg-gray-950/50 border border-gray-200 dark:border-gray-800 flex flex-col justify-between space-y-4">
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-black uppercase tracking-widest text-gray-900 dark:text-white flex items-center gap-1.5">
+                            <x-heroicon-o-plus-circle class="w-4 h-4 text-[var(--theme-color)]" />
+                            Eigenen Spruch manuell eintragen
+                        </span>
+                        <span class="text-[10px] font-bold text-gray-400">Gravurfähig (ohne Emojis)</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Anlass / Kategorie</label>
+                            <select wire:model="newQuoteCategory"
+                                    class="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-900 dark:text-white focus:outline-none focus:border-[var(--theme-color)]">
+                                @foreach($quoteCategories as $qCat)
+                                    <option value="{{ $qCat }}">{{ $qCat }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Kurz-Titel / Etikett (optional)</label>
+                            <input type="text"
+                                   wire:model="newQuoteTitle"
+                                   placeholder="z.B. Ewige Liebe"
+                                   class="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-[var(--theme-color)]" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Spruchtext für die Lasergravur</label>
+                        <textarea wire:model="newQuoteText"
+                                  rows="2"
+                                  placeholder="z.B. Unter Millionen Sternen bist du mein hellster Funke."
+                                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-serif text-gray-900 dark:text-white focus:outline-none focus:border-[var(--theme-color)] resize-none"></textarea>
+                        @error('newQuoteText')
+                            <p class="text-[11px] text-red-500 font-bold mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end pt-1">
+                    <button type="submit"
+                            class="px-5 py-2.5 rounded-xl bg-[var(--theme-color)] text-gray-900 font-black text-[11px] uppercase tracking-widest shadow-sm hover:brightness-110 transition-all flex items-center gap-2 cursor-pointer">
+                        <x-heroicon-o-check class="w-4 h-4" />
+                        <span>Spruch fest speichern</span>
+                    </button>
+                </div>
+            </form>
+
+            {{-- Spalte B: KI-Spruch-Generator per Knopfdruck --}}
+            <div class="p-5 rounded-3xl bg-gradient-to-br from-amber-500/5 via-transparent to-purple-500/5 border border-[var(--theme-color-30)] flex flex-col justify-between space-y-4">
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-black uppercase tracking-widest text-gray-900 dark:text-white flex items-center gap-1.5">
+                            <x-heroicon-o-sparkles class="w-4 h-4 text-[var(--theme-color)]" />
+                            KI-Spruch-Generator (per Knopfdruck)
+                        </span>
+                        <span class="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest bg-[var(--theme-color-15)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">
+                            Vorab-Generierung im Admin
+                        </span>
+                    </div>
+
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400">
+                        Lass dir per Knopfdruck 5 neue, gravurfertige Sprüche vorschlagen und übernimm deine Favoriten mit einem Klick fest in die Bibliothek (im Shop selbst wird keine Live-KI benötigt).
+                    </p>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Ziel-Kategorie</label>
+                            <select wire:model="aiQuoteCategory"
+                                    class="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-900 dark:text-white focus:outline-none focus:border-[var(--theme-color)]">
+                                @foreach($quoteCategories as $qCat)
+                                    <option value="{{ $qCat }}">{{ $qCat }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Maximale Länge</label>
+                            <select wire:model="aiQuoteMaxLength"
+                                    class="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-900 dark:text-white focus:outline-none focus:border-[var(--theme-color)]">
+                                <option value="35">Kurz – max. 35 Zeichen (Schmuck / Anhänger)</option>
+                                <option value="60">Mittel – max. 60 Zeichen (Standard)</option>
+                                <option value="100">Lang – max. 100 Zeichen (Kristall / Schiefer)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Optionaler Anlass- oder Stil-Impuls</label>
+                        <input type="text"
+                               wire:model="aiQuoteStyleHint"
+                               placeholder="z.B. Silberhochzeit, Patentante, Sternenkind, humorvoll für Bierglas..."
+                               class="w-full px-3.5 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-[var(--theme-color)]" />
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between gap-2 pt-1">
+                    <span wire:loading wire:target="generateQuotesWithAi" class="text-[11px] font-bold text-[var(--theme-color)] flex items-center gap-1.5">
+                        <x-heroicon-o-arrow-path class="w-4 h-4 animate-spin" />
+                        KI textet passende Gravursprüche...
+                    </span>
+                    <button type="button"
+                            wire:click="generateQuotesWithAi"
+                            wire:loading.attr="disabled"
+                            class="ml-auto px-5 py-2.5 rounded-xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-black text-[11px] uppercase tracking-widest shadow-sm hover:opacity-90 transition-all flex items-center gap-2 cursor-pointer">
+                        <x-heroicon-o-sparkles class="w-4 h-4 text-[var(--theme-color)]" />
+                        <span>5 passende Sprüche generieren</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {{-- VORSCHAU-BOX FÜR FRISCH GENERIERTE KI-SPRÜCHE --}}
+        @if(!empty($aiGeneratedQuotes))
+            <div class="p-5 rounded-3xl bg-amber-500/5 border border-[var(--theme-color-40)] space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <x-heroicon-o-sparkles class="w-4 h-4 text-[var(--theme-color)]" />
+                        <span class="text-xs font-black uppercase tracking-widest text-gray-900 dark:text-white">
+                            KI-Vorschläge ({{ count($aiGeneratedQuotes) }}) – Klicke auf „+ Übernehmen“ zum Speichern
+                        </span>
+                    </div>
+                    <button type="button"
+                            wire:click="acceptAllAiQuotes"
+                            class="px-3.5 py-1.5 rounded-xl bg-[var(--theme-color)] text-gray-900 font-black text-[10px] uppercase tracking-widest hover:brightness-110 transition-all cursor-pointer">
+                        + Alle {{ count($aiGeneratedQuotes) }} übernehmen
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                    @foreach($aiGeneratedQuotes as $idx => $gen)
+                        <div class="p-3.5 rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 flex items-center justify-between gap-3">
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)]">{{ $gen['title'] ?? 'Vorschlag' }}</span>
+                                    <span class="text-[10px] text-gray-400 font-mono">{{ $gen['length'] ?? mb_strlen($gen['text'] ?? '') }} Zeichen</span>
+                                </div>
+                                <p class="text-xs font-serif text-gray-900 dark:text-white leading-snug">„{{ $gen['text'] ?? '' }}“</p>
+                            </div>
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                <button type="button"
+                                        wire:click="acceptAiQuote({{ $idx }})"
+                                        class="px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 font-black text-[10px] uppercase tracking-wider hover:bg-emerald-500/25 transition-colors cursor-pointer">
+                                    + Übernehmen
+                                </button>
+                                <button type="button"
+                                        wire:click="discardAiQuote({{ $idx }})"
+                                        class="p-1.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+                                        title="Verwerfen">
+                                    <x-heroicon-o-x-mark class="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
+        {{-- FILTER- UND SUCHLEISTE FÜR DIE SPRUCH-BIBLIOTHEK --}}
+        <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pt-2">
+            {{-- Kategorie-Tabs --}}
+            <div class="flex items-center gap-1.5 overflow-x-auto pb-1">
+                <button type="button"
+                        wire:click="$set('selectedQuoteCategory', 'all')"
+                        class="px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer {{ $selectedQuoteCategory === 'all' ? 'bg-[var(--theme-color)] text-gray-900 shadow-xs' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700' }}">
+                    Alle ({{ $quoteStats['active'] ?? 0 }})
+                </button>
+                @foreach($quoteCategories as $qCat)
+                    <button type="button"
+                            wire:click="$set('selectedQuoteCategory', '{{ $qCat }}')"
+                            class="px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer {{ $selectedQuoteCategory === $qCat ? 'bg-[var(--theme-color)] text-gray-900 shadow-xs' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700' }}">
+                        {{ $qCat }}
+                        <span class="ml-1 opacity-70 text-[10px]">({{ $quoteCategoryCounts[$qCat] ?? 0 }})</span>
+                    </button>
+                @endforeach
+            </div>
+
+            {{-- Suche & Status-Filter --}}
+            <div class="flex flex-wrap items-center gap-2.5">
+                <div class="relative min-w-[210px] flex-1 sm:flex-initial">
+                    <x-heroicon-o-magnifying-glass class="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input type="text"
+                           wire:model.live.debounce.250ms="quoteSearch"
+                           placeholder="Spruch oder Anlass suchen..."
+                           class="w-full pl-9 pr-3.5 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-[var(--theme-color)]" />
+                </div>
+
+                <div class="inline-flex rounded-xl p-1 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                    @foreach(['all' => 'Alle', 'active' => 'Aktiv', 'archived' => 'Archiviert'] as $qKey => $qLabel)
+                        <button type="button"
+                                wire:click="$set('quoteStatusFilter', '{{ $qKey }}')"
+                                class="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer {{ $quoteStatusFilter === $qKey ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200' }}">
+                            {{ $qLabel }}
+                        </button>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+
+        {{-- SPRUCH-KARTEN GRID --}}
+        @if(count($quotes) > 0)
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+                @foreach($quotes as $q)
+                    @php
+                        $isEditingQ = ($editingQuoteId === $q['id']);
+                        $isArchivedQ = !empty($q['archived']);
+                    @endphp
+                    <div wire:key="quote-card-{{ $q['id'] }}"
+                         class="p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 {{ $isArchivedQ ? 'bg-gray-50/50 dark:bg-gray-900/30 border-dashed border-gray-300 dark:border-gray-800 opacity-65' : 'bg-white dark:bg-gray-900/90 border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-50)] shadow-xs' }}">
+
+                        @if($isEditingQ)
+                            <form wire:submit.prevent="saveEditQuote" class="space-y-2.5">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <input type="text"
+                                           wire:model="editQuoteTitle"
+                                           placeholder="Kurz-Titel..."
+                                           class="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 text-xs font-bold text-gray-900 dark:text-white focus:outline-none" />
+                                    <select wire:model="editQuoteCategory"
+                                            class="w-full px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 text-[11px] font-bold text-gray-800 dark:text-gray-200 focus:outline-none">
+                                        @foreach($quoteCategories as $qCat)
+                                            <option value="{{ $qCat }}">{{ $qCat }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <textarea wire:model="editQuoteText"
+                                          rows="2"
+                                          class="w-full px-2.5 py-1.5 rounded-lg border border-[var(--theme-color)] bg-white dark:bg-gray-950 text-xs font-serif text-gray-900 dark:text-white focus:outline-none resize-none"></textarea>
+                                <div class="flex items-center gap-2">
+                                    <button type="submit" class="flex-1 py-1.5 rounded-lg bg-[var(--theme-color)] text-gray-900 font-black text-[10px] uppercase tracking-wider cursor-pointer">
+                                        Speichern
+                                    </button>
+                                    <button type="button" wire:click="cancelEditQuote" class="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-500 text-[10px] font-bold cursor-pointer">
+                                        Abbrechen
+                                    </button>
+                                </div>
+                            </form>
+                        @else
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between gap-2">
+                                    <div class="flex items-center gap-1.5 min-w-0">
+                                        <span class="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-[var(--theme-color-10)] text-[var(--theme-color)] truncate">
+                                            {{ $q['category'] }}
+                                        </span>
+                                        @if(!empty($q['title']))
+                                            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 truncate">• {{ $q['title'] }}</span>
+                                        @endif
+                                    </div>
+                                    <div class="flex items-center gap-1 shrink-0">
+                                        @if(($q['source'] ?? '') === 'ai')
+                                            <span class="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-purple-500/10 text-purple-500 border border-purple-500/20">KI</span>
+                                        @endif
+                                        <button type="button"
+                                                wire:click="startEditQuote('{{ $q['id'] }}', '{{ addslashes($q['text']) }}', '{{ addslashes($q['title'] ?? '') }}', '{{ addslashes($q['category']) }}')"
+                                                class="p-1 rounded-lg text-gray-400 hover:text-[var(--theme-color)] transition-colors cursor-pointer"
+                                                title="Spruch bearbeiten">
+                                            <x-heroicon-o-pencil-square class="w-3.5 h-3.5" />
+                                        </button>
+                                        <button type="button"
+                                                wire:click="toggleArchiveQuote('{{ $q['id'] }}')"
+                                                class="p-1 rounded-lg transition-colors cursor-pointer {{ $isArchivedQ ? 'text-amber-500 hover:bg-amber-500/10' : 'text-gray-400 hover:text-amber-500' }}"
+                                                title="{{ $isArchivedQ ? 'Wieder aktivieren' : 'Archivieren (im Shop ausblenden)' }}">
+                                            <x-heroicon-o-archive-box class="w-3.5 h-3.5" />
+                                        </button>
+                                        <button type="button"
+                                                wire:click="deleteQuote('{{ $q['id'] }}')"
+                                                wire:confirm="Spruch endgültig aus der Bibliothek löschen?"
+                                                class="p-1 rounded-lg text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
+                                                title="Endgültig löschen">
+                                            <x-heroicon-o-trash class="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <p class="text-sm font-serif text-gray-900 dark:text-white leading-relaxed">
+                                    „{{ $q['text'] }}“
+                                </p>
+                            </div>
+
+                            <div class="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800/80 text-[10px] text-gray-400">
+                                <span class="font-mono">{{ $q['length'] }} Zeichen</span>
+                                <select wire:change="quickChangeQuoteCategory('{{ $q['id'] }}', $event.target.value)"
+                                        class="px-2 py-0.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 text-[10px] font-semibold text-gray-600 dark:text-gray-300 focus:outline-none cursor-pointer">
+                                    @foreach($quoteCategories as $qCat)
+                                        <option value="{{ $qCat }}" @selected($q['category'] === $qCat)>{{ $qCat }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        @else
+            <div class="text-center py-12 rounded-3xl border border-dashed border-gray-200 dark:border-gray-800">
+                <x-heroicon-o-chat-bubble-bottom-center-text class="w-9 h-9 mx-auto text-gray-300 dark:text-gray-700 mb-2" />
+                <p class="text-sm font-bold text-gray-600 dark:text-gray-400">Keine Sprüche für diesen Filter gefunden.</p>
+                <p class="text-xs text-gray-400 mt-1">Nutze oben das Formular oder den KI-Generator, um neue Sprüche anzulegen.</p>
             </div>
         @endif
     </div>

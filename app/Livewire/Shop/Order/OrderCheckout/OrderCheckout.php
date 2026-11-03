@@ -42,8 +42,9 @@ class OrderCheckout extends Component
 
     // --- RECHTLICHES ---
     public $terms_accepted = false;
-    public $privacy_accepted = false;
+    public $privacy_accepted = true;
     public $digital_waiver_accepted = false;
+    public bool $create_account = false;
 
     public function hasDigitalOrIngameItems(?Cart $cart = null): bool
     {
@@ -53,8 +54,9 @@ class OrderCheckout extends Component
         }
         return $cart->items->contains(function ($item) {
             return ($item->product->type ?? 'physical') === 'digital'
-                || !empty($item->configuration['is_ingame_shop_item'])
-                || !empty($item->configuration['ingame_item_key']);
+                && ($item->product->slug ?? '') !== 'geschenkgutschein'
+                && empty($item->configuration['is_gift_voucher'])
+                && !empty($item->product->digital_download_path);
         });
     }
 
@@ -124,7 +126,6 @@ class OrderCheckout extends Component
             'postal_code' => 'required|string|min:4',
             'country' => 'required|in:' . $allowedCountries,
             'terms_accepted' => 'accepted',
-            'privacy_accepted' => 'accepted',
         ];
 
         if ($this->hasDigitalOrIngameItems()) {
@@ -169,12 +170,12 @@ class OrderCheckout extends Component
         // Rechtliches
         'terms_accepted.accepted' => 'Bitte bestätige, dass du die AGB gelesen hast.',
         'privacy_accepted.accepted' => 'Deine Zustimmung zur Datenschutzerklärung ist erforderlich.',
-        'digital_waiver_accepted.accepted' => 'Für digitale Inhalte / Ingame-Gegenstände ist die Zustimmung zum sofortigen Ausführungsbeginn (§ 356 Abs. 5 BGB) erforderlich.',
+        'digital_waiver_accepted.accepted' => 'Für digitale Download-Inhalte ist die Zustimmung zum sofortigen Ausführungsbeginn (§ 356 Abs. 5 BGB) erforderlich.',
     ];
 
     public function mount()
     {
-        $this->stripeKey = config('services.stripe.key');
+        $this->stripeKey = config('services.stripe.key') ?: shop_setting('stripe_publishable_key');
 
         $cartService = app(CartService::class);
         $cart = $cartService->getCart();
@@ -246,8 +247,8 @@ class OrderCheckout extends Component
         // Wir validieren nur das geänderte Feld für Echtzeit-Feedback
         $this->validateOnly($propertyName);
 
-        // Wir benachrichtigen das Frontend, dass sich Daten geändert haben könnten
-        $this->dispatch('checkout-updated');
+        // Adress-Vollständigkeit im Frontend prüfen (ohne Stripe jedes Mal neu zu mounten)
+        $this->dispatch('checkout-address-changed');
     }
 
     public function checkDisposableEmail()
@@ -388,8 +389,28 @@ class OrderCheckout extends Component
             $userCart->update(['session_id' => Session::getId()]);
 
             if ($guestCart && $guestCart->id !== $userCart->id) {
+                $existingUserItems = $userCart->items()->get();
                 foreach ($guestCart->items as $item) {
-                    $item->update(['cart_id' => $userCart->id]);
+                    $matchingItem = $existingUserItems->first(function ($uItem) use ($item) {
+                        return (string) $uItem->product_id === (string) $item->product_id
+                            && json_encode($uItem->configuration) === json_encode($item->configuration);
+                    });
+
+                    if ($matchingItem) {
+                        $newQty = min(100, $matchingItem->quantity + $item->quantity);
+                        $unitPrice = $item->product
+                            ? $cartService->resolveItemUnitPrice($item->product, $newQty, $matchingItem->configuration)
+                            : $matchingItem->unit_price;
+                        $matchingItem->update([
+                            'quantity' => $newQty,
+                            'unit_price' => $unitPrice,
+                            'total_price' => $unitPrice * $newQty,
+                        ]);
+                        $item->delete();
+                    } else {
+                        $item->update(['cart_id' => $userCart->id]);
+                        $existingUserItems->push($item);
+                    }
                 }
 
                 if ($guestCart->coupon_code && !$userCart->coupon_code) {
@@ -402,6 +423,8 @@ class OrderCheckout extends Component
             if ($wasExpress) {
                 $userCart->update(['is_express' => true]);
             }
+
+            $cartService->refreshTotals($userCart);
 
             $this->mount();
             $this->loginError = '';
@@ -419,6 +442,10 @@ class OrderCheckout extends Component
 
     public function render()
     {
+        if (shop_setting('maintenance_mode', false) && !Auth::guard('admin')->check()) {
+            return view('global.errors.503_fragment')->layout('components.layouts.frontend_layout');
+        }
+
         $cartService = app(CartService::class);
         $cart = $this->isFinished ? null : $cartService->getCart();
 

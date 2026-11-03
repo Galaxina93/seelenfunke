@@ -122,7 +122,7 @@ class MarketingAnalytics extends Component
         $blLabels = [];
         $blData = [];
         foreach ($blGrouped as $catId => $items) {
-            $catName = tap($items->first()->category, fn($c) => $c ? $c->name : null) ?? 'Ohne Kategorie';
+            $catName = $items->first()?->category?->name ?? 'Ohne Kategorie';
             $blLabels[] = $catName;
             $blData[] = $items->count();
         }
@@ -134,8 +134,8 @@ class MarketingAnalytics extends Component
         $vtData = [];
         foreach ($vtGrouped as $type => $items) {
             $label = match($type) {
-                'percentage' => 'Prozentual (%)',
-                'absolute' => 'Fester Wert (€)',
+                'percent', 'percentage' => 'Prozentual (%)',
+                'fixed', 'absolute' => 'Festbetrag (€)',
                 'shipping' => 'Versandkostenfrei',
                 default => ucfirst((string)$type)
             };

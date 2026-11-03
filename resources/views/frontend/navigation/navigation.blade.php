@@ -33,30 +33,25 @@
 
                 {{-- Desktop Navigation --}}
                 <div class="hidden md:block">
-                    <div class="ml-10 flex items-center space-x-8">
+                    <div class="ml-6 lg:ml-10 flex items-center space-x-5 lg:space-x-7">
                         <a href="{{ route('home') }}"
-                           class="{{ Request::routeIs('home') ? 'text-primary' : 'text-white' }} hover:text-primary transition-colors font-medium">
-                            Startseite
+                           class="{{ Request::routeIs('home') ? 'text-primary' : 'text-white' }} hover:text-primary transition-colors font-medium whitespace-nowrap">
+                            Start
                         </a>
 
                         <a href="{{ route('manufacture') }}"
-                           class="{{ Request::routeIs('manufacture') ? 'text-primary' : 'text-white' }} hover:text-primary transition-colors font-medium">
+                           class="{{ Request::routeIs('manufacture') ? 'text-primary' : 'text-white' }} hover:text-primary transition-colors font-medium whitespace-nowrap">
                             Die Manufaktur
                         </a>
 
                         <a href="{{ route('shop') }}"
-                           class="{{ Request::routeIs('shop') ? 'text-primary' : 'text-white' }} hover:text-primary transition-colors font-medium">
+                           class="{{ Request::routeIs('shop') ? 'text-primary' : 'text-white' }} hover:text-primary transition-colors font-medium whitespace-nowrap">
                             Shop
                         </a>
 
                         <a href="{{ route('marketing/marketing/blog') }}"
-                           class="{{ Request::routeIs('marketing/marketing/blog') ? 'text-primary' : 'text-white' }} hover:text-primary transition-colors font-medium">
+                           class="{{ Request::routeIs('marketing/marketing/blog') ? 'text-primary' : 'text-white' }} hover:text-primary transition-colors font-medium whitespace-nowrap">
                             Blog
-                        </a>
-
-                        <a href="{{ route('contact') }}"
-                           class="{{ Request::routeIs('contact') ? 'text-primary' : 'text-white' }} hover:text-primary transition-colors font-medium">
-                            Kontakt
                         </a>
 
                         <a href="{{ route('product.show', 'geschenkgutschein') }}"
@@ -66,12 +61,15 @@
                         </a>
 
                         {{-- Button Angebot --}}
-                        <a href="{{ route('calculator') }}" class="px-4 py-2 border border-primary text-primary hover:bg-primary hover:text-gray-900 rounded transition-all duration-300 font-semibold shadow-md hover:shadow-primary/30">
+                        <a href="{{ route('calculator') }}" class="px-4 py-2 border border-primary text-primary hover:bg-primary hover:text-gray-900 rounded transition-all duration-300 font-semibold shadow-md hover:shadow-primary/30 whitespace-nowrap">
                             Angebot kalkulieren
                         </a>
 
                         {{-- NEU: Login Dropdown (Ersetzt das alte Icon) --}}
                         <livewire:auth.auth-login-dropdown />
+
+                        {{-- Wunschliste Icon (Desktop) --}}
+                        <livewire:shop.wishlist.wishlist-icon />
 
                         {{-- Warenkorb Icon (Desktop) --}}
                         <livewire:shop.cart.cart-icon />
@@ -80,7 +78,10 @@
                 </div>
 
                 {{-- Mobile Hamburger Button & cart --}}
-                <div class="md:hidden flex items-center gap-4">
+                <div class="md:hidden flex items-center gap-3">
+
+                    {{-- Wunschliste Icon (Mobil) --}}
+                    <livewire:shop.wishlist.wishlist-icon />
 
                     {{-- Warenkorb Icon (Mobil) - Identisch zur Desktop Komponente für Badge-Sync --}}
                     <livewire:shop.cart.cart-icon />

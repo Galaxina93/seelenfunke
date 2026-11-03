@@ -25,38 +25,105 @@ class AnalyticsService
         if (!\App\Services\AI\AiAuthHelper::isAdmin()) return [];
 
         return array_filter([
+            'product_readiness' => $this->checkProductReadiness(),
             'inventory' => $this->checkInventory(),
+            'open_orders' => $this->checkOrders(),
+            'open_invoices' => $this->checkOpenInvoices(),
             'special_issues' => $this->checkSpecialIssues(),
             'leitung/contracts' => $this->checkContracts(),
             'open_tickets' => $this->checkTickets(),
+            'open_chats' => $this->checkChats(),
+            'open_contact_requests' => $this->checkContactRequests(),
+            'open_mails' => $this->checkMails(),
             'product_reviews' => $this->checkReviews(),
-            'open_orders' => $this->checkOrders(),
             'open_credits' => $this->checkCredits(),
             'influencer_payouts' => $this->checkInfluencerPayouts(),
             'unassigned_tx' => $this->checkUnassignedTx(),
             'open_tasks' => $this->checkTasks(),
+            'shopping_list' => $this->checkShoppingList(),
             'routine' => $this->checkRoutine(),
             'open_quotes' => $this->checkQuotes(),
             'open_revocations' => $this->checkRevocations(),
             'open_losses' => $this->checkLosses(),
-            'open_chats' => $this->checkChats(),
-            'open_contact_requests' => $this->checkContactRequests(),
-            'open_mails' => $this->checkMails(),
-            'storage' => $this->checkStorage(),
             'open_abandoned_carts' => $this->checkAbandonedCarts(),
+            'storage' => $this->checkStorage(),
             'system_logs' => $this->checkSystemLogs(),
         ]);
+    }
+
+    private function checkProductReadiness(): ?array
+    {
+        if (!class_exists(Product::class)) return null;
+
+        $products = Product::with(['supplier', 'templates', 'categories', 'packagings'])->get();
+        $totalProducts = $products->count();
+
+        if ($totalProducts === 0) {
+            return [
+                'status' => 'success',
+                'icon' => 'sparkles',
+                'title' => 'Produkt-Daten (9/9)',
+                'message' => 'Keine Produkte angelegt',
+                'count' => 0,
+                'data' => [],
+            ];
+        }
+
+        $incompleteCount = 0;
+        $incompleteActiveCount = 0;
+        $incompleteItems = [];
+
+        foreach ($products as $prod) {
+            $readiness = $prod->getReadinessReport();
+            if (!($readiness['is_ready'] ?? false)) {
+                $incompleteCount++;
+                if ($prod->status === 'active') {
+                    $incompleteActiveCount++;
+                }
+                $incompleteItems[] = [
+                    'id' => $prod->id,
+                    'name' => $prod->name,
+                    'status' => $prod->status,
+                    'completed' => $readiness['passed_count'] ?? 0,
+                    'total' => $readiness['total_count'] ?? 9,
+                ];
+            }
+        }
+
+        if ($incompleteCount > 0) {
+            $status = $incompleteActiveCount > 0 ? 'warning' : 'todo';
+            $msg = $incompleteCount . ' Produkt(e) unvollständig';
+            if ($incompleteActiveCount > 0) {
+                $msg .= " ({$incompleteActiveCount} aktiv im Shop!)";
+            }
+        } else {
+            $status = 'success';
+            $msg = 'Alle Produkte 100% vollständig (9/9)';
+        }
+
+        return [
+            'status' => $status,
+            'icon' => 'sparkles',
+            'title' => 'Produkt-Daten (9/9)',
+            'message' => $msg,
+            'count' => $incompleteCount,
+            'data' => $incompleteItems,
+        ];
     }
 
     private function checkSystemLogs(): ?array
     {
         if (!class_exists(\App\Models\System\SystemLog::class)) return null;
         $totalLogs = \App\Models\System\SystemLog::count();
-        $unresolvedLogsQuery = \App\Models\System\SystemLog::where('status', 'error');
-        $unresolvedLogsCount = $unresolvedLogsQuery->count();
+        $unresolvedLogsQuery = \App\Models\System\SystemLog::where('status', 'error')
+            ->where(function ($q) {
+                $q->where('started_at', '>=', now()->subHours(48))
+                  ->orWhere('created_at', '>=', now()->subHours(48));
+            });
+        $unresolvedLogsCount = (clone $unresolvedLogsQuery)->count();
         
         $status = $unresolvedLogsCount > 0 ? 'error' : 'success';
-        $msg = $unresolvedLogsCount > 0 ? $unresolvedLogsCount . ' ungelöste Fehler' : 'Alles fehlerfrei';
+        $msg = $unresolvedLogsCount > 0 ? $unresolvedLogsCount . ' Fehler (letzte 48h)' : 'Alles fehlerfrei (48h)';
         if ($totalLogs === 0) { $msg = 'Keine System-Logs vorhanden'; $status = 'success'; }
 
         return [
@@ -70,7 +137,7 @@ class AnalyticsService
                     'id' => $log->id,
                     'title' => $log->title,
                     'type' => $log->type,
-                    'created_at' => $log->created_at->format('d.m. H:i')
+                    'created_at' => $log->created_at ? $log->created_at->format('d.m. H:i') : ''
                 ];
             })->toArray()
         ];
@@ -103,19 +170,33 @@ class AnalyticsService
 
     private function checkInventory(): array
     {
-        $threshold = shop_setting('inventory_low_stock_threshold', 5);
+        $threshold = (int) shop_setting('inventory_low_stock_threshold', 5);
         $lowStockProducts = Product::where('type', 'physical')
             ->where('track_quantity', true)
             ->where('quantity', '<', $threshold)
             ->where('status', 'active')
             ->get();
 
+        $count = $lowStockProducts->count();
+        $outOfStockCount = $lowStockProducts->where('quantity', '<=', 0)->count();
+
+        if ($count > 0) {
+            $status = $outOfStockCount > 0 ? 'error' : 'warning';
+            $msg = $count . ' Artikel unter Limit!';
+            if ($outOfStockCount > 0) {
+                $msg .= " ({$outOfStockCount} ausverkauft!)";
+            }
+        } else {
+            $status = 'success';
+            $msg = 'Lagerbestände optimal.';
+        }
+
         return [
             'title' => 'Lagerbestände',
-            'status' => $lowStockProducts->count() > 0 ? 'warning' : 'success',
-            'message' => $lowStockProducts->count() > 0 ? $lowStockProducts->count() . " Artikel unter Limit!" : "Lagerbestände optimal.",
+            'status' => $status,
+            'message' => $msg,
             'icon' => 'cube',
-            'count' => $lowStockProducts->count(),
+            'count' => $count,
             'data' => $lowStockProducts
         ];
     }
@@ -126,7 +207,7 @@ class AnalyticsService
         $totalSpace = \disk_total_space(base_path());
         if ($totalSpace > 0) {
             $percentUsed = 100 - round(($freeSpace / $totalSpace) * 100);
-            $threshold1 = (int) \Illuminate\Support\Facades\Cache::get('storage_capacity_threshold_1', \App\Models\System\SystemSetting::where('key', 'storage_capacity_threshold_1')->value('value') ?? 70);
+            $threshold1 = (int) \Illuminate\Support\Facades\Cache::get('storage_capacity_threshold_1', shop_setting('storage_capacity_threshold_1', 70));
             
             $needsAction = $percentUsed >= $threshold1;
             
@@ -189,9 +270,19 @@ class AnalyticsService
         $totalTickets = \App\Models\Support\SupportTicket::count();
         $openTickets = \App\Models\Support\SupportTicket::where('status', 'open')->with('customer')->get();
         $tCount = $openTickets->count();
-        $status = $tCount > 0 ? 'todo' : 'success';
-        $msg = $tCount > 0 ? $tCount . ' Kundenanfragen warten' : 'Alles beantwortet';
-        if ($totalTickets === 0) { $msg = 'Keine Tickets vorhanden'; $status = 'success'; }
+        $urgentCount = $openTickets->filter(fn($t) => ($t->priority ?? '') === 'high' || ($t->category ?? '') === 'bug')->count();
+
+        if ($tCount > 0) {
+            $status = $urgentCount > 0 ? 'warning' : 'todo';
+            $msg = $tCount . ' Kundenanfragen warten';
+            if ($urgentCount > 0) {
+                $msg .= " ({$urgentCount} Prio/Bug!)";
+            }
+        } else {
+            $status = 'success';
+            $msg = $totalTickets === 0 ? 'Keine Tickets vorhanden' : 'Alles beantwortet';
+        }
+
         return [
             'status' => $status,
             'icon' => 'ticket',
@@ -298,11 +389,60 @@ class AnalyticsService
     {
         if (!class_exists(\App\Models\Order\OrderOrder::class)) return null;
         $totalOrders = \App\Models\Order\OrderOrder::count();
-        $oCount = \App\Models\Order\OrderOrder::whereIn('status', ['pending', 'processing'])->count();
-        $status = $oCount > 0 ? 'todo' : 'success';
-        $msg = $oCount > 0 ? $oCount . ' unversendet' : 'Alles versendet';
-        if ($totalOrders === 0) { $msg = 'Noch keine Bestellungen'; $status = 'success'; }
+        $openQuery = \App\Models\Order\OrderOrder::whereIn('status', ['pending', 'processing']);
+        $oCount = (clone $openQuery)->count();
+        $expressCount = (clone $openQuery)->where('is_express', true)->count();
+        $overdueCount = (clone $openQuery)->where('created_at', '<', now()->subHours(48))->count();
+
+        if ($oCount > 0) {
+            $status = ($expressCount > 0 || $overdueCount > 0) ? 'warning' : 'todo';
+            $msg = $oCount . ' unversendet';
+            $hints = [];
+            if ($expressCount > 0) {
+                $hints[] = "{$expressCount} Express!";
+            }
+            if ($overdueCount > 0) {
+                $hints[] = "{$overdueCount} > 48h";
+            }
+            if (!empty($hints)) {
+                $msg .= ' (' . implode(', ', $hints) . ')';
+            }
+        } else {
+            $status = 'success';
+            $msg = $totalOrders === 0 ? 'Noch keine Bestellungen' : 'Alles versendet';
+        }
+
         return ['status' => $status, 'icon' => 'shopping-cart', 'title' => 'Bestellungen', 'message' => $msg, 'count' => $oCount, 'data' => []];
+    }
+
+    private function checkOpenInvoices(): ?array
+    {
+        if (!class_exists(\App\Models\Accounting\AccountingInvoice::class)) return null;
+        $openQuery = \App\Models\Accounting\AccountingInvoice::where('status', 'open')
+            ->whereNotIn('type', ['credit_note', 'cancellation']);
+        $openCount = (clone $openQuery)->count();
+        $overdueCount = (clone $openQuery)->whereNotNull('due_date')->where('due_date', '<', now()->startOfDay())->count();
+        $openSumEuro = ((int) (clone $openQuery)->sum('total')) / 100;
+
+        if ($openCount > 0) {
+            $status = $overdueCount > 0 ? 'warning' : 'todo';
+            $msg = $openCount . ' Rechnung(en) offen (' . number_format($openSumEuro, 2, ',', '.') . ' €)';
+            if ($overdueCount > 0) {
+                $msg .= " • {$overdueCount} überfällig!";
+            }
+        } else {
+            $status = 'success';
+            $msg = 'Alle Rechnungen beglichen';
+        }
+
+        return [
+            'status' => $status,
+            'icon' => 'document-currency-euro',
+            'title' => 'Offene Rechnungen',
+            'message' => $msg,
+            'count' => $openCount,
+            'data' => [],
+        ];
     }
 
     private function checkCredits(): ?array
@@ -387,6 +527,28 @@ class AnalyticsService
         $msg = $openTasks > 0 ? $openTasks . ' Todos offen' : 'Alles erledigt';
         if ($totalTasks === 0) { $msg = 'Keine Aufgaben vorhanden'; $status = 'success'; }
         return ['status' => $status, 'icon' => 'check-circle', 'title' => 'Aufgaben', 'message' => $msg, 'count' => $openTasks, 'data' => []];
+    }
+
+    private function checkShoppingList(): ?array
+    {
+        if (
+            !class_exists(\App\Models\Management\ManagementShoppingItem::class)
+            || !\Illuminate\Support\Facades\Schema::hasTable('management_shopping_items')
+        ) {
+            return null;
+        }
+        $neededCount = \App\Models\Management\ManagementShoppingItem::where('status', 'needed')->count();
+        $status = $neededCount > 0 ? 'todo' : 'success';
+        $msg = $neededCount > 0 ? $neededCount . ' Besorgung(en) offen' : 'Alles auf Vorrat';
+
+        return [
+            'status' => $status,
+            'icon' => 'shopping-bag',
+            'title' => 'Einkaufsliste',
+            'message' => $msg,
+            'count' => $neededCount,
+            'data' => [],
+        ];
     }
 
     private function checkRoutine(): ?array
@@ -511,11 +673,21 @@ class AnalyticsService
     {
         if (!class_exists(\App\Models\Order\OrderRevocation::class)) return null;
         $totalRevs = \App\Models\Order\OrderRevocation::count();
-        $oldRevs = \App\Models\Order\OrderRevocation::whereNotIn('status', ['processed', 'declined'])->where('created_at', '<', now()->subDays(2))->count();
-        $status = $oldRevs > 0 ? 'warning' : 'success';
-        $msg = $oldRevs > 0 ? $oldRevs . ' älter als 2 Tage' : 'Alles aktuell';
-        if ($totalRevs === 0) { $msg = 'Keine Widerrufe vorhanden'; $status = 'success'; }
-        return ['status' => $status, 'icon' => 'archive-box-x-mark', 'title' => 'Widerrufe', 'message' => $msg, 'count' => $oldRevs, 'data' => []];
+        $openQuery = \App\Models\Order\OrderRevocation::whereNotIn('status', ['processed', 'declined']);
+        $openRevs = (clone $openQuery)->count();
+        $oldRevs = (clone $openQuery)->where('created_at', '<', now()->subDays(2))->count();
+
+        if ($openRevs > 0) {
+            $status = $oldRevs > 0 ? 'warning' : 'todo';
+            $msg = $oldRevs > 0
+                ? "{$openRevs} offen ({$oldRevs} älter als 48h!)"
+                : "{$openRevs} Widerruf(e) offen";
+        } else {
+            $status = 'success';
+            $msg = $totalRevs === 0 ? 'Keine Widerrufe vorhanden' : 'Alles aktuell';
+        }
+
+        return ['status' => $status, 'icon' => 'archive-box-x-mark', 'title' => 'Widerrufe', 'message' => $msg, 'count' => $openRevs, 'data' => []];
     }
 
     private function checkLosses(): ?array
@@ -529,7 +701,7 @@ class AnalyticsService
         return ['status' => $status, 'icon' => 'exclamation-triangle', 'title' => 'Schwund & Bruch', 'message' => $msg, 'count' => $openLosses, 'data' => []];
     }
 
-    public function getStats($dateStart, $dateEnd, $filterType = 'all', $lastLogins = [], $systemHealth = [])
+    public function getStats($dateStart, $dateEnd, $filterType = 'all', $lastLogins = [], $systemHealth = [], ?array $preloadedHealthChecks = null)
     {
         if (!in_array($filterType, ['all', 'business', 'private'], true)) {
             $filterType = 'all';
@@ -900,7 +1072,7 @@ class AnalyticsService
 
         // 6. OPERATIVER INTEGRATION SCORE (Abzüge)
         // Die Abzüge werden subtrahiert, falls offene Todos und Systemstörungen existieren
-        $opChecks = $this->getHealthChecks();
+        $opChecks = $preloadedHealthChecks ?? $this->getHealthChecks();
         $opErrors = collect($opChecks)->where('status', 'error')->count();
         $opWarnings = collect($opChecks)->where('status', 'warning')->count();
         $opScorePunishment = ($opErrors * 5) + ($opWarnings * 1);
@@ -928,6 +1100,9 @@ class AnalyticsService
         $compiledCartsList = [];
         $potentialCartRev = 0;
 
+        $yellowHours = max(1, (int) shop_setting('cart_abandoned_yellow_hours', 3));
+        $redHours = max($yellowHours + 1, (int) shop_setting('cart_abandoned_red_hours', 24));
+
         foreach ($abandonedCartsData as $cart) {
             $sum = 0;
             $itemsCount = 0;
@@ -940,15 +1115,17 @@ class AnalyticsService
                 $potentialCartRev += ($sum / 100);
 
                 $hours = $cart->updated_at->diffInHours(now());
-                if ($hours < 3) {
+                if ($hours < $yellowHours) {
                     $status = 'green';
-                    $ageFormat = '< 3h';
-                } elseif ($hours < 24) {
+                    $ageFormat = '< ' . $yellowHours . 'h';
+                } elseif ($hours < $redHours) {
                     $status = 'yellow';
-                    $ageFormat = '< 24h';
+                    $ageFormat = '< ' . $redHours . 'h';
                 } else {
                     $status = 'red';
-                    $ageFormat = '> ' . floor($hours / 24) . 'd';
+                    $ageFormat = $hours >= 24
+                        ? ('> ' . floor($hours / 24) . 'd')
+                        : ('> ' . max($redHours, (int) floor($hours)) . 'h');
                 }
 
                 $compiledCartsList[] = [

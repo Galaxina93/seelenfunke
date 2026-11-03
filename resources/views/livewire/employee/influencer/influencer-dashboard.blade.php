@@ -632,6 +632,9 @@
                         Scanne oder teile deinen persönlichen QR-Code für Unboxing-Stories oder Visitenkarten. Er leitet direkt auf deinen Kurzlink weiter.
                     </div>
                 </div>
+                <p class="text-[11px] text-amber-800 dark:text-amber-300/90 bg-amber-500/10 border border-primary/25 rounded-xl px-3 py-2 leading-snug">
+                    <strong>Wichtiger Hinweis (§&nbsp;5a Abs.&nbsp;4 UWG):</strong> Bitte kennzeichne Beiträge, Stories und Reels mit deinem Kurzlink oder Rabattcode stets gut sichtbar zu Beginn mit <strong>„Werbung“</strong> oder <strong>„Anzeige“</strong>.
+                </p>
             </div>
 
             <div class="pt-3 border-t border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-2 text-[11px]">

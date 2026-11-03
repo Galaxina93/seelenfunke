@@ -115,7 +115,7 @@ class OrderQuoteAcceptance extends Component
         $unitPriceCents = $this->calculateTierPrice($product, $qty, $data);
 
         $this->editingItem->unit_price = $unitPriceCents;
-        $this->editingItem->tax_rate = $product->tax_rate ?? shop_setting('default_tax_rate', 19.0);
+        $this->editingItem->tax_rate = ((bool) shop_setting('is_small_business', false)) ? 0.0 : ($product->tax_rate ?? shop_setting('default_tax_rate', 19.0));
         $this->editingItem->total_price = $unitPriceCents * $qty;
         $this->editingItem->save();
 
@@ -170,16 +170,11 @@ class OrderQuoteAcceptance extends Component
                 $lineGross = $lineTotal;
                 $lineNet = $lineTotal;
                 $lineTax = 0;
-            } elseif ($product->tax_included) {
-                // Brutto -> Netto
+            } else {
+                // In OrderQuoteRequestItem ist total_price stets als Bruttobetrag (in Cent) gespeichert
                 $lineGross = $lineTotal;
                 $lineNet = $lineTotal / (1 + ($rate / 100));
                 $lineTax = $lineTotal - $lineNet;
-            } else {
-                // Netto -> Brutto
-                $lineNet = $lineTotal;
-                $lineTax = $lineNet * ($rate / 100);
-                $lineGross = $lineNet + $lineTax;
             }
 
             $netTotalProducts += $lineNet;
@@ -192,14 +187,18 @@ class OrderQuoteAcceptance extends Component
         $countryCode = $this->quote->shipping_address['country'] ?? ($this->quote->billing_address['country'] ?? 'DE');
 
         $shippingCostCents = 0;
+        $needsShipping = app(\App\Services\ShippingCalculatorService::class)->needsShipping($this->quote->items);
 
-        // Logik analog zum Calculator
-        if ($countryCode === 'DE') {
-            // Regel: Kostenfrei ab 50,00 € (Brutto-Warenwert), sonst 4,90 €
-            if (($grossTotalProducts / 100) >= 50.00 || $this->quote->items->isEmpty()) {
+        // Logik analog zum Calculator (dynamisch aus Shop-Settings)
+        if (!$needsShipping) {
+            $shippingCostCents = 0;
+        } elseif ($countryCode === 'DE') {
+            $freeShippingThresholdCents = (int) shop_setting('shipping_free_threshold', 5000);
+            $standardShippingCostCents = (int) shop_setting('shipping_cost', 490);
+            if ($grossTotalProducts >= $freeShippingThresholdCents || $this->quote->items->isEmpty()) {
                 $shippingCostCents = 0;
             } else {
-                $shippingCostCents = 490;
+                $shippingCostCents = $standardShippingCostCents;
             }
         } else {
             // Ausland: Zone suchen
@@ -220,6 +219,7 @@ class OrderQuoteAcceptance extends Component
                                     ->orWhereNull('max_weight');
                             });
                     })
+                    ->where('min_price', '<=', (int) round($grossTotalProducts))
                     ->orderBy('price', 'asc')
                     ->first();
 

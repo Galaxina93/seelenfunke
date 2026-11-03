@@ -14,7 +14,7 @@
                     Ob für verdiente Mitarbeiter, langjährige Partner oder einen Herzensmenschen: Schenken sollte Freude bereiten, keinen Stress verursachen.
                 </p>
                 <p class="text-gray-700 text-lg mb-6 leading-relaxed">
-                    Bei <strong>Mein Seelenfunke</strong> erhalten Sie nicht einfach nur ein Stück Glas. Wir übernehmen für Sie den kompletten Prozess von der Prüfung Ihrer Daten bis zum sicheren Versand an den Empfänger.
+                    Bei <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong> erhalten Sie nicht einfach nur ein Stück Glas. Wir übernehmen für Sie den kompletten Prozess von der Prüfung Ihrer Daten bis zum sicheren Versand an den Empfänger.
                 </p>
 
                 {{-- Highlight Box --}}
@@ -30,7 +30,7 @@
                         <svg class="flex-shrink-0 h-6 w-6 text-primary mr-3 mt-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                         <div>
                             <strong class="font-semibold text-gray-900">Alles aus einer Hand:</strong>
-                            Keine externen Dienstleister, keine Verzögerungen. Designprüfung, Veredelung und Logistik erfolgen direkt in unserer Manufaktur. Das garantiert kurze Wege und präzise Ergebnisse.
+                            Keine externen Dienstleister, keine Verzögerungen. Designprüfung, Veredelung und Logistik erfolgen direkt in unserer Manufaktur. Das sorgt für kurze Wege und präzise Ergebnisse.
                         </div>
                     </li>
 
@@ -47,7 +47,7 @@
                         <svg class="flex-shrink-0 h-6 w-6 text-primary mr-3 mt-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                         <div>
                             <strong class="font-semibold text-gray-900">Geschenkfertig geliefert:</strong>
-                            Unsere Glastrophäen kommen <strong>standardmäßig</strong> in einer hochwertigen, mit Stoff ausgelegten Geschenkbox – bereit zur sofortigen Übergabe oder Ehrung. Bei anderen Artikeln variiert die Verpackung und ist der jeweiligen Produktbeschreibung zu entnehmen.
+                            Unsere Glastrophäen kommen <strong>standardmäßig</strong> in einer hochwertigen, mit Stoff ausgelegten Geschenkbox und sind sofort bereit zur Übergabe oder Ehrung. Bei anderen Artikeln variiert die Verpackung und ist der jeweiligen Produktbeschreibung zu entnehmen.
                         </div>
                     </li>
 

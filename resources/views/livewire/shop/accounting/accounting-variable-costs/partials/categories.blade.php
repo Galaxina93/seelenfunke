@@ -92,11 +92,28 @@
                                 </div>
 
                                 @if($editSpecialIsBusiness)
+                                    @php
+                                        $defaultRate = (float) shop_setting('default_tax_rate', 19);
+                                        $reducedRate = (float) shop_setting('reduced_tax_rate', 7);
+                                        $rawActiveRates = shop_setting('active_tax_rates', [$defaultRate, $reducedRate, 0]);
+                                        if (is_string($rawActiveRates)) {
+                                            $decodedRates = json_decode($rawActiveRates, true);
+                                            $rawActiveRates = is_array($decodedRates) ? $decodedRates : [$defaultRate, $reducedRate, 0];
+                                        }
+                                        $customRates = collect(is_array($rawActiveRates) ? $rawActiveRates : [])
+                                            ->map(fn($r) => (float) $r)
+                                            ->reject(fn($r) => in_array($r, [$defaultRate, $reducedRate, 0.0], true))
+                                            ->unique()
+                                            ->values();
+                                    @endphp
                                     <div class="grid grid-cols-2 gap-3 mb-4 animate-fade-in-down">
                                         <input type="text" wire:model="editSpecialInvoiceNumber" placeholder="Rechnungsnummer" class="text-xs rounded border-gray-300 focus:ring-orange-400 w-full">
                                         <select wire:model="editSpecialTaxRate" class="text-xs rounded border-gray-300 focus:ring-orange-400 w-full">
-                                            <option value="{{ shop_setting('default_tax_rate', 19) }}">{{ shop_setting('default_tax_rate', 19) }}% MwSt. (Standard)</option>
-                                            <option value="7">7% MwSt. (Ermäßigt)</option>
+                                            <option value="{{ $defaultRate }}">{{ $defaultRate }}% MwSt. (Standard)</option>
+                                            <option value="{{ $reducedRate }}">{{ $reducedRate }}% MwSt. (Ermäßigt)</option>
+                                            @foreach($customRates as $customRate)
+                                                <option value="{{ $customRate }}">{{ $customRate }}% MwSt.</option>
+                                            @endforeach
                                             <option value="0">0% / Steuerfrei</option>
                                         </select>
                                     </div>

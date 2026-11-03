@@ -43,5 +43,11 @@
             </span>
             Wartungsmodus aktiv
         </div>
+
+        <div class="mt-8 pt-4 border-t border-gray-200/70 w-full text-[11px] text-gray-500 flex flex-wrap items-center justify-center gap-4">
+            <a href="{{ route('impressum') }}" class="hover:text-gray-900 underline">Impressum</a>
+            <span>·</span>
+            <a href="{{ route('datenschutz') }}" class="hover:text-gray-900 underline">Datenschutzerklärung</a>
+        </div>
     </div>
 </div>

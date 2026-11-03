@@ -79,8 +79,8 @@
                         </span>
 
                         @if($order->is_express)
-                            <span class="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-red-600 dark:text-red-400 mt-1">
-                                <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_currentColor]"></span> Express
+                            <span class="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-200 mt-1">
+                                <x-shop.express-info iconClass="w-3.5 h-3.5" />
                                 @if($order->deadline)
                                     <span class="text-gray-600 font-medium">|</span>
                                     <span class="{{ $isOverdue ? 'text-red-500 drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'text-gray-500' }}">Ziel: {{ $order->deadline->format('d.m.y') }}</span>
@@ -213,8 +213,12 @@
                                 @endif
                             </span>
                             @if($order->is_express || $order->deadline)
-                                <span class="text-[9px] font-black {{ $order->is_express ? 'text-red-400' : 'text-gray-500' }} uppercase tracking-widest flex items-center gap-1.5">
-                                    @if($order->is_express) <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_currentColor]"></span> EXPRESS @else ZIEL @endif
+                                <span class="text-[9px] font-black {{ $order->is_express ? 'text-gray-700 dark:text-gray-200' : 'text-gray-500' }} uppercase tracking-widest inline-flex items-center gap-1">
+                                    @if($order->is_express)
+                                        <x-shop.express-info iconClass="w-3.5 h-3.5" />
+                                    @else
+                                        ZIEL
+                                    @endif
                                     @if($order->deadline)
                                         <span class="text-gray-700">|</span> <span class="{{ $isOverdue ? 'text-red-400 font-black animate-pulse drop-shadow-[0_0_8px_currentColor]' : 'text-gray-500' }}">{{ $order->deadline->format('d.m.y') }}</span>
                                     @endif

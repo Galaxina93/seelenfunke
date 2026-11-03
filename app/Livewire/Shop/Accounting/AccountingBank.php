@@ -11,6 +11,7 @@ use Livewire\WithFileUploads;
 use App\Services\BankApiService;
 use App\Models\Accounting\AccountingBankAccount;
 use App\Models\Accounting\AccountingCategory;
+use App\Models\Accounting\AccountingCostItem;
 use App\Models\Accounting\AccountingBankTransaction;
 
 #[Layout('components.layouts.backend_layout')]
@@ -514,7 +515,7 @@ class AccountingBank extends Component
         $prompt = "Du bist ein intelligenter Finanz-Buchhalter.\n";
         $prompt .= "Deine Aufgabe: Ordne die folgenden Banktransaktionen bestmöglich in Fixkosten oder Variable Kosten (Kategorien) ein.\n\n";
         $prompt .= "Vorgaben:\n";
-        $prompt .= "1. Eine Transaktion DARF ENTWEDER ein 'cost_item_id' (Fixkosten) ODER ein 'product_category_id' (Variables) erhalten. NICHT BEIDES gleichzeitg.\n";
+        $prompt .= "1. Eine Transaktion DARF ENTWEDER ein 'cost_item_id' (Fixkosten) ODER ein 'category_id' (Variables) erhalten. NICHT BEIDES gleichzeitg.\n";
         $prompt .= "2. Wenn du absolut nicht sicher bist, weise NULL für beides zu.\n";
         $prompt .= "3. Fixkosten (cost_item_id) sind Verträge wie Miete, Strom, Versicherungen, Software-Abos (Netflix, Adobe), Gehälter, Steuern.\n";
         $prompt .= "4. Variable Kategorien (category_id) sind Einkäufe, Tanken, Restaurants, Drogerie, etc.\n";
@@ -554,17 +555,27 @@ class AccountingBank extends Component
                 $content = trim($content);
 
                 $json = json_decode($content, true);
+                $mappings = $json['mappings'] ?? (is_array($json) ? $json : null);
 
-                if (json_last_error() === JSON_ERROR_NONE && isset($json['mappings'])) {
+                if (json_last_error() === JSON_ERROR_NONE && is_array($mappings)) {
                     $learnedRules = 0;
                     $allowedCatIds = collect($this->availableCategories)->pluck('id')->map(fn($id) => (string) $id)->all();
                     $allowedCostIds = collect($this->availableCostItems)->pluck('id')->map(fn($id) => (string) $id)->all();
-                    foreach ($json['mappings'] as $mapping) {
-                        $currentTx = $uniqueTxs->values()->firstWhere('id', $mapping['tx_id'] ?? null);
+                    foreach ($mappings as $key => $mapping) {
+                        $txId = is_array($mapping) ? ($mapping['tx_id'] ?? (is_string($key) ? $key : null)) : (is_string($key) ? $key : null);
+                        $currentTx = $uniqueTxs->values()->firstWhere('id', $txId);
                         if ($currentTx) {
-                            $rawCatId = $mapping['category_id'] ?? $mapping['product_category_id'] ?? null;
+                            if (is_array($mapping)) {
+                                $rawCatId = $mapping['category_id'] ?? $mapping['product_category_id'] ?? null;
+                                $rawCostId = $mapping['cost_item_id'] ?? null;
+                            } elseif (is_string($mapping) || is_int($mapping)) {
+                                $rawCatId = in_array((string) $mapping, $allowedCatIds, true) ? (string) $mapping : null;
+                                $rawCostId = ($rawCatId === null && in_array((string) $mapping, $allowedCostIds, true)) ? (string) $mapping : null;
+                            } else {
+                                $rawCatId = null;
+                                $rawCostId = null;
+                            }
                             $catId = (!empty($rawCatId) && in_array((string) $rawCatId, $allowedCatIds, true)) ? $rawCatId : null;
-                            $rawCostId = $mapping['cost_item_id'] ?? null;
                             $costId = (!empty($rawCostId) && in_array((string) $rawCostId, $allowedCostIds, true)) ? $rawCostId : null;
                             
                             // Prevent array syntax passing logic errors
@@ -1150,7 +1161,8 @@ class AccountingBank extends Component
 
         // 3. Category
         if ($this->filterCategoryId === 'unassigned') {
-            $query->whereNull('accounting_category_id');
+            $query->whereNull('accounting_category_id')
+                  ->whereNull('accounting_cost_item_id');
         } elseif (!empty($this->filterCategoryId)) {
             $query->where('accounting_category_id', $this->filterCategoryId);
         }

@@ -236,8 +236,10 @@
             @endif
             {{ $street }}<br>
             {{ $zip }} {{ $city }}@if(!empty($country)), {{ $country }}@endif<br>
-            E-Mail: {{ $email }}@if(!empty($phone)) &nbsp;•&nbsp; Tel.: {{ $phone }}@endif
-            @if(!empty($website)) &nbsp;•&nbsp; Web: {{ $website }}@endif
+            @if(!empty($phone))
+                Telefon: {{ $phone }}<br>
+            @endif
+            E-Mail: {{ $email }}
         </div>
     </div>
 
@@ -304,7 +306,7 @@
 
     {{-- Dezente Fußzeile --}}
     <div class="footer-bar">
-        {{ $companyName }} &nbsp;•&nbsp; {{ $street }} &nbsp;•&nbsp; {{ $zip }} {{ $city }} &nbsp;•&nbsp; {{ $email }}
+        {{ $companyName }} &nbsp;•&nbsp; {{ $street }} &nbsp;•&nbsp; {{ $zip }} {{ $city }}@if(!empty($phone)) &nbsp;•&nbsp; Tel.: {{ $phone }}@endif &nbsp;•&nbsp; {{ $email }}
     </div>
 
 </body>

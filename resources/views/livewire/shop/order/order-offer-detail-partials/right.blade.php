@@ -46,6 +46,49 @@
                 @endif
             </div>
 
+            @if(!empty($previewItem->configuration['variant_name']) || (!empty($previewItem->configuration['addons_summary']) && is_array($previewItem->configuration['addons_summary'])))
+                <div class="bg-amber-50 dark:bg-amber-900/10 rounded-[1.5rem] sm:rounded-[2rem] shadow-none dark:shadow-inner border border-amber-200 dark:border-amber-500/20 overflow-hidden shrink-0">
+                    <div class="bg-amber-100/60 dark:bg-amber-500/10 px-5 sm:px-6 py-3 sm:py-4 border-b border-amber-200 dark:border-amber-500/20">
+                        <h3 class="text-[9px] sm:text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest flex items-center gap-2 drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">
+                            <span>🎁</span>
+                            Ausführung, Verpackung & Extras
+                        </h3>
+                    </div>
+                    <div class="p-5 sm:p-6 space-y-2.5 text-xs sm:text-sm text-amber-950 dark:text-amber-100/90 font-medium">
+                        @if(!empty($previewItem->configuration['variant_name']))
+                            <div class="flex items-center justify-between bg-white/80 dark:bg-gray-950/60 rounded-xl px-4 py-2.5 border border-amber-200/80 dark:border-amber-800/60">
+                                <span class="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Gewählte Ausführung</span>
+                                <span class="font-bold text-gray-900 dark:text-white">{{ $previewItem->configuration['variant_name'] }}</span>
+                            </div>
+                        @endif
+                        @if(!empty($previewItem->configuration['addons_summary']) && is_array($previewItem->configuration['addons_summary']))
+                            @foreach($previewItem->configuration['addons_summary'] as $addon)
+                                @if(!empty($addon['name']))
+                                    @php
+                                        $rightAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addon);
+                                    @endphp
+                                    <div class="flex items-center justify-between bg-white/80 dark:bg-gray-950/60 rounded-xl px-4 py-2.5 border border-amber-200/80 dark:border-amber-800/60">
+                                        <span class="font-bold text-amber-900 dark:text-amber-300 flex items-center gap-2.5">
+                                            @if($rightAddonImg)
+                                                <img src="{{ $rightAddonImg }}" alt="{{ $addon['name'] }}" class="w-9 h-9 rounded-lg object-cover border border-amber-300 dark:border-amber-700 shrink-0 shadow-2xs">
+                                            @else
+                                                <span>🎁</span>
+                                            @endif
+                                            <span>{{ $addon['name'] }}</span>
+                                        </span>
+                                        @if(($addon['price_cents'] ?? 0) > 0)
+                                            <span class="font-mono text-xs font-bold text-amber-700 dark:text-amber-400">+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }} €</span>
+                                        @else
+                                            <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400">Inklusive</span>
+                                        @endif
+                                    </div>
+                                @endif
+                            @endforeach
+                        @endif
+                    </div>
+                </div>
+            @endif
+
             @if(!empty($previewItem->configuration['notes']))
                 <div class="bg-amber-50 dark:bg-amber-900/10 rounded-[1.5rem] sm:rounded-[2rem] shadow-none dark:shadow-inner border border-amber-200 dark:border-amber-500/20 overflow-hidden shrink-0">
                     <div class="bg-amber-100/60 dark:bg-amber-500/10 px-5 sm:px-6 py-3 sm:py-4 border-b border-amber-200 dark:border-amber-500/20">

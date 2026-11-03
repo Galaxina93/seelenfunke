@@ -21,9 +21,10 @@ class ReceiptAiScannerService
     {
         try {
             $allowedMimes = [
-                'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'
+                'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf',
+                'text/xml', 'application/xml', 'text/plain'
             ];
-            $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'pdf'];
+            $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'pdf', 'xml'];
 
             // Dateipfad und MimeType ermitteln (VOR evtl. Test-Mock-Rückgabe validieren!)
             if ($file instanceof UploadedFile) {
@@ -84,6 +85,37 @@ class ReceiptAiScannerService
                 return null;
             }
 
+            // [NEU] Deterministischer E-Rechnungs-Parser für XRechnung (.xml) & ZUGFeRD (.pdf)
+            if (in_array($ext, ['xml', 'pdf'], true)) {
+                try {
+                    $parsedEInvoice = app(\App\Services\AccountingEInvoiceParserService::class)->parseFile($path);
+                    if (!empty($parsedEInvoice['valid'])) {
+                        $sellerName = $parsedEInvoice['seller']['name'] ?: 'Lieferant';
+                        $itemNames = collect($parsedEInvoice['items'] ?? [])->pluck('name')->take(3)->implode(', ');
+                        $desc = $itemNames ?: ($parsedEInvoice['type_label'] ?? 'E-Rechnung');
+                        return self::normalizeResult([
+                            'merchant' => $sellerName,
+                            'description' => $desc,
+                            'title' => "{$sellerName} - " . ($parsedEInvoice['invoice_number'] ?: $desc),
+                            'amount' => $parsedEInvoice['totals']['grand_total_gross'] ?? 0.0,
+                            'date' => $parsedEInvoice['issue_date'] ?: date('Y-m-d'),
+                            'location' => $parsedEInvoice['seller']['city'] ?? '',
+                            'category' => 'Wareneinkauf & Material',
+                            'is_business' => true,
+                            'tax_rate' => $parsedEInvoice['totals']['tax_rate'] ?? (float) shop_setting('default_tax_rate', 19.0),
+                            'invoice_number' => $parsedEInvoice['invoice_number'] ?? '',
+                            'e_invoice' => $parsedEInvoice,
+                        ]);
+                    }
+                } catch (\Throwable $e) {
+                    if ($ext === 'xml') {
+                        Log::warning('ReceiptAiScannerService: Ungültige E-Rechnung XML: ' . $e->getMessage());
+                        return null;
+                    }
+                    // Bei PDF ohne eingebettetes XML: Fallback auf Gemini Multimodal Vision
+                }
+            }
+
             $apiKey = config('services.gemini.key', env('GEMINI_API_KEY'));
             if (empty($apiKey) && !app()->runningUnitTests()) {
                 Log::warning('ReceiptAiScannerService: GEMINI_API_KEY ist nicht konfiguriert.');
@@ -103,8 +135,12 @@ class ReceiptAiScannerService
                 ? implode(', ', array_slice($availableCategories, 0, 40))
                 : 'Bürobedarf, Tanken, Bewirtung, Hardware, Software, Reisekosten, Werkzeug, Porto & Versand, Telefon & Internet, Werbekosten, Einkauf';
 
+            $companyName = shop_setting('company_name', 'Seelenfunke');
+            $defaultRatePrompt = (float) shop_setting('default_tax_rate', 19.0);
+            $reducedRatePrompt = (float) shop_setting('reduced_tax_rate', 7.0);
+
             $prompt = <<<PROMPT
-Du bist ein hochpräziser Beleg- und Buchhaltungs-Scanner für deutsche Unternehmen (Firma: Seelenfunke).
+Du bist ein hochpräziser Beleg- und Buchhaltungs-Scanner für deutsche Unternehmen (Firma: {$companyName}).
 Analysiere dieses Foto / Bild / PDF eines Kassenbons, einer Quittung, einer Rechnung oder eines Belegs sorgfältig.
 
 Vorhandene Buchungskategorien:
@@ -120,7 +156,7 @@ Extrahiere alle Daten und antworte AUSSCHLIESSLICH im folgenden JSON-Format ohne
   "location": "Ort/Stadt der Filiale falls auf dem Beleg lesbar (z.B. Gifhorn, Wolfsburg, Berlin), sonst leerer String",
   "category": "Die am besten passende Kategorie aus der obigen Liste oder eine treffende neue Standard-Kategorie",
   "is_business": true,
-  "tax_rate": 19,
+  "tax_rate": {$defaultRatePrompt},
   "invoice_number": "Rechnungsnummer, Bon-Nr., Beleg-Nr. oder Kassenbon-ID falls lesbar, sonst leerer String"
 }
 
@@ -128,7 +164,7 @@ Wichtige Regeln:
 1. "amount": Gib den Bruttobetrag (Gesamtsumme inkl. MwSt.) als positive Dezimalzahl mit Punkt an (z.B. 49.99).
 2. "date": Im Format YYYY-MM-DD. Wenn kein Jahr auf dem Beleg steht, verwende das aktuelle Kalenderjahr. Wenn unleserlich, verwende das heutige Datum.
 3. "is_business": Setze auf true, wenn es sich um typische Betriebsausgaben (Bürobedarf, Elektronik, Software, KFZ/Tanken, Werkzeuge, Geschäftsessen, Porto, Fachliteratur etc.) handelt. Setze auf false nur bei rein privatem Konsum (z.B. Wocheneinkauf Lebensmittel für Haushalt).
-4. "tax_rate": Erkannter Hauptsteuersatz in Prozent (meist 19, 7 oder 0).
+4. "tax_rate": Erkannter Hauptsteuersatz in Prozent (meist {$defaultRatePrompt}, {$reducedRatePrompt} oder 0).
 5. "title": Halte den Titel kompakt und informativ (z.B. "REWE - Bürokaffee & Milch" oder "Hornbach - Holzlack & Pinsel").
 PROMPT;
 
@@ -221,10 +257,24 @@ PROMPT;
             }
         }
 
-        // Steuersatz normieren
-        $taxRate = isset($raw['tax_rate']) ? (float) $raw['tax_rate'] : 19.0;
-        if (!in_array($taxRate, [19.0, 7.0, 0.0])) {
-            $taxRate = 19.0;
+        // Steuersatz normieren (inkl. Unterstützung für active_tax_rates)
+        $defaultRate = round((float) shop_setting('default_tax_rate', 19.0), 2);
+        $reducedRate = round((float) shop_setting('reduced_tax_rate', 7.0), 2);
+        $activeRatesRaw = shop_setting('active_tax_rates', [$defaultRate, $reducedRate, 0]);
+        if (is_string($activeRatesRaw)) {
+            $decodedRates = json_decode($activeRatesRaw, true);
+            $activeRatesRaw = is_array($decodedRates) ? $decodedRates : [$defaultRate, $reducedRate, 0];
+        }
+        $allowedRates = collect(is_array($activeRatesRaw) ? $activeRatesRaw : [])
+            ->merge([$defaultRate, $reducedRate, 19.0, 7.0, 0.0])
+            ->map(fn($r) => round((float) $r, 2))
+            ->unique()
+            ->values()
+            ->all();
+
+        $taxRate = isset($raw['tax_rate']) ? round((float) $raw['tax_rate'], 2) : $defaultRate;
+        if (!in_array($taxRate, $allowedRates, true)) {
+            $taxRate = $defaultRate;
         }
 
         $title = trim($raw['title'] ?? '');
@@ -264,10 +314,10 @@ PROMPT;
             'amount_abs' => 19.99,
             'amount_formatted' => '-19.99',
             'date' => date('Y-m-d'),
-            'location' => 'Gifhorn',
+            'location' => shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')),
             'category' => 'Bürobedarf',
             'is_business' => true,
-            'tax_rate' => 19.0,
+            'tax_rate' => (float) shop_setting('default_tax_rate', 19.0),
             'invoice_number' => 'RE-2026-TEST',
             'raw' => []
         ];

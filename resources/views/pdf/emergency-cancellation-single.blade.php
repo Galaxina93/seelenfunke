@@ -11,9 +11,15 @@
 <body>
 
 @php
-    $senderName = $settings['owner_proprietor'] ?? 'Keine Angabe';
-    $senderStreetAndHouse = $settings['company_street'] ?? '';
-    $senderZipAndCity = ($settings['company_zip'] ?? '') . ' ' . ($settings['company_city'] ?? '');
+    $senderName = !empty($settings['owner_proprietor']) ? $settings['owner_proprietor'] : 'Alina Steinhauer';
+    $senderStreetAndHouse = trim(($settings['company_street'] ?? '') . ' ' . ($settings['company_street_number'] ?? ''));
+    if ($senderStreetAndHouse === '') {
+        $senderStreetAndHouse = $settings['owner_street'] ?? 'Carl-Goerdeler-Ring 26';
+    }
+    $senderZipAndCity = trim(($settings['company_zip'] ?? '') . ' ' . ($settings['company_city'] ?? ''));
+    if ($senderZipAndCity === '') {
+        $senderZipAndCity = $settings['owner_city'] ?? '38518 Gifhorn';
+    }
 @endphp
 
 <!-- Empfänger -->

@@ -34,9 +34,6 @@
         $discountBoxClass = 'bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 p-3 rounded-xl shadow-sm dark:shadow-inner -mx-3';
         $discountIconClass = 'text-emerald-600 dark:text-emerald-400';
 
-        $expressBoxClass = 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 p-3 rounded-xl shadow-sm dark:shadow-inner -mx-3';
-        $expressIconClass = 'text-red-500 dark:text-red-400';
-
         $freeShipBadgeClass = 'bg-emerald-50 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-md -mx-2 uppercase tracking-widest shadow-sm dark:shadow-inner';
         $freeShipTextClass = 'text-emerald-600 dark:text-emerald-400';
 
@@ -56,12 +53,6 @@
             ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-3 rounded-xl shadow-inner -mx-3'
             : 'bg-green-50 border border-green-200 text-green-700 font-bold p-3 rounded-xl shadow-sm -mx-3';
         $discountIconClass = $isDark ? 'text-emerald-400' : 'text-green-700';
-
-        // Express Box
-        $expressBoxClass = $isDark
-            ? 'bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-xl shadow-inner -mx-3'
-            : 'bg-red-50 border border-red-200 text-red-700 font-bold p-3 rounded-xl shadow-sm -mx-3';
-        $expressIconClass = $isDark ? 'text-red-400' : 'text-red-500';
 
         // Free Shipping Badge
         $freeShipBadgeClass = $isDark
@@ -97,16 +88,27 @@
 
     if ($model) {
         $isOrder = $model instanceof \App\Models\Order\OrderOrder;
+        if (isset($model->is_small_business) && $model->is_small_business !== null) {
+            $isSmallBusiness = (bool)$model->is_small_business;
+        }
 
-        $data['volume_discount'] = $model->volume_discount ?? 0;
+        $data['volume_discount'] = (int)($model->volume_discount ?? 0);
         $data['coupon_code'] = $model->coupon_code ?? null;
-        $data['discount_amount'] = $model->discount_amount ?? 0;
+        $data['discount_amount'] = (int)($model->discount_amount ?? 0);
         $data['is_express'] = (bool)$model->is_express;
-        $data['shipping'] = $model->shipping_price ?? ($model->shipping_cost ?? 0);
-        $data['tax_amount'] = $isOrder ? $model->tax_amount : ($model->tax_total ?? 0);
-        $data['total'] = $isOrder ? $model->total_price : ($model->gross_total ?? 0);
+        $data['shipping'] = (int)($model->shipping_price ?? ($model->shipping_cost ?? 0));
+        $data['tax_amount'] = (int)($isOrder ? $model->tax_amount : ($model->tax_total ?? 0));
+        $data['total'] = (int)($isOrder ? $model->total_price : ($model->gross_total ?? 0));
 
-        $rawSubtotal = $isOrder ? $model->subtotal_price : ($model->net_total ?? 0);
+        if ($isOrder) {
+            // OrderOrder::subtotal_price ist der Brutto-Warenwert NACH Mengenrabatt ($totals['subtotal_gross']).
+            // Da diese Komponente unten $data['volume_discount'] vom Warenwert abzieht, addieren wir den Mengenrabatt hier zurück (analog zu $totals['subtotal_original']).
+            $rawSubtotal = (int)($model->subtotal_price ?? 0) + $data['volume_discount'];
+        } else {
+            // Für OrderQuoteRequest ist net_total der Netto-Gesamtbetrag. Der Brutto-Warenwert vor Rabatten ergibt sich aus Brutto-Gesamt minus Versand/Express plus Rabatte:
+            $quoteExpress = $data['is_express'] ? (int)($model->express_price ?? 0) : 0;
+            $rawSubtotal = max(0, $data['total'] + $data['discount_amount'] - $data['shipping'] - $quoteExpress) + $data['volume_discount'];
+        }
 
         $data['subtotal'] = $rawSubtotal;
 
@@ -116,6 +118,9 @@
         $data['shipping_label'] = 'Versand';
         if (method_exists($model, 'toFormattedArray')) {
             $summaryData = $model->toFormattedArray();
+            if ((!isset($model->is_small_business) || $model->is_small_business === null) && isset($summaryData['is_small_business'])) {
+                $isSmallBusiness = (bool)$summaryData['is_small_business'];
+            }
             if (!$isSmallBusiness && isset($summaryData['tax_breakdown']) && is_array($summaryData['tax_breakdown'])) {
                 foreach($summaryData['tax_breakdown'] as $rate => $formattedStr) {
                     $cleanFloat = (float)str_replace(['.', ','], ['', '.'], $formattedStr);
@@ -134,6 +139,9 @@
         }
     }
     elseif ($totals) {
+        if (isset($totals['is_small_business'])) {
+            $isSmallBusiness = (bool)$totals['is_small_business'];
+        }
         $data['subtotal'] = $totals['subtotal_gross'] ?? ($totals['subtotal_original'] ?? 0);
         if(isset($totals['subtotal_original'])) {
              $data['subtotal'] = $totals['subtotal_original'];
@@ -253,14 +261,9 @@
 
         {{-- 3. Express Service --}}
         @if($data['is_express'])
-            <div class="flex justify-between {{ $expressBoxClass }}">
-                <span class="flex items-center gap-2 font-bold">
-                    <svg class="w-4 h-4 animate-pulse {{ $expressIconClass }}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                    Express-Service
-                </span>
-                <span class="whitespace-nowrap font-bold">+ {{ number_format($data['express_cost'] / 100, 2, ',', '.') }}&nbsp;€</span>
+            <div class="flex justify-between items-center">
+                <x-shop.express-info class="{{ $labelClass }}" />
+                <span class="{{ $valueClass }} whitespace-nowrap">+ {{ number_format($data['express_cost'] / 100, 2, ',', '.') }}&nbsp;€</span>
             </div>
         @endif
 
@@ -310,16 +313,23 @@
             @if(!$isSmallBusiness)
                 @if(!empty($data['tax_breakdown']))
                     @foreach($data['tax_breakdown'] as $rate => $amount)
-                        @if($amount > 0 || floatval($rate) == 0)
+                        @php
+                            $rateFloat = (float) str_replace(',', '.', (string) $rate);
+                            $formattedRate = rtrim(rtrim(number_format($rateFloat, 2, ',', '.'), '0'), ',');
+                        @endphp
+                        @if($amount > 0 || $rateFloat == 0.0)
                             <div class="text-[10px] uppercase tracking-widest font-black {{ $taxTextClass }} whitespace-nowrap">
-                                inkl. {{ number_format($amount / 100, 2, ',', '.') }}&nbsp;€ MwSt. ({{ floatval($rate) }}%)
+                                inkl. {{ number_format($amount / 100, 2, ',', '.') }}&nbsp;€ MwSt. ({{ $formattedRate }}%)
                             </div>
                         @endif
                     @endforeach
                 @else
+                    @php
+                        $formattedTaxRate = rtrim(rtrim(number_format((float) $taxRate, 2, ',', '.'), '0'), ',');
+                    @endphp
                     <div class="text-[10px] uppercase tracking-widest font-black {{ $taxTextClass }} whitespace-nowrap">
                         inkl. {{ number_format($data['tax_amount'] / 100, 2, ',', '.') }}&nbsp;€ MwSt.
-                        ({{ number_format($taxRate, 0) }}%)
+                        ({{ $formattedTaxRate }}%)
                     </div>
                 @endif
             @else

@@ -43,18 +43,36 @@
 
                             @php
                                 $data = $invoice->toFormattedArray();
-                                $ownerName = shop_setting('owner_name', 'Mein Seelenfunke');
+                                $ownerName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
                                 $proprietor = shop_setting('owner_proprietor', 'Alina Steinhauer');
-                                $ownerStreet = shop_setting('owner_street', 'Carl-Goerdeler-Ring 26');
-                                $ownerCity = shop_setting('owner_city', '38518 Gifhorn');
-                                $ownerEmail = shop_setting('owner_email', 'kontakt@mein-seelenfunke.de');
+                                $rawStreet = trim((string) shop_setting('company_street', ''));
+                                $rawStreetNumber = trim((string) shop_setting('company_street_number', '26'));
+                                $ownerStreet = $rawStreet !== ''
+                                    ? ($rawStreetNumber !== '' && !str_ends_with($rawStreet, ' ' . $rawStreetNumber) && $rawStreet !== $rawStreetNumber
+                                        ? trim($rawStreet . ' ' . $rawStreetNumber)
+                                        : $rawStreet)
+                                    : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26');
+                                $rawZip = trim((string) shop_setting('company_zip', '38518'));
+                                $rawCity = trim((string) shop_setting('company_city', ''));
+                                $ownerCity = $rawCity !== ''
+                                    ? ($rawZip !== '' && !str_starts_with($rawCity, $rawZip . ' ') && $rawCity !== $rawZip
+                                        ? trim($rawZip . ' ' . $rawCity)
+                                        : $rawCity)
+                                    : shop_setting('owner_city', '38518 Gifhorn');
+                                $ownerEmail = shop_setting('owner_email_invoices') ?: shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
                                 $ownerWeb = shop_setting('owner_website', 'www.mein-seelenfunke.de');
-                                $ownerIban = shop_setting('owner_iban', 'Wird nachgereicht');
+                                $ownerBankName = shop_setting('owner_bank_name', 'Volksbank BraWo');
+                                if ($ownerBankName === 'OWNER_BANK_NAME') {
+                                    $ownerBankName = 'Volksbank BraWo';
+                                }
+                                $ownerIban = shop_setting('owner_iban', '');
                                 $ownerBic = shop_setting('owner_bic', '');
                                 $taxId = shop_setting('owner_tax_id', '19/143/11624');
-                                $ustId = shop_setting('owner_ust_id');
+                                $ustId = shop_setting('company_ust_id', shop_setting('owner_ust_id'));
                                 $court = shop_setting('owner_court', 'Gifhorn');
-                                $isSmallBusiness = (bool)shop_setting('is_small_business', false);
+                                $isSmallBusiness = $invoice->is_small_business !== null
+                                    ? (bool)$invoice->is_small_business
+                                    : app(\App\Services\Tax\TaxSettingService::class)->isSmallBusinessForYear($invoice->invoice_date?->year ?? now()->year);
                             @endphp
 
                             {{-- STEMPEL FIXIERT --}}
@@ -78,12 +96,12 @@
                                     <img src="{{ asset('shop/projekt/logo/mein-seelenfunke-logo.svg') }}" style="width: 220px;" alt="{{ $ownerName }}">
                                     <div class="text-right">
                                         <div style="font-size: 22px; font-weight: bold; color: var(--theme-color); text-transform: uppercase; margin-bottom: 5px;">
-                                            @if($invoice->type === 'cancellation') STORNO-RECHNUNG @else RECHNUNG @endif
+                                            @if($invoice->type === 'cancellation') STORNO-RECHNUNG @elseif($invoice->type === 'credit_note') GUTSCHRIFT @else RECHNUNG @endif
                                         </div>
                                         <div class="text-gray-500 text-[10px]">
                                             <strong>Nummer:</strong> {{ $invoice->invoice_number }}<br>
                                             <strong>Datum:</strong> {{ $invoice->invoice_date->format('d.m.Y') }}<br>
-                                            @if($invoice->delivery_date) <strong>Leistungsdatum:</strong> {{ $invoice->delivery_date->format('d.m.Y') }}<br> @endif
+                                            <strong>Leistungsdatum:</strong> {{ ($invoice->delivery_date ?? $invoice->invoice_date)->format('d.m.Y') }}<br>
                                         </div>
                                     </div>
                                 </div>
@@ -133,6 +151,7 @@
                                     </thead>
                                     <tbody class="divide-y divide-gray-50">
                                     @php
+                                        $docSign = in_array($invoice->type, ['cancellation', 'credit_note'], true) ? -1 : 1;
                                         $displayItems = $invoice->items;
                                         if($invoice->type === 'cancellation' && count($displayItems) === 0 && $invoice->parent_id) {
                                             $parentInvoice = \App\Models\Accounting\AccountingInvoice::find($invoice->parent_id);
@@ -156,7 +175,11 @@
                                             'files',
                                             'main_image',
                                             'texts_back',
-                                            'snapshot_path'
+                                            'snapshot_path',
+                                            'variant_id',
+                                            'variant_name',
+                                            'selected_addons',
+                                            'addons_summary'
                                         ];
                                     @endphp
 
@@ -209,6 +232,34 @@
                                                 @endif
 
                                                 @if($config)
+                                                    @if(!empty($config['variant_name']))
+                                                        <div class="text-[11px] text-gray-700 mb-1">
+                                                            <strong>Ausführung:</strong> {{ $config['variant_name'] }}
+                                                        </div>
+                                                    @endif
+
+                                                    @if(!empty($config['addons_summary']) && is_array($config['addons_summary']))
+                                                        <div class="flex flex-wrap gap-1.5 mb-1.5">
+                                                            @foreach($config['addons_summary'] as $prevAddon)
+                                                                @if(!empty($prevAddon['name']))
+                                                                    @php
+                                                                        $prevAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($prevAddon);
+                                                                    @endphp
+                                                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-900 text-[10px] font-bold">
+                                                                        @if($prevAddonImg)
+                                                                            <img src="{{ $prevAddonImg }}" alt="{{ $prevAddon['name'] }}" class="w-5 h-5 rounded object-cover border border-amber-300 shrink-0">
+                                                                        @else
+                                                                            <span>🎁</span>
+                                                                        @endif
+                                                                        <span>{{ $prevAddon['name'] }}</span>
+                                                                        @if(($prevAddon['price_cents'] ?? 0) > 0)
+                                                                            <span>(+{{ number_format($prevAddon['price_cents'] / 100, 2, ',', '.') }} €)</span>
+                                                                        @endif
+                                                                    </span>
+                                                                @endif
+                                                            @endforeach
+                                                        </div>
+                                                    @endif
                                                     {{-- 'break-all' sorgt dafür, dass lange Wörter notfalls umgebrochen werden --}}
                                                     <div class="text-[10px] text-gray-500 italic leading-snug break-all max-w-[350px]">
                                                         @foreach($config as $label => $value)
@@ -249,7 +300,7 @@
                                             </td>
                                             <td class="py-4 align-top text-right font-medium text-gray-900 text-[12px]">{{ is_object($item) ? $item->quantity : $item['quantity'] }}x</td>
                                             <td class="py-4 align-top text-right font-bold text-gray-900 text-[12px]">
-                                                {{ number_format((is_object($item) ? $item->total_price : $item['total_price']) / 100, 2, ',', '.') }} €
+                                                {{ number_format(($docSign * abs((float)(is_object($item) ? $item->total_price : $item['total_price']))) / 100, 2, ',', '.') }} €
                                             </td>
                                         </tr>
                                     @endforeach
@@ -263,15 +314,20 @@
                                             <div class="flex justify-between text-gray-500">
                                                 <span>{{ !empty($isSmallBusiness) ? 'Warenwert:' : 'Warenwert (Brutto):' }}</span>
                                                 @php
-                                                    $totalGrossNum = (float)($invoice->total / 100);
-                                                    $shippingGrossNum = (float)($invoice->shipping_cost / 100);
+                                                    $docSign = in_array($invoice->type, ['cancellation', 'credit_note'], true) ? -1 : 1;
+                                                    $normalizedTotalCents = $docSign * abs((int) $invoice->total);
+                                                    $normalizedTaxCents = $docSign * abs((int) $invoice->tax_amount);
+                                                    $totalGrossNum = (float)($normalizedTotalCents / 100);
+                                                    $shippingGrossNum = $docSign * abs((float)($invoice->shipping_cost / 100));
                                                     $expressStr = $data['express_price'] ?? '0,00';
-                                                    $expressGrossNum = (float)str_replace(['.', ','], ['', '.'], $expressStr);
+                                                    $expressGrossNum = $docSign * abs((float)str_replace(['.', ','], ['', '.'], $expressStr));
                                                     
-                                                    $volDiscountNum = (float)(($invoice->volume_discount ?? 0) / 100);
-                                                    $couponDiscountNum = (float)(($invoice->discount_amount ?? 0) / 100);
+                                                    $volDiscountNum = abs((float)(($invoice->volume_discount ?? 0) / 100));
+                                                    $couponDiscountNum = abs((float)(($invoice->discount_amount ?? 0) / 100));
                                                     
-                                                    $goodsGrossCalculated = $totalGrossNum + $volDiscountNum + $couponDiscountNum - $shippingGrossNum - $expressGrossNum;
+                                                    $goodsGrossCalculated = $totalGrossNum < 0
+                                                        ? ($totalGrossNum - $volDiscountNum - $couponDiscountNum - $shippingGrossNum - $expressGrossNum)
+                                                        : ($totalGrossNum + $volDiscountNum + $couponDiscountNum - $shippingGrossNum - $expressGrossNum);
                                                 @endphp
                                                 <span class="font-medium">{{ number_format($goodsGrossCalculated, 2, ',', '.') }} €</span>
                                             </div>
@@ -279,34 +335,34 @@
                                             @if($volDiscountNum > 0)
                                                 <div class="flex justify-between text-green-600">
                                                     <span>Mengenrabatt:</span>
-                                                    <span class="font-medium">-{{ number_format($volDiscountNum, 2, ',', '.') }} €</span>
+                                                    <span class="font-medium">{{ $totalGrossNum < 0 ? '+' : '-' }}{{ number_format($volDiscountNum, 2, ',', '.') }} €</span>
                                                 </div>
                                             @endif
 
                                             @if($couponDiscountNum > 0)
                                                 <div class="flex justify-between text-green-600">
                                                     <span>Gutschein {{ $invoice->order && $invoice->order->coupon_code ? '(' . $invoice->order->coupon_code . ')' : '' }}:</span>
-                                                    <span class="font-medium">-{{ number_format($couponDiscountNum, 2, ',', '.') }} €</span>
+                                                    <span class="font-medium">{{ $totalGrossNum < 0 ? '+' : '-' }}{{ number_format($couponDiscountNum, 2, ',', '.') }} €</span>
                                                 </div>
                                             @endif
 
-                                            @if($invoice->shipping_cost > 0)
+                                            @if($invoice->is_express && abs($expressGrossNum) > 0.004)
+                                                <div class="flex justify-between items-center text-gray-500">
+                                                    <span class="inline-flex items-center gap-1">Express-Service <span style="font-family: 'DejaVu Sans', sans-serif; color: #C5A059; font-weight: bold;">&#10003;</span>:</span>
+                                                    <span class="font-medium text-gray-800 font-bold">{{ $expressGrossNum > 0 ? '+' : '' }}{{ number_format($expressGrossNum, 2, ',', '.') }} €</span>
+                                                </div>
+                                            @endif
+
+                                            @if(abs($shippingGrossNum) > 0.004)
                                                 <div class="flex justify-between text-gray-500">
                                                     <span>Versandkosten:</span>
-                                                    <span class="font-medium">{{ number_format($invoice->shipping_cost / 100, 2, ',', '.') }} €</span>
-                                                </div>
-                                            @endif
-
-                                            @if($invoice->is_express)
-                                                <div class="flex justify-between text-red-500">
-                                                    <span>Express-Service:</span>
-                                                    <span class="font-medium">+{{ number_format($expressGrossNum, 2, ',', '.') }} €</span>
+                                                    <span class="font-medium">{{ number_format($shippingGrossNum, 2, ',', '.') }} €</span>
                                                 </div>
                                             @endif
 
                                             <div class="flex justify-between pt-3 border-t-2 border-gray-100" style="font-size: 16px; font-weight: bold; color: var(--theme-color);">
                                                 <span>Gesamtsumme:</span>
-                                                <span>{{ number_format($invoice->total / 100, 2, ',', '.') }} €</span>
+                                                <span>{{ number_format($normalizedTotalCents / 100, 2, ',', '.') }} €</span>
                                             </div>
 
                                             <div class="pt-2 text-[10px] text-gray-400 italic space-y-0.5">
@@ -317,7 +373,7 @@
                                                 @else
                                                     <div class="flex justify-between">
                                                         <span>Nettobetrag:</span>
-                                                        <span>{{ number_format(($invoice->total - $invoice->tax_amount) / 100, 2, ',', '.') }} €</span>
+                                                        <span>{{ number_format(($normalizedTotalCents - $normalizedTaxCents) / 100, 2, ',', '.') }} €</span>
                                                     </div>
                                                     @if(!empty($data['tax_breakdown']))
                                                         @foreach($data['tax_breakdown'] as $rate => $taxAmountStr)
@@ -329,7 +385,7 @@
                                                     @else
                                                         <div class="flex justify-between">
                                                             <span>MwSt. ({{ shop_setting('default_tax_rate', 19) }}%):</span>
-                                                            <span>{{ number_format($invoice->tax_amount / 100, 2, ',', '.') }} €</span>
+                                                            <span>{{ number_format($normalizedTaxCents / 100, 2, ',', '.') }} €</span>
                                                         </div>
                                                     @endif
                                                 @endif
@@ -357,12 +413,13 @@
                                             <span style="color: var(--theme-color); font-weight: bold; text-transform: uppercase; font-size: 8px; letter-spacing: 0.8px; margin-bottom: 5px; display: block;">Kontakt</span>
                                             E-Mail: {{ $ownerEmail }}<br>
                                             Web: {{ str_replace(['http://', 'https://'], '', $ownerWeb) }}<br>
-                                            USt-IdNr.: {{ $ustId ?? 'n.a.' }}<br>
+                                            @if(!empty($ustId)) USt-IdNr.: {{ $ustId }}<br> @endif
                                             Steuernummer: {{ $taxId }}
                                         </div>
                                         <div class="w-1/3 text-left pl-4">
                                             <span style="color: var(--theme-color); font-weight: bold; text-transform: uppercase; font-size: 8px; letter-spacing: 0.8px; margin-bottom: 5px; display: block;">Bankverbindung</span>
-                                            IBAN: {{ $ownerIban }}<br>
+                                            @if(!empty($ownerBankName)) Bank: {{ $ownerBankName }}<br> @endif
+                                            @if(!empty($ownerIban)) IBAN: {{ $ownerIban }}<br> @endif
                                             @if($ownerBic) BIC: {{ $ownerBic }}<br> @endif
                                             Gerichtsstand: {{ $court }}<br>
                                             @if(!empty($isSmallBusiness))

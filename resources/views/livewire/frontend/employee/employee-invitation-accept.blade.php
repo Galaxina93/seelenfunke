@@ -178,6 +178,21 @@
                         </div>
                     </div>
 
+                    <div class="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/40 text-[11px] text-gray-700 dark:text-gray-300 space-y-1.5 mt-2">
+                        <p class="font-bold text-gray-900 dark:text-white">Wesentliche Vertragsbedingungen (§ 2 Abs. 1 NachwG):</p>
+                        <p>
+                            <strong>Arbeitgeberin:</strong> {{ shop_setting('company_name', 'Mein Seelenfunke') }} (Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}), {{ shop_setting('company_street', 'Carl-Goerdeler-Ring 26') }}, {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }} •
+                            <strong>Tätigkeit:</strong> {{ $jobTitle }} ({{ $employmentTypeLabel }}) •
+                            <strong>Vergütung:</strong> {{ number_format($hourlyRateCents / 100, 2, ',', '.') }} € brutto/Std. •
+                            <strong>Regelarbeitszeit:</strong> {{ number_format($weeklyHours, 1, ',', '.') }} Std./Woche •
+                            <strong>Erholungsurlaub:</strong> {{ (int) ($profile?->vacation_days_per_year ?? 24) }} Arbeitstage/Jahr •
+                            <strong>Vertragsverhältnis:</strong> Unbefristet (gesetzliche Kündigungsfristen gem. § 622 BGB).
+                        </p>
+                        <p class="text-[10px] text-gray-500 dark:text-gray-400 pt-1 border-t border-amber-200/60 dark:border-amber-800/40">
+                            <strong>Beschäftigtendatenschutz (Art. 13 DSGVO i.V.m. § 26 Abs. 1 BDSG):</strong> Deine Steuer-ID (§ 39e EStG), Sozialversicherungsnummer (§ 28a SGB IV), Krankenkasse und Bankverbindung werden ausschließlich zur Durchführung des Beschäftigungsverhältnisses, zur Lohnabrechnung sowie für gesetzliche Meldungen verarbeitet und verschlüsselt gespeichert. Details findest du in unserer <a href="{{ route('datenschutz') }}" target="_blank" class="underline hover:text-gray-900 dark:hover:text-white">Datenschutzerklärung</a>.
+                        </p>
+                    </div>
+
                     <div class="p-4 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 space-y-3 mt-2">
                         <div>
                             <label class="text-[11px] font-bold text-gray-700 dark:text-gray-300">Unterschrift (Vor- und Nachname eintippen) *</label>
@@ -188,13 +203,13 @@
 
                         <label class="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
                             <input type="checkbox" wire:model="contractAccepted" class="rounded text-gray-900 dark:text-[#C5A059]" />
-                            <span>Arbeitsvertrag annehmen</span>
+                            <span>Arbeitsvertrag zu den oben genannten Konditionen verbindlich annehmen</span>
                         </label>
                         @error('contractAccepted') <p class="text-[11px] text-rose-600">{{ $message }}</p> @enderror
 
                         <label class="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
                             <input type="checkbox" wire:model="truthConfirmed" class="rounded text-gray-900 dark:text-[#C5A059]" />
-                            <span>Alle Angaben sind korrekt</span>
+                            <span>Ich bestätige die Richtigkeit meiner Steuer-, Sozialversicherungs- und Bankangaben</span>
                         </label>
                         @error('truthConfirmed') <p class="text-[11px] text-rose-600">{{ $message }}</p> @enderror
                     </div>

@@ -64,7 +64,7 @@
                             wire:model.defer="email"
                             autocomplete="email"
                             required
-                            class="block w-full bg-gray-50/50 border border-gray-300 rounded-xl py-3 px-4 text-gray-900 text-sm focus:bg-white focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-sm outline-none transition-all placeholder-gray-400 @error('email') border-red-400 focus:border-red-500 focus:ring-red-500/20 @enderror"
+                            class="block w-full bg-gray-50/50 border border-gray-300 rounded-xl py-3 px-4 text-gray-900 text-sm focus:bg-white focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-sm outline-none transition-all placeholder-gray-400 cursor-text @error('email') border-red-400 focus:border-red-500 focus:ring-red-500/20 @enderror"
                             placeholder="name@beispiel.de"
                         >
                     </div>
@@ -79,12 +79,12 @@
                             id="password"
                             wire:model.defer="password"
                             required
-                            class="block w-full bg-gray-50/50 border border-gray-300 rounded-xl py-3 px-4 pr-12 text-gray-900 text-sm focus:bg-white focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-sm outline-none transition-all placeholder-gray-400 @error('password') border-red-400 focus:border-red-500 focus:ring-red-500/20 @enderror"
+                            class="block w-full bg-gray-50/50 border border-gray-300 rounded-xl py-3 px-4 pr-12 text-gray-900 text-sm focus:bg-white focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-sm outline-none transition-all placeholder-gray-400 cursor-text @error('password') border-red-400 focus:border-red-500 focus:ring-red-500/20 @enderror"
                             placeholder="••••••••"
                         >
                         <button type="button" x-on:click="show = !show" class="absolute inset-y-0 right-0 pr-4 flex items-center cursor-pointer text-gray-400 hover:text-gray-700 transition-colors">
-                            <span x-show="!show"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></span>
-                            <span x-show="show" style="display: none;"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg></span>
+                            <span x-show="show" style="display: none;"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></span>
+                            <span x-show="!show"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg></span>
                         </button>
                     </div>
                 </div>
@@ -98,12 +98,12 @@
                             id="passwordConfirm"
                             wire:model.defer="passwordConfirm"
                             required
-                            class="block w-full bg-gray-50/50 border border-gray-300 rounded-xl py-3 px-4 pr-12 text-gray-900 text-sm focus:bg-white focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-sm outline-none transition-all placeholder-gray-400 @error('passwordConfirm') border-red-400 focus:border-red-500 focus:ring-red-500/20 @enderror"
+                            class="block w-full bg-gray-50/50 border border-gray-300 rounded-xl py-3 px-4 pr-12 text-gray-900 text-sm focus:bg-white focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-sm outline-none transition-all placeholder-gray-400 cursor-text @error('passwordConfirm') border-red-400 focus:border-red-500 focus:ring-red-500/20 @enderror"
                             placeholder="••••••••"
                         >
                         <button type="button" x-on:click="show = !show" class="absolute inset-y-0 right-0 pr-4 flex items-center cursor-pointer text-gray-400 hover:text-gray-700 transition-colors">
-                            <span x-show="!show"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></span>
-                            <span x-show="show" style="display: none;"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg></span>
+                            <span x-show="show" style="display: none;"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></span>
+                            <span x-show="!show"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg></span>
                         </button>
                     </div>
                 </div>
@@ -111,7 +111,7 @@
                 {{-- Button --}}
                 <div class="pt-2">
                     <button type="submit" wire:loading.attr="disabled"
-                            class="w-full flex justify-center items-center gap-2 py-3 px-4 rounded-xl text-xs uppercase tracking-wider font-bold text-gray-900 bg-gradient-to-r from-primary-light to-primary hover:from-primary hover:to-primary-light transition-all duration-200 shadow-sm hover:shadow focus:outline-none disabled:opacity-70 disabled:cursor-wait border border-primary/40">
+                            class="w-full flex justify-center items-center gap-2 py-3 px-4 rounded-xl text-xs uppercase tracking-wider font-bold text-gray-900 bg-gradient-to-r from-primary-light to-primary hover:from-primary hover:to-primary-light transition-all duration-200 shadow-sm hover:shadow focus:outline-none cursor-pointer disabled:opacity-70 disabled:cursor-wait border border-primary/40">
                         <svg wire:loading class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
                         <span>Passwort speichern</span>
                     </button>
@@ -128,9 +128,16 @@
             </form>
         </div>
 
-        {{-- Footer --}}
-        <div class="mt-8 text-center text-xs text-gray-400">
-            &copy; {{ date('Y') }} mein-seelenfunke. Alle Rechte vorbehalten.
+        {{-- Footer (§ 5 DDG & Art. 13 DSGVO) --}}
+        <div class="mt-8 text-center text-xs text-gray-400 space-y-2">
+            <div class="flex flex-wrap items-center justify-center gap-3 text-gray-500">
+                <a href="{{ route('impressum') }}" class="hover:text-gray-800 underline underline-offset-2 transition-colors">Impressum</a>
+                <span>•</span>
+                <a href="{{ route('datenschutz') }}" class="hover:text-gray-800 underline underline-offset-2 transition-colors">Datenschutzerklärung</a>
+                <span>•</span>
+                <a href="{{ route('agb') }}" class="hover:text-gray-800 underline underline-offset-2 transition-colors">AGB</a>
+            </div>
+            <div>&copy; {{ date('Y') }} mein-seelenfunke. Alle Rechte vorbehalten.</div>
         </div>
 
     </div>

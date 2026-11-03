@@ -1464,7 +1464,7 @@ trait AiSystemFuncs
 
             if ($sendEmail) {
                 if (!$email) {
-                    $email = config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
+                    $email = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
                 }
                 if (!self::isValidRecipientEmail($email)) {
                     return ['status' => 'error', 'message' => 'Ungültige Empfänger-E-Mail-Adresse für den Security-Report.'];
@@ -1614,10 +1614,11 @@ trait AiSystemFuncs
             $node = \App\Models\System\SystemNeuralNode::where('file_path', 'like', "%{$escapedFilePath}%")->first();
             if (!$node) return ['status' => 'error', 'message' => 'Datei im Gehirn nicht gefunden.'];
             
-            // Ermittle, ob Fehler (simuliert)
-            $mockErrors = ['app/Models/User.php', 'app/Http/Controllers/Controller.php'];
-            $isError = in_array($node->file_path, $mockErrors);
-            $errorState = $isError ? "Exception: Undefined index oder Connection Refused." : "Systemstatus 100% OK";
+            $hasRecentError = class_exists(\App\Models\System\SystemLog::class)
+                && \App\Models\System\SystemLog::where('status', 'error')
+                    ->where('message', 'like', '%' . addcslashes($node->file_path, '%_\\') . '%')
+                    ->exists();
+            $errorState = $hasRecentError ? "Aktiver Fehler im System-Log protokolliert." : "Systemstatus 100% OK";
 
             return [
                 'status' => 'success',
@@ -3046,7 +3047,7 @@ trait AiSystemFuncs
                 'footer_info' => [
                     'company_name' => shop_setting('company_name') ?: shop_setting('owner_name') ?: 'Mein Seelenfunke',
                     'owner_proprietor' => shop_setting('owner_proprietor') ?: 'Alina Steinhauer',
-                    'company_street' => shop_setting('company_street') ?: shop_setting('owner_street') ?: 'Carl-Goerdeler-Ring',
+                    'company_street' => shop_setting('company_street') ?: (preg_replace('/\s+\d+[a-zA-Z]?$/', '', (string) shop_setting('owner_street', 'Carl-Goerdeler-Ring')) ?: 'Carl-Goerdeler-Ring'),
                     'company_street_number' => shop_setting('company_street_number') ?: '26',
                     'company_zip' => shop_setting('company_zip') ?: '38518',
                     'company_city' => shop_setting('company_city') ?: shop_setting('owner_city') ?: 'Gifhorn',
@@ -3284,10 +3285,7 @@ trait AiSystemFuncs
                 return ['status' => 'error', 'message' => 'Es wurde kein report_type übergeben.'];
             }
 
-            $adminId = session('current_admin_id', 1); // Fallback to 1 if session not set in CLI/AI context
-            if (\App\Services\AI\AiAuthHelper::isAdmin()) {
-                $adminId = \App\Services\AI\AiAuthHelper::getAdminId();
-            }
+            $adminId = \App\Services\AI\AiAuthHelper::getAdminId() ?: (session('current_admin_id') ?: \App\Models\Admin\Admin::value('id'));
 
             $generatedFilePath = null;
             $generatedFileName = '';
@@ -3922,8 +3920,8 @@ trait AiSystemFuncs
             return ['status' => 'error', 'message' => 'artifact_name fehlt.'];
         }
 
-        $sessionId = config('ai.current_session_id') ?: (auth()->check() ? 'user_' . auth()->id() : session()->getId());
-        $userId = auth()->id();
+        $userId = \App\Services\AI\AiAuthHelper::getUserId();
+        $sessionId = config('ai.current_session_id') ?: ($userId ? 'user_' . $userId : session()->getId());
 
         if (!$userId && !$sessionId) {
             return ['status' => 'error', 'message' => 'Keine aktive Session für Artefakt-Speicherung gefunden.'];
@@ -3991,8 +3989,8 @@ trait AiSystemFuncs
         $filename = $safeStem . '.md';
         $workspacePath = 'agenten/workspace/Berufsleben/Projekte/' . $filename;
 
-        $sessionId = config('ai.current_session_id') ?: (auth()->check() ? 'user_' . auth()->id() : session()->getId());
-        $userId = auth()->id();
+        $userId = \App\Services\AI\AiAuthHelper::getUserId();
+        $sessionId = config('ai.current_session_id') ?: ($userId ? 'user_' . $userId : session()->getId());
 
         $artifact = \App\Models\Ai\AiArtifact::where('name', $filename)
             ->where(function ($q) use ($userId, $sessionId) {

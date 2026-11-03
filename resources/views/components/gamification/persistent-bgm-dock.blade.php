@@ -1,7 +1,7 @@
 @php
     $bgmCustomer = auth()->guard('customer')->user();
     $bgmInitialVolume = 35;
-    $bgmInitialMuted = false;
+    $bgmInitialMuted = true;
     $bgmInitialKeepPlaying = false;
 
     if ($bgmCustomer) {
@@ -10,7 +10,7 @@
             if ($bgmProfile) {
                 $bgmAudioSettings = app(\App\Services\Gamification\GamificationService::class)->getAudioSettings($bgmProfile);
                 $bgmInitialVolume = (int) ($bgmAudioSettings['volume'] ?? 35);
-                $bgmInitialMuted = (bool) ($bgmAudioSettings['muted'] ?? false);
+                $bgmInitialMuted = (bool) ($bgmAudioSettings['muted'] ?? true);
                 $bgmInitialKeepPlaying = (bool) ($bgmAudioSettings['keep_playing'] ?? false);
             }
         } catch (\Throwable $e) {
@@ -268,6 +268,9 @@
     <script>
         if (!window.SfFunkiBgm) {
             window.SfFunkiBgm = {
+                tabId: 'sf_tab_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9),
+                bc: (typeof BroadcastChannel !== 'undefined') ? new BroadcastChannel('sf_funki_bgm_sync') : null,
+                heartbeatInterval: null,
                 volume: {{ (int) $bgmInitialVolume }},
                 muted: {{ $bgmInitialMuted ? 'true' : 'false' }},
                 keepPlaying: {{ $bgmInitialKeepPlaying ? 'true' : 'false' }},
@@ -280,7 +283,152 @@
                 initialized: false,
 
                 getAudioEl() {
-                    return document.getElementById('bgm_funki_game');
+                    if (!window.__sfPersistentAudio) {
+                        const a = new Audio('{{ asset('shop/gamification/audio/bgm_funki_game.mp3') }}');
+                        a.loop = true;
+                        a.preload = 'auto';
+                        window.__sfPersistentAudio = a;
+                    }
+                    return window.__sfPersistentAudio;
+                },
+
+                isAnotherTabPlaying() {
+                    try {
+                        const raw = localStorage.getItem('sf_funki_bgm_leader');
+                        if (!raw) return false;
+                        const data = JSON.parse(raw);
+                        if (!data || !data.tabId || data.tabId === this.tabId) return false;
+                        return (Date.now() - (Number(data.ts) || 0)) < 3500;
+                    } catch (e) {
+                        return false;
+                    }
+                },
+
+                claimPlaybackLeader() {
+                    try {
+                        const audio = this.getAudioEl();
+                        const payload = {
+                            tabId: this.tabId,
+                            ts: Date.now(),
+                            time: audio ? audio.currentTime : 0
+                        };
+                        localStorage.setItem('sf_funki_bgm_leader', JSON.stringify(payload));
+                        if (this.bc) {
+                            this.bc.postMessage({ type: 'claim', tabId: this.tabId, time: payload.time });
+                        }
+                    } catch (e) {}
+                },
+
+                releasePlaybackLeader() {
+                    try {
+                        const raw = localStorage.getItem('sf_funki_bgm_leader');
+                        if (raw) {
+                            const data = JSON.parse(raw);
+                            if (data && data.tabId === this.tabId) {
+                                localStorage.removeItem('sf_funki_bgm_leader');
+                            }
+                        }
+                        if (this.bc) {
+                            const audio = this.getAudioEl();
+                            this.bc.postMessage({
+                                type: 'release',
+                                tabId: this.tabId,
+                                time: audio ? audio.currentTime : 0
+                            });
+                        }
+                    } catch (e) {}
+                },
+
+                pauseLocallyForOtherTab() {
+                    this.cancelFade();
+                    const audio = this.getAudioEl();
+                    if (audio && !audio.paused) {
+                        this.saveCurrentPlaybackPosition(audio);
+                        audio.pause();
+                    }
+                    this.isPlaying = false;
+                    this.broadcastState();
+                },
+
+                initCrossTabSync() {
+                    if (this._crossTabBound) return;
+                    this._crossTabBound = true;
+
+                    const handleMessage = (msg) => {
+                        if (!msg || msg.tabId === this.tabId) return;
+                        if (msg.type === 'claim') {
+                            this.pauseLocallyForOtherTab();
+                        } else if (msg.type === 'settings') {
+                            this.volume = typeof msg.volume === 'number' ? msg.volume : this.volume;
+                            this.muted = !!msg.muted;
+                            this.keepPlaying = !!msg.keepPlaying;
+                            const audio = this.getAudioEl();
+                            if (audio && !audio.paused) {
+                                if (this.muted || this.volume <= 0 || (!this.keepPlaying && !this.modalOpen)) {
+                                    this.fadeOut(350);
+                                } else {
+                                    audio.volume = this.targetGain();
+                                }
+                            }
+                            this.broadcastState();
+                        } else if (msg.type === 'release') {
+                            if (typeof msg.time === 'number' && msg.time > 0) {
+                                try {
+                                    localStorage.setItem('sf_funki_bgm_global_time', String(msg.time));
+                                    localStorage.setItem('sf_funki_bgm_global_saved_at', String(Date.now()));
+                                } catch (e) {}
+                            }
+                            if ((this.keepPlaying || this.modalOpen) && !this.muted && this.volume > 0 && document.visibilityState === 'visible') {
+                                this.resumePersistentPlayback(true);
+                            }
+                        }
+                    };
+
+                    if (this.bc) {
+                        this.bc.addEventListener('message', (ev) => handleMessage(ev.data));
+                    }
+
+                    window.addEventListener('storage', (ev) => {
+                        if (ev.key === 'sf_funki_bgm_leader' && ev.newValue) {
+                            try {
+                                const data = JSON.parse(ev.newValue);
+                                if (data && data.tabId && data.tabId !== this.tabId) {
+                                    this.pauseLocallyForOtherTab();
+                                }
+                            } catch (e) {}
+                        } else if (ev.key === 'sf_funki_audio_muted' || ev.key === 'sf_funki_audio_volume' || ev.key === 'sf_funki_audio_keep_playing') {
+                            try {
+                                const lsVol = localStorage.getItem('sf_funki_audio_volume');
+                                const lsMuted = localStorage.getItem('sf_funki_audio_muted');
+                                const lsKeep = localStorage.getItem('sf_funki_audio_keep_playing');
+                                if (lsVol !== null) this.volume = Math.max(0, Math.min(100, parseInt(lsVol, 10)));
+                                if (lsMuted !== null) this.muted = lsMuted === '1' || lsMuted === 'true';
+                                if (lsKeep !== null) this.keepPlaying = lsKeep === '1' || lsKeep === 'true';
+                                const audio = this.getAudioEl();
+                                if (audio && !audio.paused) {
+                                    if (this.muted || this.volume <= 0 || (!this.keepPlaying && !this.modalOpen)) {
+                                        this.fadeOut(350);
+                                    } else {
+                                        audio.volume = this.targetGain();
+                                    }
+                                }
+                                this.broadcastState();
+                            } catch (e) {}
+                        }
+                    });
+
+                    this.heartbeatInterval = setInterval(() => {
+                        const audio = this.getAudioEl();
+                        if (audio && !audio.paused && !this.muted && this.volume > 0) {
+                            try {
+                                localStorage.setItem('sf_funki_bgm_leader', JSON.stringify({
+                                    tabId: this.tabId,
+                                    ts: Date.now(),
+                                    time: audio.currentTime
+                                }));
+                            } catch (e) {}
+                        }
+                    }, 1200);
                 },
 
                 targetGain() {
@@ -291,37 +439,43 @@
                 },
 
                 initFromServer(serverVol, serverMuted, serverKeepPlaying) {
+                    this.initCrossTabSync();
                     if (!this.initialized) {
                         this.initialized = true;
                         this.volume = typeof serverVol === 'number' ? Math.max(0, Math.min(100, serverVol)) : 35;
-                        this.muted = !!serverMuted;
-                        this.keepPlaying = !!serverKeepPlaying;
+                        this.muted = true;
+                        this.keepPlaying = false;
 
                         try {
+                            const sessionEnabled = sessionStorage.getItem('sf_funki_bgm_session_enabled') === '1';
                             const lsVol = localStorage.getItem('sf_funki_audio_volume');
                             const lsMuted = localStorage.getItem('sf_funki_audio_muted');
                             const lsKeep = localStorage.getItem('sf_funki_audio_keep_playing');
                             if (lsVol !== null && !Number.isNaN(parseInt(lsVol, 10))) {
                                 this.volume = Math.max(0, Math.min(100, parseInt(lsVol, 10)));
                             }
-                            if (lsMuted !== null) {
-                                this.muted = lsMuted === '1' || lsMuted === 'true';
-                            }
-                            if (lsKeep !== null) {
-                                this.keepPlaying = lsKeep === '1' || lsKeep === 'true';
+                            if (sessionEnabled) {
+                                this.muted = lsMuted !== null ? (lsMuted === '1' || lsMuted === 'true') : !!serverMuted;
+                                this.keepPlaying = lsKeep !== null ? (lsKeep === '1' || lsKeep === 'true') : !!serverKeepPlaying;
+                            } else {
+                                // Beim Kunden-Login oder Start einer neuen Session bleibt die Musik immer standardmäßig stumm
+                                this.muted = true;
+                                this.keepPlaying = false;
+                                localStorage.setItem('sf_funki_audio_muted', '1');
+                                localStorage.setItem('sf_funki_bgm_muted', '1');
                             }
                         } catch (e) {}
 
                         this.bindAudioEvents();
 
-                        // Falls "Musik laufen lassen" aktiv ist, beim Seitenwechsel ohne Lautstärke-Einbruch konstant fortsetzen
-                        if (this.keepPlaying && !this.muted && this.volume > 0) {
+                        // Falls "Musik laufen lassen" in dieser Session aktiv eingeschaltet wurde, beim Seitenwechsel nahtlos fortsetzen
+                        if (this.keepPlaying && !this.muted && this.volume > 0 && !this.isAnotherTabPlaying()) {
                             this.resumePersistentPlayback();
                         }
                     } else {
                         this.bindAudioEvents();
                         const audio = this.getAudioEl();
-                        if (this.keepPlaying && !this.muted && this.volume > 0 && audio && audio.paused) {
+                        if (this.keepPlaying && !this.muted && this.volume > 0 && audio && audio.paused && !this.isAnotherTabPlaying()) {
                             this.resumePersistentPlayback();
                         }
                     }
@@ -333,47 +487,63 @@
                     try {
                         sessionStorage.setItem('sf_funki_bgm_time', String(audio.currentTime));
                         sessionStorage.setItem('sf_funki_bgm_saved_at', String(Date.now()));
+                        localStorage.setItem('sf_funki_bgm_global_time', String(audio.currentTime));
+                        localStorage.setItem('sf_funki_bgm_global_saved_at', String(Date.now()));
                     } catch (e) {}
                 },
 
                 bindAudioEvents() {
                     const audio = this.getAudioEl();
-                    if (!audio || audio.dataset.sfBound === '1') return;
-                    audio.dataset.sfBound = '1';
+                    if (audio && !audio._sfBound) {
+                        audio._sfBound = true;
 
-                    audio.addEventListener('timeupdate', () => {
-                        if (!audio.paused) {
-                            this.saveCurrentPlaybackPosition(audio);
-                        }
-                    });
+                        audio.addEventListener('timeupdate', () => {
+                            if (!audio.paused) {
+                                this.saveCurrentPlaybackPosition(audio);
+                            }
+                        });
 
-                    audio.addEventListener('play', () => {
-                        this.isPlaying = true;
-                        this.broadcastState();
-                    });
+                        audio.addEventListener('play', () => {
+                            this.isPlaying = true;
+                            this.claimPlaybackLeader();
+                            this.broadcastState();
+                        });
 
-                    audio.addEventListener('pause', () => {
-                        this.isPlaying = false;
-                        this.broadcastState();
-                    });
+                        audio.addEventListener('pause', () => {
+                            this.isPlaying = false;
+                            this.broadcastState();
+                        });
+                    }
+
+                    if (window.__sfBgmDocEventsBound) return;
+                    window.__sfBgmDocEventsBound = true;
 
                     const persistOnLeave = () => {
                         const el = this.getAudioEl();
                         if (el && !el.paused) {
                             this.saveCurrentPlaybackPosition(el);
                         }
+                        this.releasePlaybackLeader();
                     };
 
                     window.addEventListener('pagehide', persistOnLeave);
                     window.addEventListener('beforeunload', persistOnLeave);
                     document.addEventListener('livewire:navigating', () => {
-                        // Bei Seitenwechsel ist das Modal auf der neuen Seite geschlossen, Musik bleibt aber bei keepPlaying konstant an
-                        this.modalOpen = false;
-                        persistOnLeave();
+                        // Bei Seitenwechsel von der Funki-Seite: falls keepPlaying nicht aktiv ist, sanft ausblenden
+                        if (this.modalOpen && !this.keepPlaying) {
+                            this.onModalClose();
+                        } else {
+                            this.modalOpen = false;
+                        }
+                        const el = this.getAudioEl();
+                        if (el && !el.paused) {
+                            this.saveCurrentPlaybackPosition(el);
+                        }
                     });
                     document.addEventListener('livewire:navigated', () => {
                         const el = this.getAudioEl();
-                        if (this.keepPlaying && !this.muted && this.volume > 0 && el) {
+                        if (this.keepPlaying && !this.muted && this.volume > 0 && el && !this.isAnotherTabPlaying()) {
+                            this.cancelFade();
                             el.volume = this.targetGain();
                             if (el.paused) {
                                 this.resumePersistentPlayback();
@@ -381,14 +551,38 @@
                         }
                         this.broadcastState();
                     });
+
+                    // Verhindert harte Seiten-Reloads bei internen Links, solange die Funki-Musik aktiv läuft
+                    document.addEventListener('click', (ev) => {
+                        if (ev.defaultPrevented || ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+                        if (this.muted || this.volume <= 0 || (!this.keepPlaying && !this.modalOpen)) return;
+                        const link = ev.target && ev.target.closest ? ev.target.closest('a[href]') : null;
+                        if (!link) return;
+                        if (link.hasAttribute('wire:navigate') || link.hasAttribute('wire:navigate.hover') || link.hasAttribute('download') || link.getAttribute('target') === '_blank' || link.hasAttribute('data-no-navigate')) return;
+                        const rawHref = link.getAttribute('href') || '';
+                        if (!rawHref || rawHref.startsWith('#') || rawHref.startsWith('javascript:') || rawHref.startsWith('mailto:') || rawHref.startsWith('tel:')) return;
+                        try {
+                            const url = new URL(link.href, window.location.origin);
+                            if (url.origin !== window.location.origin) return;
+                            if (url.pathname.startsWith('/admin') || url.pathname.includes('/download') || url.pathname.includes('/invoice') || url.pathname.includes('/logout')) return;
+                            const isCustomerPath = (p) => p.startsWith('/customer') || p === '/orders' || p === '/invoices' || p === '/support' || p === '/funki';
+                            // Nur innerhalb desselben Layouts per Livewire.navigate wechseln, damit die Audio-Instanz ohne Unterbrechung weiterläuft
+                            if (isCustomerPath(window.location.pathname) === isCustomerPath(url.pathname)) {
+                                if (window.Livewire && typeof window.Livewire.navigate === 'function') {
+                                    ev.preventDefault();
+                                    window.Livewire.navigate(url.href);
+                                }
+                            }
+                        } catch (e) {}
+                    });
                 },
 
                 restoreSavedTime(audio, compensateTransit = false) {
                     if (!audio) return;
                     try {
-                        let savedTime = parseFloat(sessionStorage.getItem('sf_funki_bgm_time') || '0');
+                        let savedTime = parseFloat(sessionStorage.getItem('sf_funki_bgm_time') || localStorage.getItem('sf_funki_bgm_global_time') || '0');
                         if (compensateTransit && savedTime > 0) {
-                            const savedAt = parseInt(sessionStorage.getItem('sf_funki_bgm_saved_at') || '0', 10);
+                            const savedAt = parseInt(sessionStorage.getItem('sf_funki_bgm_saved_at') || localStorage.getItem('sf_funki_bgm_global_saved_at') || '0', 10);
                             if (savedAt > 0) {
                                 const deltaSec = Math.max(0, Math.min(2.5, (Date.now() - savedAt) / 1000));
                                 savedTime += deltaSec;
@@ -416,7 +610,10 @@
                 /**
                  * Konstantes Weiterlaufen bei Seitenwechseln (KEIN Fade-Down/Fade-Up auf 0, sondern konstante Ziel-Lautstärke!)
                  */
-                resumePersistentPlayback() {
+                resumePersistentPlayback(forceClaim = false) {
+                    if (!forceClaim && this.isAnotherTabPlaying()) {
+                        return;
+                    }
                     this.cancelFade();
                     const audio = this.getAudioEl();
                     if (!audio) return;
@@ -433,11 +630,13 @@
 
                     if (audio.paused) {
                         this.restoreSavedTime(audio, true);
+                        this.claimPlaybackLeader();
                         const playPromise = audio.play();
                         if (playPromise && typeof playPromise.catch === 'function') {
                             playPromise.catch(() => {
                                 const unlockHandler = () => {
-                                    if ((this.modalOpen || this.keepPlaying) && !this.muted && this.volume > 0) {
+                                    if ((this.modalOpen || this.keepPlaying) && !this.muted && this.volume > 0 && !this.isAnotherTabPlaying()) {
+                                        this.claimPlaybackLeader();
                                         audio.volume = this.targetGain();
                                         audio.play().catch(() => {});
                                     }
@@ -488,6 +687,7 @@
 
                     if (wasPaused) {
                         this.restoreSavedTime(audio, false);
+                        this.claimPlaybackLeader();
                         audio.volume = 0.001;
                         const playPromise = audio.play();
                         if (playPromise && typeof playPromise.catch === 'function') {
@@ -583,8 +783,18 @@
                 onModalOpen() {
                     this.modalOpen = true;
                     this.broadcastState();
-                    if (!this.muted && this.volume > 0) {
-                        this.fadeIn(this.fadeDurationMs, false);
+                    if (!this.muted && this.volume > 0 && !this.isAnotherTabPlaying()) {
+                        const audio = this.getAudioEl();
+                        if (audio && !audio.paused) {
+                            this.cancelFade();
+                            audio.volume = this.targetGain();
+                            return;
+                        }
+                        if (this.keepPlaying) {
+                            this.resumePersistentPlayback();
+                        } else {
+                            this.fadeIn(this.fadeDurationMs, true);
+                        }
                     }
                 },
 
@@ -604,7 +814,18 @@
                         this.muted = true;
                     } else if (this.muted) {
                         this.muted = false;
+                        if (!this._userExplicitlyDisabledKeepPlaying) {
+                            this.keepPlaying = true;
+                        }
                     }
+
+                    try {
+                        if (!this.muted && this.volume > 0) {
+                            sessionStorage.setItem('sf_funki_bgm_session_enabled', '1');
+                        } else {
+                            sessionStorage.removeItem('sf_funki_bgm_session_enabled');
+                        }
+                    } catch (e) {}
 
                     this.cancelFade();
                     const audio = this.getAudioEl();
@@ -631,6 +852,17 @@
                     if (!this.muted && this.volume === 0) {
                         this.volume = 35;
                     }
+                    if (!this.muted && !this._userExplicitlyDisabledKeepPlaying) {
+                        this.keepPlaying = true;
+                    }
+
+                    try {
+                        if (!this.muted) {
+                            sessionStorage.setItem('sf_funki_bgm_session_enabled', '1');
+                        } else {
+                            sessionStorage.removeItem('sf_funki_bgm_session_enabled');
+                        }
+                    } catch (e) {}
 
                     if (this.muted) {
                         this.fadeOut(450);
@@ -647,9 +879,11 @@
 
                 setKeepPlaying(newKeepPlaying, persist = true) {
                     this.keepPlaying = !!newKeepPlaying;
+                    this._userExplicitlyDisabledKeepPlaying = !this.keepPlaying;
 
                     if (this.keepPlaying) {
                         if (!this.muted && this.volume > 0) {
+                            try { sessionStorage.setItem('sf_funki_bgm_session_enabled', '1'); } catch (e) {}
                             this.fadeIn(this.fadeDurationMs);
                         }
                     } else if (!this.modalOpen) {
@@ -668,6 +902,15 @@
                         localStorage.setItem('sf_funki_audio_volume', String(this.volume));
                         localStorage.setItem('sf_funki_audio_muted', this.muted ? '1' : '0');
                         localStorage.setItem('sf_funki_audio_keep_playing', this.keepPlaying ? '1' : '0');
+                        if (this.bc) {
+                            this.bc.postMessage({
+                                type: 'settings',
+                                tabId: this.tabId,
+                                volume: this.volume,
+                                muted: this.muted,
+                                keepPlaying: this.keepPlaying
+                            });
+                        }
                     } catch (e) {}
                 },
 
@@ -709,4 +952,12 @@
         }
     </script>
     @endpersist
+@else
+    <script>
+        try {
+            sessionStorage.removeItem('sf_funki_bgm_session_enabled');
+            localStorage.setItem('sf_funki_audio_muted', '1');
+            localStorage.setItem('sf_funki_bgm_muted', '1');
+        } catch (e) {}
+    </script>
 @endif

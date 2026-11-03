@@ -41,7 +41,8 @@ class DigitalOrderProcessTest extends TestCase
             'description' => 'A physical product.',
             'price' => 1299,
             'status' => 'active',
-            'type' => 'physical'
+            'type' => 'physical',
+            'quantity' => 10,
         ]);
 
         // Setup Dummy Admin
@@ -148,5 +149,47 @@ class DigitalOrderProcessTest extends TestCase
         $order->refresh();
         $this->assertEquals('paid', $order->payment_status);
         $this->assertEquals('pending', $order->status); // Mixed order should stay pending (awaiting fulfillment of physical items)
+    }
+
+    public function test_gift_voucher_does_not_require_digital_waiver_checkbox()
+    {
+        Queue::fake();
+        Session::start();
+
+        $giftVoucher = Product::create([
+            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'name' => 'Geschenkgutschein',
+            'slug' => 'geschenkgutschein',
+            'description' => 'Wertgutschein.',
+            'price' => 5000,
+            'status' => 'active',
+            'type' => 'digital',
+            'track_quantity' => false,
+        ]);
+
+        $cart = Cart::create(['session_id' => Session::getId()]);
+        $cart->items()->create([
+            'product_id' => $giftVoucher->id,
+            'quantity' => 1,
+            'unit_price' => 5000,
+            'total_price' => 5000,
+            'configuration' => ['is_gift_voucher' => true, 'amount_cents' => 5000, 'delivery_type' => 'email'],
+        ]);
+
+        Livewire::test(Checkout::class)
+            ->set('email', 'gutschein@kunde.de')
+            ->set('first_name', 'Max')
+            ->set('last_name', 'Mustermann')
+            ->set('address', 'Teststraße 123')
+            ->set('city', 'Musterstadt')
+            ->set('postal_code', '12345')
+            ->set('country', 'DE')
+            ->set('terms_accepted', true)
+            ->set('privacy_accepted', true)
+            ->set('digital_waiver_accepted', false)
+            ->call('validateAndCreateOrder')
+            ->assertHasNoErrors();
+
+        $this->assertNotNull(OrderOrder::latest()->first());
     }
 }

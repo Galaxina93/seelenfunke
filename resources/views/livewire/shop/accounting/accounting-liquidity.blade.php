@@ -414,12 +414,12 @@
                             <td class="px-2 md:px-4 py-2 md:py-2.5 text-right font-mono text-gray-400 dark:text-gray-600 text-xs md:text-sm">0,00&nbsp;€</td>
                         </tr>
                         <tr class="hover:bg-gray-800/30">
-                            <td class="px-3 md:px-6 py-2 md:py-2.5 border-r border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-500 text-xs md:text-sm whitespace-normal leading-tight">Umbaumaßnahmen</td>
-                            <td class="px-2 md:px-4 py-2 md:py-2.5 text-right font-mono text-gray-400 dark:text-gray-600 text-xs md:text-sm">0,00&nbsp;€</td>
+                            <td class="px-3 md:px-6 py-2 md:py-2.5 border-r border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-300 font-bold text-xs md:text-sm whitespace-normal leading-tight">Umbaumaßnahmen</td>
+                            <td class="px-2 md:px-4 py-2 md:py-2.5 text-right font-mono text-gray-900 dark:text-white font-bold text-xs md:text-sm">{{ number_format($kapitalbedarf['investitionen']['umbau'] ?? 0, 2, ',', '.') }}&nbsp;€</td>
                         </tr>
                         <tr class="hover:bg-gray-800/30">
-                            <td class="px-3 md:px-6 py-2 md:py-2.5 border-r border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-500 text-xs md:text-sm whitespace-normal leading-tight">Geschäfts- und Ladeneinrichtung</td>
-                            <td class="px-2 md:px-4 py-2 md:py-2.5 text-right font-mono text-gray-400 dark:text-gray-600 text-xs md:text-sm">0,00&nbsp;€</td>
+                            <td class="px-3 md:px-6 py-2 md:py-2.5 border-r border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-300 font-bold text-xs md:text-sm whitespace-normal leading-tight">Geschäfts- und Ladeneinrichtung</td>
+                            <td class="px-2 md:px-4 py-2 md:py-2.5 text-right font-mono text-gray-900 dark:text-white font-bold text-xs md:text-sm">{{ number_format($kapitalbedarf['investitionen']['einrichtung'] ?? 0, 2, ',', '.') }}&nbsp;€</td>
                         </tr>
                         <tr class="hover:bg-gray-800/30">
                             <td class="px-3 md:px-6 py-2 md:py-2.5 border-r border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-300 font-bold text-xs md:text-sm whitespace-normal leading-tight">Maschinen + Werkzeuge</td>
@@ -439,7 +439,7 @@
                         </tr>
                         <tr class="hover:bg-gray-800/30">
                             <td class="px-3 md:px-6 py-2 md:py-2.5 border-r border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-500 text-xs md:text-sm">Sonstiges</td>
-                            <td class="px-2 md:px-4 py-2 md:py-2.5 text-right font-mono text-gray-400 dark:text-gray-600 text-xs md:text-sm">0,00&nbsp;€</td>
+                            <td class="px-2 md:px-4 py-2 md:py-2.5 text-right font-mono text-gray-400 dark:text-gray-600 text-xs md:text-sm">{{ number_format($kapitalbedarf['investitionen']['sonstiges'] ?? 0, 2, ',', '.') }}&nbsp;€</td>
                         </tr>
                         <tr class="bg-gray-100 dark:bg-gray-800/50">
                             <td class="px-3 md:px-6 py-2.5 md:py-3 border-r border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white font-black text-[10px] md:text-xs">Summe Investitionen</td>
@@ -468,8 +468,8 @@
                             <td class="px-2 md:px-4 py-2 md:py-2.5 text-right font-mono text-gray-400 dark:text-gray-600 text-xs md:text-sm">0,00&nbsp;€</td>
                         </tr>
                         <tr class="hover:bg-gray-800/30">
-                            <td class="px-3 md:px-6 py-2 md:py-2.5 border-r border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-500 text-xs md:text-sm">Sonstiges</td>
-                            <td class="px-2 md:px-4 py-2 md:py-2.5 text-right font-mono text-gray-400 dark:text-gray-600 text-xs md:text-sm">0,00&nbsp;€</td>
+                            <td class="px-3 md:px-6 py-2 md:py-2.5 border-r border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-300 font-bold text-xs md:text-sm">Sonstiges</td>
+                            <td class="px-2 md:px-4 py-2 md:py-2.5 text-right font-mono text-gray-900 dark:text-white font-bold text-xs md:text-sm">{{ number_format($kapitalbedarf['gruendung']['sonstiges'] ?? 0, 2, ',', '.') }}&nbsp;€</td>
                         </tr>
                         <tr class="bg-gray-100 dark:bg-gray-800/50">
                             <td class="px-3 md:px-6 py-2.5 md:py-3 border-r border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white font-black text-[10px] md:text-xs">Summe Aufwendungen</td>

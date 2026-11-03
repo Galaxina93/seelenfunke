@@ -25,7 +25,7 @@
                     Unvergessliche <span class="text-primary">Momente</span>
                 </h3>
                 <p class="mt-4 text-gray-300 text-lg">
-                    Ein Geschenk sagt mehr als tausend Worte. Unsere Glas-Unikate sind perfekt für die emotionalen Höhepunkte des Lebens – veredelt durch präzise Lasergravur.
+                    Ein Geschenk sagt mehr als tausend Worte. Unsere Glas-Unikate sind perfekt für die emotionalen Höhepunkte des Lebens, veredelt durch präzise Lasergravur.
                 </p>
                 <ul class="mt-6 space-y-3 text-white text-lg list-none">
                     <li class="flex items-center gap-3">
@@ -144,7 +144,7 @@
                     Handveredelt in <span class="text-primary">Deutschland</span>
                 </h3>
                 <p class="mt-4 text-gray-300 text-lg">
-                    Wir sind kein anonymer Großhändler. Jedes Stück wird in unserer Manufaktur in Gifhorn geprüft, gereinigt und mit modernster Laser-Technologie für dich personalisiert.
+                    Wir sind kein anonymer Großhändler. Jedes Stück wird in unserer Manufaktur in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }} geprüft, gereinigt und mit modernster Laser-Technologie für dich personalisiert.
                 </p>
                 <ul class="mt-6 space-y-3 text-white text-lg list-none">
                     <li class="flex items-center gap-3">
@@ -189,14 +189,17 @@
 
                 <ul class="mt-8 space-y-4 text-gray-800 text-lg list-none inline-block text-left md:text-right w-full">
                     {{-- E-Mail --}}
+                    @php
+                        $workSupportEmail = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
+                    @endphp
                     <li class="group">
-                        <a href="mailto:kontakt@mein-seelenfunke.de"
+                        <a href="mailto:{{ $workSupportEmail }}"
                            title="E-Mail an den Kundenservice senden"
                            class="flex items-center gap-4 flex-row md:flex-row-reverse hover:text-[#8a6820] transition-colors">
                             <div class="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-[#8a6820] group-hover:bg-primary group-hover:text-gray-900 transition-colors">
                                 <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" /></svg>
                             </div>
-                            <span class="font-semibold">kontakt@mein-seelenfunke.de</span>
+                            <span class="font-semibold">{{ $workSupportEmail }}</span>
                         </a>
                     </li>
 

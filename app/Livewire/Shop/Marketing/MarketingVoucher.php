@@ -17,20 +17,20 @@ class MarketingVoucher extends Component
 
     public string $themingDepartment = 'Marketing';
 
-    use WithPagination, WithDepartmentTheming;
+    use WithPagination;
 
-    public $voucherSectionMode = 'auto'; // 'auto' oder 'manual'
+    public $voucherSectionMode = 'auto'; // 'auto', 'manual' oder 'gift'
 
     public function boot(): void
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
     }
 
     public function mount()
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
     }
@@ -92,7 +92,11 @@ class MarketingVoucher extends Component
 
     public function toggleVoucherSectionMode()
     {
-        $this->voucherSectionMode = ($this->voucherSectionMode === 'auto') ? 'manual' : 'auto';
+        $this->voucherSectionMode = match ($this->voucherSectionMode) {
+            'manual' => 'auto',
+            'auto' => 'gift',
+            default => 'manual',
+        };
         $this->cancelManualCoupon();
         $this->resetPage();
     }
@@ -255,7 +259,11 @@ class MarketingVoucher extends Component
 
             // 2. Filter nach Versandart
             if ($this->filterDelivery !== 'all') {
-                $giftVouchersQuery->where('delivery_method', $this->filterDelivery);
+                if (in_array($this->filterDelivery, ['email', 'digital'], true)) {
+                    $giftVouchersQuery->whereIn('delivery_method', ['email', 'digital']);
+                } else {
+                    $giftVouchersQuery->where('delivery_method', $this->filterDelivery);
+                }
             }
 
             // 3. Filter nach Guthaben

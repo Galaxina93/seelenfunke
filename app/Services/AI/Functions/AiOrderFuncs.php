@@ -549,13 +549,16 @@ trait AiOrderFuncs
                 return ['status' => 'success', 'message' => 'Keine physischen Produkte gefunden, oder der Lagerbestand wird nicht getrackt.'];
             }
 
+            $lowThreshold = (int) shop_setting('inventory_low_stock_threshold', 5);
             $inventory = [];
             foreach ($products as $p) {
                 $inventory[] = [
                     'name' => $p->name,
                     'sku' => $p->sku,
                     'quantity' => $p->quantity,
-                    'status' => $p->quantity <= 0 ? 'Ausverkauft' : 'Verfügbar'
+                    'status' => $p->quantity <= 0
+                        ? 'Ausverkauft'
+                        : ($p->quantity < $lowThreshold ? 'Niedriger Bestand' : 'Verfügbar')
                 ];
             }
 

@@ -44,7 +44,23 @@ trait HandlesOrderCreation
      */
     public function validateAndCreateOrder()
     {
+        if (shop_setting('maintenance_mode', false) && !Auth::guard('admin')->check()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'cart' => 'Der Shop befindet sich aktuell im Wartungsmodus. Bestellungen sind vorübergehend pausiert.'
+            ]);
+        }
+
+        if (!$this->has_separate_shipping) {
+            $this->shipping_country = $this->country;
+        }
+
         $this->validate();
+
+        if (method_exists($this, 'syncPaymentIntentAmount')) {
+            $this->syncPaymentIntentAmount();
+        } elseif (method_exists($this, 'createPaymentIntent')) {
+            $this->createPaymentIntent();
+        }
 
         try {
             $orderId = $this->createOrderInDb();
@@ -111,10 +127,14 @@ trait HandlesOrderCreation
                         'cart' => 'Ein Artikel in deinem Warenkorb ist derzeit nicht mehr verfügbar.'
                     ]);
                 }
-                if ($product->type === 'physical' && $product->track_quantity && !$product->continue_selling_when_out_of_stock && $product->quantity > 0 && $product->quantity < $item->quantity) {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
-                        'cart' => "Der Artikel '{$product->name}' ist leider nicht mehr in der gewünschten Menge auf Lager."
-                    ]);
+                if ($product->type === 'physical' && $product->track_quantity && !$product->continue_selling_when_out_of_stock) {
+                    $variantId = is_array($item->configuration) ? ($item->configuration['variant_id'] ?? null) : null;
+                    $availableStock = $cartService->resolveAvailableStock($product, $variantId);
+                    if ($availableStock < $item->quantity) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'cart' => "Der Artikel '{$product->name}' ist leider nicht mehr in der gewünschten Menge auf Lager."
+                        ]);
+                    }
                 }
             }
         }
@@ -155,9 +175,21 @@ trait HandlesOrderCreation
             // [SICHERHEIT] Persönliche Belohnungsgutscheine (z.B. Gamification Meilensteine) strikt an das verifizierte Kundenkonto UND die Checkout-E-Mail binden
             if ($coupon instanceof MarketingVoucher && !empty($coupon->recipient_email)) {
                 $recipientTarget = strtolower(trim($coupon->recipient_email));
+                $isFunkiCoupon = str_starts_with(strtoupper((string) $coupon->code), 'FUNKI-');
+                $ownsFunkiCoupon = $isFunkiCoupon && $authCustomer && (
+                    (!empty($coupon->customer_id) && (string) $coupon->customer_id === (string) $authCustomer->id)
+                    || in_array($coupon->code, (array) (\App\Models\Customer\CustomerGamification::where('customer_id', $authCustomer->id)->where('is_active', true)->value('unlocked_coupons') ?? []), true)
+                );
+                if ($isFunkiCoupon && !empty($coupon->funki_game_id)) {
+                    if (!$authCustomer || (string) ($authCustomer->profile?->funki_active_game ?? '') !== (string) $coupon->funki_game_id) {
+                        $ownsFunkiCoupon = false;
+                    }
+                }
+
                 if (
                     !$authCustomer
-                    || !$authCustomer->hasVerifiedEmail()
+                    || (!$authCustomer->hasVerifiedEmail() && !$ownsFunkiCoupon)
+                    || ($isFunkiCoupon && !$ownsFunkiCoupon)
                     || strtolower(trim((string) $authCustomer->email)) !== $recipientTarget
                     || strtolower(trim((string) $this->email)) !== $recipientTarget
                 ) {
@@ -192,6 +224,12 @@ trait HandlesOrderCreation
                 $finalIntentId = $parts[0] ?? null;
             }
 
+            if (($totals['total'] ?? 0) <= 0) {
+                $finalIntentId = null;
+                $this->currentPaymentIntentId = null;
+                $this->clientSecret = null;
+            }
+
             $customer = null;
 
             if (Auth::guard('customer')->check()) {
@@ -208,13 +246,14 @@ trait HandlesOrderCreation
 
             if (!$customer) {
                 $tempPassword = Str::random(10);
+                $wantsAccount = (bool) ($this->create_account || $this->hasDigitalOrIngameItems($cart));
                 $customer = Customer::create([
                     'email' => $this->email,
                     'first_name' => $this->first_name,
                     'last_name' => $this->last_name,
                     'password' => bcrypt($tempPassword),
-                    'needs_password_change' => true,
-                    'temporary_password' => $tempPassword,
+                    'needs_password_change' => $wantsAccount,
+                    'temporary_password' => $wantsAccount ? $tempPassword : null,
                 ]);
 
                 // Split street and house number
@@ -266,6 +305,8 @@ trait HandlesOrderCreation
                 'country'    => $this->country,
             ];
 
+            $isSmallBusiness = app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness();
+
             // DATEN FÜR DIE BESTELLUNG ZUSAMMENSTELLEN
             $orderData = [
                 'customer_id' => $customerId,
@@ -291,7 +332,7 @@ trait HandlesOrderCreation
                 'discount_amount' => $totals['discount_amount'] ?? 0,
                 'subtotal_price' => $totals['subtotal_gross'],
                 'tax_amount' => $totals['tax'],
-                'is_small_business' => app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness(),
+                'is_small_business' => $isSmallBusiness,
                 'shipping_price' => $totals['shipping'],
                 'express_price' => $totals['express'] ?? 0,
                 'total_price' => $totals['total'],
@@ -365,6 +406,9 @@ trait HandlesOrderCreation
 
             foreach($cart->items as $item) {
                 $itemConfig = is_array($item->configuration) ? $item->configuration : [];
+                if ($item->product) {
+                    $itemConfig = app(\App\Services\CartService::class)->sanitizeConfiguration($item->product, $itemConfig) ?? [];
+                }
                 if (empty($itemConfig['purchased_image_path']) && $item->product) {
                     $resolvedPurchasedImg = $item->product->resolveConfigurationImagePath($itemConfig);
                     if ($resolvedPurchasedImg) {
@@ -387,7 +431,7 @@ trait HandlesOrderCreation
                     'product_name' => !empty($finalConfiguration['ingame_item_name']) ? $finalConfiguration['ingame_item_name'] : $item->product->name,
                     'quantity' => $item->quantity,
                     'unit_price' => $item->unit_price,
-                    'tax_rate' => $productTax !== null ? $productTax : shop_setting('default_tax_rate', 19.0),
+                    'tax_rate' => $isSmallBusiness ? 0.0 : ($productTax !== null ? (float) $productTax : (float) shop_setting('default_tax_rate', 19.0)),
                     'total_price' => $item->unit_price * $item->quantity,
                     'configuration' => $finalConfiguration,
                     'config_fingerprint' => $configFingerprint

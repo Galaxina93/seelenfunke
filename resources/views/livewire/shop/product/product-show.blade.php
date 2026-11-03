@@ -7,7 +7,7 @@
         @endif
     @endpush
     @push('head')
-        <meta property="product:price:amount" content="{{ number_format($this->product->price / 100, 2, '.', '') }}">
+        <meta property="product:price:amount" content="{{ number_format($this->product->gross_price / 100, 2, '.', '') }}">
         <meta property="product:price:currency" content="EUR">
         <meta property="product:availability" content="{{ $this->product->isAvailable() ? 'in stock' : 'out of stock' }}">
     @endpush

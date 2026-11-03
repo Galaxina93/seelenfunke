@@ -51,8 +51,33 @@
                         $shopName = shop_setting('company_name', shop_setting('owner_name', 'Mein-Seelenfunke'));
                         $shippingCost = (int) shop_setting('shipping_cost', 490);
                         $freeThreshold = (int) shop_setting('shipping_free_threshold', 5000);
-                        $expressPercent = (int) shop_setting('express_surcharge_percent', 20);
+                        $voucherShippingCost = (int) shop_setting('shipping_cost_voucher', 350);
+                        $expressPercent = (float) shop_setting('express_surcharge_percent', 20);
+                        $expressPercentFormatted = rtrim(rtrim(number_format($expressPercent, 2, ',', '.'), '0'), ',');
                         $expressMin = (int) shop_setting('express_surcharge_min', 500);
+                        $activeCountries = shop_setting('active_countries', []);
+                        $euCountryNames = collect(is_array($activeCountries) ? $activeCountries : [])
+                            ->except('DE')
+                            ->values()
+                            ->sort()
+                            ->implode(', ');
+                        if ($euCountryNames === '') {
+                            $euCountryNames = 'Belgien, Bulgarien, Dänemark, Estland, Finnland, Frankreich, Griechenland, Irland, Italien, Kroatien, Lettland, Litauen, Luxemburg, Malta, Monaco, Niederlande, Österreich, Polen, Portugal, Rumänien, Schweden, Slowakei, Slowenien, Spanien, Tschechien, Ungarn, Zypern';
+                        }
+
+                        $euZone = null;
+                        $activeDeliveryTime = null;
+                        try {
+                            if (\Illuminate\Support\Facades\Schema::hasTable('shipping_zones')) {
+                                $euZone = \App\Models\Logistics\LogisticsShippingZone::where('is_active', true)
+                                    ->where('name', '!=', 'Deutschland')
+                                    ->with(['rates' => fn($q) => $q->orderBy('min_weight')])
+                                    ->first();
+                            }
+                            if (\Illuminate\Support\Facades\Schema::hasTable('delivery_times')) {
+                                $activeDeliveryTime = \App\Models\Delivery\DeliveryTime::where('is_active', true)->first();
+                            }
+                        } catch (\Throwable $e) {}
                     @endphp
 
                     <p>
@@ -64,13 +89,14 @@
                     <div>
                         <h3 class="font-bold text-lg text-gray-900 mb-2">1. Versandgebiet und Versandkosten</h3>
                         <p>
-                            Wir liefern innerhalb <strong>Deutschlands</strong> sowie in alle Länder der <strong>Europäischen Union (Zone 1)</strong>.
+                            Wir liefern innerhalb <strong>Deutschlands</strong> sowie in alle freigeschalteten Länder der <strong>Europäischen Union (Zone 1)</strong>.
                             Ein Versand in Nicht-EU-Staaten (z.B. Schweiz, UK) oder weltweit wird aktuell nicht angeboten.
                         </p>
                         <p class="mt-4">
                             <strong>Versand innerhalb Deutschlands:</strong><br>
                             Erfolgt <strong>kostenfrei ab einem Bestellwert von {{ number_format($freeThreshold / 100, 2, ',', '.') }} €</strong>.
-                            Bei einem Bestellwert unter {{ number_format($freeThreshold / 100, 2, ',', '.') }} € berechnen wir eine Versandpauschale von <strong>{{ number_format($shippingCost / 100, 2, ',', '.') }} €</strong>.
+                            Bei einem Bestellwert unter {{ number_format($freeThreshold / 100, 2, ',', '.') }} € berechnen wir eine Versandpauschale von <strong>{{ number_format($shippingCost / 100, 2, ',', '.') }} €</strong>
+                            (für reine Post-Geschenkgutscheine: <strong>{{ number_format($voucherShippingCost / 100, 2, ',', '.') }} €</strong>).
                         </p>
 
                         <div class="overflow-x-auto mt-6">
@@ -90,37 +116,54 @@
                                     <td class="px-4 py-3">Pauschal (bis 31,5 kg)</td>
                                     <td class="px-4 py-3 text-right">{{ number_format($shippingCost / 100, 2, ',', '.') }} € <span class="text-xs text-green-600 font-bold ml-1">(Ab {{ number_format($freeThreshold / 100, 0, ',', '.') }}€ Kostenlos)</span></td>
                                 </tr>
-                                <tr>
-                                    <td class="px-4 py-3" rowspan="5">
-                                        <strong>EU - Zone 1</strong><br>
-                                        <span class="text-[10px] text-gray-500 leading-tight block mt-1">
-                                            Belgien, Bulgarien, Dänemark, Estland, Finnland, Frankreich, Griechenland, Irland, Italien, Kroatien, Lettland, Litauen, Luxemburg, Malta, Monaco, Niederlande, Österreich, Polen, Portugal, Rumänien, Schweden, Slowakei, Slowenien, Spanien, Tschechien, Ungarn, Zypern.
-                                        </span>
-                                    </td>
-                                    <td class="px-4 py-3">Paket bis 2 kg</td>
-                                    <td class="px-4 py-3 text-right">14,49 €</td>
-                                </tr>
-                                <tr>
-                                    <td class="px-4 py-3">Paket bis 5 kg</td>
-                                    <td class="px-4 py-3 text-right">17,49 €</td>
-                                </tr>
-                                <tr>
-                                    <td class="px-4 py-3">Paket bis 10 kg</td>
-                                    <td class="px-4 py-3 text-right">22,49 €</td>
-                                </tr>
-                                <tr>
-                                    <td class="px-4 py-3">Paket bis 20 kg</td>
-                                    <td class="px-4 py-3 text-right">28,49 €</td>
-                                </tr>
-                                <tr>
-                                    <td class="px-4 py-3">Paket bis 31,5 kg</td>
-                                    <td class="px-4 py-3 text-right">45,49 €</td>
-                                </tr>
+                                @if($euZone && $euZone->rates->isNotEmpty())
+                                    @foreach($euZone->rates as $rateIndex => $rate)
+                                        <tr>
+                                            @if($rateIndex === 0)
+                                                <td class="px-4 py-3" rowspan="{{ $euZone->rates->count() }}">
+                                                    <strong>{{ $euZone->name }}</strong><br>
+                                                    <span class="text-[10px] text-gray-500 leading-tight block mt-1">
+                                                        {{ $euCountryNames }}.
+                                                    </span>
+                                                </td>
+                                            @endif
+                                            <td class="px-4 py-3">{{ $rate->name }}</td>
+                                            <td class="px-4 py-3 text-right">{{ number_format($rate->price / 100, 2, ',', '.') }} €</td>
+                                        </tr>
+                                    @endforeach
+                                @else
+                                    <tr>
+                                        <td class="px-4 py-3" rowspan="5">
+                                            <strong>EU - Zone 1</strong><br>
+                                            <span class="text-[10px] text-gray-500 leading-tight block mt-1">
+                                                {{ $euCountryNames }}.
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-3">Paket bis 2 kg</td>
+                                        <td class="px-4 py-3 text-right">14,49 €</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-4 py-3">Paket bis 5 kg</td>
+                                        <td class="px-4 py-3 text-right">17,49 €</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-4 py-3">Paket bis 10 kg</td>
+                                        <td class="px-4 py-3 text-right">22,49 €</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-4 py-3">Paket bis 20 kg</td>
+                                        <td class="px-4 py-3 text-right">28,49 €</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-4 py-3">Paket bis 31,5 kg</td>
+                                        <td class="px-4 py-3 text-right">45,49 €</td>
+                                    </tr>
+                                @endif
                                 </tbody>
                             </table>
                         </div>
                         <p class="mt-4 text-xs text-gray-500 italic">
-                            Hinweis: Für den Versand in Länder der EU fallen keine Zollgebühren an. Inselzuschläge sind in diesen Pauschalen nicht enthalten und können ggf. nachgefordert werden.
+                            Hinweis: Für den Versand in Länder der EU fallen keine Zollgebühren an. Es fallen innerhalb Deutschlands keine nachträglichen Inselzuschläge an. Bei Lieferungen in das Nicht-EU-Ausland (z.&nbsp;B. Schweiz) können zusätzliche Zölle, Steuern (Einfuhrumsatzsteuer) und Gebühren anfallen.
                         </p>
                     </div>
 
@@ -129,7 +172,7 @@
                         <div>
                             <h3 class="font-bold text-lg text-gray-900 mb-2">2. Express-Option</h3>
                             <p>
-                                Für besonders eilige Bestellungen bieten wir eine Express-Verarbeitung an. Für einen Aufpreis von <strong>{{ $expressPercent }}% des Warenwerts (mindestens {{ number_format($expressMin / 100, 2, ',', '.') }} €)</strong> wird Ihr Auftrag bevorzugt gefertigt und versendet.
+                                Für besonders eilige Bestellungen bieten wir eine Express-Verarbeitung an. Für einen Aufpreis von <strong>{{ $expressPercentFormatted }}% des Warenwerts (mindestens {{ number_format($expressMin / 100, 2, ',', '.') }} €)</strong> wird Ihr Auftrag bevorzugt gefertigt und versendet.
                             </p>
                         </div>
                     @endif
@@ -137,7 +180,7 @@
                     <div>
                         <h3 class="font-bold text-lg text-gray-900 mb-2">3. Berechnung der Lieferzeit</h3>
                         <p>
-                            Die Gesamtlieferzeit ergibt sich aus zwei aufeinanderfolgenden Schritten:
+                            Die Gesamtlieferzeit ergibt sich aus zwei aufeinanderfolgenden Schritten (aktueller Leitwert inkl. Versand innerhalb Deutschlands: <strong>{{ $activeDeliveryTime ? $activeDeliveryTime->min_days . '–' . $activeDeliveryTime->max_days . ' Werktage' : '3–5 Werktage' }}</strong>):
                         </p>
 
                         <ul class="mt-4 grid gap-4 md:grid-cols-2">
@@ -155,7 +198,7 @@
                                 <p class="text-sm text-gray-600">
                                     Der Versand erfolgt über den Versanddienstleister <strong>DHL</strong>.
                                     Die reguläre Paketlaufzeit beträgt ca. <strong>1–3 Werktage</strong>
-                                    innerhalb Deutschlands. Die Laufzeit in andere EU-Länder beträgt in der Regel <strong>3-7 Werktage</strong>.
+                                    innerhalb Deutschlands. Die Laufzeit in andere EU-Länder beträgt in der Regel <strong>3–7 Werktage</strong>. An Sonn- und gesetzlichen Feiertagen erfolgt keine Zustellung. Haben Sie Artikel mit unterschiedlichen Lieferzeiten bestellt, versenden wir die Ware in einer gemeinsamen Sendung (sofern nicht abweichend vereinbart); die Lieferzeit bestimmt sich dann nach dem Artikel mit der längsten Lieferzeit.
                                 </p>
                             </li>
                         </ul>

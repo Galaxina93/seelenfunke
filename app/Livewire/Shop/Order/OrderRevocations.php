@@ -100,6 +100,10 @@ class OrderRevocations extends Component
         }
 
         $revocation = OrderRevocation::findOrFail($id);
+        if ($revocation->status === 'processed') {
+            $this->dispatch('toast', message: 'Ein bereits abgewickelter Widerruf kann nicht wieder auf offen gesetzt werden.', type: 'error');
+            return;
+        }
         $revocation->update(['status' => 'pending']);
         $this->dispatch('toast', message: 'Vorgang wieder geöffnet.', type: 'info');
     }

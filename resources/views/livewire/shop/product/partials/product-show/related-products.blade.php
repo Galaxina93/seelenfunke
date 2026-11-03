@@ -46,6 +46,30 @@
             .sf-rel-card.sf-is-active .sf-rel-img {
                 transform: scale(1.045) translateZ(0);
             }
+            .sf-rel-main-layer {
+                transition: opacity 0.55s cubic-bezier(0.22, 0.61, 0.36, 1);
+            }
+            .sf-rel-hover-layer {
+                opacity: 0;
+                transition: opacity 0.55s cubic-bezier(0.22, 0.61, 0.36, 1);
+                will-change: opacity;
+            }
+            .sf-rel-card.sf-is-active.sf-has-hover-media .sf-rel-hover-layer {
+                opacity: 1;
+            }
+            .sf-rel-card.sf-is-active.sf-has-hover-media .sf-rel-main-layer {
+                opacity: 0;
+            }
+            .sf-rel-card.sf-is-active.sf-has-hover-media .sf-ai-badge-main {
+                opacity: 0;
+            }
+            .sf-rel-card .sf-ai-badge-hover {
+                opacity: 0;
+                transition: opacity 0.4s ease;
+            }
+            .sf-rel-card.sf-is-active.sf-has-hover-media .sf-ai-badge-hover {
+                opacity: 1;
+            }
             .sf-rel-sheen {
                 position: absolute;
                 inset: -100%;
@@ -132,6 +156,11 @@
                 if (!cardEl.classList.contains('sf-is-active')) {
                     cardEl._sfEnterTime = performance.now();
                     cardEl.classList.add('sf-is-active');
+                    const hoverVid = cardEl.querySelector('video[data-sf-hover-video]');
+                    if (hoverVid && typeof hoverVid.play === 'function') {
+                        hoverVid.currentTime = 0;
+                        hoverVid.play().catch(() => {});
+                    }
                 }
             };
             window.sfCardHoverLeave = function(cardEl) {
@@ -142,6 +171,10 @@
                 const waitMs = Math.max(0, minForward - elapsed);
                 cardEl._sfLeaveTimer = setTimeout(() => {
                     cardEl.classList.remove('sf-is-active');
+                    const hoverVid = cardEl.querySelector('video[data-sf-hover-video]');
+                    if (hoverVid && typeof hoverVid.pause === 'function') {
+                        hoverVid.pause();
+                    }
                     cardEl._sfCleanupTimer = setTimeout(() => {
                         cardEl._sfBusy = false;
                     }, 1350);
@@ -156,9 +189,17 @@
                     $lowStock = ($relProduct->track_quantity && $relProduct->quantity > 0 && $relProduct->quantity <= 5);
 
                     $relUrl = route('product.show', $relProduct->slug);
-                    $resolvedMeta = $relProduct->resolveMainImageMeta();
-                    $resolvedImageUrl = $resolvedMeta['url'] ?? null;
+                    $resolvedMeta = $relProduct->resolveMainMediaMeta();
+                    $resolvedMediaUrl = $resolvedMeta['url'] ?? null;
+                    $resolvedMediaType = $resolvedMeta['type'] ?? 'image';
+                    $resolvedPosterUrl = $resolvedMeta['poster_url'] ?? null;
                     $isAiCardImage = (bool) ($resolvedMeta['is_ai_generated'] ?? false);
+
+                    $resolvedHoverMeta = $relProduct->resolveHoverMediaMeta($resolvedMeta['path'] ?? null);
+                    $resolvedHoverMediaUrl = $resolvedHoverMeta['url'] ?? null;
+                    $resolvedHoverMediaType = $resolvedHoverMeta['type'] ?? 'image';
+                    $isAiHoverImage = (bool) ($resolvedHoverMeta['is_ai_generated'] ?? false);
+                    $hasHoverMedia = !empty($resolvedHoverMediaUrl) && !$isSoldOut;
 
                     $ratingAvg = round((float) ($relProduct->approved_reviews_avg ?? $relProduct->average_rating ?? 0), 1);
                     $ratingCount = (int) ($relProduct->approved_reviews_count ?? $relProduct->review_count ?? 0);
@@ -166,7 +207,7 @@
 
                 <div onmouseenter="window.sfCardHoverEnter && window.sfCardHoverEnter(this)"
                      onmouseleave="window.sfCardHoverLeave && window.sfCardHoverLeave(this)"
-                     class="sf-rel-card group relative flex flex-col h-full bg-white rounded-[2rem] p-3 border border-gray-100 shadow-sm {{ $isSoldOut ? 'opacity-80' : '' }}">
+                     class="sf-rel-card {{ $hasHoverMedia ? 'sf-has-hover-media' : '' }} group relative flex flex-col h-full bg-white rounded-[2rem] p-3 border border-gray-100 shadow-sm {{ $isSoldOut ? 'opacity-80' : '' }}">
 
                     {{-- Bild Container --}}
                     <div class="aspect-square bg-gray-50 rounded-3xl overflow-hidden mb-5 relative border border-gray-100">
@@ -190,22 +231,52 @@
                         @endif
 
                         <a href="{{ $relUrl }}" class="block w-full h-full">
-                            <div class="w-full h-full {{ $isSoldOut ? 'grayscale opacity-50' : '' }}">
-                                @if($resolvedImageUrl)
-                                    <img src="{{ $resolvedImageUrl }}"
-                                         alt="{{ $relProduct->name }}"
-                                         @if($isAiCardImage) data-is-ai-generated="true" @endif
-                                         class="w-full h-full object-cover {{ !$isSoldOut ? 'sf-rel-img' : '' }}">
+                            <div class="w-full h-full relative {{ $isSoldOut ? 'grayscale opacity-50' : '' }}">
+                                @if($resolvedMediaUrl)
+                                    @if($resolvedMediaType === 'video')
+                                        <video src="{{ $resolvedMediaUrl }}"
+                                               @if($resolvedPosterUrl) poster="{{ $resolvedPosterUrl }}" @endif
+                                               class="sf-rel-main-layer w-full h-full object-cover {{ !$isSoldOut ? 'sf-rel-img' : '' }}"
+                                               muted autoplay loop playsinline preload="metadata"></video>
+                                    @else
+                                        <img src="{{ $resolvedMediaUrl }}"
+                                             alt="{{ $relProduct->name }}"
+                                             @if($isAiCardImage) data-is-ai-generated="true" @endif
+                                             class="sf-rel-main-layer w-full h-full object-cover {{ !$isSoldOut ? 'sf-rel-img' : '' }}">
+                                    @endif
                                 @else
                                     <div class="flex items-center justify-center h-full text-gray-300">
                                         <svg class="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                                     </div>
                                 @endif
+
+                                @if($hasHoverMedia)
+                                    @if($resolvedHoverMediaType === 'video')
+                                        <video src="{{ $resolvedHoverMediaUrl }}"
+                                               data-sf-hover-video="true"
+                                               class="sf-rel-hover-layer absolute inset-0 w-full h-full object-cover sf-rel-img pointer-events-none"
+                                               muted loop playsinline preload="metadata"></video>
+                                    @else
+                                        <img src="{{ $resolvedHoverMediaUrl }}"
+                                             alt="{{ $relProduct->name }} – Ansicht 2"
+                                             loading="lazy"
+                                             decoding="async"
+                                             @if($isAiHoverImage) data-is-ai-generated="true" @endif
+                                             class="sf-rel-hover-layer absolute inset-0 w-full h-full object-cover sf-rel-img pointer-events-none">
+                                    @endif
+                                @endif
                             </div>
 
-                            @if($resolvedImageUrl && $isAiCardImage)
+                            @if($resolvedMediaUrl && $isAiCardImage)
                                 <span style="font-size: 7px; line-height: 1; padding: 2px 5px; background: rgba(0,0,0,0.36); color: rgba(255,255,255,0.68);"
-                                      class="pointer-events-none select-none absolute bottom-2 right-2 z-20 backdrop-blur-sm font-normal tracking-normal rounded border border-white/10">
+                                      class="sf-ai-badge-main transition-opacity duration-300 pointer-events-none select-none absolute bottom-2 right-2 z-20 backdrop-blur-sm font-normal tracking-normal rounded border border-white/10">
+                                    KI-generiert
+                                </span>
+                            @endif
+
+                            @if($hasHoverMedia && $isAiHoverImage)
+                                <span style="font-size: 7px; line-height: 1; padding: 2px 5px; background: rgba(0,0,0,0.36); color: rgba(255,255,255,0.68);"
+                                      class="sf-ai-badge-hover pointer-events-none select-none absolute bottom-2 right-2 z-20 backdrop-blur-sm font-normal tracking-normal rounded border border-white/10">
                                     KI-generiert
                                 </span>
                             @endif
@@ -328,7 +399,7 @@
                                         @if($relProduct->slug === 'geschenkgutschein' || ($relProduct->price == 0 && $relProduct->is_personalizable))
                                             ab 5,00 €
                                         @else
-                                            {{ number_format($relProduct->price / 100, 2, ',', '.') }} €
+                                            {{ number_format($relProduct->gross_price / 100, 2, ',', '.') }} €
                                         @endif
                                     </span>
                                     @if(!$isSoldOut && $relProduct->compare_at_price > $relProduct->price)
@@ -348,7 +419,7 @@
                                     @if(shop_setting('is_small_business', false))
                                         Keine MwSt. gem. § 19 UStG · <a href="{{ route('versand') }}" target="_blank" class="hover:text-gray-600 underline">zzgl. Versand</a>
                                     @else
-                                        inkl. MwSt. <a href="{{ route('versand') }}" target="_blank" class="hover:text-gray-600 underline">zzgl. Versand</a>
+                                        {{ $relProduct->tax_included ? 'inkl. MwSt.' : 'zzgl. MwSt.' }} <a href="{{ route('versand') }}" target="_blank" class="hover:text-gray-600 underline">zzgl. Versand</a>
                                     @endif
                                 </span>
                             </div>

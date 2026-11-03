@@ -37,14 +37,14 @@ class ManagementTask extends Component
 
     public function boot(): void
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
     }
 
     public function mount()
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
 
@@ -360,7 +360,7 @@ class ManagementTask extends Component
                 }))
                 ->when($this->quickFilter === 'with_attachments', fn($q) => $q->whereNotNull('file_paths')->where('file_paths', '!=', '[]'))
                 ->orderBy('is_completed', 'asc')
-                ->orderByRaw("FIELD(priority, 'hoch', 'mittel', 'niedrig')")
+                ->orderByRaw("CASE priority WHEN 'hoch' THEN 1 WHEN 'mittel' THEN 2 WHEN 'niedrig' THEN 3 ELSE 4 END")
                 ->orderBy('position', 'asc')
                 ->orderBy('created_at', 'desc')
                 ->get();

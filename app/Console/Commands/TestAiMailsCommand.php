@@ -19,7 +19,7 @@ class TestAiMailsCommand extends Command
 
     public function handle()
     {
-        $testEmail = $this->argument('email') ?: 'kontakt@mein-seelenfunke.de';
+        $testEmail = $this->argument('email') ?: shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
 
         $this->info("Starte unabhängigen AI Mail & PDF Test an: {$testEmail}");
         $this->line("=========================================================\n");

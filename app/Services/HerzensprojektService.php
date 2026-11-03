@@ -10,6 +10,72 @@ use Illuminate\Support\Facades\Log;
 class HerzensprojektService
 {
     /**
+     * Löst den konfigurierten Spendenbeitrag (Standard: 50 Cents = 0,50 €) in Cents auf.
+     * Unterstützt sowohl ganzzahlige Cent-Werte (z. B. 50) als auch dezimale Euro-Strings (z. B. "0.50" oder "0,50").
+     */
+    public static function resolveCentsPerOrder(): int
+    {
+        $raw = shop_setting('herzensprojekt_cents_per_order', 50);
+        if (is_string($raw) && (str_contains($raw, '.') || str_contains($raw, ','))) {
+            return (int) round(((float) str_replace(',', '.', $raw)) * 100);
+        }
+
+        return (int) $raw;
+    }
+
+    /**
+     * Gibt den formatierten Euro-Betrag zurück (z. B. "0,50").
+     */
+    public static function resolveFormattedEuro(): string
+    {
+        return number_format(self::resolveCentsPerOrder() / 100, 2, ',', '.');
+    }
+
+    /**
+     * Löst den Berechnungsmodus auf: 'per_item' (pro Artikel, Standard) oder 'per_order' (pauschal pro Bestellung).
+     */
+    public static function resolveMode(): string
+    {
+        $mode = (string) shop_setting('herzensprojekt_mode', 'per_item');
+        return in_array($mode, ['per_item', 'per_order'], true) ? $mode : 'per_item';
+    }
+
+    public static function isPerItem(): bool
+    {
+        return self::resolveMode() === 'per_item';
+    }
+
+    /**
+     * Gibt die passende Einheit als Text zurück (z. B. "pro Artikel" oder "pro Bestellung").
+     */
+    public static function resolveUnitLabel(bool $short = true): string
+    {
+        if (self::isPerItem()) {
+            return $short ? 'pro Artikel' : 'pro verkauftem Artikel';
+        }
+
+        return $short ? 'pro Bestellung' : 'pro bezahlter Bestellung';
+    }
+
+    /**
+     * Berechnet den Spendenbeitrag in Cents für eine konkrete Bestellung anhand des aktiven Modus.
+     */
+    public static function calculateOrderDonationCents(OrderOrder $order): int
+    {
+        $baseCents = self::resolveCentsPerOrder();
+        if ($baseCents <= 0) {
+            return 0;
+        }
+
+        if (self::isPerItem()) {
+            $itemCount = max(1, (int) $order->items()->sum('quantity'));
+            return $itemCount * $baseCents;
+        }
+
+        return $baseCents;
+    }
+
+    /**
      * Records a contribution transaction for a paid order (idempotent).
      */
     public static function recordDonationForOrder(OrderOrder $order, ?int $amountCents = null): ?MarketingHerzensprojektTransaction
@@ -26,18 +92,23 @@ class HerzensprojektService
                     return $existing;
                 }
 
-                // Default: 2,00 € (200 Cents) pro Bestellung, anpassbar über shop_setting
-                $amount = $amountCents ?? (int) shop_setting('herzensprojekt_cents_per_order', 200);
+                $itemCount = max(1, (int) $order->items()->sum('quantity'));
+                $amount = $amountCents ?? self::calculateOrderDonationCents($order);
 
                 if ($amount <= 0) {
                     return null;
                 }
 
+                $orderRef = $order->order_number ?? '#' . substr((string)$order->id, 0, 8);
+                $descSuffix = self::isPerItem()
+                    ? ' (' . $itemCount . ' Artikel à ' . self::resolveFormattedEuro() . ' €)'
+                    : '';
+
                 return MarketingHerzensprojektTransaction::create([
                     'order_id' => $order->id,
                     'type' => 'order_contribution',
                     'amount_cents' => $amount,
-                    'description' => 'Herzensbeitrag aus Bestellung ' . ($order->order_number ?? '#' . substr((string)$order->id, 0, 8)),
+                    'description' => 'Herzensbeitrag aus Bestellung ' . $orderRef . $descSuffix,
                 ]);
             });
         } catch (\Exception $e) {
@@ -69,7 +140,9 @@ class HerzensprojektService
             'orders_count' => $ordersCount,
             'actions_count' => $actionsCount,
             'completed_actions_count' => $completedActionsCount,
-            'cents_per_order' => (int) shop_setting('herzensprojekt_cents_per_order', 200),
+            'cents_per_order' => self::resolveCentsPerOrder(),
+            'mode' => self::resolveMode(),
+            'unit_label' => self::resolveUnitLabel(true),
         ];
     }
 

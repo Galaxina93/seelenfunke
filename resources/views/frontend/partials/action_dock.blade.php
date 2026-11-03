@@ -182,8 +182,8 @@
     <button @click="chatOpen = !chatOpen; if(chatOpen) { vouchersOpen = false; setTimeout(() => $dispatch('chat-opened'), 50); }"
             class="sf-floating-corner-btn"
             :class="chatOpen ? 'border-primary text-[#9a6f1a] ring-2 ring-primary/30' : ''"
-            title="Live Support"
-            aria-label="Live Support">
+            title="KI-Support-Chat"
+            aria-label="KI-Support-Chat">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.444 3 12c0 2.104.859 4.023 2.273 5.38-.49 1.636-1.61 2.898-1.674 2.97-.1.116-.08.286.035.385.116.1.286.08.386-.035.056-.065 1.558-1.849 2.503-3.08A9.096 9.096 0 0012 20.25z" />
         </svg>

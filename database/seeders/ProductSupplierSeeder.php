@@ -189,11 +189,23 @@ class ProductSupplierSeeder extends Seeder
                 'vat_id' => 'DE246566105',
                 'lead_time_land_days' => 2,
                 'shipping_method' => 'land',
-                'notes' => 'Deutscher Fachhändler für Edelstahl-Laserrohlinge (304/316L Chirurgenstahl & 14k Ion-Plating). Hauptprodukt: Edelstahl Laserrohling Anhänger, Herz, mit Collierschlaufe (25 x 22 x 4 mm, Öse 3 x 6 mm).',
+                'notes' => 'Deutscher Fachhändler für Edelstahl-Laserrohlinge & passende Edelstahl-Halsketten (304 Chirurgenstahl & Ion-Plating IP). Hauptprodukt: Edelstahl Laserrohling Anhänger, Herz, mit Collierschlaufe (Art.-Nr. STA1274, 25 x 22 x 4 mm, Öse 3 x 6 mm) + passende vergoldete IP-Edelstahlketten (Art.-Nr. STA268, STA1073, STA918).',
                 'dynamic_links' => [
                     [
-                        'title' => 'Herz-Anhänger mit Collierschlaufe (14k vergoldet, 25x22x4 mm)',
+                        'title' => 'Herz-Anhänger mit Collierschlaufe (Art. STA1274, 25x22x4 mm, Öse 3x6 mm)',
                         'url' => 'https://www.gluecksfieber.de/shop/laserrohlinge/edelstahl-laserrohling-anhaenger-herz-mit-collierschlaufe-14-karat-vergoldet-25-x-22-x-4-mm-oese-3-x-6-mm-ion-plating-ip.html'
+                    ],
+                    [
+                        'title' => 'Passende Kette #1: Edelstahl-Ankerkette Gold IP 44+6 cm (Art. STA268, 1,5 mm)',
+                        'url' => 'https://www.gluecksfieber.de/shop/edelstahl/edelstahl-gliederketten/edelstahl-gliederkette-mit-karabinerverschluss-ankerkette-goldfarben-laenge-44-cm-6-cm-verlaengerungskettchen-kettenglieder-1-5-mm-ion-plating-ip.html'
+                    ],
+                    [
+                        'title' => 'Passende Kette #2: Edelstahl-Ankerkette Gold IP 50 cm (Art. STA1073, 1,7 mm)',
+                        'url' => 'https://www.gluecksfieber.de/shop/edelstahl/edelstahl-gliederketten/edelstahl-ankerkette-halskette-mit-karabinerverschluss-18-karat-vergoldet-laenge-ca-50-cm-kettenglieder-3-5-x-1-7-x-0-4-mm-ion-plating-ip.html'
+                    ],
+                    [
+                        'title' => 'Passende Kette #3: Edelstahl-Schlangenkette Gold 45 cm (Art. STA918, 2,2 mm)',
+                        'url' => 'https://www.gluecksfieber.de/shop/edelstahl/edelstahl-gliederketten/edelstahl-schlangenkette-mit-karabinerverschluss-goldfarben-breite-2-2-mm-laenge-45-cm.html'
                     ],
                     [
                         'title' => 'Glücksfieber Laserrohlinge Katalog',
@@ -234,6 +246,66 @@ class ProductSupplierSeeder extends Seeder
                     [
                         'title' => 'Edelstahl-Flachmänner & Becher',
                         'url' => 'https://shop.printequipment.de/laser/laserartikel/edelstahl/'
+                    ],
+                ],
+            ]
+        );
+
+        // 10. HÄNDLER 10: Westpack A/S (Holstebro, DK – Schmuckschachteln & Großbrief-Etuis)
+        ProductSupplier::updateOrCreate(
+            ['name' => 'Westpack A/S'],
+            [
+                'company_name' => 'Westpack A/S',
+                'contact_person' => 'B2B Schmuckverpackungen & Etuis',
+                'street' => 'Sletten',
+                'house_number' => '21',
+                'zip' => '7500',
+                'city' => 'Holstebro',
+                'country' => 'Dänemark',
+                'country_code' => 'DK',
+                'phone' => '+45 97 41 23 45',
+                'email' => 'sales@westpack.com',
+                'website' => 'https://www.westpack.com/eur_eu_ger/',
+                'vat_id' => 'DK15505908',
+                'lead_time_land_days' => 4,
+                'shipping_method' => 'land',
+                'notes' => 'Order #29000069521 vom 02.11.2026: 96 Stk. Frankfurt ECO Schmuckschachtel Anhänger/Armreif (Art.-Nr. 30286060102, 86 x 86 x 17 mm, Schwarz matt inkl. eigenem Mein-Seelenfunke-Logodruck & Klischee 60000002000 zu 0,00 €). EK: 1,06 € netto / Stk. (101,76 € netto + 15,00 € Versand + 29,19 € Steuer = 145,95 € per PayPal). 17 mm flach für 1,80 € Großbrief-Versand!',
+                'dynamic_links' => [
+                    [
+                        'title' => 'Frankfurt ECO Schmuckschachtel 86×86×17 mm (Art. 30286060102)',
+                        'url' => 'https://www.westpack.com/eur_eu_ger/frankfurt-eco-jewellery-box-for-pendant-bangle-30286060102.html'
+                    ],
+                    [
+                        'title' => 'Bestellung Order #29000069521 (96 Stk. mit Logo)',
+                        'url' => 'https://www.westpack.com/eur_eu_ger/sales/order/print/order_id/485928/'
+                    ],
+                ],
+            ]
+        );
+
+        // 11. HÄNDLER 11: Karton.eu / Lausitzer Kartonagenfabrik GmbH (Versandkartons & Luftpolstertaschen)
+        ProductSupplier::updateOrCreate(
+            ['name' => 'Karton.eu (Lausitzer Kartonagen)'],
+            [
+                'company_name' => 'Karton.eu - Lausitzer Kartonagenfabrik GmbH',
+                'contact_person' => 'B2B Versandmaterial',
+                'street' => 'Auestraße',
+                'house_number' => '18',
+                'zip' => '01900',
+                'city' => 'Großröhrsdorf',
+                'country' => 'Deutschland',
+                'country_code' => 'DE',
+                'phone' => '+49 35952 42290',
+                'email' => 'info@karton.eu',
+                'website' => 'https://www.karton.eu/',
+                'vat_id' => 'DE260791848',
+                'lead_time_land_days' => 2,
+                'shipping_method' => 'land',
+                'notes' => 'Deutscher Hersteller für einwellige Versandkartons, Großbrief-Kartons und Luftpolster-Versandtaschen.',
+                'dynamic_links' => [
+                    [
+                        'title' => 'Karton.eu Online-Shop',
+                        'url' => 'https://www.karton.eu/'
                     ],
                 ],
             ]

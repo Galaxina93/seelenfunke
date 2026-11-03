@@ -8,7 +8,7 @@
         <div class="flex-1 min-w-0">
             @if($editingGroupId === $group->id)
                 <div class="flex items-center gap-2 sm:gap-3" @click.stop>
-                    <input type="text" wire:model="tempGroupName" class="text-sm font-bold border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-white rounded-xl px-3 py-2 w-full max-w-[200px] focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] outline-none shadow-sm dark:shadow-inner cursor-pointer" wire:keydown.enter="updateGroup">
+                    <input type="text" wire:model="tempGroupName" class="text-sm font-bold border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-white rounded-xl px-3 py-2 w-full max-w-[200px] focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] outline-none shadow-sm dark:shadow-inner cursor-text" wire:keydown.enter="updateGroup">
                     <button wire:click="updateGroup" class="p-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg hover:bg-emerald-500 hover:text-gray-900 transition-all shadow-inner" title="Speichern">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                     </button>

@@ -35,7 +35,7 @@
                            wire:model.live="privacy_accepted"
                            class="mt-0.5 w-4 h-4 rounded bg-white @error('privacy_accepted') border-red-500 text-red-600 focus:ring-red-500/30 @else border-gray-300 text-primary focus:ring-primary/30 @enderror cursor-pointer accent-[#C5A059]">
                     <label for="privacy" class="text-xs @error('privacy_accepted') text-red-700 font-semibold @else text-gray-600 @enderror cursor-pointer leading-tight select-none">
-                        Ich stimme der <a href="/datenschutz" class="text-amber-800 underline hover:text-amber-900 font-medium">Datenschutzerklärung</a> zu.
+                        Ich willige ein, den E-Mail-Newsletter von Mein Seelenfunke (Informationen zu neuen Unikaten, Manufaktur-Einblicken &amp; Angeboten) zu erhalten. Die Einwilligung kann jederzeit kostenlos widerrufen werden (Art.&nbsp;7 Abs.&nbsp;3 DSGVO). Hinweise zur Verarbeitung in der <a href="{{ route('datenschutz') }}" class="text-amber-800 underline hover:text-amber-900 font-medium">Datenschutzerklärung</a>.
                     </label>
                 </div>
                 @error('privacy_accepted')

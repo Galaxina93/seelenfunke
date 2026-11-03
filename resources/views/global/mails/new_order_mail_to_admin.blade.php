@@ -9,7 +9,7 @@
     {{-- ANSPRACHE --}}
     <h1 style="color: #166534;">Neue Bestellung erhalten! 💸🥂💸
         @if(!empty($data['express']))
-            <span class="badge-express" style="background: #dc2626; color: white; padding: 3px 8px; border-radius: 4px; font-size: 10px;">EXPRESS</span>
+            <span class="badge-express" style="color: #333; padding: 3px 8px; border-radius: 4px; font-size: 11px; border: 1px solid #C5A059; cursor: help;" title="Vorteil: Sofortige Priorisierung in der Manufaktur vor regulären Bestellungen. Zusammensetzung: {{ number_format((float) shop_setting('express_surcharge_percent', 20.0), 0, ',', '.') }} % vom Warenwert (mind. {{ number_format(((int) shop_setting('express_surcharge_min', 500)) / 100, 2, ',', '.') }} € Basis-Pauschale).">Express-Service <span style="color: #C5A059; font-weight: bold;">&#10003;</span></span>
         @endif
     </h1>
 

@@ -1,4 +1,4 @@
-<div class="p-4 lg:p-8 bg-transparent min-h-screen font-sans antialiased text-gray-300" style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" x-data="{ activeTab: localStorage.getItem('shop_config_tab') || 'general' }" x-init="$watch('activeTab', value => localStorage.setItem('shop_config_tab', value))">
+<div class="p-4 lg:p-8 bg-transparent min-h-screen font-sans antialiased text-gray-300" style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" x-data="{ activeTab: localStorage.getItem('shop_config_tab') || 'general' }" x-init="$watch('activeTab', value => localStorage.setItem('shop_config_tab', value))" @config-validation-failed.window="if ($event.detail && $event.detail.tab) activeTab = $event.detail.tab">
     <div class="max-w-6xl mx-auto animate-fade-in-up">
 
         {{-- Header --}}
@@ -12,7 +12,7 @@
                 wire:loading.attr="disabled"
                 x-data="{ saved: @entangle('saved') }"
                 x-effect="if (saved) { setTimeout(() => { saved = false; $wire.resetSaved(); }, 3000) }"
-                :class="saved ? 'bg-emerald-500 text-gray-900 shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'bg-[var(--theme-color)] text-gray-900 hover:bg-[var(--theme-color)]-dark hover:scale-[1.02] shadow-sm dark:shadow-[0_0_15px_var(--theme-color)0.2)]'"
+                :class="saved ? 'bg-emerald-500 text-gray-900 shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'bg-[var(--theme-color)] text-gray-900 hover:brightness-110 hover:scale-[1.02] shadow-sm dark:shadow-[0_0_15px_var(--theme-color-20)]'"
                 class="px-8 py-3.5 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3 min-w-[240px] justify-center border border-transparent">
 
                 <svg wire:loading class="animate-spin h-5 w-5 text-gray-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -39,6 +39,26 @@
                 </template>
             </button>
         </div>
+
+        @if($errors->hasAny(['settings.*']))
+            <div class="mb-8 rounded-2xl border border-red-500/40 bg-red-500/10 p-5 text-red-600 dark:text-red-400 shadow-sm">
+                <div class="flex items-start gap-3">
+                    <svg class="w-5 h-5 shrink-0 mt-0.5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" />
+                    </svg>
+                    <div class="text-xs space-y-1">
+                        <p class="font-black uppercase tracking-widest">Bitte überprüfe deine Eingaben:</p>
+                        <ul class="list-disc list-inside space-y-0.5 font-medium">
+                            @foreach($errors->get('settings.*') as $fieldErrors)
+                                @foreach($fieldErrors as $err)
+                                    <li>{{ $err }}</li>
+                                @endforeach
+                            @endforeach
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        @endif
 
         {{-- Tab Navigation --}}
         <div class="flex border-b border-gray-200 dark:border-gray-800 mb-8 overflow-x-auto no-scrollbar gap-2 sm:gap-6">

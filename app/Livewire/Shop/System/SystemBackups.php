@@ -124,6 +124,10 @@ class SystemBackups extends Component
         }
 
         try {
+            $backupMail = shop_setting('owner_email_backup', shop_setting('owner_email', shop_setting('company_email', 'backup@mein-seelenfunke.de')));
+            if (!empty($backupMail)) {
+                \Illuminate\Support\Facades\Config::set('backup.notifications.mail.to', $backupMail);
+            }
             \Illuminate\Support\Facades\Artisan::call('backup:run', ['--only-db' => true]);
             session()->flash('success', 'Ein Datenbank-Backup wurde erfolgreich erstellt.');
         } catch (\Exception $e) {

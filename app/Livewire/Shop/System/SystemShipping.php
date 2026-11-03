@@ -298,11 +298,11 @@ class SystemShipping extends Component
         ]);
 
         $this->newRate = [
-            'name' => '',
+            'name' => 'Standard',
             'min_weight' => 0,
             'max_weight' => null,
             'min_price' => 0,
-            'price' => 0,
+            'price' => 4.99,
         ];
 
         session()->flash('success', 'Versandtarif hinzugefügt.');

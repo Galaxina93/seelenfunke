@@ -90,7 +90,7 @@ class AuthRegister extends Component
         'email.unique' => 'Diese E-Mail-Adresse wird bereits verwendet.',
         'email.email' => 'Bitte geben Sie eine gültige E-Mail-Adresse ein.',
         'email.indisposable' => 'Temporäre E-Mail-Adressen (Wegwerf-E-Mails) sind nicht erlaubt.',
-        'terms.accepted' => 'Bitte akzeptieren Sie die AGB und Datenschutzbestimmungen.',
+        'terms.accepted' => 'Bitte akzeptiere die Allgemeinen Geschäftsbedingungen (AGB).',
         'required' => 'Dieses Feld ist erforderlich.',
     ];
 

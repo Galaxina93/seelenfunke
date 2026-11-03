@@ -168,6 +168,15 @@ class ConfiguratorService
     }
 
     /**
+     * Liest alle aktiven (nicht archivierten) Sprüche & Widmungen („Kreativ-Starthilfe“)
+     * gruppiert nach Kategorien über den ProductConfiguratorService.
+     */
+    public function getStandardQuotes(): array
+    {
+        return app(ProductConfiguratorService::class)->getActiveQuotesGrouped();
+    }
+
+    /**
      * Zentrale Definition aller Standard-Werte für das 3D/2D Setup.
      */
     public function getDefaultSettings(): array

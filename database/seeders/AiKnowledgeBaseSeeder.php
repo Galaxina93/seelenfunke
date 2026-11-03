@@ -90,7 +90,7 @@ class AiKnowledgeBaseSeeder extends Seeder
 - Support-Öffnungszeiten: 24/7 über Funki, ansonsten Bearbeitung der offenen Tickets durch unser internes Support-Team Werktags zwischen 09:00 und 17:00 Uhr. Es existiert kein Live-Chat mit Menschen.
 
 **Unternehmensfokus & Brand:**
-Mein-Seelenfunke ist eine Manufaktur für hochindividualisierte, personalisierte Produkte. Der Schwerpunkt liegt auf präzisen Lasergravuren auf hochwertigen Naturmaterialien. Wir fertigen zu 100% nachhaltig im Schwarzwald durch zertifizierte kleine Betriebe. Der Verkauf erfolgt primär über den eigenen Online-Shop sowie Etsy. 
+Mein-Seelenfunke ist eine Manufaktur für hochindividualisierte, personalisierte Produkte mit Sitz in 38518 Gifhorn (Niedersachsen, Deutschland). Der Schwerpunkt liegt auf präzisen Lasergravuren auf hochwertigen Materialien wie K9-Kristallglas, Naturschiefer, Metall und Holz. Wir veredeln jedes Stück auftragsbezogen in unserer Manufaktur in Gifhorn. Der Verkauf erfolgt primär über unseren eigenen Online-Shop (www.mein-seelenfunke.de) sowie ergänzend über Etsy. 
 Der Kundenservice wird durch ein fortschrittliches KI-Netzwerk verwaltet, welches eng mit der internen Produktions- und Supportleitung zusammenarbeitet.
                 "
             ],
@@ -115,7 +115,7 @@ Der Kundenservice wird durch ein fortschrittliches KI-Netzwerk verwaltet, welche
                 'tags' => ['Versand'],
                 'content' => "
 # Alles rund um Lieferung
-**Versanddauer & Kosten:** Der Versand erfolgt klimaneutral (Eco-Packaging ohne Plastik) innerhalb von 3-5 Werktagen nach Produktionsbeginn. Die Versandkosten innerhalb Deutschlands betragen 4,90 €. Ab 50 € Bestellwert ist der Versand komplett kostenlos.
+**Versanddauer & Kosten:** Der Versand erfolgt sorgfältig und bruchsicher gepolstert per DHL innerhalb von 3-5 Werktagen nach Bestelleingang. Die Versandkosten innerhalb Deutschlands betragen 4,90 €. Ab 50 € Bestellwert ist der Versand innerhalb Deutschlands kostenlos.
 **Dienstleister & Tracking:** Wir versenden standardmäßig mit DHL. Den Tracking-Link (Sendungsverfolgung) erhält der Kunde automatisch in der Versandbestätigungs-E-Mail, sobald das Paket fertig gepackt ist. Er ist auch im Bereich 'Bestellhistorie' des Accounts einsehbar.
 **Fehlende Bestellbestätigung:** Falls keine Bestätigung im Postfach ist, sollte der Kunde den Spam-Ordner prüfen oder nachsehen, ob ein Tippfehler in der E-Mail vorliegt. Im Zweifel prüft das Support-Team das Konto.
 **Internationaler Versand, Zoll & Steuern:** Wir liefern (mit DHL) auch international in die gesamte EU sowie nach Österreich und Schweiz für eine Pauschale von 29,90 €. Außerhalb der EU (z.B. Schweiz) können landesspezifische Zoll-Gebühren oder Importkosten anfallen, die der Kunde trägt.
@@ -3872,6 +3872,36 @@ dennoch Belege einzureichen, kreuzen Sie bitte das nachfolge`
 - **Zusammenfassung:** Offizieller Bankauszug / Umsatzaufstellung des Girokontos DE85269910668583196000 mit allen Gehalts-, Krankengeld- und ALG-1-Zahlungen bis September 2026.
 - **Auszug:** `Offizieller Bankauszug / Umsatzaufstellung des Girokontos DE85269910668583196000 mit allen Gehalts-, Krankengeld- und ALG-1-Zahlungen bis September 2026.`',
             ],
+        ];
+
+        $resolvedDossiers[] = [
+            'slug' => 'verpackungs-logistik-lucid-hardware-marke-master-dossier-2026',
+            'title' => 'Master-Abschlussbericht (Stand 02.11.2026): Verpackungs- & LUCID-Zentrale, Westpack-Bestellung, xTool F2 Ultra UV & DPMA-Marke',
+            'category' => 'Produkte & B2B',
+            'tags' => ['Produkte', 'Versand', 'B2B', 'Buchhaltung', 'Laser', 'Existenzgründung'],
+            'content' => "# Master-Abschlussbericht: Verpackung, LUCID, Maschinenpark & Markenschutz (Stand: 02.11.2026)\n\n"
+                . "## 1. Verpackungs- & LUCID-Zentrale (/admin/product-packaging)\n"
+                . "- **Tab 1 (Produkterfassung):** Zuweisung gespeicherter Verpackungen aus dem Katalog zu physischen Shop-Produkten (add = addieren / replace = ersetzen) inkl. automatischer Aufsplittung in Haupt- und Nebenmaterialien für die LUCID-Jahresmeldung (ProductPackaging) sowie automatischer Aktualisierung von packaging_cost und packaging_weight am Produkt (Product).\n"
+                . "- **Tab 2 (Verpackungsmaterial):** Zentraler Katalog (ProductPackagingItem, Tabelle product_packaging_items) mit KI-Link-Importer ('KI eintragen lassen'), automatischem Post-Schablonen-Check (height_mm <= 20 = Großbrief 1,80 €, <= 50 = Maxibrief 2,90 €), Gebinderechner und Bestandsverwaltung.\n"
+                . "- **Wichtige Systemregel:** Fokus bei Schmuckschachteln liegt exklusiv auf **Westpack A/S** (keine LESER-Einträge).\n\n"
+                . "## 2. Reale Verpackungsbestellungen & Lagerbestand\n"
+                . "1. **Westpack A/S – Order #29000069521 vom 02.11.2026 (Order-ID: 485928):**\n"
+                . "   - **Artikel:** 96x Frankfurt ECO Schmuckschachtel Anhänger/Armreif (Art.-Nr.: 30286060102), Schwarz matt inkl. schwarzer Schaumstoffeinlage & eigenem Mein-Seelenfunke-Logodruck.\n"
+                . "   - **Maße & Gewicht:** 86 × 86 × 17 mm (100 % Großbrief-tauglich ≤ 20 mm) | 20 g (18 g Pappe/Papier + 2 g Kunststoff-Einlage).\n"
+                . "   - **Preise:** Einzelpreis 1,06 € netto (101,76 € netto für 96 Stk.) + Klischeekosten (Art.-Nr. 60000002000: 0,00 €) + 15,00 € Versand + 29,19 € Steuer (25 % DK) = **145,95 € brutto** (bezahlt per PayPal).\n"
+                . "   - **Beleg:** buchhaltung/receipts/2026/11/2026-11-02_Westpack_96x-Frankfurt-ECO-Schmuckschachtel-Order-29000069521.pdf\n"
+                . "2. **Karton.eu (Lausitzer Kartonagen) – Bestand vom 03.01.2026:**\n"
+                . "   - **400x Luftpolster-Versandtasche A/1** (SKU: PKG-ENV-A1, 175 × 120 × 10 mm, 15 g = 12 g Verbund + 3 g Papier, EK 0,14 € netto / 68,02 € brutto).\n"
+                . "   - **240x Versandkarton Kristall & Schiefer** (SKU: PKG-BOX-CRYSTAL, 240 × 210 × 60 mm, 150 g) & **Versandkarton Weizenglas** (SKU: PKG-BOX-GLASS, 250 × 100 × 100 mm, 120 g, EK 0,60 € netto / 171,36 € brutto).\n\n"
+                . "## 3. Maschinenpark & B2B-Lieferanten (Stand November 2026)\n"
+                . "1. **xTool F2 Ultra UV Komplettpaket (Rechnung DE-99216 vom 01.11.2026, Bestellnr. CN4LVQI0Q):**\n"
+                . "   - xTool F2 Ultra UV 5W UV-Lasergravierer + Conveyor (4.279,00 € nach 460,00 € Rabatt) + xTool RA3 MagSwap Rotationsmodul (389,13 €) + xTool SafetyPro IF2 2.0 Rohrventilator (198,73 €) + Pedal Switch (40,65 €) + Gratis 3x K9-Rechteck-Kristall = **4.907,51 € brutto** (4.123,96 € netto).\n"
+                . "2. **DPMA Wortmarke 'Mein Seelenfunke' (Aktenzeichen 302026261747.6 vom 01.11.2026):**\n"
+                . "   - Eingereicht in **Nizza-Klassen 14 (Leitklasse), 21 und 40** (DRN: 2026110121484155WA). Gebühr **290,00 €** (überwiesen am 01.11.2026 via Volksbank BRAWO).\n"
+                . "3. **Glücksfieber (Lübeck) – Rechnung 324858 vom 30.10.2026:**\n"
+                . "   - 5x Edelstahl Laserrohling Anhänger Herz mit Collierschlaufe, 14 Karat vergoldet (25 × 22 × 4 mm, Ion-Plating) (Art.-Nr. STA1274, 16,99 € brutto inkl. DHL).\n"
+                . "4. **Print Equipment GmbH & Co. KG (Ottersweier):**\n"
+                . "   - Registrierter B2B-Großhändler (shop.printequipment.de) für Naturschieferplatten, Edelstahl-Flachmänner und Thermobecher.",
         ];
 
         foreach (array_merge($dossiers, $resolvedDossiers) as $d) {

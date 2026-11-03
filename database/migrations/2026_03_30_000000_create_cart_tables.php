@@ -47,6 +47,19 @@ return new class extends Migration
                 $table->timestamps();
             });
         }
+
+        if (!Schema::hasTable('wishlist_items')) {
+            Schema::create('wishlist_items', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->string('session_id')->nullable()->index();
+                $table->foreignUuid('customer_id')->nullable()->constrained('customers')->cascadeOnDelete();
+                $table->foreignUuid('product_id')->constrained('products')->cascadeOnDelete();
+                $table->timestamps();
+
+                $table->index(['customer_id', 'product_id']);
+                $table->index(['session_id', 'product_id']);
+            });
+        }
     }
 
     /**
@@ -54,6 +67,7 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::dropIfExists('wishlist_items');
         Schema::dropIfExists('cart_items');
         Schema::dropIfExists('carts');
     }

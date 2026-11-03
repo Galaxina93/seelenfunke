@@ -25,14 +25,14 @@ class ProductTax extends Component
 
     public function boot(): void
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
 
     public function mount(Product $product)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -43,7 +43,7 @@ class ProductTax extends Component
 
     public function updatedTaxClass($value)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -63,7 +63,7 @@ class ProductTax extends Component
 
     protected function updateCurrentRate()
     {
-        if ($this->tax_class === 'zero') {
+        if (shop_setting('is_small_business', false) || $this->tax_class === 'zero') {
             $this->current_tax_rate = 0.00;
             return;
         }

@@ -1,4 +1,4 @@
-<div x-data="{ open: false }" class="w-full min-w-0">
+<div x-data="{ open: true }" class="w-full min-w-0">
     <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 animate-fade-in-up transition-colors hover:border-gray-300 dark:hover:border-gray-700 w-full min-w-0">
 
         {{-- Header (Klickbar zum Aufklappen) & Controls --}}
@@ -9,10 +9,13 @@
                 <div class="p-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-500 group-hover:text-[var(--theme-color)] group-hover:border-[var(--theme-color-30)] transition-all shadow-inner shrink-0">
                     <svg class="w-5 h-5 transition-transform duration-300" :class="open ? 'rotate-180 text-[var(--theme-color)]' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                 </div>
-                <h3 class="text-lg sm:text-xl font-serif font-bold text-gray-900 dark:text-white tracking-wide group-hover:text-[var(--theme-color)] transition-colors truncate">Kategorien</h3>
+                <div class="flex items-center gap-2" @click.stop>
+                    <h3 @click="open = !open" class="text-lg sm:text-xl font-serif font-bold text-gray-900 dark:text-white tracking-wide group-hover:text-[var(--theme-color)] transition-colors truncate">1. Kategorien</h3>
+                    @include('components.alerts.info-tooltip', ['text' => 'Ordne das Produkt einer oder mehreren Shop-Kategorien zu, damit Kunden es über die Navigation und Filter im Shop finden.'])
+                </div>
 
                 @if(!$isManaging)
-                    <span class="text-[9px] font-black uppercase tracking-widest text-[var(--theme-color)] bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] px-2.5 py-1 rounded-lg shadow-inner animate-pulse whitespace-nowrap ml-2 hidden sm:inline-block">
+                    <span class="text-[9px] font-black uppercase tracking-widest text-[var(--theme-color)] bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] px-2.5 py-1 rounded-lg shadow-inner whitespace-nowrap ml-2 hidden sm:inline-block">
                         {{ count($selectedCategories) }} gewählt
                     </span>
                 @endif

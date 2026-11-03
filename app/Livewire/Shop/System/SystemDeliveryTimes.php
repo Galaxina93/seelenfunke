@@ -48,58 +48,67 @@ class SystemDeliveryTimes extends Component
             'sick_description' => 'Einige aus unseren Team sind leider aktuell gesundheitlich etwas angeschlagen und liegen flach. 🤒 Bestellungen werden natürlich weiterhin angenommen, die Fertigung und der Versand verzögern sich jedoch, bis wir wieder fit sind. Wir bitten um dein Verständnis und wünschen dir trotzdem ganz viel Spaß beim Stöbern!'
         ]);
 
-        // Standard 3 Ampel-Lieferzeiten exakt nach Wunsch aufsetzen/updaten
-        $dt1 = DeliveryTime::updateOrCreate(
-            ['name' => 'Standard'],
-            [
-                'min_days' => 3,
-                'max_days' => 5,
-                'color' => 'green',
-                'description' => 'Da jedes Seelenstück ein Unikat ist, setzt sich diese Zeit aus der individuellen Fertigung in der Manufaktur und dem anschließenden Postweg zusammen.',
-            ]
-        );
+        $standardNames = ['Standard', 'Erhöhtes Aufkommen', 'Hohe Auslastung', 'Extreme Auslastung'];
+        $existingNames = DeliveryTime::pluck('name')->toArray();
 
-        DeliveryTime::updateOrCreate(
-            ['name' => 'Erhöhtes Aufkommen'],
-            [
-                'min_days' => 5,
-                'max_days' => 8,
-                'color' => 'yellow',
-                'description' => 'Aufgrund vieler Bestellungen benötigen wir aktuell etwas länger für die liebevolle Handfertigung deines Unikats. Danke für deine Geduld!',
-            ]
-        );
+        if (count($existingNames) !== 4 || count(array_diff($standardNames, $existingNames)) > 0 || count(array_diff($existingNames, $standardNames)) > 0) {
+            DeliveryTime::updateOrCreate(
+                ['name' => 'Standard'],
+                [
+                    'min_days' => 3,
+                    'max_days' => 5,
+                    'color' => 'green',
+                    'description' => 'Da jedes Seelenstück ein Unikat ist, setzt sich diese Zeit aus der individuellen Fertigung in der Manufaktur und dem anschließenden Postweg zusammen.',
+                ]
+            );
 
-        DeliveryTime::updateOrCreate(
-            ['name' => 'Hohe Auslastung'],
-            [
-                'min_days' => 10,
-                'max_days' => 14,
-                'color' => 'red',
-                'description' => 'Wir fertigen auf Hochtouren! Bitte beachte die deutlich verlängerte Bearbeitungszeit durch die aktuell extrem hohe Nachfrage.',
-            ]
-        );
+            DeliveryTime::updateOrCreate(
+                ['name' => 'Erhöhtes Aufkommen'],
+                [
+                    'min_days' => 5,
+                    'max_days' => 8,
+                    'color' => 'yellow',
+                    'description' => 'Aufgrund vieler Bestellungen benötigen wir aktuell etwas länger für die liebevolle Handfertigung deines Unikats. Danke für deine Geduld!',
+                ]
+            );
 
-        DeliveryTime::updateOrCreate(
-            ['name' => 'Extreme Auslastung'],
-            [
-                'min_days' => 16,
-                'max_days' => 21,
-                'color' => 'red',
-                'description' => 'Aufgrund extrem hoher Auslastung kommt es derzeit zu Verzögerungen. Dein Unikat wird mit größter Sorgfalt, aber etwas später gefertigt. Danke für dein Verständnis!',
-            ]
-        );
+            DeliveryTime::updateOrCreate(
+                ['name' => 'Hohe Auslastung'],
+                [
+                    'min_days' => 10,
+                    'max_days' => 14,
+                    'color' => 'red',
+                    'description' => 'Wir fertigen auf Hochtouren! Bitte beachte die deutlich verlängerte Bearbeitungszeit durch die aktuell extrem hohe Nachfrage.',
+                ]
+            );
 
-        // Aufräumen: Alles was nicht diese 4 sind, wird rigoros gelöscht
-        DeliveryTime::whereNotIn('name', ['Standard', 'Erhöhtes Aufkommen', 'Hohe Auslastung', 'Extreme Auslastung'])->delete();
+            DeliveryTime::updateOrCreate(
+                ['name' => 'Extreme Auslastung'],
+                [
+                    'min_days' => 16,
+                    'max_days' => 21,
+                    'color' => 'red',
+                    'description' => 'Aufgrund extrem hoher Auslastung kommt es derzeit zu Verzögerungen. Dein Unikat wird mit größter Sorgfalt, aber etwas später gefertigt. Danke für dein Verständnis!',
+                ]
+            );
 
-        // Aktiven Status ermitteln, Default ist Standard
-        $activeCount = DeliveryTime::where('is_active', true)->count();
-        if ($activeCount === 0) {
-            $dt1->update(['is_active' => true]);
-            $this->activeDeliveryTimeId = $dt1->id;
+            DeliveryTime::whereNotIn('name', $standardNames)->delete();
+        }
+
+        // Aktiven Status ermitteln, Default ist Standard (und Mehrfach-Aktivierungen bereinigen)
+        $activeRows = DeliveryTime::where('is_active', true)->orderBy('id')->get();
+        if ($activeRows->isEmpty()) {
+            $dt1 = DeliveryTime::where('name', 'Standard')->first() ?? DeliveryTime::first();
+            if ($dt1) {
+                $dt1->update(['is_active' => true]);
+                $this->activeDeliveryTimeId = $dt1->id;
+            }
         } else {
-            $active = DeliveryTime::where('is_active', true)->first();
-            $this->activeDeliveryTimeId = $active ? $active->id : null;
+            $firstActive = $activeRows->first();
+            $this->activeDeliveryTimeId = $firstActive->id;
+            if ($activeRows->count() > 1) {
+                DeliveryTime::where('id', '!=', $firstActive->id)->update(['is_active' => false]);
+            }
         }
 
         $this->isVacationMode = $setting->is_vacation_mode;
@@ -166,7 +175,7 @@ class SystemDeliveryTimes extends Component
         $this->saveSettings();
     }
 
-    public function saveSettings()
+    public function saveSettings(): bool
     {
         if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
@@ -179,10 +188,15 @@ class SystemDeliveryTimes extends Component
             'isSickMode' => 'boolean',
             'sickDescription' => 'nullable|string|max:2000',
         ];
-        if (!empty($this->vacationStartDate) && !empty($this->vacationEndDate)) {
+        if ($this->isVacationMode && !empty($this->vacationStartDate) && !empty($this->vacationEndDate)) {
             $rules['vacationEndDate'] = 'nullable|date|after_or_equal:vacationStartDate';
         }
-        $this->validate($rules);
+        $this->validate($rules, [
+            'vacationEndDate.after_or_equal' => 'Das Enddatum des Urlaubs darf nicht vor dem Startdatum liegen.',
+        ], [
+            'vacationStartDate' => 'Urlaubsbeginn',
+            'vacationEndDate' => 'Urlaubsende',
+        ]);
 
         $isVacation = (bool) $this->isVacationMode;
         $isSick = (bool) $this->isSickMode;
@@ -203,7 +217,14 @@ class SystemDeliveryTimes extends Component
             ]);
         }
 
+        \App\Models\System\SystemSetting::updateOrCreate(
+            ['key' => 'is_vacation_mode'],
+            ['value' => $isVacation ? 'true' : 'false']
+        );
+        \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
+
         session()->flash('success', 'Einstellungen erfolgreich gespeichert!');
+        return true;
     }
 
     public function render()

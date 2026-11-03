@@ -42,7 +42,7 @@ class HolidayOfferAutopilotService
      */
     public function getGuardrailsStatus(): array
     {
-        $capacityLevel = (int) Cache::get('shop_capacity_level', 0);
+        $capacityLevel = (int) Cache::get('shop_capacity_level', shop_setting('shop_capacity_level', 0));
         $capacityOk = $capacityLevel <= self::MAX_CAPACITY_LEVEL;
 
         return [
@@ -54,6 +54,11 @@ class HolidayOfferAutopilotService
             'anti_stacking_active' => true,
             'last_minute_protection' => true,
         ];
+    }
+
+    public function evaluateCatalogGuardrails(): array
+    {
+        return $this->getGuardrailsStatus();
     }
 
     /**
@@ -157,9 +162,9 @@ class HolidayOfferAutopilotService
                 'badge_text' => '❄️ Winter-Sale',
                 'discount_percent' => 15,
                 'start_days_before' => 0,
-                'end_days_before' => -12, // 15.01. bis 27.01.
+                'end_days_before' => -12, // 04.01. bis 16.01.
                 'product_slugs' => ['seelen-kristall', 'seelen-anhaenger', 'weizenglas-personalisiert'],
-                'strategy_hint' => 'Inventur-Aktion Mitte Januar (15.01. – 27.01.) zur Auslastung der Werkstatt im ruhigen Januar, bevor die Valentinstags-Phase startet.',
+                'strategy_hint' => 'Inventur-Aktion Anfang Januar (04.01. – 16.01.) zur Auslastung der Werkstatt im ruhigen Januar, bevor die Valentinstags-Phase startet.',
             ],
         ];
     }
@@ -176,7 +181,7 @@ class HolidayOfferAutopilotService
             'christmas'   => Carbon::create($year, 12, 24)->startOfDay(),
             'new_year'    => Carbon::create($year, 1, 1)->startOfDay(),
             'sale_summer' => Carbon::create($year, 7, 1)->startOfDay(),
-            'sale_winter' => Carbon::create($year, 1, 15)->startOfDay(), // 15.01., damit keine Kollision mit Neujahr (01.01.) entsteht
+            'sale_winter' => Carbon::create($year, 1, 4)->startOfDay(),
             'easter'      => $this->getEasterDate($year)->startOfDay(),
             'mothers_day' => Carbon::create($year, 5, 1)->nthOfMonth(2, Carbon::SUNDAY)->startOfDay(),
             'fathers_day' => $this->getEasterDate($year)->addDays(39)->startOfDay(),
@@ -210,10 +215,6 @@ class HolidayOfferAutopilotService
             return (int) $settings['autopilot_base_price'];
         }
 
-        if (!empty($product->compare_at_price) && (int) $product->compare_at_price > (int) $product->price) {
-            return (int) $product->compare_at_price;
-        }
-
         return (int) $product->price;
     }
 
@@ -236,6 +237,7 @@ class HolidayOfferAutopilotService
         $isSmallBusiness = filter_var(shop_setting('is_small_business', false), FILTER_VALIDATE_BOOLEAN);
         $defaultTaxRate = (float) shop_setting('default_tax_rate', 19.0);
         $taxRate = $isSmallBusiness ? 0.0 : (float) ($product->tax_rate ?? $defaultTaxRate);
+        $taxIncluded = (bool) ($product->tax_included ?? filter_var(shop_setting('prices_entered_gross', true), FILTER_VALIDATE_BOOLEAN));
         $marketingPercent = (float) ($product->marketing_cost_percent ?? 15.0);
 
         // 3. Ziel-Aktionspreis berechnen und verkaufspsychologisch auf ,90 € runden
@@ -245,7 +247,7 @@ class HolidayOfferAutopilotService
         // 4. Harte Margen-Schutzmauer prüfen (Mindestens 45 % Netto-Marge nach ALLEN Kosten)
         $marginProtected = false;
         while ($salePriceCents < $basePriceCents) {
-            $metrics = $this->computeMarginMetrics($salePriceCents, $directCostsCents, $taxRate, $marketingPercent);
+            $metrics = $this->computeMarginMetrics($salePriceCents, $directCostsCents, $taxRate, $marketingPercent, $taxIncluded);
             if ($metrics['net_margin_percent'] >= self::MIN_NET_MARGIN_PERCENT) {
                 break;
             }
@@ -257,7 +259,7 @@ class HolidayOfferAutopilotService
             $salePriceCents = $basePriceCents;
         }
 
-        $finalMetrics = $this->computeMarginMetrics($salePriceCents, $directCostsCents, $taxRate, $marketingPercent);
+        $finalMetrics = $this->computeMarginMetrics($salePriceCents, $directCostsCents, $taxRate, $marketingPercent, $taxIncluded);
         $savingsCents = max(0, $basePriceCents - $salePriceCents);
         $effectiveDiscountPercent = $basePriceCents > 0
             ? (int) round(($savingsCents / $basePriceCents) * 100)
@@ -297,9 +299,16 @@ class HolidayOfferAutopilotService
         return $candidate;
     }
 
-    private function computeMarginMetrics(int $grossCents, int $directCostsCents, float $taxRate, float $marketingPercent): array
+    private function computeMarginMetrics(int $priceCents, int $directCostsCents, float $taxRate, float $marketingPercent, bool $taxIncluded = true): array
     {
-        $netCents = (int) round($grossCents / (1 + ($taxRate / 100)));
+        if ($taxIncluded) {
+            $grossCents = $priceCents;
+            $netCents = $taxRate > 0 ? (int) round($grossCents / (1 + ($taxRate / 100))) : $grossCents;
+        } else {
+            $netCents = $priceCents;
+            $grossCents = $taxRate > 0 ? (int) round($netCents * (1 + ($taxRate / 100))) : $netCents;
+        }
+
         $marketingCostCents = (int) round($netCents * ($marketingPercent / 100));
         $paymentFeeCents = Product::computeStripeFeeCents($grossCents); // ~2,5 % + 0,30 € Stripe/PayPal Puffer
 
@@ -396,6 +405,15 @@ class HolidayOfferAutopilotService
      */
     public function resolveActiveOfferWindow(?Carbon $referenceDate = null): ?array
     {
+        if (!$this->isEnabled()) {
+            return null;
+        }
+
+        $guardrails = $this->evaluateCatalogGuardrails();
+        if (!$guardrails['capacity_ok']) {
+            return null;
+        }
+
         $now = $referenceDate ? $referenceDate->copy() : Carbon::now();
 
         foreach ($this->getEventDefinitions() as $key => $def) {
@@ -493,6 +511,10 @@ class HolidayOfferAutopilotService
                 $basePrice = $targetOffer['base_price_cents'];
                 $salePrice = $targetOffer['sale_price_cents'];
 
+                if (!array_key_exists('autopilot_original_compare_at_price', $settings)) {
+                    $settings['autopilot_original_compare_at_price'] = $product->compare_at_price !== null ? (int) $product->compare_at_price : null;
+                }
+
                 $settings['autopilot_base_price'] = $basePrice;
                 $settings['autopilot_event_key'] = $targetOffer['event_key'];
                 $settings['autopilot_campaign_label'] = $targetOffer['campaign_label'];
@@ -508,11 +530,18 @@ class HolidayOfferAutopilotService
             } else {
                 // Kein aktives Autopilot-Angebot für dieses Produkt -> Basispreis wiederherstellen, falls vom Autopiloten gesetzt
                 if (!empty($settings['autopilot_base_price'])) {
-                    $restoredBasePrice = (int) $settings['autopilot_base_price'];
-                    unset($settings['autopilot_base_price'], $settings['autopilot_event_key'], $settings['autopilot_campaign_label'], $settings['autopilot_badge_text']);
+                    $basePriceCents = (int) $settings['autopilot_base_price'];
+                    $originalCompareAt = $settings['autopilot_original_compare_at_price'] ?? null;
+                    unset(
+                        $settings['autopilot_base_price'],
+                        $settings['autopilot_original_compare_at_price'],
+                        $settings['autopilot_event_key'],
+                        $settings['autopilot_campaign_label'],
+                        $settings['autopilot_badge_text']
+                    );
 
-                    $product->price = $restoredBasePrice;
-                    $product->compare_at_price = null;
+                    $product->price = $basePriceCents;
+                    $product->compare_at_price = $originalCompareAt !== null ? (int) $originalCompareAt : null;
                     $product->configurator_settings = $settings;
                     $product->saveQuietly();
                     $restoredCount++;

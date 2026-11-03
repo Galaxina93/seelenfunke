@@ -46,15 +46,24 @@ class ProductTemplates extends Component
 
     public function boot(): void
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
 
-    public function mount()
+    public function mount(?string $initialProductId = null, ?string $initialTemplateId = null, bool $startCreate = false)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
+        }
+
+        if ($initialTemplateId && ProductTemplate::withTrashed()->where('id', $initialTemplateId)->exists()) {
+            $this->edit($initialTemplateId);
+        } elseif ($initialProductId && Product::where('id', $initialProductId)->exists()) {
+            $this->filterProductId = $initialProductId;
+            if ($startCreate) {
+                $this->selectProduct($initialProductId);
+            }
         }
     }
 
@@ -210,7 +219,7 @@ class ProductTemplates extends Component
     #[On('save-template-data')]
     public function handleTemplateSaved($configData, $previewImagePath = null)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -340,7 +349,7 @@ class ProductTemplates extends Component
             ? $query->orderBy('created_at', 'desc')->paginate($perPage)
             : collect();
 
-        $products = Product::where('status', 'active')
+        $products = Product::whereIn('status', ['active', 'draft'])
             ->where('type', 'physical')
             ->where('is_personalizable', true)
             ->orderBy('name')

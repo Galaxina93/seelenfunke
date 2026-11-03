@@ -374,7 +374,9 @@ class AccountingLiquidity extends Component
         }
         $dbData = [];
 
-        $orders = OrderOrder::where('payment_status', 'paid')->get();
+        $orders = OrderOrder::where('payment_status', 'paid')
+            ->whereNotIn('status', ['cancelled', 'refunded', 'failed'])
+            ->get();
         foreach ($orders as $order) {
             $y = $order->created_at->year;
             $m = $order->created_at->month;
@@ -518,7 +520,7 @@ class AccountingLiquidity extends Component
         if (Str::contains($text, ['lohn', 'gehalt', 'personal'])) return ['type' => 'out', 'key' => 'personnel'];
         if (Str::contains($text, ['miete', 'raum'])) return ['type' => 'out', 'key' => 'room'];
         if (Str::contains($text, ['büro', 'telefon', 'internet', 'software', 'lizenz', 'server', 'hosting'])) return ['type' => 'out', 'key' => 'office'];
-        if (Str::contains($text, ['marketing/marketing/marketing', 'werbung', 'ads', 'tiktok', 'instagram'])) return ['type' => 'out', 'key' => 'marketing/marketing/marketing'];
+        if (Str::contains($text, ['marketing', 'marketing/marketing/marketing', 'werbung', 'ads', 'google', 'meta', 'tiktok', 'instagram'])) return ['type' => 'out', 'key' => 'marketing/marketing/marketing'];
         if (Str::contains($text, ['umsatzsteuer', 'ustva', 'zahllast', 'steuer'])) return ['type' => 'out', 'key' => 'tax_payment'];
         if (Str::contains($text, ['kfz', 'auto', 'benzin', 'tanken', 'leasing', 'fahrzeug'])) return ['type' => 'out', 'key' => 'vehicle'];
 
@@ -611,7 +613,11 @@ class AccountingLiquidity extends Component
                 // LOGIK: Lebenshaltungskosten
                 // Während der 6-monatigen Gründungszuschuss-Phase (11/2026 bis 04/2027) deckt der Zuschuss (2.106,30 €) + Mieteinnahmen (595 €) den privaten Lebensunterhalt (ca. 1.850 €) zu 100% ab.
                 // Ab Mai 2027 (Auslauf Phase 1) erwirtschaftet die Firma die Lebenshaltung der Gründerin (mind. 1.600 € in 2027, 1.800 € in 2028, 2.000 € in 2029).
-                $isSubsidyPhase = ($year == 2026 && $month >= 11) || ($year == 2027 && $month <= 4);
+                $y1 = (int) $this->configStartYear;
+                $y2 = $y1 + 1;
+                $y3 = $y1 + 2;
+                $y4 = $y1 + 3;
+                $isSubsidyPhase = ($year == $y1 && $month >= 11) || ($year == $y2 && $month <= 4);
                 $extraPrivate = 0;
                 $currentPrivOut = (float)($this->data[$year][$month]['out']['private'] ?? 0);
 
@@ -619,15 +625,15 @@ class AccountingLiquidity extends Component
                     $extraPrivate = 0;
                 } elseif ($year == $this->configStartYear && $month < $this->configStartMonth) {
                     $extraPrivate = 0; // Vor der Gründung keine Firmenentnahmen
-                } elseif ($year == 2027) {
+                } elseif ($year == $y2) {
                     if ($currentPrivOut < 1600) {
                         $extraPrivate = 1600 - $currentPrivOut;
                     }
-                } elseif ($year == 2028) {
+                } elseif ($year == $y3) {
                     if ($currentPrivOut < 1800) {
                         $extraPrivate = 1800 - $currentPrivOut;
                     }
-                } elseif ($year >= 2029) {
+                } elseif ($year >= $y4) {
                     if ($currentPrivOut < 2000) {
                         $extraPrivate = 2000 - $currentPrivOut;
                     }
@@ -719,11 +725,16 @@ class AccountingLiquidity extends Component
                 $zinsen += (float) ($this->data[$year][$m]['out']['interest'] ?? 0);
             }
 
+            $y1 = (int) $this->configStartYear;
+            $y2 = $y1 + 1;
+            $y3 = $y1 + 2;
+            $y4 = $y1 + 3;
+
             // Fixes Werbebudget (Ads) getrennt von variablen Marktplatzgebühren
-            if ($year == 2026) $werbungFix = 200.00;
-            elseif ($year == 2027) $werbungFix = 1200.00;
-            elseif ($year == 2028) $werbungFix = 1800.00;
-            elseif ($year == 2029) $werbungFix = 2400.00;
+            if ($year == $y1) $werbungFix = 200.00;
+            elseif ($year == $y2) $werbungFix = 1200.00;
+            elseif ($year == $y3) $werbungFix = 1800.00;
+            elseif ($year == $y4) $werbungFix = 2400.00;
             else $werbungFix = 0.00;
 
             // AfA linear über 5 Jahre (Anschaffungskosten Maschinen/Technik = 5.665 €)
@@ -733,9 +744,22 @@ class AccountingLiquidity extends Component
                 $abschreibung = 1133.00; // 5.665 € / 5 Jahre = 1.133,00 € p.a.
             }
 
-            // Exakte Netto-Berechnung nach § 4 Abs. 3 EStG (EÜR)
-            $ust = round($bruttoUmsatz - ($bruttoUmsatz / 1.19), 2);
-            $nettoUmsatz = round($bruttoUmsatz / 1.19, 2);
+            $taxRate = (float) shop_setting('default_tax_rate', 19.0);
+            $taxRateLabel = rtrim(rtrim(number_format($taxRate, 2, ',', '.'), '0'), ',');
+            $isGlobalSmallBusiness = filter_var(shop_setting('is_small_business', false), FILTER_VALIDATE_BOOLEAN);
+            $this->rentRows['brutto_umsatz'] = $isGlobalSmallBusiness
+                ? 'Umsatzerlöse (Gem. § 19 UStG ohne USt)'
+                : "Umsatzerlöse (Brutto inkl. {$taxRateLabel}% USt)";
+            $this->rentRows['ust'] = $isGlobalSmallBusiness
+                ? 'abzüglich Umsatzsteuer (§ 19 UStG: 0%)'
+                : "abzüglich {$taxRateLabel}% Umsatzsteuer";
+
+            $isSmallBusinessYear = app(\App\Services\Tax\TaxSettingService::class)->isSmallBusinessForYear((int) $year);
+            $taxFactor = ($isSmallBusinessYear || $taxRate <= 0) ? 1.0 : (1 + ($taxRate / 100));
+
+            // Exakte Netto-Berechnung nach § 4 Abs. 3 EStG (EÜR) unter Berücksichtigung von § 19 UStG
+            $ust = $isSmallBusinessYear ? 0.00 : round($bruttoUmsatz - ($bruttoUmsatz / $taxFactor), 2);
+            $nettoUmsatz = $isSmallBusinessYear ? round($bruttoUmsatz, 2) : round($bruttoUmsatz / $taxFactor, 2);
 
             // Variable Kosten: 15% Material, 15% Versand, 15% Marktplatzgebühren (jeweils vom Nettoumsatz)
             $material = round($nettoUmsatz * 0.15, 2);
@@ -821,16 +845,17 @@ class AccountingLiquidity extends Component
         foreach ($this->years as $year) {
             $yearVatSum = 0;
             $this->taxCalculations['vat'][$year] = [];
+            $isSmallBusinessYear = app(\App\Services\Tax\TaxSettingService::class)->isSmallBusinessForYear((int) $year);
+            $taxRate = (float) shop_setting('default_tax_rate', 19.0);
+            $taxFactor = ($isSmallBusinessYear || $taxRate <= 0) ? 1.0 : (1 + ($taxRate / 100));
 
             for ($m = 1; $m <= 12; $m++) {
                 // Umsatzsteuer (USt) Kalkulation:
                 // Zu vereinfachungszwecken rechnen wir mit dem Standardsteuersatz aus Sales (brutto = Einnahmen) USt.
-                // Und Vorsteuer aus ausgaben, die idR. Standardsteuer haben (Goods, Investments, Marketing, Office, RoomExtra)
-                $taxRate = (float)shop_setting('default_tax_rate', 19.0);
-                $taxFactor = 1 + ($taxRate / 100);
-
+                // Und Vorsteuer aus Ausgaben, die i.d.R. Standardsteuer haben (Goods, Investments, Marketing, Office, RoomExtra).
+                // Bei aktiver Kleinunternehmerregelung (§ 19 UStG) für das jeweilige Jahr beträgt die USt-Zahllast 0,00 €.
                 $bruttoSales = (float) ($this->data[$year][$m]['in']['sales'] ?? 0);
-                $ustKunde = $bruttoSales - ($bruttoSales / $taxFactor);
+                $ustKunde = $isSmallBusinessYear ? 0.0 : ($bruttoSales - ($bruttoSales / $taxFactor));
 
                 $bruttoAusgaben = (float) ($this->data[$year][$m]['out']['goods'] ?? 0)
                     + (float) ($this->data[$year][$m]['out']['investments'] ?? 0)
@@ -838,7 +863,7 @@ class AccountingLiquidity extends Component
                     + (float) ($this->data[$year][$m]['out']['office'] ?? 0)
                     + (float) ($this->data[$year][$m]['out']['room_extra'] ?? 0);
 
-                $vorsteuer = $bruttoAusgaben - ($bruttoAusgaben / $taxFactor);
+                $vorsteuer = $isSmallBusinessYear ? 0.0 : ($bruttoAusgaben - ($bruttoAusgaben / $taxFactor));
                 $zahllast = $ustKunde - $vorsteuer;
 
                 $this->taxCalculations['vat'][$year][$m] = [
@@ -904,26 +929,29 @@ class AccountingLiquidity extends Component
 
     public function getDetailedScore()
     {
+        $y1 = (int) $this->configStartYear;
+        $y2 = $y1 + 1;
+
         $avgSalesAfterSubsidy = 0;
         $avgCostsAfterSubsidy = 0;
-        if (isset($this->data[2027])) {
+        if (isset($this->data[$y2])) {
             $yearSales = 0;
             $yearCosts = 0;
             for ($m = 1; $m <= 12; $m++) {
-                $yearSales += $this->data[2027][$m]['in']['sales'] ?? 0;
-                $yearCosts += ($this->data[2027][$m]['out']['goods'] ?? 0) + 
-                              ($this->data[2027][$m]['out']['marketing/marketing/marketing'] ?? 0) + 
-                              ($this->data[2027][$m]['out']['office'] ?? 0) + 
-                              ($this->data[2027][$m]['out']['insurance'] ?? 0) + 
-                              ($this->data[2027][$m]['out']['other_out'] ?? 0) + 
-                              ($this->data[2027][$m]['out']['private'] ?? 0);
+                $yearSales += $this->data[$y2][$m]['in']['sales'] ?? 0;
+                $yearCosts += ($this->data[$y2][$m]['out']['goods'] ?? 0) + 
+                              ($this->data[$y2][$m]['out']['marketing/marketing/marketing'] ?? 0) + 
+                              ($this->data[$y2][$m]['out']['office'] ?? 0) + 
+                              ($this->data[$y2][$m]['out']['insurance'] ?? 0) + 
+                              ($this->data[$y2][$m]['out']['other_out'] ?? 0) + 
+                              ($this->data[$y2][$m]['out']['private'] ?? 0);
             }
             $avgSalesAfterSubsidy = round($yearSales / 12, 2);
             $avgCostsAfterSubsidy = round($yearCosts / 12, 2);
-        } elseif (isset($this->data[2026])) {
-            $q4Sales = ($this->data[2026][11]['in']['sales'] ?? 0) + ($this->data[2026][12]['in']['sales'] ?? 0);
+        } elseif (isset($this->data[$y1])) {
+            $q4Sales = ($this->data[$y1][11]['in']['sales'] ?? 0) + ($this->data[$y1][12]['in']['sales'] ?? 0);
             $avgSalesAfterSubsidy = $q4Sales / 2;
-            $q4Costs = ($this->data[2026][11]['out']['goods'] ?? 0) + ($this->data[2026][12]['out']['goods'] ?? 0);
+            $q4Costs = ($this->data[$y1][11]['out']['goods'] ?? 0) + ($this->data[$y1][12]['out']['goods'] ?? 0);
             $avgCostsAfterSubsidy = $q4Costs / 2;
         }
 
@@ -971,9 +999,9 @@ class AccountingLiquidity extends Component
         }
 
         $scoreMarge = 0;
-        if (isset($this->rentabilitaet[2027])) {
-            $umsatz = $this->rentabilitaet[2027]['umsatz'];
-            $gewinn = $this->rentabilitaet[2027]['gewinn'];
+        if (isset($this->rentabilitaet[$y2])) {
+            $umsatz = $this->rentabilitaet[$y2]['umsatz'];
+            $gewinn = $this->rentabilitaet[$y2]['gewinn'];
             if ($umsatz > 0) {
                 $marge = ($gewinn / $umsatz) * 100;
                 if ($marge >= 15) $scoreMarge = 30;

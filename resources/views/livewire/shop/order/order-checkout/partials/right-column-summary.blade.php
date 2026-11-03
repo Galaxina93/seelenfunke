@@ -1,17 +1,18 @@
 @php
     $hasDigitalOrIngame = collect($cart->items ?? [])->contains(function($ci) {
         return ($ci->product->type ?? 'physical') === 'digital'
-            || !empty($ci->configuration['is_ingame_shop_item'])
-            || !empty($ci->configuration['ingame_item_key']);
+            && ($ci->product->slug ?? '') !== 'geschenkgutschein'
+            && empty($ci->configuration['is_gift_voucher'])
+            && !empty($ci->product->digital_download_path);
     });
 @endphp
 <div class="mt-10 lg:mt-0 lg:sticky lg:top-24 z-20"
      x-data="{
         isProcessing: false,
         showLegalWarning: false,
-        terms: @entangle('terms_accepted'),
-        privacy: @entangle('privacy_accepted'),
-        digitalWaiver: @entangle('digital_waiver_accepted'),
+        terms: @entangle('terms_accepted').live,
+        privacy: true,
+        digitalWaiver: @entangle('digital_waiver_accepted').live,
         requiresDigitalWaiver: {{ $hasDigitalOrIngame ? 'true' : 'false' }}
      }"
      @checkout-legal-warning.window="showLegalWarning = true"
@@ -52,9 +53,10 @@
                 $isFree = $totals['is_free_shipping'];
 
                 if (!$hasStandardPhysical) $percent = 100;
+                $targetCountry = ($has_separate_shipping && !empty($shipping_country)) ? $shipping_country : $country;
             @endphp
 
-            @if($country === 'DE' && $hasStandardPhysical)
+            @if($targetCountry === 'DE' && $hasStandardPhysical)
                 <div class="mb-4 bg-gray-50 p-3.5 rounded-xl border border-gray-200">
                     @if($isFree)
                         <div class="flex items-center gap-2 text-green-600 font-bold text-sm animate-fade-in">
@@ -199,11 +201,34 @@
                                         </div>
                                     </div>
 
-                                    {{-- Varianten-Anzeige im Checkout --}}
+                                    {{-- Varianten- & Extras-Anzeige im Checkout --}}
                                     @if(!empty($item->configuration['variant_name']))
                                         <p class="text-[10px] font-black uppercase tracking-widest text-primary mt-0.5 break-words">
-                                            {{ $item->configuration['variant_name'] }}
+                                            Ausführung: {{ $item->configuration['variant_name'] }}
                                         </p>
+                                    @endif
+
+                                    @if(!empty($item->configuration['addons_summary']) && is_array($item->configuration['addons_summary']))
+                                        <div class="mt-1.5 flex flex-wrap gap-1.5">
+                                            @foreach($item->configuration['addons_summary'] as $addon)
+                                                @if(!empty($addon['name']))
+                                                    @php
+                                                        $chkAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addon);
+                                                    @endphp
+                                                    <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs">
+                                                        @if($chkAddonImg)
+                                                            <img src="{{ $chkAddonImg }}" alt="{{ $addon['name'] }}" class="w-5 h-5 rounded object-cover border border-amber-300/60 shrink-0">
+                                                        @else
+                                                            <span>🎁</span>
+                                                        @endif
+                                                        <span>{{ $addon['name'] }}</span>
+                                                        @if(($addon['price_cents'] ?? 0) > 0)
+                                                            <span class="text-amber-600 font-semibold">(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }}&nbsp;€)</span>
+                                                        @endif
+                                                    </span>
+                                                @endif
+                                            @endforeach
+                                        </div>
                                     @endif
 
                                     @if(!empty($item->configuration['is_gift_voucher']))
@@ -353,7 +378,7 @@
             @endif
 
             <div class="mt-4 pt-4 border-t border-gray-100">
-                <x-shop.cost-summary :totals="$totals" :country="$country" :showTitle="false">
+                <x-shop.cost-summary :totals="$totals" :country="$targetCountry" :showTitle="false">
                     <button type="button" wire:click="removeCoupon" class="text-red-400 hover:text-red-600 transition cursor-pointer" title="Gutschein entfernen">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
@@ -390,6 +415,7 @@
                      :class="showLegalWarning && !terms ? 'bg-red-50 border border-red-300 p-2 -mx-1' : ''">
                     <div class="flex h-5 items-center">
                         <input id="terms"
+                               x-model="terms"
                                wire:model.live="terms_accepted"
                                type="checkbox"
                                :class="showLegalWarning && !terms ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50 text-red-600 focus:ring-red-500' : 'border-gray-300 text-primary focus:ring-primary'"
@@ -399,32 +425,22 @@
                         <label for="terms"
                                :class="showLegalWarning && !terms ? 'text-red-700 font-semibold' : 'text-gray-700 font-medium'"
                                class="cursor-pointer select-none transition-colors">
-                            Ich habe die <a href="/agb" target="_blank" class="text-primary underline hover:text-primary-dark">AGB</a> (inkl. <a href="/agb#urheberrecht-freistellung" target="_blank" class="text-primary underline hover:text-primary-dark">Rechtegarantie &amp; Haftungsfreistellung für eigene Motive</a>) und die <a href="/agb#widerruf" target="_blank" class="text-primary underline hover:text-primary-dark">Widerrufsbelehrung</a> gelesen und akzeptiere diese. <span class="text-red-500 font-bold">*</span>
+                            Ich habe die <a href="/agb" target="_blank" class="text-primary underline hover:text-primary-dark">AGB</a> (inkl. <a href="/agb#urheberrecht-freistellung" target="_blank" class="text-primary underline hover:text-primary-dark">Rechtegarantie &amp; Haftungsfreistellung für eigene Motive</a>) gelesen und akzeptiere diese und habe die <a href="/widerruf" target="_blank" class="text-primary underline hover:text-primary-dark">Widerrufsbelehrung</a> zur Kenntnis genommen. <span class="text-red-500 font-bold">*</span>
                         </label>
                     </div>
                 </div>
-                <div class="flex items-start rounded-lg transition-all duration-200"
-                     :class="showLegalWarning && !privacy ? 'bg-red-50 border border-red-300 p-2 -mx-1' : ''">
-                    <div class="flex h-5 items-center">
-                        <input id="privacy"
-                               wire:model.live="privacy_accepted"
-                               type="checkbox"
-                               :class="showLegalWarning && !privacy ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50 text-red-600 focus:ring-red-500' : 'border-gray-300 text-primary focus:ring-primary'"
-                               class="h-4 w-4 rounded cursor-pointer transition-all">
-                    </div>
-                    <div class="ml-3 text-xs sm:text-sm">
-                        <label for="privacy"
-                               :class="showLegalWarning && !privacy ? 'text-red-700 font-semibold' : 'text-gray-700 font-medium'"
-                               class="cursor-pointer select-none transition-colors">
-                            Ich habe die <a href="/datenschutz" target="_blank" class="text-primary underline hover:text-primary-dark">Datenschutzerklärung</a> zur Kenntnis genommen. <span class="text-red-500 font-bold">*</span>
-                        </label>
-                    </div>
+                <div class="flex items-start rounded-lg text-xs text-gray-600 leading-snug pt-1">
+                    <svg class="w-4 h-4 text-gray-400 shrink-0 mt-0.5 mr-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span>
+                        Informationen zur Verarbeitung Ihrer personenbezogenen Daten zur Vertragsabwicklung (Art. 6 Abs. 1 lit. b DSGVO) finden Sie in unserer <a href="/datenschutz" target="_blank" class="text-primary underline hover:text-primary-dark font-medium">Datenschutzerklärung</a>.
+                    </span>
                 </div>
                 @if($hasDigitalOrIngame)
                     <div class="flex items-start pt-2 border-t -mx-2 px-2 py-2 rounded-lg transition-all duration-200"
                          :class="showLegalWarning && !digitalWaiver ? 'bg-red-50 border border-red-400 ring-2 ring-red-500/20' : 'border-blue-200/70 bg-blue-50/70'">
                         <div class="flex h-5 items-center">
                             <input id="digital_waiver"
+                                   x-model="digitalWaiver"
                                    wire:model.live="digital_waiver_accepted"
                                    type="checkbox"
                                    :class="showLegalWarning && !digitalWaiver ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50 text-red-600 focus:ring-red-500' : 'border-blue-300 text-primary focus:ring-primary'"
@@ -434,7 +450,7 @@
                             <label for="digital_waiver"
                                    :class="showLegalWarning && !digitalWaiver ? 'text-red-700 font-semibold' : 'text-blue-950 font-medium'"
                                    class="cursor-pointer select-none leading-snug block transition-colors">
-                                Ich stimme ausdrücklich zu, dass mit der Ausführung des Vertrags über die <strong>digitalen Inhalte / Ingame-Gegenstände</strong> sofort nach Zahlungsabschluss (vor Ablauf der Widerrufsfrist) begonnen wird, und bestätige meine Kenntnis davon, dass mein <strong>Widerrufsrecht mit Beginn der Vertragsausführung erlischt (§ 356 Abs. 5 BGB)</strong>. <span class="text-red-500 font-bold">*</span>
+                                Ich stimme ausdrücklich zu, dass mit der Ausführung des Vertrags über die <strong>digitalen Inhalte</strong> sofort nach Zahlungsabschluss (vor Ablauf der Widerrufsfrist) begonnen wird, und bestätige meine Kenntnis davon, dass mein <strong>Widerrufsrecht mit Beginn der Vertragsausführung erlischt (§ 356 Abs. 5 BGB)</strong>. <span class="text-red-500 font-bold">*</span>
                             </label>
                         </div>
                     </div>
@@ -548,12 +564,28 @@
                 </div>
             </div>
 
+            @if($errors->any())
+                <div class="mt-4 p-3.5 rounded-xl bg-red-50 border border-red-300 text-red-700 text-xs font-semibold space-y-1.5 animate-fade-in">
+                    <div class="flex items-center gap-2 font-bold text-red-800">
+                        <svg class="w-4 h-4 text-red-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        <span>Bitte prüfe noch folgende Angaben:</span>
+                    </div>
+                    <ul class="list-disc list-inside space-y-0.5 text-[11px] text-red-700">
+                        @foreach($errors->all() as $errMsg)
+                            <li>{{ $errMsg }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
+            <div id="checkout-submit-error" class="hidden mt-4 p-3.5 rounded-xl bg-red-50 border border-red-300 text-red-700 text-xs font-bold animate-fade-in"></div>
+
             <div class="mt-5">
                 <button id="submit-button"
                         type="submit"
                         x-bind:disabled="isProcessing"
-                        @click="if (!terms || !privacy || (requiresDigitalWaiver && !digitalWaiver)) { $event.preventDefault(); $event.stopPropagation(); showLegalWarning = true; document.getElementById('checkout-legal-box')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }"
-                        :class="(!terms || !privacy || (requiresDigitalWaiver && !digitalWaiver))
+                        @click="if (!terms || (requiresDigitalWaiver && !digitalWaiver)) { $event.preventDefault(); $event.stopPropagation(); showLegalWarning = true; document.getElementById('checkout-legal-box')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }"
+                        :class="(!terms || (requiresDigitalWaiver && !digitalWaiver))
                             ? 'bg-gray-300 text-gray-500 shadow-none hover:bg-gray-300'
                             : 'bg-gray-900 text-white shadow-lg shadow-gray-900/20 hover:bg-black enabled:hover:-translate-y-0.5'"
                         class="w-full rounded-full border border-transparent py-3.5 px-4 text-base font-bold focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:shadow-none transition-all transform cursor-pointer">
@@ -590,10 +622,14 @@
                                         <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                                     </svg>
                                 </span>
-                                <div>
-                                    <p class="text-xs font-bold text-gray-900 leading-tight tracking-tight">Soziales leisten</p>
-                                    <p class="text-[11px] sm:text-[10px] text-amber-900/80 font-medium leading-tight mt-0.5">Kinder aktiv unterstützen</p>
-                                </div>
+                                @php
+                                    $checkoutHerzensEuro = \App\Services\HerzensprojektService::resolveFormattedEuro();
+                                    $checkoutHerzensUnit = \App\Services\HerzensprojektService::resolveUnitLabel(true);
+                                @endphp
+                                <a href="{{ route('manufacture') }}#herzensprojekte" target="_blank" title="Wir führen {{ $checkoutHerzensEuro }} € {{ $checkoutHerzensUnit }} aus unseren Unternehmenserlösen an unsere regionalen Herzensprojekte für Kinder ab (Details & Transparenzhinweis)" class="group hover:opacity-90 transition-opacity">
+                                    <p class="text-xs font-bold text-gray-900 leading-tight tracking-tight group-hover:text-primary transition-colors">Soziales leisten*</p>
+                                    <p class="text-[11px] sm:text-[10px] text-amber-900/80 font-medium leading-tight mt-0.5">Kinder aktiv unterstützen ({{ $checkoutHerzensEuro }}&nbsp;€ {{ $checkoutHerzensUnit }})</p>
+                                </a>
                             </div>
 
                             <div class="flex sm:flex-col items-center gap-2.5 sm:gap-1.5">

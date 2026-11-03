@@ -82,12 +82,16 @@ class ProductShow extends Component
             ProductTrackingService::trackTemplateSelected($this->product->id, $templateId, $template->name ?? $template->title ?? ('Vorlage #' . $templateId));
 
             $tplVariantId = $config['variant_id'] ?? null;
-            $tplPriceCents = $this->product->price;
+            $tplPriceCents = (int) $this->product->price;
             if ($tplVariantId) {
                 $matchedVar = collect($this->product->variants_data ?? [])->firstWhere('id', $tplVariantId);
                 if ($matchedVar && isset($matchedVar['price']) && $matchedVar['price'] !== '') {
-                    $tplPriceCents = (int) round((float) $matchedVar['price'] * 100);
+                    $tplPriceCents += (int) round(((float) str_replace(',', '.', (string) $matchedVar['price'])) * 100);
                 }
+            }
+            if ($this->product->tax_included === false && !\App\Services\TaxSettingService::isSmallBusiness()) {
+                $taxRate = (float) ($this->product->tax_rate ?? \App\Services\TaxSettingService::defaultTaxRate());
+                $tplPriceCents = (int) round($tplPriceCents * (1 + ($taxRate / 100)));
             }
             $tplImgUrl = !empty($template->preview_image)
                 ? ProductTemplate::resolveImageUrl($template->preview_image)
@@ -120,8 +124,18 @@ class ProductShow extends Component
         }
     }
 
+    public function toggleWishlist(\App\Services\WishlistService $wishlistService): void
+    {
+        $wishlistService->toggle((string) $this->product->id);
+        $this->dispatch('wishlist-updated');
+    }
+
     public function render()
     {
+        if (shop_setting('maintenance_mode', false) && !\Illuminate\Support\Facades\Auth::guard('admin')->check()) {
+            return view('global.errors.503_fragment')->layout('components.layouts.frontend_layout');
+        }
+
         $seoTitle = $this->product->seo_title ?: ($this->product->name . ' – Personalisiert mit Lasergravur');
         $rawDesc = $this->product->seo_description ?: ($this->product->short_description ?: $this->product->description);
         $seoDescription = Str::limit(trim(preg_replace('/\s+/', ' ', strip_tags((string) $rawDesc))), 160);
@@ -130,10 +144,12 @@ class ProductShow extends Component
         $canonicalUrl = route('product.show', $this->product->slug);
 
         $productSchema = $this->product->buildStructuredDataSchema($canonicalUrl);
+        $isWishlisted = app(\App\Services\WishlistService::class)->has((string) $this->product->id);
 
         return view('livewire.shop.product.product-show', [
             'productSchema' => $productSchema,
             'mainImageUrl' => $mainImageUrl,
+            'isWishlisted' => $isWishlisted,
         ])
             ->title($seoTitle)
             ->layout('components.layouts.frontend_layout', [

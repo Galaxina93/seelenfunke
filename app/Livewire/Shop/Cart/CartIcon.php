@@ -17,8 +17,11 @@ class CartIcon extends Component
         'item_count' => 0
     ];
 
+    public bool $suppressPreview = false;
+
     public function mount(CartService $service)
     {
+        $this->suppressPreview = request()->routeIs('cart', 'checkout*') || request()->is('cart*', 'checkout*');
         $this->updateStats($service);
     }
 

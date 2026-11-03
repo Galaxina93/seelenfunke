@@ -12,10 +12,10 @@
             if ($hasPrio && $prio->is_express) {
                 $mood = 'alarm';
                 $funkiImg = 'orders/bestelli_alarm.webp';
-                $statusText = "HOCHDRUCK";
-                $statusColor = "text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/60 border-red-300 dark:border-red-500/50";
-                $glowColor = "from-red-500/20";
-                $iconBg = "bg-red-500/10 text-red-500 border-red-500/20";
+                $statusText = "PRIORITÄT";
+                $statusColor = "text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 border-amber-300 dark:border-amber-500/50";
+                $glowColor = "from-amber-500/20";
+                $iconBg = "bg-amber-500/10 text-amber-500 border-amber-500/20";
             } elseif ($hasPrio) {
                 $mood = 'work';
                 $funkiImg = 'orders/bestelli_work.webp';
@@ -72,14 +72,14 @@
                         <div class="flex flex-col xl:flex-row gap-5 items-stretch">
                             {{-- PRIO ORDER CARD (Interaktiv) --}}
                             <div wire:click="openDetail('{{ $prio->id }}')"
-                                 class="flex-1 inline-flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-5 bg-gray-50 dark:bg-gray-950 border {{ $prio->is_express ? 'border-red-500/30 shadow-sm dark:shadow-[0_0_20px_rgba(239,68,68,0.15)]' : 'border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner' }} p-5 rounded-[2rem] hover:border-[var(--theme-color-50)] transition-all duration-300 cursor-pointer group/card text-left relative overflow-hidden">
+                                 class="flex-1 inline-flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-5 bg-gray-50 dark:bg-gray-950 border {{ $prio->is_express ? 'border-primary/40 shadow-sm' : 'border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner' }} p-5 rounded-[2rem] hover:border-[var(--theme-color-50)] transition-all duration-300 cursor-pointer group/card text-left relative overflow-hidden">
 
                                 {{-- Hover Gradient Overlay --}}
                                 <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-100%] group-hover/card:translate-x-[100%] transition-transform duration-1000 ease-in-out pointer-events-none hidden dark:block"></div>
 
                                 {{-- Icon --}}
                                 <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-xl shrink-0 border {{ $iconBg }}">
-                                    {{ $prio->is_express ? '🚀' : '📦' }}
+                                    📦
                                 </div>
 
                                 {{-- Info --}}
@@ -87,7 +87,7 @@
                                     <div class="flex flex-wrap items-center justify-center sm:justify-start gap-3 mb-1.5">
                                         <span class="font-bold text-gray-900 dark:text-white text-lg tracking-wide truncate">{{ $prio->order_number }}</span>
                                         @if($prio->is_express)
-                                            <span class="bg-red-500/10 dark:bg-red-500/20 border border-red-500/30 text-red-600 dark:text-red-400 text-[9px] font-black px-2 py-1 rounded-md uppercase tracking-wider shadow-sm">Express</span>
+                                            <x-shop.express-info iconClass="w-3.5 h-3.5" class="border border-primary/40 text-gray-800 dark:text-gray-200 text-[9px] font-black px-2.5 py-1 rounded-md uppercase tracking-wider shadow-2xs" />
                                         @endif
                                     </div>
                                     <div class="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest text-center sm:text-left">
@@ -167,15 +167,15 @@
                 'border-blue-500/20'
             ) !!}
 
-            {{-- Card 2: Express Warnung --}}
+            {{-- Card 2: Express Aufträge --}}
             {!! $kpiCardAdaptive(
-                'Davon Express',
-                '<span class="' . ($stats['open_express'] > 0 ? 'text-red-500 dark:text-red-400 drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : '') . '">' . $stats['open_express'] . '</span>',
-                'Höchste Priorität',
-                '<svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>',
-                'red-500 dark:text-red-400',
-                'bg-red-500/10',
-                'border-red-500/20'
+                'Davon Express-Service',
+                '<span class="' . ($stats['open_express'] > 0 ? 'text-primary' : '') . '">' . $stats['open_express'] . '</span>',
+                'Priorisierte Fertigung',
+                '<svg class="w-5 h-5 sm:w-6 sm:h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>',
+                'amber-500 dark:text-amber-400',
+                'bg-amber-500/10',
+                'border-amber-500/20'
             ) !!}
 
             {{-- Card 3: Umsatz Heute --}}

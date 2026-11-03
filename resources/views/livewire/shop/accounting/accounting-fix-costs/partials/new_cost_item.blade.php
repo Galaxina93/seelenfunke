@@ -86,11 +86,28 @@
             </div>
             <div>
                 <label class="text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5 block">Steuersatz</label>
+                @php
+                    $defaultRate = (float) shop_setting('default_tax_rate', 19);
+                    $reducedRate = (float) shop_setting('reduced_tax_rate', 7);
+                    $rawActiveRates = shop_setting('active_tax_rates', [$defaultRate, $reducedRate, 0]);
+                    if (is_string($rawActiveRates)) {
+                        $decodedRates = json_decode($rawActiveRates, true);
+                        $rawActiveRates = is_array($decodedRates) ? $decodedRates : [$defaultRate, $reducedRate, 0];
+                    }
+                    $customRates = collect(is_array($rawActiveRates) ? $rawActiveRates : [])
+                        ->map(fn($r) => (float) $r)
+                        ->reject(fn($r) => in_array($r, [$defaultRate, $reducedRate, 0.0], true))
+                        ->unique()
+                        ->values();
+                @endphp
                 <div class="relative">
                     <select wire:model="itemTaxRate" class="{{ $inputClass }} appearance-none cursor-pointer">
                         <option value="0" class="bg-gray-950">0 % (z.B. Versicherungen)</option>
-                        <option value="7" class="bg-gray-950">7 %</option>
-                        <option value="{{ shop_setting('default_tax_rate', 19) }}" class="bg-gray-950">{{ shop_setting('default_tax_rate', 19) }} %</option>
+                        <option value="{{ $reducedRate }}" class="bg-gray-950">{{ $reducedRate }} %</option>
+                        <option value="{{ $defaultRate }}" class="bg-gray-950">{{ $defaultRate }} %</option>
+                        @foreach($customRates as $customRate)
+                            <option value="{{ $customRate }}" class="bg-gray-950">{{ $customRate }} %</option>
+                        @endforeach
                     </select>
                     <div class="absolute inset-y-0 right-4 flex items-center pointer-events-none text-gray-500"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>
                 </div>

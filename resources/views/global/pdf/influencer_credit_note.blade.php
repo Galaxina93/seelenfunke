@@ -124,11 +124,15 @@
 <body>
     @php
         $snap = is_array($payout->recipient_snapshot) ? $payout->recipient_snapshot : [];
-        $companyName = shop_setting('company_name', 'Mein Seelenfunke');
-        $companyOwner = shop_setting('owner_name', 'alisanoonte');
-        $companyStreet = trim(shop_setting('company_street', 'Auf den sieben Stücken') . ' ' . shop_setting('company_street_number', '4'));
-        $companyCity = trim(shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city', 'Gifhorn'));
-        $companyTax = shop_setting('company_tax_id') ?: shop_setting('company_vat_id', '');
+        $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
+        $companyOwner = shop_setting('owner_proprietor', 'Alina Steinhauer');
+        $companyStreet = shop_setting('company_street')
+            ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', ''))
+            : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26');
+        $companyCity = shop_setting('company_city')
+            ? trim(shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city'))
+            : shop_setting('owner_city', '38518 Gifhorn');
+        $companyTax = shop_setting('company_ust_id', shop_setting('owner_ust_id')) ?: shop_setting('owner_tax_id', '');
     @endphp
 
     <table class="header-table">
@@ -144,7 +148,8 @@
                 <span class="doc-badge">Gutschrift gem. § 14 Abs. 2 S. 2 UStG</span>
                 <div style="margin-top: 8px; font-size: 13px; font-weight: bold;">Nr. {{ $payout->credit_note_number }}</div>
                 <div style="font-size: 9.5px; color: #6b7280;">
-                    Ausstellungsdatum: {{ ($payout->paid_at ?: ($payout->requested_at ?: now()))->format('d.m.Y') }}
+                    Ausstellungsdatum: {{ ($payout->paid_at ?: ($payout->requested_at ?: now()))->format('d.m.Y') }}<br>
+                    Leistungszeitraum: Bis {{ ($payout->paid_at ?: ($payout->requested_at ?: now()))->format('d.m.Y') }} (lt. Aufstellung)
                 </div>
             </td>
         </tr>
@@ -245,7 +250,11 @@
         @else
             <tr>
                 <td colspan="2" style="font-size: 9px; color: #6b7280; text-align: right;">
-                    Kein Umsatzsteuerausweis gem. § 19 UStG (Kleinunternehmerregelung) bzw. Gutschein-Prämie.
+                    @if(($snap['tax_status'] ?? $influencer->tax_status ?? '') === 'reverse_charge')
+                        Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge gem. § 13b / § 14a Abs. 5 UStG).
+                    @else
+                        Kein Umsatzsteuerausweis gem. § 19 UStG (Kleinunternehmerregelung) bzw. Gutschein-Prämie.
+                    @endif
                 </td>
             </tr>
         @endif

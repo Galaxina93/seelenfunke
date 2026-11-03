@@ -41,9 +41,7 @@
                         <h1 class="text-3xl md:text-4xl font-serif font-bold text-gray-900 dark:text-white flex items-center sm:justify-end gap-4 mb-2">
                             Bestellung #{{ $selectedOrder->order_number }}
                             @if($selectedOrder->is_express)
-                                <span class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest bg-gradient-to-r from-red-500/20 to-pink-600/20 text-red-500 dark:text-red-400 border border-red-500/50 shadow-sm dark:shadow-[0_0_20px_rgba(239,68,68,0.2)]">
-                                🚀 Express
-                            </span>
+                                <x-shop.express-info class="px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-widest text-gray-800 dark:text-gray-100 border border-primary/40 shadow-2xs" />
                             @endif
                         </h1>
                         <p class="text-sm text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest">
@@ -61,16 +59,34 @@
                         <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 rounded-[2.5rem] p-6 sm:p-8">
                             @php
                                 $status = $selectedOrder->status;
-                                $progress = match($status) { 'pending' => '15%', 'processing' => '50%', 'shipped' => '80%', 'completed' => '100%', 'cancelled', 'refunded' => '100%', default => '0%' };
-                                $barColor = match($status) { 'cancelled', 'refunded' => 'bg-red-500', 'completed' => 'bg-emerald-500', 'shipped' => 'bg-purple-500', 'processing' => 'bg-blue-500', default => 'bg-orange-500' };
-                                $isProcessing = in_array($status, ['processing', 'shipped', 'completed']);
+                                $totalOrderItems = $selectedOrder->items->count();
+                                $completedOrderItems = $selectedOrder->items->filter(fn($it) => !empty($it->is_completed) || (($it->completed_quantity ?? 0) >= max(1, (int) $it->quantity)))->count();
+                                $allItemsEngraved = $totalOrderItems > 0 && $completedOrderItems >= $totalOrderItems;
+                                $someItemsEngraved = $completedOrderItems > 0;
+
+                                $progress = match($status) {
+                                    'pending' => $allItemsEngraved ? '68%' : ($someItemsEngraved ? '45%' : '20%'),
+                                    'processing' => $allItemsEngraved ? '68%' : '50%',
+                                    'shipped' => '85%',
+                                    'completed' => '100%',
+                                    'cancelled', 'refunded' => '100%',
+                                    default => '0%'
+                                };
+                                $barColor = match($status) {
+                                    'cancelled', 'refunded' => 'bg-red-500',
+                                    'completed' => 'bg-emerald-500',
+                                    'shipped' => 'bg-purple-500',
+                                    'processing' => 'bg-blue-500',
+                                    default => $someItemsEngraved ? 'bg-blue-500' : 'bg-orange-500'
+                                };
+                                $isProcessing = in_array($status, ['processing', 'shipped', 'completed']) || $someItemsEngraved;
                                 $isShipped = in_array($status, ['shipped', 'completed']);
                                 $isCompleted = $status === 'completed';
                                 $isCancelled = in_array($status, ['cancelled', 'refunded']);
                             @endphp
 
-                            <div class="flex justify-between items-end mb-4 px-2">
-                                <span class="text-xs font-black text-gray-500 dark:text-gray-400 uppercase tracking-[0.2em]">Aktueller Status</span>
+                            <div class="flex flex-wrap justify-between items-end gap-2 mb-4 px-2">
+                                <span class="text-xs font-black text-gray-500 dark:text-gray-400 uppercase tracking-[0.2em]">Live-Status aus der Manufaktur</span>
                                 @php
                                     $statusBadge = match($status) {
                                         'completed' => 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20',
@@ -78,27 +94,66 @@
                                         'cancelled' => 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20',
                                         'refunded' => 'text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-500/10 border border-gray-200 dark:border-gray-500/20',
                                         'processing' => 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 shadow-sm',
-                                        default => 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20'
+                                        default => $someItemsEngraved
+                                            ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 shadow-sm'
+                                            : 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20'
+                                    };
+                                    $emotionalBadgeLabel = match($status) {
+                                        'pending' => $allItemsEngraved
+                                            ? 'Gravur & Prüfung fertig • Wird verpackt'
+                                            : ($someItemsEngraved ? 'In der Manufaktur (Gravur)' : 'Im Atelier eingegangen'),
+                                        'processing' => $allItemsEngraved
+                                            ? 'Gravur & Prüfung fertig • Wird verpackt'
+                                            : 'In der Manufaktur (Lasergravur)',
+                                        'shipped' => 'Liebevoll verpackt & Unterwegs',
+                                        'completed' => 'Dein Seelenfunke ist da',
+                                        'cancelled' => 'Storniert',
+                                        'refunded' => 'Erstattet',
+                                        default => 'Unbekannt'
+                                    };
+                                    $emotionalSubtitle = match($status) {
+                                        'pending' => $allItemsEngraved
+                                            ? '✓ Dein Unikat hat die Lasergravur & Qualitätsprüfung erfolgreich durchlaufen und wird nun für den Versand vorbereitet.'
+                                            : ($someItemsEngraved
+                                                ? "🔥 Wir gravieren gerade deine Unikate in unserer Manufaktur ({$completedOrderItems}/{$totalOrderItems} bereits fertig veredelt)."
+                                                : '✨ Dein Auftrag & deine Gravurdaten sind sicher im Atelier eingegangen und für den Laser vorbereitet.'),
+                                        'processing' => $allItemsEngraved
+                                            ? '✓ Dein Unikat hat die Lasergravur & Qualitätsprüfung erfolgreich durchlaufen und wird nun für den Versand vorbereitet.'
+                                            : '🔥 Dein Unikat wird in unserer Manufaktur präzise graviert, handveredelt und auf Qualität geprüft.',
+                                        'shipped' => '🎁 Sorgfältig im Seelenfunke-Etui verpackt und an DHL übergeben: Dein Paket ist auf dem Weg zu dir.',
+                                        'completed' => '💛 Erfolgreich zugestellt. Wir wünschen dir unendlich viel Freude mit deinem Seelenfunken!',
+                                        default => null
                                     };
                                 @endphp
                                 <span class="text-xs font-black px-4 py-1.5 rounded-full {{ $statusBadge }}">
-                                {{ match($status) { 'pending'=>'Wartend', 'processing'=>'In Bearbeitung', 'shipped'=>'Unterwegs', 'completed'=>'Zugestellt', 'cancelled'=>'Storniert', 'refunded'=>'Erstattet', default=>'Unbekannt' } }}
-                            </span>
+                                    {{ $emotionalBadgeLabel }}
+                                </span>
                             </div>
 
-                            <div class="overflow-hidden h-4 mb-6 text-xs flex rounded-full bg-gray-100 dark:bg-gray-800 shadow-inner">
+                            <div class="overflow-hidden h-4 mb-5 text-xs flex rounded-full bg-gray-100 dark:bg-gray-800 shadow-inner">
                                 <div style="width: {{ $progress }}" class="flex flex-col text-center whitespace-nowrap text-white justify-center {{ $barColor }} transition-all duration-1000 ease-out relative overflow-hidden shadow-sm dark:shadow-[0_0_20px_currentColor]">
                                     <div class="absolute inset-0 bg-white/20 animate-pulse"></div>
                                 </div>
                             </div>
 
                             @if(!$isCancelled)
-                                <div class="grid grid-cols-4 text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 dark:text-gray-600 text-center">
-                                    <span class="text-orange-500 font-bold">Bestellt</span>
-                                    <span class="{{ $isProcessing ? 'text-blue-600 dark:text-blue-400 font-bold' : '' }}">Bearbeitung</span>
-                                    <span class="{{ $isShipped ? 'text-purple-600 dark:text-purple-400 font-bold' : '' }}">Unterwegs</span>
-                                    <span class="{{ $isCompleted ? 'text-emerald-600 dark:text-emerald-500 font-bold' : '' }}">Zugestellt</span>
+                                <div class="grid grid-cols-4 gap-1 text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 dark:text-gray-600 text-center">
+                                    <span class="text-orange-500 font-bold">1. Im Atelier</span>
+                                    <span class="{{ $isProcessing ? 'text-blue-600 dark:text-blue-400 font-bold' : '' }}">2. Lasergravur</span>
+                                    <span class="{{ $isShipped ? 'text-purple-600 dark:text-purple-400 font-bold' : '' }}">3. Verpackt & DHL</span>
+                                    <span class="{{ $isCompleted ? 'text-emerald-600 dark:text-emerald-500 font-bold' : '' }}">4. Angekommen</span>
                                 </div>
+
+                                @if($emotionalSubtitle)
+                                    <div class="mt-4 px-4 py-3 rounded-2xl border text-xs font-medium flex items-center justify-between gap-3 {{ $allItemsEngraved && in_array($status, ['pending', 'processing']) ? 'bg-emerald-50/70 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300' : 'bg-gray-50/80 dark:bg-gray-950/60 border-gray-200/80 dark:border-gray-800 text-gray-600 dark:text-gray-300' }}">
+                                        <span>{{ $emotionalSubtitle }}</span>
+                                        @if($someItemsEngraved && in_array($status, ['pending', 'processing']))
+                                            <span class="shrink-0 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                                ✓ {{ $completedOrderItems }}/{{ $totalOrderItems }} graviert
+                                            </span>
+                                        @endif
+                                    </div>
+                                @endif
                             @else
                                 <div class="mt-6 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-2xl p-5 flex items-center justify-center gap-4 text-red-600 dark:text-red-400">
                                     <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -167,9 +222,46 @@
                                                         {{ number_format(($item->total_price / 100), 2, ',', '.') }} €
                                                     </p>
                                                 </div>
-                                                <p class="text-sm text-gray-500 dark:text-gray-400 font-medium">
-                                                    {{ $item->quantity }}x je {{ number_format(($item->unit_price / 100), 2, ',', '.') }} €
-                                                </p>
+                                                <div class="flex flex-wrap items-center gap-2">
+                                                    <p class="text-sm text-gray-500 dark:text-gray-400 font-medium">
+                                                        {{ $item->quantity }}x je {{ number_format(($item->unit_price / 100), 2, ',', '.') }} €
+                                                    </p>
+                                                    @if((!empty($item->is_completed) || (($item->completed_quantity ?? 0) >= max(1, (int) $item->quantity)) || in_array($selectedOrder->status, ['shipped', 'completed'])) && !in_array($selectedOrder->status, ['cancelled', 'refunded']))
+                                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                                            ✓ Fertig graviert & geprüft
+                                                        </span>
+                                                    @endif
+                                                </div>
+
+                                                @if(!empty($item->configuration['variant_name']) || (!empty($item->configuration['addons_summary']) && is_array($item->configuration['addons_summary'])))
+                                                    <div class="mt-3 flex flex-wrap items-center gap-2">
+                                                        @if(!empty($item->configuration['variant_name']))
+                                                            <span class="inline-flex items-center px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest bg-primary/15 text-primary border border-primary/30 shadow-2xs">
+                                                                Ausführung: {{ $item->configuration['variant_name'] }}
+                                                            </span>
+                                                        @endif
+                                                        @if(!empty($item->configuration['addons_summary']) && is_array($item->configuration['addons_summary']))
+                                                            @foreach($item->configuration['addons_summary'] as $addon)
+                                                                @if(!empty($addon['name']))
+                                                                    @php
+                                                                        $custAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addon);
+                                                                    @endphp
+                                                                    <span class="inline-flex items-center gap-2 px-2.5 py-1 rounded-xl text-xs font-bold bg-amber-50 dark:bg-amber-500/15 text-amber-900 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30 shadow-2xs">
+                                                                        @if($custAddonImg)
+                                                                            <img src="{{ $custAddonImg }}" alt="{{ $addon['name'] }}" class="w-6 h-6 rounded-md object-cover border border-amber-300/60 shrink-0">
+                                                                        @else
+                                                                            <span>🎁</span>
+                                                                        @endif
+                                                                        <span>{{ $addon['name'] }}</span>
+                                                                        @if(($addon['price_cents'] ?? 0) > 0)
+                                                                            <span class="text-amber-600 dark:text-amber-400/90 font-mono text-[11px]">(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }}&nbsp;€)</span>
+                                                                        @endif
+                                                                    </span>
+                                                                @endif
+                                                            @endforeach
+                                                        @endif
+                                                    </div>
+                                                @endif
 
                                                 @if(!empty($item->configuration['is_gift_voucher']))
                                                     <div class="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
@@ -180,7 +272,7 @@
                                                         @endif
                                                         @if(($item->configuration['delivery_method'] ?? 'email') === 'post')
                                                             <span class="px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30 font-bold">
-                                                                ✉️ Per Post im Umschlag (+ 3,50 € Versand)
+                                                                ✉️ Per Post im Umschlag (+ {{ number_format(((int) ($item->configuration['post_shipping_cents'] ?? shop_setting('shipping_cost_voucher', 350))) / 100, 2, ',', '.') }} € Versand)
                                                             </span>
                                                         @else
                                                             <span class="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30 font-bold">
@@ -382,7 +474,7 @@
                                                        class="w-full rounded-2xl bg-white/90 dark:bg-gray-950/80 border border-primary/30 py-4 pl-5 pr-24 font-mono tracking-[0.1em] text-sm text-primary shadow-inner outline-none uppercase truncate transition-colors focus:border-primary/60">
 
                                                 <div class="absolute right-2 flex gap-1 items-center">
-                                                    <button @click="navigator.clipboard.writeText('{{ $shipment->tracking_number }}'); copySuccess = true; setTimeout(() => copySuccess = false, 2000)"
+                                                    <button @click="window.sfCopyText('{{ $shipment->tracking_number }}'); copySuccess = true; setTimeout(() => copySuccess = false, 2000); $dispatch('notify', { message: 'Sendungsnummer {{ $shipment->tracking_number }} kopiert!', type: 'success' })"
                                                             class="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title="Nummer kopieren">
                                                         <svg x-show="!copySuccess" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                                                         <svg x-show="copySuccess" x-cloak class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
@@ -651,7 +743,7 @@
                                     <div class="flex items-center gap-3 mb-1">
                                         <span class="font-bold text-gray-900 dark:text-white text-lg tracking-wide">#{{ $o->order_number }}</span>
                                         @if($o->is_express)
-                                            <span class="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-red-200 dark:border-red-500/30">Express</span>
+                                            <x-shop.express-info iconClass="w-3.5 h-3.5" class="text-gray-800 dark:text-gray-200 text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-primary/40" />
                                         @endif
                                     </div>
                                     <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-widest">{{ $o->created_at->format('d. F Y') }} <span class="mx-2 text-gray-300 dark:text-gray-700">|</span> {{ $o->items->count() }} Artikel</p>
@@ -737,21 +829,27 @@
 
                             <div class="mt-4 pt-6 border-t border-gray-100 dark:border-gray-800/50 flex justify-between items-center">
                                 @php
+                                    $oTotalItems = $o->items->count();
+                                    $oCompletedItems = $o->items->filter(fn($it) => !empty($it->is_completed) || (($it->completed_quantity ?? 0) >= max(1, (int) $it->quantity)))->count();
+                                    $oAllEngraved = $oTotalItems > 0 && $oCompletedItems >= $oTotalItems;
+
                                     $statusColor = match($o->status) {
                                         'completed' => 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20',
                                         'shipped' => 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 border-purple-200 dark:border-purple-500/20',
                                         'cancelled' => 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20',
                                         'refunded' => 'text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-500/10 border-gray-200 dark:border-gray-500/20',
                                         'processing' => 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20',
-                                        default => 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/20'
+                                        default => $oCompletedItems > 0
+                                            ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20'
+                                            : 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/20'
                                     };
                                     $statusLabel = match($o->status) {
-                                        'completed' => 'Zustellung erfolgreich',
-                                        'shipped' => 'Unterwegs zu dir',
+                                        'completed' => 'Dein Seelenfunke ist da',
+                                        'shipped' => 'Liebevoll verpackt & Unterwegs',
                                         'cancelled' => 'Storniert',
                                         'refunded' => 'Erstattet',
-                                        'processing' => 'Wird vorbereitet',
-                                        'pending' => 'Bestellung eingegangen',
+                                        'processing' => $oAllEngraved ? 'Gravur fertig • Wird verpackt' : 'In der Manufaktur (Gravur)',
+                                        'pending' => $oAllEngraved ? 'Gravur fertig • Wird verpackt' : ($oCompletedItems > 0 ? 'In der Manufaktur (Gravur)' : 'Im Atelier eingegangen'),
                                         default => 'Unbekannt'
                                     };
                                 @endphp
@@ -793,7 +891,7 @@
                                                            class="w-full rounded-2xl bg-white/90 dark:bg-gray-950/80 border border-primary/30 py-3.5 {{ $o->shipments->count() > 1 ? 'pl-[90px]' : 'pl-5' }} pr-24 font-mono tracking-[0.1em] text-sm md:text-base text-primary shadow-inner outline-none uppercase truncate">
 
                                                     <div class="absolute right-2 flex gap-1 items-center">
-                                                        <button @click.stop="navigator.clipboard.writeText('{{ $shipment->tracking_number }}'); copySuccessIds.push('{{ $shipment->id }}'); setTimeout(() => copySuccessIds = copySuccessIds.filter(id => id !== '{{ $shipment->id }}'), 2000)"
+                                                        <button @click.stop="window.sfCopyText('{{ $shipment->tracking_number }}'); copySuccessIds.push('{{ $shipment->id }}'); setTimeout(() => copySuccessIds = copySuccessIds.filter(id => id !== '{{ $shipment->id }}'), 2000); $dispatch('notify', { message: 'Sendungsnummer {{ $shipment->tracking_number }} kopiert!', type: 'success' })"
                                                                 class="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title="Kopieren">
                                                             <svg x-show="!copySuccessIds.includes('{{ $shipment->id }}')" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                                                             <svg x-show="copySuccessIds.includes('{{ $shipment->id }}')" x-cloak class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>

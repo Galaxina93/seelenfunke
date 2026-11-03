@@ -37,7 +37,7 @@
 
                 <span class="inline-block px-5 py-2 bg-primary/20 text-primary font-black uppercase tracking-widest rounded-full mb-6 border border-primary/40 shadow-[0_0_15px_rgba(197,160,89,0.3)] animate-pulse">Dein neues Shopping-Erlebnis</span>
                 <h2 class="text-5xl md:text-6xl lg:text-7xl font-serif font-bold text-white mb-6 leading-tight drop-shadow-md">Einkaufen,<br>weit weg vom <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-amber-300">Standard.</span></h2>
-                <p class="text-gray-300 text-lg md:text-xl mb-12 leading-relaxed max-w-2xl">Willkommen in der Manufaktur! Dein Dashboard ist kein einfaches Kundenkonto mehr – es ist spielerisch, interaktiv und lebendig. Sammle Funken, entwickle deinen Begleiter und entdecke Magie.</p>
+                <p class="text-gray-300 text-lg md:text-xl mb-12 leading-relaxed max-w-2xl">Willkommen in der Manufaktur! Dein Dashboard ist kein einfaches Kundenkonto mehr, sondern spielerisch, interaktiv und lebendig. Sammle Funken, entwickle deinen Begleiter und entdecke Magie.</p>
 
                 <ul class="space-y-6 mb-12">
                     <li class="flex items-center gap-5 text-gray-400 group cursor-default hover:scale-[1.02] hover:translate-x-2 transition-all duration-300 relative" @mouseenter="window.spawnSparks($event)">

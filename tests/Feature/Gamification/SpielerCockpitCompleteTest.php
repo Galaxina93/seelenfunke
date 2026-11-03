@@ -159,11 +159,11 @@ class SpielerCockpitCompleteTest extends TestCase
             ->set('acceptTerms', true)
             ->call('activateGamification')
             ->assertSet('hasActivatedGamification', true)
-            ->call('redeemFunkenVoucher', 'voucher_10'); // 500 Funken -> 10% Rabatt
+            ->call('redeemFunkenVoucher', 'voucher_10'); // 150 Funken -> 10% Rabatt
 
         $profile->refresh();
         $this->assertTrue((bool) $profile->is_active);
-        $this->assertEquals(100, $profile->funken_balance);
+        $this->assertEquals(450, $profile->funken_balance);
         $this->assertEquals(600, $profile->funken_total_earned);
         $this->assertEquals(3, $profile->funki_level);
     }

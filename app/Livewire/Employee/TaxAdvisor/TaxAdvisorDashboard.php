@@ -468,11 +468,13 @@ class TaxAdvisorDashboard extends Component
             'income_year_gross' => 0.0,
         ];
 
+        $isSmallBusinessYear = app(\App\Services\Tax\TaxSettingService::class)->isSmallBusinessForYear((int) $this->selectedYear);
+
         foreach ($groups as $group) {
             $isIncomeGroup = ($group->type === 'income');
             foreach ($group->items as $item) {
                 $isBusiness = (bool) $item->is_business;
-                $rate = (float) ($item->tax_rate ?? ($isBusiness ? shop_setting('default_tax_rate', 19.0) : 0));
+                $rate = $isSmallBusinessYear ? 0.0 : (float) ($item->tax_rate ?? ($isBusiness ? shop_setting('default_tax_rate', 19.0) : 0));
                 $gross = abs((float) $item->amount);
                 $net = $rate > 0 ? ($gross / (1 + ($rate / 100))) : $gross;
                 $vat = $gross - $net;
@@ -574,7 +576,7 @@ class TaxAdvisorDashboard extends Component
 
         foreach ($allPeriodSpecials as $special) {
             $isBusiness = (bool) $special->is_business;
-            $rate = (float) ($special->tax_rate ?? ($isBusiness ? shop_setting('default_tax_rate', 19.0) : 0));
+            $rate = $isSmallBusinessYear ? 0.0 : (float) ($special->tax_rate ?? ($isBusiness ? shop_setting('default_tax_rate', 19.0) : 0));
             $signedGross = (float) $special->amount;
             $absGross = abs($signedGross);
             $absNet = $rate > 0 ? ($absGross / (1 + ($rate / 100))) : $absGross;
@@ -683,7 +685,8 @@ class TaxAdvisorDashboard extends Component
             ->whereYear('invoice_date', $this->selectedYear);
 
         $ordersPeriodQuery = OrderOrder::whereYear('created_at', $this->selectedYear)
-            ->where('payment_status', 'paid');
+            ->where('payment_status', 'paid')
+            ->whereNotIn('status', ['cancelled', 'refunded']);
 
         $payoutsQuery = MarketingInfluencerPayout::with('influencer.employee.profile')
             ->whereYear('created_at', $this->selectedYear);

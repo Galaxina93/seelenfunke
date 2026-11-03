@@ -42,6 +42,7 @@
                                 <div class="space-y-2">
                                     <label class="text-xs font-bold text-gray-700 uppercase tracking-wider ml-1">Geburtsdatum (optional)</label>
                                     <input wire:model.blur="birthday" type="date" class="w-full rounded-xl border border-gray-300 bg-gray-50/50 px-4 py-3 text-gray-900 shadow-sm transition-all focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/20 focus:outline-none [color-scheme:light] cursor-text">
+                                    <p class="text-[11px] text-gray-500 ml-1 leading-tight">Freiwillige Angabe (Art. 6 Abs. 1 lit. a DSGVO) für deine jährliche Geburtstags-Überraschung.</p>
                                     @error('birthday')<span class="text-red-600 text-xs mt-1 block font-medium">{{$message}}</span> @enderror
                                 </div>
                             </div>
@@ -153,10 +154,13 @@
                                             <input wire:model.live="terms" id="terms" type="checkbox" required aria-required="true" class="w-5 h-5 rounded border-gray-300 bg-white text-primary focus:ring-primary/30 cursor-pointer">
                                         </div>
                                         <label for="terms" class="text-xs sm:text-sm text-gray-600 leading-relaxed cursor-pointer select-none">
-                                            Ich akzeptiere die <a href="{{route('agb')}}" target="_blank" class="text-primary hover:text-amber-800 font-bold transition-colors underline decoration-primary/50 underline-offset-4">AGB</a> und habe die <a href="{{route('datenschutz')}}" target="_blank" class="text-primary hover:text-amber-800 font-bold transition-colors underline decoration-primary/50 underline-offset-4">Datenschutzerklärung</a> zur Kenntnis genommen. *
+                                            Ich akzeptiere die <a href="{{route('agb')}}" target="_blank" class="text-primary hover:text-amber-800 font-bold transition-colors underline decoration-primary/50 underline-offset-4">Allgemeinen Geschäftsbedingungen (AGB)</a> für mein Kundenkonto. *
                                         </label>
                                     </div>
                                     @error('terms')<span class="text-red-600 text-xs block mt-2 font-medium">{{$message}}</span> @enderror
+                                    <p class="text-xs text-gray-500 mt-2 pl-8 leading-relaxed">
+                                        Informationen zur Verarbeitung deiner personenbezogenen Daten (Art. 6 Abs. 1 lit. b DSGVO) findest du in unserer <a href="{{route('datenschutz')}}" target="_blank" class="text-primary hover:text-amber-800 font-bold transition-colors underline decoration-primary/50 underline-offset-4">Datenschutzerklärung</a>.
+                                    </p>
                                 </div>
 
                                 {{-- DSGVO-Einwilligung für KI-Support-Datenzugriff (Art. 6 Abs. 1 lit. a DSGVO) --}}

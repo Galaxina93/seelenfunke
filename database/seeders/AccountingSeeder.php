@@ -643,6 +643,59 @@ class AccountingSeeder extends Seeder
 
         $specialIssues = [
             [
+                'title'          => '10x Edelstahl-Ankerkette (44+6 cm, 1,5 mm, Ion-Plating) & 5x Edelstahl-Herzanhänger mit Collierschlaufe (14k vergoldet, 25x22x4 mm)',
+                'location'       => 'www.gluecksfieber.de',
+                'amount'         => -45.39,
+                'date'           => '2026-11-03',
+                'category'       => 'Rohmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => '325015',
+                'note'           => "Bestellung #325015 vom 03.11.2026 | PayPal-Transaktionscode: 29A72875SB338471W (Volksbank eG Braunschweig Wolfsburg x-6000)\nPositionen (inkl. 19% MwSt.):\n- 10x Edelstahl Gliederkette mit Karabinerverschluss, Ankerkette, goldfarben, Länge 44 cm + 6 cm Verlängerungskettchen, Kettenglieder 1,5 mm, Ion Plating (IP) (Art. Nr. STA268): Einzelpreis 2,84 € brutto (2,39 € netto) = 28,40 € brutto\n- 5x Edelstahl Laserrohling Anhänger, Herz, mit Collierschlaufe, 14 Karat vergoldet, 25 x 22 x 4 mm, Öse: 3 x 6 mm, Ion Plating (IP) (Art. Nr. STA1274): Einzelpreis 2,40 € brutto (2,02 € netto) = 12,00 € brutto\nSumme Artikel: 40,40 € brutto (inkl. 6,45 € MwSt.) | Versandkosten (DHL): 4,99 € brutto (4,19 € netto + 0,80 € MwSt.)\nGesamtbetrag: 45,39 € brutto (38,14 € netto zzgl. 7,25 € MwSt.)\nHändler: Stefan Spreier & Sandra Schmidt GbR (Glücksfieber), Stockholmring 8, 23560 Lübeck, Tel.: +49 451 4799850, E-Mail: kundenservice@gluecksfieber.de\nProdukt-Links:\n- https://www.gluecksfieber.de/shop/edelstahl/edelstahl-gliederketten/edelstahl-gliederkette-mit-karabinerverschluss-ankerkette-goldfarben-laenge-44-cm-6-cm-verlaengerungskettchen-kettenglieder-1-5-mm-ion-plating-ip.html\n- https://www.gluecksfieber.de/shop/laserrohlinge/edelstahl-laserrohling-anhaenger-herz-mit-collierschlaufe-14-karat-vergoldet-25-x-22-x-4-mm-oese-3-x-6-mm-ion-plating-ip.html",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-03_Gluecksfieber_10x-Edelstahl-Ankerkette-STA268-5x-Herz-Anhaenger-STA1274-Order-325015.pdf',
+                    'buchhaltung/receipts/2026/11/2026-11-03_Gluecksfieber_10x-Edelstahl-Ankerkette-STA268-5x-Herz-Anhaenger-STA1274-Order-325015.png'
+                ]
+            ],
+            [
+                'title'          => '10x KADAX Werkstatt-Stapelkiste / Sichtlagerbox aus PP Kunststoff (Schwarz, 290x200mm)',
+                'location'       => 'Amazon (ALEKSY LISOWSKI NETFOX)',
+                'amount'         => -34.99,
+                'date'           => '2026-11-02',
+                'category'       => 'Arbeitsmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => 'PL60984198MOVU',
+                'note'           => "Bestellnummer: 303-2735132-0737928 | Rechnungsnummer: PL60984198MOVU | Zahlungsreferenz: 6U2BRNRIQFC89AK7 | Rechnungs-/Lieferdatum: 02.11.2026\nPosition:\n- 1x (Set à 10 Stück) KADAX Werkstatt-Stapelkiste, Stapelbox aus PP Kunststoff, Sichtlagerbox in verschiedenen Größen, Lagerboxen für Werkzeugwand, Sichtlagerkasten, Sortierbox (Schwarz 10 Stück, 290x200mm, ASIN: B0BSQZ447T)\nBetrag: 29,40 € netto + 5,59 € USt. (19% DE via EU-OSS) = 34,99 € brutto (Versand: 0,00 €)\nVerkäufer: ALEKSY LISOWSKI NETFOX, Długosza 2, 32-410 Dobczyce, Małopolska, Polen, USt-IdNr.: PL6811896571\nProdukt-Link: https://www.amazon.de/dp/B0BSQZ447T",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-02_Amazon_10x-KADAX-Werkstatt-Stapelkiste-290x200mm-Rechnung-PL60984198MOVU.pdf'
+                ]
+            ],
+            [
+                'title'          => 'Untertischabroller 50cm mit glattem Messer, Abroller für Papier',
+                'location'       => 'eBay (xtdriver)',
+                'amount'         => -34.20,
+                'date'           => '2026-11-02',
+                'category'       => 'Arbeitsmaterial',
+                'tax_rate'       => 0,
+                'invoice_number' => '17-15363-69154',
+                'note'           => "Bestellnummer: 17-15363-69154 | eBay-Artikelnummer: 206541588475 | Bestellt & bezahlt am: 02.11.2026\nPosition:\n- 1x Untertischabroller 50cm mit glattem Messer, Abroller für Papier: 29,00 €\n- Versand (DHL Päckchen): 5,20 €\nGesamtbetrag: 34,20 € (ohne gesonderten USt.-Ausweis, 0% Vorsteuer)\nZahlungsmethode: PayPal (Käufer-Account: dexter199315, Lieferadresse: Alina Steinhauer, Carl-Goerdeler-Ring 26, 38518 Gifhorn)\nVerkäufer: xtdriver (eBay: https://www.ebay.de/usr/xtdriver)",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-02_eBay-xtdriver_Untertischabroller-50cm-Order-17-15363-69154.pdf'
+                ]
+            ],
+            [
+                'title'          => '96x Frankfurt ECO Schmuckschachtel Anhänger/Armreif (86 x 86 x 17 mm, Schwarz matt inkl. Logo-Druck & Klischee)',
+                'location'       => 'www.westpack.com (Westpack A/S)',
+                'amount'         => -145.95,
+                'date'           => '2026-11-02',
+                'category'       => 'Verpackungen',
+                'tax_rate'       => 25,
+                'invoice_number' => '29000069521',
+                'note'           => "Bestellung Order #29000069521 vom 02.11.2026 (Order-ID: 485928)\nPositionen:\n- 96x Frankfurt ECO Schmuckschachtel Anhänger/Armreif (Art.-Nr.: 30286060102, Schwarz matt, 86 x 86 x 17 mm inkl. Schaumstoffeinlage & eigenem Mein-Seelenfunke-Logodruck): Einzelpreis 1,06 € netto = 101,76 € netto\n- 1x Klischeekosten / Druckstempel (Art.-Nr.: 60000002000): 0,00 €\nZwischensumme: 101,76 € netto | Versand & Bearbeitung (Standard nach DE): 15,00 € netto | Steuer (25% DK MwSt.): 29,19 € | Gesamtsumme: 145,95 € brutto (1,52 € brutto / Stk.)\nZahlungsart: PayPal (Alina Steinhauer - Mein Seelenfunke)\nHändler: Westpack A/S, Sletten 21, 7500 Holstebro, Dänemark, USt-IdNr.: DK15505908\nProdukt-Link: https://www.westpack.com/eur_eu_ger/frankfurt-eco-jewellery-box-for-pendant-bangle-30286060102.html",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-02_Westpack_96x-Frankfurt-ECO-Schmuckschachtel-Order-29000069521.pdf'
+                ]
+            ],
+            [
                 'title'          => 'DPMA Markenanmeldung Wortmarke "Mein Seelenfunke" (Nizza-Klassen 14, 21, 40 - Leitklasse 14)',
                 'location'       => 'Deutsches Patent- und Markenamt (DPMA)',
                 'amount'         => -290.00,
@@ -748,6 +801,34 @@ class AccountingSeeder extends Seeder
                 'date'     => '2026-06-15',
                 'category' => 'Arbeitsmaterial',
                 'file_paths' => ['buchhaltung/receipts/2026/06/2026-06-15_Zimmermann_Plastikboxen.pdf']
+            ],
+            [
+                'title'          => '2x Set Schwarze Grußkartenumschläge mit Goldrand (100 Umschläge + 100 goldene Siegel-Aufkleber) & 1x Massivholz-Bandhalter',
+                'location'       => 'Temu',
+                'amount'         => -25.05,
+                'date'           => '2026-06-11',
+                'category'       => 'Verpackungen',
+                'tax_rate'       => 19,
+                'invoice_number' => 'PO-076-16518259507830774',
+                'note'           => "Bestellnummer: PO-076-16518259507830774 (Bestellzeit / Bezahlt am 11.06.2026 via PayPal, zugestellt am 19.06.2026)\nEnthält 19% USt. in Höhe von 4,00 € (Artikel gesamt: 25,41 €, Temu-Rabatt: -0,36 €)\nPositionen:\n- 2x 100 Stück Set (je 50 schwarze Umschläge mit goldenem Folienrand + 50 goldene Wachssiegel-Aufkleber = 100 Umschläge + 100 Siegel-Aufkleber) à 7,96 € (Händler: Lumina BK / Kaibo(dongguan)Zhi Zhi Pin Co., Ltd)\n- 1x Massivholz-Bandhalter / Garnwickelregal zur Bandaufbewahrung à 9,49 € (Händler: Gnyn)",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/06/2026-06-11_Temu_100x-Schwarze-Goldrand-Umschlaege-Siegel-Massivholz-Bandhalter-Order-PO-076-16518259507830774.pdf',
+                    'buchhaltung/receipts/2026/06/2026-06-11_Temu_100x-Schwarze-Goldrand-Umschlaege-Siegel-Massivholz-Bandhalter-Order-PO-076-16518259507830774.png'
+                ]
+            ],
+            [
+                'title'          => '5x 50er Set Goldene Metallkarten (250 Stk., 86x54x0,2mm für Gutscheine) & 10x Goldfarbenes Geschenkband (91,44m Spulen)',
+                'location'       => 'Temu',
+                'amount'         => -35.25,
+                'date'           => '2026-05-25',
+                'category'       => 'Rohmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => 'PO-076-06811572188790774',
+                'note'           => "Bestellnummer: PO-076-06811572188790774 (Bestellzeit / Bezahlt am 25.05.2026 via PayPal, zugestellt am 04.06.2026)\nEnthält 19% USt. in Höhe von 5,63 €\nPositionen:\n- 5x 50 Stück goldene, luxuriöse Metallkarten (250 Stück gesamt, 8,6 x 5,4 cm / 86 x 54 mm, Stärke 0,2 mm) à 4,07 € = 20,35 € (Händler: GGOOOM)\n- 10x 91,44 Meter Lockige Bandspulen / Geschenkband Goldfarben à 1,49 € = 14,90 € (Händler: Victory Party / Yiwu Xiku Crafts Co.,Ltd.)",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/05/2026-05-25_Temu_250x-Goldene-Metallkarten-10x-Geschenkband-Order-PO-076-06811572188790774.pdf',
+                    'buchhaltung/receipts/2026/05/2026-05-25_Temu_250x-Goldene-Metallkarten-10x-Geschenkband-Order-PO-076-06811572188790774.png'
+                ]
             ],
             [
                 'title'    => 'Laserschutzschulung',

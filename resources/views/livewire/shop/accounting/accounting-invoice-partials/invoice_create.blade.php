@@ -187,9 +187,26 @@
                                     <input type="number" step="0.01" wire:model.live="manualInvoice.items.{{$index}}.unit_price" class="{{ $inputClass }} {{ $errors->has('manualInvoice.items.'.$index.'.unit_price') ? $errorClass : '' }} p-2.5 text-right font-mono">
                                 </td>
                                 <td class="py-3 px-2">
+                                    @php
+                                        $defaultRate = (float) shop_setting('default_tax_rate', 19);
+                                        $reducedRate = (float) shop_setting('reduced_tax_rate', 7);
+                                        $rawActiveRates = shop_setting('active_tax_rates', [$defaultRate, $reducedRate, 0]);
+                                        if (is_string($rawActiveRates)) {
+                                            $decodedRates = json_decode($rawActiveRates, true);
+                                            $rawActiveRates = is_array($decodedRates) ? $decodedRates : [$defaultRate, $reducedRate, 0];
+                                        }
+                                        $customRates = collect(is_array($rawActiveRates) ? $rawActiveRates : [])
+                                            ->map(fn($r) => (float) $r)
+                                            ->reject(fn($r) => in_array($r, [$defaultRate, $reducedRate, 0.0], true))
+                                            ->unique()
+                                            ->values();
+                                    @endphp
                                     <select wire:model.live="manualInvoice.items.{{$index}}.tax_rate" class="{{ $inputClass }} p-2.5 text-xs text-center appearance-none cursor-pointer">
-                                        <option value="19" class="bg-gray-900">19%</option>
-                                        <option value="7" class="bg-gray-900">7%</option>
+                                        <option value="{{ $defaultRate }}" class="bg-gray-900">{{ $defaultRate }}%</option>
+                                        <option value="{{ $reducedRate }}" class="bg-gray-900">{{ $reducedRate }}%</option>
+                                        @foreach($customRates as $customRate)
+                                            <option value="{{ $customRate }}" class="bg-gray-900">{{ $customRate }}%</option>
+                                        @endforeach
                                         <option value="0" class="bg-gray-900">0%</option>
                                     </select>
                                 </td>
@@ -258,7 +275,7 @@
 
                     {{-- Briefkopf --}}
                     <div class="flex justify-between border-b-2 border-[var(--theme-color)] pb-8 mb-10 mt-4">
-                        <div class="font-serif text-3xl font-bold text-[var(--theme-color)] italic">Mein Seelenfunke</div>
+                        <div class="font-serif text-3xl font-bold text-[var(--theme-color)] italic">{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</div>
                         <div class="text-right">
                             <div class="uppercase font-black text-gray-900 tracking-[0.3em] text-2xl mb-1">Rechnung</div>
                             <div class="text-xs font-mono font-bold text-gray-500 tracking-wider">{{ $manualInvoice['invoice_number'] ?: '---' }}</div>
@@ -268,7 +285,7 @@
                     {{-- Adressen & Info --}}
                     <div class="flex justify-between mb-12">
                         <div class="w-1/2">
-                            <div class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-3 pb-1 border-b border-gray-100 inline-block">Mein Seelenfunke · C.-Goerdeler-Ring 26 · 38518 Gifhorn</div>
+                            <div class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-3 pb-1 border-b border-gray-100 inline-block">{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }} · {{ shop_setting('company_street') ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', '')) : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }} · {{ shop_setting('company_city') ? trim(shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city')) : shop_setting('owner_city', '38518 Gifhorn') }}</div>
                             <div class="font-bold text-gray-900 text-base leading-relaxed mt-2">
                                 @if($manualInvoice['company']) <span class="text-[var(--theme-color)]">{{ $manualInvoice['company'] }}</span><br> @endif
                                 {{ $manualInvoice['first_name'] ?: 'Vorname' }} {{ $manualInvoice['last_name'] ?: 'Nachname' }}<br>
@@ -397,9 +414,9 @@
                     {{-- Dynamischer Footer Vorschau --}}
                     <div class="mt-auto pt-10 border-t border-gray-200 text-center text-gray-400">
                         <p class="text-[10px] leading-relaxed uppercase tracking-widest font-medium">
-                            <strong class="text-gray-600">{{ shop_setting('owner_name') }}</strong> | Inh. {{ shop_setting('owner_proprietor') }}<br>
-                            {{ shop_setting('owner_street') }}, {{ shop_setting('owner_city') }}<br>
-                            <span class="lowercase tracking-normal">{{ shop_setting('owner_email') }}</span> | {{ str_replace(['http://', 'https://'], '', shop_setting('owner_website')) }}
+                            <strong class="text-gray-600">{{ shop_setting('company_name', shop_setting('owner_name')) }}</strong> | Inh. {{ shop_setting('owner_proprietor') }}<br>
+                            {{ shop_setting('company_street') ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', '')) : shop_setting('owner_street') }}, {{ shop_setting('company_city') ? trim(shop_setting('company_zip', '') . ' ' . shop_setting('company_city')) : shop_setting('owner_city') }}<br>
+                            <span class="lowercase tracking-normal">{{ shop_setting('owner_email_invoices') ?: shop_setting('company_email', shop_setting('owner_email')) }}</span> | {{ str_replace(['http://', 'https://'], '', shop_setting('owner_website')) }}
                         </p>
                     </div>
                 </div>

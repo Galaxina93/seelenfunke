@@ -37,6 +37,10 @@
                 {!! $signatureHtml !!}
             </div>
         @endif
+
+        <div style="margin-top: 36px; padding-top: 16px; border-top: 1px solid #eeeeee; font-size: 11px; color: #888888; text-align: center;">
+            @include('global.mails.partials.mail_footer')
+        </div>
     </div>
 </body>
 </html>

@@ -37,7 +37,7 @@
     $isDigital  = $product->type === 'digital' && !$isVoucher;
     $isService  = $product->type === 'service';
     $isPhysical = $product->type === 'physical' && !$isVoucher;
-    $isFreeShipping = !$isPhysical || ($product->price >= $freeThreshold);
+    $isFreeShipping = !$isPhysical || ($product->gross_price >= $freeThreshold);
 
     $ratingAvg = round((float) ($product->approved_reviews_avg ?? $product->average_rating ?? 0), 1);
     $ratingCount = (int) ($product->approved_reviews_count ?? $product->review_count ?? 0);
@@ -124,11 +124,11 @@
                                     <span class="text-xs font-semibold text-gray-500">(frei wählbar von 5,00 € bis 1.000,00 €)</span>
                                 @else
                                     <span class="text-3xl font-serif font-bold text-gray-900">
-                                        {{ number_format($product->price / 100, 2, ',', '.') }} €
+                                        {{ number_format($product->gross_price / 100, 2, ',', '.') }} €
                                     </span>
-                                    @if($product->compare_at_price > $product->price)
+                                    @if($product->compare_at_price > $product->gross_price)
                                         @php
-                                            $heroDiscountPercent = (int) round((($product->compare_at_price - $product->price) / $product->compare_at_price) * 100);
+                                            $heroDiscountPercent = (int) round((($product->compare_at_price - $product->gross_price) / $product->compare_at_price) * 100);
                                         @endphp
                                         <span class="text-lg text-gray-400 line-through decoration-red-400">
                                             {{ number_format($product->compare_at_price / 100, 2, ',', '.') }} €
@@ -141,7 +141,13 @@
                                 @endif
                             </div>
 
-                            @if(!$isVoucher && $product->compare_at_price > $product->price)
+                            @if(!$isVoucher && $product->base_price_info)
+                                <p class="text-[11px] font-medium text-gray-500 mt-1">
+                                    Grundpreis: {{ $product->base_price_info }}
+                                </p>
+                            @endif
+
+                            @if(!$isVoucher && $product->compare_at_price > $product->gross_price)
                                 <p class="text-[11px] text-gray-400 mt-1">
                                     Niedrigster Gesamtpreis der letzten 30 Tage vor der Preisermäßigung: {{ number_format($product->compare_at_price / 100, 2, ',', '.') }} €
                                 </p>
@@ -157,18 +163,20 @@
                                 </span>
                                 <span class="text-gray-300">•</span>
                                 @if($isVoucher)
-                                    <span class="font-semibold text-emerald-700">E-Mail-Gutschein versandkostenfrei (Postkarte optional)</span>
+                                    <span class="font-semibold text-emerald-700">E-Mail-Gutschein versandkostenfrei (Postkarte optional, <a href="{{ route('versand') }}" target="_blank" class="underline hover:text-gray-800">Versandinfos</a>)</span>
                                 @elseif($isDigital)
                                     <span class="font-semibold text-blue-600">Sofort-Download (versandkostenfrei)</span>
                                 @elseif($isService)
                                     <span class="font-semibold text-orange-600">Kein Versand erforderlich (Dienstleistung)</span>
                                 @elseif($isFreeShipping)
-                                    <span class="font-semibold text-emerald-700">Kostenloser Versand ({{ $companyCountryName }})</span>
+                                    <span class="font-semibold text-emerald-700">
+                                        Kostenloser Versand ({{ $companyCountryName }})
+                                        <a href="{{ route('versand') }}" target="_blank" class="underline hover:text-gray-800 ml-0.5 font-normal text-gray-500">Details</a>
+                                    </span>
                                 @else
                                     <span>
-                                        zzgl. {{ number_format($shippingCost / 100, 2, ',', '.') }} € Versand
+                                        zzgl. {{ number_format($shippingCost / 100, 2, ',', '.') }} € <a href="{{ route('versand') }}" target="_blank" class="underline hover:text-gray-800">Versand</a>
                                         <span class="text-gray-400">(frei ab {{ number_format($freeThreshold / 100, 2, ',', '.') }} €)</span>
-                                        <a href="{{ route('versand') }}" target="_blank" class="underline hover:text-gray-800 ml-0.5">Details</a>
                                     </span>
                                 @endif
                             </div>
@@ -521,6 +529,11 @@
 --}}
 <section id="herzensprojekt" class="py-24 bg-gradient-to-br from-amber-50/60 via-white to-orange-50/40 relative overflow-hidden border-y border-amber-100/60" aria-labelledby="herzensprojekt-heading">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        @php
+            $lpHerzensEuro = \App\Services\HerzensprojektService::resolveFormattedEuro();
+            $lpHerzensIsPerItem = \App\Services\HerzensprojektService::isPerItem();
+            $lpHerzensUnit = \App\Services\HerzensprojektService::resolveUnitLabel(true);
+        @endphp
         <div class="max-w-3xl mx-auto text-center mb-16">
             <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-800 text-xs font-bold uppercase tracking-widest mb-4">
                 <span>❤️</span> Ein Funke, der Gutes tut
@@ -529,7 +542,7 @@
                 Freude schenken. <br><span class="text-primary italic font-serif">Gutes bewirken.</span>
             </h2>
             <p class="text-lg text-gray-600 font-light leading-relaxed">
-                Wir bei {{ $companyName }} glauben daran, dass wahre Freude wächst, wenn man sie teilt. Mit jedem Kauf fließt ein fester Beitrag in unseren regionalen Herzens-Topf für Kindergärten und Aktionen für Kinder vor Ort in {{ $companyCity }} und Umgebung.
+                Wir bei {{ $companyName }} glauben daran, dass wahre Freude wächst, wenn man sie teilt. {{ $lpHerzensIsPerItem ? 'Mit jedem verkauften und bezahlten Artikel' : 'Mit jeder bezahlten Bestellung' }} fließt ein fester Beitrag von <strong>{{ $lpHerzensEuro }}&nbsp;€</strong> aus unseren Unternehmenserlösen in unseren regionalen Herzens-Topf für Kindergärten und Aktionen für Kinder vor Ort in {{ $companyCity }} und Umgebung.*
             </p>
         </div>
 
@@ -565,10 +578,13 @@
             </div>
         </div>
 
-        <div class="text-center">
+        <div class="text-center space-y-3">
             <span class="inline-flex items-center gap-2 text-sm text-amber-900 font-medium bg-amber-100/60 px-5 py-2.5 rounded-full border border-amber-200/60">
-                <span>🌟</span> Mit deiner Bestellung wird dieser Funke Wirklichkeit.
+                <span>🌟</span> Mit deiner Bestellung wird dieser Funke Wirklichkeit ({{ $lpHerzensEuro }}&nbsp;€ {{ $lpHerzensUnit }}).
             </span>
+            <p class="text-[11px] text-gray-500 max-w-2xl mx-auto leading-relaxed">
+                * Transparenzhinweis (§ 5a UWG): Freiwillige unternehmerische Initiative (Cause-Related Marketing). {{ $lpHerzensIsPerItem ? 'Pro verkauftem und bezahltem Artikel (nicht widerrufen)' : 'Pro bezahlter und nicht widerrufener Bestellung' }} führen wir {{ $lpHerzensEuro }}&nbsp;€ aus unseren eigenen Unternehmenserlösen unserem regionalen <a href="{{ route('manufacture') }}#herzensprojekte" class="underline hover:text-gray-800">Herzensprojekte-Fonds</a> für Kitas und Kinderaktionen in {{ $companyCity }} zu (keine Spendenquittung für Käufer).
+            </p>
         </div>
     </div>
 </section>
@@ -587,6 +603,9 @@
             <h2 id="reviews-heading" class="text-3xl sm:text-4xl font-serif font-bold text-gray-900">
                 Das sagen unsere Kunden über {{ $product->name }}
             </h2>
+            <p class="mt-2.5 text-xs text-gray-500 max-w-xl mx-auto leading-relaxed">
+                Hinweis gem. § 5b Abs. 3 UWG: Veröffentlichte Produktbewertungen stammen ausschließlich von verifizierten Käufern, die den Artikel über ihr Kundenkonto in unserem Shop erworben haben.
+            </p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -609,9 +628,13 @@
                     </div>
                     <div class="mt-6 pt-4 border-t border-gray-200/60 flex items-center justify-between text-xs text-gray-500">
                         <span class="font-bold text-gray-800">
-                            {{ $review->customer?->first_name ?? 'Verifizierter Kunde' }}
-                            @if(!empty($review->customer?->last_name))
-                                {{ mb_substr($review->customer->last_name, 0, 1) }}.
+                            @if($review->is_anonymous || !$review->customer)
+                                Verifizierter Käufer
+                            @else
+                                {{ $review->customer->first_name ?: 'Verifizierter Käufer' }}
+                                @if(!empty($review->customer->last_name))
+                                    {{ mb_substr(trim((string) $review->customer->last_name), 0, 1) }}.
+                                @endif
                             @endif
                         </span>
                         <span class="text-emerald-700 font-semibold">✓ Verifizierter Kauf</span>
@@ -733,8 +756,8 @@
                     $relIsAi = (bool) ($relMeta['is_ai_generated'] ?? false);
                     $relUrl = route('product.show', $relProduct->slug);
                 @endphp
-                <a href="{{ $relUrl }}" class="group flex flex-col bg-white rounded-3xl p-3 border border-gray-100 shadow-xs hover:shadow-xl hover:border-primary/30 transition-all duration-300">
-                    <div class="aspect-square rounded-2xl overflow-hidden bg-gray-50 relative mb-4 border border-gray-100">
+                <div class="group flex flex-col bg-white rounded-3xl p-3 border border-gray-100 shadow-xs hover:shadow-xl hover:border-primary/30 transition-all duration-300">
+                    <a href="{{ $relUrl }}" class="block aspect-square rounded-2xl overflow-hidden bg-gray-50 relative mb-4 border border-gray-100">
                         @if($relImgUrl)
                             <img src="{{ $relImgUrl }}"
                                  alt="{{ $relProduct->name }}"
@@ -752,21 +775,43 @@
                                 -{{ max(1, (int) round((($relProduct->compare_at_price - $relProduct->price) / $relProduct->compare_at_price) * 100)) }}%
                             </span>
                         @endif
-                    </div>
+                    </a>
                     <div class="px-2 pb-2 flex-1 flex flex-col justify-between">
-                        <h3 class="font-serif font-bold text-base text-gray-900 group-hover:text-primary-dark transition-colors line-clamp-2">
-                            {{ $relProduct->name }}
-                        </h3>
-                        <div class="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between">
-                            <span class="font-bold text-sm text-gray-900">
-                                {{ $relProduct->slug === 'geschenkgutschein' ? 'ab 5,00 €' : $relProduct->formatted_price }}
-                            </span>
-                            <span class="text-xs font-bold text-primary-dark group-hover:translate-x-0.5 transition-transform">
-                                Entdecken →
-                            </span>
+                        <a href="{{ $relUrl }}" class="block">
+                            <h3 class="font-serif font-bold text-base text-gray-900 group-hover:text-primary-dark transition-colors line-clamp-2">
+                                {{ $relProduct->name }}
+                            </h3>
+                        </a>
+                        <div class="mt-3 pt-2.5 border-t border-gray-100">
+                            <a href="{{ $relUrl }}" class="flex items-center justify-between">
+                                <div class="flex items-baseline gap-1.5">
+                                    <span class="font-bold text-sm text-gray-900">
+                                        {{ $relProduct->slug === 'geschenkgutschein' ? 'ab 5,00 €' : $relProduct->formatted_price }}
+                                    </span>
+                                    @if($relProduct->slug !== 'geschenkgutschein' && $relProduct->compare_at_price > $relProduct->price)
+                                        <span class="text-xs text-gray-400 line-through">
+                                            {{ number_format($relProduct->compare_at_price / 100, 2, ',', '.') }} €
+                                        </span>
+                                    @endif
+                                </div>
+                                <span class="text-xs font-bold text-primary-dark group-hover:translate-x-0.5 transition-transform">
+                                    Entdecken →
+                                </span>
+                            </a>
+                            @if($relProduct->base_price_info)
+                                <p class="text-[10px] text-gray-500 font-medium mt-0.5 leading-tight">
+                                    Grundpreis: {{ $relProduct->base_price_info }}
+                                </p>
+                            @endif
+                            <p class="text-[10px] text-gray-400 mt-1 leading-tight">
+                                @if($relProduct->slug !== 'geschenkgutschein' && $relProduct->compare_at_price > $relProduct->price)
+                                    30-Tage-Bestpreis: {{ number_format($relProduct->compare_at_price / 100, 2, ',', '.') }} € ·
+                                @endif
+                                {{ $isSmallBusiness ? 'Endpreis gem. § 19 UStG' : 'inkl. MwSt.' }}@if($relProduct->type === 'physical' && $relProduct->slug !== 'geschenkgutschein'), zzgl. <a href="{{ route('versand') }}" class="underline hover:text-gray-600 transition-colors">Versand</a>@endif
+                            </p>
                         </div>
                     </div>
-                </a>
+                </div>
             @endforeach
         </div>
     </div>
@@ -792,7 +837,7 @@
         </h2>
         <p class="text-xl text-stone-100 mb-12 max-w-2xl mx-auto font-light leading-relaxed drop-shadow">
             @if($isVoucher)
-                Verschenke freie Auswahl aus unserer gesamten Manufaktur – digital per E-Mail oder als gedruckte Klappkarte.
+                Verschenke freie Auswahl aus unserer gesamten Manufaktur: digital per E-Mail oder als lasergravierte goldene Metallkarte im edlen Umschlag.
             @elseif($isDigital)
                 Erhalte jetzt {{ $product->name }} mit direktem Download nach deiner Bestellung.
             @elseif($isService)

@@ -50,21 +50,32 @@
         'newsletter.verify',
         'emergency.index',
         'influencer.invitation',
+        'employee.invitation',
         'frontend.tracking.redirect',
+    ];
+    $noReferrerRoutes = [
+        'influencer.invitation',
+        'employee.invitation',
+        'quote.accept',
+        'cart.reminder.unsubscribe',
+        'newsletter.verify',
+        'customer.verification.verify',
     ];
     $defaultRobots = in_array($currentRouteName, $noindexRoutes, true)
         ? 'noindex, nofollow'
         : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
     $resolvedRobots = $robots ?: ($sectionRobots ?: $defaultRobots);
-    $resolvedReferrerPolicy = $currentRouteName === 'influencer.invitation'
+    $resolvedReferrerPolicy = in_array($currentRouteName, $noReferrerRoutes, true)
         ? 'no-referrer'
         : 'strict-origin-when-cross-origin';
 
     $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
     $founderName = shop_setting('owner_proprietor', 'Alina Steinhauer');
-    $streetAddress = trim(shop_setting('company_street', 'Carl-Goerdeler-Ring') . ' ' . shop_setting('company_street_number', '26'));
+    $streetAddress = shop_setting('company_street')
+        ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', ''))
+        : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26');
     $postalCode = shop_setting('company_zip', '38518');
-    $city = shop_setting('company_city', 'Gifhorn');
+    $city = shop_setting('company_city', shop_setting('owner_city', 'Gifhorn'));
     $phone = shop_setting('company_phone', shop_setting('owner_phone', '+49 159 019 668 64'));
     $email = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
 
@@ -110,12 +121,12 @@
                     'email' => $email,
                     'contactType' => 'customer service',
                     'availableLanguage' => ['de', 'German'],
-                    'areaServed' => ['DE', 'AT', 'CH'],
+                    'areaServed' => ['DE', 'AT', 'EU'],
                 ],
                 'areaServed' => [
                     ['@type' => 'Country', 'name' => 'DE'],
                     ['@type' => 'Country', 'name' => 'AT'],
-                    ['@type' => 'Country', 'name' => 'CH'],
+                    ['@type' => 'AdministrativeArea', 'name' => 'EU'],
                 ],
                 'priceRange' => '€€',
                 'sameAs' => [
@@ -225,32 +236,15 @@
     {{-- Livewire --}}
     @livewireStyles
     <script>
-        // Theme Initialisierung: Standardmäßig Light Mode
+        // Öffentlicher Shop: Immer im hellen Manufaktur-Modus (Admin-Darkmode in localStorage.theme bleibt für /admin unberührt)
         (function() {
-            try {
-                if (localStorage.theme === 'dark') {
-                    document.documentElement.classList.add('dark');
-                    document.documentElement.classList.remove('light');
-                } else {
-                    document.documentElement.classList.remove('dark');
-                    document.documentElement.classList.add('light');
-                }
-            } catch (e) {
-                document.documentElement.classList.remove('dark');
-                document.documentElement.classList.add('light');
-            }
+            document.documentElement.classList.remove('dark');
+            document.documentElement.classList.add('light');
         })();
 
         document.addEventListener('livewire:navigated', function() {
-            try {
-                if (localStorage.theme === 'dark') {
-                    document.documentElement.classList.add('dark');
-                    document.documentElement.classList.remove('light');
-                } else {
-                    document.documentElement.classList.remove('dark');
-                    document.documentElement.classList.add('light');
-                }
-            } catch (e) {}
+            document.documentElement.classList.remove('dark');
+            document.documentElement.classList.add('light');
         });
 
         // Unterdrückt den harmlosen Alpine/Livewire Fehler bei abgebrochenen CSS-Animationen
@@ -261,6 +255,48 @@
         });
     </script>
     @include("components.layouts.partials.frontend-error-tracker")
+
+    <style>
+        [x-cloak] {
+            display: none !important;
+        }
+        html.dark {
+            color-scheme: dark;
+        }
+        html.light, html:not(.dark) {
+            color-scheme: light;
+        }
+        /* Universelle Sichtbarkeit des Mauszeigers & Carets in Input- und Textarea-Feldern */
+        input, textarea, [contenteditable="true"] {
+            caret-color: currentColor;
+        }
+        html.dark input,
+        html.dark textarea,
+        html.dark [contenteditable="true"],
+        html.dark select {
+            color-scheme: dark;
+            caret-color: #E6C687;
+        }
+        /* Dual-Vector High-Contrast I-Beam Cursor für helle & dunkle Eingabefelder (verhindert unsichtbare Maus auf Windows/Chrome) */
+        html:not(.dark) input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="image"]):not(:disabled):not(.cursor-pointer):not(.cursor-not-allowed):not(.cursor-wait),
+        html:not(.dark) textarea:not(:disabled):not(.cursor-pointer):not(.cursor-not-allowed),
+        html:not(.dark) [contenteditable="true"],
+        html:not(.dark) .cursor-text {
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='24' viewBox='0 0 16 24'%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' fill='none' stroke='%23ffffff' stroke-width='4.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' fill='none' stroke='%23111827' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 8 12, text !important;
+        }
+        html.dark input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="image"]):not(:disabled):not(.cursor-pointer):not(.cursor-not-allowed):not(.cursor-wait),
+        html.dark textarea:not(:disabled):not(.cursor-pointer):not(.cursor-not-allowed),
+        html.dark [contenteditable="true"],
+        html.dark .cursor-text,
+        input[class*="bg-gray-9"]:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(:disabled):not(.cursor-pointer),
+        input[class*="bg-slate-9"]:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(:disabled):not(.cursor-pointer),
+        input[class*="bg-black"]:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(:disabled):not(.cursor-pointer),
+        textarea[class*="bg-gray-9"]:not(:disabled):not(.cursor-pointer),
+        textarea[class*="bg-slate-9"]:not(:disabled):not(.cursor-pointer),
+        textarea[class*="bg-black"]:not(:disabled):not(.cursor-pointer) {
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='24' viewBox='0 0 16 24'%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' fill='none' stroke='%23000000' stroke-width='4.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 8 12, text !important;
+        }
+    </style>
 </head>
 
 <body class="min-h-screen overflow-x-hidden antialiased">

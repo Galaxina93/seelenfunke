@@ -37,6 +37,10 @@
             isDragging: false,
             isResizing: false,
             isRotating: false,
+            _justTransformed: false,
+            dragStartX: 0,
+            dragStartY: 0,
+            hasDraggedDistance: false,
             currentElement: null,
             dragOffsetX: 0,
             dragOffsetY: 0,
@@ -441,8 +445,13 @@
                     });
 
                     this.$watch('activeSide', (val) => {
-                        this.selectedType = null;
-                        this.selectedIndex = null;
+                        if (!this._keepSelectionOnSideSwitch) {
+                            this.selectedType = null;
+                            this.selectedIndex = null;
+                            this.focusedTextId = null;
+                        }
+                        this._keepSelectionOnSideSwitch = false;
+
                         let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
                         if (engine) {
                             if (typeof engine.rotateToSide === 'function') {
@@ -456,9 +465,6 @@
 
                         this.$nextTick(() => {
                             this.refitAllTextareas();
-                            setTimeout(() => {
-                                this.updateScaleFactor(null, true);
-                            }, 50);
                         });
                     });
 
@@ -548,9 +554,87 @@
                 }
             },
 
+            ensureTextDims(item) {
+                if (!item || !item.id) {
+                    return { width: '160px', height: '38px' };
+                }
+                if (this.textDims[item.id] && this.textDims[item.id].width && this.textDims[item.id].height) {
+                    return this.textDims[item.id];
+                }
+
+                const scale = this.scaleFactor || 1;
+                const fontSizePx = (20 * (item.size || 1)) * scale;
+                const fontFamily = (this.fontMap && this.fontMap[item.font]) ? this.fontMap[item.font] : 'Arial';
+                const rawText = (item.text !== undefined && item.text !== null && String(item.text).length > 0)
+                    ? String(item.text)
+                    : 'Text eingeben...';
+                const textLines = rawText.split('\n');
+                const lines = textLines.length || 1;
+
+                let canvasWidth = 60;
+                let canvasHeight = Math.ceil(lines * fontSizePx * 1.32);
+                try {
+                    if (!this._measureCanvas) {
+                        this._measureCanvas = document.createElement('canvas');
+                    }
+                    const ctx = this._measureCanvas.getContext('2d');
+                    if (ctx) {
+                        ctx.font = 'bold ' + fontSizePx + 'px ' + fontFamily;
+                        let maxLineW = 0;
+                        textLines.forEach(line => {
+                            const w = ctx.measureText(line || ' ').width;
+                            if (w > maxLineW) maxLineW = w;
+                        });
+                        canvasWidth = Math.ceil(maxLineW);
+                    }
+                } catch (e) {}
+
+                const finalWidth = Math.max(60, canvasWidth + 24) + 'px';
+                const finalHeight = Math.max(34, canvasHeight + 14) + 'px';
+                this.textDims[item.id] = { width: finalWidth, height: finalHeight };
+                return this.textDims[item.id];
+            },
+
+            switchSide(side) {
+                if (this.activeSide === side) return;
+                this.showFontMenu = this.showSizeMenu = this.showAlignMenu = this.showPosMenu = false;
+
+                if (side === 'back' && (!this.texts_back || this.texts_back.length === 0) && (!this.logos_back || this.logos_back.length === 0)) {
+                    const newId = Math.random().toString(36).substr(2, 9);
+                    const newItem = {
+                        id: newId,
+                        text: '',
+                        size: 1,
+                        x: this.areaCenterX,
+                        y: this.areaCenterY,
+                        rotation: 0,
+                        align: 'center',
+                        font: 'Arial'
+                    };
+                    this.ensureTextDims(newItem);
+                    this.texts_back = [newItem];
+                    this._keepSelectionOnSideSwitch = true;
+                    this.selectedType = 'text';
+                    this.selectedIndex = 0;
+                    this.focusedTextId = null;
+                    this.activeSide = 'back';
+                    this.recordHistory();
+                    return;
+                }
+
+                const targetTexts = side === 'back' ? (this.texts_back || []) : (this.texts || []);
+                targetTexts.forEach(t => this.ensureTextDims(t));
+
+                this.selectedType = null;
+                this.selectedIndex = null;
+                this.focusedTextId = null;
+                this.activeSide = side;
+            },
+
             addFallbackText() {
                 const newId = Math.random().toString(36).substr(2, 9);
                 const newItem = {id: newId, text: '', size: 1, x: this.areaCenterX, y: this.areaCenterY, rotation: 0, align: 'center', font: 'Arial'};
+                this.ensureTextDims(newItem);
                 if (this.activeSide === 'front') {
                     this.texts.push(newItem);
                     this.selectItem('text', this.texts.length - 1);
@@ -1097,6 +1181,7 @@
                 this.showPosMenu = false;
 
                 if(this.selectedType === 'text') {
+                    this.focusedTextId = null;
                     let newTexts = JSON.parse(JSON.stringify(this[tName]));
                     newTexts.splice(this.selectedIndex, 1);
 
@@ -1106,6 +1191,9 @@
 
                     this[tName] = newTexts;
                     this.selectItem('text', this[tName].length - 1);
+                    this.$nextTick(() => {
+                        this.refitAllTextareas();
+                    });
                 } else if(this.selectedType === 'logo') {
                     let newLogos = JSON.parse(JSON.stringify(this[lName]));
                     newLogos.splice(this.selectedIndex, 1);
@@ -1208,15 +1296,6 @@
                 if(this.context === 'preview' || (!this.showDrawingBoard && this.config.modelPath)) return;
                 this.selectItem(type, index);
 
-                if(event.target.tagName === 'TEXTAREA' && action === 'drag') {
-                    const tItem = (type === 'text' && this.currentTexts) ? this.currentTexts[index] : null;
-                    if (tItem && tItem.id) {
-                        this.focusedTextId = tItem.id;
-                    }
-                    event.target.focus();
-                    return;
-                }
-
                 let item = (type === 'text') ? this.currentTexts[index] : this.currentLogos[index];
                 if(!item) return;
 
@@ -1224,10 +1303,23 @@
                 const clientY = event.touches ? event.touches[0].clientY : event.clientY;
                 const rect = this.$refs.container.getBoundingClientRect();
 
-                this.currentElement = { type, index, action };
+                const curX = Number(item.x ?? this.areaCenterX);
+                const curY = Number(item.y ?? this.areaCenterY);
 
-                const curX = item.x ?? this.areaCenterX;
-                const curY = item.y ?? this.areaCenterY;
+                this.dragStartX = clientX;
+                this.dragStartY = clientY;
+                this.hasDraggedDistance = false;
+
+                if(event.target.tagName === 'TEXTAREA' && action === 'drag') {
+                    // Click-to-Edit & Drag-to-Move: Erst ab > 4px Bewegung als Drag starten, sonst Fokus zum Tippen/Löschen
+                    this.currentElement = { type, index, action: 'drag', fromTextarea: true, targetEl: event.target };
+                    this.isDragging = false;
+                    this.dragOffsetX = (clientX - rect.left) - (curX / 100 * rect.width);
+                    this.dragOffsetY = (clientY - rect.top) - (curY / 100 * rect.height);
+                    return;
+                }
+
+                this.currentElement = { type, index, action, fromTextarea: false };
 
                 if(action === 'drag') {
                     this.isDragging = true;
@@ -1261,7 +1353,25 @@
                 const item = this.currentElement.type === 'text' ? this.currentTexts[this.currentElement.index] : this.currentLogos[this.currentElement.index];
                 if (!item) return;
 
+                if (this.currentElement.fromTextarea && this.currentElement.action === 'drag' && !this.isDragging) {
+                    const moveDist = Math.hypot(clientX - this.dragStartX, clientY - this.dragStartY);
+                    if (moveDist > 4) {
+                        this.isDragging = true;
+                        this.hasDraggedDistance = true;
+                        this.focusedTextId = null;
+                        if (document.activeElement && document.activeElement.tagName === 'TEXTAREA') {
+                            document.activeElement.blur();
+                        }
+                        if (window.getSelection) {
+                            try { window.getSelection().removeAllRanges(); } catch (e) {}
+                        }
+                    } else {
+                        return;
+                    }
+                }
+
                 if(this.isDragging) {
+                    this.hasDraggedDistance = true;
                     let pX = ((clientX - rect.left - this.dragOffsetX) / rect.width) * 100;
                     let pY = ((clientY - rect.top - this.dragOffsetY) / rect.height) * 100;
 
@@ -1277,14 +1387,14 @@
                     const clampToBoundaries = (nx, ny, c) => {
                         let res = { x: nx, y: ny };
                         if (c.area_shape === 'rect') {
-                            const minX = c.area_left || 0; const maxX = minX + (c.area_width || 100);
-                            const minY = c.area_top || 0; const maxY = minY + (c.area_height || 100);
+                            const minX = Number(c.area_left || 0); const maxX = minX + Number(c.area_width || 100);
+                            const minY = Number(c.area_top || 0); const maxY = minY + Number(c.area_height || 100);
                             res.x = Math.max(minX, Math.min(maxX, nx));
                             res.y = Math.max(minY, Math.min(maxY, ny));
                         } else if (c.area_shape === 'circle') {
-                            const cx = (c.area_left || 0) + (c.area_width || 100) / 2;
-                            const cy = (c.area_top || 0) + (c.area_height || 100) / 2;
-                            const rX = (c.area_width || 100) / 2; const rY = (c.area_height || 100) / 2;
+                            const cx = Number(c.area_left || 0) + Number(c.area_width || 100) / 2;
+                            const cy = Number(c.area_top || 0) + Number(c.area_height || 100) / 2;
+                            const rX = Number(c.area_width || 100) / 2; const rY = Number(c.area_height || 100) / 2;
                             const dx = (nx - cx) / rX; const dy = (ny - cy) / rY;
                             const dist = Math.sqrt(dx*dx + dy*dy);
                             if (dist > 1) {
@@ -1293,14 +1403,35 @@
                         } else if (c.area_shape === 'custom') {
                             const pts = c.custom_points || [];
                             if (pts.length > 2) {
-                                let inside = false;
-                                for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-                                    let xi = pts[i].x, yi = pts[i].y;
-                                    let xj = pts[j].x, yj = pts[j].y;
-                                    let intersect = ((yi > ny) != (yj > ny)) && (nx < (xj - xi) * (ny - yi) / (yj - yi) + xi);
-                                    if (intersect) inside = !inside;
+                                const isPointInside = (px, py) => {
+                                    let inside = false;
+                                    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+                                        const xi = Number(pts[i].x), yi = Number(pts[i].y);
+                                        const xj = Number(pts[j].x), yj = Number(pts[j].y);
+                                        const intersect = ((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / ((yj - yi) || 1e-7) + xi);
+                                        if (intersect) inside = !inside;
+                                    }
+                                    return inside;
+                                };
+
+                                if (!isPointInside(nx, ny)) {
+                                    const startX = Number(item.x ?? this.areaCenterX);
+                                    const startY = Number(item.y ?? this.areaCenterY);
+                                    let bestX = startX;
+                                    let bestY = startY;
+                                    for (let step = 1; step <= 8; step++) {
+                                        const t = step / 8;
+                                        const tx = startX + (nx - startX) * t;
+                                        const ty = startY + (ny - startY) * t;
+                                        if (isPointInside(tx, ty)) {
+                                            bestX = tx;
+                                            bestY = ty;
+                                        } else {
+                                            break;
+                                        }
+                                    }
+                                    return { x: bestX, y: bestY };
                                 }
-                                if (!inside) { return { x: item.x, y: item.y }; }
                             }
                         }
                         return res;
@@ -1344,12 +1475,24 @@
 
             handleMouseUp() {
                 const wasTransforming = this.isDragging || this.isResizing || this.isRotating;
+                if (this.currentElement && this.currentElement.fromTextarea && !this.hasDraggedDistance && !wasTransforming) {
+                    const tItem = (this.currentTexts && this.currentTexts[this.currentElement.index]) ? this.currentTexts[this.currentElement.index] : null;
+                    if (tItem && tItem.id) {
+                        this.focusedTextId = tItem.id;
+                    }
+                    if (this.currentElement.targetEl && document.activeElement !== this.currentElement.targetEl) {
+                        this.currentElement.targetEl.focus();
+                    }
+                }
                 this.isDragging = this.isResizing = this.isRotating = false;
+                this.hasDraggedDistance = false;
                 this.currentElement = null;
                 this.showGuideX = false;
                 this.showGuideY = false;
 
                 if (wasTransforming) {
+                    this._justTransformed = true;
+                    setTimeout(() => { this._justTransformed = false; }, 80);
                     this.recordHistory();
                 }
             },
@@ -1361,7 +1504,8 @@
                 const item = (this.texts || []).find(t => String(t.id) === String(id))
                           || (this.texts_back || []).find(t => String(t.id) === String(id));
 
-                if (item && typeof item.text === 'string' && el.value !== item.text) {
+                // Niemals das aktive Eingabefeld überschreiben, während der Nutzer darin tippt oder löscht!
+                if (document.activeElement !== el && item && typeof item.text === 'string' && el.value !== item.text) {
                     el.value = item.text;
                 }
 
@@ -1371,7 +1515,8 @@
 
                 el.style.fontSize = fontSizePx + 'px';
                 el.style.fontFamily = fontFamily;
-                el.style.lineHeight = '1.15';
+                el.style.lineHeight = '1.28';
+                el.style.padding = '4px 10px';
 
                 const rawText = (el.value !== undefined && el.value !== null && el.value.length > 0)
                     ? el.value
@@ -1382,7 +1527,7 @@
 
                 // Canvas-Fallback-Messung (z.B. wenn 2D-Container in der 3D-Ansicht auf display:none steht oder Text leer ist)
                 let canvasWidth = 60;
-                let canvasHeight = Math.ceil(lines * fontSizePx * 1.18);
+                let canvasHeight = Math.ceil(lines * fontSizePx * 1.32);
                 try {
                     if (!this._measureCanvas) {
                         this._measureCanvas = document.createElement('canvas');
@@ -1413,17 +1558,18 @@
 
                     // Wenn der Text leer ist (Placeholder sichtbar) oder scrollWidth im Übergang 0 liefert, greift das Canvas-Minimum
                     if (el.value && el.value.length > 0 && domWidth > 4) {
-                        newWidth = Math.max(domWidth, Math.floor(canvasWidth * 0.85));
-                        newHeight = Math.max(domHeight, Math.floor(canvasHeight * 0.85));
+                        newWidth = Math.max(domWidth, Math.floor(canvasWidth * 0.92));
+                        newHeight = Math.max(domHeight, Math.floor(canvasHeight * 0.92));
                     } else {
                         newWidth = Math.max(domWidth, canvasWidth);
                         newHeight = Math.max(domHeight, canvasHeight);
                     }
                 }
 
-                // Mindestgröße sicherstellen, damit die 4 Eck-Icons niemals aufeinanderfallen
-                const finalWidth = Math.max(48, newWidth + 10) + 'px';
-                const finalHeight = Math.max(28, newHeight + 6) + 'px'; // +6px Puffer zur Vermeidung von vertikalem Abschneiden bei Sub-Pixel Rundungsfehlern
+                // Großzügiger Puffer links/rechts (+24px) und oben/unten (+14px), damit geschwungene Schreibschriften
+                // (z. B. Lobster Two, Great Vibes, Alex Brush) an den Rändern des Textfelds niemals abgeschnitten werden
+                const finalWidth = Math.max(60, newWidth + 24) + 'px';
+                const finalHeight = Math.max(34, newHeight + 14) + 'px';
 
                 el.style.width = finalWidth;
                 el.style.height = finalHeight;
@@ -1752,19 +1898,205 @@
                 }, 4500);
             },
 
-            handleTextInput(textItem, el) {
-                if (!textItem || !el) return;
+            handleTextInput(textItem, el, index = null) {
+                if (!el) return;
                 const rawVal = el.value;
                 const cleanVal = this.filterEmojis(rawVal);
                 if (cleanVal !== rawVal) {
-                    textItem.text = cleanVal;
                     el.value = cleanVal;
                     this.triggerEmojiWarning();
-                } else {
-                    textItem.text = rawVal;
                 }
-                this.fitTextarea(textItem.id, el);
+
+                if (textItem) {
+                    textItem.text = cleanVal;
+                }
+
+                const activeList = this.activeSide === 'back' ? this.texts_back : this.texts;
+                const targetId = (textItem && textItem.id) ? textItem.id : el.getAttribute('data-id');
+
+                if (index !== null && activeList && activeList[index]) {
+                    activeList[index].text = cleanVal;
+                }
+                if (targetId && activeList) {
+                    const matched = activeList.find(t => t && String(t.id) === String(targetId));
+                    if (matched) matched.text = cleanVal;
+                }
+
+                this.fitTextarea(targetId, el);
+                this.updateTexture();
                 this.scheduleDebouncedHistory();
+            },
+
+            wrapQuoteForStage(rawText, maxCharsPerLine = null) {
+                let areaWPercent = Number(this.config?.area_width || 70);
+                if (this.config?.area_shape === 'custom' && Array.isArray(this.config?.custom_points) && this.config.custom_points.length > 2) {
+                    const xs = this.config.custom_points.map(p => Number(p.x ?? 50));
+                    areaWPercent = Math.max(25, Math.max(...xs) - Math.min(...xs));
+                }
+                const limit = maxCharsPerLine || (areaWPercent <= 42 ? 16 : 24);
+
+                let rawLines = String(rawText || '').split('\n').map(l => l.trim()).filter(Boolean);
+                // Bei sehr schmalen Gravurflächen (z. B. Seelen-Talisman) Fließtext gleichmäßig neu umbrechen, falls Zeilen zu breit sind
+                if (areaWPercent <= 42 && rawLines.some(l => l.length > limit)) {
+                    rawLines = [rawLines.join(' ')];
+                }
+
+                const finalLines = [];
+
+                rawLines.forEach(line => {
+                    if (line.length <= limit) {
+                        finalLines.push(line);
+                        return;
+                    }
+                    const words = line.split(/\s+/);
+                    let current = '';
+                    words.forEach(word => {
+                        const candidate = current ? (current + ' ' + word) : word;
+                        if (candidate.length <= limit || !current) {
+                            current = candidate;
+                        } else {
+                            finalLines.push(current);
+                            current = word;
+                        }
+                    });
+                    if (current) finalLines.push(current);
+                });
+
+                return finalLines.join('\n');
+            },
+
+            computeFitQuoteSize(formattedText, fontKey = 'Cinzel') {
+                const lines = String(formattedText || '').split('\n');
+                const maxChars = lines.reduce((m, l) => Math.max(m, l.length), 0);
+                const isCustomShape = this.config?.area_shape === 'custom';
+
+                let areaWPercent = Number(this.config?.area_width || 70);
+                let areaHPercent = Number(this.config?.area_height || 70);
+
+                if (isCustomShape && Array.isArray(this.config?.custom_points) && this.config.custom_points.length > 2) {
+                    const xs = this.config.custom_points.map(p => Number(p.x ?? 50));
+                    const ys = this.config.custom_points.map(p => Number(p.y ?? 50));
+                    areaWPercent = Math.max(30, Math.max(...xs) - Math.min(...xs));
+                    areaHPercent = Math.max(30, Math.max(...ys) - Math.min(...ys));
+                }
+
+                // Basis-Größe anhand der längsten Zeile und Zeilenanzahl sowie der Gravurflächen-Breite bestimmen
+                let targetSize = isCustomShape ? 0.72 : 0.85;
+                if (maxChars >= 24) targetSize = isCustomShape ? 0.58 : 0.70;
+                else if (maxChars >= 20) targetSize = isCustomShape ? 0.62 : 0.75;
+                else if (maxChars >= 16) targetSize = isCustomShape ? 0.68 : 0.80;
+
+                if (lines.length >= 4) {
+                    targetSize = Math.min(targetSize, isCustomShape ? 0.58 : 0.68);
+                } else if (lines.length >= 3) {
+                    targetSize = Math.min(targetSize, isCustomShape ? 0.64 : 0.72);
+                }
+
+                // Präzise Canvas-Prüfung gegen die reale 2D-Container-Gravurflächenbreite
+                try {
+                    const containerEl = this.$refs.container || this.$refs.stage;
+                    const stageW = containerEl ? containerEl.clientWidth : 500;
+                    const stageH = containerEl ? containerEl.clientHeight : 500;
+                    if (stageW > 100) {
+                        const safetyFactor = isCustomShape ? 0.58 : 0.74;
+                        const usableW = stageW * (Math.min(100, Math.max(25, areaWPercent)) / 100) * safetyFactor;
+                        const usableH = stageH * (Math.min(100, Math.max(25, areaHPercent)) / 100) * safetyFactor;
+                        const scale = this.scaleFactor || (stageW / 500);
+                        const basePx = 20 * scale;
+                        const fontFamily = (this.fontMap && this.fontMap[fontKey]) ? this.fontMap[fontKey] : 'Arial';
+
+                        if (!this._measureCanvas) {
+                            this._measureCanvas = document.createElement('canvas');
+                        }
+                        const ctx = this._measureCanvas.getContext('2d');
+                        if (ctx && basePx > 0) {
+                            ctx.font = 'bold ' + basePx + 'px ' + fontFamily;
+                            let maxLinePxAtSize1 = 0;
+                            lines.forEach(l => {
+                                const w = ctx.measureText(l || ' ').width;
+                                if (w > maxLinePxAtSize1) maxLinePxAtSize1 = w;
+                            });
+                            if (maxLinePxAtSize1 > 0) {
+                                const fitByWidth = usableW / maxLinePxAtSize1;
+                                const totalHeightAtSize1 = lines.length * basePx * 1.32;
+                                const fitByHeight = totalHeightAtSize1 > 0 ? (usableH / totalHeightAtSize1) : 1.0;
+                                targetSize = Math.min(targetSize, fitByWidth, fitByHeight);
+                            }
+                        }
+                    }
+                } catch (e) {}
+
+                return Number(Math.max(0.42, Math.min(1.0, targetSize)).toFixed(2));
+            },
+
+            applyQuoteToStage(quoteText) {
+                if (!quoteText || this.context === 'preview') return;
+                const filtered = this.filterEmojis(String(quoteText).trim());
+                if (!filtered) return;
+
+                // Automatisch in harmonische Zeilen umbrechen, damit nichts über den Rand hinausragt
+                const cleanQuote = this.wrapQuoteForStage(filtered);
+
+                const tName = this.activeSide === 'back' ? 'texts_back' : 'texts';
+                const clonedList = JSON.parse(JSON.stringify(this[tName] || []));
+                const freshId = 'txt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+                let targetIdx = 0;
+
+                // 1. Falls aktuell ein Textfeld auf dieser Seite ausgewählt ist, Spruch dort einsetzen & einpassen
+                if (this.selectedType === 'text' && this.selectedIndex !== null && clonedList[this.selectedIndex]) {
+                    targetIdx = this.selectedIndex;
+                    const activeItem = clonedList[targetIdx];
+                    activeItem.id = freshId;
+                    activeItem.text = cleanQuote;
+                    activeItem.align = activeItem.align || 'center';
+                    activeItem.size = this.computeFitQuoteSize(cleanQuote, activeItem.font || 'Cinzel');
+                    activeItem.x = activeItem.x ?? this.areaCenterX;
+                    activeItem.y = activeItem.y ?? this.areaCenterY;
+                } else {
+                    // 2. Suche nach einem bereits vorhandenen, noch leeren Textfeld auf der aktiven Seite
+                    const emptyIdx = clonedList.findIndex(t => !t.text || String(t.text).trim() === '');
+                    if (emptyIdx !== -1) {
+                        targetIdx = emptyIdx;
+                        const emptyItem = clonedList[targetIdx];
+                        emptyItem.id = freshId;
+                        emptyItem.text = cleanQuote;
+                        emptyItem.align = 'center';
+                        emptyItem.size = this.computeFitQuoteSize(cleanQuote, emptyItem.font || 'Cinzel');
+                        emptyItem.x = this.areaCenterX;
+                        emptyItem.y = this.areaCenterY;
+                    } else {
+                        // 3. Neues zentriertes Textfeld auf der aktiven Seite anlegen
+                        const defaultFont = 'Cinzel';
+                        const newItem = {
+                            id: freshId,
+                            text: cleanQuote,
+                            font: defaultFont,
+                            align: 'center',
+                            x: this.areaCenterX,
+                            y: this.areaCenterY,
+                            size: this.computeFitQuoteSize(cleanQuote, defaultFont),
+                            rotation: 0
+                        };
+                        clonedList.push(newItem);
+                        targetIdx = clonedList.length - 1;
+                    }
+                }
+
+                this.focusedTextId = null;
+                this[tName] = clonedList;
+                this.selectItem('text', targetIdx);
+                this.showDrawingBoard = true;
+
+                this.$nextTick(() => {
+                    const root = this.$root || document;
+                    const ta = root.querySelector(`textarea[data-id="${freshId}"]`);
+                    if (ta && ta.value !== cleanQuote) {
+                        ta.value = cleanQuote;
+                    }
+                    this.refitAllTextareas();
+                    this.updateTexture();
+                    this.recordHistory();
+                });
             }
         };
     };

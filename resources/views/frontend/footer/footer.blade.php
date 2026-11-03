@@ -32,10 +32,17 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
                     </svg>
                     <address class="not-italic">
+                        @php
+                            $footerCountryCode = strtoupper((string) shop_setting('company_country', 'DE'));
+                            $footerCountriesMap = shop_setting('active_countries', ['DE' => 'Deutschland']);
+                            $footerCountryLabel = is_array($footerCountriesMap) && isset($footerCountriesMap[$footerCountryCode])
+                                ? $footerCountriesMap[$footerCountryCode]
+                                : ($footerCountryCode === 'DE' ? 'Deutschland' : $footerCountryCode);
+                        @endphp
                         <span class="font-bold text-gray-900">{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</span><br>
-                        {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}<br>
-                        {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}<br>
-                        {{ shop_setting('company_country', 'Deutschland') }}
+                        {{ shop_setting('company_street') ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', '26')) : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}<br>
+                        {{ shop_setting('company_city') ? trim(shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city')) : shop_setting('owner_city', '38518 Gifhorn') }}<br>
+                        {{ $footerCountryLabel }}
                     </address>
                 </div>
             </div>
@@ -98,7 +105,7 @@
                         </li>
 
                         {{-- 2. Impressum-Mail (nur anzeigen, wenn abweichend) --}}
-                        @if(shop_setting('owner_email_impressum') && shop_setting('owner_email_impressum') !== shop_setting('owner_email'))
+                        @if(shop_setting('owner_email_impressum') && shop_setting('owner_email_impressum') !== shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')))
                             <li>
                                 <a href="mailto:{{ shop_setting('owner_email_impressum') }}"
                                    title="Rechtliche Anfragen"
@@ -109,7 +116,7 @@
                         @endif
 
                         {{-- 3. Rechnungs-Mail (nur anzeigen, wenn abweichend) --}}
-                        @if(shop_setting('owner_email_invoices') && shop_setting('owner_email_invoices') !== shop_setting('owner_email'))
+                        @if(shop_setting('owner_email_invoices') && shop_setting('owner_email_invoices') !== shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')))
                             <li>
                                 <a href="mailto:{{ shop_setting('owner_email_invoices') }}"
                                    title="Buchhaltung & Rechnungen"
@@ -151,9 +158,13 @@
         <div class="border-t border-gray-200 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
             <div class="text-gray-600 text-sm text-center md:text-left">
                 &copy; {{ date('Y') }} <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong>. Alle Rechte vorbehalten.<br>
-                <span class="text-xs text-gray-500">Handmade with ❤️ in unserer Manufaktur in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}.</span>
+                <span class="text-xs text-gray-500">Handveredelt mit ❤️ in unserer Manufaktur in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}.</span>
+                @php
+                    $footerHerzensEuro = \App\Services\HerzensprojektService::resolveFormattedEuro();
+                    $footerHerzensIsPerItem = \App\Services\HerzensprojektService::isPerItem();
+                @endphp
                 <p class="text-[11px] text-gray-500 mt-2 leading-relaxed max-w-3xl">
-                    * Transparenzhinweis zu unseren Herzensprojekten: Unsere Herzensprojekte sind eine freiwillige unternehmerische Initiative von Mein Seelenfunke (Cause-Related Marketing). Als Kunde tätigst du mit deinem Einkauf keine eigenständige Spende und erhältst keine steuerliche Spendenquittung. Die Zuwendungen an Kitas und regionale Kinderprojekte erfolgen vollumfänglich aus den erwirtschafteten Mitteln unseres Unternehmens.
+                    * Transparenzhinweis zu unseren <a href="{{ route('manufacture') }}#herzensprojekte" class="underline hover:text-gray-800">Herzensprojekten</a> (§ 5a UWG): Unsere Herzensprojekte sind eine freiwillige unternehmerische Initiative von {{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }} (Cause-Related Marketing). {{ $footerHerzensIsPerItem ? 'Pro verkauftem und bezahltem Artikel (nicht widerrufen)' : 'Pro bezahlter und nicht widerrufener Bestellung' }} führen wir {{ $footerHerzensEuro }}&nbsp;€ aus unseren erwirtschafteten Unternehmensmitteln unserem regionalen Herzensprojekte-Fonds für Kitas und Kinderprojekte in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }} und Umgebung zu. Als Kunde tätigst du mit deinem Einkauf keine eigenständige Spende und erhältst keine steuerliche Spendenquittung.
                 </p>
             </div>
 
@@ -175,6 +186,45 @@
                     <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>
                 </a>
             </div>
+        </div>
+
+        {{-- Zahlungsmöglichkeiten ganz unten im Footer --}}
+        @php
+            $footerPaymentMethods = [
+                ['file' => 'paypal.svg',     'name' => 'PayPal',                        'img_class' => 'h-4 w-auto'],
+                ['file' => 'klarna.svg',     'name' => 'Klarna (Rechnung & Sofort)',    'img_class' => 'h-5 w-auto'],
+                ['file' => 'visa.svg',       'name' => 'Visa Kreditkarte',              'img_class' => 'h-3.5 w-auto'],
+                ['file' => 'mastercard.svg', 'name' => 'Mastercard Kreditkarte',        'img_class' => 'h-5 w-auto'],
+                ['file' => 'amex.svg',       'name' => 'American Express',              'img_class' => 'h-5 w-auto'],
+                ['file' => 'apple-pay.svg',  'name' => 'Apple Pay',                     'img_class' => 'h-4 w-auto'],
+                ['file' => 'google-pay.svg', 'name' => 'Google Pay',                    'img_class' => 'h-4 w-auto'],
+                ['file' => 'sepa.svg',       'name' => 'SEPA-Lastschrift & Vorkasse',   'img_class' => 'h-5 w-auto'],
+            ];
+        @endphp
+        <div class="border-t border-gray-200 mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-2 text-xs text-gray-500 font-medium">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4 text-primary shrink-0" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                </svg>
+                <span>Sichere &amp; SSL-verschlüsselte Zahlungsabwicklung</span>
+            </div>
+
+            <ul class="flex flex-wrap items-center justify-center sm:justify-end gap-2" aria-label="Akzeptierte Zahlungsmethoden">
+                @foreach($footerPaymentMethods as $pm)
+                    <li>
+                        <div class="h-8 w-14 px-2 rounded-lg bg-white border border-gray-200 shadow-sm flex items-center justify-center transition-all duration-200 hover:border-primary hover:shadow-md hover:-translate-y-0.5"
+                             title="{{ $pm['name'] }}">
+                            <img src="{{ asset('shop/frontend/payments/' . $pm['file']) }}"
+                                 alt="{{ $pm['name'] }}"
+                                 loading="lazy"
+                                 decoding="async"
+                                 width="44"
+                                 height="20"
+                                 class="{{ $pm['img_class'] }} max-w-full object-contain select-none">
+                        </div>
+                    </li>
+                @endforeach
+            </ul>
         </div>
 
     </div>

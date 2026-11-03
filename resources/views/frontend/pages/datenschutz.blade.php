@@ -60,8 +60,8 @@
                         Die verantwortliche Stelle für die Datenverarbeitung auf dieser Website ist:<br><br>
                         <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong><br>
                         Inhaberin: {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
-                        {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}<br>
-                        {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}<br><br>
+                        {{ shop_setting('company_street') ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', '')) : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}<br>
+                        {{ shop_setting('company_city') ? trim(shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city')) : shop_setting('owner_city', '38518 Gifhorn') }}<br><br>
                         Telefon: {{ shop_setting('company_phone', shop_setting('owner_phone', '+49 (0) 159 019 668 64')) }}<br>
                         E-Mail: {{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}
                     </p>
@@ -72,14 +72,29 @@
                         Wenn Sie ein berechtigtes Löschersuchen geltend machen oder eine Einwilligung zur Datenverarbeitung widerrufen, werden Ihre Daten gelöscht, sofern wir keine anderen rechtlich zulässigen Gründe für die Speicherung haben (z. B. steuer- oder handelsrechtliche Aufbewahrungsfristen).
                     </p>
 
-                    <h3 class="font-bold text-lg mt-6">Ihre Rechte</h3>
+                    <h3 class="font-bold text-lg mt-6">Ihre Rechte (Art. 15 bis 21, Art. 7 Abs. 3 & Art. 77 DSGVO)</h3>
                     <p>
-                        Sie haben jederzeit das Recht auf unentgeltliche <strong>Auskunft</strong> über Herkunft, Empfänger und Zweck Ihrer gespeicherten personenbezogenen Daten.
-                        Sie haben außerdem ein Recht, die <strong>Berichtigung</strong> oder <strong>Löschung</strong> dieser Daten zu verlangen.
-                        Wenn Sie eine Einwilligung zur Datenverarbeitung erteilt haben, können Sie diese jederzeit für die Zukunft <strong>widerrufen</strong>.
-                        Außerdem haben Sie das Recht, unter bestimmten Umständen die <strong>Einschränkung der Verarbeitung</strong> Ihrer personenbezogenen Daten zu verlangen.
-                        Des Weiteren steht Ihnen ein <strong>Beschwerderecht</strong> bei der zuständigen Aufsichtsbehörde zu.
+                        Sie haben jederzeit das Recht auf unentgeltliche <strong>Auskunft</strong> über Herkunft, Empfänger und Zweck Ihrer gespeicherten personenbezogenen Daten (Art. 15 DSGVO).
+                        Sie haben außerdem ein Recht, die <strong>Berichtigung</strong> unrichtiger Daten (Art. 16 DSGVO) oder die <strong>Löschung</strong> dieser Daten (Art. 17 DSGVO) zu verlangen.
+                        Wenn Sie eine Einwilligung zur Datenverarbeitung erteilt haben, können Sie diese jederzeit mit Wirkung für die Zukunft <strong>widerrufen</strong> (Art. 7 Abs. 3 DSGVO).
+                        Außerdem haben Sie das Recht, unter bestimmten gesetzlichen Voraussetzungen die <strong>Einschränkung der Verarbeitung</strong> Ihrer personenbezogenen Daten zu verlangen (Art. 18 DSGVO) sowie das <strong>Recht auf Datenübertragbarkeit</strong> (Art. 20 DSGVO), d.&nbsp;h. Daten, die wir auf Grundlage Ihrer Einwilligung oder in Erfüllung eines Vertrags automatisiert verarbeiten, in einem gängigen, maschinenlesbaren Format an sich oder an einen Dritten aushändigen zu lassen.
                     </p>
+                    <p class="mt-2">
+                        Des Weiteren steht Ihnen gemäß Art. 77 DSGVO ein <strong>Beschwerderecht bei einer Datenschutz-Aufsichtsbehörde</strong> zu. Die für unseren Unternehmenssitz zuständige Aufsichtsbehörde ist:<br>
+                        <strong>Die Landesbeauftragte für den Datenschutz Niedersachsen</strong>, Prinzenstraße 5, 30159 Hannover (<a href="https://www.lfd.niedersachsen.de" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">www.lfd.niedersachsen.de</a>).
+                    </p>
+
+                    <div class="mt-6 p-5 bg-amber-50/70 border-2 border-amber-400 rounded-2xl">
+                        <h4 class="font-bold text-base text-gray-900 uppercase tracking-wide mb-2">
+                            Information über Ihr Widerspruchsrecht nach Art. 21 DSGVO
+                        </h4>
+                        <p class="text-sm text-gray-800 leading-relaxed">
+                            <strong>1. Einzelfallbezogenes Widerspruchsrecht (Art. 21 Abs. 1 DSGVO):</strong> Wenn die Datenverarbeitung auf Grundlage von Art. 6 Abs. 1 lit. e oder lit. f DSGVO (Wahrnehmung berechtigter Interessen) erfolgt, haben Sie jederzeit das Recht, aus Gründen, die sich aus Ihrer besonderen Situation ergeben, gegen die Verarbeitung Ihrer personenbezogenen Daten Widerspruch einzulegen; dies gilt auch für ein auf diese Bestimmungen gestütztes Profiling. Legen Sie Widerspruch ein, werden wir Ihre betroffenen personenbezogenen Daten nicht mehr verarbeiten, es sei denn, wir können zwingende schutzwürdige Gründe für die Verarbeitung nachweisen, die Ihre Interessen, Rechte und Freiheiten überwiegen, oder die Verarbeitung dient der Geltendmachung, Ausübung oder Verteidigung von Rechtsansprüchen.
+                        </p>
+                        <p class="text-sm text-gray-800 leading-relaxed mt-2">
+                            <strong>2. Widerspruchsrecht gegen Direktwerbung (Art. 21 Abs. 2 DSGVO):</strong> Werden Ihre personenbezogenen Daten verarbeitet, um Direktwerbung zu betreiben, so haben Sie das Recht, jederzeit Widerspruch gegen die Verarbeitung Sie betreffender personenbezogener Daten zum Zwecke derartiger Werbung einzulegen. Widersprechen Sie der Verarbeitung für Zwecke der Direktwerbung, so werden Ihre personenbezogenen Daten nicht mehr für diese Zwecke verarbeitet. Zur Ausübung Ihres Widerspruchsrechts genügt eine formlose Mitteilung per E-Mail an <strong>{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}</strong>.
+                        </p>
+                    </div>
 
                     <h3 class="font-bold text-lg mt-6">SSL- bzw. TLS-Verschlüsselung</h3>
                     <p>
@@ -173,7 +188,7 @@
 
                     <h3 class="font-bold text-lg mt-6">Versanddienstleister & Sendungsverfolgung</h3>
                     <p>
-                        Zur Auslieferung Ihrer Bestellung übermitteln wir Ihre Lieferanschrift sowie – sofern für die Paketankündigung und Sendungsverfolgung erforderlich – Ihre E-Mail-Adresse an das beauftragte Logistikunternehmen (insbesondere DHL Paket GmbH / Deutsche Post AG).
+                        Zur Auslieferung Ihrer Bestellung übermitteln wir Ihre Lieferanschrift sowie (sofern für die Paketankündigung und Sendungsverfolgung erforderlich) Ihre E-Mail-Adresse an das beauftragte Logistikunternehmen (insbesondere DHL Paket GmbH / Deutsche Post AG).
                         <br>
                         <span class="text-sm text-gray-500">Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung).</span>
                     </p>
@@ -203,22 +218,31 @@
                     <p class="mt-2 text-sm text-gray-500">
                         Rechtsgrundlage: Art. 6 Abs. 1 lit. c DSGVO i.V.m. § 356a BGB (Erfüllung einer rechtlichen Verpflichtung) sowie Art. 6 Abs. 1 lit. b DSGVO (Vertragsrückabwicklung).
                     </p>
+
+                    <h3 class="font-bold text-lg mt-6">Kundenbewertungen & Öffentliches Bewertungsprofil (inkl. Option „Anonym bewerten“)</h3>
+                    <p>
+                        Registrierte Kunden, die ein Produkt in unserem Online-Shop erworben haben, können für den gekauften Artikel eine Produktbewertung abgeben (echter Kaufnachweis gemäß § 5b Abs. 3 UWG). Dabei verarbeiten wir Ihre Sternebewertung, den Bewertungstext, optional hochgeladene Produktfotos sowie die Verknüpfung zu Ihrem Kauf, um die Echtheit der Bewertung sicherzustellen.
+                        Bei der Abgabe einer Bewertung können Sie frei entscheiden, ob Ihr Vorname und der gekürzte Nachname angezeigt werden oder ob Sie die Option <strong>„Anonym bewerten“</strong> wählen (Anzeige als „Verifizierter Käufer (Anonym)“ ohne Verlinkung Ihres Profils). Zudem können Sie in Ihren Kontoeinstellungen jederzeit festlegen, ob Ihr öffentliches Bewertungsprofil sichtbar sein soll.
+                    </p>
+                    <p class="mt-2 text-sm text-gray-500">
+                        Rechtsgrundlage: Art. 6 Abs. 1 lit. a DSGVO (freiwillige Abgabe der Bewertung), Art. 6 Abs. 1 lit. c DSGVO i.V.m. § 5b Abs. 3 UWG (Prüfung der Bewertungsechtheit) sowie Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an authentischem Kundenfeedback).
+                    </p>
                 </div>
 
                 <div>
-                    <h2 class="text-2xl font-bold text-gray-900 mb-4">Zahlungsabwicklung über Stripe</h2>
+                    <h2 class="text-2xl font-bold text-gray-900 mb-4">6. Zahlungsabwicklung über Stripe & Vorkasse</h2>
 
                     <p>
-                        Für die Abwicklung von Zahlungen auf dieser Website nutzen wir den Zahlungsdienstleister
+                        Für die Abwicklung von Online-Zahlungen auf dieser Website nutzen wir den Zahlungsdienstleister
                         <strong>Stripe</strong>. Anbieter für Kunden innerhalb der EU ist die
                         <strong>Stripe Payments Europe Ltd.</strong>, 1 Grand Canal Street Lower, Grand Canal Dock, Dublin, Irland.
                     </p>
 
                     <p class="mt-3">
-                        Wenn Sie eine Zahlung über Stripe durchführen (z.B. per Kreditkarte, Apple Pay, Google Pay, Klarna oder PayPal),
-                        werden die zur Zahlungsabwicklung erforderlichen Daten direkt an Stripe übermittelt.
+                        Wenn Sie eine Zahlung über Stripe durchführen (z.&nbsp;B. per Kreditkarte, Apple Pay, Google Pay, Klarna oder SEPA-Lastschrift),
+                        werden die zur Zahlungsabwicklung erforderlichen Daten direkt über eine verschlüsselte Verbindung an Stripe übermittelt.
                         Wir selbst erhalten keinen Zugriff auf Ihre vollständigen Zahlungsdaten
-                        (z.B. Kreditkartennummern oder Bankverbindungen).
+                        (z.&nbsp;B. vollständige Kreditkartennummern). Bei Wahl der Zahlungsart Vorkasse (Überweisung) verarbeiten wir Ihre Überweisungsdaten zur Zuordnung des Zahlungseingangs auf unserem Geschäftskonto.
                     </p>
 
                     <h3 class="font-bold text-lg mt-6">Verarbeitete Daten</h3>
@@ -277,7 +301,7 @@
 
 
                 <div>
-                    <h2 class="text-2xl font-bold text-gray-900 mb-4">6. Soziale Medien</h2>
+                    <h2 class="text-2xl font-bold text-gray-900 mb-4">7. Soziale Medien</h2>
                     <p>
                         Wir unterhalten öffentlich zugängliche Profile in sozialen Netzwerken. Die Nutzung dieser Netzwerke erfolgt auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an optimaler Präsentation und Werbung).
                     </p>
@@ -298,7 +322,7 @@
                 </div>
 
                 <div>
-                    <h2 class="text-2xl font-bold text-gray-900 mb-4">7. Plugins und Tools</h2>
+                    <h2 class="text-2xl font-bold text-gray-900 mb-4">8. Plugins und Tools</h2>
 
                     <h3 class="font-bold text-lg mt-4">Google Fonts (lokales Hosting)</h3>
                     <p>
@@ -308,7 +332,7 @@
                 </div>
 
                 <div id="datenschutz-gamification" class="scroll-mt-28">
-                    <h2 class="text-2xl font-bold text-gray-900 mb-4">8. Seelenfunken-Treue- & Bonusprogramm</h2>
+                    <h2 class="text-2xl font-bold text-gray-900 mb-4">9. Seelenfunken-Treue- & Bonusprogramm</h2>
 
                     <h3 class="font-bold text-lg mt-4">Urheberrecht an Grafiken und Illustrationen</h3>
                     <p>
@@ -317,14 +341,15 @@
                         Sie unterliegen dem Urheberrecht und dürfen ohne ausdrückliche, schriftliche Genehmigung weder kopiert, modifiziert noch anderweitig gewerblich genutzt werden.
                     </p>
 
-                    <h3 class="font-bold text-lg mt-6">Verarbeitung von Treuepunkten, Einmal-Token und Sitzungsdaten</h3>
+                    <h3 class="font-bold text-lg mt-6">Verarbeitung von Treuepunkten, Ranglisten-Einstellungen, Einmal-Token und Sitzungsdaten</h3>
                     <p>
-                        Um Ihnen das Sammeln von Seelenfunken (durch Bestellungen sowie durch das optionale Entdecken von Seelenfunken auf den Shop-Seiten) und die Einlösung in persönliche Rabattgutscheine bereitzustellen und vor automatisiertem Missbrauch (Bots/Skripten) zu schützen, speichern und verarbeiten wir in unserer Datenbank sowie temporär in Ihrer Server-Session folgende Daten:
+                        Um Ihnen das Sammeln von Seelenfunken (durch bezahlte Bestellungen, verifizierte Produktbewertungen, Geburtstags-/Stammkunden-Boni sowie durch das optionale Entdecken von Seelenfunken auf den Shop-Seiten), die Freischaltung von Level-Hintergründen und Ehrentiteln sowie die Einlösung in persönliche Rabattgutscheine (60 / 150 / 350 Seelenfunken für 5 % / 10 % / 15 % Rabatt) bereitzustellen und vor automatisiertem Missbrauch (Bots/Skripten) zu schützen, speichern und verarbeiten wir in unserer Datenbank sowie temporär in Ihrer Server-Session folgende Daten:
                     </p>
                     <ul class="list-disc list-inside mt-2 space-y-1">
-                        <li>Aktuelles Seelenfunken-Guthaben, insgesamt gesammelte Seelenfunken und erreichtes Funki-Level (Stufe 1 bis 10)</li>
-                        <li>Status der freiwilligen Aktivierung der Website-Funkensuche („Magie aktivieren“) sowie die tägliche Fundanzahl</li>
-                        <li>Persönlich eingelöste Rabattgutscheine (zur Zuordnung zu Ihrem Kundenkonto)</li>
+                        <li>Aktuelles einlösbares Seelenfunken-Guthaben, insgesamt gesammelte Lebenszeit-Seelenfunken, erreichtes Funki-Level (Stufe 1 bis 10) sowie ausgewählter Rang-/Ehrentitel</li>
+                        <li>Status der freiwilligen Aktivierung der Website-Funkensuche („Magie aktivieren“), individuelle Audio-Präferenzen sowie die tägliche Fundanzahl</li>
+                        <li>Persönlich eingelöste Rabattgutscheine (zur Zuordnung zu Ihrem Kundenkonto) sowie Gutschriften für Geburtstags- und Jahrestags-Funken</li>
+                        <li>Optional (nur nach ausdrücklicher Aktivierung des Haken-Opt-Ins „In Rangliste anzeigen“): Öffentliche Anzeige in der „Halle der Helden“ wahlweise unter Ihrem frei gewählten Spielernamen (Pseudonym) oder mit Vornamen und Nachnamen-Initial samt Funki-Level und Titel (jederzeit mit einem Klick im Kundenbereich deaktivierbar)</li>
                         <li>Kurzlebige kryptografische Einmal-Token (Nonces) und Cooldown-Zeitstempel in der Server-Session zur Manipulations- und Bot-Abwehr</li>
                     </ul>
                     <p class="mt-4">

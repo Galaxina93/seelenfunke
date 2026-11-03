@@ -368,7 +368,7 @@ trait AiTaskFuncs
                 $query->where('title', 'like', '%' . $escapedSearch . '%');
             }
 
-            $tasks = $query->orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
+            $tasks = $query->orderByRaw("CASE COALESCE(priority, 'niedrig') WHEN 'hoch' THEN 1 WHEN 'mittel' THEN 2 WHEN 'niedrig' THEN 3 ELSE 4 END")
                 ->orderBy('created_at', 'desc')
                 ->limit(25)
                 ->get();
@@ -1106,7 +1106,7 @@ trait AiTaskFuncs
     {
         try {
             $base64 = base64_encode(file_get_contents($absolutePath));
-            $modelName = 'gemini-3.5-flash';
+            $modelName = 'gemini-2.5-flash';
             
             $payload = [
                 'contents' => [

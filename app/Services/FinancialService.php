@@ -666,10 +666,14 @@ class FinancialService
         return [
             'name' => shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')),
             'owner' => shop_setting('owner_proprietor', 'Alina Steinhauer'),
-            'street' => trim(shop_setting('company_street', shop_setting('owner_street', 'Musterstraße 1')) . ' ' . shop_setting('company_street_number', '')),
-            'city' => trim(shop_setting('company_zip', '') . ' ' . shop_setting('company_city', shop_setting('owner_city', '12345 Musterstadt'))),
+            'street' => shop_setting('company_street')
+                ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', ''))
+                : shop_setting('owner_street', 'Musterstraße 1'),
+            'city' => shop_setting('company_city')
+                ? trim(shop_setting('company_zip', '') . ' ' . shop_setting('company_city'))
+                : shop_setting('owner_city', '12345 Musterstadt'),
             'tax_id' => shop_setting('owner_tax_id', 'XX/XXX/XXXXX'),
-            'ust_id' => shop_setting('owner_ust_id', 'DE XXXXXXXXX'),
+            'ust_id' => shop_setting('company_ust_id', shop_setting('owner_ust_id', 'DE XXXXXXXXX')),
         ];
     }
 
@@ -695,11 +699,26 @@ class FinancialService
             ->where('payment_status', 'paid')
             ->get();
 
+        $manualInvoices = \App\Models\Accounting\AccountingInvoice::whereNull('order_id')
+            ->whereYear('invoice_date', $year)
+            ->whereMonth('invoice_date', $month)
+            ->where('type', 'invoice')
+            ->where(function ($q) {
+                $q->where('status', 'paid')
+                    ->orWhere(function ($sub) {
+                        $sub->where('status', 'cancelled')->whereNotNull('paid_at');
+                    });
+            })
+            ->get();
+
         $creditNotes = \App\Models\Accounting\AccountingInvoice::with('order')
             ->whereYear('invoice_date', $year)
             ->whereMonth('invoice_date', $month)
             ->whereIn('type', ['credit_note', 'cancellation'])
-            ->whereIn('status', ['paid', 'cancelled'])
+            ->where(function ($q) {
+                $q->where('status', 'paid')
+                    ->orWhereNotNull('paid_at');
+            })
             ->get();
 
         $taxService = app(\App\Services\Tax\TaxSettingService::class);
@@ -735,6 +754,24 @@ class FinancialService
             } else {
                 $vatCollected += $tax;
             }
+        }
+
+        // MANUELLE RECHNUNGEN (ohne verknüpfte Bestellung) EINBEZIEHEN
+        foreach ($manualInvoices as $manualInv) {
+            $total = abs($manualInv->total / 100);
+            $tax = abs($manualInv->tax_amount / 100);
+
+            if ($isYearSmallBusiness) {
+                $tax = 0;
+            } elseif ($tax == 0 && ($isMidyearSwitch || $manualInv->is_small_business)) {
+                $rate = (float) shop_setting('default_tax_rate', 19.0);
+                $net = $total / (1 + ($rate / 100));
+                $tax = $total - $net;
+                $retroactiveVatCollected += $tax;
+            }
+
+            $revenueGross += $total;
+            $vatCollected += $tax;
         }
 
         // GUTSCHRIFTEN VERRECHNEN
@@ -925,9 +962,10 @@ class FinancialService
             'checklist' => $checklist,
             'all_checklist_passed' => $allChecklistPassed,
             'status' => $status,
-            'order_count' => $orders->count(),
+            'order_count' => $orders->count() + $manualInvoices->count(),
             'expense_count' => $totalBusinessItems,
             'raw_orders' => $orders,
+            'raw_manual_invoices' => $manualInvoices,
             'raw_credits' => $creditNotes,
             'raw_specials' => $businessSpecials,
             'raw_fixed' => $businessFixed,
@@ -952,6 +990,13 @@ class FinancialService
             $date = $order->created_at->format('dm');
             $safeOrderNo = preg_replace('/^[=+\-@]/', "'$0", str_replace(['"', ';', "\r", "\n"], '', (string) $order->order_number));
             $csv .= '"' . $amount . '";"S";"1200";"8400";"' . $date . '";"' . $safeOrderNo . '";"Bestellung ' . $safeOrderNo . '"' . "\n";
+        }
+
+        foreach ($data['raw_manual_invoices'] ?? [] as $manualInv) {
+            $amount = number_format(abs($manualInv->total / 100), 2, ',', '');
+            $date = ($manualInv->invoice_date ?? $manualInv->created_at ?? now())->format('dm');
+            $safeInvNo = preg_replace('/^[=+\-@]/', "'$0", str_replace(['"', ';', "\r", "\n"], '', (string) $manualInv->invoice_number));
+            $csv .= '"' . $amount . '";"S";"1200";"8400";"' . $date . '";"' . $safeInvNo . '";"Rechnung ' . $safeInvNo . '"' . "\n";
         }
 
         foreach ($data['raw_credits'] ?? [] as $credit) {

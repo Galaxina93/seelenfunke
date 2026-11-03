@@ -80,18 +80,34 @@
     // Dynamische Shop-Einstellungen laden
     $ownerName     = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
     $proprietor    = shop_setting('owner_proprietor', 'Alina Steinhauer');
-    $ownerStreet   = shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) . ' ' . shop_setting('company_street_number', '26');
-    $ownerCity     = shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city', shop_setting('owner_city', 'Gifhorn'));
-    $ownerEmail    = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
+    $ownerStreet   = shop_setting('company_street')
+        ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', '26'))
+        : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26');
+    $ownerCity     = shop_setting('company_city')
+        ? trim(shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city'))
+        : shop_setting('owner_city', '38518 Gifhorn');
+    $ownerEmail    = shop_setting('owner_email_invoices') ?: shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
     $ownerWeb      = shop_setting('owner_website', 'www.mein-seelenfunke.de');
-    $ownerIban     = shop_setting('owner_iban', 'DE81 1234 5678 9012 3456 78'); // Fallback wenn leer
+    $ownerBankName = shop_setting('owner_bank_name', 'Volksbank BraWo');
+    if ($ownerBankName === 'OWNER_BANK_NAME') {
+        $ownerBankName = 'Volksbank BraWo';
+    }
+    $ownerIban     = shop_setting('owner_iban', '');
     $ownerBic      = shop_setting('owner_bic', '');
     $taxId         = shop_setting('owner_tax_id', '19/143/11624');
-    $ustId         = shop_setting('owner_ust_id');
+    $ustId         = shop_setting('company_ust_id', shop_setting('owner_ust_id'));
     $court         = shop_setting('owner_court', 'Gifhorn');
     $isSmallBusiness = $invoice->is_small_business !== null
         ? (bool)$invoice->is_small_business
         : app(\App\Services\Tax\TaxSettingService::class)->isSmallBusinessForYear($invoice->invoice_date?->year ?? now()->year);
+
+    $invoiceSvc = app(\App\Services\InvoiceService::class);
+    $giroCodeDataUri = (!in_array($invoice->type, ['cancellation', 'credit_note']) && !$invoice->paid_at && !empty($ownerIban))
+        ? $invoiceSvc->generateGiroCodeSvgDataUri($invoice, (string)$ownerName, (string)$ownerIban, (string)$ownerBic, 100)
+        : '';
+    $portalQrDataUri = (!in_array($invoice->type, ['cancellation', 'credit_note']) && $invoice->paid_at)
+        ? $invoiceSvc->generatePortalQrSvgDataUri($invoice, (string)$ownerWeb, 76)
+        : '';
 @endphp
 
 {{-- Stempel-Logik --}}
@@ -112,12 +128,15 @@
             </td>
             <td class="text-right">
                 <div class="invoice-title">
-                    @if($invoice->type === 'cancellation') STORNO @elseif($invoice->type === 'credit_note') GUTSCHRIFT @else RECHNUNG @endif
+                    @if($invoice->type === 'cancellation') RECHNUNGSKORREKTUR / STORNO @elseif($invoice->type === 'credit_note') RECHNUNGSKORREKTUR / GUTSCHRIFT @else RECHNUNG @endif
                 </div>
                 <div class="invoice-meta">
                     <strong>Nummer:</strong> {{ $invoice->invoice_number }}<br>
                     <strong>Datum:</strong> {{ $invoice->invoice_date->format('d.m.Y') }}<br>
-                    @if($invoice->delivery_date) <strong>Leistungsdatum:</strong> {{ $invoice->delivery_date->format('d.m.Y') }}<br> @endif
+                    @if(in_array($invoice->type, ['cancellation', 'credit_note']) && $invoice->parent)
+                        <strong>Ursprungsrechnung:</strong> {{ $invoice->parent->invoice_number }} ({{ $invoice->parent->invoice_date ? $invoice->parent->invoice_date->format('d.m.Y') : '' }})<br>
+                    @endif
+                    <strong>Leistungsdatum:</strong> {{ ($invoice->delivery_date ?? $invoice->invoice_date)->format('d.m.Y') }}<br>
                     <strong>Kunden-Nr.:</strong> {{ $invoice->customer_id ? strtoupper(explode('-', $invoice->customer_id)[0]) : 'Gast' }}
                 </div>
             </td>
@@ -170,30 +189,63 @@
         </p>
     @elseif($invoice->paid_at)
         {{-- FALL 1: BEREITS BEZAHLT --}}
-        <p style="margin: 0; color: #16a34a; font-weight: bold;">
-            Der Rechnungsbetrag wurde bereits am {{ $invoice->paid_at->format('d.m.Y') }} vollständig beglichen. Vielen Dank!
-        </p>
+        <table width="100%" style="border-collapse: collapse;">
+            <tr>
+                <td style="vertical-align: middle;">
+                    <p style="margin: 0; color: #16a34a; font-weight: bold;">
+                        Der Rechnungsbetrag wurde bereits am {{ $invoice->paid_at->format('d.m.Y') }} vollständig beglichen. Vielen Dank!
+                    </p>
+                    <p style="margin: 4px 0 0 0; font-size: 9px; color: #666;">
+                        Beleg-Referenz: {{ $invoice->invoice_number }} · Ihren digitalen Beleg und Bestellstatus finden Sie jederzeit im Kundenportal.
+                    </p>
+                </td>
+                @if(!empty($portalQrDataUri))
+                <td style="width: 110px; text-align: right; vertical-align: middle;">
+                    <div style="display: inline-block; text-align: center; background: #fff; padding: 6px; border: 1px solid #e5e7eb; border-radius: 6px;">
+                        <img src="{{ $portalQrDataUri }}" alt="Kundenportal QR-Code" style="width: 68px; height: 68px; display: block; margin: 0 auto;">
+                        <span style="display: block; font-size: 7px; color: #666; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.4px;">Online-Beleg</span>
+                    </div>
+                </td>
+                @endif
+            </tr>
+        </table>
     @else
         {{-- FALL 2: NOCH OFFEN --}}
-        <p style="margin: 0 0 10px 0; font-weight: bold;">
-            Der Rechnungsbetrag ist fällig bis zum {{ $invoice->due_date ? $invoice->due_date->format('d.m.Y') : now()->addDays(14)->format('d.m.Y') }}.
-        </p>
+        <table width="100%" style="border-collapse: collapse;">
+            <tr>
+                <td style="vertical-align: top; padding-right: 15px;">
+                    <p style="margin: 0 0 10px 0; font-weight: bold;">
+                        Der Rechnungsbetrag ist fällig bis zum {{ $invoice->due_date ? $invoice->due_date->format('d.m.Y') : now()->addDays(14)->format('d.m.Y') }}.
+                    </p>
 
-        @if($invoice->order && $invoice->order->payment_method === 'stripe_link')
-            {{-- OPTION A: STRIPE ZAHLUNGSLINK --}}
-            <p style="margin: 0;">
-                Bitte nutzen Sie zur Zahlung den <strong>Link in der E-Mail</strong>, die wir Ihnen gesendet haben.<br>
-                Alternativ können Sie den Betrag auch auf unten genanntes Konto überweisen.
-            </p>
-        @else
-            {{-- OPTION B: KLASSISCHE ÜBERWEISUNG --}}
-            <p style="margin: 0;">
-                Bitte überweisen Sie den Betrag unter Angabe der Rechnungsnummer <strong>{{ $invoice->invoice_number }}</strong> auf folgendes Konto:<br><br>
-                Empfänger: <strong>{{ $ownerName }}</strong><br>
-                IBAN: <strong>{{ $ownerIban }}</strong><br>
-                Bank: {{ $ownerBic ? 'BIC ' . $ownerBic : 'Volksbank BraWo' }}
-            </p>
-        @endif
+                    @if($invoice->order && $invoice->order->payment_method === 'stripe_link')
+                        {{-- OPTION A: STRIPE ZAHLUNGSLINK --}}
+                        <p style="margin: 0;">
+                            Bitte nutzen Sie zur Zahlung den <strong>Link in der E-Mail</strong>, die wir Ihnen gesendet haben.<br>
+                            Alternativ können Sie den Betrag auch auf unten genanntes Konto überweisen (oder per GiroCode scannen):<br><br>
+                            Empfänger: <strong>{{ $ownerName }}</strong> · IBAN: <strong>{{ $ownerIban }}</strong>
+                        </p>
+                    @else
+                        {{-- OPTION B: KLASSISCHE ÜBERWEISUNG --}}
+                        <p style="margin: 0;">
+                            Bitte überweisen Sie den Betrag unter Angabe der Rechnungsnummer <strong>{{ $invoice->invoice_number }}</strong> auf folgendes Konto:<br><br>
+                            Empfänger: <strong>{{ $ownerName }}</strong><br>
+                            IBAN: <strong>{{ $ownerIban }}</strong><br>
+                            Bank: {{ $ownerBankName ?: 'Volksbank BraWo' }}{{ $ownerBic ? ' (BIC: ' . $ownerBic . ')' : '' }}
+                        </p>
+                    @endif
+                </td>
+                @if(!empty($giroCodeDataUri))
+                <td style="width: 125px; text-align: right; vertical-align: middle;">
+                    <div style="display: inline-block; text-align: center; background: #fff; padding: 7px; border: 1px solid #C5A059; border-radius: 6px;">
+                        <img src="{{ $giroCodeDataUri }}" alt="EPC GiroCode QR" style="width: 88px; height: 88px; display: block; margin: 0 auto;">
+                        <span style="display: block; font-size: 7.5px; font-weight: bold; color: #C5A059; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.4px;">GiroCode (SEPA-QR)</span>
+                        <span style="display: block; font-size: 7px; color: #666; line-height: 1.2;">Mit Banking-App scannen</span>
+                    </div>
+                </td>
+                @endif
+            </tr>
+        </table>
     @endif
 </div>
 
@@ -212,14 +264,15 @@
                 <span class="footer-heading">Kontakt</span>
                 E-Mail: {{ $ownerEmail }}<br>
                 Web: {{ str_replace(['http://', 'https://'], '', $ownerWeb) }}<br>
-                USt-IdNr.: {{ $ustId ?? 'n.a.' }}<br>
+                @if(!empty($ustId)) USt-IdNr.: {{ $ustId }}<br> @endif
                 Steuernummer: {{ $taxId }}
             </td>
             <td class="footer-col">
                 <span class="footer-heading">Bankverbindung</span>
-                IBAN: {{ $ownerIban }}<br>
+                @if(!empty($ownerBankName)) Bank: {{ $ownerBankName }}<br> @endif
+                @if(!empty($ownerIban)) IBAN: {{ $ownerIban }}<br> @endif
                 @if($ownerBic) BIC: {{ $ownerBic }}<br> @endif
-                Gerichtsstand: {{ $court }}<br>
+                Gerichtsstand (für Kaufleute): {{ $court }}<br>
                 @if(isset($isSmallBusiness) && $isSmallBusiness)
                     <span style="font-size: 8px; font-style: italic; color: #999;">Umsatzsteuerfrei gem. § 19 UStG.</span>
                 @endif

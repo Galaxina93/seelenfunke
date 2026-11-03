@@ -37,7 +37,8 @@ class MarketingHerzensprojekte extends Component
     public string $depositNote = 'Zusätzlicher Gründer-Beitrag in den Herzens-Topf';
 
     // Settings
-    public string $centsPerOrder = '200';
+    public string $centsPerOrder = '50';
+    public string $donationMode = 'per_item';
 
     protected function rules(): array
     {
@@ -64,7 +65,8 @@ class MarketingHerzensprojekte extends Component
         if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
-        $this->centsPerOrder = (string) shop_setting('herzensprojekt_cents_per_order', 200);
+        $this->centsPerOrder = (string) HerzensprojektService::resolveCentsPerOrder();
+        $this->donationMode = HerzensprojektService::resolveMode();
     }
 
     public function openCreateActionModal()
@@ -243,19 +245,26 @@ class MarketingHerzensprojekte extends Component
     {
         $this->validate([
             'centsPerOrder' => 'required|integer|min:0|max:100000',
+            'donationMode' => 'required|in:per_item,per_order',
         ]);
 
         $cents = (int) $this->centsPerOrder;
+        $mode = $this->donationMode;
 
         \App\Models\System\SystemSetting::updateOrCreate(
             ['key' => 'herzensprojekt_cents_per_order'],
             ['value' => (string) $cents]
         );
+        \App\Models\System\SystemSetting::updateOrCreate(
+            ['key' => 'herzensprojekt_mode'],
+            ['value' => $mode]
+        );
         \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
 
+        $unitText = $mode === 'per_item' ? 'pro Artikel' : 'pro Bestellung';
         $this->dispatch('notify', [
             'type' => 'success',
-            'message' => 'Spendenbetrag pro Bestellung auf ' . number_format($cents / 100, 2, ',', '.') . ' € gesetzt.'
+            'message' => 'Spendenbeitrag auf ' . number_format($cents / 100, 2, ',', '.') . ' € ' . $unitText . ' gesetzt.'
         ]);
     }
 

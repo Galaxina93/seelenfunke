@@ -509,6 +509,7 @@ class MasterStorageCapacity extends Component
         Cache::put('storage_capacity_threshold_1', $this->threshold1);
         Cache::put('storage_capacity_threshold_2', $this->threshold2);
         Cache::put('storage_capacity_threshold_3', $this->threshold3);
+        Cache::forget('global_shop_settings');
         
         $this->calculateCapacity();
     }

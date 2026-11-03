@@ -33,6 +33,8 @@ class ShopProcessTest extends TestCase
             'price' => 2999, // in Cent
             'status' => 'active',
             'type' => 'physical',
+            'track_quantity' => false,
+            'quantity' => 100,
             'configurator_settings' => [
                 'has_front' => true,
                 'has_back' => false,

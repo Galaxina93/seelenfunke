@@ -24,7 +24,7 @@
                 </a>
 
                 {{-- 2. Button: E-Mail Kontakt --}}
-                <a href="mailto:kontakt@mein-seelenfunke.de"
+                <a href="mailto:{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}"
                    title="Kontaktieren Sie uns per E-Mail"
                    class="inline-flex items-center px-8 py-3 bg-white text-[#8a6820] border-2 border-primary text-base font-medium rounded-full shadow hover:bg-gray-50 transition transform hover:scale-105">
                     ✉️ E-Mail schreiben
@@ -41,13 +41,13 @@
                         <div class="flex items-start gap-4 mb-6">
                             {{-- Hier dein Profilbild einfügen --}}
                             <img src="{{ asset('shop/projekt/about/gruender-welcome-sm.webp') }}"
-                                 alt="Alina Steinhauer, Gründerin von Mein Seelenfunke"
+                                 alt="{{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}, Gründerin von {{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}"
                                  width="64" height="64"
                                  loading="lazy"
                                  class="w-16 h-16 rounded-full object-cover border-2 border-primary" />
                             <div>
                                 <div class="text-[#8a6820] text-4xl font-serif leading-none mb-1" aria-hidden="true">“</div>
-                                <h3 class="text-xl font-bold text-gray-800">Alina Steinhauer</h3>
+                                <h3 class="text-xl font-bold text-gray-800">{{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}</h3>
                                 <p class="text-sm text-[#8a6820] font-semibold">Gründerin & Inhaberin</p>
                             </div>
                         </div>
@@ -56,7 +56,7 @@
                             Warum muss Personalisierung oft billig aussehen?
                         </p>
                         <p class="text-gray-700 mb-6 leading-relaxed">
-                            Unser Ziel ist es, das zu ändern. In unserer Manufaktur in Gifhorn kombinieren wir modernste Laser-Technologie mit echtem Handwerk.
+                            Unser Ziel ist es, das zu ändern. In unserer Manufaktur in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }} kombinieren wir modernste Laser-Technologie mit echtem Handwerk.
                             Jedes Stück Glas, das unsere Werkstatt verlässt, wird von uns sorgfältig geprüft und veredelt.
                         </p>
                         <div class="p-4 bg-primary/10 rounded-lg">
@@ -120,8 +120,8 @@
                 <div class="text-center mb-16">
                     <h3 class="text-3xl font-bold mb-4 font-serif">Das Herz der Manufaktur</h3>
                     <p class="max-w-2xl mx-auto text-lg text-gray-600 leading-relaxed">
-                        Hinter <em>Mein Seelenfunke</em> steht eine klare Vision: Hochwertiges Kristallglas mit modernster Veredelungstechnik zu verbinden.
-                        Wir sind kein anonymer Großkonzern, sondern eine spezialisierte Manufaktur in Gifhorn, die für Qualität, Service und echte Werte steht.
+                        Hinter <em>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</em> steht eine klare Vision: Hochwertiges Kristallglas mit modernster Veredelungstechnik zu verbinden.
+                        Wir sind kein anonymer Großkonzern, sondern eine spezialisierte Manufaktur in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}, die für Qualität, Service und echte Werte steht.
                     </p>
                 </div>
 
@@ -137,7 +137,7 @@
                         <div class="relative shrink-0 group">
                             <div class="w-40 h-40 sm:w-48 sm:h-48 rounded-2xl overflow-hidden border-4 border-white shadow-2xl relative z-10 transform group-hover:scale-105 transition-transform duration-500">
                                 <img src="{{ asset('shop/projekt/about/gruender-welcome.webp') }}"
-                                     alt="Alina Steinhauer, Gründerin von Mein Seelenfunke"
+                                     alt="{{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}, Gründerin von {{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}"
                                      width="192" height="192"
                                      loading="lazy"
                                      class="w-full h-full object-cover">
@@ -147,13 +147,13 @@
 
                         {{-- Text & Zitat --}}
                         <div class="text-center md:text-left flex-1">
-                            <h4 class="text-3xl font-serif font-bold text-gray-900 leading-tight">Alina Steinhauer</h4>
+                            <h4 class="text-3xl font-serif font-bold text-gray-900 leading-tight">{{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}</h4>
                             <p class="text-[#8a6820] font-bold uppercase tracking-wider text-xs mt-1 mb-4">
                                 Gründerin & zertifizierte Laserschutzbeauftragte
                             </p>
 
                             <blockquote class="text-gray-700 text-base sm:text-lg leading-relaxed italic border-l-0 md:border-l-4 md:border-primary/40 md:pl-4 my-4">
-                                "Qualität ist kein Zufall, sondern eine persönliche Haltung. Ich habe diese Manufaktur gegründet, um bleibende Werte zu schaffen. Hinter jedem Seelenkristall stehe ich mit meinem Namen und der Garantie, dass jedes Stück in unserer Gifhorner Werkstatt mit echter Sorgfalt von Hand gefertigt und geprüft wird."
+                                "Qualität ist kein Zufall, sondern eine persönliche Haltung. Ich habe diese Manufaktur gegründet, um bleibende Werte zu schaffen. Hinter jedem Seelenkristall stehe ich mit meinem Namen und meinem persönlichen Qualitätsversprechen, dass jedes Stück in unserer Werkstatt mit echter Sorgfalt von Hand veredelt und geprüft wird."
                             </blockquote>
 
                             {{-- Vertrauensmerkmale --}}
@@ -165,7 +165,7 @@
                                     <span>🤍</span> Manuelle Endkontrolle
                                 </span>
                                 <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white border border-gray-200 text-gray-800 shadow-xs">
-                                    <span>🇩🇪</span> Handwerk aus Gifhorn
+                                    <span>🇩🇪</span> Handwerk aus {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}
                                 </span>
                             </div>
                         </div>
@@ -183,7 +183,7 @@
                             <div class="flex flex-col md:flex-row md:items-center gap-2 mb-4">
                                 <h3 class="text-2xl font-bold text-gray-900">Produktion & Service</h3>
                                 <span class="hidden md:block text-gray-300">|</span>
-                                <span class="text-[#8a6820] font-bold uppercase tracking-widest text-sm">Made in Gifhorn</span>
+                                <span class="text-[#8a6820] font-bold uppercase tracking-widest text-sm">Handveredelt in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}</span>
                             </div>
                             <p class="text-gray-600 text-lg leading-relaxed">
                                 Unser Anspruch ist absolute Präzision. Wir kombinieren traditionelle handwerkliche Werte mit zertifizierter, modernster Sicherheitstechnik. Egal ob persönliches Einzelstück oder komplexer Firmenauftrag: Unser eingespieltes Team sorgt für einen reibungslosen Ablauf und Ergebnisse, die begeistern.

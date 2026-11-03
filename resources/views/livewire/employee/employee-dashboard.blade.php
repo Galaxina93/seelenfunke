@@ -98,7 +98,7 @@
                             <div class="flex items-center gap-2">
                                 <span class="text-sm font-bold font-mono text-gray-900 dark:text-white">#{{ $order->order_number }}</span>
                                 @if($order->is_express)
-                                    <span class="px-2 py-0.5 rounded-md bg-rose-600 text-white text-[11px] font-bold">EXPRESS</span>
+                                    <x-shop.express-info iconClass="w-3.5 h-3.5" class="px-2.5 py-0.5 rounded-md border border-primary/40 text-gray-800 dark:text-gray-100 text-[11px] font-bold" />
                                 @endif
                             </div>
                             <span class="text-xs text-gray-400">{{ $order->created_at?->format('d.m.Y H:i') }}</span>

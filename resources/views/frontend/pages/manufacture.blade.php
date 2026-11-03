@@ -6,7 +6,7 @@
                 '@type' => 'AboutPage',
                 '@id' => route('manufacture') . '#aboutpage',
                 'url' => route('manufacture'),
-                'name' => 'Die Manufaktur & Qualitätsversprechen – Mein Seelenfunke',
+                'name' => 'Die Manufaktur & Qualitätsversprechen | Mein Seelenfunke',
                 'description' => 'Erfahre mehr über Gründerin Alina Steinhauer, unsere Lasergravur-Manufaktur in Gifhorn, veredelte Materialien (K9-Kristallglas, Naturschiefer, Metall) und geprüfte Sicherheitsstandards.',
                 'mainEntity' => [
                     '@id' => url('/#organization'),
@@ -191,7 +191,7 @@
         <section class="relative bg-stone-950 border-y border-stone-800/80 pt-32 pb-24 lg:pt-40 lg:pb-32 overflow-hidden" aria-label="Einführung Manufaktur">
             {{-- Hintergrundbild: Wo Licht auf Materie trifft --}}
             <img src="{{ asset('shop/frontend/banners/manufaktur_licht_materie.webp') }}"
-                 alt="Wo Licht auf Materie trifft – Laserstrahl trifft auf K9 Kristallglas in der Manufaktur"
+                 alt="Wo Licht auf Materie trifft: Laserstrahl trifft auf K9 Kristallglas in der Manufaktur"
                  loading="lazy"
                  decoding="async"
                  data-is-ai-generated="true"
@@ -202,7 +202,7 @@
 
             <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
                 <span class="text-primary font-bold tracking-[0.2em] uppercase text-xs sm:text-sm mb-4 block drop-shadow">
-                    Made in Germany
+                    Handveredelt in Deutschland
                 </span>
                 <h1 class="text-4xl sm:text-5xl lg:text-6xl font-serif font-bold text-white leading-tight mb-6 drop-shadow-lg">
                     Wo Licht auf <span class="text-primary">Materie</span> trifft.
@@ -412,7 +412,7 @@
                         <div class="absolute -inset-4 bg-gray-200 rounded-2xl transform -rotate-2 transition-all duration-700 group-hover:-rotate-1 group-hover:bg-primary/25" aria-hidden="true"></div>
                         <div class="relative rounded-xl shadow-xl overflow-hidden h-80 bg-[#EAEDF2]">
                             <img src="{{ asset('shop/frontend/process/lasergravur.webp') }}"
-                                 onerror="this.src='https://placehold.co/600x400/333/FFF?text=Laser+Technologie'"
+                                 onerror="this.style.display='none'"
                                  alt="Präzise 3D-Lasergravur im Inneren des Glases"
                                  loading="lazy"
                                  class="sf-card-img w-full h-full object-cover">
@@ -485,7 +485,7 @@
         <section class="relative bg-stone-950 border-y border-stone-800/80 py-24 lg:py-32 overflow-hidden" aria-labelledby="kompetenz-heading">
             {{-- Hintergrundbild: Geprüfte Sicherheitsstandards & Präzisionsoptik --}}
             <img src="{{ asset('shop/frontend/banners/manufaktur_sicherheit_kompetenz.webp') }}"
-                 alt="Geprüfte Sicherheitsstandards – Laserschutzoptik, Messschraube und Kristallglas auf dunkler Werkbank"
+                 alt="Geprüfte Sicherheitsstandards: Laserschutzoptik, Messschraube und Kristallglas auf dunkler Werkbank"
                  loading="lazy"
                  decoding="async"
                  data-is-ai-generated="true"
@@ -513,7 +513,7 @@
                         </p>
 
                         <p class="text-sm sm:text-base text-stone-300 leading-relaxed drop-shadow max-w-2xl mx-auto lg:mx-0">
-                            Die Zertifizierung nach <strong class="text-primary font-semibold">TROS</strong> <span class="text-stone-400">(Technische Regeln zur Arbeitsschutzverordnung zu künstlicher optischer Strahlung)</span> bestätigt den rechtssicheren, fachkundigen Einsatz unserer Industrieklasse-4-Lasersysteme – für echtes, präzises Manufaktur-Handwerk nach strengen deutschen Standards.
+                            Die Zertifizierung nach <strong class="text-primary font-semibold">TROS</strong> <span class="text-stone-400">(Technische Regeln zur Arbeitsschutzverordnung zu künstlicher optischer Strahlung)</span> bestätigt den rechtssicheren, fachkundigen Einsatz unserer Industrieklasse-4-Lasersysteme für echtes, präzises Manufaktur-Handwerk nach strengen deutschen Standards.
                         </p>
                     </div>
 
@@ -535,7 +535,7 @@
                             {{-- Zertifikat-Bild mit Licht-Glanz (sf-card-sheen) & Funkel-Sternen (sf-card-sparkle) --}}
                             <div class="relative rounded-2xl overflow-hidden bg-white border border-stone-200/80 aspect-[1/1.414] shadow-inner">
                                 <img src="{{ asset('shop/frontend/certificates/Laserschutzbeauftragte_Zertifikat_Alina_Steinhauer.webp') }}"
-                                     alt="Zertifikat Laserschutzbeauftragte – Alina Steinhauer"
+                                     alt="Zertifikat Laserschutzbeauftragte: Alina Steinhauer"
                                      loading="lazy"
                                      class="sf-card-img w-full h-full object-cover object-top">
 
@@ -590,7 +590,7 @@
                     </h2>
 
                     <p class="text-lg text-gray-600 leading-relaxed">
-                        Für uns bei <strong class="text-gray-900">Mein Seelenfunke</strong> ist echte Handwerkskunst untrennbar mit Menschlichkeit verbunden. Wir glauben fest daran, dass ein Unternehmen der Gesellschaft und besonders den Kleinsten unter uns etwas zurückgeben muss.
+                        Für uns bei <strong class="text-gray-900">{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong> ist echte Handwerkskunst untrennbar mit Menschlichkeit verbunden. Wir glauben fest daran, dass ein Unternehmen der Gesellschaft und besonders den Kleinsten unter uns etwas zurückgeben muss.
                     </p>
                 </div>
 
@@ -604,7 +604,7 @@
                         </div>
                         <h3 class="text-xl font-bold text-gray-900 mb-3">Kitas & Kinder vor Ort</h3>
                         <p class="text-sm text-gray-600 leading-relaxed flex-grow">
-                            Unsere Hilfe geht direkt an Kindertagesstätten, Kindergärten und kleine Bildungseinrichtungen in Gifhorn und Umgebung, etwa mit handgefertigtem Holzspielzeug, Fördermaterialien und Projekten zum Mitmachen.
+                            Unsere Hilfe geht direkt an Kindertagesstätten, Kindergärten und kleine Bildungseinrichtungen in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }} und Umgebung, etwa mit handgefertigtem Holzspielzeug, Fördermaterialien und Projekten zum Mitmachen.
                         </p>
                         <div class="mt-6 pt-4 border-t border-gray-100 flex items-center text-xs font-medium text-stone-400 select-none">
                             <span>Regional & greifbar</span>
@@ -612,16 +612,22 @@
                     </div>
 
                     {{-- Säule 2 --}}
+                    @php
+                        $herzensCents = \App\Services\HerzensprojektService::resolveCentsPerOrder();
+                        $herzensEuroFormatted = \App\Services\HerzensprojektService::resolveFormattedEuro();
+                        $herzensIsPerItem = \App\Services\HerzensprojektService::isPerItem();
+                        $herzensUnitShort = \App\Services\HerzensprojektService::resolveUnitLabel(true);
+                    @endphp
                     <div class="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm flex flex-col cursor-default">
                         <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center text-3xl mb-6 shadow-inner select-none">
                             🎁
                         </div>
-                        <h3 class="text-xl font-bold text-gray-900 mb-3">Fester Teil jeder Bestellung</h3>
+                        <h3 class="text-xl font-bold text-gray-900 mb-3">Fester Beitrag {{ $herzensUnitShort }} ({{ $herzensEuroFormatted }}&nbsp;€)</h3>
                         <p class="text-sm text-gray-600 leading-relaxed flex-grow">
-                            Kein Spendenaufruf an der Kasse, kein Cent Aufpreis für dich. Wir spenden bei jeder einzelnen Bestellung einen festen Betrag aus unseren eigenen Unternehmenserlösen direkt in den Herzensprojekte-Fonds.
+                            Kein Spendenaufruf an der Kasse, kein Cent Aufpreis für dich. Wir legen {{ $herzensIsPerItem ? 'für jeden einzelnen verkauften Artikel' : 'bei jeder einzelnen bezahlten Bestellung' }} einen festen Betrag von <strong>{{ $herzensEuroFormatted }}&nbsp;€</strong> aus unseren eigenen Unternehmenserlösen direkt in den Herzensprojekte-Fonds zurück.*
                         </p>
                         <div class="mt-6 pt-4 border-t border-gray-100 flex items-center text-xs font-medium text-stone-400 select-none">
-                            <span>100% aus Unternehmensmitteln</span>
+                            <span>{{ $herzensEuroFormatted }}&nbsp;€ {{ $herzensUnitShort }} • 100% aus Unternehmensmitteln</span>
                         </div>
                     </div>
 
@@ -649,7 +655,7 @@
         <section class="relative bg-stone-950 border-y border-stone-800/80 py-24 lg:py-32 overflow-hidden" aria-label="Unsere Vision und Haltung">
             {{-- Hintergrundbild: Unsere Vision & Haltung --}}
             <img src="{{ asset('shop/frontend/banners/manufaktur_vision_haltung.webp') }}"
-                 alt="Unsere Vision & Haltung – Handgefertigtes Holz- und Kristallherz bei warmem Kerzenschein in der Manufaktur"
+                 alt="Unsere Vision & Haltung: Handveredeltes Holz- und Kristallherz bei warmem Kerzenschein in der Manufaktur"
                  loading="lazy"
                  decoding="async"
                  data-is-ai-generated="true"
@@ -664,7 +670,7 @@
                 </span>
 
                 <blockquote class="text-lg sm:text-xl lg:text-2xl font-serif italic text-stone-100 mb-10 leading-relaxed drop-shadow">
-                    „Ich stehe mit ganzem Herzen dafür, meinen Kunden mit liebevoll handveredelten Unikaten pure Freude zu schenken – und gleichzeitig soziale Fürsorge für Kinder aktiv zu leben. Ein Seelenfunke soll nicht nur im Zuhause unserer Kunden ein warmes Leuchten entfachen, sondern zeitgleich auch in Kinderaugen echte Begeisterung und ein Lächeln zaubern. Pure Freude beim Kunden und soziales Engagement für Kinder gehören für mich untrennbar zusammen.“
+                    „Ich stehe mit ganzem Herzen dafür, meinen Kunden mit liebevoll handveredelten Unikaten pure Freude zu schenken und gleichzeitig soziale Fürsorge für Kinder aktiv zu leben. Ein Seelenfunke soll nicht nur im Zuhause unserer Kunden ein warmes Leuchten entfachen, sondern zeitgleich auch in Kinderaugen echte Begeisterung und ein Lächeln zaubern. Pure Freude beim Kunden und soziales Engagement für Kinder gehören für mich untrennbar zusammen.“
                 </blockquote>
 
                 <div class="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-10">
@@ -673,8 +679,8 @@
                             <img src="{{ asset('shop/projekt/about/gruender-profil-b.webp') }}" alt="Alina Steinhauer" class="w-full h-full object-cover">
                         </div>
                         <div>
-                            <div class="font-semibold text-sm text-white">Alina Steinhauer</div>
-                            <div class="text-xs text-stone-300">Gründerin von Mein Seelenfunke</div>
+                            <div class="font-semibold text-sm text-white">{{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}</div>
+                            <div class="text-xs text-stone-300">Gründerin von {{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</div>
                         </div>
                     </div>
 
@@ -695,7 +701,7 @@
                 {{-- Legal Transparency Notice --}}
                 <div class="mt-12 pt-6 border-t border-white/10">
                     <p class="text-[11px] sm:text-xs text-gray-400/80 max-w-3xl mx-auto leading-relaxed">
-                        <strong class="text-gray-300 font-medium">Transparenzhinweis:</strong> Unsere Herzensprojekte sind eine freiwillige unternehmerische Initiative von Mein Seelenfunke (Cause-Related Marketing). Als Kunde tätigst du mit deinem Einkauf keine eigenständige Spende und erhältst keine steuerliche Spendenquittung. Die Zuwendungen an Kitas und regionale Kinderinitiativen finanzieren wir vollständig aus den erwirtschafteten Mitteln unseres Unternehmens.
+                        <strong class="text-gray-300 font-medium">* Transparenzhinweis (§ 5a UWG):</strong> Unsere Herzensprojekte sind eine freiwillige unternehmerische Initiative von {{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }} (Cause-Related Marketing). {{ ($herzensIsPerItem ?? \App\Services\HerzensprojektService::isPerItem()) ? 'Pro verkauftem und bezahltem Artikel (nicht widerrufen)' : 'Pro bezahlter und nicht widerrufener Bestellung' }} führen wir {{ $herzensEuroFormatted ?? \App\Services\HerzensprojektService::resolveFormattedEuro() }}&nbsp;€ aus unseren eigenen Unternehmenserlösen unserem regionalen Herzensprojekte-Topf für Kitas und Kinderaktionen in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }} und Umgebung zu. Als Kunde tätigst du mit deinem Einkauf keine eigenständige Spende und erhältst keine steuerliche Spendenquittung.
                     </p>
                 </div>
             </div>
@@ -771,7 +777,7 @@
 
                     <div class="relative rounded-xl overflow-hidden border border-gray-200 bg-white">
                         <img src="{{ asset('shop/frontend/certificates/Laserschutzbeauftragte_Zertifikat_Alina_Steinhauer.webp') }}"
-                             alt="Zertifikat Laserschutzbeauftragte – Alina Steinhauer"
+                             alt="Zertifikat Laserschutzbeauftragte: Alina Steinhauer"
                              class="sf-card-img w-full h-auto block select-none">
 
                         {{-- Diagonaler Licht-Effekt wie bei "Unsere Kollektion" --}}

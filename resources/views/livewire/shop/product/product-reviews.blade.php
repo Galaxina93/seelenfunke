@@ -24,6 +24,9 @@
                         @endfor
                     </div>
                     <span class="text-sm text-gray-500">{{ $totalReviews }} verifizierte Bewertungen</span>
+                    <p class="mt-2.5 text-[11px] text-gray-500 leading-relaxed max-w-xs text-center md:text-left">
+                        <strong class="text-gray-700">Echtheitsprüfung (§ 5b Abs. 3 UWG):</strong> Bewertungen können ausschließlich von eingeloggten Kunden abgegeben werden, die diesen Artikel nachweislich in unserem Shop erworben haben. Treuepunkte („Seelenfunken“) werden ergebnisoffen und unabhängig von der Sternezahl vergeben.
+                    </p>
                 </div>
 
                 <div class="flex-1 w-full border-t md:border-t-0 md:border-l border-gray-200 pt-6 md:pt-0 md:pl-8">
@@ -79,12 +82,8 @@
                                      return this.funkiImages[r];
                                  }
                              }">
-                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+                            <div class="mb-6">
                                 <h3 class="text-lg font-bold text-gray-900">{{ $isEditing ? 'Deine Bewertung bearbeiten' : 'Deine Erfahrung teilen' }}</h3>
-                                <span class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-amber-500/15 via-[#C5A059]/20 to-amber-500/15 border border-[#C5A059]/50 text-amber-900 text-xs font-black uppercase tracking-wider shadow-xs">
-                                    <span>✨</span>
-                                    <span>Ehrliche Bewertung = +{{ \App\Services\Gamification\GameConfig::REVIEW_SPARK_REWARD }} Seelenfunken Belohnung</span>
-                                </span>
                             </div>
 
                             <form wire:submit.prevent="submitReview" class="space-y-6 w-full">
@@ -107,7 +106,7 @@
                                             @endfor
                                         </div>
 
-                                        <div class="h-32 w-32 sm:h-44 sm:w-44 shrink-0 transition-transform duration-300 mt-4 sm:mt-0 -mb-2 sm:-mb-4">
+                                        <div class="h-44 w-44 sm:h-48 sm:w-48 shrink-0 transition-transform duration-300 mt-4 sm:mt-0 -mb-2 sm:-mb-4">
                                             <img :src="currentFunki()" class="w-full h-full object-contain origin-bottom" alt="Funki Bewertung">
                                         </div>
                                     </div>
@@ -222,16 +221,25 @@
                                     </div>
                                 </div>
 
-                                <div class="flex flex-col sm:flex-row items-center gap-4 pt-6 mt-4 border-t border-amber-200/50 w-full">
-                                    <button type="submit" wire:loading.attr="disabled" class="w-full sm:w-auto inline-flex justify-center py-3.5 px-10 rounded-xl shadow-md text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-all transform hover:-translate-y-0.5 uppercase tracking-widest">
-                                        <span wire:loading.remove wire:target="submitReview">{{ $isEditing ? 'Änderungen speichern' : 'Bewertung absenden' }}</span>
-                                        <span wire:loading wire:target="submitReview">Speichert...</span>
-                                    </button>
-                                    @if($isEditing)
-                                        <button type="button" wire:click="cancelEdit" class="w-full sm:w-auto inline-flex justify-center py-3.5 px-8 border border-gray-300 rounded-xl shadow-sm text-sm font-bold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none transition-colors uppercase tracking-widest">
-                                            Abbrechen
+                                <div class="pt-6 mt-4 border-t border-amber-200/50 w-full">
+                                    <div class="flex flex-col sm:flex-row items-center gap-4 w-full">
+                                        <button type="submit" wire:loading.attr="disabled" class="w-full sm:w-auto inline-flex justify-center py-3.5 px-10 rounded-xl shadow-md text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-all transform hover:-translate-y-0.5 uppercase tracking-widest">
+                                            <span wire:loading.remove wire:target="submitReview">{{ $isEditing ? 'Änderungen speichern' : 'Bewertung absenden' }}</span>
+                                            <span wire:loading wire:target="submitReview">Speichert...</span>
                                         </button>
-                                    @endif
+                                        @if($isEditing)
+                                            <button type="button" wire:click="cancelEdit" class="w-full sm:w-auto inline-flex justify-center py-3.5 px-8 border border-gray-300 rounded-xl shadow-sm text-sm font-bold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none transition-colors uppercase tracking-widest">
+                                                Abbrechen
+                                            </button>
+                                        @endif
+                                    </div>
+
+                                    <p class="mt-3.5 flex items-center justify-center sm:justify-start gap-2 text-xs sm:text-sm text-gray-600 font-medium">
+                                        <span class="text-amber-500 text-base leading-none select-none" aria-hidden="true">✨</span>
+                                        <span>
+                                            Deine ehrliche Bewertung wird mit <strong class="font-bold text-amber-700">+{{ \App\Services\Gamification\GameConfig::REVIEW_SPARK_REWARD }} Seelenfunken</strong> belohnt <span class="text-gray-400 font-normal">(unabhängig von der Sternezahl)</span>
+                                        </span>
+                                    </p>
                                 </div>
                             </form>
                         </div>
@@ -429,8 +437,8 @@
                                 <div class="relative">
                                     <input :type="showPw ? 'text' : 'password'" wire:model="loginPassword" autocomplete="current-password" wire:keydown.enter="loginUser" class="block w-full rounded-xl bg-gray-50 border-gray-200 shadow-sm focus:bg-white focus:border-amber-500 focus:ring-amber-500 sm:text-sm py-3 px-4 transition-colors pr-10">
                                     <button type="button" @click.prevent="showPw = !showPw" class="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none transition-colors">
-                                        <svg x-show="!showPw" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                        <svg x-show="showPw" x-cloak class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                                        <svg x-show="showPw" x-cloak class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                        <svg x-show="!showPw" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
                                     </button>
                                 </div>
                                 @error('loginPassword') <span class="text-red-500 text-xs mt-1 font-bold block">{{ $message }}</span> @enderror

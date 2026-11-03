@@ -9,7 +9,7 @@
             margin: 0;
         }
         body {
-            font-family: 'Georgia', 'Times New Roman', serif;
+            font-family: 'DejaVu Serif', 'Georgia', 'Times New Roman', serif;
             background-color: #ffffff;
             color: #2b2b2b;
             margin: 0;
@@ -179,8 +179,8 @@
                 </div>
                 
                 <div class="footer">
-                    <div class="footer-brand">MEIN SEELENFUNKE</div>
-                    <div>Einlösbar auf www.mein-seelenfunke.de &bull; {{ $voucher->valid_until ? 'Gültig bis zum ' . $voucher->valid_until->format('d.m.Y') : 'Gültig 3 Jahre ab Ausstellungsdatum' }}</div>
+                    <div class="footer-brand">{{ strtoupper(shop_setting('company_name', shop_setting('owner_name', 'MEIN SEELENFUNKE'))) }}</div>
+                    <div>Einlösbar auf {{ str_replace(['http://', 'https://'], '', shop_setting('owner_website', 'www.mein-seelenfunke.de')) }} &bull; {{ $voucher->valid_until ? 'Gültig bis zum ' . $voucher->valid_until->format('d.m.Y') : 'Gültig 3 Jahre ab Ausstellungsdatum (gem. §§ 195, 199 BGB)' }} &bull; Restguthaben bleibt erhalten &bull; Keine Barauszahlung</div>
                 </div>
             </div>
         </div>

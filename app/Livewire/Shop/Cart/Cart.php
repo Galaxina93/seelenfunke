@@ -105,7 +105,7 @@ class Cart extends Component
                     $this->cartService->addItem($product, $qty, $config);
 
                     // Events feuern
-                    $this->dispatch('cart-updated');
+                    $this->dispatch('cart-updated', openPreview: true);
                     session()->flash('success', 'Produkt hinzugefügt!');
                 }
             });
@@ -170,22 +170,34 @@ class Cart extends Component
 
     private function logCartError($action, \Exception $e, $payload = [])
     {
+        $details = [
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'payload' => $payload,
+            'trace' => $e->getTraceAsString(),
+        ];
+
         SystemLog::create([
             'type' => 'error',
-            'agent_id' => null,
             'action_id' => 'cart_manipulation',
+            'title' => 'Warenkorb-Fehler',
             'message' => "Fehler bei Cart Aktion ($action): " . $e->getMessage(),
-            'details' => json_encode([
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'payload' => $payload,
-                'trace' => $e->getTraceAsString()
-            ])
+            'status' => 'error',
+            'payload' => [
+                'agent_id' => null,
+                'details' => $details,
+            ],
+            'started_at' => now(),
+            'finished_at' => now(),
         ]);
     }
 
     public function render()
     {
+        if (shop_setting('maintenance_mode', false) && !\Illuminate\Support\Facades\Auth::guard('admin')->check()) {
+            return view('global.errors.503_fragment')->layout('components.layouts.frontend_layout');
+        }
+
         $cart = $this->cartService->getCart(false);
         $totals = $this->cartService->getTotals();
 

@@ -21,12 +21,27 @@
 
                     <div class="grid md:grid-cols-2 gap-8 text-gray-700 leading-relaxed">
                         <div>
+                            @php
+                                $impCountryCode = strtoupper((string) shop_setting('company_country', 'DE'));
+                                $impCountriesMap = shop_setting('active_countries', ['DE' => 'Deutschland']);
+                                $impCountryLabel = is_array($impCountriesMap) && isset($impCountriesMap[$impCountryCode])
+                                    ? $impCountriesMap[$impCountryCode]
+                                    : ($impCountryCode === 'DE' ? 'Deutschland' : $impCountryCode);
+                                $impStreetLine = shop_setting('company_street')
+                                    ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', '26'))
+                                    : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26');
+                                $impCityLine = shop_setting('company_city')
+                                    ? trim(shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city'))
+                                    : shop_setting('owner_city', '38518 Gifhorn');
+                                $impEmail = shop_setting('owner_email_impressum', shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')));
+                                $supportEmail = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
+                            @endphp
                             <p class="font-bold text-lg text-gray-900 mb-2">{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</p>
                             <p>
                                 Inhaberin: {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
-                                {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}<br>
-                                {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}<br>
-                                {{ shop_setting('company_country', 'Deutschland') }}
+                                {{ $impStreetLine }}<br>
+                                {{ $impCityLine }}<br>
+                                {{ $impCountryLabel }}
                             </p>
                         </div>
 
@@ -34,14 +49,14 @@
                             <p class="font-semibold text-gray-900 mb-2">Kontakt</p>
                             <p class="mb-4">
                                 Telefon: <a href="tel:{{ preg_replace('/[^0-9+]/', '', shop_setting('company_phone', shop_setting('owner_phone', '+49 159 019 668 64'))) }}" class="hover:text-primary transition-colors">{{ shop_setting('company_phone', shop_setting('owner_phone', '+49 159 019 668 64')) }}</a><br>
-                                E-Mail: <a href="mailto:{{ shop_setting('owner_email_impressum', shop_setting('company_email', 'kontakt@mein-seelenfunke.de')) }}" class="text-primary hover:underline transition-colors">{{ shop_setting('owner_email_impressum', shop_setting('company_email', 'kontakt@mein-seelenfunke.de')) }}</a><br>
+                                E-Mail: <a href="mailto:{{ $impEmail }}" class="text-primary hover:underline transition-colors">{{ $impEmail }}</a><br>
                                 Website: <a href="{{ url('/') }}" class="hover:text-primary transition-colors">{{ url('/') }}</a>
                             </p>
 
                             <p class="font-semibold text-gray-900 mb-1">Umsatzsteuer-Identifikationsnummer</p>
                             <p class="text-sm text-gray-600">
                                 Umsatzsteuer-Identifikationsnummer gemäß § 27 a Umsatzsteuergesetz:<br>
-                                <span class="font-mono text-gray-800">{{ shop_setting('owner_ust_id', 'DE359662265') }}</span>
+                                <span class="font-mono text-gray-800">{{ shop_setting('company_ust_id', shop_setting('owner_ust_id', 'DE359662265')) }}</span>
                             </p>
                         </div>
                     </div>
@@ -57,9 +72,9 @@
                         <p class="text-sm text-gray-700 leading-relaxed">
                             Verantwortlich für den Inhalt nach § 18 Abs. 2 Medienstaatsvertrag (MStV):<br><br>
                             <strong>{{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}</strong><br>
-                            {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}<br>
-                            {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}<br>
-                            Deutschland
+                            {{ $impStreetLine }}<br>
+                            {{ $impCityLine }}<br>
+                            {{ $impCountryLabel }}
                         </p>
                     </div>
 
@@ -70,7 +85,7 @@
                         </h2>
                         <p class="text-sm text-gray-700 leading-relaxed">
                             Zentrale Kontaktstelle für Nutzer und Behörden gemäß Art. 11 und Art. 12 der Verordnung (EU) 2022/2065 (Gesetz über digitale Dienste):<br><br>
-                            E-Mail: <a href="mailto:{{ shop_setting('owner_email_impressum', shop_setting('company_email', 'kontakt@mein-seelenfunke.de')) }}" class="text-primary hover:underline font-medium">{{ shop_setting('owner_email_impressum', shop_setting('company_email', 'kontakt@mein-seelenfunke.de')) }}</a><br>
+                            E-Mail: <a href="mailto:{{ $impEmail }}" class="text-primary hover:underline font-medium">{{ $impEmail }}</a><br>
                             Telefon: {{ shop_setting('company_phone', shop_setting('owner_phone', '+49 159 019 668 64')) }}<br>
                             <span class="text-xs text-gray-500">Kommunikationssprachen: Deutsch, Englisch.</span>
                         </p>
@@ -89,8 +104,8 @@
                         </p>
                         <div class="bg-white p-4 rounded-lg border border-amber-200/70 text-gray-800">
                             <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }} – Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}</strong><br>
-                            {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}, {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}, Deutschland<br>
-                            Elektronische Kontaktadresse für Produktsicherheitsanfragen: <a href="mailto:{{ shop_setting('company_email', 'kontakt@mein-seelenfunke.de') }}" class="text-primary hover:underline font-medium">{{ shop_setting('company_email', 'kontakt@mein-seelenfunke.de') }}</a>
+                            {{ $impStreetLine }}, {{ $impCityLine }}, {{ $impCountryLabel }}<br>
+                            Elektronische Kontaktadresse für Produktsicherheitsanfragen: <a href="mailto:{{ $supportEmail }}" class="text-primary hover:underline font-medium">{{ $supportEmail }}</a>
                         </div>
                         <p class="text-xs text-gray-600">
                             Produktspezifische Sicherheits- und Warnhinweise sind zudem direkt auf der jeweiligen Produktdetailseite im Reiter „Produktsicherheit & Hersteller (GPSR)“ sowie in unseren <a href="{{ route('agb') }}#produktsicherheit" class="text-primary underline hover:text-primary-dark">Allgemeinen Geschäftsbedingungen (§ 6a)</a> abrufbar.
@@ -109,7 +124,7 @@
                             Wir sind nicht bereit oder verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle im Sinne des Verbraucherstreitbeilegungsgesetzes (VSBG) teilzunehmen.
                         </p>
                         <p class="text-xs text-gray-500">
-                            Hinweis: Die ehemalige Plattform der Europäischen Kommission zur Online-Streitbeilegung (OS-Plattform) wurde gemäß der Verordnung (EU) 2024/3228 mit Wirkung zum 20. Juli 2025 endgültig eingestellt. Unser Kundenservice steht Ihnen bei Anliegen jederzeit direkt unter <a href="mailto:{{ shop_setting('company_email', 'kontakt@mein-seelenfunke.de') }}" class="text-primary hover:underline">{{ shop_setting('company_email', 'kontakt@mein-seelenfunke.de') }}</a> zur Verfügung.
+                            Hinweis: Die ehemalige Plattform der Europäischen Kommission zur Online-Streitbeilegung (OS-Plattform) wurde gemäß der Verordnung (EU) 2024/3228 mit Wirkung zum 20. Juli 2025 endgültig eingestellt. Unser Kundenservice steht Ihnen bei Anliegen jederzeit direkt unter <a href="mailto:{{ $supportEmail }}" class="text-primary hover:underline">{{ $supportEmail }}</a> zur Verfügung.
                         </p>
                     </div>
                 </div>
@@ -125,7 +140,7 @@
                             <strong>Urheberrecht:</strong> Die durch die Seitenbetreiberin erstellten Inhalte, Gravurvorlagen, Fotografien, 3D-Modelle und Werke auf diesen Seiten unterliegen dem deutschen Urheberrecht. Die Vervielfältigung, Bearbeitung, Verbreitung und jede Art der Verwertung außerhalb der Grenzen des Urheberrechtes bedürfen der schriftlichen Zustimmung der jeweiligen Autorin bzw. Erstellerin.
                         </p>
                         <p>
-                            <strong>KI-Transparenzhinweis gemäß Art. 50 Verordnung (EU) 2024/1689 (EU AI Act):</strong> Zur realitätsnahen Visualisierung von Gravurbeispielen, Designvorlagen und Ambiente-Darstellungen setzen wir in unserem Online-Shop ergänzend KI-gestützte Bild- und Textwerkzeuge unter menschlicher Kuratierung ein. Entsprechende Darstellungen sind direkt am Bild mit dem Hinweis „KI-generiert“ gekennzeichnet. Die physische Fertigung und Lasergravur Ihres Produktes erfolgt stets individuell am echten Werkstück in unserer Manufaktur in Gifhorn.
+                            <strong>KI-Transparenzhinweis gemäß Art. 50 Verordnung (EU) 2024/1689 (EU AI Act):</strong> Zur realitätsnahen Visualisierung von Gravurbeispielen, Designvorlagen und Ambiente-Darstellungen setzen wir in unserem Online-Shop ergänzend KI-gestützte Bild- und Textwerkzeuge unter menschlicher Kuratierung ein. Entsprechende Darstellungen sind direkt am Bild mit dem Hinweis „KI-generiert“ gekennzeichnet. Die physische Fertigung und Lasergravur Ihres Produktes erfolgt stets individuell am echten Werkstück in unserer Manufaktur in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}.
                         </p>
                     </div>
                 </div>

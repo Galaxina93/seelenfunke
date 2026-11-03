@@ -12,8 +12,8 @@
     <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16x16.png') }}?v=2">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('apple-touch-icon.png') }}?v=2">
 
-    {{-- Tailwind CSS via CDN ist für Wartungsseiten okay, ignoriere die Warnung in der Konsole --}}
-    <script src="https://cdn.tailwindcss.com"></script>
+    {{-- DSGVO-konform: Lokales CSS statt externem Tailwind-CDN (Art. 6 Abs. 1 DSGVO) --}}
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ file_exists(public_path('css/app.css')) ? filemtime(public_path('css/app.css')) : 1 }}">
 
     <style>
         /* Lokale Fonts einbinden (DSGVO konform) */
@@ -106,8 +106,27 @@
         <span class="font-medium tracking-wider uppercase text-[11px]">Wartungsarbeiten aktiv</span>
     </div>
 
-    <div class="mt-14 text-xs text-gray-400/80 font-light tracking-[0.2em] uppercase border-t border-gray-100 pt-6 w-2/3 mx-auto">
-        &copy; {{ date('Y') }} Mein Seelenfunke <span class="mx-2 text-amber-300">•</span> Handveredelte Unikate
+    <div class="mt-12 text-xs text-gray-500 border-t border-gray-200/80 pt-6 max-w-lg mx-auto space-y-2">
+        <div class="font-semibold tracking-[0.15em] uppercase text-gray-600">
+            &copy; {{ date('Y') }} {{ function_exists('shop_setting') ? shop_setting('company_name', 'Mein Seelenfunke') : 'Mein Seelenfunke' }} <span class="mx-2 text-amber-400">•</span> Handveredelte Unikate
+        </div>
+        {{-- Pflichtangaben gem. § 5 Abs. 1 DDG (müssen auch während des Wartungsmodus einsehbar sein) --}}
+        <p class="text-[11px] text-gray-500 leading-relaxed">
+            <strong>Anbieterkennzeichnung gem. § 5 DDG:</strong>
+            {{ function_exists('shop_setting') ? shop_setting('company_name', 'Mein Seelenfunke') : 'Mein Seelenfunke' }},
+            Inh. {{ function_exists('shop_setting') ? shop_setting('owner_proprietor', 'Alina Steinhauer') : 'Alina Steinhauer' }},
+            {{ function_exists('shop_setting') ? shop_setting('company_street', 'Carl-Goerdeler-Ring') : 'Carl-Goerdeler-Ring' }} {{ function_exists('shop_setting') ? shop_setting('company_street_number', '26') : '26' }},
+            {{ function_exists('shop_setting') ? shop_setting('company_zip', '38518') : '38518' }} {{ function_exists('shop_setting') ? shop_setting('company_city', 'Gifhorn') : 'Gifhorn' }}, Deutschland ·
+            E-Mail: <a href="mailto:{{ function_exists('shop_setting') ? shop_setting('company_email', 'kontakt@mein-seelenfunke.de') : 'kontakt@mein-seelenfunke.de' }}" class="underline hover:text-gray-800">{{ function_exists('shop_setting') ? shop_setting('company_email', 'kontakt@mein-seelenfunke.de') : 'kontakt@mein-seelenfunke.de' }}</a> ·
+            Tel.: {{ function_exists('shop_setting') ? shop_setting('company_phone', '+49 159 019 668 64') : '+49 159 019 668 64' }}
+            @php $vatId503 = function_exists('shop_setting') ? shop_setting('owner_ust_id', 'DE459668247') : 'DE459668247'; @endphp
+            @if(!empty($vatId503)) · USt-IdNr.: {{ $vatId503 }} @endif
+        </p>
+        <div class="pt-1 flex items-center justify-center gap-4 text-[11px] font-medium text-gray-500">
+            <a href="/impressum" class="hover:text-gray-800 underline">Impressum</a>
+            <span>·</span>
+            <a href="/datenschutz" class="hover:text-gray-800 underline">Datenschutzerklärung</a>
+        </div>
     </div>
 </div>
 

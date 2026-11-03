@@ -58,6 +58,11 @@ protected $guarded = [];
         return $this->belongsTo(Product::class);
     }
 
+    public function packagingItem()
+    {
+        return $this->belongsTo(ProductPackagingItem::class, 'packaging_item_id');
+    }
+
     public static function getMaterialTypes()
     {
         return [

@@ -1,192 +1,473 @@
 <div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;">
-    <!-- SCHRITT 1: Produktauswahl -->
-    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-6 sm:p-10 rounded-[2rem] sm:rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 animate-fade-in-up w-full mb-8 transition-colors">
-        <h2 class="text-xl sm:text-2xl font-serif font-bold text-gray-900 dark:text-white tracking-wide mb-4 flex items-center gap-4">
-            <span class="bg-[var(--theme-color)] text-gray-900 w-8 h-8 rounded-full flex items-center justify-center text-lg font-black shrink-0">1</span>
-            Produkt für die Gewichtserfassung auswählen
-        </h2>
-        <p class="text-gray-600 dark:text-gray-400 text-sm sm:text-base mb-8 leading-relaxed">Wähle das Produkt aus, für das du das Versandmaterial hinterlegen möchtest. <br><em>Tipp: Ein mittelgroßer Versandkarton wiegt ca. 100g bis 150g. Etwas Klebeband wiegt ca. 5g. Lass es uns sicherheitshalber etwas großzügiger aufrunden.</em></p>
 
-        <div class="relative max-w-2xl">
-            <select wire:model.live="selectedProductId" class="w-full bg-white dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-xl px-5 py-4 text-base font-bold text-gray-900 dark:text-white focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color)] shadow-sm dark:shadow-inner appearance-none pr-12 cursor-pointer transition-colors outline-none">
-                <option value="">-- Klicke hier um ein Produkt auszuwählen --</option>
-                @foreach($products as $prod)
-                    <option value="{{ $prod->id }}">{{ $prod->name }}</option>
-                @endforeach
-            </select>
-            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-5 text-gray-500">
-                <x-heroicon-m-chevron-down class="w-5 h-5 text-gray-500" />
+    <!-- SCHLANKER HEADER MIT TAB-AUSWAHL -->
+    <div class="bg-white dark:bg-gray-900/85 backdrop-blur-xl px-5 py-3.5 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-[var(--theme-color-15)] border border-[var(--theme-color-30)] flex items-center justify-center shrink-0">
+                <x-heroicon-s-archive-box class="w-5 h-5 text-[var(--theme-color)]" />
             </div>
+            <h1 class="text-lg font-serif font-bold text-gray-900 dark:text-white">
+                Verpackungen & LUCID
+            </h1>
+        </div>
+
+        <div class="inline-flex p-1 rounded-xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 self-start sm:self-auto">
+            <button
+                type="button"
+                wire:click="setTab('products')"
+                class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer {{ $activeTab === 'products' ? 'bg-[var(--theme-color)] text-gray-900 shadow-sm font-black' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}"
+            >
+                Produkterfassung
+            </button>
+            <button
+                type="button"
+                wire:click="setTab('catalog')"
+                class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer {{ $activeTab === 'catalog' ? 'bg-[var(--theme-color)] text-gray-900 shadow-sm font-black' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}"
+            >
+                Verpackungsmaterial
+            </button>
         </div>
     </div>
 
-    <!-- SCHRITT 2: Material Editieren -->
-    @if($this->product)
-        <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-6 sm:p-10 rounded-[2rem] sm:rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-emerald-500/20 animate-fade-in-up w-full transition-colors">
-            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 border-b border-gray-200 dark:border-gray-800 pb-6 gap-4">
-                <h2 class="text-xl sm:text-2xl font-serif font-bold text-gray-900 dark:text-white tracking-wide flex items-center gap-4">
-                    <span class="bg-[var(--theme-color)] text-gray-900 w-8 h-8 rounded-full flex items-center justify-center text-lg font-black shrink-0">2</span>
-                    Materialien für: <span class="text-[var(--theme-color)] ml-1">{{ $this->product->name }}</span>
-                </h2>
-                
-                @if($packagings->count() > 0)
-                    <span class="inline-flex items-center px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-sm dark:shadow-inner border bg-[var(--theme-color-10)] text-[var(--theme-color)] border-[var(--theme-color-30)]">
-                        <x-heroicon-s-check-circle class="w-4 h-4 mr-2" /> {{ $packagings->count() }} Materialien gespeichert
-                    </span>
-                @else
-                    <span class="inline-flex items-center px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-sm dark:shadow-inner border bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30 animate-pulse">
-                        <x-heroicon-s-x-circle class="w-4 h-4 mr-2" /> Noch keine Daten
-                    </span>
-                @endif
+    <!-- ===================================================================== -->
+    <!-- TAB 1: PRODUKTERFASSUNG                                               -->
+    <!-- ===================================================================== -->
+    @if($activeTab === 'products')
+        <div class="bg-white dark:bg-gray-900/85 backdrop-blur-xl p-5 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 space-y-5">
+
+            <!-- Zeile 1: Produkt auswählen + Vorlage aus Tab 2 zuweisen -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end pb-5 border-b border-gray-200 dark:border-gray-800">
+                <div class="lg:col-span-5">
+                    <label class="block text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
+                        Produkt
+                    </label>
+                    <select wire:model.live="selectedProductId" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold text-gray-900 dark:text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] outline-none cursor-pointer">
+                        <option value="">-- Produkt wählen --</option>
+                        @foreach($products as $prod)
+                            @php $w = (int) $prod->packagings->sum('weight_grams'); @endphp
+                            <option value="{{ $prod->id }}">
+                                {{ $prod->name }} ({{ $w > 0 ? $w . ' g' : 'offen' }})
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="lg:col-span-5">
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                            Verpackung aus Katalog
+                        </label>
+                        <div class="flex items-center gap-3 text-[11px] text-gray-500 dark:text-gray-400">
+                            <label class="inline-flex items-center gap-1 cursor-pointer">
+                                <input type="radio" wire:model.live="assignMode" value="add" class="text-[var(--theme-color)] focus:ring-[var(--theme-color)]">
+                                <span>Addieren</span>
+                            </label>
+                            <label class="inline-flex items-center gap-1 cursor-pointer">
+                                <input type="radio" wire:model.live="assignMode" value="replace" class="text-[var(--theme-color)] focus:ring-[var(--theme-color)]">
+                                <span>Ersetzen</span>
+                            </label>
+                        </div>
+                    </div>
+                    <select wire:model="selectedCatalogItemId" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold text-gray-900 dark:text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] outline-none cursor-pointer">
+                        <option value="">-- Verpackung wählen --</option>
+                        @foreach($allCatalogItems as $catItem)
+                            <option value="{{ $catItem->id }}">
+                                {{ $catItem->name }} ({{ $catItem->weight_grams }} g · {{ number_format($catItem->unit_cost_cents / 100, 2, ',', '.') }} €)
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="lg:col-span-2">
+                    <button
+                        type="button"
+                        wire:click="assignCatalogItemToProduct"
+                        class="w-full px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-[var(--theme-color)] text-gray-900 hover:opacity-90 transition-all cursor-pointer"
+                    >
+                        Zuweisen
+                    </button>
+                </div>
             </div>
 
-            <div class="bg-gray-50 dark:bg-gray-950/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 sm:p-8 shadow-sm dark:shadow-inner mb-10 transition-colors" x-data="{ selectedType: @entangle('newType') }">
-                <h4 class="text-sm font-black uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-6">Neues Material zum Paket hinzufügen</h4>
-                
-                <form wire:submit.prevent="addMaterial" class="flex flex-col md:flex-row items-start md:items-end gap-5 mb-5">
-                    <div class="w-full md:flex-1">
-                        <label class="block text-xs font-black tracking-widest text-gray-500 dark:text-gray-400 mb-2 ml-1 uppercase">Woraus besteht die Verpackung?</label>
-                        <select wire:model.live="newType" class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-5 py-4 text-sm font-bold text-gray-900 dark:text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] shadow-sm dark:shadow-inner cursor-pointer transition-colors outline-none">
-                            <option value="">-- Bitte Material wählen --</option>
+            @if($this->product)
+                <!-- Gespeicherte Materialien am gewählten Produkt -->
+                <div>
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-gray-900 dark:text-white">
+                                {{ $this->product->name }}
+                            </span>
+                            <span class="px-2 py-0.5 rounded-lg text-[11px] font-black bg-[var(--theme-color-15)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">
+                                {{ $packagings->sum('weight_grams') }} g
+                            </span>
+                        </div>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">
+                            EK: <strong class="text-[var(--theme-color)]">{{ number_format(((int) $this->product->packaging_cost) / 100, 2, ',', '.') }} €</strong>
+                        </span>
+                    </div>
+
+                    <div class="space-y-2">
+                        @forelse($packagings as $pkg)
+                            <div class="flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-950/60 hover:border-[var(--theme-color-40)] transition-colors">
+                                <div class="flex flex-wrap items-center gap-2 min-w-0">
+                                    <span class="text-xs font-bold text-gray-900 dark:text-white">
+                                        {{ $availableTypes[$pkg->material_type] ?? $pkg->material_type }}
+                                    </span>
+                                    @if($pkg->label)
+                                        <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-20)]">
+                                            {{ $pkg->label }}
+                                        </span>
+                                    @endif
+                                </div>
+
+                                <div class="flex items-center gap-3 shrink-0">
+                                    @if($editId === $pkg->id)
+                                        <div class="flex items-center gap-1.5">
+                                            <input type="number" wire:model="editWeightGrams" min="1" class="w-20 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-lg px-2 py-1 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                                            <span class="text-xs text-gray-500">g</span>
+                                            <button wire:click="saveEdit" class="p-1 text-[var(--theme-color)] hover:bg-[var(--theme-color-10)] rounded"><x-heroicon-o-check class="w-4 h-4" /></button>
+                                            <button wire:click="cancelEdit" class="p-1 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 rounded"><x-heroicon-o-x-mark class="w-4 h-4" /></button>
+                                        </div>
+                                    @else
+                                        <button type="button" wire:click="startEdit({{ $pkg->id }}, {{ $pkg->weight_grams }})" class="text-xs font-black text-[var(--theme-color)] hover:underline cursor-pointer">
+                                            {{ $pkg->weight_grams }} g
+                                        </button>
+                                    @endif
+
+                                    <button type="button" wire:click="deleteMaterial({{ $pkg->id }})" class="p-1 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-500/10 cursor-pointer" title="Entfernen">
+                                        <x-heroicon-o-trash class="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        @empty
+                            <div class="text-center py-5 border border-dashed border-gray-200 dark:border-gray-800 rounded-xl text-xs text-gray-400">
+                                Noch kein Material hinterlegt.
+                            </div>
+                        @endforelse
+                    </div>
+                </div>
+
+                <!-- Zeile 3: Einzelnes Material manuell ergänzen -->
+                <form wire:submit.prevent="addMaterial" class="pt-4 border-t border-gray-200 dark:border-gray-800 grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+                    <div class="sm:col-span-4">
+                        <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Material</label>
+                        <select wire:model="newType" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-xl px-3 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                            <option value="">-- Materialart --</option>
                             @foreach($availableTypes as $val => $label)
                                 <option value="{{ $val }}">{{ $label }}</option>
                             @endforeach
                         </select>
-                        @error('newType') <span class="text-xs text-red-500 font-bold block mt-2 ml-1">{{ $message }}</span> @enderror
                     </div>
-                    
-                    <div class="w-full md:w-48 shrink-0">
-                        <label class="block text-xs font-black tracking-widest text-gray-500 dark:text-gray-400 mb-2 ml-1 uppercase">Gewicht (in Gramm)</label>
-                        <div class="relative">
-                            <input type="number" wire:model="newWeightGrams" min="1" class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-5 py-4 text-sm font-bold text-gray-900 dark:text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] shadow-sm dark:shadow-inner pr-12 outline-none" placeholder="z.B. 120">
-                            <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-gray-500 uppercase tracking-widest">g</span>
-                        </div>
-                        @error('newWeightGrams') <span class="text-xs text-red-500 font-bold block mt-2 ml-1">{{ $message }}</span> @enderror
+                    <div class="sm:col-span-4">
+                        <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Bezeichnung (optional)</label>
+                        <input type="text" wire:model="newLabel" placeholder="z.B. Klebeband" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-xl px-3 py-2 text-xs text-gray-900 dark:text-white outline-none">
                     </div>
-                    
-                    <div class="w-full md:w-auto shrink-0 mt-2 md:mt-0">
-                        <button type="submit" class="w-full md:w-auto bg-[var(--theme-color)] text-gray-900 font-black text-xs md:text-sm uppercase tracking-widest px-8 py-4 rounded-xl hover:bg-gray-900 hover:text-white dark:hover:bg-white dark:hover:text-gray-900 transition-all flex items-center justify-center gap-3 shadow-sm dark:shadow-[0_0_15px_var(--theme-color-20)] hover:dark:shadow-[0_0_25px_var(--theme-color-40)]">
-                            <x-heroicon-o-plus class="w-5 h-5" /> Speichern
+                    <div class="sm:col-span-2">
+                        <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Gramm</label>
+                        <input type="number" wire:model="newWeightGrams" min="1" placeholder="5" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-xl px-3 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <button type="submit" class="w-full px-4 py-2 rounded-xl text-xs font-black uppercase bg-[var(--theme-color-15)] text-[var(--theme-color)] border border-[var(--theme-color-30)] hover:bg-[var(--theme-color)] hover:text-gray-900 transition-colors cursor-pointer">
+                            + Hinzufügen
                         </button>
                     </div>
                 </form>
-
-                <!-- DYNAMISCHER HINT INFOBLOCK -->
-                <div x-show="selectedType" x-cloak class="mt-4 p-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-sm text-gray-700 dark:text-gray-300 shadow-sm animate-fade-in-up">
-                    <x-heroicon-s-information-circle class="w-5 h-5 text-blue-500 mr-2 inline-block align-text-bottom" />
-                    <span x-show="selectedType === 'paper'"><strong>Papier, Pappe, Karton (PPK):</strong> Hierzu zählen z.B. Versandkartons, herkömmliches Packband aus Papier, Seidenpapier, Flyer, Rechnungen und Lieferscheine.</span>
-                    <span x-show="selectedType === 'plastic'"><strong>Kunststoff:</strong> Hierzu zählen z.B. Luftpolsterfolie, Styropor-Chips, Plastik-Klebeband oder kleine Zip-Beutel.</span>
-                    <span x-show="selectedType === 'composite'"><strong>Verbundmaterial:</strong> Hierzu zählen z.B. gängige Luftpolsterversandtaschen, da sie aus Papier (außen) und Folie (innen) fest verbunden bestehen. Bei Trennbarkeit sollten sie einzeln gewogen werden.</span>
-                    <span x-show="selectedType === 'wood'"><strong>Holz:</strong> Hierzu zählen z.B. Holzwolle als Füllmaterial oder kleine Holzkisten.</span>
-                    <span x-show="selectedType === 'glass'"><strong>Glas:</strong> Hierzu zählen z.B. Einwegverpackungen aus Glas.</span>
-                    <span x-show="selectedType === 'tin'"><strong>Weißblech:</strong> Hierzu zählen z.B. kleine Blechdosen zur Versendung.</span>
-                    <span x-show="selectedType === 'alu'"><strong>Aluminium:</strong> Hierzu zählen Schalen oder Umverpackungen aus Alu.</span>
-                    <span x-show="selectedType === 'other'"><strong>Sonstiges:</strong> Alles, was sich nicht in die Hauptkategorien Papier, Kunststoff, Glas, Metall oder Holz einordnen lässt.</span>
-                </div>
-            </div>
-
-            <div class="space-y-4">
-                <h4 class="text-sm font-black uppercase tracking-wide text-gray-700 dark:text-gray-300 mb-4 px-2">Gespeicherte Verpackungsbestandteile an diesem Produkt:</h4>
-                
-                @forelse($packagings as $pkg)
-                    @php
-                        $iconComponent = match($pkg->material_type) {
-                            'paper' => 'heroicon-o-document-text',
-                            'plastic' => 'heroicon-o-archive-box',
-                            'glass' => 'heroicon-o-beaker',
-                            'wood' => 'heroicon-o-cube',
-                            'tin' => 'heroicon-o-circle-stack',
-                            'alu' => 'heroicon-o-rectangle-stack',
-                            'composite' => 'heroicon-o-square-3-stack-3d',
-                            default => 'heroicon-o-star',
-                        };
-                    @endphp
-                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 sm:p-5 rounded-2xl group transition-all hover:border-gray-300 dark:hover:border-gray-600 shadow-sm dark:shadow-lg gap-4">
-                        <div class="flex items-center gap-5 w-full sm:w-auto">
-                            <div class="w-14 h-14 bg-gray-50 dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 flex items-center justify-center shrink-0 shadow-sm dark:shadow-inner p-3">
-                                <x-dynamic-component :component="$iconComponent" class="w-7 h-7 text-[var(--theme-color)] opacity-80" />
-                            </div>
-                            <div class="flex-1">
-                                <div class="text-sm font-bold text-gray-900 dark:text-white tracking-wide mb-1">{{ $availableTypes[$pkg->material_type] ?? $pkg->material_type }}</div>
-                                
-                                @if($editId === $pkg->id)
-                                    <div class="mt-2 flex items-center gap-3 bg-gray-50 dark:bg-gray-950 p-2 rounded-xl border border-gray-200 dark:border-gray-800">
-                                        <input type="number" wire:model="editWeightGrams" class="w-24 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm font-bold text-gray-900 dark:text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] shadow-sm dark:shadow-inner outline-none" min="1">
-                                        <span class="text-xs text-gray-500 font-black tracking-widest uppercase">Gramm</span>
-                                        <div class="w-px h-6 bg-gray-200 dark:bg-gray-800 mx-1"></div>
-                                        <button wire:click="saveEdit" class="text-[var(--theme-color)] hover:opacity-80 p-1 rounded-lg hover:bg-[var(--theme-color-10)] transition-colors" title="Speichern"><x-heroicon-o-check class="w-5 h-5" /></button>
-                                        <button wire:click="cancelEdit" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-400 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Abbrechen"><x-heroicon-o-x-mark class="w-5 h-5" /></button>
-                                    </div>
-                                @else
-                                    <div class="text-sm text-gray-600 dark:text-gray-400 font-bold mt-1 flex items-center gap-3 group/edit cursor-pointer hover:text-[var(--theme-color)] transition-colors" wire:click="startEdit({{ $pkg->id }}, {{ $pkg->weight_grams }})">
-                                        <span class="text-[var(--theme-color)] text-base">{{ number_format($pkg->weight_grams, 0, ',', '.') }}</span> Gramm 
-                                        <span class="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-lg text-[10px] uppercase opacity-0 group-hover/edit:opacity-100 transition-opacity flex items-center"><x-heroicon-s-pencil-square class="w-3 h-3 mx-1 inline-block" /> Bearbeiten</span>
-                                    </div>
-                                @endif
-                            </div>
-                        </div>
-                        <div class="w-full sm:w-auto text-right sm:pr-2 border-t border-gray-100 dark:border-gray-800 sm:border-0 pt-3 sm:pt-0 mt-1 sm:mt-0">
-                            <button wire:click="deleteMaterial({{ $pkg->id }})" wire:confirm="Sicher, dass du dieses Material entfernen willst?" class="text-gray-500 hover:text-red-500 transition-colors px-4 py-2 sm:p-2.5 rounded-xl hover:bg-red-500/10 border border-transparent hover:border-red-500/20 text-xs font-bold uppercase tracking-widest flex items-center gap-2 justify-center w-full sm:w-auto">
-                                <x-heroicon-o-trash class="w-4 h-4" /> <span class="sm:hidden">Löschen</span>
-                            </button>
-                        </div>
-                    </div>
-                @empty
-                    <div class="text-center p-12 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-3xl bg-gray-50/50 dark:bg-gray-950/30">
-                        <x-heroicon-o-archive-box-x-mark class="w-16 h-16 text-gray-400 dark:text-gray-700 mx-auto mb-4 block" />
-                        <h4 class="text-sm font-bold uppercase tracking-widest text-gray-600 dark:text-gray-500 mb-2">Die Liste ist noch leer</h4>
-                        <p class="text-gray-500 text-sm">Bitte füge oben die Materialien hinzu, in der du dieses Produkt verschickst.</p>
-                    </div>
-                @endforelse
-            </div>
-        </div>
-    @else
-        <div class="flex items-center justify-center p-12 text-center h-48 border border-dashed border-gray-200 dark:border-gray-800 rounded-3xl mt-8 bg-gray-50/30 dark:bg-transparent">
-            <div class="text-gray-500 dark:text-gray-600">
-                <x-heroicon-o-arrow-up-circle class="w-12 h-12 mb-3 mx-auto block opacity-30 dark:opacity-20" />
-                <h4 class="text-xs font-bold uppercase tracking-widest">Bitte wähle oben ein Produkt aus</h4>
-            </div>
+            @endif
         </div>
     @endif
 
-    <!-- INFOBEREICH: LUCID Erklärung unten im Accordion -->
-    <div x-data="{ open: false }" class="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-[2rem] w-full mt-10 shadow-sm dark:shadow-lg overflow-hidden group transition-colors">
-        <button @click="open = !open" type="button" class="w-full p-8 flex items-center justify-between text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-900">
-            <h2 class="text-lg sm:text-xl font-bold text-gray-700 dark:text-gray-300 flex items-center gap-3 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
-                <x-heroicon-o-shield-check class="w-6 h-6 text-blue-500 inline-block align-text-bottom" /> Das Verpackungsgesetz (LUCID) einfach erklärt
-            </h2>
-            <x-heroicon-m-chevron-down class="w-6 h-6 text-gray-400 dark:text-gray-500 transition-transform duration-300" x-bind:class="open ? 'rotate-180' : ''" />
-        </button>
-        
-        <div x-show="open" x-collapse style="display: none;" class="px-8 pb-8 pt-2">
-            <div class="space-y-6 text-gray-600 dark:text-gray-400 text-sm sm:text-base leading-relaxed border-t border-gray-200 dark:border-gray-800 pt-6">
-                <p>
-                    In Deutschland gilt das strenge <strong>Verpackungsgesetz (VerpackG)</strong>. Die Regel ist simpel: Wer eine Verpackung (wie einen Karton, Luftpolsterfolie oder Klebeband) gewerblich an einen Endkunden verschickt, muss dafür sorgen, dass der spätere Recycling-Prozess finanziert wird (Systembeteiligung).
-                </p>
-                
-                <div class="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-2xl p-6 sm:p-8 mt-4">
-                    <h3 class="text-lg font-bold text-blue-700 dark:text-blue-400 mb-4">Die 3 einfachen Schritte zur legalen Verpackung:</h3>
-                    <ol class="list-decimal list-inside space-y-4 font-medium text-gray-700 dark:text-gray-300">
-                        <li class="pl-2">
-                            <strong class="text-gray-900 dark:text-white">Gewichte hier im Shop eintragen</strong> 
-                            Trage oben pro Artikel ein, wie viel Karton oder Plastik du verbrauchst. Unser Shop rechnet am Ende des Jahres vollautomatisch alles zusammen.
-                        </li>
-                        <li class="pl-2">
-                            <strong class="text-gray-900 dark:text-white">Kostenlos bei LUCID registrieren</strong> 
-                            Melde dich gratis bei der offiziellen Behörde (<a href="https://lucid.verpackungsregister.org/" target="_blank" class="text-[var(--theme-color)] hover:underline">LUCID</a>) an. Du erhältst dort eine <strong>LUCID-Registrierungsnummer</strong>, welche dringend in dein Impressum muss!
-                        </li>
-                        <li class="pl-2">
-                            <strong class="text-gray-900 dark:text-white">Lizenz kaufen (ab ca. 59 € / Jahr)</strong> 
-                            Gehe zu einem Anbieter wie <a href="https://www.lizenzero.de/" target="_blank" class="text-[var(--theme-color)] hover:underline">Lizenzero</a> oder <a href="https://www.zmart.de/" target="_blank" class="text-[var(--theme-color)] hover:underline">Zmart</a>, gib deine LUCID-Nummer ein und kaufe deine Mengen pauschal ein. <em>(Tipp: Für Kleingewerbe gibt es Tarife ab ~59 € pro Jahr).</em>
-                        </li>
-                    </ol>
+    <!-- ===================================================================== -->
+    <!-- TAB 2: VERPACKUNGSMATERIAL                                            -->
+    <!-- ===================================================================== -->
+    @if($activeTab === 'catalog')
+        <!-- Schlichte 1-Zeilen-Leiste (Light/Dark kompatibel mit Theme-Variable) -->
+        <div class="bg-white dark:bg-gray-900/85 backdrop-blur-xl p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 mb-5">
+            <div class="flex flex-col md:flex-row gap-2.5">
+                <div class="flex-1">
+                    <input
+                        type="url"
+                        wire:model="aiLinkUrl"
+                        placeholder="Produkt-Link einfügen (z.B. Westpack oder Karton.eu)..."
+                        class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] rounded-xl px-4 py-2.5 text-xs sm:text-sm text-gray-900 dark:text-white placeholder-gray-400 outline-none"
+                    >
                 </div>
 
-                <div class="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl text-red-800 dark:text-red-200 mt-4">
-                    <x-heroicon-s-exclamation-triangle class="w-6 h-6 mt-0.5 text-red-500 shrink-0" />
-                    <p class="font-medium text-sm">Warnung: Fehlt deine gültige LUCID-Nummer im Impressum oder lizenzierst du deine Versandkartons nicht, drohen Bußgelder von bis zu 100.000 €.</p>
+                <div class="flex flex-wrap sm:flex-nowrap gap-2 shrink-0">
+                    <button
+                        type="button"
+                        wire:click="createPackagingFromAiUrl"
+                        wire:loading.attr="disabled"
+                        class="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-[var(--theme-color)] text-gray-900 hover:opacity-90 transition-all cursor-pointer"
+                    >
+                        <x-heroicon-s-sparkles class="w-4 h-4" />
+                        <span wire:loading.remove wire:target="createPackagingFromAiUrl">KI eintragen lassen</span>
+                        <span wire:loading wire:target="createPackagingFromAiUrl">Analysiere...</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        wire:click="openCreateModal"
+                        class="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] hover:bg-[var(--theme-color)] hover:text-gray-900 transition-colors cursor-pointer"
+                    >
+                        <x-heroicon-s-plus class="w-4 h-4" />
+                        Manuell anlegen
+                    </button>
                 </div>
             </div>
+
+            @if($aiStatusMessage)
+                <div class="mt-3 px-3.5 py-2 rounded-xl text-xs font-medium {{ $aiStatusType === 'error' ? 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20' : 'bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)]' }}">
+                    {{ $aiStatusMessage }}
+                </div>
+            @endif
         </div>
-    </div>
+
+        <!-- Schlanke Verpackungsliste -->
+        <div class="space-y-2.5">
+            @forelse($catalogItems as $item)
+                @php
+                    $tariff = $item->postal_tariff_info;
+                    $unitEur = number_format($item->unit_cost_cents / 100, 2, ',', '.');
+                    $packEur = number_format($item->pack_price_cents / 100, 2, ',', '.');
+                    $badgeColors = match($tariff['color']) {
+                        'emerald' => 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25',
+                        'amber' => 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25',
+                        default => 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/25',
+                    };
+                @endphp
+
+                <div class="bg-white dark:bg-gray-900/85 backdrop-blur-xl rounded-2xl border border-gray-200 dark:border-gray-800 px-4 py-3.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3 hover:border-[var(--theme-color-40)] transition-all">
+                    <!-- Links: Name, Art.-Nr., Maße & LUCID -->
+                    <div class="min-w-0 flex-1">
+                        <div class="flex flex-wrap items-center gap-2 mb-1">
+                            <h3 class="text-sm font-bold text-gray-900 dark:text-white">
+                                {{ $item->name }}
+                            </h3>
+                            @if($item->sku)
+                                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                                    {{ $item->sku }}
+                                </span>
+                            @endif
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold border {{ $badgeColors }}">
+                                {{ $tariff['badge'] }}
+                            </span>
+                            @if($item->is_upsell_option)
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">
+                                    +{{ number_format($item->upsell_price_cents / 100, 2, ',', '.') }} € Option
+                                </span>
+                            @endif
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                            @if($item->supplier_name)
+                                <span class="font-semibold text-gray-700 dark:text-gray-300">{{ $item->supplier_name }}</span>
+                            @endif
+                            <span>{{ $item->formatted_dimensions }}</span>
+                            <span>
+                                {{ $item->weight_grams }} g
+                                ({{ $item->primary_weight_grams }}g {{ $availableTypes[$item->primary_material_type] ?? $item->primary_material_type }}{{ $item->secondary_material_type && $item->secondary_weight_grams > 0 ? ' + ' . $item->secondary_weight_grams . 'g ' . ($availableTypes[$item->secondary_material_type] ?? $item->secondary_material_type) : '' }})
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Rechts: Preis, Lagerbestand & Aktionen -->
+                    <div class="flex flex-wrap items-center justify-between lg:justify-end gap-3 pt-2.5 lg:pt-0 border-t lg:border-t-0 border-gray-100 dark:border-gray-800 shrink-0">
+                        <div class="text-left lg:text-right">
+                            <div class="text-sm font-black text-[var(--theme-color)]">{{ $unitEur }} € <span class="text-[10px] font-normal text-gray-400">/ Stk.</span></div>
+                            <div class="text-[11px] text-gray-400">{{ $item->pack_quantity }} Stk. · {{ $packEur }} €</div>
+                        </div>
+
+                        <!-- Bestand +/- -->
+                        <div class="flex items-center gap-1 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl px-2 py-1">
+                            <button type="button" wire:click="adjustStock({{ $item->id }}, -1)" class="w-5 h-5 rounded bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-xs font-bold hover:bg-[var(--theme-color)] hover:text-gray-900 transition-colors cursor-pointer">-</button>
+                            <span class="text-xs font-black px-1.5 text-gray-900 dark:text-white">
+                                {{ $item->stock_quantity }} Stk.
+                            </span>
+                            <button type="button" wire:click="adjustStock({{ $item->id }}, 1)" class="w-5 h-5 rounded bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-xs font-bold hover:bg-[var(--theme-color)] hover:text-gray-900 transition-colors cursor-pointer">+</button>
+                        </div>
+
+                        <!-- Buttons -->
+                        <div class="flex items-center gap-1.5">
+                            @if($item->reorder_url)
+                                <a
+                                    href="{{ $item->reorder_url }}"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] hover:bg-[var(--theme-color)] hover:text-gray-900 transition-colors"
+                                    title="Beim Händler öffnen"
+                                >
+                                    <x-heroicon-m-arrow-top-right-on-square class="w-4 h-4" />
+                                    <span class="hidden sm:inline">Link</span>
+                                </a>
+                            @endif
+
+                            <button
+                                type="button"
+                                wire:click="editCatalogItem({{ $item->id }})"
+                                class="p-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-[var(--theme-color)] hover:text-gray-900 transition-colors cursor-pointer"
+                                title="Bearbeiten"
+                            >
+                                <x-heroicon-o-pencil-square class="w-4 h-4" />
+                            </button>
+
+                            <button
+                                type="button"
+                                wire:click="deleteCatalogItem({{ $item->id }})"
+                                wire:confirm="Verpackung „{{ $item->name }}“ löschen?"
+                                class="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+                                title="Löschen"
+                            >
+                                <x-heroicon-o-trash class="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            @empty
+                <div class="text-center py-8 border border-dashed border-gray-200 dark:border-gray-800 rounded-2xl text-xs text-gray-400">
+                    Noch keine Verpackungen hinterlegt.
+                </div>
+            @endforelse
+        </div>
+    @endif
+
+    <!-- ===================================================================== -->
+    <!-- MODAL: VERPACKUNG ANLEGEN / BEARBEITEN                                -->
+    <!-- ===================================================================== -->
+    @if($showItemModal)
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+                <div class="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-gray-800 mb-4">
+                    <h3 class="text-base font-serif font-bold text-gray-900 dark:text-white">
+                        {{ $editingItemId ? 'Verpackung bearbeiten' : 'Verpackung anlegen' }}
+                    </h3>
+                    <button type="button" wire:click="closeItemModal" class="p-1.5 rounded-lg text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800">
+                        <x-heroicon-o-x-mark class="w-5 h-5" />
+                    </button>
+                </div>
+
+                <form wire:submit.prevent="saveCatalogItem" class="space-y-3.5">
+                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                        <div class="sm:col-span-8">
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Bezeichnung *</label>
+                            <input type="text" wire:model="itemName" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-xl px-3.5 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none" required>
+                        </div>
+                        <div class="sm:col-span-4">
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Art.-Nr. / SKU</label>
+                            <input type="text" wire:model="itemSku" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-gray-900 dark:text-white outline-none">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Kategorie</label>
+                            <select wire:model="itemCategory" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-xl px-3.5 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                                @foreach($categories as $key => $label)
+                                    <option value="{{ $key }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Lieferant</label>
+                            <select wire:model="itemSupplierId" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-xl px-3.5 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                                <option value="">-- Freitext --</option>
+                                @foreach($suppliers as $sup)
+                                    <option value="{{ $sup->id }}">{{ $sup->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Händlername</label>
+                            <input type="text" wire:model="itemSupplierName" placeholder="Westpack A/S" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-xl px-3.5 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Produkt-Link (URL)</label>
+                        <input type="url" wire:model="itemReorderUrl" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-xl px-3.5 py-2 text-xs text-gray-900 dark:text-white outline-none">
+                    </div>
+
+                    <!-- Maße & LUCID -->
+                    <div class="grid grid-cols-3 sm:grid-cols-6 gap-2.5">
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Länge (mm)</label>
+                            <input type="number" step="0.1" wire:model="itemLengthMm" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-xl px-3 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Breite (mm)</label>
+                            <input type="number" step="0.1" wire:model="itemWidthMm" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-xl px-3 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Höhe (mm)</label>
+                            <input type="number" step="0.1" wire:model="itemHeightMm" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-xl px-3 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Hauptmaterial</label>
+                            <select wire:model="itemPrimaryMaterial" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-xl px-3 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                                @foreach($availableTypes as $val => $label)
+                                    <option value="{{ $val }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Gewicht (g)</label>
+                            <input type="number" wire:model.live="itemPrimaryWeight" min="1" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-xl px-3 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Nebenmaterial (z.B. Schaumstoffeinlage) -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <div class="sm:col-span-2">
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Zweites Material (optional)</label>
+                            <select wire:model="itemSecondaryMaterial" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-xl px-3 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                                <option value="">-- Kein zweites Material --</option>
+                                @foreach($availableTypes as $val => $label)
+                                    <option value="{{ $val }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Gewicht 2 (g)</label>
+                            <input type="number" wire:model.live="itemSecondaryWeight" min="0" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-xl px-3 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Preise & Bestand -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Menge (Stk.)</label>
+                            <input type="number" wire:model.live="itemPackQuantity" min="1" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-xl px-3 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Gesamtpreis (€)</label>
+                            <input type="text" wire:model.live="itemPackPriceEur" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-xl px-3 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Stückpreis (€)</label>
+                            <input type="text" wire:model="itemUnitCostEur" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-xl px-3 py-2 text-xs font-black text-[var(--theme-color)] outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Bestand (Stk.)</label>
+                            <input type="number" wire:model="itemStockQuantity" min="0" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] rounded-xl px-3 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between gap-3 pt-3 border-t border-gray-200 dark:border-gray-800">
+                        <label class="inline-flex items-center gap-2 text-xs font-bold text-gray-700 dark:text-gray-300 cursor-pointer">
+                            <input type="checkbox" wire:model.live="itemIsUpsellOption" class="rounded text-[var(--theme-color)] focus:ring-[var(--theme-color)]">
+                            <span>Als Geschenkbox-Option (+Aufpreis)</span>
+                        </label>
+
+                        <div class="flex items-center gap-2">
+                            <button type="button" wire:click="closeItemModal" class="px-4 py-2 rounded-xl text-xs font-bold text-gray-500 hover:text-gray-900 dark:hover:text-white">
+                                Abbrechen
+                            </button>
+                            <button type="submit" class="px-5 py-2 rounded-xl text-xs font-black uppercase bg-[var(--theme-color)] text-gray-900 hover:opacity-90 cursor-pointer">
+                                Speichern
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
 </div>

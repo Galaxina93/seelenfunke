@@ -38,10 +38,18 @@
             </div>
             Hilfe & Support
         </a>
+
+        @if($hasOptedIn)
+            <a href="{{ route('customer.funki') }}" wire:navigate
+               class="flex items-center gap-1.5 xl:gap-2 px-2.5 xl:px-3.5 py-2 xl:py-2.5 rounded-2xl text-[11px] xl:text-xs font-bold tracking-wide transition-all {{ request()->routeIs('customer.funki') ? 'bg-primary text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-amber-700 dark:text-[#f5dca0] hover:text-gray-900 dark:hover:text-white hover:bg-amber-500/15 dark:hover:bg-amber-500/20 border border-[#C5A059]/30' }}">
+                <svg class="w-4 h-4 text-[#C5A059]" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L14.4 9.6L22 12L14.4 14.4L12 22L9.6 14.4L2 12L9.6 9.6L12 2Z"/></svg>
+                Dein Funki & Prämien
+            </a>
+        @endif
     </nav>
 
     {{-- RECHTER BEREICH: PROFIL-DOCK --}}
     <div class="flex-1 flex items-center justify-end h-full min-w-0">
-        @livewire('auth.auth-profile-dropdown')
+        @livewire('auth.auth-profile-dropdown', ['allowThemeSwitch' => false])
     </div>
 </div>

@@ -5,27 +5,42 @@
     <x-sections.page-container>
 
         <section class="max-w-4xl mx-auto px-4 py-12 md:py-16 text-gray-800">
+            @php
+                $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
+                $ownerProprietor = shop_setting('owner_proprietor', 'Alina Steinhauer');
+                $companyStreetLine = shop_setting('company_street')
+                    ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', '26'))
+                    : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26');
+                $companyCityLine = shop_setting('company_city')
+                    ? trim(shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city'))
+                    : shop_setting('owner_city', '38518 Gifhorn');
+                $companyEmail = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
+                $companyPhone = shop_setting('company_phone', shop_setting('owner_phone', '+49 159 019 668 64'));
+                $ownerUstId = shop_setting('company_ust_id', shop_setting('owner_ust_id'));
+            @endphp
 
             {{-- Anbieterkennzeichnung Header --}}
             <header class="mb-16 text-center md:text-left border-b pb-8">
                 <h2 class="text-xl md:text-2xl font-serif font-bold mb-4 text-gray-900">Anbieterkennzeichnung (Angaben gemäß § 5 DDG)</h2>
                 <div class="space-y-1 text-base leading-relaxed">
                     <p>
-                        <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong><br>
-                        Inhaberin: {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
-                        {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}<br>
-                        {{ shop_setting('owner_city', '38518 Gifhorn') }}, Deutschland
+                        <strong>{{ $companyName }}</strong><br>
+                        Inhaberin: {{ $ownerProprietor }}<br>
+                        {{ $companyStreetLine }}<br>
+                        {{ $companyCityLine }}, Deutschland
                     </p>
                     <p class="pt-4">
                         <strong>Kontakt:</strong><br>
-                        E-Mail: <a href="mailto:{{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}" class="text-primary hover:underline">{{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}</a><br>
-                        Telefon: {{ shop_setting('owner_phone', '+49 159 019 668 64') }}<br>
+                        E-Mail: <a href="mailto:{{ $companyEmail }}" class="text-primary hover:underline">{{ $companyEmail }}</a><br>
+                        Telefon: {{ $companyPhone }}<br>
                         Web: <a href="{{ url('/') }}" class="text-primary hover:underline">{{ str_replace(['http://', 'https://'], '', shop_setting('owner_website', 'www.mein-seelenfunke.de')) }}</a>
                     </p>
                     <p class="pt-4 text-sm text-gray-600">
                         <strong>Umsatzsteuer-ID & Rechtliche Angaben:</strong><br>
-                        USt-IdNr. gemäß § 27a UStG: {{ shop_setting('owner_ust_id', 'DE359662265') }}<br>
-                        Verantwortlich gemäß § 18 Abs. 2 MStV & Art. 19 GPSR: {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }} (Anschrift wie oben)
+                        @if($ownerUstId)
+                            USt-IdNr. gemäß § 27a UStG: {{ $ownerUstId }}<br>
+                        @endif
+                        Verantwortlich gemäß § 18 Abs. 2 MStV & Art. 19 GPSR: {{ $ownerProprietor }} (Anschrift wie oben)
                     </p>
                 </div>
             </header>
@@ -50,14 +65,14 @@
                         <div id="geltungsbereich" class="scroll-mt-28">
                             <h3 class="font-bold text-lg text-gray-900 mb-2">1. Geltungsbereich und Anbieter</h3>
                             <p>
-                                (1) Diese Allgemeinen Geschäftsbedingungen gelten für alle Bestellungen, die Sie bei dem Online-Shop <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong> (nachfolgend „Anbieter“) tätigen.
+                                (1) Diese Allgemeinen Geschäftsbedingungen gelten für alle Bestellungen, die Sie bei dem Online-Shop <strong>{{ $companyName }}</strong> (nachfolgend „Anbieter“) tätigen.
                             </p>
                             <p class="mt-2 text-sm bg-gray-50 p-4 rounded border border-gray-200">
                                 <strong>Anbieterkennzeichnung:</strong><br>
-                                {{ shop_setting('owner_name', 'Mein Seelenfunke') }}<br>
-                                Inhaberin: {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
-                                {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}, {{ shop_setting('owner_city', '38518 Gifhorn') }}<br>
-                                E-Mail: {{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}
+                                {{ $companyName }}<br>
+                                Inhaberin: {{ $ownerProprietor }}<br>
+                                {{ $companyStreetLine }}, {{ $companyCityLine }}<br>
+                                E-Mail: {{ $companyEmail }}
                             </p>
                             <p class="mt-2">
                                 (2) Das Warenangebot in unserem Online-Shop richtet sich sowohl an Verbraucher (§ 13 BGB) als auch an Unternehmer (§ 14 BGB), die das 18. Lebensjahr vollendet haben. Verbraucher ist jede natürliche Person, die ein Rechtsgeschäft zu Zwecken abschließt, die überwiegend weder ihrer gewerblichen noch ihrer selbständigen beruflichen Tätigkeit zugerechnet werden können (§ 13 BGB).
@@ -77,7 +92,7 @@
                                 (3) <strong>Verbindliches Kaufangebot & Vertragsannahme:</strong> Durch Anklicken des Buttons <strong>„Zahlungspflichtig bestellen“</strong> im abschließenden Schritt des Bestellprozesses geben Sie ein verbindliches Kaufangebot über die im Warenkorb enthaltenen Waren ab (§ 312j Abs. 3 BGB). Unmittelbar nach dem Absenden der Bestellung erhalten Sie eine automatisierte Bestellbestätigung per E-Mail, die den Eingang Ihrer Bestellung dokumentiert (§ 312i Abs. 1 Satz 1 Nr. 3 BGB). Ein verbindlicher Kaufvertrag kommt zustande:
                             </p>
                             <ul class="list-disc list-inside mt-2 space-y-1 text-sm text-gray-700 ml-2">
-                                <li>bei Auswahl einer Sofortzahlungsart (Kreditkarte, Apple Pay, Google Pay, PayPal, Klarna Sofort/Rechnung) unmittelbar mit Abschluss der Zahlungsautorisierung bzw. Zahlungsanweisung im Bestellprozess, oder</li>
+                                <li>bei Auswahl einer Sofortzahlungsart (Kreditkarte, Apple Pay, Google Pay, Klarna, SEPA-Lastschrift) unmittelbar mit Abschluss der Zahlungsautorisierung bzw. Zahlungsanweisung im Bestellprozess, oder</li>
                                 <li>spätestens durch unsere ausdrückliche Auftrags- oder Versandbestätigung per E-Mail innerhalb von 2 Werktagen.</li>
                             </ul>
                             <p class="mt-2">
@@ -116,7 +131,7 @@
                                     (7) <strong>Rechtegarantie des Kunden & Nutzungsrechtseinräumung:</strong> Sofern der Kunde eigene Texte, Fotos, Grafiken, Logos, Wappen oder sonstige Motive (nachfolgend „Kundenmaterial“) in den Produktkonfigurator oder Kalkulator hochlädt bzw. übermittelt, versichert und garantiert der Kunde ausdrücklich, dass er sämtliche für die vertragliche Herstellung und Veredelung erforderlichen Urheber-, Marken-, Design-, Kennzeichen-, Namens- und Persönlichkeitsrechte (einschließlich des Rechts am eigenen Bild abgebildeter Personen gemäß § 22 KUG / Art. 6 DSGVO) besitzt oder über eine wirksame Lizenz des jeweiligen Rechteinhabers verfügt. Insbesondere dürfen ohne nachweisbare Lizenz <strong>keine geschützten Markenlogos, Vereinswappen, Comic-/Film-/Spielefiguren (z. B. Pokémon, Disney, Nintendo, Marvel), geschützten Songtexte oder fremden Fotografien</strong> zur Gravur in Auftrag gegeben werden. Für die Durchführung des Auftrags räumt der Kunde dem Anbieter ein einfaches, unentgeltliches, auf die Auftragsabwicklung und gesetzliche Beleg-/Archivierungspflicht beschränktes Nutzungs-, Bearbeitungs- und Vervielfältigungsrecht an dem übermittelten Kundenmaterial ein.
                                 </p>
                                 <p class="text-sm leading-relaxed">
-                                    (8) <strong>Freistellung von Ansprüchen Dritter (Haftungsfreistellung):</strong> Der Kunde stellt den Anbieter (<strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }} – {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}</strong>) auf erstes Anfordern von sämtlichen Ansprüchen Dritter frei, die diese wegen einer Verletzung ihrer Urheber-, Marken-, Design-, Persönlichkeits- oder sonstigen Schutzrechte durch die vom Kunden beauftragte und vertragsgemäß ausgeführte Veredelung gegen den Anbieter geltend machen. Diese Freistellungspflicht umfasst auch die erforderlichen und angemessenen Kosten der Rechtsverteidigung des Anbieters (insbesondere Abmahn-, Anwalts- und Gerichtskosten in gesetzlicher Höhe). Der Kunde ist verpflichtet, den Anbieter unverzüglich und wahrheitsgemäß mit allen Informationen und Nachweisen zu unterstützen, die für eine Prüfung der Ansprüche und eine Rechtsverteidigung erforderlich sind. <em>Dies gilt nicht, soweit der Kunde die betreffende Rechtsverletzung nicht zu vertreten hat (§ 307 BGB).</em>
+                                    (8) <strong>Freistellung von Ansprüchen Dritter (Haftungsfreistellung):</strong> Der Kunde stellt den Anbieter (<strong>{{ $companyName }} – {{ $ownerProprietor }}</strong>) auf erstes Anfordern von sämtlichen Ansprüchen Dritter frei, die diese wegen einer Verletzung ihrer Urheber-, Marken-, Design-, Persönlichkeits- oder sonstigen Schutzrechte durch die vom Kunden beauftragte und vertragsgemäß ausgeführte Veredelung gegen den Anbieter geltend machen. Diese Freistellungspflicht umfasst auch die erforderlichen und angemessenen Kosten der Rechtsverteidigung des Anbieters (insbesondere Abmahn-, Anwalts- und Gerichtskosten in gesetzlicher Höhe). Der Kunde ist verpflichtet, den Anbieter unverzüglich und wahrheitsgemäß mit allen Informationen und Nachweisen zu unterstützen, die für eine Prüfung der Ansprüche und eine Rechtsverteidigung erforderlich sind. <em>Dies gilt nicht, soweit der Kunde die betreffende Rechtsverletzung nicht zu vertreten hat (§ 307 BGB).</em>
                                 </p>
                                 <p class="text-sm leading-relaxed">
                                     (9) <strong>Keine rechtliche Vorab-Prüfungspflicht & Ablehnungs-/Rücktrittsrecht des Anbieters:</strong> Eine manuelle Prüfung hochgeladener Dateien durch den Anbieter erfolgt ausschließlich in <strong>technischer Hinsicht</strong> (Auflösung, Kontrast und Gravurfähigkeit); der Anbieter ist nicht verpflichtet, die vom Kunden übermittelten Inhalte auf mögliche Verletzungen von Schutzrechten Dritter zu überprüfen. Der Anbieter behält sich jedoch ausdrücklich das Recht vor, Aufträge und Motive abzulehnen oder von einem bereits geschlossenen Vertrag unverzüglich zurückzutreten, sofern die übermittelten Inhalte gegen geltendes Recht (insbesondere straf- oder verfassungsrechtliche Verbote wie §§ 86, 86a, 130, 184 ff. StGB), die guten Sitten verstoßen oder der begründete Verdacht besteht, dass Urheber-, Marken- oder sonstige Schutzrechte Dritter verletzt werden.
@@ -143,14 +158,14 @@
                                 (4) Ihnen stehen folgende Zahlungsarten zur Verfügung:
                             </p>
                             <ul class="list-disc list-inside ml-4 mt-2 mb-2">
-                                <li>Vorkasse (Überweisung)</li>
+                                <li>Vorkasse (Banküberweisung / SEPA-Überweisung)</li>
                                 <li>Kreditkarte (Visa, Mastercard, American Express)</li>
                                 <li>Apple Pay / Google Pay</li>
-                                <li>Amazon Pay / Paypal</li>
-                                <li>Sofortüberweisung / Klarna</li>
+                                <li>Klarna (Sofort bezahlen, Rechnung, Ratenkauf)</li>
+                                <li>SEPA-Lastschrift</li>
                             </ul>
                             <p>
-                                Die Abwicklung der Kartenzahlungen und digitalen Wallets erfolgt über den Zahlungsdienstleister <strong>Stripe Payments Europe, Ltd.</strong> Die Belastung Ihres Kontos erfolgt unmittelbar nach Abschluss der Bestellung.
+                                Die Abwicklung der Kartenzahlungen, digitalen Wallets, Klarna- und SEPA-Lastschriftzahlungen erfolgt über den Zahlungsdienstleister <strong>Stripe Payments Europe, Ltd.</strong> Die Belastung Ihres Zahlungsmittels erfolgt unmittelbar nach Abschluss der Bestellung bzw. gemäß den Bedingungen der gewählten Zahlungsart.
                             </p>
                         </div>
 
@@ -243,13 +258,13 @@
                             <h3 class="font-bold text-lg text-gray-900 mb-2">6a. Produktsicherheit & Herstellerangaben gemäß Verordnung (EU) 2023/988 (GPSR)</h3>
                             <p>
                                 (1) <strong>Verantwortlicher Hersteller / Veredler in der Europäischen Union (Art. 19 GPSR):</strong><br>
-                                {{ shop_setting('owner_name', 'Mein Seelenfunke') }} – Inhaberin {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}, {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}, {{ shop_setting('owner_city', '38518 Gifhorn') }}, Deutschland. Elektronische Kontaktadresse für Produktsicherheit: <a href="mailto:{{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}" class="text-primary hover:underline">{{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}</a>.
+                                {{ $companyName }} – Inhaberin {{ $ownerProprietor }}, {{ $companyStreetLine }}, {{ $companyCityLine }}, Deutschland. Elektronische Kontaktadresse für Produktsicherheit: <a href="mailto:{{ $companyEmail }}" class="text-primary hover:underline">{{ $companyEmail }}</a>.
                             </p>
                             <p class="mt-2">
                                 (2) <strong>Allgemeine Sicherheits- und Verwendungshinweise:</strong> Unsere veredelten Produkte aus optischem K9-Kristallglas, Naturschiefer, Massivholz sowie Edelstahl/eloxiertem Aluminium sind als hochwertige Dekorations-, Erinnerungs- und Gebrauchsgegenstände konzipiert und stellen kein Kinderspielzeug im Sinne der Spielzeugrichtlinie 2009/48/EG dar.
                             </p>
                             <ul class="list-disc list-inside mt-2 space-y-1 text-sm text-gray-700 ml-2">
-                                <li><strong>Kleinteile-Warnung (Schlüsselanhänger, Schmuck & Haustiermarken):</strong> Produkte mit Befestigungsringen, Ösen oder Karabinern enthalten verschluckbare Kleinteile – Erstickungsgefahr für Kinder unter 36 Monaten.</li>
+                                <li><strong>Kleinteile-Warnung (Schlüsselanhänger, Schmuck & Haustiermarken):</strong> Produkte mit Befestigungsringen, Ösen oder Karabinern enthalten verschluckbare Kleinteile (Erstickungsgefahr für Kinder unter 36 Monaten).</li>
                                 <li><strong>Bruchgefahr bei Kristallglas & Naturschiefer:</strong> Bei Sturz oder starker mechanischer Einwirkung können scharfkantige Bruchstücke oder Splitter entstehen. Beschädigte Glas- oder Schieferprodukte nicht weiterverwenden; Kristallglas nicht dauerhaft gebündelter direkter Sonneneinstrahlung in der Nähe leicht entflammbarer Materialien aussetzen (Brennglaseffekt).</li>
                                 <li><strong>Pflegehinweis:</strong> Lasergravierte Oberflächen bitte ausschließlich mit einem weichen, leicht angefeuchteten Mikrofasertuch ohne scheuernde oder lösungsmittelhaltige Reinigungsmittel säubern (nicht spülmaschinengeeignet).</li>
                             </ul>
@@ -268,13 +283,13 @@
                         <div id="agb-gamification" class="scroll-mt-28">
                             <h3 class="font-bold text-lg text-gray-900 mb-2">8. Seelenfunken-Treue- & Bonusprogramm</h3>
                             <p>
-                                (1) <strong>Zweck & Freiwilligkeit:</strong> Mein-Seelenfunke stellt registrierten Kundinnen und Kunden im Kundenkonto („Dashboard“) das kostenfreie Treue- und Sammlerprogramm „Seelenfunken“ sowie den virtuellen Begleiter „Funki“ zur Verfügung. Die Teilnahme sowie die optionale Aktivierung der Website-Funkensuche („Magie aktivieren“) erfolgen freiwillig und unentgeltlich.
+                                (1) <strong>Zweck & Freiwilligkeit:</strong> Mein-Seelenfunke stellt registrierten Kundinnen und Kunden im Kundenkonto („Dashboard“) das kostenfreie Treue- und Sammlerprogramm „Seelenfunken“ sowie den virtuellen Begleiter „Funki“ zur Verfügung. Die Teilnahme sowie die optionale Aktivierung der Website-Funkensuche („Magie aktivieren“) erfolgen freiwillig und unentgeltlich und können im Kundenbereich jederzeit pausiert oder wieder aufgenommen werden.
                             </p>
                             <p class="mt-2">
-                                (2) <strong>Sammeln von Seelenfunken & Funki-Level (1–10):</strong> Kundinnen und Kunden erhalten für abgeschlossene, bezahlte Bestellungen automatisch Treuepunkte („Seelenfunken“) gutgeschrieben (abhängig von Artikelanzahl und Bestellwert) und können nach Aktivierung der Funkensuche gelegentlich zusätzliche Seelenfunken auf den Shop-Seiten entdecken. Im Falle eines Widerrufs, einer Stornierung oder Rückerstattung einer Bestellung werden die hierfür gutgeschriebenen Seelenfunken entsprechend wieder in Abzug gebracht. Anhand der insgesamt gesammelten Seelenfunken entwickelt sich das Profil-Begleiterbild „Funki“ automatisch und kostenfrei über zehn Stufen (Level 1 bis 10) inklusive der zugehörigen Stufen-Hintergründe weiter; diese Darstellung dient als Standard-Profilbild im Kundenbereich sowie bei nicht-anonymen Produktbewertungen, sofern kein eigenes Profilfoto hinterlegt wurde. Seelenfunken sind rein virtuelle Treuepunkte ohne Geldwert, nicht übertragbar und nicht in Bargeld auszahlbar.
+                                (2) <strong>Sammeln von Seelenfunken, Funki-Level (1–10), Titel & Halle der Helden:</strong> Kundinnen und Kunden erhalten für abgeschlossene, bezahlte Bestellungen automatisch Treuepunkte („Seelenfunken“, in der Regel 1 Seelenfunke je 1,00 € bezahltem Warenwert), für freigegebene verifizierte Produktbewertungen, als jährliche Geburtstags- bzw. Stammkunden-Überraschung sowie nach Aktivierung der Funkensuche durch das gelegentliche Entdecken versteckter Seelenfunken auf den Shop-Seiten. Im Falle eines Widerrufs, einer Stornierung oder Rückerstattung einer Bestellung werden die hierfür gutgeschriebenen Seelenfunken entsprechend wieder in Abzug gebracht. Anhand der insgesamt gesammelten Lebenszeit-Seelenfunken entwickelt sich das Profil-Begleiterbild „Funki“ automatisch und kostenfrei über zehn Stufen (Level 1 bis 10) inklusive der zugehörigen Stufen-Hintergründe sowie freischaltbarer Ehren- und Rangtitel weiter; diese Darstellung dient als Standard-Profilbild im Kundenbereich sowie bei nicht-anonymen Produktbewertungen, sofern kein eigenes Profilfoto hinterlegt wurde. Optional können Teilnehmende per ausdrücklichem Opt-In (jederzeit widerrufbar) in der öffentlichen Sammler-Rangliste („Halle der Helden“) wahlweise mit einem frei gewählten Spielernamen oder mit Vornamen und Nachnamen-Initial erscheinen. Seelenfunken sind rein virtuelle Treuepunkte ohne Geldwert, nicht übertragbar und nicht in Bargeld auszahlbar.
                             </p>
                             <p class="mt-2">
-                                (3) <strong>Einlösung in Rabatt-Gutscheine:</strong> Gesammelte, verfügbare Seelenfunken können im Kundenkonto gegen persönliche Einmal-Rabattgutscheine für künftige Bestellungen eingelöst werden (z. B. 250 Seelenfunken für 5 % Rabatt, 500 Seelenfunken für 10 % Rabatt, 750 Seelenfunken für 15 % Rabatt). Das erreichte Funki-Level bleibt beim Einlösen von Seelenfunken vollständig erhalten. Die erzeugten Rabattcodes sind personengebunden an das jeweilige Kundenkonto geknüpft, nicht übertragbar, nicht mit anderen Rabattaktionen oder dem Kauf von Geschenkgutscheinen kombinierbar und jeweils einmalig einlösbar.
+                                (3) <strong>Einlösung in Rabatt-Gutscheine:</strong> Gesammelte, verfügbare Seelenfunken können im Kundenkonto gegen persönliche Einmal-Rabattgutscheine für künftige Bestellungen eingelöst werden (z. B. 60 Seelenfunken für 5 % Rabatt, 150 Seelenfunken für 10 % Rabatt, 350 Seelenfunken für 15 % Rabatt). Das erreichte Funki-Level und die Lebenszeit-Funken bleiben beim Einlösen von Seelenfunken vollständig erhalten. Die erzeugten Rabattcodes sind personengebunden an das jeweilige Kundenkonto geknüpft, nicht übertragbar, nicht mit anderen Rabattaktionen oder dem Kauf von Geschenkgutscheinen kombinierbar und jeweils einmalig einlösbar.
                             </p>
                             <p class="mt-2">
                                 (4) <strong>Manipulationsschutz & Sanktionen:</strong> Jede Form der technischen Manipulation, die Ausnutzung von Software-Fehlern oder der Einsatz automatisierter Skripte, Bots oder Reload-Mechanismen zum künstlichen Sammeln von Seelenfunken ist strengstens untersagt und wird serverseitig durch kryptografische Einmal-Token sowie Zeit- und Tageslimits unterbunden. Bei Verstößen behält sich Mein-Seelenfunke das Recht vor, unrechtmäßig erlangte Seelenfunken und Gutscheine ersatzlos zu stornieren und das Konto vom Treueprogramm auszuschließen.
@@ -316,10 +331,10 @@
                                 (4) <strong>Freigabefrist (Clearing), Mindestauszahlung & Auszahlungsabwicklung:</strong> Vermittelte Provisionen werden zunächst als vorgemerktes Guthaben („In Prüfung“) erfasst und erst nach vollständigem Zahlungseingang, Versand und Ablauf etwaiger Storno-/Reklamationsfristen zur Auszahlung freigegeben. Bei Stornierung, Rücktritt oder Zahlungsausfall des Endkunden entfällt der Provisionsanspruch rückwirkend. Die selbstständige Auszahlungsanforderung freigegebener Guthaben im Creator-Cockpit ist ab Erreichen des Mindestauszahlungsbetrags von <strong>20,00 € Netto</strong> per SEPA-Überweisung, PayPal oder als Shop-Gutschein (+20 % Bonus) möglich; bei Beendigung der Partnerschaft wird ein etwaiges verbleibendes Restguthaben auch unterhalb der Mindestgrenze abgerechnet.
                             </p>
                             <p class="mt-2">
-                                (5) <strong>Werbekennzeichnungspflicht & Markenrichtlinien:</strong> Der Creator verpflichtet sich, sämtliche Veröffentlichungen, Beiträge, Stories und Videos, die im Zusammenhang mit Produkten, Tracking-Links oder Rabattcodes von Mein Seelenfunke stehen, im Einklang mit den gesetzlichen Vorgaben (insbesondere <strong>§ 5a Abs. 4 UWG</strong> sowie <strong>§ 22 Medienstaatsvertrag – MStV</strong>) eindeutig, transparent und auf den ersten Blick erkennbar als <strong>„Werbung“</strong> oder <strong>„Anzeige“</strong> zu kennzeichnen. Irreführende Aussagen über Produkteigenschaften, künstliches Cookie-Dropping, Suchmaschinen-Markenbieten (Brand-Bidding auf „Mein Seelenfunke“) oder die Verbreitung rechtswidriger Inhalte sind untersagt.
+                                (5) <strong>Werbekennzeichnungspflicht & Markenrichtlinien:</strong> Der Creator verpflichtet sich, sämtliche Veröffentlichungen, Beiträge, Stories und Videos, die im Zusammenhang mit Produkten, Tracking-Links oder Rabattcodes von Mein Seelenfunke stehen, im Einklang mit den gesetzlichen Vorgaben (insbesondere <strong>§ 5a Abs. 4 UWG</strong> sowie <strong>§ 22 Medienstaatsvertrag, MStV</strong>) eindeutig, transparent und auf den ersten Blick erkennbar als <strong>„Werbung“</strong> oder <strong>„Anzeige“</strong> zu kennzeichnen. Irreführende Aussagen über Produkteigenschaften, künstliches Cookie-Dropping, Suchmaschinen-Markenbieten (Brand-Bidding auf „Mein Seelenfunke“) oder die Verbreitung rechtswidriger Inhalte sind untersagt.
                             </p>
                             <p class="mt-2">
-                                (6) <strong>Laufzeit, Kündigung & Sperrung bei Missbrauch:</strong> Die Teilnahme am Creator Partnerprogramm läuft auf unbestimmte Zeit und kann von beiden Parteien jederzeit ordentlich in Textform (oder durch Deaktivierung des Creator-Zugangs) beendet werden. Das Recht zur außerordentlichen fristlosen Kündigung aus wichtigem Grund – insbesondere bei Verstoß gegen die Werbekennzeichnungspflicht, Manipulationsversuchen oder Falschangaben zum Unternehmer-/Steuerstatus – bleibt unberührt.
+                                (6) <strong>Laufzeit, Kündigung & Sperrung bei Missbrauch:</strong> Die Teilnahme am Creator Partnerprogramm läuft auf unbestimmte Zeit und kann von beiden Parteien jederzeit ordentlich in Textform (oder durch Deaktivierung des Creator-Zugangs) beendet werden. Das Recht zur außerordentlichen fristlosen Kündigung aus wichtigem Grund (insbesondere bei Verstoß gegen die Werbekennzeichnungspflicht, Manipulationsversuchen oder Falschangaben zum Unternehmer-/Steuerstatus) bleibt unberührt.
                             </p>
                         </div>
 
@@ -436,7 +451,7 @@
                             Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag, an dem Sie oder ein von Ihnen benannter Dritter, der nicht der Beförderer ist, die Waren in Besitz genommen haben bzw. hat.
                         </p>
                         <p>
-                            Um Ihr Widerrufsrecht auszuüben, müssen Sie uns (<strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}, {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}, {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}, {{ shop_setting('owner_city', '38518 Gifhorn') }}, E-Mail: {{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}</strong>) mittels einer eindeutigen Erklärung (z. B. ein mit der Post versandter Brief oder E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren. Sie können dafür das beigefügte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist.
+                            Um Ihr Widerrufsrecht auszuüben, müssen Sie uns (<strong>{{ $companyName }}, {{ $ownerProprietor }}, {{ $companyStreetLine }}, {{ $companyCityLine }}, Telefon: {{ $companyPhone }}, E-Mail: {{ $companyEmail }}</strong>) mittels einer eindeutigen Erklärung (z. B. ein mit der Post versandter Brief oder eine E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren. Sie können dafür das beigefügte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist.
                         </p>
                         <p>
                             Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.
@@ -479,15 +494,16 @@
                     <div class="border border-gray-200 p-8 rounded-xl bg-white shadow-sm text-gray-800 font-mono text-sm leading-relaxed">
                         <p class="mb-6 font-bold">
                             An:<br>
-                            {{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}<br>
-                            {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
-                            {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}<br>
-                            {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}<br>
-                            E-Mail: {{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}
+                            {{ $companyName }}<br>
+                            {{ $ownerProprietor }}<br>
+                            {{ $companyStreetLine }}<br>
+                            {{ $companyCityLine }}<br>
+                            Telefon: {{ $companyPhone }}<br>
+                            E-Mail: {{ $companyEmail }}
                         </p>
 
                         <p class="mb-6">
-                            Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*) abgeschlossenen Vertrag über den Kauf der folgenden Waren (*):
+                            Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*) abgeschlossenen Vertrag über den Kauf der folgenden Waren (*) / die Erbringung der folgenden Dienstleistung (*):
                         </p>
 
                         <div class="h-px bg-gray-200 w-full my-6"></div>

@@ -24,7 +24,7 @@
             logos: $wire.entangle('logos'),
             texts_back: $wire.entangle('texts_back'),
             logos_back: $wire.entangle('logos_back'),
-            activeSide: $wire.entangle('activeSide').live,
+            activeSide: $wire.entangle('activeSide'),
             backgroundTheme: $wire.entangle('backgroundTheme')
         },
         fonts: @js($fonts),
@@ -283,6 +283,16 @@
                         @foreach($this->activeVariants as $variant)
                             <option value="{{ $variant['id'] }}" class="{{ $isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900' }}">
                                 {{ $variant['name'] }}
+                                @if(isset($variant['price']) && $variant['price'] !== '')
+                                    @php
+                                        $surcharge = (float) str_replace(',', '.', (string) $variant['price']);
+                                    @endphp
+                                    @if($surcharge > 0)
+                                        (+{{ number_format($surcharge, 2, ',', '.') }} €)
+                                    @elseif($surcharge < 0)
+                                        (-{{ number_format(abs($surcharge), 2, ',', '.') }} €)
+                                    @endif
+                                @endif
                             </option>
                         @endforeach
                     </select>
@@ -398,12 +408,12 @@
                                 {{ $variant['name'] }}
                                 @if(isset($variant['price']) && $variant['price'] !== '')
                                     @php
-                                        $diff = (float)$variant['price'] - ($this->product->price / 100);
+                                        $surcharge = (float) str_replace(',', '.', (string) $variant['price']);
                                     @endphp
-                                    @if($diff > 0)
-                                        (+{{ number_format($diff, 2, ',', '.') }} €)
-                                    @elseif($diff < 0)
-                                        (-{{ number_format(abs($diff), 2, ',', '.') }} €)
+                                    @if($surcharge > 0)
+                                        (+{{ number_format($surcharge, 2, ',', '.') }} €)
+                                    @elseif($surcharge < 0)
+                                        (-{{ number_format(abs($surcharge), 2, ',', '.') }} €)
                                     @endif
                                 @endif
                             </option>
@@ -414,12 +424,40 @@
                     </div>
                 </div>
             </div>
-        @elseif($context === 'preview' && $variantName)
-            <div x-show="!isMaximized" class="px-6 pt-6 pb-2 w-full max-w-[600px] mx-auto shrink-0 z-50">
-                <div class="border p-3.5 rounded-2xl text-center {{ $isDark ? 'bg-primary/10 border-primary/20' : 'bg-primary/5 border-primary/20' }}">
-                    <span class="text-[9px] font-black uppercase tracking-widest text-primary block mb-0.5">Gewählte Ausführung</span>
-                    <span class="font-bold text-sm {{ $isDark ? 'text-white' : 'text-gray-900' }}">{{ $variantName }}</span>
-                </div>
+        @elseif($context === 'preview' && ($variantName || !empty($selectedAddons)))
+            @php
+                $previewBookedAddons = $this->resolveSelectedAddonsSummary();
+            @endphp
+            <div x-show="!isMaximized" class="px-6 pt-6 pb-2 w-full max-w-[600px] mx-auto shrink-0 z-50 space-y-2.5">
+                @if($variantName)
+                    <div class="border p-3.5 rounded-2xl text-center {{ $isDark ? 'bg-primary/10 border-primary/20' : 'bg-primary/5 border-primary/20' }}">
+                        <span class="text-[9px] font-black uppercase tracking-widest text-primary block mb-0.5">Gewählte Ausführung</span>
+                        <span class="font-bold text-sm {{ $isDark ? 'text-white' : 'text-gray-900' }}">{{ $variantName }}</span>
+                    </div>
+                @endif
+                @if(!empty($previewBookedAddons))
+                    <div class="border p-3.5 rounded-2xl {{ $isDark ? 'bg-amber-500/10 border-amber-500/25' : 'bg-amber-50/80 border-amber-200/80' }}">
+                        <span class="text-[9px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 block mb-2 text-center">🎁 Gebuchte Verpackung &amp; Extras</span>
+                        <div class="flex flex-wrap justify-center gap-2">
+                            @foreach($previewBookedAddons as $pAddon)
+                                @php
+                                    $pAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($pAddon);
+                                @endphp
+                                <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border {{ $isDark ? 'bg-gray-900/90 border-amber-500/30 text-amber-200' : 'bg-white border-amber-200 text-amber-900' }} text-xs font-bold shadow-2xs">
+                                    @if($pAddonImg)
+                                        <img src="{{ $pAddonImg }}" alt="{{ $pAddon['name'] }}" class="w-7 h-7 rounded-lg object-cover border border-amber-300/60 shrink-0">
+                                    @else
+                                        <span>🎁</span>
+                                    @endif
+                                    <span>{{ $pAddon['name'] }}</span>
+                                    @if(($pAddon['price_cents'] ?? 0) > 0)
+                                        <span class="text-primary font-mono">(+{{ number_format($pAddon['price_cents'] / 100, 2, ',', '.') }}&nbsp;€)</span>
+                                    @endif
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
             </div>
         @endif
 

@@ -211,11 +211,11 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
         $shopLoad = (float) \Illuminate\Support\Facades\Cache::get('shop_capacity_percentage', 0);
         $shopThreshold1 = (int) \Illuminate\Support\Facades\Cache::get(
             'shop_capacity_threshold_1',
-            \App\Models\System\SystemSetting::where('key', 'shop_capacity_threshold_1')->value('value') ?? 60
+            shop_setting('shop_capacity_threshold_1', 60)
         );
         $storageThreshold1 = (int) \Illuminate\Support\Facades\Cache::get(
             'storage_capacity_threshold_1',
-            \App\Models\System\SystemSetting::where('key', 'storage_capacity_threshold_1')->value('value') ?? 70
+            shop_setting('storage_capacity_threshold_1', 70)
         );
         $diskTotal = @disk_total_space(storage_path());
         $diskFree = @disk_free_space(storage_path());
@@ -395,10 +395,12 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
 
         // --- SUB-SATELLITEN FÜR ALLE DRILL-DOWN TRANSFORMATIONEN IM FOKUS-MODUS ---
         $opRouteMap = [
+            'product_readiness' => '/admin/products',
             'inventory' => '/admin/products',
+            'open_orders' => '/admin/orders',
+            'open_invoices' => '/admin/invoices',
             'special_issues' => '/admin/financial-variable-costs',
             'leitung/contracts' => '/admin/financial-fix-costs',
-            'open_orders' => '/admin/orders',
             'open_tickets' => '/admin/support-tickets',
             'open_chats' => '/admin/support-chats',
             'open_contact_requests' => '/admin/support-contact-form',
@@ -408,36 +410,47 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             'influencer_payouts' => '/admin/marketing/influencer',
             'unassigned_tx' => '/admin/financial-banks',
             'open_tasks' => '/admin/tasks',
+            'shopping_list' => '/admin/shopping',
             'routine' => '/admin/routine',
             'open_quotes' => '/admin/quote-requests',
             'open_revocations' => '/admin/widerruf',
             'open_losses' => '/admin/product-fracture',
-            'open_blog_posts' => '/admin/blog',
             'open_abandoned_carts' => '/admin/shopping-carts',
+            'storage' => '/admin/system/backups',
             'system_logs' => '/admin/global-logs',
         ];
 
+        // Sortier-Helfer nach Dringlichkeit: error (1) -> warning (2) -> todo (3) -> success (4)
+        $severityWeight = fn(string $st): int => match ($st) {
+            'error' => 1,
+            'warning' => 2,
+            'todo' => 3,
+            default => 4,
+        };
+
+        $sortedOpenHealthChecks = collect($healthChecks)
+            ->filter(fn($c) => ($c['count'] ?? 0) > 0)
+            ->sortBy(fn($c) => ($severityWeight($c['status'] ?? 'todo') * 10000) - (int) ($c['count'] ?? 0));
+
         // 1. OPERATIVER STATUS SUB-NODES (Kategorien / Aufgaben aus To-do Liste & Operatives)
         $operativeSubNodes = [];
-        foreach ($healthChecks as $hKey => $hCheck) {
-            if (($hCheck['count'] ?? 0) > 0) {
-                $isErr = ($hCheck['status'] ?? '') === 'error' || ($hCheck['count'] ?? 0) > 0;
-                $operativeSubNodes[] = [
-                    'url' => $opRouteMap[$hKey] ?? '/admin/dashboard',
-                    'sound' => 'action',
-                    'title' => strtoupper($hCheck['title'] ?? $hKey),
-                    'value' => $hCheck['count'],
-                    'unit' => 'OFFEN',
-                    'ring_pct' => min(100, max(22, ($hCheck['count'] ?? 1) * 18)),
-                    'color' => $isErr ? $sfCritical : $sfGold,
-                    'critical' => $isErr,
-                    'metric' => strtoupper(\Illuminate\Support\Str::limit($hCheck['message'] ?? '', 26)),
-                    'status' => 'DIREKT ÖFFNEN ↗',
-                ];
-            }
+        foreach ($sortedOpenHealthChecks as $hKey => $hCheck) {
+            $isErr = in_array($hCheck['status'] ?? '', ['error', 'warning'], true);
+            $operativeSubNodes[] = [
+                'url' => $opRouteMap[$hKey] ?? '/admin/dashboard',
+                'sound' => 'action',
+                'title' => strtoupper($hCheck['title'] ?? $hKey),
+                'value' => $hCheck['count'],
+                'unit' => 'OFFEN',
+                'ring_pct' => min(100, max(22, ($hCheck['count'] ?? 1) * 18)),
+                'color' => $isErr ? $sfCritical : $sfGold,
+                'critical' => $isErr,
+                'metric' => strtoupper(\Illuminate\Support\Str::limit($hCheck['message'] ?? '', 26)),
+                'status' => 'DIREKT ÖFFNEN ↗',
+            ];
         }
         if (count($operativeSubNodes) === 0) {
-            foreach (['routine', 'open_orders', 'open_tickets', 'open_tasks', 'special_issues', 'product_reviews'] as $fallbackKey) {
+            foreach (['routine', 'product_readiness', 'open_orders', 'open_tickets', 'open_tasks', 'special_issues'] as $fallbackKey) {
                 if (isset($healthChecks[$fallbackKey])) {
                     $hc = $healthChecks[$fallbackKey];
                     $operativeSubNodes[] = [
@@ -1028,7 +1041,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             ],
             'operative' => [
                 'isRoot' => false,
-                'elevated' => false,
+                'elevated' => true,
                 'coreTitle' => 'Operativer Status',
                 'coreValue' => $operativeScore,
                 'coreBadgeHtml' => '<span class="text-[#ffe39f]">' . $totalTodos . ' Aufgaben</span> · ' . e($opScoreText),
@@ -1227,7 +1240,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
          class="relative w-full pt-2 pb-4 select-none overflow-visible">
 
         <!-- 1. DESKTOP ORBITAL-BÜHNE (>= 1024px): Persistenter Kern & überlappende Radial-Übergänge -->
-        <div :style="['shop', 'system', 'security', 'capacities', 'profit', 'ecommerce', 'traffic'].includes(activeTab) ? 'height: 510px;' : ''"
+        <div :style="['operative', 'shop', 'system', 'security', 'capacities', 'profit', 'ecommerce', 'traffic'].includes(activeTab) ? 'height: 510px;' : ''"
              class="hidden lg:block relative w-full h-[680px] xl:h-[740px] sf-stage-height overflow-visible">
 
             <!-- SZENEN-LAYER: ENERGIESTRAHLEN & SATELLITEN (Überlappender Radial-Warp beim Öffnen & Zurückgehen) -->
@@ -1635,7 +1648,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             </div>
 
             <!-- VERTIKALER ENERGIESTRAHL NACH UNTEN (Wenn ein Chart / Detailbereich unterhalb geöffnet ist) -->
-            <div x-show="['shop', 'system', 'security', 'capacities', 'profit', 'ecommerce', 'traffic'].includes(activeTab)"
+            <div x-show="['operative', 'shop', 'system', 'security', 'capacities', 'profit', 'ecommerce', 'traffic'].includes(activeTab)"
                  x-cloak
                  x-transition.opacity.duration.400ms
                  class="absolute left-1/2 bottom-0 -translate-x-1/2 w-0.5 h-16 bg-gradient-to-b from-[#C5A059] via-[#C5A059]/60 to-transparent shadow-[0_0_12px_#C5A059] pointer-events-none z-10"></div>
@@ -2082,7 +2095,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
     </div>
 
     <!-- MASTER DETAILS VIEW -->
-    <div x-show="activeTab !== null && (!focusMode || !['operative', 'routine', 'calendar', 'settings'].includes(activeTab))"
+    <div x-show="activeTab !== null && (!focusMode || !['routine', 'calendar', 'settings'].includes(activeTab))"
          :class="focusMode ? 'mt-0' : 'mt-8'"
          x-transition:enter="transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
          x-transition:enter-start="opacity-0 translate-y-6 scale-[0.98]"
@@ -2276,11 +2289,13 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
 
                 @php
                     $descriptions = [
-                        'inventory' => 'Prüft, ob physische Artikel den Mindestbestand unterschritten haben und nachbestellt werden müssen.',
+                        'product_readiness' => 'Prüft über den 9-Punkte-Check (Basis, Preis, Gewicht, Galerie, Lieferant, Verpackung/LUCID, Konfigurator/Laser, Vorlagen), ob alle Produkte zu 100% vollständig eingerichtet sind.',
+                        'inventory' => 'Prüft anhand des produktspezifischen Mindestbestands (bzw. globalen Limits), ob physische Artikel nachbestellt werden müssen oder ausverkauft sind.',
+                        'open_orders' => 'Bestellungen in Bearbeitung, die noch verpackt und versendet werden müssen (markiert Express-Bestellungen und Aufträge > 48h sofort als Warnung).',
+                        'open_invoices' => 'Ausgangsrechnungen mit Status "Offen", die noch nicht beglichen wurden (hebt überfällige Rechnungen hervor).',
                         'special_issues' => 'Zeigt Sonderausgaben, für die noch kein Beleg oder keine Rechnung hochgeladen wurde.',
                         'leitung/contracts' => 'Listet Fixkosten-Positionen auf, für die noch kein Vertragsdokument hinterlegt ist.',
-                        'open_orders' => 'Bestellungen, die bezahlt, aber noch nicht komplett versendet / abgeschlossen sind.',
-                        'open_tickets' => 'Kunden-Tickets aus dem Support, die noch nicht auf "erledigt" gesetzt wurden.',
+                        'open_tickets' => 'Offene Kunden-Tickets aus dem Support inkl. gemeldeter Bug-Reports (hebt hohe Priorität & Bug-Tickets besonders hervor).',
                         'open_chats' => 'Live-Chat Anfragen von Kunden, die auf eine Antwort vom System warten.',
                         'open_contact_requests' => 'Eingegangene Anfragen über das Kontaktformular, die unbearbeitet sind.',
                         'open_mails' => 'Ungelesene E-Mails im Posteingang, die Aufmerksamkeit erfordern.',
@@ -2288,14 +2303,15 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                         'open_credits' => 'Erstellte Gutschriften oder Stornos, die noch nicht per E-Mail an den Kunden verschickt wurden.',
                         'influencer_payouts' => 'Offene Creator-Provisionen und angeforderte Gutschriften (§ 14 UStG), die unter /admin/marketing/influencer geprüft oder überwiesen werden müssen.',
                         'unassigned_tx' => 'Banktransaktionen, die noch keinem Auftrag und keiner Rechnung zugeordnet wurden.',
-                        'open_tasks' => 'Allgemeine, systemübergreifende To-dos, die von Mitarbeitern noch offen sind.',
+                        'open_tasks' => 'Allgemeine, systemübergreifende To-dos, die noch offen sind.',
+                        'shopping_list' => 'Offene Positionen und Betriebsmittel auf der Manufaktur-Einkaufsliste, die besorgt werden müssen.',
                         'routine' => 'Täglicher Check-in für deine Tagesroutine (Mo–Fr). Sobald du heute deine erledigten Routinen abgehakt hast, gilt der Tag als eingecheckt; vergangene Tage verfallen automatisch um Mitternacht.',
                         'open_quotes' => 'Kunden-Anfragen für individuelle Spezial-Angebote, die noch nicht kalkuliert wurden.',
-                        'open_revocations' => 'Kunden-Widerrufe, die noch nicht final bearbeitet oder gutgeschrieben wurden.',
-                        'open_losses' => 'Transport-Schäden oder Bruch auf dem Transportweg, die auf Rückerstattung oder Nachsendung warten.',
-                        'open_blog_posts' => 'Artikel, die sich momentan im Entwurf befinden oder auf ihre Veröffentlichung warten.',
+                        'open_revocations' => 'Offene Kunden-Widerrufe (sofort sichtbar ab Eingang; wird nach 48 Stunden ohne Abschluss zur Warnung).',
+                        'open_losses' => 'Transport-Schäden oder Bruch, die auf Rückerstattung oder Nachsendung warten.',
                         'open_abandoned_carts' => 'Kunden haben ihren Einkaufsprozess abgebrochen. Überprüfe die Warenkörbe und sende ggf. eine Erinnerung.',
-                        'system_logs' => 'Offene System-Fehler und Warnungen, die im Hintergrund-Prozess protokolliert wurden.',
+                        'storage' => 'Überwacht die Belegung der Server-Festplatte und warnt rechtzeitig vor Speicherplatzmangel.',
+                        'system_logs' => 'Aktuelle System-Fehler der letzten 48 Stunden, die im Hintergrund-Prozess protokolliert wurden.',
                     ];
 
                     $actionNeeded = [];
@@ -2309,6 +2325,16 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                             $done[$key] = $check;
                         }
                     }
+
+                    // Sortiere offene Aufgaben nach Dringlichkeit: error -> warning -> todo
+                    uasort($actionNeeded, function ($a, $b) use ($severityWeight) {
+                        $wa = $severityWeight($a['status'] ?? 'todo');
+                        $wb = $severityWeight($b['status'] ?? 'todo');
+                        if ($wa !== $wb) {
+                            return $wa <=> $wb;
+                        }
+                        return ((int) ($b['count'] ?? 0)) <=> ((int) ($a['count'] ?? 0));
+                    });
                 @endphp
 
                 <table class="w-full text-left border-separate border-spacing-y-2">
@@ -2321,35 +2347,19 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                     <tbody>
                         @foreach(array_merge($actionNeeded, $done) as $key => $check)
                             @php
-                                $actionUrl = match($key) {
-                                    'inventory' => '/admin/products',
-                                    'special_issues' => '/admin/financial-variable-costs',
-                                    'leitung/contracts' => '/admin/financial-fix-costs',
-                                    'open_orders' => '/admin/orders',
-                                    'open_tickets' => '/admin/support-tickets',
-                                    'open_chats' => '/admin/support-chats',
-                                    'open_contact_requests' => '/admin/support-contact-form',
-                                    'open_mails' => '/admin/inbox',
-                                    'product_reviews' => '/admin/reviews',
-                                    'open_credits' => '/admin/credit-management',
-                                    'influencer_payouts' => '/admin/marketing/influencer',
-                                    'unassigned_tx' => '/admin/financial-banks',
-                                    'open_tasks' => '/admin/tasks',
-                                    'routine' => '/admin/routine',
-                                    'open_quotes' => '/admin/quote-requests',
-                                    'open_revocations' => '/admin/widerruf',
-                                    'open_losses' => '/admin/product-fracture',
-                                    'open_blog_posts' => '/admin/blog',
-                                    'open_abandoned_carts' => '/admin/shopping-carts',
-                                    'system_logs' => '/admin/global-logs',
-                                    default => '/admin/dashboard'
-                                };
+                                $actionUrl = $opRouteMap[$key] ?? '/admin/dashboard';
 
                                 $statusClass = match($check['status'] ?? 'error') {
                                     'success' => 'text-emerald-500 group-hover:text-emerald-400',
                                     'todo' => 'text-blue-500 group-hover:text-blue-400',
                                     'warning' => 'text-amber-500 group-hover:text-amber-400',
                                     default => 'text-red-500 group-hover:text-red-400',
+                                };
+
+                                $dotClass = match($check['status'] ?? 'error') {
+                                    'error' => 'bg-red-500',
+                                    'warning' => 'bg-amber-500',
+                                    default => 'bg-blue-500',
                                 };
 
                                 $needsAction = $check['count'] > 0;
@@ -2385,7 +2395,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                                 <td class="py-4 pr-4 rounded-r-xl border-y border-r border-gray-200 dark:border-gray-800/80 group-hover:border-gray-300 dark:group-hover:border-gray-700 text-right whitespace-nowrap">
                                     @if($needsAction)
                                         <div class="inline-flex items-center gap-2 bg-gray-100 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 px-3 py-1.5 rounded-lg">
-                                            <div class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></div>
+                                            <div class="w-1.5 h-1.5 rounded-full {{ $dotClass }} animate-pulse"></div>
                                             <span class="text-xs font-bold text-gray-800 dark:text-gray-300">{{ $check['count'] }}</span>
                                             <x-heroicon-m-chevron-right class="w-4 h-4 text-gray-400 dark:text-gray-600 group-hover:text-[#C5A059] transition-colors ml-2" />
                                         </div>

@@ -1,10 +1,5 @@
 <div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;" class="flex flex-col h-[95vh] md:h-[calc(100vh-10rem)] bg-white/95 dark:bg-gray-900/90 backdrop-blur-xl rounded-2xl md:rounded-3xl dark:shadow-2xl border border-gray-200/80 dark:border-gray-800 overflow-hidden min-h-[500px] md:min-h-[700px] animate-fade-in-up transition-colors duration-300">
 
-    {{-- GOOGLE FONT: INTER FÜR OPTIMALE LESBARKEIT --}}
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
     {{-- HEADER BEREICH --}}
     <div class="bg-gray-50/90 dark:bg-gray-950/60 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-30 shadow-sm backdrop-blur-md shrink-0">
         <div class="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4">

@@ -21,7 +21,50 @@ function shop_setting($key, $default = null) {
         $settings = [];
     }
 
-    $value = $settings[$key] ?? $default;
+    // Geplanter Wechsel aus der Kleinunternehmerregelung zum Folgejahr automatisch wirksam machen
+    if ($key === 'is_small_business') {
+        $scheduledEndYear = $settings['small_business_scheduled_end_year'] ?? null;
+        if ($scheduledEndYear !== null && $scheduledEndYear !== '' && (int) now()->year > (int) $scheduledEndYear) {
+            return false;
+        }
+        $endYear = $settings['small_business_end_year'] ?? null;
+        if ($endYear !== null && $endYear !== '' && (int) now()->year > (int) $endYear) {
+            return false;
+        }
+    }
+
+    $rawDbValue = $settings[$key] ?? null;
+    $value = $rawDbValue ?? $default;
+
+    // Falls in der Datenbank ein leerer String ('') gespeichert wurde (z.B. nach Leeren eines optionalen Feldes),
+    // greift der übergebene Fallback-Standardwert, sofern ein nicht-leerer Default angegeben wurde.
+    $usedDefault = ($rawDbValue === null || $rawDbValue === '');
+    if ($value === '' && $default !== null && $default !== '') {
+        $value = $default;
+    }
+
+    // Normalisierung bei Fallback auf kombinierte Legacy-Felder (owner_city = "38518 Gifhorn", owner_street = "Carl-Goerdeler-Ring 26")
+    // sowie bei doppelt gepflegten DB-Werten, damit es in Templates mit separatem company_zip / company_street_number
+    // niemals zu "38518 38518 Gifhorn", "Carl-Goerdeler-Ring 26 26" oder "Neue Straße 10 26" kommt.
+    if (is_string($value) && $value !== '') {
+        if ($key === 'company_city') {
+            $value = trim((string) preg_replace('/^\d{4,5}\s+/', '', $value));
+        } elseif ($key === 'company_street') {
+            if ($usedDefault) {
+                $value = trim((string) preg_replace('/\s+\d+[a-zA-Z]?$/', '', $value));
+            } else {
+                $rawStreetNum = trim((string) ($settings['company_street_number'] ?? ''));
+                if ($rawStreetNum !== '' && preg_match('/\s+' . preg_quote($rawStreetNum, '/') . '$/iu', $value)) {
+                    $value = trim((string) preg_replace('/\s+' . preg_quote($rawStreetNum, '/') . '$/iu', '', $value));
+                }
+            }
+        } elseif ($key === 'company_street_number' && $usedDefault) {
+            $rawStreet = trim((string) ($settings['company_street'] ?? ''));
+            if ($rawStreet !== '' && preg_match('/\s+\d+[a-zA-Z]?$/u', $rawStreet)) {
+                $value = '';
+            }
+        }
+    }
 
     // 1. JSON-Erkennung (bleibt gleich)
     if (is_string($value) && (str_starts_with($value, '[') || str_starts_with($value, '{'))) {

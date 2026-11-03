@@ -212,16 +212,26 @@ class GamificationServiceSecurityTest extends TestCase
         $this->assertEquals(15, $profile->funken_balance);
         $this->assertEquals(15, $profile->funken_total_earned);
 
-        // 2. Duplicate call for same product must return 0 (anti-farming)
-        $awardedAgain = $this->service->rewardReviewFunken($review);
+        // 2. Duplicate call / Admin re-approving an edited review for same product must return 0 (anti-farming)
+        $review->update(['status' => 'pending']);
+        $review->update(['status' => 'approved']);
+        $awardedAgain = $this->service->rewardReviewFunken($review->fresh());
         $this->assertEquals(0, $awardedAgain);
         $this->assertEquals(15, $profile->fresh()->funken_balance);
 
-        // 3. Deleting/rejecting the review reverses the 15 Funken
+        // 3. Deleting/rejecting the review when balance is still 15 reverses the 15 Funken
         $this->service->reverseReviewFunken($review);
         $profile->refresh();
         $this->assertEquals(0, $profile->funken_balance);
         $this->assertEquals(0, $profile->funken_total_earned);
+
+        // 4. If customer gets +15 Funken, spends them (balance = 0), and then deletes/re-submits -> must NOT get +15 again!
+        $this->assertEquals(15, $this->service->rewardReviewFunken($review->fresh()));
+        $profile->refresh();
+        $profile->update(['funken_balance' => 0]); // Customer spent the 15 sparks
+        $this->service->reverseReviewFunken($review);
+        $this->assertEquals(0, $this->service->rewardReviewFunken($review->fresh()));
+        $this->assertEquals(0, $profile->fresh()->funken_balance);
     }
 
     public function test_ultimate_goal_title_is_seelengott_unter_sterblichen_and_hall_of_fame_works()
@@ -470,7 +480,7 @@ class GamificationServiceSecurityTest extends TestCase
         // Default audio settings
         $initialAudio = $this->service->getAudioSettings($this->service->getProfile($customer));
         $this->assertEquals(35, $initialAudio['volume']);
-        $this->assertFalse($initialAudio['muted']);
+        $this->assertTrue($initialAudio['muted']);
         $this->assertFalse($initialAudio['keep_playing']);
 
         // Save custom volume, mute state & keep_playing = true
@@ -703,5 +713,45 @@ class GamificationServiceSecurityTest extends TestCase
         $this->assertNotNull($errorLog);
         $this->assertEquals('error', $errorLog->status);
         $this->assertStringContainsString('Simulierter Datenbank-Fehler', (string) $errorLog->message);
+    }
+
+    public function test_public_profile_card_data_does_not_leak_customer_uuid_inactive_stats_or_pseudonym_photo(): void
+    {
+        $customer = Customer::create([
+            'id'         => (string) Str::uuid(),
+            'first_name' => 'Elena',
+            'last_name'  => 'Geheim',
+            'email'      => 'elena-privacy@example.com',
+            'password'   => bcrypt('secret123'),
+        ]);
+
+        \App\Models\Customer\CustomerProfile::create([
+            'customer_id' => $customer->id,
+            'photo_path'  => 'customers/photos/elena-real-face.jpg',
+        ]);
+
+        $profile = $this->service->getProfile($customer);
+        $profile->update([
+            'is_active'           => true,
+            'use_real_name'       => false,
+            'player_name'         => 'SternenWanderin',
+            'funken_total_earned' => 450,
+            'level'               => 3,
+        ]);
+
+        // 1. Active pseudonym mode: must NOT leak customer_id, player_name key, use_real_name key, or real photo URL
+        $cardPseudonym = $this->service->getPublicProfileCardData($customer->fresh(['profile', 'gamification']), $profile->fresh());
+        $this->assertArrayNotHasKey('customer_id', $cardPseudonym);
+        $this->assertArrayNotHasKey('player_name', $cardPseudonym);
+        $this->assertArrayNotHasKey('use_real_name', $cardPseudonym);
+        $this->assertEquals('SternenWanderin', $cardPseudonym['display_name']);
+        $this->assertNull($cardPseudonym['custom_photo_url']);
+
+        // 2. Inactive gamification profile (is_active = false): must NOT expose earned sparks or level > 1
+        $profile->update(['is_active' => false]);
+        $cardInactive = $this->service->getPublicProfileCardData($customer->fresh(['profile', 'gamification']), $profile->fresh());
+        $this->assertEquals('Elena G.', $cardInactive['display_name']);
+        $this->assertEquals(1, $cardInactive['level']);
+        $this->assertEquals(0, $cardInactive['funken_total_earned']);
     }
 }

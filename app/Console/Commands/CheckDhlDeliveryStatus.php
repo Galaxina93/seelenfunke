@@ -85,23 +85,25 @@ class CheckDhlDeliveryStatus extends Command
 
                 $isDelivered = false;
                 $trackingNumber = trim((string) ($shipment->tracking_number ?? ''));
+                $dhlApiKey = config('services.dhl.tracking_api_key', config('services.dhl.api_key', env('DHL_API_KEY', '')));
+                $dhlConfigured = !empty($dhlApiKey);
 
-                if ($trackingNumber !== '') {
+                if ($trackingNumber !== '' && $dhlConfigured) {
                     try {
                         $isDelivered = $this->checkDhlTracking($trackingNumber);
                     } catch (\Exception $e) {
                         $this->warn("   -> DHL Tracking Info: " . $e->getMessage());
                         Log::warning("DHL Tracking Warning für Sendung {$trackingNumber}: " . $e->getMessage());
                     }
-                } else {
+                } elseif ($trackingNumber === '') {
                     $this->line("   -> Keine gültige Sendungsnummer hinterlegt. Nutze Alters-Fallback.");
                 }
 
                 if ($isDelivered) {
                     $shipment->update(['status' => 'delivered']);
                     $this->line("   -> Per DHL Tracking als ZUGESTELLT bestätigt! ✓");
-                } else {
-                    // Auto-Complete Fallback: Wenn Sendung seit >= X Tagen unterwegs ist
+                } elseif (!$dhlConfigured || $trackingNumber === '') {
+                    // Auto-Complete Fallback: Wenn kein DHL Tracking konfiguriert ist (oder keine Sendungsnummer vorhanden) und Sendung seit >= X Tagen unterwegs ist
                     $shipmentAge = $shipment->created_at ?? $order->updated_at ?? now();
                     $daysSinceShipment = (int) $shipmentAge->diffInDays(now());
 
@@ -112,6 +114,9 @@ class CheckDhlDeliveryStatus extends Command
                         $allDelivered = false;
                         $this->line("   -> Weiterhin in Zustellung ({$daysSinceShipment}/{$autoCompleteDays} Tage bis Fallback).");
                     }
+                } else {
+                    $allDelivered = false;
+                    $this->line("   -> Laut DHL Tracking weiterhin in Zustellung.");
                 }
             }
 

@@ -454,16 +454,13 @@ class CustomerTicketsComponent extends Component
     {
         $this->enforceCustomerId();
         $this->validate([
-            'closeReason' => 'required|string|min:5|max:1000'
-        ], [
-            'closeReason.required' => 'Gibt bitte einen Grund für die Schließung an.',
-            'closeReason.min' => 'Der Grund sollte mindestens 5 Zeichen enthalten.'
+            'closeReason' => 'nullable|string|max:1000'
         ]);
 
         $ticket = SupportTicket::where('customer_id', $this->customerId)->where('id', $this->activeTicketId)->firstOrFail();
         $ticket->update([
             'status' => 'closed',
-            'close_reason' => $this->closeReason
+            'close_reason' => trim((string) $this->closeReason) !== '' ? trim((string) $this->closeReason) : null
         ]);
 
         // Dispatch event to close Alpine modal

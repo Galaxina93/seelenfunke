@@ -29,8 +29,10 @@ class RevocationProcessedMail extends Mailable
      */
     public function envelope(): Envelope
     {
+        $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
+
         return new Envelope(
-            subject: 'Widerruf erfolgreich bearbeitet — Mein Seelenfunke',
+            subject: 'Widerruf erfolgreich bearbeitet — ' . $companyName,
         );
     }
 

@@ -1,13 +1,14 @@
-<div class="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden mb-6" x-data="{ open: true }">
-    <button @click="open = !open" class="w-full flex items-center justify-between p-5 bg-gray-100/50 dark:bg-gray-950/50 hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
+<div class="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm dark:shadow-lg" x-data="{ open: false }">
+    <div @click="open = !open" class="w-full flex items-center justify-between p-5 bg-gray-100/50 dark:bg-gray-950/50 hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors cursor-pointer" :class="open ? 'rounded-t-2xl border-b border-gray-200 dark:border-gray-800' : 'rounded-2xl'">
         <div class="flex items-center gap-3">
-            <span class="w-6 h-6 rounded-lg bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-400 flex items-center justify-center text-[10px] font-black">1</span>
+            <span class="w-6 h-6 rounded-lg bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-400 flex items-center justify-center text-[10px] font-black shadow-inner">1</span>
             <h4 class="text-xs font-black text-gray-900 dark:text-white uppercase tracking-widest">Arbeitsbereich (2D)</h4>
+            @include('components.alerts.info-tooltip', ['key' => 'working_area_help'])
         </div>
         <svg class="w-5 h-5 text-gray-500 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-    </button>
+    </div>
 
-    <div x-show="open" x-collapse class="p-5 border-t border-gray-200 dark:border-gray-800 space-y-6">
+    <div x-show="open" x-collapse style="display: none;" class="p-5 space-y-6">
 
         <div x-show="configSettings.area_shape !== 'custom'" class="space-y-5" x-transition>
             <div class="flex items-center gap-4">

@@ -67,7 +67,7 @@ class AccountingQuickEntry extends Component
         }
 
         $this->specialDate = date('Y-m-d');
-        $this->specialTaxRate = (float)shop_setting('default_tax_rate', 19.0);
+        $this->specialTaxRate = app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness() ? 0 : (float)shop_setting('default_tax_rate', 19.0);
     }
 
     private function getAdminId()
@@ -248,7 +248,8 @@ class AccountingQuickEntry extends Component
                 // 3. Summe (Grand Total)
                 // Pfad: SupplyChainTradeTransaction -> ApplicableHeaderTradeSettlement -> SpecifiedTradeSettlementHeaderMonetarySummation -> GrandTotalAmount
                 if (isset($xml->SupplyChainTradeTransaction->ApplicableHeaderTradeSettlement->SpecifiedTradeSettlementHeaderMonetarySummation->GrandTotalAmount)) {
-                    $this->specialAmount = (float)$xml->SupplyChainTradeTransaction->ApplicableHeaderTradeSettlement->SpecifiedTradeSettlementHeaderMonetarySummation->GrandTotalAmount;
+                    $totalAmount = (float)$xml->SupplyChainTradeTransaction->ApplicableHeaderTradeSettlement->SpecifiedTradeSettlementHeaderMonetarySummation->GrandTotalAmount;
+                    $this->specialAmount = number_format(-abs($totalAmount), 2, '.', '');
                 }
 
                 // 4. Verkäufer Name
@@ -262,7 +263,12 @@ class AccountingQuickEntry extends Component
                     }
                 }
 
-                $this->finalizeAutoFill();
+                $parsedTaxRate = null;
+                if (isset($xml->SupplyChainTradeTransaction->ApplicableHeaderTradeSettlement->ApplicableTradeTax->RateApplicablePercent)) {
+                    $parsedTaxRate = (float) $xml->SupplyChainTradeTransaction->ApplicableHeaderTradeSettlement->ApplicableTradeTax->RateApplicablePercent;
+                }
+
+                $this->finalizeAutoFill($parsedTaxRate);
                 return true;
             }
 
@@ -276,7 +282,8 @@ class AccountingQuickEntry extends Component
                 }
 
                 if (isset($xml->LegalMonetaryTotal->TaxInclusiveAmount)) {
-                    $this->specialAmount = (float)$xml->LegalMonetaryTotal->TaxInclusiveAmount;
+                    $totalAmount = (float)$xml->LegalMonetaryTotal->TaxInclusiveAmount;
+                    $this->specialAmount = number_format(-abs($totalAmount), 2, '.', '');
                 }
 
                 // Verkäufer Name
@@ -286,7 +293,14 @@ class AccountingQuickEntry extends Component
                     $this->specialTitle = (string)$xml->AccountingSupplierParty->Party->PartyLegalEntity->RegistrationName;
                 }
 
-                $this->finalizeAutoFill();
+                $parsedTaxRate = null;
+                if (isset($xml->TaxTotal->TaxSubtotal->TaxCategory->Percent)) {
+                    $parsedTaxRate = (float) $xml->TaxTotal->TaxSubtotal->TaxCategory->Percent;
+                } elseif (isset($xml->InvoiceLine->Item->ClassifiedTaxCategory->Percent)) {
+                    $parsedTaxRate = (float) $xml->InvoiceLine->Item->ClassifiedTaxCategory->Percent;
+                }
+
+                $this->finalizeAutoFill($parsedTaxRate);
                 return true;
             }
 
@@ -313,14 +327,15 @@ class AccountingQuickEntry extends Component
         }
     }
 
-    private function finalizeAutoFill()
+    private function finalizeAutoFill(?float $parsedTaxRate = null)
     {
         $this->specialIsBusiness = true;
         $this->isAutoFilled = true;
 
-        // Prüfen ob Steuer vorhanden ist für den Tax Rate
-        // (Einfache Logik: Wir setzen Standard, User kann ändern)
-        $this->specialTaxRate = (float)shop_setting('default_tax_rate', 19.0);
+        // Prüfen ob Steuer im XML vorhanden war, sonst Standard-Steuersatz setzen
+        $this->specialTaxRate = $parsedTaxRate !== null
+            ? $parsedTaxRate
+            : (app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness() ? 0 : (float)shop_setting('default_tax_rate', 19.0));
     }
 
     /**
@@ -421,6 +436,7 @@ class AccountingQuickEntry extends Component
         ]);
         $this->specialDate = date('Y-m-d');
         $this->specialIsBusiness = false;
+        $this->specialTaxRate = app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness() ? 0 : (float)shop_setting('default_tax_rate', 19.0);
 
         $this->dispatch('special-issue-created');
         session()->flash('success', "Eintrag '{$savedTitle}' ({$savedAmount} €) erfolgreich erstellt.");

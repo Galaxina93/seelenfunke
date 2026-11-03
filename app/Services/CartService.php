@@ -337,6 +337,28 @@ class CartService
     }
 
     /**
+     * Ermittelt den verfügbaren Lagerbestand für ein Produkt bzw. eine gewählte Variante.
+     */
+    public function resolveAvailableStock(Product $product, ?string $variantId = null): int
+    {
+        if ($variantId && is_array($product->variants_data) && count($product->variants_data) > 0) {
+            foreach ($product->variants_data as $variant) {
+                if (($variant['id'] ?? null) === $variantId) {
+                    if (!filter_var($variant['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN)) {
+                        return 0;
+                    }
+                    if (isset($variant['stock']) && $variant['stock'] !== '' && $variant['stock'] !== null) {
+                        return max(0, (int) $variant['stock']);
+                    }
+                    break;
+                }
+            }
+        }
+
+        return max(0, (int) ($product->quantity ?? 0));
+    }
+
+    /**
      * Berechnet den Einzelpreis (Staffel & Variante).
      */
     public function calculateTierPrice(Product $product, int $qty, ?array $configuration = null): int
@@ -355,20 +377,20 @@ class CartService
 
         $price = $product->price;
 
-        // 1. NEU: Varianten-Preis überschreiben, falls vorhanden
+        // 1. Varianten-Aufpreis addieren, falls vorhanden
         if ($configuration && isset($configuration['variant_id'])) {
             $variants = $product->variants_data ?? [];
             $variant = collect($variants)->firstWhere('id', $configuration['variant_id']);
 
-            // Wenn die Variante gefunden wurde UND einen abweichenden Preis hat
-            if ($variant && !empty($variant['price'])) {
-                $price = (int) round((float) $variant['price'] * 100);
+            // Wenn die Variante gefunden wurde UND einen Aufpreis hinterlegt hat
+            if ($variant && isset($variant['price']) && $variant['price'] !== '') {
+                $surchargeCents = (int) round(((float) str_replace(',', '.', (string) $variant['price'])) * 100);
+                $price += $surchargeCents;
             }
         }
 
         // 2. Mengenrabatt anwenden
-        // Wir nutzen die Relation tierPrices (Eloquent) statt tier_pricing (JSON),
-        // da deine Seeder die Relation füllen.
+        // Wir nutzen primär die Relation tierPrices (Eloquent) und fallen bei Bedarf auf tier_pricing (JSON) zurück.
         $tiers = $product->tierPrices;
 
         if ($tiers && $tiers->count() > 0) {
@@ -378,6 +400,41 @@ class CartService
             if ($tier) {
                 $discount = $price * ($tier->percent / 100);
                 $price -= $discount;
+            }
+        } elseif (!empty($product->tier_pricing) && is_array($product->tier_pricing)) {
+            $jsonTiers = $product->tier_pricing;
+            usort($jsonTiers, fn ($a, $b) => ($b['qty'] ?? 0) <=> ($a['qty'] ?? 0));
+            foreach ($jsonTiers as $tier) {
+                if ($qty >= ($tier['qty'] ?? PHP_INT_MAX)) {
+                    $discount = $price * (($tier['percent'] ?? 0) / 100);
+                    $price -= $discount;
+                    break;
+                }
+            }
+        }
+
+        $price = (int) round($price);
+
+        // 3. Steuer aufschlagen (falls im System Netto-Preise gepflegt werden, Warenkorb rechnet immer in Brutto-Cents)
+        $isSmallBusiness = app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness();
+        if ($product->tax_included === false && !$isSmallBusiness) {
+            $taxRate = (float) ($product->tax_rate ?? shop_setting('default_tax_rate', 19.0));
+            $price = (int) round($price * (1 + ($taxRate / 100)));
+        }
+
+        // 4. Optionale Aufpreis-Extras / Verpackungs-Upgrades & Bundle-Optionen serverseitig aus dem Produkt auflösen (NUR physische Produkte)
+        // Addons sind bereits als Brutto-Cents (price_cents) gepflegt und werden nach der Netto-zu-Brutto-Umrechnung addiert.
+        if ($product->isPhysical() && $configuration && !empty($configuration['selected_addons']) && is_array($configuration['selected_addons'])) {
+            $productAddons = $product->getEffectiveAddons(true);
+            $selectedAddonIds = array_map('strval', $configuration['selected_addons']);
+
+            foreach ($productAddons as $addon) {
+                if (!is_array($addon) || empty($addon['id'])) {
+                    continue;
+                }
+                if (in_array((string) $addon['id'], $selectedAddonIds, true)) {
+                    $price += max(0, (int) ($addon['price_cents'] ?? 0));
+                }
             }
         }
 
@@ -480,6 +537,55 @@ class CartService
                     unset($configuration[$pathKey]);
                 }
             }
+        }
+
+        // Kanonisierung der gewählten Produktvariante (variant_id & variant_name)
+        if (!empty($configuration['variant_id']) && !empty($product->variants_data) && is_array($product->variants_data)) {
+            $matchedVariant = collect($product->variants_data)->firstWhere('id', $configuration['variant_id']);
+            if ($matchedVariant && !empty($matchedVariant['name'])) {
+                $configuration['variant_name'] = (string) $matchedVariant['name'];
+            } else {
+                unset($configuration['variant_id'], $configuration['variant_name']);
+            }
+        }
+
+        // Validierung von ausgewählten Aufpreis-Extras (selected_addons & addons_summary serverseitig kanonisieren - NUR physische Produkte)
+        if ($product->isPhysical() && isset($configuration['selected_addons']) && is_array($configuration['selected_addons'])) {
+            $productAddons = $product->getEffectiveAddons(true);
+            $requestedIds = [];
+            foreach ($configuration['selected_addons'] as $reqAddon) {
+                if (is_string($reqAddon) || is_numeric($reqAddon)) {
+                    $requestedIds[] = (string) $reqAddon;
+                } elseif (is_array($reqAddon) && !empty($reqAddon['id'])) {
+                    $requestedIds[] = (string) $reqAddon['id'];
+                }
+            }
+            $requestedIds = array_values(array_unique($requestedIds));
+
+            $validSelectedIds = [];
+            $canonicalSummary = [];
+
+            foreach ($productAddons as $addon) {
+                if (!is_array($addon) || empty($addon['id']) || empty($addon['name'])) {
+                    continue;
+                }
+                $aid = (string) $addon['id'];
+                if (in_array($aid, $requestedIds, true)) {
+                    $addonCents = max(0, (int) ($addon['price_cents'] ?? 0));
+                    $validSelectedIds[] = $aid;
+                    $canonicalSummary[] = [
+                        'id'          => $aid,
+                        'name'        => (string) $addon['name'],
+                        'price_cents' => $addonCents,
+                        'image_path'  => $addon['image_path'] ?? \App\Models\Product\Product::resolveAddonImagePath($addon),
+                    ];
+                }
+            }
+
+            $configuration['selected_addons'] = $validSelectedIds;
+            $configuration['addons_summary'] = $canonicalSummary;
+        } else {
+            unset($configuration['selected_addons'], $configuration['addons_summary']);
         }
 
         return $configuration;
@@ -768,7 +874,7 @@ class CartService
             $lineTax = $lineGross - $lineNet;
 
             // Ensure 0% breakdown array starts at 0 if no item has > 0 tax yet
-            $strRate = number_format($taxRate, 0);
+            $strRate = rtrim(rtrim(number_format((float)$taxRate, 2, ',', '.'), '0'), ',');
             if (!isset($taxesBreakdown[$strRate])) $taxesBreakdown[$strRate] = 0;
             $taxesBreakdown[$strRate] += $lineTax;
         }
@@ -918,7 +1024,7 @@ class CartService
             $shippingTaxAmount = $remainingShipping - $shippingNet;
 
             if ($shippingTaxRate > 0 || floatval($shippingTaxRate) == 0.0) {
-                $strShipRate = number_format($shippingTaxRate, 0);
+                $strShipRate = rtrim(rtrim(number_format((float)$shippingTaxRate, 2, ',', '.'), '0'), ',');
                 if (!isset($taxesBreakdown[$strShipRate])) {
                     $taxesBreakdown[$strShipRate] = 0;
                 }
@@ -937,7 +1043,7 @@ class CartService
             $expressTaxAmount = $remainingExpress - $expressNet;
 
             if ($expressTaxRate > 0 || floatval($expressTaxRate) == 0.0) {
-                $strExpRate = number_format($expressTaxRate, 0);
+                $strExpRate = rtrim(rtrim(number_format((float)$expressTaxRate, 2, ',', '.'), '0'), ',');
                 if (!isset($taxesBreakdown[$strExpRate])) $taxesBreakdown[$strExpRate] = 0;
                 $taxesBreakdown[$strExpRate] += $expressTaxAmount;
             }
@@ -1100,7 +1206,7 @@ class CartService
         ];
     }
 
-    private function refreshTotals(Cart $cart) {
+    public function refreshTotals(?Cart $cart) {
         if($cart) {
             $hasExpress = $cart->items()->where('configuration->is_express', true)->exists();
             if ($cart->is_express !== $hasExpress) {

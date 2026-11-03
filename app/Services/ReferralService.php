@@ -64,7 +64,7 @@ class ReferralService
                     // MarketingVoucher für 10% Rabatt anlegen
                     $voucher = MarketingVoucher::create([
                         'code' => $candidate,
-                        'title' => 'Freunde-Empfehlung von ' . ($firstName ?: 'Kunde'),
+                        'title' => Str::limit('Freunde-Empfehlung von ' . ($firstName ?: 'Kunde'), 250, ''),
                         'type' => 'percent',
                         'value' => 10,
                         'used_count' => 0,
@@ -184,10 +184,8 @@ class ReferralService
                     $query->orWhere('customer_id', $buyerCustomerId);
                 }
             })
-            ->where(function ($query) {
-                $query->where('payment_status', 'paid')
-                      ->orWhereNotIn('status', ['cancelled', 'draft']);
-            })
+            ->where('payment_status', 'paid')
+            ->whereNotIn('status', ['cancelled', 'refunded'])
             ->exists();
 
             if ($hasPreviousPaidOrder) {
@@ -294,7 +292,9 @@ class ReferralService
                 // Bestehenden Gutschein um 5,00 € aufbuchen
                 $existingVoucher->initial_value += $referral->reward_cents;
                 $existingVoucher->current_balance += $referral->reward_cents;
-                $existingVoucher->personal_message .= " [Order {$order->order_number}: +5€]";
+                $suffix = " [Order {$order->order_number}: +5€]";
+                $prefix = Str::limit((string) $existingVoucher->personal_message, max(0, 250 - mb_strlen($suffix)), '');
+                $existingVoucher->personal_message = Str::limit($prefix . $suffix, 250, '');
                 $existingVoucher->valid_until = now()->addYears(3); // Gültigkeit ab neuem Eingang verlängern
                 $existingVoucher->save();
 
@@ -310,7 +310,7 @@ class ReferralService
                     'current_balance' => $referral->reward_cents,
                     'recipient_email' => $referral->referrer_email,
                     'recipient_name' => $referral->referrer_first_name ?: 'Lieber Seelenfunke-Kunde',
-                    'personal_message' => "5 € Belohnung für deine erfolgreiche Empfehlung durch Bestellung {$order->order_number}!",
+                    'personal_message' => Str::limit("5 € Belohnung für deine erfolgreiche Empfehlung durch Bestellung {$order->order_number}!", 250, ''),
                     'delivery_method' => 'digital',
                     'is_active' => true,
                     'valid_until' => now()->addYears(3),
@@ -392,11 +392,18 @@ class ReferralService
             }
 
             // Saldo um die Belohnung reduzieren (mindestens auf 0)
-            $newBalance = max(0, $voucher->current_balance - $referral->reward_cents);
+            $rewardCents = (int) $referral->reward_cents;
+            $newBalance = max(0, (int) $voucher->current_balance - $rewardCents);
+            $newInitialValue = (int) $voucher->initial_value > $rewardCents
+                ? max($rewardCents, (int) $voucher->initial_value - $rewardCents)
+                : (int) $voucher->initial_value;
+            $stornoSuffix = " [Order {$order->order_number}: Storniert -5€]";
+            $stornoPrefix = Str::limit((string) $voucher->personal_message, max(0, 250 - mb_strlen($stornoSuffix)), '');
             $voucher->update([
+                'initial_value' => $newInitialValue,
                 'current_balance' => $newBalance,
                 'is_active' => $newBalance > 0,
-                'personal_message' => $voucher->personal_message . " [Order {$order->order_number}: Storniert -5€]"
+                'personal_message' => Str::limit($stornoPrefix . $stornoSuffix, 250, ''),
             ]);
 
             if ($referral->successful_referrals_count > 0) {

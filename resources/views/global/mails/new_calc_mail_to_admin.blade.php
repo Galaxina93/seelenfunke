@@ -9,7 +9,7 @@
     {{-- ANSPRACHE --}}
     <h1>Neue Angebotsanfrage! ✉️
         @if(!empty($data['express']))
-            <span class="badge-express">EXPRESS</span>
+            <span class="badge-express" style="color: #333; font-size: 12px; font-weight: bold; cursor: help;" title="Vorteil: Sofortige Priorisierung in der Manufaktur vor regulären Bestellungen. Zusammensetzung: {{ number_format((float) shop_setting('express_surcharge_percent', 20.0), 0, ',', '.') }} % vom Warenwert (mind. {{ number_format(((int) shop_setting('express_surcharge_min', 500)) / 100, 2, ',', '.') }} € Basis-Pauschale).">Express-Service <span style="color: #C5A059;">&#10003;</span></span>
         @endif
     </h1>
     <p>Hallo Alina, es ist eine neue Anfrage über den <strong>Calculator</strong> eingegangen. Der Kunde hat ein automatisches Angebot erhalten, aber du solltest die Details kurz prüfen:</p>

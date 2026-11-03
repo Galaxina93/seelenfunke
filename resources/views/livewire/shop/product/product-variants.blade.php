@@ -1,4 +1,4 @@
-<div x-data="{ open: false }" class="w-full min-w-0">
+<div x-data="{ open: true }" class="w-full min-w-0">
     <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-5 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 animate-fade-in-up transition-colors hover:border-gray-300 dark:hover:border-gray-700 w-full min-w-0">
 
         <div class="flex flex-wrap items-center justify-between gap-4 transition-all" :class="open ? 'mb-6 border-b border-gray-200 dark:border-gray-800 pb-5' : ''">
@@ -6,17 +6,9 @@
                 <div class="p-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-500 group-hover:text-[var(--theme-color)] group-hover:border-[var(--theme-color-30)] transition-all shadow-inner shrink-0">
                     <svg class="w-5 h-5 transition-transform duration-300" :class="open ? 'rotate-180 text-[var(--theme-color)]' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                 </div>
-                <div class="flex items-center gap-2 min-w-0">
-                    <h3 class="text-lg sm:text-xl font-serif font-bold text-gray-900 dark:text-white tracking-wide group-hover:text-[var(--theme-color)] transition-colors truncate">Produktvarianten (Matrix)</h3>
-                    <div x-data="{ showInfo: false }" class="relative inline-block ml-1 shrink-0" @click.stop>
-                        <button @mouseenter="showInfo = true" @mouseleave="showInfo = false" type="button" class="text-gray-500 hover:text-[var(--theme-color)] transition-colors flex items-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
-                        </button>
-                        <div x-show="showInfo" x-cloak x-transition.opacity class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-64 sm:w-72 p-4 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 text-xs font-medium leading-relaxed rounded-xl shadow-md dark:shadow-2xl z-50 text-center">
-                            Hier werden aus den Eigenschaften kaufbare Endprodukte generiert. Jede Variante hat eigene Preise/SKUs.
-                            <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-200 dark:border-t-gray-800"></div>
-                        </div>
-                    </div>
+                <div class="flex items-center gap-2 min-w-0" @click.stop>
+                    <h3 @click="open = !open" class="text-lg sm:text-xl font-serif font-bold text-gray-900 dark:text-white tracking-wide group-hover:text-[var(--theme-color)] transition-colors truncate">3. Produktvarianten (Matrix)</h3>
+                    @include('components.alerts.info-tooltip', ['text' => 'Erzeugt aus kommagetrennten Eigenschaften (z. B. Größe oder Farbe aus Unter-Schritt 2) automatisch kaufbare Produktvarianten mit eigener SKU, eigenem Preis und Bestand.'])
                 </div>
             </div>
 
@@ -70,7 +62,7 @@
                 <div class="hidden lg:grid grid-cols-12 gap-6 text-[10px] font-black uppercase tracking-widest text-gray-500 border-b border-gray-200 dark:border-gray-800 pb-4 px-2 mb-2">
                     <div class="col-span-4">Variante</div>
                     <div class="col-span-3">Eigene SKU</div>
-                    <div class="col-span-2">Preis (€)</div>
+                    <div class="col-span-2">Aufpreis (+ €)</div>
                     <div class="col-span-2 text-center">Bestand</div>
                     <div class="col-span-1 text-right">Aktiv</div>
                 </div>
@@ -110,9 +102,9 @@
                             </div>
 
                             <div class="lg:col-span-2">
-                                <label class="lg:hidden text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1.5 ml-1">Preis (Überschreiben)</label>
+                                <label class="lg:hidden text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1.5 ml-1">Aufpreis (+ €)</label>
                                 <div class="relative">
-                                    <input type="number" step="0.01" min="0" wire:model.blur="variants.{{ $index }}.price" wire:change="saveVariants" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] transition-all shadow-inner outline-none placeholder-gray-400 dark:placeholder-gray-600 pr-8" placeholder="Standard">
+                                    <input type="number" step="0.01" min="0" wire:model.blur="variants.{{ $index }}.price" wire:change="saveVariants" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] transition-all shadow-inner outline-none placeholder-gray-400 dark:placeholder-gray-600 pr-8" placeholder="Standard (+0,00)">
                                     <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xs">€</span>
                                 </div>
                             </div>
@@ -165,6 +157,123 @@
                         </button>
                     </div>
                 </div>
+            @endif
+
+            {{-- ZUSATZ-OPTIONEN / VERPACKUNGS-UPGRADES & BUNDLE-EXTRAS (AUFPREIS - NUR PHYSISCHE PRODUKTE) --}}
+            @if($product->isPhysical())
+            <div class="mt-8 pt-6 border-t border-gray-200 dark:border-gray-800">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                    <div>
+                        <h4 class="text-sm sm:text-base font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            <span>🎁</span>
+                            <span>Aufpreis-Extras, Verpackungs-Upgrades &amp; Bundle-Optionen</span>
+                        </h4>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            Kunden können diese Extras bei physischen Produkten im Konfigurator optional hinzubuchen (einheitlicher Schwarz-Gold-Look).
+                        </p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 shrink-0">
+                        <button type="button"
+                                wire:click="addAddon('Geschenkpapier (Schwarz-Gold-Look)', 'Von Hand in edles Schwarz-Gold-Geschenkpapier eingeschlagen – direkt verschenkfertig', '3.90', 'produkte/addons/geschenkpapier-schwarz-gold.jpg')"
+                                class="px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-[10px] font-black uppercase tracking-widest transition cursor-pointer">
+                            + Geschenkpapier (+3,90 €)
+                        </button>
+                        <button type="button"
+                                wire:click="addAddon('Edle Schmuckbox (Schwarz-Gold)', 'Mattschwarze Juwelierschachtel mit Samteinlage & Gold-Logo statt Versandtasche', '4.90', 'produkte/addons/edle-schmuckbox-schwarz-gold.jpg')"
+                                class="px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-[10px] font-black uppercase tracking-widest transition cursor-pointer">
+                            + Schmuckbox (+4,90 €)
+                        </button>
+                        <button type="button"
+                                wire:click="addAddon('', '', '3.90')"
+                                class="px-3.5 py-2 rounded-xl bg-[var(--theme-color)] text-gray-900 hover:opacity-90 text-[10px] font-black uppercase tracking-widest transition cursor-pointer">
+                            + Neues Extra
+                        </button>
+                    </div>
+                </div>
+
+                @if(count($addons) === 0)
+                    <div class="p-5 rounded-2xl bg-gray-50 dark:bg-gray-950/50 border border-dashed border-gray-200 dark:border-gray-800 text-center text-xs text-gray-500">
+                        Noch keine Zusatz-Optionen oder Verpackungs-Upgrades hinterlegt.
+                    </div>
+                @else
+                    <div class="space-y-3">
+                        @foreach($addons as $aIdx => $addon)
+                            @php
+                                $addonImgUrl = $addon['image_url'] ?? \App\Models\Product\Product::resolveAddonImageUrl($addon);
+                            @endphp
+                            <div class="p-4 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 grid grid-cols-1 lg:grid-cols-12 gap-3 items-center" wire:key="addon-{{ $addon['id'] ?? $aIdx }}">
+                                {{-- Vorschaubild Upload --}}
+                                <div class="lg:col-span-2 flex items-center gap-3">
+                                    <div class="relative group/img w-14 h-14 rounded-xl overflow-hidden border {{ $addonImgUrl ? 'border-[var(--theme-color-40)] bg-white dark:bg-gray-900 shadow-xs' : 'border-dashed border-gray-300 dark:border-gray-700 bg-white/50 dark:bg-gray-900/50' }} shrink-0 flex items-center justify-center">
+                                        @if($addonImgUrl)
+                                            <img src="{{ $addonImgUrl }}" alt="{{ $addon['name'] ?? 'Extra' }}" class="w-full h-full object-cover">
+                                        @else
+                                            <svg class="w-5 h-5 text-gray-400 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                        @endif
+
+                                        <label class="absolute inset-0 bg-black/55 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center cursor-pointer text-white text-[9px] font-black uppercase tracking-wider text-center p-1" title="Bild hochladen / ändern">
+                                            <span>Bild</span>
+                                            <input type="file" wire:model="addonUploads.{{ $aIdx }}" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden">
+                                        </label>
+                                    </div>
+                                    <div class="flex flex-col gap-1 min-w-0">
+                                        <label class="text-[9px] font-black uppercase tracking-widest text-[var(--theme-color)] hover:underline cursor-pointer">
+                                            <span>{{ $addonImgUrl ? 'Ändern' : '+ Bild' }}</span>
+                                            <input type="file" wire:model="addonUploads.{{ $aIdx }}" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden">
+                                        </label>
+                                        @if(!empty($addon['image_path']) && !in_array((string)$addon['image_path'], ['produkte/addons/edle-schmuckbox-schwarz-gold.jpg', 'produkte/addons/geschenkpapier-schwarz-gold.jpg'], true))
+                                            <button type="button" wire:click="removeAddonImage({{ $aIdx }})" class="text-[9px] font-bold text-red-500 hover:underline text-left cursor-pointer">
+                                                Reset
+                                            </button>
+                                        @endif
+                                    </div>
+                                </div>
+
+                                <div class="lg:col-span-3">
+                                    <label class="text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1">Bezeichnung (z. B. Schwarze edle Box)</label>
+                                    <input type="text"
+                                           wire:model.blur="addons.{{ $aIdx }}.name"
+                                           wire:change="saveAddons"
+                                           placeholder="z. B. Schwarze edle Geschenkbox"
+                                           class="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-xs font-bold outline-none focus:border-[var(--theme-color)]">
+                                </div>
+                                <div class="lg:col-span-4">
+                                    <label class="text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1">Kurzbeschreibung (Optional)</label>
+                                    <input type="text"
+                                           wire:model.blur="addons.{{ $aIdx }}.description"
+                                           wire:change="saveAddons"
+                                           placeholder="z. B. Statt Standard-Luftpolstertasche"
+                                           class="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-xs outline-none focus:border-[var(--theme-color)]">
+                                </div>
+                                <div class="lg:col-span-2">
+                                    <label class="text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1">Aufpreis (€)</label>
+                                    <div class="relative">
+                                        <input type="number"
+                                               step="0.01"
+                                               min="0"
+                                               wire:model.blur="addons.{{ $aIdx }}.price"
+                                               wire:change="saveAddons"
+                                               class="w-full px-3 py-2 pr-7 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono text-xs font-bold outline-none focus:border-[var(--theme-color)]">
+                                        <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-bold">€</span>
+                                    </div>
+                                </div>
+                                <div class="lg:col-span-1 flex items-center justify-end gap-2 pt-2 lg:pt-4">
+                                    <label class="relative inline-flex items-center cursor-pointer" title="Aktiv / Inaktiv">
+                                        <input type="checkbox" wire:model.live="addons.{{ $aIdx }}.is_active" wire:change="saveAddons" class="sr-only peer">
+                                        <div class="w-8 h-4 bg-gray-200 dark:bg-gray-800 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[var(--theme-color)]"></div>
+                                    </label>
+                                    <button type="button"
+                                            wire:click="removeAddon({{ $aIdx }})"
+                                            class="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition cursor-pointer"
+                                            title="Extra entfernen">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
             @endif
         </div>
     </div>

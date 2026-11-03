@@ -20,17 +20,21 @@ class NewOrderMailToAdmin extends Mailable
     protected ?string $pdfPath;
     public ?string $xmlPath; //
     public array $snapshotPaths;
+    public ?\App\Models\Order\OrderOrder $order = null;
 
     /**
      * Create a new message instance.
      * Wir machen xmlPath optional (= null), damit alter Code (z.B. QuoteRequests) nicht kaputt geht.
      */
-    public function __construct(array $data, ?string $pdfPath = null, ?string $xmlPath = null, array $snapshotPaths = [])
+    public function __construct(array $data, ?string $pdfPath = null, ?string $xmlPath = null, array $snapshotPaths = [], ?\App\Models\Order\OrderOrder $order = null)
     {
         $this->data = $data;
         $this->pdfPath = $pdfPath;
         $this->xmlPath = $xmlPath;
         $this->snapshotPaths = $snapshotPaths;
+        $this->order = $order ?? (isset($data['order_number']) || isset($data['quote_number'])
+            ? \App\Models\Order\OrderOrder::where('order_number', $data['order_number'] ?? $data['quote_number'])->first()
+            : null);
     }
 
     public function envelope(): Envelope
@@ -59,7 +63,10 @@ class NewOrderMailToAdmin extends Mailable
     {
         return new Content(
             view: 'global.mails.new_order_mail_to_admin',
-            with: ['data' => $this->data],
+            with: [
+                'data' => $this->data,
+                'order' => $this->order,
+            ],
         );
     }
 

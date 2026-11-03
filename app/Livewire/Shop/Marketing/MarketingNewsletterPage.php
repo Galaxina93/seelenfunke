@@ -242,11 +242,15 @@ class MarketingNewsletterPage extends Component
         }
 
         // Kundenprofil synchronisieren (Geburtstags-Funke & Vorfreude-Funken zum Kauf-Jubiläum)
-        $this->syncCustomerEmailPreferences(
-            $this->email,
-            $this->unsub_birthday ? false : null,
-            $this->unsub_anniversary ? false : null
-        );
+        $normalizedEmail = trim((string) $this->email);
+        if (\Illuminate\Support\Facades\Auth::guard('customer')->check()
+            && strcasecmp(trim((string) \Illuminate\Support\Facades\Auth::guard('customer')->user()->email), $normalizedEmail) === 0) {
+            $this->syncCustomerEmailPreferences(
+                $normalizedEmail,
+                $this->unsub_birthday ? false : null,
+                $this->unsub_anniversary ? false : null
+            );
+        }
 
         // Einheitliche Erfolgsmeldung zum Schutz vor User-Enumeration
         $this->successMessage = 'Falls diese E-Mail-Adresse in unserem Verteiler eingetragen war, wurde sie erfolgreich abgemeldet.';
@@ -268,7 +272,13 @@ class MarketingNewsletterPage extends Component
     private function syncCustomerEmailPreferences(string $email, ?bool $receiveBirthday, ?bool $receiveAnniversary): void
     {
         try {
-            $customer = Customer::where('email', trim($email))->first();
+            $normalizedEmail = trim($email);
+            if (!\Illuminate\Support\Facades\Auth::guard('customer')->check()
+                || strcasecmp(trim((string) \Illuminate\Support\Facades\Auth::guard('customer')->user()->email), $normalizedEmail) !== 0) {
+                return;
+            }
+
+            $customer = Customer::where('email', $normalizedEmail)->first();
             if (!$customer) {
                 return;
             }
@@ -318,10 +328,12 @@ class MarketingNewsletterPage extends Component
 
     public function render()
     {
+        $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
+        $city = shop_setting('company_city', shop_setting('owner_city', 'Gifhorn'));
         return view('livewire.shop.marketing.marketing-newsletter-page')
-            ->title('Seelenfunken-Post Newsletter & Exklusive Vorteile | Mein Seelenfunke')
+            ->title("Seelenfunken-Post Newsletter & Exklusive Vorteile | {$companyName}")
             ->layout('components.layouts.frontend_layout', [
-                'meta_description' => 'Melde dich für die Seelenfunken-Post an: Erhalte exklusive Einblicke in unsere Manufaktur in Gifhorn, Geschenk-Inspirationen und limitierte Aktionen.',
+                'meta_description' => "Melde dich für die Seelenfunken-Post an: Erhalte exklusive Einblicke in unsere Manufaktur in {$city}, Geschenk-Inspirationen und limitierte Aktionen.",
                 'canonical' => route('newsletter.page'),
             ]);
     }

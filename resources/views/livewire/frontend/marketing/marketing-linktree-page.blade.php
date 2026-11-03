@@ -20,21 +20,21 @@
                 <div class="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-white border-2 border-[#E2D5BE] p-1 flex items-center justify-center overflow-hidden shadow-sm">
                     <img src="{{ $profileImage ?: asset('shop/projekt/about/gruender-welcome-sm.webp') }}"
                          onerror="this.onerror=null; this.src='{{ asset('shop/projekt/logo/logo-up.webp') }}';"
-                         alt="{{ shop_setting('company_name', 'Mein Seelenfunke') }} – Alina Steinhauer"
+                         alt="{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }} – {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}"
                          class="w-full h-full object-cover rounded-full">
                 </div>
                 <!-- Dezentes Manufaktur-Siegel (Matt) -->
                 <div class="absolute bottom-0.5 right-0.5 bg-[#F3ECE0] text-[#8A6820] p-1.5 rounded-full border-2 border-white shadow-xs"
-                     title="Manufaktur Gifhorn">
+                     title="Manufaktur {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}">
                     <x-heroicon-s-check-badge class="w-4 h-4" />
                 </div>
             </div>
 
             <h1 class="text-2xl sm:text-3xl font-serif font-bold text-gray-900 tracking-tight">
-                {{ shop_setting('company_name', 'Mein Seelenfunke') }}
+                {{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}
             </h1>
             <p class="mt-2 text-sm sm:text-base text-gray-600 max-w-xs leading-relaxed">
-                Handveredelte Unikate & persönliche Geschenke aus unserer Manufaktur in Gifhorn.
+                Handveredelte Unikate & persönliche Geschenke aus unserer Manufaktur in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}.
             </p>
         </div>
 

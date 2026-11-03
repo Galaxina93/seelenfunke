@@ -1,6 +1,72 @@
 <script>
     (function() {
-        // Vermeide doppelte Registrierung
+        // Universeller Clipboard-Fallback & Polyfill (damit navigator.clipboard.writeText & window.sfCopyText
+        // auch über http://127.0.0.1 oder lokale IPs ohne HTTPS jederzeit fehlerfrei funktionieren)
+        function fallbackCopyText(text) {
+            try {
+                const val = String(text ?? '');
+                const ta = document.createElement('textarea');
+                ta.value = val;
+                ta.setAttribute('readonly', '');
+                ta.style.position = 'fixed';
+                ta.style.top = '-9999px';
+                ta.style.left = '-9999px';
+                ta.style.opacity = '0';
+                ta.style.pointerEvents = 'none';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                ta.setSelectionRange(0, val.length);
+                const ok = document.execCommand('copy');
+                document.body.removeChild(ta);
+                return ok;
+            } catch (err) {
+                return false;
+            }
+        }
+
+        const nativeClipboard = (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function')
+            ? navigator.clipboard
+            : null;
+        const nativeWriteText = nativeClipboard ? nativeClipboard.writeText.bind(nativeClipboard) : null;
+
+        window.sfCopyText = function(text) {
+            const val = String(text ?? '');
+            if (nativeWriteText && window.isSecureContext) {
+                return nativeWriteText(val).catch(function() {
+                    fallbackCopyText(val);
+                });
+            }
+            fallbackCopyText(val);
+            return Promise.resolve();
+        };
+
+        if (typeof navigator !== 'undefined' && (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function')) {
+            const clipboardPolyfill = {
+                writeText: function(text) {
+                    return window.sfCopyText(text);
+                },
+                readText: function() {
+                    return Promise.resolve('');
+                }
+            };
+            try {
+                Object.defineProperty(navigator, 'clipboard', {
+                    value: clipboardPolyfill,
+                    writable: true,
+                    configurable: true
+                });
+            } catch (e) {
+                try {
+                    Object.defineProperty(Navigator.prototype, 'clipboard', {
+                        get: function() { return clipboardPolyfill; },
+                        configurable: true
+                    });
+                } catch (e2) {}
+            }
+        }
+
+        // Vermeide doppelte Registrierung des Error-Trackers
         if (window._frontendErrorTrackerInitialized) return;
         window._frontendErrorTrackerInitialized = true;
 

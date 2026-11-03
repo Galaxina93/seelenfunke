@@ -234,10 +234,10 @@
                         @foreach($recommendedProducts as $relProd)
                             @php
                                 $relImgUrl = $relProd->resolveMainImageUrl();
+                                $relGrossCents = $relProd->gross_price ?? $relProd->price;
                             @endphp
-                            <a href="{{ route('product.show', $relProd->slug) }}"
-                               class="group bg-gray-50/70 hover:bg-white rounded-2xl border border-gray-100 hover:border-primary/40 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col">
-                                <div class="aspect-square w-full bg-gray-100 overflow-hidden">
+                            <div class="group bg-gray-50/70 hover:bg-white rounded-2xl border border-gray-100 hover:border-primary/40 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col">
+                                <a href="{{ route('product.show', $relProd->slug) }}" class="aspect-square w-full bg-gray-100 overflow-hidden block">
                                     @if($relImgUrl)
                                         <img src="{{ $relImgUrl }}"
                                              alt="{{ $relProd->name }} – Personalisiert mit Lasergravur"
@@ -245,16 +245,36 @@
                                              decoding="async"
                                              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
                                     @endif
-                                </div>
+                                </a>
                                 <div class="p-4 flex flex-col flex-1 justify-between">
-                                    <h3 class="font-serif font-bold text-gray-900 text-sm group-hover:text-primary transition-colors line-clamp-2 mb-2">
+                                    <a href="{{ route('product.show', $relProd->slug) }}" class="font-serif font-bold text-gray-900 text-sm group-hover:text-primary transition-colors line-clamp-2 mb-2 block">
                                         {{ $relProd->name }}
-                                    </h3>
-                                    <span class="text-xs font-extrabold text-primary">
-                                        {{ number_format($relProd->price / 100, 2, ',', '.') }} €
-                                    </span>
+                                    </a>
+                                    <div>
+                                        <div class="flex items-baseline gap-1.5">
+                                            <span class="text-xs font-extrabold text-primary">
+                                                {{ $relProd->slug === 'geschenkgutschein' ? 'ab 5,00 €' : number_format($relGrossCents / 100, 2, ',', '.') . ' €' }}
+                                            </span>
+                                            @if($relProd->slug !== 'geschenkgutschein' && $relProd->compare_at_price > $relGrossCents)
+                                                <span class="text-[11px] text-gray-400 line-through">
+                                                    {{ number_format($relProd->compare_at_price / 100, 2, ',', '.') }} €
+                                                </span>
+                                            @endif
+                                        </div>
+                                        @if(!empty($relProd->base_price_info))
+                                            <span class="block text-[10px] font-medium text-gray-500 mt-0.5 leading-tight">
+                                                Grundpreis: {{ $relProd->base_price_info }}
+                                            </span>
+                                        @endif
+                                        <span class="block text-[10px] text-gray-400 mt-0.5 leading-tight">
+                                            @if($relProd->slug !== 'geschenkgutschein' && $relProd->compare_at_price > $relGrossCents)
+                                                30-Tage-Bestpreis: {{ number_format($relProd->compare_at_price / 100, 2, ',', '.') }} € ·
+                                            @endif
+                                            {{ ((bool) shop_setting('is_small_business', false)) ? 'Endpreis gem. § 19 UStG' : 'inkl. MwSt.' }}@if($relProd->type === 'physical' && $relProd->slug !== 'geschenkgutschein'), zzgl. <a href="{{ route('versand') }}" class="underline hover:text-primary">Versand</a>@endif
+                                        </span>
+                                    </div>
                                 </div>
-                            </a>
+                            </div>
                         @endforeach
                     </div>
                 </div>

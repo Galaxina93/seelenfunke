@@ -310,7 +310,7 @@ class ElsterEricService
         $kz83 = '<Kz83>' . number_format($zahllast, 2, '.', '') . '</Kz83>';
         
         $steuernummer = shop_setting('owner_tax_id', '1234567890');
-        $finanzamtId = shop_setting('owner_finanzamt_id', '9111'); // Standard: 9111 Bayern
+        $finanzamtId = shop_setting('owner_finanzamt_nr', shop_setting('owner_finanzamt_id', '9111')); // Standard: owner_finanzamt_nr oder Fallback 9111
         $jahr = $data['year'] ?? '2023';
 
         // Wenn wir im Testmodus sind, muessen wir ZWINGEND die offiziellen Test-Kennungen nutzen!

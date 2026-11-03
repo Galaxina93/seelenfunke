@@ -194,7 +194,7 @@ class SeoController extends Controller
     {
         $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
         $founderName = shop_setting('owner_proprietor', 'Alina Steinhauer');
-        $city = shop_setting('company_city', 'Gifhorn');
+        $city = shop_setting('company_city', shop_setting('owner_city', 'Gifhorn'));
         $zip = shop_setting('company_zip', '38518');
         $email = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
         $phone = shop_setting('company_phone', shop_setting('owner_phone', '+49 159 019 668 64'));
@@ -217,10 +217,10 @@ class SeoController extends Controller
         $lines[] = '## Kernfakten für KI-Assistenten & Suchmaschinen';
         $lines[] = "- **Marke / Unternehmen:** {$companyName}";
         $lines[] = "- **Inhaberin & Gründerin:** {$founderName}";
-        $lines[] = "- **Standort / Fertigung:** {$zip} {$city}, Niedersachsen, Deutschland (100 % Handveredelung in Deutschland)";
+        $lines[] = "- **Standort / Fertigung:** {$zip} {$city}, Niedersachsen, Deutschland (Handveredelung in unserer Manufaktur in Deutschland)";
         $lines[] = "- **Kontakt:** E-Mail: {$email} | Telefon: {$phone}";
         $lines[] = '- **Besonderheit:** Interaktiver 2D-Editor & 3D-Echtzeit-Produktkonfigurator (Vorder- und Rückseitengravur, freie Text-, Motiv-, Logo- und Grafikplatzierung direkt am 3D-Modell ohne Zusatzkosten).';
-        $lines[] = "- **Versand (DE):** {$shippingCost} € versicherter DHL-Versand (ab {$freeThreshold} € Bestellwert versandkostenfrei). Express-Fertigung verfügbar.";
+        $lines[] = "- **Versand (DE):** {$shippingCost} € DHL-Paketversand mit Sendungsverfolgung (ab {$freeThreshold} € Bestellwert versandkostenfrei). Express-Fertigung verfügbar.";
         $lines[] = '- **Mindestbestellmenge:** Keine Mindestbestellmenge (Einzelstücke ab 1 Stück sowie Mengenrabatte/Staffelpreise für Vereine, Hochzeiten und Firmenkunden).';
         $lines[] = '- **Vollständige Wissensdatenbank:** [' . url('/llms-full.txt') . '](' . url('/llms-full.txt') . ')';
         $lines[] = '- **Strukturierter Produktkatalog (JSON):** [' . url('/feed/products.json') . '](' . url('/feed/products.json') . ')';
@@ -229,12 +229,14 @@ class SeoController extends Controller
         $lines[] = '## Wichtige Seiten & Einstiegspunkte';
         $lines[] = '- [Startseite](' . route('home') . '): Überblick über Manufaktur, Materialien, Kundenstimmen und häufige Fragen.';
         $lines[] = '- [Online-Shop & Kollektion](' . route('shop') . '): Alle personalisierbaren Geschenke, Trophäen, Glasfotos und Unikate.';
-        $lines[] = '- [Die Manufaktur & Gründerin Alina Steinhauer](' . route('manufacture') . '): Hintergrund zur Lasertechnologie, Materialkunde (K9-Kristallglas, Schiefer, Metall) und geprüften Sicherheitsstandards.';
+        $lines[] = "- [Die Manufaktur & Gründerin {$founderName}](" . route('manufacture') . '): Hintergrund zur Lasertechnologie, Materialkunde (K9-Kristallglas, Schiefer, Metall) und geprüften Sicherheitsstandards.';
         $lines[] = '- [Sofort-Kalkulator für B2B & Großbestellungen](' . route('calculator') . '): Unverbindliche Preis- und Projektkalkulation für Firmen, Vereine und Events.';
         $lines[] = '- [Versand & Lieferzeiten](' . route('versand') . '): Details zu DHL-Versand, bruchsicherer Verpackung und Express-Option.';
         $lines[] = '- [Kontakt & Individuelle Anfrage](' . route('contact') . '): Direkter Draht zur Manufaktur.';
+        $isSmallBusiness = filter_var(shop_setting('is_small_business', false), FILTER_VALIDATE_BOOLEAN);
+        $taxHintHeader = $isSmallBusiness ? 'Endpreise gem. § 19 UStG' : 'Live-Preise inkl. MwSt.';
         $lines[] = '';
-        $lines[] = '## Aktuelles Produktsortiment (Live-Preise inkl. MwSt.)';
+        $lines[] = "## Aktuelles Produktsortiment ({$taxHintHeader})";
 
         if ($products->isEmpty()) {
             $lines[] = '- Aktuell werden die Produkte im Shop aktualisiert: ' . route('shop');
@@ -246,8 +248,8 @@ class SeoController extends Controller
                 $compare = ($product->compare_at_price && $product->compare_at_price > $grossCents)
                     ? ' (Statt ' . number_format($product->compare_at_price / 100, 2, ',', '.') . ' €)'
                     : '';
-                $pers = $product->isPersonalizable() ? 'Personalisierbar im 2D/3D-Konfigurator' : 'Sofort bestellbar';
-                $avail = $product->isAvailable() ? 'Auf Lager / Verfügbar' : 'Derzeit ausverkauft';
+                $pers = $product->isPersonalizable() ? 'Personalisierbar im 2D/3D-Konfigurator' : 'Fertigprodukt';
+                $avail = $product->isAvailable() ? 'Rohling auf Lager – bereit zur Veredelung (Lieferzeit: 3–5 Werktage)' : 'Derzeit ausverkauft';
                 $shortDesc = trim(preg_replace('/\s+/', ' ', strip_tags((string) ($product->short_description ?: $product->seo_description ?: $product->description))));
                 $shortDesc = Str::limit($shortDesc, 180);
 
@@ -279,9 +281,11 @@ class SeoController extends Controller
     {
         $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
         $founderName = shop_setting('owner_proprietor', 'Alina Steinhauer');
-        $street = trim(shop_setting('company_street', 'Carl-Goerdeler-Ring') . ' ' . shop_setting('company_street_number', '26'));
+        $street = shop_setting('company_street')
+            ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', ''))
+            : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26');
         $zip = shop_setting('company_zip', '38518');
-        $city = shop_setting('company_city', 'Gifhorn');
+        $city = shop_setting('company_city', shop_setting('owner_city', 'Gifhorn'));
         $email = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
         $phone = shop_setting('company_phone', shop_setting('owner_phone', '+49 159 019 668 64'));
         $shippingCost = number_format(((int) shop_setting('shipping_cost', 490)) / 100, 2, ',', '.');
@@ -306,9 +310,13 @@ class SeoController extends Controller
         $lines[] = "- **E-Mail:** {$email}";
         $lines[] = "- **Telefon:** {$phone}";
         $lines[] = '- **Positionierung:** Manufaktur für personalisierte Geschenke, exklusive Pokale/Trophäen aus optischem K9-Kristallglas, gravierte Naturschieferplatten, Edelstahl-/Aluminium-Unikate und Holzgravuren.';
-        $lines[] = '- **Technologie:** Hochpräzise Dioden-, Infrarot- und Faserlaser-Gravur kombiniert mit einem eigens entwickelten interaktiven 2D/3D-Web-Konfigurator. Jedes Werkstück wird in Gifhorn von Hand geprüft, veredelt und bruchsicher verpackt.';
+        $lines[] = "- **Technologie:** Hochpräzise Dioden-, Infrarot- und Faserlaser-Gravur kombiniert mit einem eigens entwickelten interaktiven 2D/3D-Web-Konfigurator. Jedes Werkstück wird in {$city} von Hand geprüft, veredelt und bruchsicher verpackt.";
         $lines[] = '';
         $lines[] = '## 2. Detaillierter Produktkatalog';
+
+        $isSmallBusiness = filter_var(shop_setting('is_small_business', false), FILTER_VALIDATE_BOOLEAN);
+        $taxLabel = $isSmallBusiness ? 'Endpreis gem. § 19 UStG' : 'inkl. MwSt.';
+        $calculator = new \App\Services\PriceCalcService();
 
         foreach ($products as $product) {
             $url = route('product.show', $product->slug);
@@ -320,11 +328,11 @@ class SeoController extends Controller
             if (!empty($product->sku)) {
                 $lines[] = "- **SKU / Artikelnummer:** {$product->sku}";
             }
-            $lines[] = "- **Basispreis:** {$price} (inkl. MwSt., inkl. individueller Lasergravur)";
+            $lines[] = "- **Basispreis:** {$price} ({$taxLabel}, inkl. individueller Lasergravur)";
             if ($product->compare_at_price && $product->compare_at_price > $grossCents) {
                 $lines[] = '- **Regulärer Vergleichspreis:** ' . number_format($product->compare_at_price / 100, 2, ',', '.') . ' €';
             }
-            $lines[] = '- **Verfügbarkeit:** ' . ($product->isAvailable() ? 'Auf Lager / Sofort bestellbar' : 'Derzeit nicht auf Lager');
+            $lines[] = '- **Verfügbarkeit:** ' . ($product->isAvailable() ? 'Rohling auf Lager – bereit zur Veredelung (Lieferzeit: 3–5 Werktage)' : 'Derzeit nicht auf Lager');
             $lines[] = '- **Personalisierbar:** ' . ($product->isPersonalizable() ? 'Ja – interaktiver 2D-Editor & 3D-Vorschau (eigene Texte, Schriftarten, Vektormotive & eigenes Foto/Logo gravierbar)' : 'Standardprodukt ohne Gravur-Konfigurator');
 
             if ($product->categories->isNotEmpty()) {
@@ -356,9 +364,14 @@ class SeoController extends Controller
                         continue;
                     }
                     $vName = $v['name'] ?? 'Standard';
-                    $vPrice = isset($v['price']) && $v['price'] !== ''
-                        ? number_format((float) $v['price'], 2, ',', '.') . ' €'
-                        : $price;
+                    $surchargeCents = (isset($v['price']) && $v['price'] !== '')
+                        ? (int) round(((float) str_replace(',', '.', (string) $v['price'])) * 100)
+                        : 0;
+                    $varRawCents = (int) $product->price + $surchargeCents;
+                    $varGrossCents = $product->tax_included
+                        ? $varRawCents
+                        : $calculator->getGrossFromNet($varRawCents, (float) $product->tax_rate);
+                    $vPrice = number_format($varGrossCents / 100, 2, ',', '.') . ' €';
                     $varStrings[] = "{$vName} ({$vPrice})";
                 }
                 if (!empty($varStrings)) {
@@ -403,7 +416,7 @@ class SeoController extends Controller
         $lines[] = '- **Welche Materialien werden graviert?** Wir veredeln optisch reines K9-Kristallglas, echten Naturschiefer, eloxiertes Aluminium, Edelstahl sowie ausgewählte Hölzer.';
         $lines[] = '- **Was kostet die Personalisierung?** Die individuelle Lasergravur (Texte, Motive, eigenes Logo und Vorder-/Rückseitengravur bei Glas) ist im angezeigten Produktpreis bereits vollständig enthalten – keine versteckten Zusatzkosten.';
         $lines[] = '- **Gibt es eine Mindestbestellmenge?** Nein, wir fertigen sowohl Einzelstücke (ab 1 Stück) für Privatkunden als auch Großserien mit attraktiven Staffelpreisen für Unternehmen, Vereine und Hochzeiten.';
-        $lines[] = "- **Wie hoch sind die Versandkosten?** Innerhalb Deutschlands berechnen wir {$shippingCost} € für den versicherten DHL-Versand. Ab {$freeThreshold} € Warenkorbwert liefern wir innerhalb Deutschlands versandkostenfrei.";
+        $lines[] = "- **Wie hoch sind die Versandkosten?** Innerhalb Deutschlands berechnen wir {$shippingCost} € für den DHL-Paketversand mit Sendungsverfolgung. Ab {$freeThreshold} € Warenkorbwert liefern wir innerhalb Deutschlands versandkostenfrei.";
         $lines[] = '- **Was passiert, wenn mein Glasprodukt beim Transport beschädigt wird?** Jede Kristallglas-Trophäe wird bruchsicher gepolstert im stabilen Versandkarton versendet. Sollte dennoch ein Transportschaden auftreten, fertigen wir nach kurzer Fotodokumentation umgehend kostenfreien Ersatz.';
 
         return response(implode("\n", $lines) . "\n", 200, [
@@ -419,8 +432,10 @@ class SeoController extends Controller
     public function googleShoppingFeed(): Response
     {
         $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
+        $city = shop_setting('company_city', shop_setting('owner_city', 'Gifhorn'));
         $shippingCostCents = (int) shop_setting('shipping_cost', 490);
         $freeThresholdCents = (int) shop_setting('shipping_free_threshold', 5000);
+        $defaultTareGrams = (int) shop_setting('packaging_weight_envelope_grams', 30);
 
         $products = Schema::hasTable('products')
             ? Product::where('status', 'active')->with('categories')->orderBy('name')->get()
@@ -432,7 +447,7 @@ class SeoController extends Controller
         $xml[] = '  <channel>';
         $xml[] = '    <title>' . e($companyName . ' – Produktfeed (Personalisierte Geschenke & Lasergravur)') . '</title>';
         $xml[] = '    <link>' . e(url('/')) . '</link>';
-        $xml[] = '    <description>' . e('Handveredelte Unikate mit hochpräziser Lasergravur und Live-3D-Konfigurator aus der Manufaktur ' . $companyName . ' in Gifhorn.') . '</description>';
+        $xml[] = '    <description>' . e('Handveredelte Unikate mit hochpräziser Lasergravur und Live-3D-Konfigurator aus der Manufaktur ' . $companyName . ' in ' . $city . '.') . '</description>';
 
         foreach ($products as $product) {
             $id = $product->sku ?: ('MSF-' . strtoupper(substr((string) $product->id, 0, 8)));
@@ -451,7 +466,9 @@ class SeoController extends Controller
                 }
             }
 
-            $grossCents = (int) $product->gross_price;
+            $grossCents = ($product->slug === 'geschenkgutschein' && (int) $product->gross_price <= 0)
+                ? 500
+                : (int) $product->gross_price;
             $compareCents = (int) ($product->compare_at_price ?? 0);
             $hasSale = $compareCents > $grossCents;
 
@@ -496,12 +513,12 @@ class SeoController extends Controller
                 $xml[] = '      <g:product_length>' . e((string) $product->length) . ' mm</g:product_length>';
             }
             if ($product->weight > 0) {
-                $xml[] = '      <g:shipping_weight>' . e((string) ($product->weight + (int) ($product->packaging_weight ?? 15))) . ' g</g:shipping_weight>';
+                $xml[] = '      <g:shipping_weight>' . e((string) ($product->weight + (int) ($product->packaging_weight ?? $defaultTareGrams))) . ' g</g:shipping_weight>';
             }
             $xml[] = '      <g:custom_label_0>' . ($product->isPersonalizable() ? '3D-Konfigurator Personalisierbar' : 'Standard') . '</g:custom_label_0>';
             $xml[] = '      <g:shipping>';
             $xml[] = '        <g:country>DE</g:country>';
-            $xml[] = '        <g:service>DHL Paket versichert</g:service>';
+            $xml[] = '        <g:service>DHL Paket mit Sendungsverfolgung</g:service>';
             $xml[] = '        <g:price>' . e($shipPriceFormatted) . '</g:price>';
             $xml[] = '      </g:shipping>';
             $xml[] = '    </item>';
@@ -532,7 +549,9 @@ class SeoController extends Controller
             : collect();
 
         $items = $products->map(function (Product $product) {
-            $grossCents = (int) $product->gross_price;
+            $grossCents = ($product->slug === 'geschenkgutschein' && (int) $product->gross_price <= 0)
+                ? 500
+                : (int) $product->gross_price;
             $images = [];
             $videoUrl = null;
             $dimensionSheetUrl = null;
@@ -562,6 +581,7 @@ class SeoController extends Controller
                 'landing_page_url' => route('landing-page', $product->slug),
                 'price_eur' => round($grossCents / 100, 2),
                 'compare_at_price_eur' => $product->compare_at_price ? round($product->compare_at_price / 100, 2) : null,
+                'base_price_info' => $product->base_price_info,
                 'currency' => 'EUR',
                 'in_stock' => $product->isAvailable(),
                 'is_personalizable_3d' => $product->isPersonalizable(),

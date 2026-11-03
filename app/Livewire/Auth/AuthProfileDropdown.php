@@ -32,6 +32,8 @@ class AuthProfileDropdown extends Component
     #[Locked]
     public ?string $guard = null;
 
+    public bool $allowThemeSwitch = false;
+
     public bool $isGameModeActive = false;
 
     public string $firstName = '';
@@ -71,7 +73,14 @@ class AuthProfileDropdown extends Component
 
     public function boot(): void
     {
-        $resolvedGuard = $this->guard ?: (new UserHelper)->getGuard();
+        $resolvedGuard = $this->guard;
+        if (!$resolvedGuard) {
+            if (request()->routeIs('customer.*') && Auth::guard('customer')->check()) {
+                $resolvedGuard = 'customer';
+            } else {
+                $resolvedGuard = (new UserHelper)->getGuard();
+            }
+        }
         $authUser = $resolvedGuard ? Auth::guard($resolvedGuard)->user() : null;
 
         if (!$authUser) {
@@ -86,14 +95,20 @@ class AuthProfileDropdown extends Component
         $this->user = $authUser;
     }
 
-    public function mount()
+    public function mount(?bool $allowThemeSwitch = null)
     {
-        $this->guard = (new UserHelper)->getGuard();
+        if (request()->routeIs('customer.*') && Auth::guard('customer')->check()) {
+            $this->guard = 'customer';
+        } else {
+            $this->guard = (new UserHelper)->getGuard();
+        }
         $this->user = Auth::guard($this->guard)->user();
 
         if (!$this->user) {
             abort(403);
         }
+
+        $this->allowThemeSwitch = $allowThemeSwitch ?? in_array($this->guard, ['admin', 'employee'], true);
 
         $this->mountUserProfileData();
         $this->country = $this->user->profile->country ?? 'DE';

@@ -145,13 +145,38 @@
                                                 </p>
                                             @endif
 
+                                            {{-- Anzeige der gewählten Aufpreis-Extras / Verpackung --}}
+                                            @if(!empty($item->configuration['addons_summary']) && is_array($item->configuration['addons_summary']))
+                                                <div class="flex flex-wrap justify-center sm:justify-start gap-1.5 mt-1.5">
+                                                    @foreach($item->configuration['addons_summary'] as $addonBadge)
+                                                        @php
+                                                            $cartAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addonBadge);
+                                                        @endphp
+                                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold shadow-2xs">
+                                                            @if($cartAddonImg)
+                                                                <img src="{{ $cartAddonImg }}" alt="{{ $addonBadge['name'] ?? '' }}" class="w-5 h-5 rounded object-cover border border-amber-300/60 shrink-0">
+                                                            @else
+                                                                <span>🎁</span>
+                                                            @endif
+                                                            <span>{{ $addonBadge['name'] ?? '' }}</span>
+                                                            @if(isset($addonBadge['price_cents']))
+                                                                <span class="font-mono">(+{{ number_format(((int) $addonBadge['price_cents']) / 100, 2, ',', '.') }}&nbsp;€)</span>
+                                                            @endif
+                                                        </span>
+                                                    @endforeach
+                                                </div>
+                                            @endif
+
                                             @if(!empty($item->configuration['is_gift_voucher']))
                                                 <div class="mt-1.5 space-y-1 text-xs text-gray-600">
                                                     @if(!empty($item->configuration['recipient_name']))
                                                         <p><span class="font-bold text-gray-800">Für:</span> {{ $item->configuration['recipient_name'] }}</p>
                                                     @endif
-                                                    @if(!empty($item->configuration['message']))
-                                                        <p class="italic text-gray-500 line-clamp-2">„{{ $item->configuration['message'] }}“</p>
+                                                    @php
+                                                        $voucherMsg = $item->configuration['personal_message'] ?? $item->configuration['message'] ?? null;
+                                                    @endphp
+                                                    @if(!empty($voucherMsg))
+                                                        <p class="italic text-gray-500 line-clamp-2">„{{ $voucherMsg }}“</p>
                                                     @endif
                                                 </div>
                                             @endif
@@ -160,7 +185,7 @@
                                                 @if(!empty($item->configuration['is_gift_voucher']))
                                                     @if(($item->configuration['delivery_method'] ?? 'email') === 'post')
                                                         <span class="text-amber-800 inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg font-bold">
-                                                            <span>✉️ Per Post im Umschlag (+&nbsp;3,50&nbsp;€ Versand)</span>
+                                                            <span>✉️ Per Post im Umschlag (+&nbsp;{{ number_format(((int) ($item->configuration['post_shipping_cents'] ?? shop_setting('shipping_cost_voucher', 350))) / 100, 2, ',', '.') }}&nbsp;€ Versand)</span>
                                                         </span>
                                                         <span class="text-blue-600 inline-flex items-center gap-1 bg-blue-50/80 border border-blue-100 px-2 py-1 rounded-lg">
                                                             <span>+&nbsp;Sofort-PDF</span>
@@ -349,7 +374,7 @@
                         @elseif(!$hasPhysical && $hasPostalVoucher)
                             <div class="mb-6 flex items-center gap-2.5 text-amber-800 bg-amber-50 p-3 rounded-xl border border-amber-200 shadow-sm">
                                 <span class="text-base shrink-0">✉️</span>
-                                <span class="text-xs font-bold">Gutschein per Post im Umschlag (+&nbsp;3,50&nbsp;€)</span>
+                                <span class="text-xs font-bold">Gutschein per Post im Umschlag (+&nbsp;{{ number_format(((int) shop_setting('shipping_cost_voucher', 350)) / 100, 2, ',', '.') }}&nbsp;€)</span>
                             </div>
                         @elseif(!$hasPhysical)
                             <div class="mb-6 flex items-center gap-2 text-blue-600 bg-blue-50 p-3 rounded-xl border border-blue-100 shadow-sm">
@@ -416,12 +441,14 @@
 
                         <div class="mt-5">
                             <p class="text-[10px] text-gray-400 text-center mb-2">Sichere Zahlung mit</p>
-                            <div class="flex flex-wrap justify-center gap-2 opacity-70">
-                                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('shop/frontend/payments/mastercard.svg') }}" class="h-4"></div>
-                                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('shop/frontend/payments/google-pay.svg') }}" class="h-4"></div>
-                                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('shop/frontend/payments/apple-pay.svg') }}" class="h-4"></div>
-                                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('shop/frontend/payments/paypal.svg') }}" class="h-4"></div>
-                                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('shop/frontend/payments/klarna.svg') }}" class="h-4"></div>
+                            <div class="flex flex-wrap justify-center gap-2 opacity-85">
+                                <div class="h-6 px-2 flex items-center justify-center rounded bg-gray-50 border border-gray-200" title="PayPal"><img src="{{ asset('shop/frontend/payments/paypal.svg') }}" alt="PayPal" loading="lazy" class="h-3.5 w-auto object-contain"></div>
+                                <div class="h-6 px-2 flex items-center justify-center rounded bg-gray-50 border border-gray-200" title="Klarna"><img src="{{ asset('shop/frontend/payments/klarna.svg') }}" alt="Klarna" loading="lazy" class="h-4 w-auto object-contain"></div>
+                                <div class="h-6 px-2 flex items-center justify-center rounded bg-gray-50 border border-gray-200" title="Visa"><img src="{{ asset('shop/frontend/payments/visa.svg') }}" alt="Visa" loading="lazy" class="h-3 w-auto object-contain"></div>
+                                <div class="h-6 px-2 flex items-center justify-center rounded bg-gray-50 border border-gray-200" title="Mastercard"><img src="{{ asset('shop/frontend/payments/mastercard.svg') }}" alt="Mastercard" loading="lazy" class="h-4 w-auto object-contain"></div>
+                                <div class="h-6 px-2 flex items-center justify-center rounded bg-gray-50 border border-gray-200" title="Apple Pay"><img src="{{ asset('shop/frontend/payments/apple-pay.svg') }}" alt="Apple Pay" loading="lazy" class="h-3.5 w-auto object-contain"></div>
+                                <div class="h-6 px-2 flex items-center justify-center rounded bg-gray-50 border border-gray-200" title="Google Pay"><img src="{{ asset('shop/frontend/payments/google-pay.svg') }}" alt="Google Pay" loading="lazy" class="h-3.5 w-auto object-contain"></div>
+                                <div class="h-6 px-2 flex items-center justify-center rounded bg-gray-50 border border-gray-200" title="SEPA"><img src="{{ asset('shop/frontend/payments/sepa.svg') }}" alt="SEPA" loading="lazy" class="h-4 w-auto object-contain"></div>
                             </div>
                         </div>
 

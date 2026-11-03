@@ -168,6 +168,9 @@ class MarketingVoucherPurchasePage extends Component
 
     public function validateStep(int $step): void
     {
+        if ($step === 1 && $this->amount === 'custom' && $this->customAmount !== '' && $this->customAmount !== null) {
+            $this->customAmount = str_replace(',', '.', trim((string) $this->customAmount));
+        }
         if ($step === 2) {
             $this->recipientName = trim((string) $this->recipientName);
         }
@@ -241,6 +244,7 @@ class MarketingVoucherPurchasePage extends Component
             return;
         }
 
+        $this->customAmount = str_replace(',', '.', trim((string) $value));
         $this->validateOnly('customAmount', $this->getStepRules(1), $this->getValidationMessages());
     }
 
@@ -289,21 +293,22 @@ class MarketingVoucherPurchasePage extends Component
         }
 
         // 2. Prepare Config
+        $postSurcharge = $this->deliveryMethod === 'post' ? (int) shop_setting('shipping_cost_voucher', 350) : 0;
         $config = [
-            'is_gift_voucher'    => true,
-            'amount_cents'       => $this->selectedAmountCents,
-            'recipient_name'     => trim((string) $this->recipientName),
-            'recipient_email'    => $this->deliveryMethod === 'email' ? trim((string) $this->recipientEmail) : null,
-            'personal_message'   => trim((string) $this->personalMessage) !== '' ? trim((string) $this->personalMessage) : null,
-            'delivery_method'    => $this->deliveryMethod,
-            'shipping_surcharge' => $this->deliveryMethod === 'post' ? shop_setting('shipping_cost_voucher', 350) : 0,
+            'is_gift_voucher'     => true,
+            'amount_cents'        => $this->selectedAmountCents,
+            'recipient_name'      => trim((string) $this->recipientName),
+            'recipient_email'     => $this->deliveryMethod === 'email' ? trim((string) $this->recipientEmail) : null,
+            'personal_message'    => trim((string) $this->personalMessage) !== '' ? trim((string) $this->personalMessage) : null,
+            'delivery_method'     => $this->deliveryMethod,
+            'shipping_surcharge'  => $postSurcharge,
+            'post_shipping_cents' => $postSurcharge,
         ];
 
         // 3. Add to Cart
         try {
             $voucherProduct = Product::where('slug', 'geschenkgutschein')->where('status', 'active')->firstOrFail();
             $cartService->addItem($voucherProduct, 1, $config);
-            $this->dispatch('cart-updated');
             session()->flash('success', 'Der Gutschein wurde in den Warenkorb gelegt.');
             return redirect()->route('cart');
         } catch (\Exception $e) {

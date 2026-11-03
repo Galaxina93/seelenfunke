@@ -659,7 +659,7 @@ trait AiCalendarFuncs
                 $escaped = addcslashes($part, '%_\\');
                 $contact = ManagementContact::where('first_name', 'like', "%{$escaped}%")
                     ->orWhere('last_name', 'like', "%{$escaped}%")
-                    ->orWhereRaw("CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,'')) LIKE ?", ["%{$escaped}%"])
+                    ->orWhereRaw("(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) LIKE ?", ["%{$escaped}%"])
                     ->first();
 
                 if ($contact && !empty($contact->email) && filter_var($contact->email, FILTER_VALIDATE_EMAIL)) {

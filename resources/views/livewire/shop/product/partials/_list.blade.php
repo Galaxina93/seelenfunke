@@ -97,6 +97,7 @@
                     <optgroup label="Filtern nach">
                         <option value="filter_active">Nur Aktive Produkte</option>
                         <option value="filter_draft">Nur Entwürfe</option>
+                        <option value="filter_incomplete">Unvollständig (&lt; 100 %)</option>
                         <option value="filter_low_stock">Kritischer Bestand / Leer</option>
                         <option value="filter_physical">Nur Physisch</option>
                         <option value="filter_digital">Nur Digital</option>
@@ -157,7 +158,7 @@
     @else
         {{-- Threshold laden --}}
         @php
-            $threshold = \App\Models\System\SystemSetting::where('key', 'inventory_low_stock_threshold')->value('value') ?? 5;
+            $threshold = (int) shop_setting('inventory_low_stock_threshold', 5);
         @endphp
 
         @if($currentLayout === 'list')
@@ -169,8 +170,10 @@
                     @php
                         $isPhysical = $prod->type === 'physical';
                         $maxSteps = $isPhysical ? 4 : 3;
-                        $percentComplete = min(100, ($prod->completion_step / $maxSteps) * 100);
-                        $isComplete = $prod->completion_step >= $maxSteps;
+                        $readiness = $prod->getReadinessReport();
+                        $percentComplete = $readiness['score'];
+                        $isComplete = $readiness['is_ready'];
+                        $missingChecks = $readiness['missing'];
                         $ratingAvg = round((float) ($prod->approved_reviews_avg ?? 0), 1);
                         $ratingCount = (int) ($prod->approved_reviews_count ?? 0);
                         $pendingReviewsCount = (int) ($prod->pending_reviews_count ?? 0);
@@ -330,13 +333,13 @@
                                 <span>{{ $prod->status == 'active' ? 'Im Sortiment' : 'Pausiert' }}</span>
                             </button>
 
-                            {{-- 1-Klick Herkunfts-Siegel Switch (Made in Germany / Handveredelt in DE / Aus) --}}
+                            {{-- 1-Klick Herkunfts-Siegel Switch (Handveredelt in DE / Aus) --}}
                             @if($prod->type === 'physical')
                                 @php $originMode = $prod->getOriginBadgeMode(); @endphp
                                 <button type="button"
                                         wire:click="toggleOriginBadge('{{ $prod->id }}')"
-                                        title="Per Klick umschalten: Made in Germany ↔ Handveredelt in Deutschland ↔ Aus"
-                                        class="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-xl border flex items-center gap-1.5 transition-all cursor-pointer {{ $originMode === 'made_in_germany' ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-500/40 hover:bg-amber-100' : ($originMode === 'handcrafted_in_germany' ? 'bg-stone-50 dark:bg-stone-800/70 text-stone-700 dark:text-stone-200 border-stone-300 dark:border-stone-600 hover:border-amber-400' : 'bg-white dark:bg-gray-950 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-800 hover:border-gray-400 opacity-75') }}">
+                                        title="Per Klick umschalten: Handveredelt in Deutschland ↔ Aus"
+                                        class="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-xl border flex items-center gap-1.5 transition-all cursor-pointer {{ $originMode !== 'none' ? 'bg-stone-50 dark:bg-stone-800/70 text-stone-700 dark:text-stone-200 border-stone-300 dark:border-stone-600 hover:border-amber-400' : 'bg-white dark:bg-gray-950 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-800 hover:border-gray-400 opacity-75' }}">
                                     @if($originMode !== 'none')
                                         <span class="inline-flex flex-col w-3.5 h-2.5 rounded-[2px] overflow-hidden shrink-0 border border-black/15">
                                             <span class="h-1/3 w-full bg-black"></span>
@@ -346,7 +349,7 @@
                                     @else
                                         <span class="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600"></span>
                                     @endif
-                                    <span>{{ $originMode === 'made_in_germany' ? 'Made in Germany' : ($originMode === 'handcrafted_in_germany' ? 'Handveredelt in DE' : 'Herkunft: Aus') }}</span>
+                                    <span>{{ $originMode !== 'none' ? 'Handveredelt in DE' : 'Herkunft: Aus' }}</span>
                                 </button>
                             @endif
 
@@ -359,14 +362,27 @@
                                 </a>
                             @endif
 
-                            {{-- Schritt-Status --}}
-                            <span class="text-[10px] font-black uppercase tracking-widest {{ $isComplete ? 'text-[var(--theme-color)]' : 'text-red-500 dark:text-red-400' }}">
-                                @if($isComplete)
-                                    <span class="inline-flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Fertig</span>
-                                @else
-                                    Schritt {{ $prod->completion_step }}/{{ $maxSteps }}
+                            {{-- Echter Erstell-Status & klickbare Fehl-Angaben --}}
+                            <div class="flex flex-wrap items-center gap-1.5">
+                                <span class="text-[10px] font-black uppercase tracking-widest {{ $isComplete ? 'text-[var(--theme-color)]' : 'text-amber-600 dark:text-amber-400' }}"
+                                      title="Erstell-Status: {{ $readiness['passed_count'] }}/{{ $readiness['total_count'] }} Prüfpunkte erfüllt">
+                                    @if($isComplete)
+                                        <span class="inline-flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> 100&nbsp;% Fertig</span>
+                                    @else
+                                        {{ $percentComplete }}&nbsp;% ({{ count($missingChecks) }} offen)
+                                    @endif
+                                </span>
+                                @if(!$isComplete)
+                                    @foreach(array_slice($missingChecks, 0, 3) as $miss)
+                                        <button type="button"
+                                                wire:click="openProductInStep('{{ $prod->id }}', {{ $miss['step'] }}, {{ $miss['sub_step'] ?? 1 }})"
+                                                title="{{ $miss['detail'] }} – Klicken für Schritt {{ $miss['step'] }}"
+                                                class="px-2 py-0.5 rounded-md bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30 text-[9px] font-bold hover:bg-red-600 hover:text-white transition-colors cursor-pointer">
+                                            {{ $miss['short_missing'] }}
+                                        </button>
+                                    @endforeach
                                 @endif
-                            </span>
+                            </div>
 
                             {{-- Aktionen --}}
                             <div class="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest">
@@ -395,12 +411,14 @@
                  class="grid {{ $currentLayout === 'medium' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 sm:gap-8' }} animate-fade-in-up"
                  style="animation-delay: 100ms;">
                 @foreach($products as $prod)
-                    {{-- Logik für Steps berechnen --}}
+                    {{-- Logik für echten Erstell-Status berechnen --}}
                     @php
                         $isPhysical = $prod->type === 'physical';
                         $maxSteps = $isPhysical ? 4 : 3;
-                        $percentComplete = min(100, ($prod->completion_step / $maxSteps) * 100);
-                        $isComplete = $prod->completion_step >= $maxSteps;
+                        $readiness = $prod->getReadinessReport();
+                        $percentComplete = $readiness['score'];
+                        $isComplete = $readiness['is_ready'];
+                        $missingChecks = $readiness['missing'];
                         $ratingAvg = round((float) ($prod->approved_reviews_avg ?? 0), 1);
                         $ratingCount = (int) ($prod->approved_reviews_count ?? 0);
                         $pendingReviewsCount = (int) ($prod->pending_reviews_count ?? 0);
@@ -589,13 +607,13 @@
                                 </span>
                             @endif
 
-                            {{-- 1-Klick Herkunfts-Siegel Switch (Made in Germany / Handveredelt in DE / Aus) --}}
+                            {{-- 1-Klick Herkunfts-Siegel Switch (Handveredelt in DE / Aus) --}}
                             @if($prod->type === 'physical')
                                 @php $cardOriginMode = $prod->getOriginBadgeMode(); @endphp
                                 <button type="button"
                                         wire:click="toggleOriginBadge('{{ $prod->id }}')"
-                                        title="Per Klick umschalten: Made in Germany ↔ Handveredelt in Deutschland ↔ Aus"
-                                        class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all cursor-pointer z-10 {{ $cardOriginMode === 'made_in_germany' ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-500/40 hover:bg-amber-100' : ($cardOriginMode === 'handcrafted_in_germany' ? 'bg-stone-50 dark:bg-stone-800/70 text-stone-700 dark:text-stone-200 border-stone-300 dark:border-stone-600 hover:border-amber-400' : 'bg-white dark:bg-gray-950 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-800 hover:border-gray-400 opacity-75') }}">
+                                        title="Per Klick umschalten: Handveredelt in Deutschland ↔ Aus"
+                                        class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all cursor-pointer z-10 {{ $cardOriginMode !== 'none' ? 'bg-stone-50 dark:bg-stone-800/70 text-stone-700 dark:text-stone-200 border-stone-300 dark:border-stone-600 hover:border-amber-400' : 'bg-white dark:bg-gray-950 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-800 hover:border-gray-400 opacity-75' }}">
                                     @if($cardOriginMode !== 'none')
                                         <span class="inline-flex flex-col w-3.5 h-2.5 rounded-[2px] overflow-hidden shrink-0 border border-black/15">
                                             <span class="h-1/3 w-full bg-black"></span>
@@ -605,18 +623,33 @@
                                     @else
                                         <span class="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600"></span>
                                     @endif
-                                    <span>{{ $cardOriginMode === 'made_in_germany' ? 'Made in Germany' : ($cardOriginMode === 'handcrafted_in_germany' ? 'Handveredelt in DE' : 'Herkunft: Aus') }}</span>
+                                    <span>{{ $cardOriginMode !== 'none' ? 'Handveredelt in DE' : 'Herkunft: Aus' }}</span>
                                 </button>
                             @endif
                         </div>
 
-                        {{-- Footer Steps (Dynamisch) --}}
+                        @if(!$isComplete && count($missingChecks) > 0)
+                            <div class="mb-3 flex flex-wrap gap-1.5">
+                                @foreach($missingChecks as $miss)
+                                    <button type="button"
+                                            wire:click="openProductInStep('{{ $prod->id }}', {{ $miss['step'] }}, {{ $miss['sub_step'] ?? 1 }})"
+                                            title="{{ $miss['detail'] }} – Klicken für Schritt {{ $miss['step'] }}"
+                                            class="px-2 py-1 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30 text-[9px] font-bold hover:bg-red-600 hover:text-white transition-colors cursor-pointer flex items-center gap-1">
+                                        <span>⚠️</span>
+                                        <span>{{ $miss['short_missing'] }}</span>
+                                    </button>
+                                @endforeach
+                            </div>
+                        @endif
+
+                        {{-- Footer Steps (Echter Erstell-Status) --}}
                         <div class="mt-auto {{ $currentLayout === 'medium' ? 'pt-3.5' : 'pt-5' }} border-t border-gray-200 dark:border-gray-800 flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
-                            <span class="{{ $isComplete ? 'text-[var(--theme-color)] dark:drop-shadow-[0_0_5px_currentColor]' : 'text-red-500 dark:text-red-400' }}">
+                            <span class="{{ $isComplete ? 'text-[var(--theme-color)] dark:drop-shadow-[0_0_5px_currentColor]' : 'text-amber-600 dark:text-amber-400' }}"
+                                  title="Erstell-Status: {{ $readiness['passed_count'] }}/{{ $readiness['total_count'] }} Prüfpunkte erfüllt">
                                 @if($isComplete)
-                                    <span class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Fertig</span>
+                                    <span class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> 100&nbsp;% Fertig ({{ $readiness['passed_count'] }}/{{ $readiness['total_count'] }})</span>
                                 @else
-                                    Schritt {{ $prod->completion_step }}/{{ $maxSteps }}
+                                    {{ $percentComplete }}&nbsp;% · {{ count($missingChecks) }} {{ count($missingChecks) === 1 ? 'Angabe fehlt' : 'Angaben fehlen' }}
                                 @endif
                             </span>
                             @if($showArchived)

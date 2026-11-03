@@ -4,6 +4,10 @@ namespace App\Services;
 
 use App\Models\Accounting\AccountingInvoice;
 use App\Models\Order\OrderOrder;
+use BaconQrCode\Renderer\Image\SvgImageBackEnd;
+use BaconQrCode\Renderer\ImageRenderer;
+use BaconQrCode\Renderer\RendererStyle\RendererStyle;
+use BaconQrCode\Writer;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -302,5 +306,182 @@ class InvoiceService
 
             return "$prefix-$year-$next";
         });
+    }
+
+    /**
+     * Erzeugt einen EPC-QR-Code (GiroCode, EPC069-12 v2) Payload für SEPA-Überweisungen.
+     */
+    public function generateGiroCodePayload(
+        AccountingInvoice $invoice,
+        string $ownerName,
+        string $ownerIban,
+        string $ownerBic = ''
+    ): string {
+        $cleanBic = strtoupper(preg_replace('/[^A-Z0-9]/i', '', $ownerBic));
+        $cleanOwnerName = mb_substr(trim($ownerName) ?: 'Mein Seelenfunke', 0, 70);
+        $cleanIban = strtoupper(preg_replace('/\s+/', '', $ownerIban));
+        $amountEur = number_format(max(0.01, abs((float)$invoice->total) / 100), 2, '.', '');
+        $remittance = 'Rechnung ' . $invoice->invoice_number;
+        if ($invoice->order && !empty($invoice->order->order_number)) {
+            $remittance .= ' / Best. ' . $invoice->order->order_number;
+        }
+        $remittance = mb_substr($remittance, 0, 140);
+
+        $lines = [
+            'BCD',
+            '002',
+            '1',
+            'SCT',
+            $cleanBic,
+            $cleanOwnerName,
+            $cleanIban,
+            'EUR' . $amountEur,
+            '',
+            '',
+            $remittance,
+        ];
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Erzeugt einen EPC-GiroCode als base64 SVG Data-URI (kompatibel mit DomPDF ohne isRemoteEnabled).
+     */
+    public function generateGiroCodeSvgDataUri(
+        AccountingInvoice $invoice,
+        string $ownerName,
+        string $ownerIban,
+        string $ownerBic = '',
+        int $size = 110
+    ): string {
+        $payload = $this->generateGiroCodePayload($invoice, $ownerName, $ownerIban, $ownerBic);
+        return $this->generateQrCodeSvgDataUri($payload, $size);
+    }
+
+    /**
+     * Erzeugt einen Kundenportal- / Beleg-QR-Code für bereits bezahlte Rechnungen.
+     */
+    public function generatePortalQrSvgDataUri(
+        AccountingInvoice $invoice,
+        string $ownerWeb = 'www.mein-seelenfunke.de',
+        int $size = 95
+    ): string {
+        $cleanHost = preg_replace('#^https?://#i', '', trim($ownerWeb));
+        $url = 'https://' . rtrim($cleanHost, '/') . '/invoices?ref=' . urlencode((string)$invoice->invoice_number);
+        return $this->generateQrCodeSvgDataUri($url, $size);
+    }
+
+    /**
+     * Erzeugt einen beliebigen QR-Code als base64 SVG Data-URI via BaconQrCode.
+     */
+    public function generateQrCodeSvgDataUri(string $payload, int $size = 110): string
+    {
+        try {
+            $renderer = new ImageRenderer(
+                new RendererStyle($size, 1),
+                new SvgImageBackEnd()
+            );
+            $writer = new Writer($renderer);
+            $svg = $writer->writeString($payload);
+            return 'data:image/svg+xml;base64,' . base64_encode($svg);
+        } catch (\Throwable $e) {
+            Log::warning('QR-Code Generierung fehlgeschlagen: ' . $e->getMessage());
+            return '';
+        }
+    }
+
+    /**
+     * Erzeugt einen 1D Barcode (Code-128 Subset B) als base64 SVG Data-URI (kompatibel mit DomPDF).
+     */
+    public function generateCode128BarcodeSvgDataUri(string $text, int $height = 28, float $barWidth = 1.15): string
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return '';
+        }
+
+        // Offizielle Code-128 Bitmuster (0..106)
+        $patterns = [
+            '11011001100', '11001101100', '11001100110', '10010011000', '10010001100',
+            '10001001100', '10011001000', '10011000100', '10001100100', '11001001000',
+            '11001000100', '11000100100', '10110011100', '10011011100', '10011001110',
+            '10111001100', '10011101100', '10011100110', '11001110010', '11001011100',
+            '11001001110', '11011100100', '11001110100', '11101101110', '11101001100',
+            '11100101100', '11100100110', '11101100100', '11100110100', '11100110010',
+            '11011011000', '11011000110', '11000110110', '10100011000', '10001011000',
+            '10001000110', '10110001000', '10001101000', '10001100010', '11010001000',
+            '11000101000', '11000100010', '10110111000', '10110001110', '10001101110',
+            '10111011000', '10111000110', '10001110110', '11101110110', '11010001110',
+            '11000101110', '11011101000', '11011100010', '11011101110', '11101011000',
+            '11101000110', '11100010110', '11101101000', '11101100010', '11100011010',
+            '11101111010', '11001000010', '11110001010', '10100110000', '10100001100',
+            '10010110000', '10010000110', '10000101100', '10000100110', '10110010000',
+            '10110000100', '10011010000', '10011000010', '10000110100', '10000110010',
+            '11000010010', '11001010000', '11110111010', '11000010100', '10001111010',
+            '10100111100', '10010111100', '10010011110', '10111100100', '10011110100',
+            '10011110010', '11110100100', '11110010100', '11110010010', '11011011110',
+            '11011110110', '11110110110', '10101111000', '10100011110', '10001011110',
+            '10111101000', '10111100010', '11110101000', '11110100010', '10111011110',
+            '10111101110', '11101011110', '11110101110', '11010000100', '11010010000',
+            '11010011100', '1100011101011',
+        ];
+
+        // Start Code B = 104
+        $codes = [104];
+        $checksum = 104;
+        $len = strlen($text);
+        $weight = 1;
+
+        for ($i = 0; $i < $len; $i++) {
+            $ord = ord($text[$i]);
+            if ($ord < 32 || $ord > 126) {
+                continue;
+            }
+            $val = $ord - 32;
+            $codes[] = $val;
+            $checksum += $val * $weight;
+            $weight++;
+        }
+
+        $codes[] = $checksum % 103;
+        $codes[] = 106; // Stop Code
+
+        $binary = '';
+        foreach ($codes as $code) {
+            $binary .= $patterns[$code] ?? '';
+        }
+
+        $quietZone = 10;
+        $totalModules = strlen($binary) + ($quietZone * 2);
+        $totalWidth = round($totalModules * $barWidth, 2);
+
+        $rects = '';
+        $binLen = strlen($binary);
+        $i = 0;
+        while ($i < $binLen) {
+            if ($binary[$i] === '1') {
+                $run = 1;
+                while (($i + $run) < $binLen && $binary[$i + $run] === '1') {
+                    $run++;
+                }
+                $x = round(($quietZone + $i) * $barWidth, 2);
+                $w = round($run * $barWidth, 2);
+                $rects .= sprintf('<rect x="%s" y="0" width="%s" height="%d" fill="#111827"/>', $x, $w, $height);
+                $i += $run;
+            } else {
+                $i++;
+            }
+        }
+
+        $svg = sprintf(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="%s" height="%d" viewBox="0 0 %s %d">%s</svg>',
+            $totalWidth,
+            $height,
+            $totalWidth,
+            $height,
+            $rects
+        );
+
+        return 'data:image/svg+xml;base64,' . base64_encode($svg);
     }
 }

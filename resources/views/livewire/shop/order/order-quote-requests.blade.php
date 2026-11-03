@@ -259,21 +259,12 @@
 
                         @if($detailQuote->is_express)
                             <div
-                                class="bg-red-50 dark:bg-red-500/10 rounded-[2rem] border border-red-200 dark:border-red-500/30 p-6 shadow-none dark:shadow-[inset_0_0_20px_rgba(239,68,68,0.1)] relative overflow-hidden">
-                                <div class="absolute -right-4 -top-4 text-red-500/20 rotate-12">
-                                    <svg class="w-24 h-24" fill="currentColor" viewBox="0 0 24 24">
-                                        <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                                    </svg>
-                                </div>
-                                <span
-                                    class="flex items-center gap-2 text-[10px] text-red-400 uppercase font-black tracking-widest mb-2 relative z-10">
-                                    <span
-                                        class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_currentColor]"></span> Express Service
-                                </span>
+                                class="bg-white dark:bg-gray-900 rounded-[2rem] border border-primary/40 p-6 shadow-2xs relative overflow-hidden">
+                                <x-shop.express-info class="text-xs text-gray-900 dark:text-white uppercase font-black tracking-widest mb-1 relative z-10" />
                                 @if($detailQuote->deadline)
-                                    <p class="text-sm text-gray-900 dark:text-white font-bold tracking-wide relative z-10">
+                                    <p class="text-sm text-gray-900 dark:text-white font-bold tracking-wide relative z-10 mt-1">
                                         Frist: <span
-                                            class="text-red-400">{{ $detailQuote->deadline->format('d.m.Y') }}</span>
+                                            class="text-primary">{{ $detailQuote->deadline->format('d.m.Y') }}</span>
                                     </p>
                                 @endif
                             </div>
@@ -399,11 +390,7 @@
                                 </div>
                                 @if($quote->is_express)
                                     <div class="mt-1">
-                                        <span
-                                            class="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-red-400">
-                                            <span
-                                                class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_currentColor]"></span> Express
-                                        </span>
+                                        <x-shop.express-info iconClass="w-3.5 h-3.5" class="text-[9px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-200" />
                                     </div>
                                 @endif
                             </td>
@@ -475,11 +462,7 @@
                             <span
                                 class="text-[10px] font-medium text-gray-500 mt-0.5">{{ $quote->created_at->format('d.m.Y H:i') }}</span>
                             @if($quote->is_express)
-                                <span
-                                    class="text-[9px] font-black text-red-400 uppercase tracking-widest flex items-center gap-1.5 mt-1">
-                                    <span
-                                        class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_currentColor]"></span> EXPRESS
-                                </span>
+                                <x-shop.express-info iconClass="w-3.5 h-3.5" class="text-[9px] font-black text-gray-700 dark:text-gray-200 uppercase tracking-widest mt-1" />
                             @endif
                         </div>
                         <div>

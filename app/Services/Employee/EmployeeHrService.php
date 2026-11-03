@@ -207,7 +207,7 @@ class EmployeeHrService
                 : '4 Wochen zum 15. oder zum Ende eines Kalendermonats (§ 622 BGB)',
             'work_location' => !empty($options['work_location'])
                 ? trim((string) $options['work_location'])
-                : 'Manufaktur Gifhorn / Mobiles Arbeiten nach Absprache',
+                : ('Manufaktur ' . shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) . ' / Mobiles Arbeiten nach Absprache'),
             'working_hours_schedule' => !empty($options['working_hours_schedule'])
                 ? trim((string) $options['working_hours_schedule'])
                 : 'Mo–Fr flexibel nach Schichtplan (Kernzeit 09:00–16:00 Uhr)',

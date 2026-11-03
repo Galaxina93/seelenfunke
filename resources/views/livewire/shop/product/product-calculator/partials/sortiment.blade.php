@@ -37,7 +37,11 @@
                                 <div class="flex flex-wrap items-baseline gap-x-1">
                                     <span class="text-sm font-bold text-primary">ab {{ number_format($product['display_price'], 2, ',', '.') }} €</span>
                                     <span class="text-[10px] uppercase tracking-wide text-gray-400">
-                                        {{ $product['tax_included'] ? 'inkl.' : 'zzgl.' }} MwSt.
+                                        @if(filter_var(shop_setting('is_small_business', false), FILTER_VALIDATE_BOOLEAN))
+                                            Gem. § 19 UStG ohne MwSt.
+                                        @else
+                                            {{ $product['tax_included'] ? 'inkl.' : 'zzgl.' }} MwSt.
+                                        @endif
                                         <a href="{{ route('versand') }}" target="_blank" class="hover:text-gray-600 underline">zzgl. Versand</a>
                                     </span>
                                 </div>

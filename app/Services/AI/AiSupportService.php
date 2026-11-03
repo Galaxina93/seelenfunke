@@ -331,7 +331,7 @@ class AiSupportService
                 $query->whereNull('relevant_from')
                       ->orWhere('relevant_from', '<=', now());
             })
-            ->orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'urgent', 'hoch', 'high', 'mittel', 'medium', 'niedrig')")
+            ->orderByRaw("CASE COALESCE(priority, 'niedrig') WHEN 'urgent' THEN 1 WHEN 'hoch' THEN 2 WHEN 'high' THEN 2 WHEN 'mittel' THEN 3 WHEN 'medium' THEN 3 WHEN 'normal' THEN 3 WHEN 'niedrig' THEN 4 WHEN 'low' THEN 4 ELSE 5 END")
             ->orderBy('created_at', 'desc')
             ->first();
 
@@ -542,29 +542,29 @@ class AiSupportService
         $targetYear = 2036;
 
         $phaseNum = 1;
-        $phaseName = "Phase 1: Das Fundament (Dachboden & Hands-on Chefin)";
-        $phaseDesc = "Standort Dachboden mit 1 xTool F2 Ultra Laser. Chefin Alina packt operativ voll an (Fertigung, Gravuren, Etsy, Unboxing, 5-Sterne-Bewertungen). Ziel: 41.100 € Jahresumsatz, 100% Gründungszuschuss-Ausschöpfung.";
-        $phaseNextStep = "Garagenhof für 20k modernisieren (Tore & Türen einbauen) als Sprungbrett für den Manufaktur-Umzug.";
+        $phaseName = "Phase 1: Markteintritt & 1-Laser-Skalierung (Dachboden & Hands-on Chefin)";
+        $phaseDesc = "Standort Dachboden mit 1× xTool F2 Ultra UV Laser (+ Conveyor & RA3). Vollautomatisches Shop- & ERP-System (~5–6 Min. Handarbeit pro Bestellung = 10–12 Best./Std.). Potenzial mit 1 Laser allein: 15.000–48.000 € / Monat (techn. Maximum inkl. B2B: bis 75.000 € / Monat). Realistisches Ziel Jahr 1: 150.000 € bis 300.000 € Jahresumsatz (~10–20 Best./Tag), 100% Gründungszuschuss-Ausschöpfung.";
+        $phaseNextStep = "In Jahr 2–3 die 1-Million-Euro-Jahresumsatzmarke (750k – 1,2 Mio. € / Jahr, ~45–70 Best./Tag) mit 2. UV-Laser und 1–2 Packhilfen im eigenen Garagenhof knacken.";
 
-        if ($now->year >= 2028 && $now->year <= 2030) {
+        if ($now->year >= 2028 && $now->year <= 2029) {
             $phaseNum = 2;
-            $phaseName = "Phase 2: Der Garagenhof-Boost (Skalierung ohne Fremdmiete)";
-            $phaseDesc = "Standort eigener Garagenhof. 3-6 Industriemaschinen, 2-5 Festangestellte für Packstraße & Versand, B2B-Start für Firmenkunden. Umsatz: 200k - 1,5 Mio. €. Maximale Gewinnthesaurierung als Eigenkapital für den Bau.";
-            $phaseNextStep = "Volle Web-to-Laser Softwareautomatisierung und Vorbereitung Grundstückskauf.";
-        } elseif ($now->year >= 2031 && $now->year <= 2033) {
+            $phaseName = "Phase 2: Die 1-Million-Marke knacken (Garagenhof-Boost)";
+            $phaseDesc = "Standort eigener Garagenhof (ohne Fremdmiete). 2× xTool F2 Ultra UV als Parallel-Linie + 1–2 Packhilfen am Packtisch. 45–70 Bestellungen/Tag + regelmäßige B2B-Aufträge. Jahresumsatz: 750.000 € – 1,2 Mio. € (~62,5k – 100k € / Monat).";
+            $phaseNextStep = "Ausbau auf 4 Laser-Stationen, feste B2B-Rahmenverträge (Makler, Autohäuser, Hotels, Events) und DACH-Skalierung (AT & CH).";
+        } elseif ($now->year >= 2030 && $now->year <= 2032) {
             $phaseNum = 3;
-            $phaseName = "Phase 3: Tech-Automatisierung & B2B-Konzern";
-            $phaseDesc = "Web-to-Laser Pipeline (KI-Vektorisierung, Direktansteuerung), Corporate Gifts Großkunden, White-Label. Umsatz: 3 - 8 Mio. €, 15-20 Mitarbeiter. Garagenhof platzt aus allen Nähten.";
-            $phaseNextStep = "Bauantrag und Baubeginn für das 15-Mio.-Firmengebäude.";
-        } elseif ($now->year >= 2034) {
+            $phaseName = "Phase 3: DACH-Skalierung & B2B-Rahmenverträge";
+            $phaseDesc = "Eigene Manufaktur-Fläche in Gifhorn, 4–6 Laser-Stationen, Corporate Gifts Großkunden & DACH-Expansion. 150–250 Bestellungen/Tag. Jahresumsatz: 2,5 – 4,5 Mio. € (~210k – 375k € / Monat).";
+            $phaseNextStep = "Eigener Firmensitz und Ausbau zur führenden DACH-Geschenkemarke mit Creator-/Affiliate-Netzwerk.";
+        } elseif ($now->year >= 2033) {
             $phaseNum = 4;
-            $phaseName = "Phase 4: Der 15-Mio.-Firmensitz & 'Mit 43 durch sein'";
-            $phaseDesc = "Neues 15-Mio.-Firmengebäude bezogen (Showroom, Logistik, Büro). Garagenhof agiert als Vertriebsstätte/Außenlager. 12-20 Mio. € Jahresumsatz. Operative Geschäftsführung entlastet Alina. Ziel erreicht: Mit 43 finanziell frei / durch sein!";
+            $phaseName = "Phase 4: Marktführer-Status, Eigener Firmensitz & 'Mit 43 durch sein'";
+            $phaseDesc = "Eigener Firmensitz bezogen (Showroom, Logistik, Büro). 300–600+ Bestellungen/Tag. 5,0 – 12,0+ Mio. € Jahresumsatz (bis 1 Mio. € / Monat). Operative Geschäftsführung entlastet Alina. Ziel erreicht: Mit 43 finanziell frei / durch sein!";
             $phaseNextStep = "Ziel erreicht: Durch sein!";
         }
 
         return [
-            'founder_name' => 'Alina Steinhauer',
+            'founder_name' => shop_setting('owner_proprietor', 'Alina Steinhauer'),
             'current_age' => $currentAge,
             'target_age' => $targetAge,
             'target_year' => $targetYear,

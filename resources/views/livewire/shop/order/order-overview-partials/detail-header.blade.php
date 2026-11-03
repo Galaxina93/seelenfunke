@@ -16,9 +16,7 @@
                     #{{ $this->selectedOrder->order_number }}
                 </h1>
                 @if($this->selectedOrder->is_express)
-                    <span class="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30 text-[9px] font-black px-2.5 py-1 rounded-md uppercase tracking-widest flex items-center gap-1.5 shadow-sm dark:shadow-[0_0_15px_rgba(239,68,68,0.15)]">
-                        <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_currentColor]"></span> Express
-                    </span>
+                    <x-shop.express-info iconClass="w-3.5 h-3.5" class="text-gray-800 dark:text-gray-100 border border-primary/40 text-[9px] font-black px-2.5 py-1 rounded-md uppercase tracking-widest shadow-2xs" />
                 @endif
             </div>
             <p class="text-[10px] font-medium text-gray-500 mt-1 uppercase tracking-widest">

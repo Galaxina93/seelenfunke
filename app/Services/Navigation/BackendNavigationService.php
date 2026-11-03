@@ -66,14 +66,11 @@ class BackendNavigationService
                         'ai_department_id' => '019d1111-1111-1111-1111-111111111111',
                         'children' => [
                             ['id' => 'product-analytics', 'title' => 'Analyse', 'route' => '/admin/product-analytics', 'icon' => 'chart-pie'],
-                            ['id' => 'product-fracture', 'title' => 'Schaden', 'route' => '/admin/product-fracture', 'icon' => 'exclamation-triangle'],
                             ['id' => 'products', 'title' => 'Produkte', 'route' => '/admin/products', 'icon' => 'cube'],
-                            ['id' => 'product-templates', 'title' => 'Vorlagen', 'route' => '/admin/product-templates', 'icon' => 'clipboard-document-list'],
                             ['id' => 'product-configurator', 'title' => 'Konfigurator', 'route' => '/admin/product-configurator', 'icon' => 'adjustments-horizontal'],
-                            ['id' => 'product-suppliers', 'title' => 'Lieferanten', 'route' => '/admin/product-suppliers', 'icon' => 'truck'],
                             ['id' => 'reviews', 'title' => 'Bewertungen', 'route' => '/admin/reviews', 'icon' => 'star'],
+                            ['id' => 'product-fracture', 'title' => 'Schaden', 'route' => '/admin/product-fracture', 'icon' => 'exclamation-triangle'],
                             ['id' => 'product-crawler', 'title' => 'Crawler', 'route' => '/admin/product-crawler', 'icon' => 'magnifying-glass'],
-                            ['id' => 'product-packaging', 'title' => 'Verpackung', 'route' => '/admin/product-packaging', 'icon' => 'archive-box'],
                         ]
                     ],
                     [
@@ -253,6 +250,14 @@ class BackendNavigationService
             Str::startsWith($normalizedPath, '/admin/organigramm') ||
             Str::startsWith($normalizedPath, '/admin/ki-agenten') ||
             Str::startsWith($normalizedPath, '/admin/externe-agenten')
+        )) {
+            return true;
+        }
+
+        if ($group['id'] === 'products' && (
+            Str::startsWith($normalizedPath, '/admin/product-packaging') ||
+            Str::startsWith($normalizedPath, '/admin/product-suppliers') ||
+            Str::startsWith($normalizedPath, '/admin/product-templates')
         )) {
             return true;
         }

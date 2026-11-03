@@ -29,8 +29,10 @@ class RevocationRejectedMail extends Mailable
      */
     public function envelope(): Envelope
     {
+        $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
+
         return new Envelope(
-            subject: 'Information zu Ihrem Widerruf — Mein Seelenfunke',
+            subject: 'Information zu Ihrem Widerruf — ' . $companyName,
         );
     }
 

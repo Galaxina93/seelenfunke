@@ -11,17 +11,23 @@
         audioExpanded: false,
         localFadeRaf: null,
         init() {
+            const sessionEnabled = sessionStorage.getItem('sf_funki_bgm_session_enabled') === '1';
             const savedVol = localStorage.getItem('sf_funki_audio_volume') ?? localStorage.getItem('sf_funki_bgm_vol');
             const savedMute = localStorage.getItem('sf_funki_audio_muted') ?? localStorage.getItem('sf_funki_bgm_muted');
             const savedKeep = localStorage.getItem('sf_funki_audio_keep_playing');
             if (savedVol !== null && !isNaN(Number(savedVol))) {
                 this.audioVolume = Math.max(0, Math.min(100, Number(savedVol)));
             }
-            if (savedMute !== null) {
-                this.audioMuted = savedMute === '1' || savedMute === 'true';
-            }
-            if (savedKeep !== null) {
-                this.audioKeepPlaying = savedKeep === '1' || savedKeep === 'true';
+            if (sessionEnabled) {
+                if (savedMute !== null) {
+                    this.audioMuted = savedMute === '1' || savedMute === 'true';
+                }
+                if (savedKeep !== null) {
+                    this.audioKeepPlaying = savedKeep === '1' || savedKeep === 'true';
+                }
+            } else {
+                this.audioMuted = true;
+                this.audioKeepPlaying = false;
             }
             window._sfFunkiVolume = this.audioVolume;
             window._sfFunkiMuted = this.audioMuted;
@@ -58,11 +64,19 @@
             });
         },
         openFunkiModal(tab = 'vouchers') {
+            if (!@js((bool) $isGameModeActive)) {
+                this.openActivateMagicModal();
+                return;
+            }
             this.showActivateMagicModal = false;
-            this.activeFunkiTab = tab || 'vouchers';
-            this.showFunkiModal = true;
             if (window.sfCockpitSound) window.sfCockpitSound('click');
-            this.playFunkiBgm();
+            const baseUrl = '{{ route('customer.funki') }}';
+            const targetUrl = (tab && tab !== 'vouchers') ? (baseUrl + '?tab=' + encodeURIComponent(tab)) : baseUrl;
+            if (window.Livewire && typeof window.Livewire.navigate === 'function') {
+                window.Livewire.navigate(targetUrl);
+            } else {
+                window.location.href = targetUrl;
+            }
         },
         closeFunkiModal() {
             this.showFunkiModal = false;
@@ -125,8 +139,16 @@
             if (!this.audioMuted && Number(this.audioVolume) === 0) {
                 this.audioVolume = 35;
             }
+            try {
+                if (!this.audioMuted) {
+                    sessionStorage.setItem('sf_funki_bgm_session_enabled', '1');
+                } else {
+                    sessionStorage.removeItem('sf_funki_bgm_session_enabled');
+                }
+            } catch (e) {}
             if (window.SfFunkiBgm) {
                 window.SfFunkiBgm.setMuted(this.audioMuted, false);
+                this.audioKeepPlaying = window.SfFunkiBgm.keepPlaying;
             }
             this.applyAudioState(true);
             if (!this.audioMuted && window.sfCockpitSound) {
@@ -140,8 +162,16 @@
             } else if (this.audioMuted) {
                 this.audioMuted = false;
             }
+            try {
+                if (!this.audioMuted && this.audioVolume > 0) {
+                    sessionStorage.setItem('sf_funki_bgm_session_enabled', '1');
+                } else {
+                    sessionStorage.removeItem('sf_funki_bgm_session_enabled');
+                }
+            } catch (e) {}
             if (window.SfFunkiBgm) {
                 window.SfFunkiBgm.setVolume(this.audioVolume, false);
+                this.audioKeepPlaying = window.SfFunkiBgm.keepPlaying;
             }
             this.applyAudioState(saveToServer);
         },
@@ -163,7 +193,11 @@
                 localStorage.setItem('sf_funki_audio_keep_playing', this.audioKeepPlaying ? '1' : '0');
             } catch (e) {}
             if (saveToServer) {
-                this.$wire.saveFunkiAudioSettings(Number(this.audioVolume), Boolean(this.audioMuted), Boolean(this.audioKeepPlaying));
+                if (window.SfFunkiBgm && typeof window.SfFunkiBgm.persistToServer === 'function') {
+                    window.SfFunkiBgm.persistToServer();
+                } else {
+                    this.$wire.saveFunkiAudioSettings(Number(this.audioVolume), Boolean(this.audioMuted), Boolean(this.audioKeepPlaying));
+                }
             }
         },
         openFunkiZoom(stageData) {
@@ -173,7 +207,7 @@
         }
      }"
      @open-funki-modal.window="openFunkiModal(($event.detail && $event.detail.tab) ? $event.detail.tab : 'vouchers')"
-     @magic-activated-complete.window="showActivateMagicModal = false; openFunkiModal('vouchers')"
+     @magic-activated-complete.window="showActivateMagicModal = false; window.location.href = '{{ route('customer.funki') }}'"
      class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6 lg:py-7 animate-fade-in-up">
 
     {{-- Alerts & Profile Completion Banner --}}
@@ -221,7 +255,7 @@
                                ? asset($pp) : (\Illuminate\Support\Str::startsWith($pp, 'shop/') ? asset($pp) : Storage::url($pp));
                     @endphp
                     <button type="button"
-                            @click="{{ (!$isGameModeActive && $hasCompletedOrder) ? 'openActivateMagicModal()' : "openFunkiModal('vouchers')" }}"
+                            @click="{{ !$isGameModeActive ? 'openActivateMagicModal()' : "openFunkiModal('vouchers')" }}"
                             title="Klicken, um Funki (Level {{ $funkiLevel }}) & deine Seelenfunken-Gutscheine zu öffnen"
                             class="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gray-100 dark:bg-gray-950 border-2 border-[#C5A059] overflow-hidden flex items-center justify-center shrink-0 shadow-md group cursor-pointer hover:scale-105 transition-transform">
                         <img src="{{ $src }}" class="w-full h-full object-cover">
@@ -232,7 +266,7 @@
                 @else
                     {{-- GOLDENER FUNKI PROFIL-KREIS (EXAKTES DESIGN AUS SCREENSHOT 1) --}}
                     <button type="button"
-                            @click="{{ (!$isGameModeActive && $hasCompletedOrder) ? 'openActivateMagicModal()' : "openFunkiModal('vouchers')" }}"
+                            @click="{{ !$isGameModeActive ? 'openActivateMagicModal()' : "openFunkiModal('vouchers')" }}"
                             title="Klicken, um Funki (Level 1–10) & deine Seelenfunken-Gutscheine anzusehen"
                             class="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center shrink-0 group cursor-pointer focus:outline-none">
                         {{-- Äußere dezente Radar-/Runenringe --}}
@@ -275,7 +309,7 @@
                             <img src="{{ $lvlImage }}" alt="Funki Level {{ $displayFunkiLevel }}" class="relative z-10 w-full h-full object-contain p-2.5 drop-shadow-[0_8px_16px_rgba(0,0,0,0.55)]">
                             <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center z-20">
                                 <span class="px-2.5 py-1 rounded-lg bg-[#C5A059] text-gray-950 font-black text-[9px] uppercase tracking-widest shadow-lg">
-                                    Funki öffnen
+                                    {{ !$isGameModeActive ? '✨ Magie aktivieren' : 'Funki öffnen' }}
                                 </span>
                             </div>
                         </div>
@@ -291,7 +325,7 @@
                     <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                         <span class="text-primary text-[10px] sm:text-xs font-black uppercase tracking-[0.2em]">Mitgliederbereich</span>
                         <button type="button"
-                                @click="{{ (!$isGameModeActive && $hasCompletedOrder) ? 'openActivateMagicModal()' : "openFunkiModal('vouchers')" }}"
+                                @click="{{ !$isGameModeActive ? 'openActivateMagicModal()' : "openFunkiModal('vouchers')" }}"
                                 class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-[#C5A059]/50 text-amber-800 dark:text-[#f5dca0] text-[10px] font-black uppercase tracking-wider hover:bg-[#C5A059] hover:text-gray-950 transition-colors cursor-pointer">
                             <span>✨ Funki Lvl. {{ $funkiLevel }}</span>
                             <span>•</span>
@@ -322,7 +356,7 @@
             {{-- Quick Stats Row --}}
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3 shrink-0">
                 <button type="button"
-                        @click="{{ (!$isGameModeActive && $hasCompletedOrder) ? 'openActivateMagicModal()' : "openFunkiModal('vouchers')" }}"
+                        @click="{{ !$isGameModeActive ? 'openActivateMagicModal()' : "openFunkiModal('vouchers')" }}"
                         class="text-left bg-amber-500/10 dark:bg-amber-500/15 hover:bg-amber-500/20 backdrop-blur-md border border-[#C5A059]/40 rounded-xl px-3.5 py-2 min-w-[125px] shadow-sm transition-colors cursor-pointer">
                     <span class="text-amber-800 dark:text-amber-300 text-[9px] font-black uppercase tracking-widest block mb-0.5">Seelenfunken</span>
                     <span class="text-amber-900 dark:text-[#f5dca0] font-mono text-xs font-black flex items-center gap-1">
@@ -333,10 +367,10 @@
 
                 <div x-data="{ copied: false, code: '{{ strtoupper(explode('-', auth()->guard('customer')->id())[0]) }}' }"
                      class="bg-gray-50/80 dark:bg-gray-950/60 backdrop-blur-md border border-gray-200 dark:border-gray-800/80 rounded-xl px-3.5 py-2 min-w-[125px] shadow-sm dark:shadow-inner cursor-pointer hover:border-gray-300 dark:hover:border-gray-700 transition-colors"
-                     @click="navigator.clipboard.writeText(code); copied = true; setTimeout(() => copied = false, 2000)">
+                     @click="window.sfCopyText(code); copied = true; setTimeout(() => copied = false, 2200); $dispatch('notify', { message: 'Kundennummer ' + code + ' in die Zwischenablage kopiert!', type: 'success' })">
                     <span class="text-gray-500 text-[9px] font-black uppercase tracking-widest block mb-0.5">Kundennummer</span>
                     <div class="flex items-center justify-between gap-2">
-                        <span class="text-primary font-mono text-xs font-bold tracking-wider" x-text="code"></span>
+                        <span class="text-primary font-mono text-xs font-bold tracking-wider" x-text="copied ? 'Kopiert! ✓' : code" :class="copied ? 'text-emerald-600 dark:text-emerald-400' : 'text-primary'"></span>
                         <x-heroicon-s-clipboard-document x-show="!copied" class="w-3.5 h-3.5 text-gray-500 hover:text-primary transition-colors" />
                         <x-heroicon-s-check x-show="copied" style="display: none;" class="w-3.5 h-3.5 text-emerald-500" />
                     </div>
@@ -423,7 +457,7 @@
                                     <span class="font-mono font-bold text-gray-900 dark:text-white tracking-wider truncate">{{ $gv->code }}</span>
                                     <span class="text-amber-600 dark:text-amber-400 font-bold shrink-0">({{ number_format($gv->current_balance / 100, 2, ',', '.') }} €)</span>
                                 </div>
-                                <button @click="navigator.clipboard.writeText('{{ $gv->code }}'); copied = true; setTimeout(() => copied = false, 2500)"
+                                <button @click="window.sfCopyText('{{ $gv->code }}'); copied = true; setTimeout(() => copied = false, 2500); $dispatch('notify', { message: 'Guthaben-Code {{ $gv->code }} in die Zwischenablage kopiert!', type: 'success' })"
                                         type="button" class="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white font-bold text-[11px] cursor-pointer shrink-0 ml-1">
                                     <span x-show="!copied">Code kopieren</span>
                                     <span x-show="copied" style="display: none;" class="text-emerald-500 font-bold">Kopiert! ✓</span>
@@ -447,7 +481,7 @@
                             <h3 class="text-base sm:text-lg font-serif font-bold text-gray-900 dark:text-white">Letzte Bestellungen</h3>
                             <p class="text-gray-500 dark:text-gray-400 text-xs mt-0.5">Deine jüngsten Einkäufe auf einen Blick.</p>
                         </div>
-                        <a href="{{ route('customer.orders') }}" class="text-xs font-black uppercase tracking-widest text-primary hover:opacity-80 transition-colors flex items-center gap-1.5">
+                        <a href="{{ route('customer.orders') }}" wire:navigate class="text-xs font-black uppercase tracking-widest text-primary hover:opacity-80 transition-colors flex items-center gap-1.5">
                             Alle ansehen <x-heroicon-m-chevron-right class="w-4 h-4" />
                         </a>
                     </div>
@@ -488,10 +522,10 @@
                                                         default => 'bg-gray-500/10 border-gray-500/20 text-gray-600 dark:text-gray-400',
                                                     };
                                                     $statusLabel = match($order->status) {
-                                                        'pending' => 'Ausstehend',
-                                                        'processing' => 'In Bearbeitung',
-                                                        'shipped' => 'Versandt',
-                                                        'completed' => 'Abgeschlossen',
+                                                        'pending' => 'Im Atelier',
+                                                        'processing' => 'In der Manufaktur',
+                                                        'shipped' => 'Unterwegs zu dir',
+                                                        'completed' => 'Angekommen',
                                                         'cancelled' => 'Storniert',
                                                         'refunded' => 'Erstattet',
                                                         default => ucfirst($order->status),
@@ -502,7 +536,7 @@
                                                 </span>
                                             </td>
                                             <td class="py-3 pl-3 pr-4 sm:pr-5 text-right rounded-r-xl">
-                                                <a href="{{ route('customer.orders', ['order' => $order->id]) }}" title="Bestellung ansehen" class="inline-flex items-center justify-center p-1.5 bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-500 dark:text-gray-400 hover:text-primary hover:border-primary/30 transition-colors">
+                                                <a href="{{ route('customer.orders', ['order' => $order->id]) }}" wire:navigate title="Bestellung ansehen" class="inline-flex items-center justify-center p-1.5 bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-500 dark:text-gray-400 hover:text-primary hover:border-primary/30 transition-colors">
                                                     <x-heroicon-m-eye class="w-4 h-4" />
                                                 </a>
                                             </td>
@@ -575,7 +609,7 @@
         @if($hasCompletedOrder)
             @php
                 $dashRefLink = route('shop', ['ref' => $referralCode, 'coupon' => $referralCode]);
-                $dashWaMsg = "Hey! 🥰 Schau unbedingt mal bei Seelenfunke vorbei – die fertigen so wunderschöne, personalisierte Unikate und Geschenkideen an! ✨ Mit meinem persönlichen Code " . $referralCode . " sparst du jetzt 10% auf dein eigenes Unikat: " . $dashRefLink;
+                $dashWaMsg = "Hey! 🥰 Schau unbedingt mal bei Seelenfunke vorbei: Die fertigen so wunderschöne, personalisierte Unikate und Geschenkideen an! ✨ Mit meinem persönlichen Code " . $referralCode . " sparst du jetzt 10% auf dein eigenes Unikat: " . $dashRefLink;
                 $dashWaUrl = 'https://api.whatsapp.com/send?text=' . urlencode($dashWaMsg);
             @endphp
             <div x-data="{
@@ -584,14 +618,16 @@
                     shareUrl: '{{ $dashRefLink }}',
                     couponCode: '{{ $referralCode }}',
                     copyLink() {
-                        navigator.clipboard.writeText(this.shareUrl);
+                        window.sfCopyText(this.shareUrl);
                         this.linkCopied = true;
                         setTimeout(() => this.linkCopied = false, 2500);
+                        this.$dispatch('notify', { message: 'Empfehlungs-Link in die Zwischenablage kopiert!', type: 'success' });
                     },
                     copyCode() {
-                        navigator.clipboard.writeText(this.couponCode);
+                        window.sfCopyText(this.couponCode);
                         this.codeCopied = true;
                         setTimeout(() => this.codeCopied = false, 2500);
+                        this.$dispatch('notify', { message: 'Empfehlungs-Code ' + this.couponCode + ' in die Zwischenablage kopiert!', type: 'success' });
                     }
                  }"
                  class="bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-primary/10 border-2 border-primary/30 rounded-3xl p-5 sm:p-6 shadow-sm dark:shadow-xl relative overflow-hidden flex flex-col justify-between h-full">
@@ -649,6 +685,9 @@
                         <span x-show="linkCopied" style="display: none;" class="text-emerald-500 font-bold">Kopiert! ✓</span>
                     </button>
                 </div>
+                <p class="mt-2 text-[10px] text-gray-500 dark:text-gray-400 leading-snug">
+                    * 10&nbsp;% Rabatt für Neukunden ab der 1.&nbsp;Bestellung (keine Eigenwerbung). 5,00&nbsp;€ Gutschrift nach Zahlungseingang, keine Barauszahlung.
+                </p>
             </div>
         @else
             {{-- Teaser für Neuregistrierte Kunden vor dem ersten Einkauf --}}
@@ -690,7 +729,7 @@
                 </p>
                 <div class="space-y-1.5 text-[11px] text-gray-600 dark:text-gray-300 mb-4">
                     <div class="flex items-center justify-between bg-gray-50 dark:bg-gray-950/50 px-2.5 py-1.5 rounded-lg border border-gray-200/70 dark:border-gray-800">
-                        <span class="font-bold">250 ✨ / 500 ✨ / 750 ✨</span>
+                        <span class="font-bold">60 ✨ / 150 ✨ / 350 ✨</span>
                         <span class="text-amber-700 dark:text-[#f5dca0] font-black">5 % / 10 % / 15 % Gutschein</span>
                     </div>
                     <div class="flex items-center justify-between bg-gray-50 dark:bg-gray-950/50 px-2.5 py-1.5 rounded-lg border border-gray-200/70 dark:border-gray-800">
@@ -741,7 +780,7 @@
                     </div>
                 </div>
             </div>
-            <a href="{{ route('customer.support') }}" class="block text-center py-2.5 bg-amber-500 hover:bg-amber-400 text-gray-950 font-black uppercase tracking-widest text-xs rounded-xl hover:scale-105 transition-all shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+            <a href="{{ route('customer.support') }}" wire:navigate class="block text-center py-2.5 bg-amber-500 hover:bg-amber-400 text-gray-950 font-black uppercase tracking-widest text-xs rounded-xl hover:scale-105 transition-all shadow-[0_0_15px_rgba(245,158,11,0.2)]">
                 Ticket erstellen
             </a>
         </div>
@@ -827,15 +866,11 @@
                 </template>
 
                 <div class="relative z-10 flex-1 text-center lg:text-left">
-                    <span class="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-500/10 text-amber-700 dark:text-primary font-black uppercase tracking-widest rounded-xl mb-4 border border-amber-500/30 text-[10px] sm:text-xs">
-                        <span class="text-amber-500">✦</span>
-                        <span>Mein Seelenfunke • Treue- & Sammelprogramm</span>
-                    </span>
                     <h2 class="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold text-gray-900 dark:text-white mb-4 leading-tight">
                         Sammle Funken & sichere dir <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 dark:from-primary dark:via-amber-200 dark:to-amber-400">bis zu 15 % Rabatt.</span>
                     </h2>
                     <p class="text-gray-600 dark:text-gray-400 text-xs sm:text-sm mb-6 leading-relaxed">
-                        Begleite deinen persönlichen Gefährten <strong>Funki von Level 1 bis Level 10</strong>! Mit jedem gekauften Artikel und durch seltene, versteckte Seelenfunken auf unseren Seiten sammelst du Punkte für einmalige Rabatt-Gutscheine (<strong>250 ✨ = 5 %</strong>, <strong>500 ✨ = 10 %</strong>, <strong>750 ✨ = 15 %</strong>) und schaltest mit jeder Stufe kostenlos noch epischere Profilbild-Hintergründe frei.
+                        Begleite deinen persönlichen Gefährten <strong>Funki von Level 1 bis Level 10</strong>! Mit jedem gekauften Artikel und durch seltene, versteckte Seelenfunken auf unseren Seiten sammelst du Punkte für einmalige Rabatt-Gutscheine (<strong>60 ✨ = 5 %</strong>, <strong>150 ✨ = 10 %</strong>, <strong>350 ✨ = 15 %</strong>) und schaltest mit jeder Stufe kostenlos noch epischere Profilbild-Hintergründe frei.
                     </p>
 
                     <div class="mb-6 flex flex-col gap-2 text-left">
@@ -864,7 +899,7 @@
 
                 <div class="relative z-10 w-44 h-44 sm:w-60 sm:h-60 flex justify-center shrink-0">
                     <div class="absolute inset-0 bg-gradient-to-tr from-amber-500/25 via-primary/20 to-yellow-300/20 rounded-full blur-[35px] animate-pulse"></div>
-                    <img src="{{ asset('shop/customer/gamification/models/images/original/funki_lvl_1_rags.png') }}" draggable="false" class="relative w-full h-full object-contain drop-shadow-[0_15px_30px_rgba(197,160,89,0.4)] z-10">
+                    <img src="{{ asset('shop/customer/gamification/models/images/original/funki_lvl_10_god_of_soul.png') }}" draggable="false" class="relative w-full h-full object-contain drop-shadow-[0_15px_30px_rgba(197,160,89,0.4)] z-10">
                 </div>
             </div>
         </div>
@@ -939,7 +974,7 @@
                                 <input type="range"
                                        min="0"
                                        max="100"
-                                       step="5"
+                                       step="1"
                                        x-model.number="audioVolume"
                                        @input="onVolumeChange(false)"
                                        @change="onVolumeChange(true)"
@@ -1042,7 +1077,7 @@
                                 {{ $heroDisplayName }} <span class="text-[#C5A059]">•</span> <span class="text-amber-700 dark:text-[#f5dca0]">{{ $headerTitleLabel }}</span>
                             </h2>
                             <p class="text-xs text-gray-600 dark:text-gray-400 mt-1 max-w-xl mx-auto md:mx-0">
-                                {{ $lvlCfg['subtitle'] ?? '' }} — Dein Hintergrund verwandelt sich mit jedem Funki-Aufstieg automatisch und kostenlos in eine noch epischere Darstellung!
+                                {{ $lvlCfg['subtitle'] ?? '' }} • Dein Hintergrund verwandelt sich mit jedem Funki-Aufstieg automatisch und kostenlos in eine noch epischere Darstellung!
                             </p>
 
                             <div class="mt-3.5 sm:mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-2.5">
@@ -1094,7 +1129,7 @@
                 {{-- Modal Body --}}
                 <div class="flex-1 overflow-y-auto p-4 sm:p-8 space-y-6">
 
-                    {{-- TAB 1: RABATT-GUTSCHEINE (250 = 5%, 500 = 10%, 750 = 15%) --}}
+                    {{-- TAB 1: RABATT-GUTSCHEINE (60 = 5%, 150 = 10%, 350 = 15%) --}}
                     <div x-show="activeFunkiTab === 'vouchers'" class="space-y-6">
                         <div>
                             <h3 class="text-lg font-serif font-bold text-gray-900 dark:text-white">
@@ -1188,10 +1223,11 @@
                                             </div>
                                             @if(!$cv['is_used'])
                                                 <button type="button"
-                                                        @click="if(window.sfCockpitSound) window.sfCockpitSound('click'); navigator.clipboard.writeText('{{ $cv['code'] }}'); copied = true; setTimeout(() => copied = false, 2000)"
-                                                        class="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-[#C5A059] text-amber-900 dark:text-[#f5dca0] hover:text-gray-950 font-bold text-xs transition shrink-0 cursor-pointer">
+                                                        @click="if(window.sfCockpitSound) window.sfCockpitSound('click'); window.sfCopyText('{{ $cv['code'] }}'); copied = true; setTimeout(() => copied = false, 2200); $dispatch('notify', { message: 'Gutscheincode {{ $cv['code'] }} in die Zwischenablage kopiert!', type: 'success' })"
+                                                        :class="copied ? 'bg-emerald-500 text-white shadow-sm' : 'bg-amber-500/15 hover:bg-[#C5A059] text-amber-900 dark:text-[#f5dca0] hover:text-gray-950'"
+                                                        class="px-3 py-1.5 rounded-xl font-bold text-xs transition shrink-0 cursor-pointer">
                                                     <span x-show="!copied">Kopieren</span>
-                                                    <span x-show="copied" style="display: none;">Kopiert ✓</span>
+                                                    <span x-show="copied" style="display: none;">✓ Kopiert!</span>
                                                 </button>
                                             @endif
                                         </div>
@@ -1199,7 +1235,7 @@
                                 </div>
                             @else
                                 <p class="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-2xl border border-gray-200 dark:border-gray-800">
-                                    Du hast noch keinen Rabatt-Gutschein eingelöst. Sammle Seelenfunken durch deine Einkäufe oder auf den Shop-Seiten und tausche sie oben ab 250 ✨ direkt ein!
+                                    Du hast noch keinen Rabatt-Gutschein eingelöst. Sammle Seelenfunken durch deine Einkäufe oder auf den Shop-Seiten und tausche sie oben ab 60 ✨ direkt ein!
                                 </p>
                             @endif
                         </div>
@@ -1250,20 +1286,26 @@
                                     </div>
 
                                     <div class="space-y-2 pt-2 border-t border-amber-500/20">
-                                        @if($bdayFormatted && !$bdayCanChange)
+                                        @if($bdayFormatted)
                                             <div class="flex items-center justify-between gap-2 bg-white/80 dark:bg-gray-900/80 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-800">
                                                 <div>
                                                     <span class="text-[10px] font-black uppercase tracking-wider text-gray-400 block">Hinterlegter Geburtstag</span>
                                                     <span class="text-xs font-bold text-gray-900 dark:text-white">{{ $bdayFormatted }} (jedes Jahr am {{ $bdayDayMonth }})</span>
                                                 </div>
-                                                <span class="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[10px] font-black uppercase tracking-wider">
-                                                    {{ $bdayAwardedThisYear ? '✓ ' . now()->year . ' erhalten' : '✓ Aktiviert' }}
+                                                <span class="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[10px] font-black uppercase tracking-wider shrink-0">
+                                                    {{ $bdayAwardedThisYear ? '✓ ' . now()->year . ' erhalten' : '✓ Aktiv' }}
                                                 </span>
                                             </div>
-                                            <p class="text-[10px] text-gray-500 dark:text-gray-400">
-                                                Dein Geburtsdatum wurde bereits einmalig korrigiert und ist nun fest hinterlegt.
-                                            </p>
                                         @else
+                                            <div class="flex items-center justify-between gap-2 bg-white/80 dark:bg-gray-900/80 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-800">
+                                                <span class="text-xs text-gray-500 dark:text-gray-400">Geburtsdatum noch nicht hinterlegt</span>
+                                                <span class="px-2.5 py-1 rounded-lg bg-gray-200/80 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-[10px] font-black uppercase tracking-wider shrink-0">
+                                                    Nicht aktiv
+                                                </span>
+                                            </div>
+                                        @endif
+
+                                        @if(!$bdayFormatted || $bdayCanChange)
                                             <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                                                 <input type="date"
                                                        wire:model.live="customerBirthdayInput"
@@ -1286,6 +1328,10 @@
                                                 @else
                                                     Tippfehler-Schutz: Nach dem ersten Eintragen ist bei Bedarf noch 1 Selbst-Korrektur möglich.
                                                 @endif
+                                            </p>
+                                        @else
+                                            <p class="text-[10px] text-gray-500 dark:text-gray-400">
+                                                Dein Geburtsdatum wurde bereits einmalig korrigiert und ist nun fest hinterlegt.
                                             </p>
                                         @endif
 
@@ -2198,8 +2244,18 @@
                         }
                         this.isActivating = false;
                         this.isWarping = false;
-                        this.$wire.activateSeelenfunke();
-                        window.dispatchEvent(new CustomEvent('magic-activated-complete'));
+                        Promise.resolve(this.$wire.activateSeelenfunke()).finally(() => {
+                            try {
+                                sessionStorage.removeItem('sf_funki_bgm_session_enabled');
+                                localStorage.setItem('sf_funki_audio_muted', '1');
+                                localStorage.setItem('sf_funki_bgm_muted', '1');
+                            } catch (e) {}
+                            if (window.SfFunkiBgm) {
+                                window.SfFunkiBgm.setMuted(true, false);
+                            }
+                            window.dispatchEvent(new CustomEvent('magic-activated-complete'));
+                            window.location.href = '{{ route('customer.funki') }}';
+                        });
                     }, 2050);
                 },
 

@@ -12,41 +12,54 @@ trait HandlesConfiguratorLogic
     {
         $basePrice = $this->product->price;
 
-        // 1. NEU: Varianten-Preis überschreiben, falls vorhanden
+        // 1. Varianten-Aufpreis addieren, falls vorhanden
         if ($this->variantId) {
             $variants = $this->product->variants_data ?? [];
             $variant = collect($variants)->firstWhere('id', $this->variantId);
 
-            // Wenn die Variante gefunden wurde UND einen abweichenden Preis hat
+            // Wenn die Variante gefunden wurde UND einen Aufpreis hinterlegt hat
             if ($variant && isset($variant['price']) && $variant['price'] !== '') {
-                $basePrice = (int) round((float) $variant['price'] * 100);
+                $surchargeCents = (int) round(((float) str_replace(',', '.', (string) $variant['price'])) * 100);
+                $basePrice += $surchargeCents;
             }
         }
 
         // 2. Mengenrabatt (Staffelpreise) anwenden
-        $tierPricing = $this->product->tierPrices ?? $this->product->tier_pricing;
+        $relationTiers = $this->product->tierPrices ?? null;
+        $tierPricing = ($relationTiers instanceof \Illuminate\Support\Collection && $relationTiers->isNotEmpty())
+            ? $relationTiers
+            : ($this->product->tier_pricing ?? []);
 
         if (!empty($tierPricing)) {
-            if (is_object($tierPricing)) {
+            if ($tierPricing instanceof \Illuminate\Support\Collection) {
                 $tier = $tierPricing->where('qty', '<=', $this->qty)->sortByDesc('qty')->first();
                 if ($tier) {
                     $basePrice -= ($basePrice * ($tier->percent / 100));
                 }
             } elseif (is_array($tierPricing)) {
-                usort($tierPricing, fn($a, $b) => $b['qty'] <=> $a['qty']);
+                usort($tierPricing, fn($a, $b) => ($b['qty'] ?? 0) <=> ($a['qty'] ?? 0));
                 foreach ($tierPricing as $tier) {
-                    if ($this->qty >= $tier['qty']) {
-                        $basePrice -= ($basePrice * ($tier['percent'] / 100));
+                    if ($this->qty >= ($tier['qty'] ?? PHP_INT_MAX)) {
+                        $basePrice -= ($basePrice * (($tier['percent'] ?? 0) / 100));
                         break;
                     }
                 }
             }
         }
 
-        // 3. Steuer aufschlagen (falls Netto-Eingabe)
-        if ($this->product->tax_included === false) {
+        $basePrice = (int) round($basePrice);
+
+        // 3. Steuer aufschlagen (falls Netto-Eingabe und keine Kleinunternehmerregelung)
+        if ($this->product->tax_included === false && !(bool) shop_setting('is_small_business', false)) {
             $taxRate = (float) ($this->product->tax_rate ?? shop_setting('default_tax_rate', 19.0));
             $basePrice = (int) round($basePrice * (1 + ($taxRate / 100)));
+        }
+
+        // 4. Optionale Aufpreis-Extras / Verpackungs-Upgrades & Bundle-Optionen pro Stück addieren
+        if (property_exists($this, 'selectedAddons') && !empty($this->selectedAddons) && method_exists($this, 'resolveSelectedAddonsSummary')) {
+            foreach ($this->resolveSelectedAddonsSummary() as $addonSummary) {
+                $basePrice += max(0, (int) ($addonSummary['price_cents'] ?? 0));
+            }
         }
 
         $this->currentPrice = $basePrice;
@@ -55,7 +68,7 @@ trait HandlesConfiguratorLogic
         $isExpressVal = property_exists($this, 'is_express') ? filter_var($this->is_express, FILTER_VALIDATE_BOOLEAN) : false;
         
         if ($isExpressVal) {
-            $shopCapacityLevel = (int)\Illuminate\Support\Facades\Cache::get('shop_capacity_level', \App\Models\System\SystemSetting::where('key', 'shop_capacity_level')->value('value') ?? 0);
+            $shopCapacityLevel = (int) \Illuminate\Support\Facades\Cache::get('shop_capacity_level', shop_setting('shop_capacity_level', 0));
             if ($shopCapacityLevel >= 2) {
                 // Bei hoher Auslastung Express deaktivieren
                 $this->is_express = false;

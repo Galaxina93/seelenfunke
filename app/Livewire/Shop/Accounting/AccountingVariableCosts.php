@@ -506,12 +506,20 @@ class AccountingVariableCosts extends Component
             ->orderByDesc('total')
             ->get();
 
+        $defaultRate = (float)shop_setting('default_tax_rate', 19);
+        $reducedRate = (float)shop_setting('reduced_tax_rate', 7);
+        $configuredRates = shop_setting('active_tax_rates', [$defaultRate, $reducedRate, 0]);
+        $activeTaxRates = is_array($configuredRates)
+            ? array_values(array_unique(array_merge([$defaultRate, $reducedRate, 0], array_map('floatval', $configuredRates))))
+            : [$defaultRate, $reducedRate, 0];
+        rsort($activeTaxRates);
+
         return view('livewire.shop.accounting.accounting-variable-costs.accounting-variable-costs', [
             'specials' => $specials,
             'chartLabels' => $chartDataObj->pluck('category'),
             'chartData' => $chartDataObj->pluck('total'),
             'totalSpecialExpenses' => (float) $chartDataObj->sum('total'),
-            'activeTaxRates' => shop_setting('active_tax_rates', [19, 7, 0]),
+            'activeTaxRates' => $activeTaxRates,
         ]);
     }
 }

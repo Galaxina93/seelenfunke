@@ -30,9 +30,16 @@
                     Ehrliches Feedback ist das schönste Geschenk. Hier sind einige Stimmen von Menschen, die wir bereits begleiten durften.
                 </p>
 
-                @if(isset($reviewsData['rating']))
+                @php
+                    $reviewSource = $reviewsData['source'] ?? 'none';
+                    $reviewItems = $reviewsData['reviews'] ?? $reviewsData['produkte/reviews'] ?? [];
+                    $googlePlaceId = (string) config('services.google.place_id', '');
+                    $hasValidGooglePlaceId = $googlePlaceId !== '' && !str_starts_with($googlePlaceId, 'deine-place-id');
+                @endphp
+
+                @if(isset($reviewsData['rating']) && ($reviewsData['total_ratings'] ?? 0) > 0)
                     <div class="inline-flex flex-wrap items-center justify-center max-w-full bg-white dark:bg-gray-800 rounded-2xl sm:rounded-full px-4 sm:px-6 py-2 shadow-sm border border-gray-100 dark:border-gray-700 gap-y-1">
-                        <span class="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mr-2.5 sm:mr-3">{{ $reviewsData['rating'] }}</span>
+                        <span class="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mr-2.5 sm:mr-3">{{ number_format((float) $reviewsData['rating'], 1, ',', '.') }}</span>
 
                         {{-- Goldene Sterne --}}
                         <div class="flex text-yellow-400 space-x-1">
@@ -44,16 +51,20 @@
                         </div>
 
                         <span class="text-gray-600 dark:text-gray-300 text-xs sm:text-sm font-medium ml-2.5 sm:ml-3 border-l border-gray-200 dark:border-gray-600 pl-2.5 sm:pl-3">
-                            {{ $reviewsData['total_ratings'] ?? 0 }} Rezensionen
+                            {{ $reviewsData['total_ratings'] ?? 0 }} {{ ($reviewsData['total_ratings'] ?? 0) === 1 ? 'Bewertung' : 'Bewertungen' }}
                         </span>
                     </div>
+                    <p class="mt-3 text-[11px] text-gray-500 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
+                        @if($reviewSource === 'shop')
+                            Hinweis gem. § 5b Abs. 3 UWG: Alle hier angezeigten Shop-Bewertungen stammen ausschließlich von verifizierten Käufern, die das jeweilige Produkt nachweislich über ihr Kundenkonto bei uns erworben haben.
+                        @else
+                            Hinweis gem. § 5b Abs. 3 UWG: Diese Rezensionen stammen von unserem Google-Unternehmensprofil. Eine technische Überprüfung durch uns, ob die Rezensenten unsere Produkte tatsächlich erworben haben, findet bei externen Google-Bewertungen nicht statt.
+                        @endif
+                    </p>
                 @endif
             </div>
 
             {{-- Reviews Marquee --}}
-            @php
-                $reviewItems = $reviewsData['reviews'] ?? $reviewsData['produkte/reviews'] ?? [];
-            @endphp
             @if(!empty($reviewItems))
 
                 {{-- Container mit Fade-Effekt links und rechts --}}
@@ -80,17 +91,12 @@
                                             ”
                                         </div>
 
-                                        {{-- Header: Bild & Name --}}
+                                        {{-- Header: Lokales Initialen-Badge (DSGVO-konform ohne externe Avatar-Aufrufe) & Name --}}
                                         <div class="flex items-center mb-6 relative z-10">
                                             <div class="relative flex-shrink-0">
-                                                <img src="{{ $review['profile_photo_url'] }}"
-                                                     alt="{{ $review['author_name'] }}"
-                                                     width="48"
-                                                     height="48"
-                                                     loading="lazy"
-                                                     decoding="async"
-                                                     class="w-12 h-12 rounded-full object-cover border-2 border-white dark:border-gray-800 shadow-sm ring-2 ring-primary ring-opacity-20"
-                                                     referrerpolicy="no-referrer">
+                                                <div class="w-12 h-12 rounded-full bg-amber-50 dark:bg-gray-700 text-[#8a6820] dark:text-primary font-serif font-bold text-lg flex items-center justify-center border-2 border-white dark:border-gray-800 shadow-sm ring-2 ring-primary/20 select-none" aria-hidden="true">
+                                                    {{ mb_strtoupper(mb_substr((string) ($review['author_name'] ?? 'K'), 0, 1)) }}
+                                                </div>
                                             </div>
 
                                             <div class="ml-4 overflow-hidden">
@@ -122,22 +128,34 @@
                     </div>
                 </div>
 
-                {{-- Link zu Google --}}
-                <div class="mt-12 flex justify-center">
-                    <a href="https://search.google.com/local/reviews?placeid={{ config('services.google.place_id') }}"
-                       target="_blank"
-                       class="group inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-primary hover:border-primary dark:hover:border-primary transition-all duration-300 shadow-sm hover:shadow">
+                {{-- Link zu Google (nur wenn echte Place-ID hinterlegt ist) --}}
+                @if($hasValidGooglePlaceId)
+                    <div class="mt-12 flex justify-center">
+                        <a href="https://search.google.com/local/reviews?placeid={{ $googlePlaceId }}"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           class="group inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-primary hover:border-primary dark:hover:border-primary transition-all duration-300 shadow-sm hover:shadow">
 
-                        <x-heroicon-m-arrow-top-right-on-square class="w-5 h-5 text-gray-400 group-hover:text-primary transition-colors" />
+                            <x-heroicon-m-arrow-top-right-on-square class="w-5 h-5 text-gray-400 group-hover:text-primary transition-colors" />
 
-                        <span>Alle Bewertungen auf Google lesen</span>
-                    </a>
-                </div>
+                            <span>Alle Bewertungen auf Google lesen</span>
+                        </a>
+                    </div>
+                @endif
 
             @else
-                <div class="flex flex-col items-center justify-center py-12 text-center">
-                    <x-heroicon-o-chat-bubble-left-ellipsis class="w-12 h-12 text-gray-400 mb-3" />
-                    <p class="text-gray-600">Momentan können keine Bewertungen geladen werden.</p>
+                <div class="max-w-xl mx-auto px-4">
+                    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/80 dark:border-gray-700 p-8 text-center shadow-sm">
+                        <x-heroicon-o-sparkles class="w-10 h-10 text-primary mx-auto mb-3" />
+                        <h3 class="font-serif font-bold text-lg text-gray-900 dark:text-white mb-2">Deine Meinung zählt</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-5">
+                            Wir veröffentlichen ausschließlich echte und geprüfte Kundenbewertungen (§ 5b Abs. 3 UWG). Nach deiner Bestellung kannst du dein Unikat direkt auf der jeweiligen Produktseite bewerten und erhältst als Dankeschön <strong class="text-[#8a6820] dark:text-primary">+50 Seelenfunken</strong> für dein Treuekonto.
+                        </p>
+                        <a href="{{ route('shop') }}" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gray-900 dark:bg-primary text-white dark:text-gray-900 text-xs font-bold uppercase tracking-wider hover:bg-primary hover:text-gray-900 transition-colors">
+                            <span>Unikate im Shop entdecken</span>
+                            <x-heroicon-m-arrow-right class="w-4 h-4" />
+                        </a>
+                    </div>
                 </div>
             @endif
 

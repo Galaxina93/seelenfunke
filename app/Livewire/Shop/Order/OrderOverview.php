@@ -261,7 +261,9 @@ class OrderOverview extends Component
 
                 } else {
                     // Vollständige Rückabwicklung bei Erstattung VOR Status-Update
-                    if ($this->status === 'refunded' && !in_array($previousStatus, ['cancelled', 'refunded'], true)) {
+                    $isRefundingNow = $this->status === 'refunded'
+                        || ($this->payment_status === 'refunded' && $previousPaymentStatus !== 'refunded');
+                    if ($isRefundingNow && !in_array($previousStatus, ['cancelled', 'refunded'], true)) {
                         $this->selectedOrder->handleCancellation('Erstattung', $previousStatus, $previousPaymentStatus);
                     }
 
@@ -893,8 +895,13 @@ class OrderOverview extends Component
             'total' => OrderOrder::count(),
             'open' => OrderOrder::whereIn('status', ['pending', 'processing'])->count(),
             'open_express' => OrderOrder::whereIn('status', ['pending', 'processing'])->where('is_express', true)->count(),
-            'revenue_today' => OrderOrder::whereDate('created_at', today())->sum('total_price'),
-            'revenue_month' => OrderOrder::whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->sum('total_price'),
+            'revenue_today' => OrderOrder::whereDate('created_at', today())
+                ->whereNotIn('status', ['cancelled', 'refunded', 'failed'])
+                ->sum('total_price'),
+            'revenue_month' => OrderOrder::whereMonth('created_at', now()->month)
+                ->whereYear('created_at', now()->year)
+                ->whereNotIn('status', ['cancelled', 'refunded', 'failed'])
+                ->sum('total_price'),
             'avg_cart' => OrderOrder::where('status', 'completed')->avg('total_price') ?? 0,
         ];
 

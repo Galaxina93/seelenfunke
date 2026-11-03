@@ -113,6 +113,7 @@ class CustomerDashboardComponent extends Component
     #[Locked]
     public array $hallOfFameLeaders = [];
 
+    #[Locked]
     public int $hallOfFamePage = 1;
 
     #[Locked]
@@ -126,7 +127,7 @@ class CustomerDashboardComponent extends Component
 
     // Audio-Einstellungen (BGM bgm_funki_game & UI-Sounds)
     public int $funkiAudioVolume = 35;
-    public bool $funkiAudioMuted = false;
+    public bool $funkiAudioMuted = true;
     public bool $funkiAudioKeepPlaying = false;
 
     public function boot(): void
@@ -171,6 +172,12 @@ class CustomerDashboardComponent extends Component
         $profile = $gameService->getProfile($user);
         $wasActive = (bool) $profile->is_active;
         $profile->is_active = true;
+
+        $progress = is_array($profile->titles_progress) ? $profile->titles_progress : [];
+        $progress['_audio_muted'] = true;
+        $progress['_audio_keep_playing'] = false;
+        $profile->titles_progress = $progress;
+
         $gameService->syncLevelFromLifetimeSparks($profile);
         $profile->save();
 
@@ -255,7 +262,7 @@ class CustomerDashboardComponent extends Component
         $gameService = app(GamificationService::class);
         $res = $gameService->updateAudioSettings($user, $volumePercent, $isMuted, $keepPlaying);
         $this->funkiAudioVolume = (int) ($res['volume'] ?? 35);
-        $this->funkiAudioMuted = (bool) ($res['muted'] ?? false);
+        $this->funkiAudioMuted = (bool) ($res['muted'] ?? true);
         $this->funkiAudioKeepPlaying = (bool) ($res['keep_playing'] ?? false);
     }
 
@@ -290,7 +297,7 @@ class CustomerDashboardComponent extends Component
         }
     }
 
-    private function loadHallOfFamePage(GamificationService $gameService): void
+    protected function loadHallOfFamePage(GamificationService $gameService): void
     {
         $paginated = $gameService->getHallOfFamePaginated($this->hallOfFamePage, $this->hallOfFamePerPage);
         $this->hallOfFameLeaders = $paginated['items'];
@@ -435,7 +442,7 @@ class CustomerDashboardComponent extends Component
         ]);
     }
 
-    private function loadDashboardData($user): void
+    protected function loadDashboardData($user): void
     {
         $this->checkProfileSteps($user);
 
@@ -555,7 +562,7 @@ class CustomerDashboardComponent extends Component
             $this->useRealName = false;
             $this->playerName = '';
             $this->funkiAudioVolume = 35;
-            $this->funkiAudioMuted = false;
+            $this->funkiAudioMuted = true;
             $this->funkiAudioKeepPlaying = false;
             $this->heroDisplayName = trim($user->first_name . ' ' . $user->last_name) ?: ($user->first_name ?: 'Seelenfunke-Held');
         }
@@ -582,7 +589,7 @@ class CustomerDashboardComponent extends Component
         }
     }
 
-    private function checkProfileSteps($user): void
+    protected function checkProfileSteps($user): void
     {
         $this->profileSteps = [];
         if (!$user->profile) {

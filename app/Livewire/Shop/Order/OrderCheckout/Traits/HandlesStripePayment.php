@@ -31,6 +31,12 @@ trait HandlesStripePayment
         $amount = $totals['total']; // Betrag in Cent
         $this->totalAmount = $amount;
 
+        if ($amount <= 0) {
+            $this->clientSecret = null;
+            $this->currentPaymentIntentId = null;
+            return null;
+        }
+
         if ($amount > 0) {
             if (app()->environment('testing')) {
                 $this->currentPaymentIntentId = $this->currentPaymentIntentId ?: ('pi_test_' . \Illuminate\Support\Str::random(12));
@@ -38,7 +44,7 @@ trait HandlesStripePayment
                 return $this->clientSecret;
             }
 
-            $stripeSecret = config('services.stripe.secret');
+            $stripeSecret = config('services.stripe.secret') ?: shop_setting('stripe_secret_key');
             if ($stripeSecret) {
                 Stripe::setApiKey($stripeSecret);
 
@@ -84,6 +90,14 @@ trait HandlesStripePayment
             }
         }
         return null;
+    }
+
+    /**
+     * Synchronisiert den aktuellen Stripe PaymentIntent mit der aktuellen Gesamtsumme (z.B. nach Länderwechsel im Express Checkout)
+     */
+    public function syncPaymentIntentAmount(): ?string
+    {
+        return $this->createPaymentIntent();
     }
 
     /**
@@ -161,7 +175,7 @@ trait HandlesStripePayment
             // 2. Serverseitige Verifikation über die Stripe API für kostenpflichtige Bestellungen
             if ($order->total_price > 0) {
                 if (!app()->environment('testing')) {
-                    $stripeSecret = config('services.stripe.secret');
+                    $stripeSecret = config('services.stripe.secret') ?: shop_setting('stripe_secret_key');
                     if (empty($order->stripe_payment_intent_id) || empty($stripeSecret)) {
                         $this->addError('payment', 'Keine gültige Zahlungsinformation vorhanden.');
                         return;

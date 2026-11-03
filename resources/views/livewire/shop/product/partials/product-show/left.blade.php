@@ -60,16 +60,14 @@
     {{-- ========================================== --}}
     @php
         $displayGallery = [];
-        if ($product->isAutoSeasonalMainImageEnabled()) {
-            $primaryMeta = $product->resolveMainImageMeta(null, true);
-            if (!empty($primaryMeta['url'])) {
-                $displayGallery[] = [
-                    'type'            => 'image',
-                    'url'             => $primaryMeta['url'],
-                    'alt'             => $primaryMeta['label'] ?? $product->name,
-                    'is_ai_generated' => (bool) ($primaryMeta['is_ai_generated'] ?? true),
-                ];
-            }
+        $primaryMeta = $product->resolveMainMediaMeta(null, $product->isAutoSeasonalMainImageEnabled());
+        if (!empty($primaryMeta['url'])) {
+            $displayGallery[] = [
+                'type'            => $primaryMeta['type'] ?? 'image',
+                'url'             => $primaryMeta['url'],
+                'alt'             => $primaryMeta['label'] ?? $product->name,
+                'is_ai_generated' => (bool) ($primaryMeta['is_ai_generated'] ?? true),
+            ];
         }
         foreach ($product->media_gallery ?? [] as $m) {
             if (is_array($m) && !empty($m['path'])) {
@@ -347,15 +345,15 @@
                             <p class="font-bold text-gray-900 mb-0.5">Hersteller & Verantwortliche Person in der EU (Art. 19 GPSR):</p>
                             <p>
                                 {{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }} – Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
-                                {{ shop_setting('company_street', 'Carl-Goerdeler-Ring') }} {{ shop_setting('company_street_number', '26') }}, {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}, Deutschland<br>
-                                E-Mail: <a href="mailto:{{ shop_setting('company_email', 'kontakt@mein-seelenfunke.de') }}" class="text-[var(--theme-color)] underline">{{ shop_setting('company_email', 'kontakt@mein-seelenfunke.de') }}</a> | Modell-/Artikel-Nr.: <span class="font-mono text-gray-800">{{ $product->sku ?: ('MSF-' . $product->id) }}</span>
+                                {{ shop_setting('company_street') ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', '')) : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}, {{ shop_setting('company_city') ? trim(shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city')) : shop_setting('owner_city', '38518 Gifhorn') }}, Deutschland<br>
+                                E-Mail: <a href="mailto:{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}" class="text-[var(--theme-color)] underline">{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}</a> | Modell-/Artikel-Nr.: <span class="font-mono text-gray-800">{{ $product->sku ?: ('MSF-' . $product->id) }}</span>
                             </p>
                         </div>
                         <div>
                             <p class="font-bold text-gray-900 mb-0.5">Sicherheits- & Pflegehinweise:</p>
                             <ul class="list-disc list-inside space-y-1">
-                                <li>Dekorations-, Erinnerungs- bzw. Gebrauchsartikel – kein Kinderspielzeug.</li>
-                                <li>Bei Artikeln mit Schlüsselringen/Ösen: Achtung – verschluckbare Kleinteile (Erstickungsgefahr für Kinder unter 36 Monaten).</li>
+                                <li>Dekorations-, Erinnerungs- bzw. Gebrauchsartikel (kein Kinderspielzeug).</li>
+                                <li>Bei Artikeln mit Schlüsselringen/Ösen: Achtung, verschluckbare Kleinteile (Erstickungsgefahr für Kinder unter 36 Monaten).</li>
                                 <li>Bei Glas- und Schieferartikeln: Vor Stürzen schützen (Schnittgefahr bei Glas-/Schieferbruch); Kristallglas nicht dauerhaft gebündelter Sonneneinstrahlung nahe brennbaren Materialien aussetzen.</li>
                                 <li>Pflege: Mit einem weichen, leicht angefeuchteten Tuch ohne aggressive Reinigungsmittel abwischen (nicht spülmaschinengeeignet).</li>
                             </ul>

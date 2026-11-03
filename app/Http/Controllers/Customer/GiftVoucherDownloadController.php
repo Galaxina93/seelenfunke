@@ -82,12 +82,29 @@ class GiftVoucherDownloadController extends Controller
             }
         }
 
-        // 4. Generate PDF on the fly (disable remote asset execution to prevent SSRF)
+        $safeCode = preg_replace('/[^A-Za-z0-9_\-]/', '', (string) $voucher->code) ?: 'Gutschein';
+
+        // 4a. Optionaler Laser-SVG-Export (86 x 54 mm Gold-Metallkarte für xTool Studio) für Admin / Produktion
+        if ($isAdminOrEmployee && request()->query('format') === 'laser_svg') {
+            $svgContent = view('pdf.marketing-gift-voucher-laser-svg', [
+                'voucher' => $voucher,
+            ])->render();
+
+            $svgFilename = 'Laser-Gutschein-86x54mm-' . $safeCode . '.svg';
+
+            return response(ltrim($svgContent), 200, [
+                'Content-Type' => 'image/svg+xml; charset=UTF-8',
+                'Content-Disposition' => 'attachment; filename="' . $svgFilename . '"',
+                'X-Content-Type-Options' => 'nosniff',
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            ]);
+        }
+
+        // 4b. Generate PDF on the fly (disable remote asset execution to prevent SSRF)
         $pdf = Pdf::loadView('pdf.marketing-gift-voucher', [
             'voucher' => $voucher,
         ])->setOptions(['isRemoteEnabled' => false]);
 
-        $safeCode = preg_replace('/[^A-Za-z0-9_\-]/', '', (string) $voucher->code) ?: 'Gutschein';
         $filename = 'Geschenkgutschein-' . $safeCode . '.pdf';
 
         return response($pdf->output(), 200, [

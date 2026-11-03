@@ -30,7 +30,7 @@ class NewGiftVoucherToCustomer extends Mailable
      */
     public function envelope(): Envelope
     {
-        $senderName = str_replace(["\r", "\n"], '', (string) shop_setting('company_name', 'Mein Seelenfunke'));
+        $senderName = str_replace(["\r", "\n"], '', (string) shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')));
         return new Envelope(
             subject: '✨ Dein Geschenkgutschein von ' . $senderName,
         );

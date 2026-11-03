@@ -20,7 +20,9 @@ class NewsletterVerificationMail extends Mailable
 
     public function build()
     {
-        return $this->subject('Bitte bestätige deine Anmeldung bei Mein-Seelenfunke.')
+        $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
+
+        return $this->subject('Bitte bestätige deine Anmeldung bei ' . $companyName . '.')
             ->view('global.mails.newsletter.verification_mail_to_customer');
     }
 }

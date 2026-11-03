@@ -68,8 +68,8 @@
     @if($activeTab === 'configurator')
         <div class="space-y-6 animate-fade-in-up">
 
-            {{-- 4 KPI CARDS --}}
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {{-- 5 KPI CARDS --}}
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 {{-- KPI 1: Aufrufe & Conversion --}}
                 <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm">
                     <div class="flex items-center justify-between mb-3">
@@ -104,12 +104,29 @@
                     </div>
                 </div>
 
-                {{-- KPI 3: Express Zuschlag --}}
+                {{-- KPI 3: Verpackung & Extras (Aufpreis-Extras & Bundle-Optionen) --}}
                 <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm">
                     <div class="flex items-center justify-between mb-3">
-                        <span class="text-[10px] font-black uppercase tracking-widest text-gray-500">Eiliges Geschenk (Express)</span>
-                        <div class="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
-                            <x-heroicon-o-bolt class="w-4 h-4" />
+                        <span class="text-[10px] font-black uppercase tracking-widest text-gray-500">Verpackung &amp; Extras</span>
+                        <div class="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center">
+                            <x-heroicon-o-gift class="w-4 h-4" />
+                        </div>
+                    </div>
+                    <div class="text-2xl font-serif font-black text-gray-900 dark:text-white mb-1">
+                        {{ $addonStats['attach_rate'] ?? 0 }} %
+                    </div>
+                    <div class="text-[11px] text-gray-500 dark:text-gray-400 flex items-center justify-between">
+                        <span>{{ $addonStats['total_booked_count'] ?? 0 }} x gebucht</span>
+                        <span class="font-bold text-emerald-600 dark:text-emerald-400">+{{ number_format($addonStats['total_revenue_euros'] ?? 0, 2, ',', '.') }} €</span>
+                    </div>
+                </div>
+
+                {{-- KPI 4: Express Zuschlag --}}
+                <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <x-shop.express-info iconClass="w-3.5 h-3.5" class="text-[10px] font-black uppercase tracking-widest text-gray-500" />
+                        <div class="w-8 h-8 rounded-xl bg-amber-500/10 text-primary flex items-center justify-center">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                         </div>
                     </div>
                     <div class="text-2xl font-serif font-black text-gray-900 dark:text-white mb-1">
@@ -121,7 +138,7 @@
                     </div>
                 </div>
 
-                {{-- KPI 4: Gestaltungselemente --}}
+                {{-- KPI 5: Gestaltungselemente --}}
                 <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm">
                     <div class="flex items-center justify-between mb-3">
                         <span class="text-[10px] font-black uppercase tracking-widest text-gray-500">Gestaltungselemente</span>
@@ -224,7 +241,7 @@
                                 Welche Vorlagen am häufigsten als Gestaltungsgrundlage ausgewählt wurden.
                             </p>
                         </div>
-                        <a href="{{ route('admin.product-templates') }}" class="text-xs font-bold text-[var(--theme-color)] hover:underline flex items-center gap-1">
+                        <a href="{{ route('admin.products', ['section' => 'templates']) }}" class="text-xs font-bold text-[var(--theme-color)] hover:underline flex items-center gap-1">
                             Vorlagen verwalten →
                         </a>
                     </div>
@@ -342,12 +359,11 @@
                 <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
                     <div>
                         <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-base font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                <x-heroicon-o-bolt class="w-4 h-4 text-amber-500" />
-                                Express-Performance
+                            <h3 class="text-base font-serif font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
+                                <x-shop.express-info />
                             </h3>
                             <span class="text-[9px] font-black uppercase tracking-widest text-amber-600 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">
-                                🚀 Eiliges Geschenk
+                                Eiliges Geschenk
                             </span>
                         </div>
 
@@ -383,6 +399,215 @@
 
                     <div class="mt-6 pt-4 border-t border-gray-100 dark:border-gray-800 text-[11px] text-gray-500 dark:text-gray-400">
                         ⚡ <strong>Hinweis:</strong> Die Express-Option wird bei hoher Werkstatt-Auslastung (Shop-Kapazität Stufe 2) automatisch deaktiviert, um Lieferversprechen einzuhalten.
+                    </div>
+                </div>
+
+            </div>
+
+            {{-- GRID ROW 3: UNIVERSELLE AUSWERTUNG: AUFPREIS-EXTRAS, VERPACKUNGS-UPGRADES & BUNDLE-OPTIONEN --}}
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                {{-- 1. Produktübergreifende Hitliste aller Aufpreis-Extras (2 Spalten breit) --}}
+                <div class="lg:col-span-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                            <div>
+                                <h3 class="text-base font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                    <x-heroicon-o-gift class="w-5 h-5 text-[var(--theme-color)]" />
+                                    <span>🎁 Aufpreis-Extras, Verpackungs-Upgrades &amp; Bundle-Optionen</span>
+                                </h3>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    Universelle Auswertung aller produktbezogenen Zusatz-Optionen (z.&nbsp;B. Edle Schmuckbox, Geschenkpapier &amp; individuelle Bundle-Extras).
+                                </p>
+                            </div>
+                            <div class="flex items-center gap-2 shrink-0">
+                                <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                    + {{ number_format($addonStats['total_revenue_euros'] ?? 0, 2, ',', '.') }} € Zusatz-Umsatz
+                                </span>
+                                <a href="{{ route('admin.products') }}" class="text-xs font-bold text-[var(--theme-color)] hover:underline flex items-center gap-1">
+                                    <span>Extras verwalten</span>
+                                    <x-heroicon-m-arrow-top-right-on-square class="w-3.5 h-3.5" />
+                                </a>
+                            </div>
+                        </div>
+
+                        {{-- Kompakte KPI-Leiste für Extras --}}
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+                            <div class="p-3 rounded-2xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
+                                <div class="text-[9px] font-black uppercase tracking-widest text-gray-400">Aktive Optionen</div>
+                                <div class="text-base font-black text-gray-900 dark:text-white mt-0.5">
+                                    {{ $addonStats['active_options_count'] ?? 0 }} Extras
+                                </div>
+                                <div class="text-[10px] text-gray-500">bei {{ $addonStats['products_with_addons_count'] ?? 0 }} Produkten</div>
+                            </div>
+
+                            <div class="p-3 rounded-2xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
+                                <div class="text-[9px] font-black uppercase tracking-widest text-gray-400">Im Konfigurator</div>
+                                <div class="text-base font-black text-blue-600 dark:text-blue-400 mt-0.5">
+                                    {{ $addonStats['enabled_clicks'] ?? 0 }} Klicks
+                                </div>
+                                <div class="text-[10px] text-gray-500">{{ $addonStats['cart_units'] ?? 0 }} Stk. in Warenkorb</div>
+                            </div>
+
+                            <div class="p-3 rounded-2xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
+                                <div class="text-[9px] font-black uppercase tracking-widest text-gray-400">Bestellt / Verkauft</div>
+                                <div class="text-base font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                    {{ $addonStats['ordered_units'] ?? 0 }} Stk.
+                                </div>
+                                <div class="text-[10px] text-gray-500">in {{ $addonStats['orders_with_addons'] ?? 0 }} Bestellpos.</div>
+                            </div>
+
+                            <div class="p-3 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40">
+                                <div class="text-[9px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Take-Rate (Quote)</div>
+                                <div class="text-base font-black text-amber-600 dark:text-amber-300 mt-0.5">
+                                    {{ $addonStats['attach_rate'] ?? 0 }} %
+                                </div>
+                                <div class="text-[10px] text-amber-700/80 dark:text-amber-400/80">buchen mind. 1 Extra</div>
+                            </div>
+                        </div>
+
+                        @if(count($addonLeaderboard) > 0)
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs">
+                                    <thead>
+                                    <tr class="text-[9px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100 dark:border-gray-800">
+                                        <th class="py-2.5 pl-2">Extra / Verpackungs-Upgrade</th>
+                                        <th class="py-2.5 text-right">Aufpreis</th>
+                                        <th class="py-2.5 text-center">Konfigurator / WK</th>
+                                        <th class="py-2.5 text-center">Verkauft (Best.)</th>
+                                        <th class="py-2.5 text-right pr-2">Zusatz-Umsatz</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-100 dark:divide-gray-800/60">
+                                    @foreach($addonLeaderboard as $idx => $addonRow)
+                                        <tr class="hover:bg-gray-50/60 dark:hover:bg-gray-800/30 transition-colors">
+                                            <td class="py-3 pl-2">
+                                                <div class="flex items-center gap-3">
+                                                    @if(!empty($addonRow['image_url']))
+                                                        <img src="{{ $addonRow['image_url'] }}"
+                                                             alt="{{ $addonRow['name'] }}"
+                                                             class="w-10 h-10 rounded-xl object-cover bg-gray-100 dark:bg-gray-800 shrink-0 border border-gray-200 dark:border-gray-700 shadow-2xs">
+                                                    @else
+                                                        <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/20">
+                                                            <x-heroicon-o-gift class="w-5 h-5" />
+                                                        </div>
+                                                    @endif
+                                                    <div class="min-w-0">
+                                                        <div class="font-bold text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
+                                                            <span class="truncate">{{ $addonRow['name'] }}</span>
+                                                            @if(($addonRow['share_percent'] ?? 0) > 0)
+                                                                <span class="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                                                                    {{ $addonRow['share_percent'] }}% Anteil
+                                                                </span>
+                                                            @endif
+                                                        </div>
+                                                        <div class="text-[10px] text-gray-500 dark:text-gray-400 line-clamp-1 mt-0.5">
+                                                            @if(!empty($addonRow['products']))
+                                                                Verfügbar bei {{ count($addonRow['products']) }} {{ count($addonRow['products']) === 1 ? 'Produkt' : 'Produkten' }}: {{ implode(', ', array_slice($addonRow['products'], 0, 3)) }}{{ count($addonRow['products']) > 3 ? ' u.a.' : '' }}
+                                                            @elseif(!empty($addonRow['description']))
+                                                                {{ $addonRow['description'] }}
+                                                            @endif
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="py-3 text-right font-mono font-bold text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                                                + {{ number_format($addonRow['price_euros'] ?? 0, 2, ',', '.') }} €
+                                            </td>
+                                            <td class="py-3 text-center whitespace-nowrap">
+                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300" title="Klicks im Konfigurator / In den Warenkorb gelegt">
+                                                    {{ $addonRow['enabled_clicks'] ?? 0 }} Klicks &bull; {{ $addonRow['cart_units'] ?? 0 }} WK
+                                                </span>
+                                            </td>
+                                            <td class="py-3 text-center whitespace-nowrap">
+                                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black {{ ($addonRow['ordered_units'] ?? 0) > 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-gray-100 dark:bg-gray-800 text-gray-400' }}">
+                                                    {{ $addonRow['ordered_units'] ?? 0 }} x
+                                                </span>
+                                            </td>
+                                            <td class="py-3 text-right pr-2 font-mono font-black whitespace-nowrap {{ ($addonRow['effective_revenue_euros'] ?? 0) > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400' }}">
+                                                + {{ number_format($addonRow['effective_revenue_euros'] ?? 0, 2, ',', '.') }} €
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @else
+                            <div class="text-center py-10 text-gray-400 text-xs">
+                                <x-heroicon-o-gift class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-700 mb-2" />
+                                Noch keine Aufpreis-Extras oder Verpackungs-Upgrades angelegt.
+                            </div>
+                        @endif
+                    </div>
+
+                    <div class="mt-5 pt-4 border-t border-gray-100 dark:border-gray-800 text-[11px] text-gray-500 dark:text-gray-400">
+                        🎁 <strong>Universell:</strong> Jedes neue Extra, das du im Produkt-Editor unter <em>„Aufpreis-Extras, Verpackungs-Upgrades &amp; Bundle-Optionen“</em> anlegst, wird hier automatisch inklusive Vorschaubild, Klick-Rate und Bestell-Umsatz ausgewertet.
+                    </div>
+                </div>
+
+                {{-- 2. Produkt-spezifische Aufschlüsselung der gebuchten Extras (1 Spalte breit) --}}
+                <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 class="text-base font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                    <x-heroicon-o-cube class="w-4 h-4 text-[var(--theme-color)]" />
+                                    <span>Extras nach Produkt</span>
+                                </h3>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    Welches Produkt welche Zusatz-Extras am stärksten verkauft.
+                                </p>
+                            </div>
+                            <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                {{ count($productAddonBreakdown) }} Produkte
+                            </span>
+                        </div>
+
+                        <div class="space-y-3 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
+                            @forelse($productAddonBreakdown as $prodRow)
+                                <div class="p-3.5 rounded-2xl bg-gray-50/80 dark:bg-gray-800/40 border border-gray-200/80 dark:border-gray-700/60">
+                                    <div class="flex items-center justify-between gap-2 mb-2.5 pb-2 border-b border-gray-200/60 dark:border-gray-700/60">
+                                        <div class="font-bold text-xs text-gray-900 dark:text-white truncate" title="{{ $prodRow['product_name'] }}">
+                                            {{ $prodRow['product_name'] }}
+                                        </div>
+                                        <span class="px-2 py-0.5 rounded-md text-[10px] font-black {{ ($prodRow['total_booked_units'] ?? 0) > 0 ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-gray-200/70 dark:bg-gray-700 text-gray-500 dark:text-gray-400' }} shrink-0">
+                                            {{ $prodRow['total_booked_units'] ?? 0 }} x (+{{ number_format($prodRow['total_revenue_euros'] ?? 0, 2, ',', '.') }} €)
+                                        </span>
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        @foreach($prodRow['addons'] as $pAddon)
+                                            <div class="flex items-center justify-between gap-2 text-[11px]">
+                                                <div class="flex items-center gap-2 min-w-0">
+                                                    @if(!empty($pAddon['image_url']))
+                                                        <img src="{{ $pAddon['image_url'] }}" alt="{{ $pAddon['name'] }}" class="w-6 h-6 rounded-md object-cover shrink-0 border border-gray-200 dark:border-gray-700">
+                                                    @else
+                                                        <span class="w-6 h-6 rounded-md bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0 text-[10px]">🎁</span>
+                                                    @endif
+                                                    <span class="text-gray-700 dark:text-gray-300 truncate font-medium" title="{{ $pAddon['name'] }}">
+                                                        {{ $pAddon['name'] }}
+                                                    </span>
+                                                </div>
+                                                <div class="flex items-center gap-2 shrink-0 font-mono">
+                                                    <span class="text-[10px] text-gray-400">+{{ number_format($pAddon['price_euros'] ?? 0, 2, ',', '.') }} €</span>
+                                                    <span class="px-1.5 py-0.5 rounded text-[10px] font-black {{ ($pAddon['effective_units'] ?? 0) > 0 ? 'bg-primary/15 text-primary' : 'bg-gray-100 dark:bg-gray-800 text-gray-400' }}">
+                                                        {{ $pAddon['effective_units'] ?? 0 }} x
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="text-center py-8 text-gray-400 text-xs">
+                                    Keine physischen Produkte mit Extras gefunden.
+                                </div>
+                            @endforelse
+                        </div>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800 text-[11px] text-gray-500 dark:text-gray-400">
+                        📊 Zeigt für jedes physische Produkt alle hinterlegten Extras – auch solche mit <strong>0 Buchungen</strong>, um Preis- oder Sortimentspotenziale sofort zu erkennen.
                     </div>
                 </div>
 

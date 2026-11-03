@@ -142,6 +142,32 @@ class ProductTrackingService
     }
 
     /**
+     * Aufpreis-Extra / Verpackungs-Upgrade / Bundle-Option im Konfigurator aktiviert oder deaktiviert
+     */
+    public static function trackAddonToggled(
+        ?string $productId,
+        string $addonId,
+        string $addonName,
+        bool $isEnabled,
+        int $priceCents = 0,
+        ?string $imagePath = null,
+        string $source = 'configurator'
+    ): void {
+        self::track($source, 'addon_toggled', [
+            'product_id'      => $productId,
+            'item_identifier' => substr($addonId, 0, 190),
+            'value_cents'     => $isEnabled ? max(0, $priceCents) : 0,
+            'meta_data'       => [
+                'addon_id'    => $addonId,
+                'addon_name'  => $addonName,
+                'enabled'     => $isEnabled,
+                'price_cents' => max(0, $priceCents),
+                'image_path'  => $imagePath,
+            ],
+        ]);
+    }
+
+    /**
      * Konfiguration erfolgreich abgeschlossen und in den Warenkorb gelegt
      */
     public static function trackConfiguratorSaved(?string $productId, int $totalPriceCents, array $meta = []): void
@@ -292,8 +318,12 @@ class ProductTrackingService
     {
         $rawSession = session()->getId();
         if (empty($rawSession)) {
-            // Fallback für Headless / API-Aufrufe
-            $rawSession = request()->cookie(config('session.cookie')) ?? 'guest_' . request()->ip();
+            // Fallback für Headless / API-Aufrufe (IP vor Hash-Bildung anonymisieren + Tages-Salt)
+            $rawIp = (string) request()->ip();
+            $anonIp = class_exists(\Symfony\Component\HttpFoundation\IpUtils::class) && $rawIp !== ''
+                ? \Symfony\Component\HttpFoundation\IpUtils::anonymize($rawIp)
+                : $rawIp;
+            $rawSession = request()->cookie(config('session.cookie')) ?? ('guest_' . $anonIp . '_' . date('Y-m-d'));
         }
 
         return hash('sha256', $rawSession . config('app.key'));

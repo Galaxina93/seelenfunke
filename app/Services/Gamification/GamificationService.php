@@ -227,7 +227,7 @@ class GamificationService
 
     /**
      * Löst gesammelte Seelenfunken direkt in einen einmalig nutzbaren Rabatt-Gutschein ein:
-     * 250 Funken = 5 %, 500 Funken = 10 %, 750 Funken = 15 %
+     * 60 Funken = 5 %, 150 Funken = 10 %, 350 Funken = 15 %
      * Das Lebenszeit-Konto (funken_total_earned) und Funkis Level bleiben dabei vollständig erhalten!
      */
     public function redeemSparksForVoucher(Customer $customer, string $voucherKey): array
@@ -735,11 +735,17 @@ class GamificationService
 
             if (in_array($productKey, $rewardedProductIds, true)) {
                 $rewardSparks = GameConfig::REVIEW_SPARK_REWARD;
-                $profile->funken_balance = max(0, (int) $profile->funken_balance - $rewardSparks);
+                $oldBalance = (int) $profile->funken_balance;
+                $fullyReversed = $oldBalance >= $rewardSparks;
+
+                $profile->funken_balance = max(0, $oldBalance - $rewardSparks);
                 $profile->funken_total_earned = max(0, (int) $profile->funken_total_earned - $rewardSparks);
                 $this->syncLevelFromLifetimeSparks($profile, true);
 
-                $progress['_rewarded_review_product_ids'] = array_values(array_diff($rewardedProductIds, [$productKey]));
+                // Nur freigeben, wenn die 15 Funken auch vollständig vom Guthaben abgezogen werden konnten (verhindert Ausgeben -> Löschen -> Neu-Bewerten Exploit)
+                if ($fullyReversed) {
+                    $progress['_rewarded_review_product_ids'] = array_values(array_diff($rewardedProductIds, [$productKey]));
+                }
                 $progress['funkenkoenig'] = (int) $profile->funken_total_earned;
                 $profile->titles_progress = $progress;
                 $profile->save();
@@ -749,8 +755,8 @@ class GamificationService
                     'review_reversal',
                     'review',
                     'Bewertungs-Funken zurückgebucht',
-                    '-' . $rewardSparks . ' Seelenfunken wegen Löschung/Ablehnung der Bewertung abgezogen.',
-                    -$rewardSparks,
+                    '-' . min($oldBalance, $rewardSparks) . ' Seelenfunken wegen Löschung/Ablehnung der Bewertung abgezogen.',
+                    -min($oldBalance, $rewardSparks),
                     (int) $profile->funken_balance,
                     ['review_id' => (string) $review->id, 'product_id' => $productKey]
                 );
@@ -1225,14 +1231,14 @@ class GamificationService
         if (!$profile || !is_array($profile->titles_progress)) {
             return [
                 'volume'       => 35,
-                'muted'        => false,
+                'muted'        => true,
                 'keep_playing' => false,
             ];
         }
 
         $progress = $profile->titles_progress;
         $volume = isset($progress['_audio_volume']) ? max(0, min(100, (int) $progress['_audio_volume'])) : 35;
-        $muted = !empty($progress['_audio_muted']);
+        $muted = array_key_exists('_audio_muted', $progress) ? (bool) $progress['_audio_muted'] : true;
         $keepPlaying = !empty($progress['_audio_keep_playing']);
 
         return [
@@ -1306,15 +1312,16 @@ class GamificationService
     public function getPublicProfileCardData(Customer $customer, ?CustomerGamification $profile = null): array
     {
         $this->ensureHangarColumns();
-        $profile = $profile ?? $customer->gamification ?? CustomerGamification::where('customer_id', $customer->id)->first();
+        $rawProfile = $profile ?? $customer->gamification ?? CustomerGamification::where('customer_id', $customer->id)->first();
+        $activeProfile = ($rawProfile && $rawProfile->is_active) ? $rawProfile : null;
 
-        $level = $profile
-            ? min(GameConfig::MAX_LEVEL, max(1, (int) ($profile->level ?: GameConfig::getLevelForLifetimeSparks((int) $profile->funken_total_earned))))
+        $level = $activeProfile
+            ? min(GameConfig::MAX_LEVEL, max(1, (int) ($activeProfile->level ?: GameConfig::getLevelForLifetimeSparks((int) $activeProfile->funken_total_earned))))
             : 1;
 
         $displayLevel = $level;
-        if ($profile) {
-            $activeBg = (string) ($profile->active_background ?? 'default');
+        if ($activeProfile) {
+            $activeBg = (string) ($activeProfile->active_background ?? 'default');
             if (str_starts_with($activeBg, 'stage_')) {
                 $chosen = (int) str_replace('stage_', '', $activeBg);
                 if ($chosen >= 1 && $chosen <= $level) {
@@ -1324,14 +1331,16 @@ class GamificationService
         }
 
         $lvlCfg = GameConfig::getLevelConfig($displayLevel);
-        $titlesData = $profile && $profile->is_active ? $this->evaluateTitles($profile) : null;
+        $titlesData = $activeProfile ? $this->evaluateTitles($activeProfile) : null;
         $defaultRankName = GameConfig::getLevelTitles()[$level]['name'] ?? 'Kleiner Seelenfunke';
-        $activeRankName = ($profile && $titlesData)
-            ? ($this->resolveActiveRankName($profile, $titlesData) ?: $defaultRankName)
+        $activeRankName = ($activeProfile && $titlesData)
+            ? ($this->resolveActiveRankName($activeProfile, $titlesData) ?: $defaultRankName)
             : $defaultRankName;
 
+        // Eigenes Profilfoto nur ausliefern, wenn kein aktives Pseudonym (use_real_name = false + player_name) genutzt wird
+        $usesPseudonym = $activeProfile && !$activeProfile->use_real_name && !empty(trim((string) $activeProfile->player_name));
         $customPhotoUrl = null;
-        if ($customer->profile && !empty($customer->profile->photo_path)) {
+        if (!$usesPseudonym && $customer->profile && !empty($customer->profile->photo_path)) {
             $pp = $customer->profile->photo_path;
             $customPhotoUrl = (str_starts_with($pp, 'shopverwaltung/images/') || str_starts_with($pp, 'shop/') || str_starts_with($pp, '/'))
                 ? asset($pp)
@@ -1339,10 +1348,7 @@ class GamificationService
         }
 
         return [
-            'customer_id'         => (string) $customer->id,
-            'display_name'        => $this->resolvePublicDisplayName($customer, $profile),
-            'player_name'         => $profile?->player_name,
-            'use_real_name'       => (bool) ($profile?->use_real_name ?? true),
+            'display_name'        => $this->resolvePublicDisplayName($customer, $activeProfile),
             'level'               => $level,
             'display_level'       => $displayLevel,
             'funki_name'          => $lvlCfg['name'] ?? ('Funki Level ' . $displayLevel),
@@ -1360,7 +1366,7 @@ class GamificationService
             'is_seelengott'       => !empty($titlesData['is_seelengott']),
             'diamonds_count'      => (int) ($titlesData['diamonds_count'] ?? 0),
             'total_titles'        => (int) ($titlesData['total_titles'] ?? 5),
-            'funken_total_earned' => (int) ($profile?->funken_total_earned ?? 0),
+            'funken_total_earned' => (int) ($activeProfile?->funken_total_earned ?? 0),
             'member_since'        => $customer->created_at ? $customer->created_at->format('m/Y') : '',
         ];
     }
@@ -1381,7 +1387,10 @@ class GamificationService
         $this->ensureHangarColumns();
 
         $perPage = max(1, min(50, $perPage));
-        $baseQuery = CustomerGamification::with(['customer.profile'])
+        $baseQuery = CustomerGamification::with([
+                'customer:id,first_name,last_name,created_at',
+                'customer.profile:id,customer_id,photo_path',
+            ])
             ->where('is_active', true)
             ->where('ranking_opt_in', true)
             ->whereHas('customer')

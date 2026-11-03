@@ -44,6 +44,7 @@ class OrderCheckoutSuccess extends Component
                     ->where('customer_id', Auth::guard('customer')->id())
                     ->where('payment_status', 'paid')
                     ->whereNotIn('status', ['cancelled', 'refunded'])
+                    ->where('created_at', '>=', now()->subHours(2))
                     ->latest()
                     ->first();
                 if ($order) {
@@ -81,7 +82,7 @@ class OrderCheckoutSuccess extends Component
             return;
         }
 
-        $stripeSecret = config('services.stripe.secret');
+        $stripeSecret = config('services.stripe.secret') ?: shop_setting('stripe_secret_key');
         if (!$stripeSecret) {
             if ($isOwner && $order->payment_status === 'paid' && !in_array($order->status, ['cancelled', 'refunded'], true)) {
                 $this->finalOrderId = (string) $order->id;

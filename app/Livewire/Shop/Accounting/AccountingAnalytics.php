@@ -137,13 +137,20 @@ class AccountingAnalytics extends Component
         foreach ($invGrouped->sortKeys() as $gDate => $items) {
             $invLabels[] = Carbon::createFromFormat('Y-m', $gDate)->locale('de')->shortMonthName . ' ' . substr($gDate, 0, 4);
             $invData[] = $items->sum(function($i) {
-                return $this->isNet ? ($i->total - $i->tax_amount) : $i->total;
+                $sign = in_array($i->type, ['cancellation', 'credit_note'], true) ? -1 : 1;
+                $gross = $sign * abs((int) $i->total);
+                $tax = $sign * abs((int) $i->tax_amount);
+                return $this->isNet ? ($gross - $tax) : $gross;
             }) / 100; // Euro conversion assumed based on typical integration
         }
         $this->invoiceData = ['labels' => $invLabels, 'data' => $invData];
 
+        $taxService = app(\App\Services\Tax\TaxSettingService::class);
+        $isSmallBusiness = $taxService->isCurrentSmallBusiness();
+
         // 2. Special Issues (Mandanten-isoliert nach admin_id)
         $issues = AccountingSpecialIssue::where('admin_id', $this->getAdminId())
+            ->where('is_business', true)
             ->whereBetween('execution_date', [$this->dateFrom, $this->dateTo])
             ->get();
         $issGrouped = $issues->groupBy(fn($i) => Carbon::parse($i->execution_date)->format('Y-m'));
@@ -151,9 +158,9 @@ class AccountingAnalytics extends Component
         $issData = [];
         foreach ($issGrouped->sortKeys() as $gDate => $items) {
             $issLabels[] = Carbon::createFromFormat('Y-m', $gDate)->locale('de')->shortMonthName . ' ' . substr($gDate, 0, 4);
-            $issData[] = $items->sum(function($i) {
+            $issData[] = $items->sum(function($i) use ($isSmallBusiness) {
                 $amount = $i->amount;
-                if ($this->isNet && isset($i->tax_rate) && $i->tax_rate > 0) {
+                if ($this->isNet && !$isSmallBusiness && isset($i->tax_rate) && $i->tax_rate > 0) {
                     $amount = $amount / (1 + ($i->tax_rate / 100));
                 }
                 return $amount;
@@ -163,7 +170,8 @@ class AccountingAnalytics extends Component
 
         // 3. Cost Items (Mandanten-isoliert nach group.admin_id)
         // Show newly generated fixing items or total fixed cost by group
-        $costs = AccountingCostItem::whereHas('group', fn($q) => $q->where('admin_id', $this->getAdminId()))
+        $costs = AccountingCostItem::whereHas('group', fn($q) => $q->where('admin_id', $this->getAdminId())->where('type', '!=', 'income'))
+            ->where('is_business', true)
             ->with('group')
             ->get();
         // Wir berechnen das monatliche Äquivalent ("Gewichtung") für die Kategorien.
@@ -171,19 +179,24 @@ class AccountingAnalytics extends Component
         $cData = [];
         foreach ($costs->groupBy('accounting_group_id') as $gId => $groupItems) {
             $grpName = $groupItems->first()->group->name ?? 'Zuweisung Fehlt';
-            $cLabels[] = $grpName;
             
             $monthlySum = 0;
             foreach($groupItems as $item) {
+                if (!$item->is_business || (($item->group->type ?? 'expense') === 'income' && $item->amount >= 0)) {
+                    continue;
+                }
                 $amount = $item->amount;
-                if ($this->isNet && isset($item->tax_rate) && $item->tax_rate > 0) {
+                if ($this->isNet && !$isSmallBusiness && isset($item->tax_rate) && $item->tax_rate > 0) {
                     $amount = $amount / (1 + ($item->tax_rate / 100));
                 }
                 
                 $interval = max(1, $item->interval_months);
                 $monthlySum += abs($amount / $interval);
             }
-            $cData[] = round($monthlySum, 2);
+            if ($monthlySum > 0) {
+                $cLabels[] = $grpName;
+                $cData[] = round($monthlySum, 2);
+            }
         }
         $this->costItemData = ['labels' => $cLabels, 'data' => $cData];
 

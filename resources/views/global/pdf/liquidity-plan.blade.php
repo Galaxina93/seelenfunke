@@ -78,7 +78,7 @@
 <div id="footer">
     <table class="footer-table">
         <tr>
-            <td style="text-align: left; width: 33%;"><strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong> | Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}</td>
+            <td style="text-align: left; width: 33%;"><strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong> | Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}</td>
             <td style="text-align: center; width: 33%; color: #111827;" class="page-number"></td>
             <td style="text-align: right; width: 33%;"><a href="{{ url('/') }}">{{ str_replace(['http://', 'https://'], '', shop_setting('owner_website', 'www.mein-seelenfunke.de')) }}</a></td>
         </tr>
@@ -93,7 +93,7 @@
         <div class="plan-year-title">PLANUNGSJAHR: {{ $year }}</div>
         <div class="doc-meta">
             Generiert am: {{ date('d.m.Y, H:i') }} Uhr<br>
-            <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong>, {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}, {{ shop_setting('owner_city', '38518 Gifhorn') }}
+            <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong>, {{ shop_setting('company_street') ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', '26')) : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}, {{ shop_setting('company_city') ? trim(shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city')) : shop_setting('owner_city', '38518 Gifhorn') }}
         </div>
     </div>
 
@@ -228,8 +228,8 @@
     <tr class="sum-row"><td colspan="2" class="text-left" style="font-size: 6px; text-transform: uppercase;">Investitionsgüter</td></tr>
     <tr><td class="text-left zero-val">Grundstück</td><td class="zero-val">0,00&nbsp;€</td></tr>
     <tr><td class="text-left zero-val">Gebäude</td><td class="zero-val">0,00&nbsp;€</td></tr>
-    <tr><td class="text-left zero-val">Umbaumaßnahmen</td><td class="zero-val">0,00&nbsp;€</td></tr>
-    <tr><td class="text-left zero-val">Geschäfts- und Ladeneinrichtung</td><td class="zero-val">0,00&nbsp;€</td></tr>
+    <tr><td class="text-left" style="font-weight: bold;">Umbaumaßnahmen</td><td style="font-weight: bold;">{{ number_format($kapitalbedarf['investitionen']['umbau'] ?? 0, 2, ',', '.') }}&nbsp;€</td></tr>
+    <tr><td class="text-left" style="font-weight: bold;">Geschäfts- und Ladeneinrichtung</td><td style="font-weight: bold;">{{ number_format($kapitalbedarf['investitionen']['einrichtung'] ?? 0, 2, ',', '.') }}&nbsp;€</td></tr>
     <tr><td class="text-left" style="font-weight: bold;">Maschinen + Werkzeuge</td><td style="font-weight: bold;">{{ number_format($kapitalbedarf['investitionen']['maschinen'] ?? 0, 2, ',', '.') }}&nbsp;€</td></tr>
     <tr><td class="text-left" style="font-weight: bold;">Warenanfangsbestand</td><td style="font-weight: bold;">{{ number_format($kapitalbedarf['investitionen']['waren'] ?? 0, 2, ',', '.') }}&nbsp;€</td></tr>
     <tr><td class="text-left zero-val">Fahrzeuge</td><td class="zero-val">0,00&nbsp;€</td></tr>
@@ -243,7 +243,7 @@
     <tr><td class="text-left zero-val">Anmeldungen/Genehmigungen</td><td class="zero-val">0,00&nbsp;€</td></tr>
     <tr><td class="text-left zero-val">Eintragung ins Handelsregister</td><td class="zero-val">0,00&nbsp;€</td></tr>
     <tr><td class="text-left zero-val">Notar</td><td class="zero-val">0,00&nbsp;€</td></tr>
-    <tr><td class="text-left zero-val">Sonstiges</td><td class="zero-val">0,00&nbsp;€</td></tr>
+    <tr><td class="text-left" style="font-weight: bold;">Sonstiges</td><td style="font-weight: bold;">{{ number_format($kapitalbedarf['gruendung']['sonstiges'] ?? 0, 2, ',', '.') }}&nbsp;€</td></tr>
     <tr style="background: #eef2f5;"><td class="text-left" style="font-weight: bold;">Summe Aufwendungen</td><td style="font-weight: bold;">{{ number_format(array_sum($kapitalbedarf['gruendung'] ?? []), 2, ',', '.') }}&nbsp;€</td></tr>
 
     <tr class="end-row"><td class="text-left" style="border-color: #111827;">Gesamter Finanzierungsbedarf</td><td style="border-color: #111827;">{{ number_format(array_sum($kapitalbedarf['investitionen'] ?? []) + array_sum($kapitalbedarf['gruendung'] ?? []), 2, ',', '.') }}&nbsp;€</td></tr>

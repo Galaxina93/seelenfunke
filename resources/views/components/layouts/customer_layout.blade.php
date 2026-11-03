@@ -28,32 +28,15 @@
         window.showAllOperative = false;
         window.tooltip = false;
 
-        // Theme Initialisierung: Standardmäßig Light Mode
+        // Kundenbereich: Immer im edlen, hellen Manufaktur-Modus (Admin-Darkmode in localStorage.theme bleibt für /admin unberührt)
         (function() {
-            try {
-                if (localStorage.theme === 'dark') {
-                    document.documentElement.classList.add('dark');
-                    document.documentElement.classList.remove('light');
-                } else {
-                    document.documentElement.classList.remove('dark');
-                    document.documentElement.classList.add('light');
-                }
-            } catch (e) {
-                document.documentElement.classList.remove('dark');
-                document.documentElement.classList.add('light');
-            }
+            document.documentElement.classList.remove('dark');
+            document.documentElement.classList.add('light');
         })();
 
         document.addEventListener('livewire:navigated', function() {
-            try {
-                if (localStorage.theme === 'dark') {
-                    document.documentElement.classList.add('dark');
-                    document.documentElement.classList.remove('light');
-                } else {
-                    document.documentElement.classList.remove('dark');
-                    document.documentElement.classList.add('light');
-                }
-            } catch (e) {}
+            document.documentElement.classList.remove('dark');
+            document.documentElement.classList.add('light');
         });
 
         // Unterdrückt den harmlosen Alpine/Livewire Fehler bei abgebrochenen CSS-Animationen
@@ -64,6 +47,48 @@
         });
     </script>
     @include("components.layouts.partials.frontend-error-tracker")
+
+    <style>
+        [x-cloak] {
+            display: none !important;
+        }
+        html.dark {
+            color-scheme: dark;
+        }
+        html.light, html:not(.dark) {
+            color-scheme: light;
+        }
+        /* Universelle Sichtbarkeit des Mauszeigers & Carets in Input- und Textarea-Feldern */
+        input, textarea, [contenteditable="true"] {
+            caret-color: currentColor;
+        }
+        html.dark input,
+        html.dark textarea,
+        html.dark [contenteditable="true"],
+        html.dark select {
+            color-scheme: dark;
+            caret-color: #E6C687;
+        }
+        /* Dual-Vector High-Contrast I-Beam Cursor für helle & dunkle Eingabefelder (verhindert unsichtbare Maus auf Windows/Chrome) */
+        html:not(.dark) input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="image"]):not(:disabled):not(.cursor-pointer):not(.cursor-not-allowed):not(.cursor-wait),
+        html:not(.dark) textarea:not(:disabled):not(.cursor-pointer):not(.cursor-not-allowed),
+        html:not(.dark) [contenteditable="true"],
+        html:not(.dark) .cursor-text {
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='24' viewBox='0 0 16 24'%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' fill='none' stroke='%23ffffff' stroke-width='4.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' fill='none' stroke='%23111827' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 8 12, text !important;
+        }
+        html.dark input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="image"]):not(:disabled):not(.cursor-pointer):not(.cursor-not-allowed):not(.cursor-wait),
+        html.dark textarea:not(:disabled):not(.cursor-pointer):not(.cursor-not-allowed),
+        html.dark [contenteditable="true"],
+        html.dark .cursor-text,
+        input[class*="bg-gray-9"]:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(:disabled):not(.cursor-pointer),
+        input[class*="bg-slate-9"]:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(:disabled):not(.cursor-pointer),
+        input[class*="bg-black"]:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(:disabled):not(.cursor-pointer),
+        textarea[class*="bg-gray-9"]:not(:disabled):not(.cursor-pointer),
+        textarea[class*="bg-slate-9"]:not(:disabled):not(.cursor-pointer),
+        textarea[class*="bg-black"]:not(:disabled):not(.cursor-pointer) {
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='24' viewBox='0 0 16 24'%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' fill='none' stroke='%23000000' stroke-width='4.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 8 12, text !important;
+        }
+    </style>
 </head>
 
 @php
@@ -191,6 +216,14 @@
         </div>
         <span class="text-[9px] font-black uppercase tracking-widest">Hilfe</span>
     </a>
+
+    {{-- MOBILE FUNKI & PRÄMIEN LINK (NUR NACH MAGIE-AKTIVIERUNG SICHTBAR) --}}
+    @if($hasOptedIn)
+        <a href="{{ route('customer.funki') }}" wire:navigate class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.funki') ? 'text-primary' : 'text-amber-600 dark:text-[#f5dca0]' }}">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L14.4 9.6L22 12L14.4 14.4L12 22L9.6 14.4L2 12L9.6 9.6L12 2Z"/></svg>
+            <span class="text-[9px] font-black uppercase tracking-widest">Funki</span>
+        </a>
+    @endif
 </nav>
 
 @if(auth()->guard('customer')->check())

@@ -56,22 +56,20 @@ class GameGlobalStatsHeader extends Component
         }
 
         $this->hasOptedIn = true;
-        $this->level = max(1, min(GameConfig::MAX_LEVEL, (int) ($profile->funki_level ?? $profile->level ?? 1)));
         $this->balance = (int) ($profile->funken_balance ?? 0);
         $this->totalEarned = (int) ($profile->funken_total_earned ?? 0);
-        $this->isMaxLevel = $this->level >= GameConfig::MAX_LEVEL;
-        $this->upgradeCost = GameConfig::getNextLevelCost($this->level);
 
-        if ($this->isMaxLevel) {
-            $this->progressPercentage = 100;
-            $this->missingSparks = 0;
-        } else {
-            $currentFloor = GameConfig::getLevels()[$this->level]['cost'] ?? 0;
-            $span = max(1, $this->upgradeCost - $currentFloor);
-            $gainedInStage = max(0, $this->totalEarned - $currentFloor);
-            $this->missingSparks = max(0, $this->upgradeCost - $this->totalEarned);
-            $this->progressPercentage = min(100, (int) round(($gainedInStage / $span) * 100));
-        }
+        $progressData = GameConfig::getLevelProgressData($this->totalEarned);
+        $this->level = (int) ($progressData['level'] ?? 1);
+        $this->isMaxLevel = (bool) ($progressData['is_max_level'] ?? ($this->level >= GameConfig::MAX_LEVEL));
+        $this->upgradeCost = (int) ($progressData['next_level_threshold'] ?? GameConfig::getNextLevelCost($this->level));
+        $this->progressPercentage = (int) ($progressData['progress_percentage'] ?? 0);
+        $this->missingSparks = (int) ($progressData['missing_sparks'] ?? 0);
+    }
+
+    public function loadStats(GamificationService $gameService)
+    {
+        $this->loadData($gameService);
     }
 
     public function render()

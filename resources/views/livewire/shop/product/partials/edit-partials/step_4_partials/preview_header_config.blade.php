@@ -2,7 +2,11 @@
 
     {{-- TEXT BEREICH --}}
     <div class="w-full xl:w-auto flex-1 min-w-[200px] shrink-0">
-        <h3 class="font-serif font-bold text-xl text-gray-900 dark:text-white mb-1.5 tracking-wide">Vorschau & Arbeitsbereich</h3>
+        <div class="flex items-center gap-2.5 mb-1.5">
+            <span class="w-8 h-8 rounded-xl bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-20)] flex items-center justify-center shadow-inner font-bold text-xs shrink-0">4.3</span>
+            <h3 class="font-serif font-bold text-xl text-gray-900 dark:text-white tracking-wide">Vorschau & Arbeitsbereich</h3>
+            @include('components.alerts.info-tooltip', ['key' => 'configurator_workspace_help'])
+        </div>
         <p class="text-[10px] font-black uppercase tracking-widest text-gray-500 max-w-sm leading-relaxed">Definieren Sie die Gravurfläche und 3D-Ansicht.</p>
     </div>
 

@@ -48,20 +48,46 @@ class ProductConfiguratorSettings extends Component
     public ?string $renamingCategory = null;
     public string $renameCategoryValue = '';
 
+    // 6. Spruch- & Widmungs-Bibliothek („Kreativ-Starthilfe“) + KI-Generator
+    public string $selectedQuoteCategory = 'all';
+    public string $quoteStatusFilter = 'all'; // 'all', 'active', 'archived'
+    public string $quoteSearch = '';
+
+    public string $newQuoteText = '';
+    public string $newQuoteTitle = '';
+    public string $newQuoteCategory = 'Liebe & Partnerschaft';
+
+    public string $aiQuoteCategory = 'Liebe & Partnerschaft';
+    public string $aiQuoteStyleHint = '';
+    public int $aiQuoteMaxLength = 60;
+    public array $aiGeneratedQuotes = [];
+
+    #[\Livewire\Attributes\Locked]
+    public ?string $editingQuoteId = null;
+    public string $editQuoteText = '';
+    public string $editQuoteTitle = '';
+    public string $editQuoteCategory = '';
+
+    public bool $showQuoteCategoryManager = false;
+    public string $newQuoteCategoryName = '';
+    #[\Livewire\Attributes\Locked]
+    public ?string $renamingQuoteCategory = null;
+    public string $renameQuoteCategoryValue = '';
+
     public function boot(): void
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
     }
 
     public function mount()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
 
-        $savedLayout = \App\Models\System\SystemSetting::where('key', 'admin_configurator_symbols_layout_mode')->value('value');
+        $savedLayout = shop_setting('admin_configurator_symbols_layout_mode', 'medium');
         if (in_array($savedLayout, ['small', 'medium', 'large', 'table'], true)) {
             $this->layoutMode = $savedLayout;
         }
@@ -79,6 +105,7 @@ class ProductConfiguratorSettings extends Component
             ['key' => 'admin_configurator_symbols_layout_mode'],
             ['value' => $mode]
         );
+        \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
     }
 
     // =========================================================================
@@ -140,13 +167,14 @@ class ProductConfiguratorSettings extends Component
             return;
         }
 
-        $current = (string) (\App\Models\System\SystemSetting::where('key', 'manual_active_animation')->value('value') ?? '');
+        $current = (string) (shop_setting('manual_active_animation', '') ?? '');
         $nextVal = ($current === $themeKey) ? '' : $themeKey;
 
         \App\Models\System\SystemSetting::updateOrCreate(
             ['key' => 'manual_active_animation'],
             ['value' => $nextVal]
         );
+        \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
 
         session()->flash(
             'themes_success',
@@ -368,6 +396,244 @@ class ProductConfiguratorSettings extends Component
         app(ProductConfiguratorService::class)->moveCategoryOrder($cat, $direction);
     }
 
+    // =========================================================================
+    // SPRUCH- & WIDMUNGS-BIBLIOTHEK („KREATIV-STARTHILFE“) + KI-GENERATOR
+    // =========================================================================
+
+    public function saveNewQuote(): void
+    {
+        $this->validate([
+            'newQuoteText'     => 'required|string|min:2|max:240',
+            'newQuoteTitle'    => 'nullable|string|max:60',
+            'newQuoteCategory' => 'required|string|max:80',
+        ], [
+            'newQuoteText.required' => 'Bitte gib einen Spruchtext ein.',
+            'newQuoteText.max'      => 'Der Spruch sollte maximal 240 Zeichen lang sein.',
+        ]);
+
+        app(ProductConfiguratorService::class)->addQuote(
+            $this->newQuoteText,
+            $this->newQuoteCategory,
+            $this->newQuoteTitle,
+            'manual'
+        );
+
+        $this->newQuoteText = '';
+        $this->newQuoteTitle = '';
+        session()->flash('quotes_success', 'Neuer Spruch wurde zur Kreativ-Starthilfe hinzugefügt.');
+    }
+
+    public function generateQuotesWithAi(): void
+    {
+        $this->validate([
+            'aiQuoteCategory'  => 'required|string|max:80',
+            'aiQuoteStyleHint' => 'nullable|string|max:120',
+            'aiQuoteMaxLength' => 'required|integer|min:20|max:140',
+        ]);
+
+        $this->aiGeneratedQuotes = app(ProductConfiguratorService::class)->generateAiQuotes(
+            $this->aiQuoteCategory,
+            $this->aiQuoteStyleHint,
+            $this->aiQuoteMaxLength,
+            5
+        );
+
+        session()->flash(
+            'quotes_success',
+            count($this->aiGeneratedQuotes) . ' neue Spruch-Vorschläge generiert. Klicke auf „+ Übernehmen“, um deine Favoriten fest zu speichern.'
+        );
+    }
+
+    public function acceptAiQuote(int $index): void
+    {
+        if (!isset($this->aiGeneratedQuotes[$index])) {
+            return;
+        }
+
+        $q = $this->aiGeneratedQuotes[$index];
+        app(ProductConfiguratorService::class)->addQuote(
+            (string) ($q['text'] ?? ''),
+            (string) ($q['category'] ?? $this->aiQuoteCategory),
+            (string) ($q['title'] ?? ''),
+            'ai'
+        );
+
+        unset($this->aiGeneratedQuotes[$index]);
+        $this->aiGeneratedQuotes = array_values($this->aiGeneratedQuotes);
+
+        session()->flash('quotes_success', 'KI-Spruch wurde fest in die Spruch-Bibliothek übernommen.');
+    }
+
+    public function acceptAllAiQuotes(): void
+    {
+        if (empty($this->aiGeneratedQuotes)) {
+            return;
+        }
+
+        $service = app(ProductConfiguratorService::class);
+        $count = 0;
+        foreach ($this->aiGeneratedQuotes as $q) {
+            $service->addQuote(
+                (string) ($q['text'] ?? ''),
+                (string) ($q['category'] ?? $this->aiQuoteCategory),
+                (string) ($q['title'] ?? ''),
+                'ai'
+            );
+            $count++;
+        }
+
+        $this->aiGeneratedQuotes = [];
+        session()->flash('quotes_success', "Alle {$count} KI-Sprüche wurden fest in die Spruch-Bibliothek übernommen.");
+    }
+
+    public function discardAiQuote(int $index): void
+    {
+        if (isset($this->aiGeneratedQuotes[$index])) {
+            unset($this->aiGeneratedQuotes[$index]);
+            $this->aiGeneratedQuotes = array_values($this->aiGeneratedQuotes);
+        }
+    }
+
+    public function startEditQuote(string $id, string $text, string $title, string $category): void
+    {
+        $this->editingQuoteId = $id;
+        $this->editQuoteText = $text;
+        $this->editQuoteTitle = $title;
+        $this->editQuoteCategory = $category;
+    }
+
+    public function cancelEditQuote(): void
+    {
+        $this->editingQuoteId = null;
+        $this->editQuoteText = '';
+        $this->editQuoteTitle = '';
+        $this->editQuoteCategory = '';
+    }
+
+    public function saveEditQuote(): void
+    {
+        if (!$this->editingQuoteId) {
+            return;
+        }
+
+        $this->validate([
+            'editQuoteText'     => 'required|string|min:2|max:240',
+            'editQuoteTitle'    => 'nullable|string|max:60',
+            'editQuoteCategory' => 'required|string|max:80',
+        ]);
+
+        app(ProductConfiguratorService::class)->updateQuote(
+            $this->editingQuoteId,
+            $this->editQuoteText,
+            $this->editQuoteCategory,
+            $this->editQuoteTitle
+        );
+
+        $this->cancelEditQuote();
+        session()->flash('quotes_success', 'Spruch erfolgreich aktualisiert.');
+    }
+
+    public function quickChangeQuoteCategory(string $id, string $newCategory): void
+    {
+        $data = app(ProductConfiguratorService::class)->getAdminQuotesData();
+        foreach ($data['quotes'] as $q) {
+            if ($q['id'] === $id) {
+                app(ProductConfiguratorService::class)->updateQuote($id, $q['text'], $newCategory, $q['title']);
+                break;
+            }
+        }
+    }
+
+    public function toggleArchiveQuote(string $id): void
+    {
+        $isArchived = app(ProductConfiguratorService::class)->toggleArchiveQuote($id);
+        if ($isArchived !== null) {
+            session()->flash(
+                'quotes_success',
+                $isArchived
+                    ? 'Spruch archiviert (im Kunden-Konfigurator ausgeblendet).'
+                    : 'Spruch wieder aktiviert und im Kunden-Konfigurator sichtbar.'
+            );
+        }
+    }
+
+    public function deleteQuote(string $id): void
+    {
+        if (app(ProductConfiguratorService::class)->deleteQuote($id)) {
+            if ($this->editingQuoteId === $id) {
+                $this->cancelEditQuote();
+            }
+            session()->flash('quotes_success', 'Spruch endgültig gelöscht.');
+        }
+    }
+
+    public function createQuoteCategory(): void
+    {
+        $name = trim($this->newQuoteCategoryName);
+        if ($name === '') {
+            return;
+        }
+
+        if (app(ProductConfiguratorService::class)->addQuoteCategory($name)) {
+            $this->newQuoteCategory = $name;
+            $this->aiQuoteCategory = $name;
+            $this->newQuoteCategoryName = '';
+            session()->flash('quotes_success', "Spruch-Kategorie „{$name}“ wurde angelegt.");
+        }
+    }
+
+    public function startRenameQuoteCategory(string $cat): void
+    {
+        $this->renamingQuoteCategory = $cat;
+        $this->renameQuoteCategoryValue = $cat;
+    }
+
+    public function cancelRenameQuoteCategory(): void
+    {
+        $this->renamingQuoteCategory = null;
+        $this->renameQuoteCategoryValue = '';
+    }
+
+    public function saveRenameQuoteCategory(): void
+    {
+        if (!$this->renamingQuoteCategory) {
+            return;
+        }
+
+        $old = $this->renamingQuoteCategory;
+        $new = trim($this->renameQuoteCategoryValue);
+
+        if ($new !== '' && app(ProductConfiguratorService::class)->renameQuoteCategory($old, $new)) {
+            if ($this->selectedQuoteCategory === $old) {
+                $this->selectedQuoteCategory = $new;
+            }
+            if ($this->newQuoteCategory === $old) {
+                $this->newQuoteCategory = $new;
+            }
+            if ($this->aiQuoteCategory === $old) {
+                $this->aiQuoteCategory = $new;
+            }
+            session()->flash('quotes_success', "Spruch-Kategorie „{$old}“ in „{$new}“ umbenannt.");
+        }
+
+        $this->cancelRenameQuoteCategory();
+    }
+
+    public function removeQuoteCategory(string $cat): void
+    {
+        if (app(ProductConfiguratorService::class)->deleteQuoteCategory($cat)) {
+            if ($this->selectedQuoteCategory === $cat) {
+                $this->selectedQuoteCategory = 'all';
+            }
+            session()->flash('quotes_success', "Spruch-Kategorie „{$cat}“ entfernt (Sprüche wurden in die erste Kategorie verschoben).");
+        }
+    }
+
+    public function moveQuoteCategory(string $cat, string $direction): void
+    {
+        app(ProductConfiguratorService::class)->moveQuoteCategoryOrder($cat, $direction);
+    }
+
     public function render(ProductConfiguratorService $service)
     {
         if (!in_array($this->statusFilter, ['all', 'active', 'archived'], true)) {
@@ -375,6 +641,9 @@ class ProductConfiguratorSettings extends Component
         }
         if (!in_array($this->previewSurface, ['light', 'dark'], true)) {
             $this->previewSurface = 'light';
+        }
+        if (!in_array($this->quoteStatusFilter, ['all', 'active', 'archived'], true)) {
+            $this->quoteStatusFilter = 'all';
         }
 
         $tutorialConfig = $service->getTutorialConfig();
@@ -384,20 +653,45 @@ class ProductConfiguratorSettings extends Component
             $this->statusFilter
         );
 
+        $quotesData = $service->getAdminQuotesData();
+        $filteredQuotes = array_values(array_filter($quotesData['quotes'], function (array $q) {
+            if ($this->selectedQuoteCategory !== 'all' && $q['category'] !== $this->selectedQuoteCategory) {
+                return false;
+            }
+            if ($this->quoteStatusFilter === 'active' && $q['archived']) {
+                return false;
+            }
+            if ($this->quoteStatusFilter === 'archived' && !$q['archived']) {
+                return false;
+            }
+            if (trim($this->quoteSearch) !== '') {
+                $needle = mb_strtolower(trim($this->quoteSearch));
+                $haystack = mb_strtolower($q['text'] . ' ' . $q['title'] . ' ' . $q['category']);
+                if (!str_contains($haystack, $needle)) {
+                    return false;
+                }
+            }
+            return true;
+        }));
+
         $cfgService = app(\App\Services\ConfiguratorService::class);
         $backgroundThemes = $cfgService->getBackgroundThemes();
         $currentActiveTheme = $cfgService->getCurrentActiveTheme();
-        $manualAnimKey = (string) (\App\Models\System\SystemSetting::where('key', 'manual_active_animation')->value('value') ?? '');
+        $manualAnimKey = (string) (shop_setting('manual_active_animation', '') ?? '');
 
         return view('livewire.shop.product.product-configurator-settings', [
-            'tutorialConfig'     => $tutorialConfig,
-            'backgroundThemes'   => $backgroundThemes,
-            'currentActiveTheme' => $currentActiveTheme,
-            'manualAnimKey'      => $manualAnimKey,
-            'categories'         => $vectorsData['categories'],
-            'categoryCounts'     => $vectorsData['category_counts'],
-            'symbols'            => $vectorsData['items'],
-            'symbolStats'        => $vectorsData['stats'],
+            'tutorialConfig'      => $tutorialConfig,
+            'backgroundThemes'    => $backgroundThemes,
+            'currentActiveTheme'  => $currentActiveTheme,
+            'manualAnimKey'       => $manualAnimKey,
+            'categories'          => $vectorsData['categories'],
+            'categoryCounts'      => $vectorsData['category_counts'],
+            'symbols'             => $vectorsData['items'],
+            'symbolStats'         => $vectorsData['stats'],
+            'quoteCategories'     => $quotesData['categories'],
+            'quoteCategoryCounts' => $quotesData['category_counts'],
+            'quotes'              => $filteredQuotes,
+            'quoteStats'          => $quotesData['stats'],
         ]);
     }
 }

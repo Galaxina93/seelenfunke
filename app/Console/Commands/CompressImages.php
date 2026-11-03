@@ -77,6 +77,19 @@ class CompressImages extends Command
                     continue;
                 }
 
+                $normalizedPath = str_replace('\\', '/', $file->getPathname());
+                $protectedFolders = ['bestellungen/', 'cart-uploads/', 'configurator-uploads/', 'buchhaltung/', 'invoices/', 'receipts/'];
+                $isProtected = false;
+                foreach ($protectedFolders as $protectedFolder) {
+                    if (str_contains($normalizedPath, $protectedFolder)) {
+                        $isProtected = true;
+                        break;
+                    }
+                }
+                if ($isProtected) {
+                    continue;
+                }
+
                 $allFiles[] = $file;
             }
         }
@@ -114,8 +127,10 @@ class CompressImages extends Command
                     File::makeDirectory($backupDir, 0755, true);
                 }
 
-                // Copy original to backup BEFORE touching it
-                File::copy($filepath, $backupPath);
+                // Copy original to backup BEFORE touching it (never overwrite original backup on --force)
+                if (!File::exists($backupPath)) {
+                    File::copy($filepath, $backupPath);
+                }
             }
 
             // Original Size

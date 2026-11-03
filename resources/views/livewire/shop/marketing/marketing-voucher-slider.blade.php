@@ -77,8 +77,18 @@
                             </svg>
                         </div>
                     </div>
-                    @if($voucher->min_order_value > 0)
-                        <p class="text-[10px] text-gray-400 mt-3 text-center italic">Gültig ab {{ number_format($voucher->min_order_value / 100, 2, ',', '.') }}€ Warenwert</p>
+                    @if($voucher->min_order_value > 0 || $voucher->valid_until)
+                        <p class="text-[10px] text-gray-400 mt-3 text-center italic">
+                            @if($voucher->min_order_value > 0)
+                                Gültig ab {{ number_format($voucher->min_order_value / 100, 2, ',', '.') }}&nbsp;€ Warenwert
+                            @endif
+                            @if($voucher->min_order_value > 0 && $voucher->valid_until)
+                                ·
+                            @endif
+                            @if($voucher->valid_until)
+                                Gültig bis {{ $voucher->valid_until->format('d.m.Y') }}
+                            @endif
+                        </p>
                     @endif
                 </div>
             </div>
@@ -88,6 +98,8 @@
     </div>
 
     <div class="p-8 pt-4 border-t border-gray-100">
-        <p class="text-[10px] font-medium leading-tight text-gray-400 italic">Nur ein Gutschein pro Bestellung einlösbar.</p>
+        <p class="text-[10px] font-medium leading-relaxed text-gray-400 italic">
+            Einlösebedingungen gem. § 6 Abs. 1 Nr. 3 DDG: Pro Bestellung ist ein Aktionscode auf den Warenwert einlösbar. Nicht mit anderen Rabattcodes kombinierbar, keine Barauszahlung.
+        </p>
     </div>
 </div>

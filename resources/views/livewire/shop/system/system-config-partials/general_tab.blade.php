@@ -57,9 +57,22 @@
                     @include('components.alerts.info-tooltip', ['key' => 'default_tax_rate'])
                 </div>
                 <div class="relative">
-                    <input type="number" wire:model="settings.default_tax_rate" class="{{ $inputClass }} !text-lg !font-bold !pr-10">
+                    <input type="number" step="0.1" wire:model="settings.default_tax_rate" class="{{ $inputClass }} !text-lg !font-bold !pr-10">
                     <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-black">%</span>
                 </div>
+                @error('settings.default_tax_rate') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
+            </div>
+
+            <div>
+                <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Ermäßigter MwSt Satz (%)</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'reduced_tax_rate'])
+                </div>
+                <div class="relative">
+                    <input type="number" step="0.1" wire:model="settings.reduced_tax_rate" class="{{ $inputClass }} !text-lg !font-bold !pr-10">
+                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-black">%</span>
+                </div>
+                @error('settings.reduced_tax_rate') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
             </div>
 
             <div>
@@ -87,14 +100,53 @@
             <div class="p-2 rounded-xl bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] shadow-inner shrink-0">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             </div>
-            Angebots-Logik
+            Angebots-Logik, Herzensprojekt & Gebühren-Kalkulation
         </h3>
-        <div class="max-w-xs">
-            <div class="flex items-center gap-2 mb-2 ml-1">
-                <label class="{{ $labelClass }} !mb-0 !ml-0">Gültigkeit (Tage)</label>
-                @include('components.alerts.info-tooltip', ['key' => 'order_quote_validity_days'])
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 xl:gap-8">
+            <div>
+                <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Angebots-Gültigkeit (Tage)</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'order_quote_validity_days'])
+                </div>
+                <input type="number" wire:model="settings.order_quote_validity_days" class="{{ $inputClass }} !text-lg !font-bold">
+                @error('settings.order_quote_validity_days') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
             </div>
-            <input type="number" wire:model="settings.order_quote_validity_days" class="{{ $inputClass }} !text-lg !font-bold">
+
+            <div>
+                <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Herzensprojekt Spendenbeitrag ({{ \App\Services\HerzensprojektService::resolveUnitLabel(true) }})</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'herzensprojekt_cents_per_order'])
+                </div>
+                <div class="relative">
+                    <input type="number" step="0.01" wire:model="settings.herzensprojekt_cents_per_order" class="{{ $inputClass }} !text-lg !font-bold !pr-10">
+                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">€</span>
+                </div>
+                @error('settings.herzensprojekt_cents_per_order') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
+            </div>
+
+            <div>
+                <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Stripe-Gebühr Kalkulation (%)</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'stripe_fee_percent'])
+                </div>
+                <div class="relative">
+                    <input type="number" step="0.01" wire:model="settings.stripe_fee_percent" class="{{ $inputClass }} !text-lg !font-bold !pr-10">
+                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">%</span>
+                </div>
+                @error('settings.stripe_fee_percent') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
+            </div>
+
+            <div>
+                <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Stripe-Fixgebühr Kalkulation</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'stripe_fee_fixed_cents'])
+                </div>
+                <div class="relative">
+                    <input type="number" step="0.01" wire:model="settings.stripe_fee_fixed_cents" class="{{ $inputClass }} !text-lg !font-bold !pr-10">
+                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">€</span>
+                </div>
+                @error('settings.stripe_fee_fixed_cents') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
+            </div>
         </div>
     </div>
 

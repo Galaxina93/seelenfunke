@@ -48,7 +48,7 @@ class TwilioCallController extends Controller
             $stream->parameter(['name' => 'system_instructions', 'value' => $context['system_instructions'] ?? '']);
             $stream->parameter(['name' => 'ai_learned_facts', 'value' => $context['ai_learned_facts'] ?? '']);
             $stream->parameter(['name' => 'calendar_events', 'value' => $context['calendar_events'] ?? 'Keine Termine']);
-            $stream->parameter(['name' => 'agent_name', 'value' => $context['agent_name'] ?? 'Alina Steinhauer']);
+            $stream->parameter(['name' => 'agent_name', 'value' => $context['agent_name'] ?? shop_setting('owner_proprietor', 'Alina Steinhauer')]);
             $stream->parameter(['name' => 'agent_profile', 'value' => $context['agent_profile'] ?? 'Du bist eine hilfreiche KI Assistentin.']);
             $stream->parameter(['name' => 'planned_call_id', 'value' => (string)($context['planned_call_id'] ?? '')]);
         }

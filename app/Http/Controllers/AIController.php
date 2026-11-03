@@ -15,8 +15,8 @@ class AIController extends Controller
     public function schema(Request $request)
     {
         $tools = AIFunctionsRegistry::getSchema();
-        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
-            $isInternalEmployee = \App\Services\AI\AiAuthHelper::isEmployee();
+        if ((\App\Services\AI\AiAuthHelper::check() || \App\Services\AI\AiAuthHelper::isExternalPartner() || \Illuminate\Support\Facades\Auth::guard('employee')->check()) && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            $isInternalEmployee = \App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isExternalPartner();
             $tools = array_values(array_filter($tools, function ($tool) use ($isInternalEmployee) {
                 $name = $tool['function']['name'] ?? '';
                 if ($name === '') {
@@ -486,8 +486,9 @@ class AIController extends Controller
      */
     public function liveCredentials(Request $request)
     {
-        if (!auth()->check() && !auth('sanctum')->check() && !auth('admin')->check()) {
-            return response()->json(['error' => 'Unauthorized'], 401);
+        if (!\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            $status = (\App\Services\AI\AiAuthHelper::check() || \App\Services\AI\AiAuthHelper::isExternalPartner() || auth('sanctum')->check() || auth('employee')->check()) ? 403 : 401;
+            return response()->json(['error' => 'Unauthorized'], $status);
         }
 
         $isAdminUser = \App\Services\AI\AiAuthHelper::isAdmin();

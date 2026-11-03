@@ -12,7 +12,7 @@
         {{-- Sicherheitsfilter: Versandkosten/Express werden hier nicht als Zeile gelistet --}}
         @if(!str_contains(strtolower($item['name']), 'versand') && !str_contains(strtolower($item['name']), 'express'))
             @php
-                $conf = $item['config'] ?? [];
+                $conf = $item['config'] ?? $item['configuration'] ?? [];
                 
                 // Image Paths extrahieren
                 $imgPaths = [];
@@ -145,6 +145,72 @@
 
                     {{-- DETAILS & KONFIGURATIONSDATEN --}}
                     <div style="font-size: 11px; color: #666; line-height: 1.5;">
+                        @if(!empty($conf['variant_name']))
+                            <div style="margin-bottom: 3px;"><strong style="color: #444;">Ausführung:</strong> {{ $conf['variant_name'] }}</div>
+                        @endif
+
+                        @if(!empty($conf['addons_summary']) && is_array($conf['addons_summary']))
+                            @php
+                                $formattedAddons = [];
+                                $addonVisualItems = [];
+                                foreach ($conf['addons_summary'] as $addon) {
+                                    if (!empty($addon['name'])) {
+                                        $addonLabel = $addon['name'];
+                                        if (($addon['price_cents'] ?? 0) > 0) {
+                                            $addonLabel .= ' (+' . number_format($addon['price_cents'] / 100, 2, ',', '.') . ' €)';
+                                        }
+                                        $formattedAddons[] = $addonLabel;
+
+                                        // Addon-Bild für PDF (Base64) oder HTML-Mail (Asset URL) auflösen
+                                        $addonRelPath = \App\Models\Product\Product::resolveAddonImagePath($addon);
+                                        $resolvedAddonImg = null;
+                                        if ($addonRelPath) {
+                                            if (!empty($isPdf)) {
+                                                $addonCandidates = [
+                                                    public_path($addonRelPath),
+                                                    storage_path('app/public/' . ltrim(preg_replace('#^/?storage/#', '', $addonRelPath), '/')),
+                                                    public_path('storage/' . ltrim(preg_replace('#^/?storage/#', '', $addonRelPath), '/')),
+                                                ];
+                                                foreach ($addonCandidates as $cand) {
+                                                    $safeAddonFile = $isSafePublicFile($cand);
+                                                    if ($safeAddonFile) {
+                                                        $resolvedAddonImg = 'data:' . $safeAddonFile['mime'] . ';base64,' . base64_encode(file_get_contents($safeAddonFile['real']));
+                                                        break;
+                                                    }
+                                                }
+                                            } else {
+                                                $resolvedAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addonRelPath);
+                                            }
+                                        }
+
+                                        $addonVisualItems[] = [
+                                            'label' => $addonLabel,
+                                            'img'   => $resolvedAddonImg,
+                                        ];
+                                    }
+                                }
+                            @endphp
+                            @if(!empty($formattedAddons))
+                                <div style="margin-bottom: 5px; margin-top: 3px;">
+                                    <div style="margin-bottom: 3px;"><strong style="color: #444;">Verpackung &amp; Extras:</strong> {{ implode(', ', $formattedAddons) }}</div>
+                                    <table cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; margin-top: 2px;">
+                                        @foreach($addonVisualItems as $avItem)
+                                            <tr>
+                                                @if(!empty($avItem['img']))
+                                                    <td width="30" valign="middle" style="padding: 2px 6px 2px 0;">
+                                                        <img src="{{ $avItem['img'] }}" style="width: 24px; height: 24px; object-fit: cover; border-radius: 4px; border: 1px solid #e5d5b5; display: block;" alt="Extra">
+                                                    </td>
+                                                @endif
+                                                <td valign="middle" style="padding: 2px 0; font-size: 10px; color: #785c22; font-weight: bold;">
+                                                    🎁 {{ $avItem['label'] }}
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </table>
+                                </div>
+                            @endif
+                        @endif
+
                         @if(!empty($conf['texts']) && is_array($conf['texts']))
                             @foreach($conf['texts'] as $idx => $t)
                                 @if(!empty($t['text']))
@@ -228,7 +294,7 @@
                         {{-- HINWEIS FÜR STANDARD PRODUKTE (Nicht bei Geschenkgutscheinen anzeigen) --}}
                         @if(empty($conf['is_gift_voucher']) && isset($item['is_personalizable']) && $item['is_personalizable'] === false)
                              <div style="margin-top: 8px; font-style: italic; color: #166534; font-size: 10px;">
-                                 {{ !empty($isPdf) ? '•' : '✓' }} Handveredelter Standard-Artikel<br>
+                                 <span style="font-family: 'DejaVu Sans', sans-serif;">&#10003;</span> Handveredelter Standard-Artikel<br>
                                  <span style="font-size: 9px; color: #78716c;">(Keine Personalisierung durch Kunden vorgesehen.)</span>
                              </div>
                         @endif

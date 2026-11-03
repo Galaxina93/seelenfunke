@@ -44,14 +44,14 @@ class AccountingCredit extends Component
 
     public function boot(): void
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
 
     public function mount()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -67,11 +67,12 @@ class AccountingCredit extends Component
 
     public function addCreditItem()
     {
+        $isSmallBusiness = app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness();
         $this->creditItems[] = [
             'name' => '',
             'quantity' => 1,
             'unit_price' => 0.0,
-            'tax_rate' => (float)shop_setting('default_tax_rate', 19.0),
+            'tax_rate' => $isSmallBusiness ? 0.0 : (float)shop_setting('default_tax_rate', 19.0),
         ];
     }
 
@@ -181,7 +182,7 @@ class AccountingCredit extends Component
             'creditItems.*.unit_price.min' => 'Preis darf nicht negativ sein (Betrag wird automatisch als Gutschrift gewertet).',
         ]);
 
-        $isSmallBusiness = (bool) shop_setting('is_small_business', false);
+        $isSmallBusiness = app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness();
         $subtotal = 0;
         $taxAmount = 0;
         $formattedItems = [];
@@ -206,7 +207,8 @@ class AccountingCredit extends Component
             $formattedItems[] = [
                 'product_name' => $item['name'],
                 'quantity' => $item['quantity'],
-                'unit_price' => $unitNetCents, // Format erwartet Netto Einzelpreis in Cent
+                'unit_price' => (int) $unitGrossCents, // FormatsECommerceData & AccountingXmlInvoiceService erwarten Brutto-Einzelpreis in Cent
+                'net_unit_price' => (int) $unitNetCents,
                 'tax_rate' => $effectiveTaxRate,
                 'total_price' => $rowTotalNetCents + $rowTaxCents,
                 'configuration' => []
@@ -238,7 +240,7 @@ class AccountingCredit extends Component
             'footer_text' => $this->newCredit['footer_text'],
             'notes' => $this->newCredit['notes'],
             'billing_address' => $billingAddress,
-            'subtotal' => $subtotal,
+            'subtotal' => $subtotal + $taxAmount,
             'tax_amount' => $taxAmount,
             'total' => $total,
             'custom_items' => $formattedItems,

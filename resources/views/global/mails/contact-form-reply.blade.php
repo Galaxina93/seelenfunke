@@ -94,7 +94,8 @@
     </div>
 
     <div class="footer">
-        {{ date('d.m.Y H:i') }} Uhr
+        Gesendet am {{ date('d.m.Y H:i') }} Uhr
+        @include('global.mails.partials.mail_footer')
     </div>
 </div>
 </body>

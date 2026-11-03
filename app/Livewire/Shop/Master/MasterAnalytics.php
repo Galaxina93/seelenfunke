@@ -101,12 +101,12 @@ class MasterAnalytics extends Component
                 'target_rev' => 0,
                 'next_rev' => 2500,
                 'percent_pos' => 2,
-                'condition_text' => 'Start (< 2,5K €)',
+                'condition_text' => 'Start (< 2,5K € / Mt.)',
                 'badge_color' => 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30',
                 'pill_color' => 'from-amber-500/20 to-amber-600/10 text-amber-600 dark:text-amber-400 border-amber-500/40',
                 'glow_color' => 'rgba(245,158,11,0.3)',
                 'icon' => 'home',
-                'motto' => 'Aller Anfang beginnt im Kleinen. Der Dachboden ist unsere Startrampe!',
+                'motto' => 'Aller Anfang beginnt im Kleinen. Der Dachboden mit 1× xTool F2 Ultra UV ist unsere Startrampe!',
                 'faith' => '„Denn wer verachtet den Tag kleiner Anfänge?“ (Sacharja 4,10)'
             ],
             [
@@ -115,12 +115,12 @@ class MasterAnalytics extends Component
                 'target_rev' => 2500,
                 'next_rev' => 5000,
                 'percent_pos' => 10,
-                'condition_text' => '2,5K € Monatsumsatz',
+                'condition_text' => '2,5K € / Mt. (30K / Jahr)',
                 'badge_color' => 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/30',
                 'pill_color' => 'from-teal-500/20 to-teal-600/10 text-teal-600 dark:text-teal-400 border-teal-500/40',
                 'glow_color' => 'rgba(20,184,166,0.3)',
                 'icon' => 'cube',
-                'motto' => 'Das Fundament ist gegossen – feste Einnahmen decken die Basis.',
+                'motto' => 'Das Fundament steht: ~2–3 Bestellungen/Tag (~30 Min. Arbeit) decken alle Basiskosten.',
                 'faith' => '„Er grub tief und legte das Fundament auf den Felsen.“ (Lukas 6,48)'
             ],
             [
@@ -129,12 +129,12 @@ class MasterAnalytics extends Component
                 'target_rev' => 5000,
                 'next_rev' => 10000,
                 'percent_pos' => 18,
-                'condition_text' => '5K € Monatsumsatz',
+                'condition_text' => '5K € / Mt. (60K / Jahr)',
                 'badge_color' => 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30',
                 'pill_color' => 'from-blue-500/20 to-blue-600/10 text-blue-600 dark:text-blue-400 border-blue-500/40',
                 'glow_color' => 'rgba(59,130,246,0.3)',
                 'icon' => 'archive-box',
-                'motto' => 'Raum für Wachstum. Erste Auslagerung aus den eigenen vier Wänden.',
+                'motto' => 'Anlaufphase gemeistert: 4–5 Bestellungen/Tag in nur ~45 Min. am Laser (~2.500 € Gewinn/Mt.).',
                 'faith' => '„Wer im Kleinsten treu ist, dem wird auch Großes anvertraut.“ (Lukas 16,10)'
             ],
             [
@@ -143,12 +143,12 @@ class MasterAnalytics extends Component
                 'target_rev' => 10000,
                 'next_rev' => 15000,
                 'percent_pos' => 26,
-                'condition_text' => '10K € Fünfstellig',
+                'condition_text' => '10K € / Mt. (120K / Jahr)',
                 'badge_color' => 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/30',
                 'pill_color' => 'from-violet-500/20 to-violet-600/10 text-violet-600 dark:text-violet-400 border-violet-500/40',
                 'glow_color' => 'rgba(139,92,246,0.3)',
                 'icon' => 'paint-brush',
-                'motto' => '10K geknackt! Die fünfstellige Schwelle steht für echte Produktqualität.',
+                'motto' => '10K/Monat (120K/Jahr) geknackt! ~8–10 Bestellungen/Tag bei ca. 1,5 Std. Fertigung.',
                 'faith' => '„Mache den Raum deines Zeltes weit, spare nicht!“ (Jesaja 54,2)'
             ],
             [
@@ -157,12 +157,12 @@ class MasterAnalytics extends Component
                 'target_rev' => 15000,
                 'next_rev' => 20000,
                 'percent_pos' => 34,
-                'condition_text' => '15K € Monatsumsatz',
+                'condition_text' => '15K € / Mt. (180K / Jahr)',
                 'badge_color' => 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/30',
                 'pill_color' => 'from-cyan-500/20 to-cyan-600/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/40',
                 'glow_color' => 'rgba(6,182,212,0.3)',
                 'icon' => 'wrench-screwdriver',
-                'motto' => 'Echtes Handwerk, feste Strukturen. Die Maschinen glühen täglich!',
+                'motto' => 'Halbtags-Manufaktur: 12–15 Bestellungen/Tag in ~2 Std. am Laser (~7.500 € Gewinn/Mt.)!',
                 'faith' => '„Befiehl dem Herrn dein Werk, so gelingen deine Pläne.“ (Sprüche 16,3)'
             ],
             [
@@ -171,12 +171,12 @@ class MasterAnalytics extends Component
                 'target_rev' => 20000,
                 'next_rev' => 30000,
                 'percent_pos' => 42,
-                'condition_text' => '20K € Monatsumsatz',
+                'condition_text' => '20K € / Mt. (240K / Jahr)',
                 'badge_color' => 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30',
                 'pill_color' => 'from-sky-500/20 to-sky-600/10 text-sky-600 dark:text-sky-400 border-sky-500/40',
                 'glow_color' => 'rgba(14,165,233,0.3)',
                 'icon' => 'truck',
-                'motto' => '20K Durchsatz – täglich verlassen vollgepackte Sendungen das Lager.',
+                'motto' => '240K-Jahreskurs bereits im 1. Jahr! ~16–20 Sendungen verlassen täglich die Manufaktur.',
                 'faith' => '„Gott aber vermag jede Gnade in euch überströmen zu lassen.“ (2. Korinther 9,8)'
             ],
             [
@@ -185,12 +185,12 @@ class MasterAnalytics extends Component
                 'target_rev' => 30000,
                 'next_rev' => 40000,
                 'percent_pos' => 50,
-                'condition_text' => '30K € Monatsumsatz',
+                'condition_text' => '30K € / Mt. (360K / Jahr)',
                 'badge_color' => 'bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400 border-fuchsia-500/30',
                 'pill_color' => 'from-fuchsia-500/20 to-fuchsia-600/10 text-fuchsia-600 dark:text-fuchsia-400 border-fuchsia-500/40',
                 'glow_color' => 'rgba(217,70,239,0.3)',
                 'icon' => 'camera',
-                'motto' => '30K erreicht – starke Markenpräsenz und kreativer Schaffensraum.',
+                'motto' => '360K-Jahreskurs mit 1 UV-Laser: ~25 Bestellungen/Tag + erste B2B-Conveyor-Aufträge.',
                 'faith' => '„Der Herr segne dich und behüte dich; er lasse sein Angesicht leuchten.“ (4. Mose 6,24)'
             ],
             [
@@ -199,12 +199,12 @@ class MasterAnalytics extends Component
                 'target_rev' => 40000,
                 'next_rev' => 55000,
                 'percent_pos' => 58,
-                'condition_text' => '40K € Meilenstein',
+                'condition_text' => '40K € / Mt. (~0,5 Mio. / Jahr)',
                 'badge_color' => 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30',
                 'pill_color' => 'from-emerald-500/20 to-emerald-600/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/40',
                 'glow_color' => 'rgba(16,185,129,0.3)',
                 'icon' => 'sparkles',
-                'motto' => '40K Monatsmarke geknackt – eine unaufhaltsame Marke entsteht!',
+                'motto' => 'Fast 0,5 Mio. € Jahresumsatz mit 1× xTool F2 Ultra UV (~18.500 € Gewinn/Mt.)!',
                 'faith' => '„Mein Gott wird allen Mangel ausfüllen nach seinem Reichtum.“ (Philipper 4,19)'
             ],
             [
@@ -213,12 +213,12 @@ class MasterAnalytics extends Component
                 'target_rev' => 55000,
                 'next_rev' => 70000,
                 'percent_pos' => 66,
-                'condition_text' => '55K € Monatsumsatz',
+                'condition_text' => '55K € / Mt. (660K / Jahr)',
                 'badge_color' => 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30',
                 'pill_color' => 'from-amber-500/20 to-amber-600/10 text-amber-600 dark:text-amber-400 border-amber-500/40',
                 'glow_color' => 'rgba(245,158,11,0.3)',
                 'icon' => 'building-storefront',
-                'motto' => '55K Durchsatz – automatisierte Fördertechnik und Palettenlogistik.',
+                'motto' => 'Saison- & Vollzeit-Spitze: ~45 Sendungen/Tag mit 1 UV-Laser + 1 Packhilfe am Packtisch.',
                 'faith' => '„Denn der Herr gibt Weisheit; Erkenntnis und Einsicht kommen aus seinem Mund.“ (Sprüche 2,6)'
             ],
             [
@@ -227,12 +227,12 @@ class MasterAnalytics extends Component
                 'target_rev' => 70000,
                 'next_rev' => 100000,
                 'percent_pos' => 74,
-                'condition_text' => '70K € Meilenstein',
+                'condition_text' => '70K € / Mt. (Max. 1 Laser)',
                 'badge_color' => 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30',
                 'pill_color' => 'from-indigo-500/20 to-indigo-600/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/40',
                 'glow_color' => 'rgba(99,102,241,0.3)',
                 'icon' => 'cpu-chip',
-                'motto' => '70K Monatsumsatz – automatisierte Fertigung und Skalierung.',
+                'motto' => 'Technisches Limit von 1× UV-Laser inkl. B2B-Conveyor erreicht (~30.000 € Gewinn/Mt.)!',
                 'faith' => '„Der Herr wird deinen Ausgang und Eingang behüten von nun an bis in Ewigkeit.“ (Psalm 121,8)'
             ],
             [
@@ -241,12 +241,12 @@ class MasterAnalytics extends Component
                 'target_rev' => 100000,
                 'next_rev' => 500000,
                 'percent_pos' => 82,
-                'condition_text' => '100K € Sechsstellig',
+                'condition_text' => '100K € / Mt. (1,2 Mio. / Jahr)',
                 'badge_color' => 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30',
                 'pill_color' => 'from-purple-500/20 to-purple-600/10 text-purple-600 dark:text-purple-400 border-purple-500/40',
                 'glow_color' => 'rgba(168,85,247,0.3)',
                 'icon' => 'building-office',
-                'motto' => '100K pro Monat! Der Durchbruch in die sechsstellige Königsklasse.',
+                'motto' => 'Jahr 2–3 Meilenstein: 1,2 Mio. € Jahresumsatz (100K/Mt.) mit 2 UV-Lasern & Pack-Team!',
                 'faith' => '„Durch Weisheit wird ein Haus gebaut und durch Verstand erhalten.“ (Sprüche 24,3)'
             ],
             [
@@ -255,12 +255,12 @@ class MasterAnalytics extends Component
                 'target_rev' => 500000,
                 'next_rev' => 1000000,
                 'percent_pos' => 91,
-                'condition_text' => '500K € Campus',
+                'condition_text' => '500K € / Mt. (6 Mio. / Jahr)',
                 'badge_color' => 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30',
                 'pill_color' => 'from-rose-500/20 to-rose-600/10 text-rose-600 dark:text-rose-400 border-rose-500/40',
                 'glow_color' => 'rgba(244,63,94,0.3)',
                 'icon' => 'building-library',
-                'motto' => 'Der millionenschwere Firmensitz – ein bleibendes Monument!',
+                'motto' => 'Jahr 4–6 Skalierung: 6 Mio. € Jahresumsatz mit 4–6 Laser-Stationen & DACH-Führung!',
                 'faith' => '„Denn Gott ist es, der dir die Kraft gibt, Reichtum zu schaffen.“ (5. Mose 8,18)'
             ],
             [
@@ -269,12 +269,12 @@ class MasterAnalytics extends Component
                 'target_rev' => 1000000,
                 'next_rev' => null,
                 'percent_pos' => 100,
-                'condition_text' => '1 Million € Mega-Ziel',
+                'condition_text' => '1 Mio. € / Mt. (12 Mio. / Jahr)',
                 'badge_color' => 'bg-amber-400/20 text-amber-500 dark:text-amber-300 border-amber-400/50',
                 'pill_color' => 'from-amber-400/30 via-amber-500/20 to-yellow-500/20 text-amber-600 dark:text-amber-300 border-amber-400/60 shadow-[0_0_15px_rgba(251,191,36,0.3)]',
                 'glow_color' => 'rgba(251,191,36,0.5)',
                 'icon' => 'trophy',
-                'motto' => '1 Million Monatsumsatz – die Vision ist vollbrachte Realität!',
+                'motto' => 'Jahr 7–10 Vision: 12 Mio. € Jahresumsatz (1 Mio. €/Monat) – Marktführer & Exit-Reife!',
                 'faith' => '„Siehe, ich habe vor dir eine offene Tür gegeben, die niemand zuschließen kann.“ (Offenbarung 3,8)'
             ],
         ];
@@ -367,14 +367,14 @@ class MasterAnalytics extends Component
 
     public function boot(): void
     {
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
 
     public function mount(AnalyticsService $service)
     {
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -1221,15 +1221,13 @@ class MasterAnalytics extends Component
     }
 
     public function loadStats(AnalyticsService $service, bool $syncOrderSnapshot = true)
-
     {
         $allLogins = $service->getAllLoginsCollection();
-        $rawStats = $service->getStats($this->dateStart, $this->dateEnd, $this->filterType, $allLogins, $this->systemHealth);
-
-        $this->stats = json_decode(json_encode($rawStats), true);
-
         $rawChecks = $service->getHealthChecks();
         $this->healthChecks = json_decode(json_encode($rawChecks), true);
+
+        $rawStats = $service->getStats($this->dateStart, $this->dateEnd, $this->filterType, $allLogins, $this->systemHealth, $rawChecks);
+        $this->stats = json_decode(json_encode($rawStats), true);
 
         if ($syncOrderSnapshot) {
             $this->syncLiveOrderSnapshot();
@@ -1513,6 +1511,7 @@ class MasterAnalytics extends Component
                 ->select('ip_address')
                 ->groupBy('ip_address')
                 ->havingRaw('count(*) >= 3')
+                ->get()
                 ->count()
             : 0;
 
@@ -1570,7 +1569,7 @@ class MasterAnalytics extends Component
                     'ip_address',
                     DB::raw('count(*) as attempts'),
                     DB::raw('MAX(attempted_at) as last_attempt'),
-                    DB::raw('GROUP_CONCAT(DISTINCT email SEPARATOR ", ") as target_emails')
+                    DB::raw('GROUP_CONCAT(DISTINCT email) as target_emails')
                 )
                 ->groupBy('ip_address')
                 ->orderByDesc('last_attempt')
@@ -1669,7 +1668,7 @@ class MasterAnalytics extends Component
         $reason = mb_substr(trim((string) $this->manualBlockReason), 0, 255) ?: 'Manuell über Sicherheit & Abwehr Firewall gesperrt';
         $hours = (int) $this->manualBlockHours > 0 ? min(8760, (int) $this->manualBlockHours) : null;
 
-        SystemBlockedIp::blockIp($ip, $reason, $hours, auth()->user()?->email ?? 'Admin');
+        SystemBlockedIp::blockIp($ip, $reason, $hours, \App\Services\AI\AiAuthHelper::getUser()?->email ?? 'Admin');
         $this->reset(['manualBlockIp', 'manualBlockReason']);
         $this->manualBlockHours = 24;
         session()->flash('success', "IP-Adresse {$ip} wurde erfolgreich in die Firewall eingetragen.");
@@ -1711,7 +1710,7 @@ class MasterAnalytics extends Component
         }
 
         $hours = max(1, min(8760, $hours));
-        SystemBlockedIp::blockIp($ip, 'Über Threat Monitor gesperrt', $hours, auth()->user()?->email ?? 'Admin');
+        SystemBlockedIp::blockIp($ip, 'Über Threat Monitor gesperrt', $hours, \App\Services\AI\AiAuthHelper::getUser()?->email ?? 'Admin');
         session()->flash('success', "IP-Adresse {$ip} wurde für {$hours} Stunden gesperrt.");
     }
 

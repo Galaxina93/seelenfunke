@@ -40,23 +40,31 @@ class ProductFracture extends Component
 
     public function boot(): void
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
     }
 
     public function mount()
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
     }
 
     public function openLossModal()
     {
-        $this->reset(['lossProductId', 'lossQuantity', 'lossReason', 'editLossId']);
+        $this->reset(['lossProductId', 'lossQuantity', 'lossReason', 'editLossId', 'currentStep', 'lossSupplierId', 'selectedSupplier']);
+        $this->currentStep = 1;
+        $this->lossSupplierId = null;
+        $this->selectedSupplier = null;
         $this->lossQuantity = 1;
         $this->lossModalOpen = true;
+    }
+
+    public function saveLoss()
+    {
+        return $this->createLossRecord();
     }
 
     public function createLossRecord()
@@ -84,7 +92,7 @@ class ProductFracture extends Component
                 'quantity' => $this->lossQuantity,
                 'cost_value' => $costValue,
                 'reason' => $this->lossReason,
-                'recorded_by' => auth('admin')->id(),
+                'recorded_by' => auth('admin')->id() ?? auth('employee')->id(),
                 // Leave reported and refund timestamps null initially
             ]);
 

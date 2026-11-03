@@ -50,10 +50,15 @@ Route::post('/log/frontend-error', function (\Illuminate\Http\Request $request) 
             'recommended_action' => 'Prüfe URL, Skript-Quelle (source/lineno) und den Browser-Stack-Trace im Payload.',
         ];
 
+        $rawIp = (string) $request->ip();
+        $anonIp = class_exists(\Symfony\Component\HttpFoundation\IpUtils::class) && $rawIp !== ''
+            ? \Symfony\Component\HttpFoundation\IpUtils::anonymize($rawIp)
+            : $rawIp;
+
         $payload = array_merge($data, [
             'file' => $data['source'] ?? null,
             'line' => $data['lineno'] ?? null,
-            'client_ip' => $request->ip(),
+            'client_ip' => $anonIp,
             'diagnosis' => $diagnosis,
             'server_environment' => class_exists(\App\Services\System\SystemErrorLogger::class)
                 ? \App\Services\System\SystemErrorLogger::buildServerEnvironment()
@@ -143,7 +148,7 @@ Route::post('/log/websocket', function (\Illuminate\Http\Request $request) {
                 try {
                     $recipient = 'kontakt@mein-seelenfunke.de';
                     if (function_exists('shop_setting')) {
-                        $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: $recipient;
+                        $recipient = shop_setting('owner_email_backup') ?: shop_setting('company_email') ?: shop_setting('owner_email') ?: $recipient;
                     }
 
                     $subject = "⚠️ WEBSOCKET BRÜCKEN-FEHLER: " . ucfirst($data['type']);

@@ -2,100 +2,60 @@
 
     <x-sections.page-container>
 
-        <section class="bg-gray-50 py-16 px-6 md:px-12">
+        <section class="bg-gray-50 pt-28 pb-16 px-6 md:px-12">
             <div class="max-w-7xl mx-auto text-center mb-12">
-                <h2 class="text-4xl font-bold text-gray-900 mb-4">Du willst erleben, was echte Teamarbeit ist?</h2>
+                <h2 class="text-4xl font-bold text-gray-900 mb-4">Du willst erleben, was echte Manufaktur-Teamarbeit ist?</h2>
                 <p class="text-lg text-gray-700 max-w-3xl mx-auto">
-                    Wir suchen Talente, die mit uns gemeinsam unsere Vision umsetzen wollen.
+                    Wir suchen engagierte Talente, die mit Herzblut und Präzision besondere Erinnerungsstücke in unserer Manufaktur in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }} erschaffen wollen.
                 </p>
-                <a href="mailto:info@mein-seelenfunke.com"
+                <a href="mailto:{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}"
                    class="mt-8 inline-block bg-primary text-white font-semibold py-3 px-8 rounded-lg hover:bg-primary-dark transition">
-                    JETZT Bewerbung senden
+                    JETZT Initiativbewerbung senden
                 </a>
             </div>
 
             <div class="max-w-5xl mx-auto text-gray-800 space-y-12">
-                <p class="text-xl font-semibold">Bist du ein Macher? In welchem Bereich?</p>
+                <p class="text-xl font-semibold">Unsere Aufgabenbereiche in der Manufaktur:</p>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-8">
 
                     <div>
-                        <h3 class="text-lg font-bold mb-2">Hausmeister</h3>
-                        <p class="mb-4">Zuverlässige Mitarbeiter, die anpacken und Verantwortung übernehmen.</p>
+                        <h3 class="text-lg font-bold mb-2">Laserveredelung & Produktion</h3>
+                        <p class="mb-4">Sorgfältige Fertigung und Veredelung individueller Unikate in unserer Werkstatt.</p>
                         <ul class="list-disc list-inside space-y-1 text-gray-700">
-                            <li>Gebäudebetreuung</li>
-                            <li>Kontrollen und kleine Reparaturen</li>
-                            <li>Winterdienst</li>
+                            <li>Bedienung moderner Lasergravur-Anlagen</li>
+                            <li>Einrichtung und Materialvorbereitung (Glas, Schiefer, Holz, Metall)</li>
+                            <li>Handwerkliche Endkontrolle und Oberflächenfinish</li>
                         </ul>
                     </div>
 
                     <div>
-                        <h3 class="text-lg font-bold mb-2">Handwerker</h3>
-                        <p class="mb-4">Elektrozertifizierte Fachkräfte für unser Handwerksteam gesucht.</p>
+                        <h3 class="text-lg font-bold mb-2">Qualitätskontrolle & Geschenkverpackung</h3>
+                        <p class="mb-4">Liebevolle Konfektionierung und versandsichere Verpackung unserer Manufakturstücke.</p>
                         <ul class="list-disc list-inside space-y-1 text-gray-700">
-                            <li>Elektroinstallation</li>
-                            <li>Reparaturen und Wartungen</li>
-                            <li>Technische Unterstützung</li>
+                            <li>Sichtprüfung jedes einzelnen Unikats</li>
+                            <li>Verpackung in edle Geschenkboxen</li>
+                            <li>Kommissionierung und Versandvorbereitung (DHL)</li>
                         </ul>
                     </div>
 
                     <div>
-                        <h3 class="text-lg font-bold mb-2">Abteilungsleitung Hausmeister</h3>
-                        <p class="mb-4">Erfahrung in Hausmeistertätigkeiten und Koordination gesucht.</p>
+                        <h3 class="text-lg font-bold mb-2">Grafik & 2D/3D-Produktdesign</h3>
+                        <p class="mb-4">Kreatives Design für Gravurvorlagen, Konfigurator-Motive und neue Kollektionen.</p>
                         <ul class="list-disc list-inside space-y-1 text-gray-700">
-                            <li>Ablaufplanung</li>
-                            <li>Mitarbeiterführung</li>
-                            <li>Qualitätskontrolle</li>
+                            <li>Erstellung von Vektorgrafiken und Laser-Layouts</li>
+                            <li>Bildaufbereitung für Fotogravuren</li>
+                            <li>Weiterentwicklung unserer 3D-Konfigurator-Modelle</li>
                         </ul>
                     </div>
 
                     <div>
-                        <h3 class="text-lg font-bold mb-2">Assistenz</h3>
-                        <p class="mb-4">Zuverlässige Unterstützung der Geschäftsleitung und Teams.</p>
+                        <h3 class="text-lg font-bold mb-2">Kundenbetreuung & B2B-Projektservice</h3>
+                        <p class="mb-4">Persönliche Beratung für Privatkunden, Vereine und Firmenkunden.</p>
                         <ul class="list-disc list-inside space-y-1 text-gray-700">
-                            <li>Terminplanung</li>
-                            <li>Organisationsaufgaben</li>
-                            <li>Kommunikation</li>
-                        </ul>
-                    </div>
-
-                    <div>
-                        <h3 class="text-lg font-bold mb-2">Marketing</h3>
-                        <p class="mb-4">Experten für gezielte Ansprache über diverse Medien gesucht.</p>
-                        <ul class="list-disc list-inside space-y-1 text-gray-700">
-                            <li>Content-Erstellung</li>
-                            <li>Social Media</li>
-                            <li>Werbekampagnen</li>
-                        </ul>
-                    </div>
-
-                    <div>
-                        <h3 class="text-lg font-bold mb-2">Vertrieb</h3>
-                        <p class="mb-4">Überzeugungstalente, die Kunden begeistern können.</p>
-                        <ul class="list-disc list-inside space-y-1 text-gray-700">
-                            <li>Kundenberatung</li>
-                            <li>Angebotserstellung</li>
-                            <li>Verkaufsabschlüsse</li>
-                        </ul>
-                    </div>
-
-                    <div>
-                        <h3 class="text-lg font-bold mb-2">Buchhaltung</h3>
-                        <p class="mb-4">Verantwortungsbewusste Unterstützung für unsere Finanzabteilung.</p>
-                        <ul class="list-disc list-inside space-y-1 text-gray-700">
-                            <li>Rechnungswesen</li>
-                            <li>Kontenpflege</li>
-                            <li>Finanzberichte</li>
-                        </ul>
-                    </div>
-
-                    <div>
-                        <h3 class="text-lg font-bold mb-2">HR</h3>
-                        <p class="mb-4">Profis, die passende Mitarbeiter finden und weiterentwickeln.</p>
-                        <ul class="list-disc list-inside space-y-1 text-gray-700">
-                            <li>Recruiting</li>
-                            <li>Mitarbeiterentwicklung</li>
-                            <li>Personalverwaltung</li>
+                            <li>Betreuung individueller Sonderwünsche</li>
+                            <li>Angebotserstellung für B2B- und Vereinsaufträge</li>
+                            <li>Freundlicher Support per E-Mail und Telefon</li>
                         </ul>
                     </div>
 

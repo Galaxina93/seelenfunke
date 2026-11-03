@@ -79,6 +79,7 @@ Route::get('/feed/products.json', [SeoController::class, 'productsJsonFeed'])->n
 
 // --- 1. Shop ---
 Route::get('/warenkorb', Cart::class)->name('cart');
+Route::get('/wunschliste', \App\Livewire\Shop\Wishlist\WishlistPage::class)->name('wishlist');
 
 // Wichtig: {product:slug} sagt Laravel, es soll in der Spalte 'slug' suchen, nicht 'id'
 Route::get('/produkt/{product:slug}', ProductShow::class)->name('product.show');
@@ -123,17 +124,22 @@ Route::get('auth/{guard}/google', [GoogleAuthController::class, 'redirectToGoogl
 
 // Startseite
 Route::get('/', function () {
-    // Tracker
+    // Tracker (DSGVO Art. 6 Abs. 1 lit. f: IP-Adresse gekürzt/anonymisiert speichern)
     try {
+        $rawIp = (string) Request::ip();
+        $anonIp = class_exists(\Symfony\Component\HttpFoundation\IpUtils::class) && $rawIp !== ''
+            ? \Symfony\Component\HttpFoundation\IpUtils::anonymize($rawIp)
+            : $rawIp;
+
         $alreadyVisited = PageVisit::where('page', 'home')
-            ->where('ip_address', Request::ip())
+            ->where('ip_address', $anonIp)
             ->where('created_at', '>=', now()->subHour())
             ->exists();
 
         if (!$alreadyVisited) {
             PageVisit::create([
                 'page' => 'home',
-                'ip_address' => Request::ip(),
+                'ip_address' => $anonIp,
             ]);
         }
     } catch (\Exception $e) {
@@ -226,8 +232,13 @@ Route::get('/t/{slug}', function (\Illuminate\Http\Request $request, string $slu
                     'seelenfunke_influencer_id' => $trackingLink->influencer_id,
                     'seelenfunke_tracking_link_id' => $trackingLink->id,
                 ]);
-                \Illuminate\Support\Facades\Cookie::queue('seelenfunke_influencer_id', $trackingLink->influencer_id, $cookieMinutes);
-                \Illuminate\Support\Facades\Cookie::queue('seelenfunke_tracking_link_id', $trackingLink->id, $cookieMinutes);
+                // § 25 Abs. 1 TDDDG: Persistente 30-Tage-Cookies nur bei vorliegender Analytics-Einwilligung (cc_cookie) setzen;
+                // ohne Cookie-Consent erfolgt die Zuordnung datenschutzfreundlich rein über die laufende Server-Session.
+                $rawConsentCookie = (string) $request->cookie('cc_cookie', '');
+                if ($rawConsentCookie !== '' && str_contains($rawConsentCookie, 'analytics')) {
+                    \Illuminate\Support\Facades\Cookie::queue('seelenfunke_influencer_id', $trackingLink->influencer_id, $cookieMinutes);
+                    \Illuminate\Support\Facades\Cookie::queue('seelenfunke_tracking_link_id', $trackingLink->id, $cookieMinutes);
+                }
             }
         } catch (\Throwable $e) {
             // Tracking-Fehler dürfen die Weiterleitung niemals blockieren
@@ -253,6 +264,7 @@ Route::get('/mitarbeiter/einladung/{token}', \App\Livewire\Frontend\Employee\Emp
 Route::get('/widerruf', function () {
     return view('frontend.pages.widerruf');
 })->name('widerruf');
+Route::redirect('/widerruf-vertrag', '/widerruf', 301)->name('widerruf.vertrag');
 
 Route::get('/widerruf/pdf', [\App\Http\Controllers\RevocationPdfController::class, 'download'])
     ->name('widerruf.pdf')

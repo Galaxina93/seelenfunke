@@ -33,7 +33,7 @@ class SendAbandonedCartReminders extends Command
         $redLimit = max(1, (int) shop_setting('cart_abandoned_red_hours', 24));
         $maxDays = max(1, (int) shop_setting('cart_abandoned_max_days', 7));
         $maxHours = max($redLimit + 1, $maxDays * 24);
-        $requireConsent = (bool) shop_setting('cart_abandoned_require_consent', true);
+        $requireConsent = filter_var(shop_setting('cart_abandoned_require_consent', true), FILTER_VALIDATE_BOOLEAN);
 
         $this->info("Prüfe verlassene Warenkörbe (Älter als {$redLimit}h, jünger als {$maxDays} Tage, Rechtssicherheits-Modus: " . ($requireConsent ? 'AKTIV' : 'INAKTIV') . ")...");
 

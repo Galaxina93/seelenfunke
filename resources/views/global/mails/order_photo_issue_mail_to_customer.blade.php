@@ -1,8 +1,6 @@
 {{-- HTML TREE --}}
 @include('global.mails.partials.mail_html_tree', ['title' => 'Wichtige Rückfrage zu deinem Gravur-Foto'])
 
-<body>
-
 <div class="container">
 
     {{-- LOGO --}}
@@ -49,7 +47,7 @@
     </div>
 
     <p style="margin-top: 25px; font-size: 13px; color: #666;">
-        Du bist unsicher, welches Foto sich am besten eignet? Antworte einfach direkt auf diese E-Mail – wir beraten dich gerne persönlich!
+        Du bist unsicher, welches Foto sich am besten eignet? Antworte einfach direkt auf diese E-Mail, wir beraten dich gerne persönlich!
     </p>
 
     {{-- FOOTER --}}

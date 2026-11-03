@@ -250,10 +250,13 @@ trait AiMailFuncs
                     $customer = !empty($m->from_email)
                         ? \App\Models\Customer\Customer::with('profile')->whereRaw('LOWER(email) = ?', [strtolower(trim($m->from_email))])->first()
                         : null;
-                    $hasConsent = $customer ? $customer->hasAiDataConsent() : true;
+                    $hasConsent = $customer ? $customer->hasAiDataConsent() : false;
+                    $namesToMask = $customer
+                        ? array_filter([$customer->first_name, $customer->last_name, $m->from_name, $m->from_email])
+                        : array_filter([$m->from_name, $m->from_email]);
                     return [
                         'id' => $m->id,
-                        'subject' => $m->subject,
+                        'subject' => \App\Services\AI\AiAuthHelper::redactPiiText((string) $m->subject, $hasConsent, $namesToMask),
                         'from_name' => $hasConsent ? $m->from_name : 'Anonyme Person (Keine DSGVO-KI-Freigabe)',
                         'from_email' => $hasConsent ? $m->from_email : '[E-Mail DSGVO-geschützt]',
                         'gdpr_ai_consent' => $hasConsent,
@@ -289,7 +292,7 @@ trait AiMailFuncs
             $customer = !empty($mail->from_email)
                 ? \App\Models\Customer\Customer::with('profile')->whereRaw('LOWER(email) = ?', [strtolower(trim($mail->from_email))])->first()
                 : null;
-            $hasConsent = $customer ? $customer->hasAiDataConsent() : true;
+            $hasConsent = $customer ? $customer->hasAiDataConsent() : false;
             $namesToMask = $customer
                 ? array_filter([$customer->first_name, $customer->last_name, $mail->from_name, $mail->from_email])
                 : array_filter([$mail->from_name, $mail->from_email]);

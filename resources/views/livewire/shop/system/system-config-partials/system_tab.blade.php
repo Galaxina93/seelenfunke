@@ -46,7 +46,7 @@
         <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl border border-gray-200 dark:border-gray-800/60 shadow-sm dark:shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] rounded-2xl p-4 font-sans relative overflow-hidden group flex justify-between items-center">
             <div>
                 <div class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">Datenbank</div>
-                <div class="text-xl font-black text-gray-900 dark:text-gray-200 group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors">SQLite (In-Memory)</div>
+                <div class="text-xl font-black text-gray-900 dark:text-gray-200 group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors">{{ $databaseDriverLabel ?? 'MySQL' }}</div>
             </div>
             <div class="opacity-30 group-hover:opacity-60 transition-opacity">
                 <x-heroicon-o-circle-stack class="w-8 h-8 text-pink-500" />
@@ -96,16 +96,27 @@
             <div class="flex flex-col gap-4">
                 {{-- Uploader --}}
                 <div class="bg-gray-50/80 dark:bg-gray-900/50 border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-[var(--theme-color-50)] transition-colors rounded-xl p-6 text-center relative group min-h-[140px] flex items-center justify-center">
-                    <input type="file" wire:model.live="uploads" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20">
+                    <input type="file" wire:model.live="uploads" multiple accept=".txt,.log,.md,.pdf,.json" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20">
                     <div class="absolute inset-0 flex items-center justify-center w-full h-full" wire:loading wire:target="uploads">
                         <span class="text-[var(--theme-color)] font-bold text-sm tracking-widest animate-pulse">Lade hoch...</span>
                     </div>
                     <div class="pointer-events-none relative z-10 flex flex-col items-center" wire:loading.remove wire:target="uploads">
                         <x-heroicon-o-cloud-arrow-up class="w-10 h-10 text-gray-400 dark:text-gray-500 group-hover:text-[var(--theme-color)] transition-colors mb-2" />
                         <p class="text-gray-700 dark:text-gray-300 font-bold text-sm">Neue Arbeitsberichte hochladen</p>
-                        <p class="text-gray-500 text-[10px] mt-1 uppercase tracking-widest">Drag & Drop oder Klicken (Multi-Auswahl möglich)</p>
+                        <p class="text-gray-500 text-[10px] mt-1 uppercase tracking-widest">Drag & Drop oder Klicken (.txt, .log, .md, .pdf, .json)</p>
                     </div>
                 </div>
+
+                @if($errors->has('uploads') || $errors->has('uploads.*'))
+                    <div class="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs font-bold text-red-500">
+                        @error('uploads') <div>{{ $message }}</div> @enderror
+                        @foreach($errors->get('uploads.*') as $fileErrs)
+                            @foreach($fileErrs as $err)
+                                <div>{{ $err }}</div>
+                            @endforeach
+                        @endforeach
+                    </div>
+                @endif
                 
                 @if(count($uploads) > 0)
                     <div class="bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] rounded-xl p-4 flex justify-between items-center">

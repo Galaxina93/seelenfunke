@@ -21,13 +21,13 @@
             $couponCode = null;
 
             if(isset($order)) {
-                $volDiscount = $order->volume_discount / 100; // DB ist in Cents
-                $couponDiscount = $order->discount_amount / 100;
+                $volDiscount = abs((float) ($order->volume_discount / 100)); // DB ist in Cents
+                $couponDiscount = abs((float) ($order->discount_amount / 100));
                 $couponCode = $order->coupon_code;
             } elseif(isset($data['volume_discount']) || isset($data['discount_amount'])) {
                 // Fallback, falls $data die Werte direkt hat (als String)
-                $volDiscount = $parseNum($data['volume_discount'] ?? 0);
-                $couponDiscount = $parseNum($data['discount_amount'] ?? 0);
+                $volDiscount = abs($parseNum($data['volume_discount'] ?? 0));
+                $couponDiscount = abs($parseNum($data['discount_amount'] ?? 0));
                 $couponCode = $data['coupon_code'] ?? '';
             }
 
@@ -35,8 +35,11 @@
             $expressGross = $parseNum($data['express_price'] ?? 0);
 
             // 4. KORREKTE RÜCKWÄRTSRECHNUNG:
-            // Warenwert = Endsumme + Rabatte - Versand - Express
-            $goodsValue = $totalGross + $volDiscount + $couponDiscount - $shippingGross - $expressGross;
+            // Bei regulären Belegen: Warenwert = Endsumme + Rabatte - Versand - Express
+            // Bei Storno/Gutschrift ($totalGross < 0): Endsumme, Versand & Express sind negativ, Rabatte positiv (abs)
+            $goodsValue = $totalGross < 0
+                ? ($totalGross - $volDiscount - $couponDiscount - $shippingGross - $expressGross)
+                : ($totalGross + $volDiscount + $couponDiscount - $shippingGross - $expressGross);
 
             // 5. Seelenfunken Treue-Bonus (Variante A = 100 % vom bezahlten Produktwert)
             if (isset($order) && $order instanceof \App\Models\Order\OrderOrder) {
@@ -60,7 +63,7 @@
             <tr>
                 <td class="text-right" style="padding-bottom: 5px; color: #16a34a; font-size: 13px; text-align: right;">Mengenrabatt:</td>
                 <td class="text-right" style="padding-bottom: 5px; color: #16a34a; font-size: 13px; text-align: right;">
-                    -{{ number_format($volDiscount, 2, ',', '.') }} €
+                    {{ $totalGross < 0 ? '+' : '-' }}{{ number_format($volDiscount, 2, ',', '.') }} €
                 </td>
             </tr>
         @endif
@@ -72,19 +75,23 @@
                     Gutschein {{ $couponCode ? "($couponCode)" : '' }}:
                 </td>
                 <td class="text-right" style="padding-bottom: 5px; color: #16a34a; font-size: 13px; text-align: right;">
-                    -{{ number_format($couponDiscount, 2, ',', '.') }} €
+                    {{ $totalGross < 0 ? '+' : '-' }}{{ number_format($couponDiscount, 2, ',', '.') }} €
                 </td>
             </tr>
         @endif
 
         {{-- Express-Zuschlag --}}
-        @if($expressGross > 0)
+        @if(abs($expressGross) > 0.004)
+            @php
+                $mailExpressPercent = number_format((float) shop_setting('express_surcharge_percent', 20.0), 0, ',', '.');
+                $mailExpressMin = number_format(((int) shop_setting('express_surcharge_min', 500)) / 100, 2, ',', '.');
+            @endphp
             <tr>
-                <td class="text-right" style="padding-bottom: 5px; color: #dc2626; font-weight: bold; font-size: 13px; text-align: right;">
-                    Express-Service:
+                <td class="text-right" style="padding-bottom: 5px; color: #555; font-size: 13px; text-align: right;" title="Vorteil: Sofortige Priorisierung in der Manufaktur vor regulären Bestellungen. Zusammensetzung: {{ $mailExpressPercent }} % vom Warenwert (mind. {{ $mailExpressMin }} € Basis-Pauschale).">
+                    Express-Service <span style="font-family: 'DejaVu Sans', sans-serif; color: #C5A059; font-weight: bold;">&#10003;</span>:
                 </td>
-                <td class="text-right" style="padding-bottom: 5px; color: #dc2626; font-weight: bold; font-size: 13px; text-align: right;">
-                    +{{ number_format($expressGross, 2, ',', '.') }} €
+                <td class="text-right" style="padding-bottom: 5px; color: #333; font-weight: bold; font-size: 13px; text-align: right;">
+                    {{ $expressGross > 0 ? '+' : '' }}{{ number_format($expressGross, 2, ',', '.') }} €
                 </td>
             </tr>
         @endif
@@ -93,7 +100,7 @@
         <tr>
             <td class="text-right" style="padding-bottom: 5px; color: #666; font-size: 13px; text-align: right;">{{ $data['shipping_label'] ?? 'Versandkosten' }}:</td>
             <td class="text-right" style="padding-bottom: 5px; color: #666; font-size: 13px; text-align: right;">
-                @if($shippingGross <= 0)
+                @if(abs($shippingGross) < 0.005)
                     <span style="color: #16a34a; font-weight: bold;">Kostenlos</span>
                 @else
                     {{ number_format($shippingGross, 2, ',', '.') }} €
@@ -178,7 +185,7 @@
             </a>
 
             <p style="font-size: 11px; color: #999; margin-top: 12px;">
-                (Kreditkarte, PayPal, Apple Pay, Klarna, Sofort)
+                (Kreditkarte, Apple Pay, Google Pay, Klarna, SEPA-Lastschrift)
             </p>
         </div>
     @endif

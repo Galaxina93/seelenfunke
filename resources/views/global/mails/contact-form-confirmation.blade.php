@@ -77,7 +77,7 @@
     <div class="content">
         <p>Hallo {{ $emailData['first_name'] }} {{ $emailData['last_name'] }},</p>
         
-        <p>vielen Dank für Deine Nachricht! Hiermit bestätigen wir den Eingang Deiner Anfrage bei {{ env('APP_NAME', 'Mein Seelenfunke') }}. Unser Team wird sich Dein Anliegen schnellstmöglich ansehen und sich bei Dir melden.</p>
+        <p>vielen Dank für deine Nachricht! Hiermit bestätigen wir den Eingang deiner Anfrage bei {{ shop_setting('company_name', config('app.name', 'Mein Seelenfunke')) }}. Unser Team wird sich dein Anliegen schnellstmöglich ansehen und sich bei dir melden.</p>
 
         <div class="ticket-box">
             <span class="label">Deine Ticket-Nummer</span>
@@ -86,12 +86,12 @@
 
         <p>Bitte bewahre diese Ticket-Nummer für spätere Rückfragen auf. Du wirst auf genau diese E-Mail eine Antwort von unserem Support-Team erhalten.</p>
         
-        <p>Herzliche Grüße,<br>Dein {{ env('APP_NAME', 'Seelenfunke') }} Team ✨</p>
+        <p>Herzliche Grüße,<br>Dein {{ shop_setting('company_name', config('app.name', 'Mein Seelenfunke')) }} Team ✨</p>
     </div>
 
     <div class="footer">
-        Diese E-Mail wurde automatisch generiert.<br>
-        {{ date('d.m.Y H:i') }} Uhr
+        Diese E-Mail wurde automatisch generiert ({{ date('d.m.Y H:i') }} Uhr).
+        @include('global.mails.partials.mail_footer')
     </div>
 </div>
 </body>

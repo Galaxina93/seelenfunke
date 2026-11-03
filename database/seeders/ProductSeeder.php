@@ -54,12 +54,12 @@ class ProductSeeder extends Seeder
         $p1 = Product::updateOrCreate(['slug' => 'seelen-kristall'], [
             'name' => 'Der Seelen Kristall',
             'type' => 'physical',
-            'description' => 'Halten Sie besondere Momente für die Ewigkeit fest – mit einem meisterhaft geschliffenen K9-Kristall. Dank unserer detailverliebten 3D-Gravurmethode schwebt Ihr persönliches Wunschmotiv förmlich im Inneren des massiven, glasklaren Blocks. Der Seelen Kristall brilliert durch seine hohe optische Reinheit, die das Licht in faszinierenden Facetten bricht. Ob als tiefgründiges Geschenk für einen geliebten Menschen oder als bedeutungsvolle Erinnerung für Sie selbst: Er entfaltet in jedem Raum seine beeindruckende Präsenz und wird garantiert zum Blickfang. Jedes Exemplar wird in unserer Manufaktur sorgfältig von Hand geprüft und bruchsicher geschützt verpackt geliefert.',
+            'description' => 'Halten Sie besondere Momente für die Ewigkeit fest, mit einem meisterhaft geschliffenen K9-Kristall. Dank unserer detailverliebten 3D-Gravurmethode schwebt Ihr persönliches Wunschmotiv förmlich im Inneren des massiven, glasklaren Blocks. Der Seelen Kristall brilliert durch seine hohe optische Reinheit, die das Licht in faszinierenden Facetten bricht. Ob als tiefgründiges Geschenk für einen geliebten Menschen oder als bedeutungsvolle Erinnerung für Sie selbst: Er entfaltet in jedem Raum seine beeindruckende Präsenz und wird zu einem besonderen Blickfang. Jedes Exemplar wird in unserer Manufaktur sorgfältig von Hand geprüft und bruchsicher geschützt verpackt geliefert.',
             'short_description' => 'Hochgradig personalisierbares und exklusiv veredeltes Premium-Kristallglas inklusive maßgeschneiderter 3D-Lasergravur.',
             'status' => 'active',
             'is_personalizable' => true,
             'three_d_active' => true,
-            'price' => 3990,
+            'price' => 6990,
             'compare_at_price' => null,
             'purchase_price' => 536, // EK: ~268€ (285 USD net) / 50 Stück = ~5.36€ pro Stück
             'laser_runtime_minutes' => 1,
@@ -84,8 +84,9 @@ class ProductSeeder extends Seeder
             'three_d_model_path' => 'produkte/products/seelen-kristall/t_seelenk.glb',
             'three_d_background_path' => 'produkte/products/seelen-kristall/header_bg.png',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'produkte/products/seelen-kristall/seelen-kristall_b.jpg', 'is_main' => true, 'is_ai_generated' => true, 'alt' => 'Der Seelen Kristall – Personalisierter K9 Kristall mit Lasergravur'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-kristall/seelen-kristall-dimensions.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen Kristall – Technisches Maßblatt & Abmessungen (180 x 200 x 40 mm)'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-kristall/seelen-kristall_b.jpg', 'is_main' => true, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen Kristall: Personalisierter K9 Kristall mit Lasergravur'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-kristall/seelen-kristall-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_ai_generated' => true, 'alt' => 'Der Seelen Kristall: Funkelndes K9-Kristallglas als emotionales Geschenk in den Händen'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-kristall/seelen-kristall-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen Kristall: Technisches Maßblatt & Abmessungen (180 x 200 x 40 mm)'],
             ],
             'configurator_settings' => [
                 'template_package' => 'seelen-kristall',
@@ -162,7 +163,7 @@ class ProductSeeder extends Seeder
             'status' => 'active',
             'is_personalizable' => true,
             'three_d_active' => true,
-            'price' => 1699,
+            'price' => 2990,
             'compare_at_price' => null,
             'purchase_price' => 136, // EK: 13,67€ / 10 Stück = 1,36€ pro Stück
             'laser_runtime_minutes' => 1,
@@ -187,8 +188,9 @@ class ProductSeeder extends Seeder
             'three_d_model_path' => 'produkte/products/seelen-anhaenger/seelenanhaenger_3d_.glb',
             'three_d_background_path' => 'produkte/products/seelen-anhaenger/header_bg.png',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger-back.jpg', 'is_main' => true, 'is_ai_generated' => true, 'alt' => 'Der Seelenanhänger – Massives Alu-Herz mit beidseitiger Lasergravur'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger-dimensions.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelenanhänger – Technisches Maßblatt & Abmessungen (45 x 40 x 2,3 mm)'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger-back.jpg', 'is_main' => true, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelenanhänger: Massives Alu-Herz mit beidseitiger Lasergravur'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_ai_generated' => true, 'alt' => 'Der Seelenanhänger: Graviertes Alu-Herz als treuer Begleiter am Rucksack'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelenanhänger: Technisches Maßblatt & Abmessungen (45 x 40 x 2,3 mm)'],
             ],
             'configurator_settings' => [
                 'template_package' => 'seelen-anhaenger',
@@ -291,7 +293,7 @@ class ProductSeeder extends Seeder
             'status' => 'active',
             'is_personalizable' => true,
             'three_d_active' => true,
-            'price' => 2490,
+            'price' => 2990,
             'compare_at_price' => null,
             'purchase_price' => 333, // EK: 19,99€ / 6 Stück = 3,33€ pro Stück
             'laser_runtime_minutes' => 1,
@@ -316,8 +318,9 @@ class ProductSeeder extends Seeder
             'three_d_model_path' => 'produkte/products/weizenglas-personalisiert/beer_glas_3d.glb',
             'three_d_background_path' => 'produkte/products/weizenglas-personalisiert/header_bg.png',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/beer_glas_main.jpg', 'is_main' => true, 'is_ai_generated' => true, 'alt' => 'Der Feierabend-Funke – Personalisiertes Weizenbierglas'],
-                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/weizenglas-dimensions.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Der Feierabend-Funke – Technisches Maßblatt & Abmessungen (218 x Ø 74 mm)'],
+                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/beer_glas_main.jpg', 'is_main' => true, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Der Feierabend-Funke: Personalisiertes Weizenbierglas'],
+                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/weizenglas-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_ai_generated' => true, 'alt' => 'Der Feierabend-Funke: Frisch gezapftes Weizenglas mit Lasergravur im Biergarten'],
+                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/weizenglas-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Der Feierabend-Funke: Technisches Maßblatt & Abmessungen (218 x Ø 74 mm)'],
             ],
             'configurator_settings' => [
                 'template_package' => 'weizenglas-personalisiert',
@@ -356,12 +359,12 @@ class ProductSeeder extends Seeder
                 'Volumen' => '0,5 Liter (Randvoll 580 ml)',
                 'Größe' => 'Ø 7,4 cm x 21,8 cm Höhe',
                 'Veredelung' => '360° Rotations-Lasergravur',
-                'Pflege' => '100% Spülmaschinenfest & abriebfest',
-                'Herkunft' => 'Made in Germany',
+                'Pflege' => 'Spülmaschinengeeignet & abriebfest',
+                'Herkunft' => 'Handveredelt in Deutschland',
             ],
             'tier_pricing' => [],
             'seo_title' => 'Der Feierabend-Funke | Weizenglas mit eigener 360° Gravur | Mein-Seelenfunke',
-            'seo_description' => 'Gestalten Sie Ihr eigenes Weizenglas mit spülmaschinenfester 360° Rundum-Gravur online im 3D-Konfigurator. Perfekt als Geschenk.',
+            'seo_description' => 'Gestalten Sie Ihr eigenes Weizenglas mit spülmaschinengeeigneter 360° Rundum-Gravur online im 3D-Konfigurator. Perfekt als Geschenk.',
             'completion_step' => 4
         ]);
 
@@ -385,13 +388,13 @@ class ProductSeeder extends Seeder
         $p4 = Product::updateOrCreate(['slug' => 'seelen-talisman'], [
             'name' => 'Der Seelen-Talisman',
             'type' => 'physical',
-            'description' => 'Ein edles Statement für jeden Tag: Der Seelen-Talisman ist aus massivem, spiegelpoliertem Edelstahl mit hochwertigem Gold-Finish gefertigt und besticht durch seine sanft abgerundete Tonnen-Kontur mit massivem Flachprofil-Schlüsselring. Durch unsere hochpräzise Faserlaser-Anlassgravur treten Ihre Wunschbotschaft, Koordinaten, Initialen oder Symbole in gestochen scharfem, abriebfestem Tief-Anthrazit auf dem glänzenden Gold hervor – auf Wunsch beidseitig veredelt! Ob als treuer Schutzbegleiter für den Lieblingsmenschen, als stilvoller Schlüsselanhänger zum neuen Zuhause oder als Jahrestags-Erinnerung: Der Seelen-Talisman liegt spürbar wertig in der Hand und begleitet Sie zuverlässig durch den Alltag.',
+            'description' => 'Ein edles Statement für jeden Tag: Der Seelen-Talisman ist aus massivem, spiegelpoliertem Edelstahl mit hochwertigem Gold-Finish gefertigt und besticht durch seine sanft abgerundete Tonnen-Kontur mit massivem Flachprofil-Schlüsselring. Durch unsere hochpräzise Faserlaser-Anlassgravur treten Ihre Wunschbotschaft, Koordinaten, Initialen oder Symbole in gestochen scharfem, abriebfestem Tief-Anthrazit auf dem glänzenden Gold hervor, auf Wunsch auch beidseitig veredelt! Ob als treuer Schutzbegleiter für den Lieblingsmenschen, als stilvoller Schlüsselanhänger zum neuen Zuhause oder als Jahrestags-Erinnerung: Der Seelen-Talisman liegt spürbar wertig in der Hand und begleitet Sie zuverlässig durch den Alltag.',
             'short_description' => 'Massiver, spiegelpolierter Edelstahl-Schlüsselanhänger in edlem Gold-Finish mit kontraststarker, beidseitiger Faserlaser-Gravur.',
             'status' => 'active',
             'is_personalizable' => true,
             'three_d_active' => true,
-            'price' => 1990,
-            'compare_at_price' => 2490,
+            'price' => 3690,
+            'compare_at_price' => null,
             'purchase_price' => 116, // EK laut Temu-Beleg 15.10.2026: 18,60€ / 16 Stück = 1,16€ netto (1,48€ inkl. Einfuhrabgabe)
             'laser_runtime_minutes' => 1,
             'electricity_wear_factor' => 5,
@@ -415,10 +418,10 @@ class ProductSeeder extends Seeder
             'three_d_model_path' => 'produkte/products/seelen-talisman/seelen_talisman_3d.glb',
             'three_d_background_path' => 'produkte/products/seelen-talisman/header_bg.png',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-main.jpg', 'is_main' => true, 'is_ai_generated' => true, 'alt' => 'Der Seelen-Talisman – Spiegelpolierter Gold-Edelstahl-Schlüsselanhänger mit Gravur'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-back.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen-Talisman – Beidseitige Gravur mit Wunschkoordinaten'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-lifestyle.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen-Talisman am Schlüsselbund'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-dimensions.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen-Talisman – Technisches Maßblatt & Abmessungen (50 x 28 x 2,2 mm)'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen-Talisman: Spiegelpolierter Gold-Edelstahl-Schlüsselanhänger mit Gravur'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-back.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen-Talisman: Beidseitige Gravur mit Wunschkoordinaten'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_ai_generated' => true, 'alt' => 'Der Seelen-Talisman: Gold-Schlüsselanhänger am Haustür-Schlüsselbund beim Aufschließen'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen-Talisman: Technisches Maßblatt & Abmessungen (50 x 28 x 2,2 mm)'],
             ],
             'configurator_settings' => [
                 'template_package' => 'seelen-talisman',
@@ -497,13 +500,13 @@ class ProductSeeder extends Seeder
         $p5Paw = Product::updateOrCreate(['slug' => 'seelen-pfote-hundemarke'], [
             'name' => 'Die Seelen-Pfote',
             'type' => 'physical',
-            'description' => 'Sicherheit und Liebe für Ihren treuesten Begleiter: Die Seelen-Pfote ist eine massive, spiegelpolierte Hundemarke in klassischer Knochenform aus rostfreiem V2A-Edelstahl mit integriertem Aufhängungs-Öhr und einem kunstvoll ausgestanzten Pfotenabdruck-Durchbruch auf der rechten Seite. Auf der Vorderseite verewigen wir den Namen Ihres Lieblings samt Wunsch-Symbol in kontraststarker, tief-anthrazitfarbener Faserlaser-Anlassgravur, während die Rückseite ausreichend Platz für Ihre Notfall-Telefonnummer, Adresse oder TASSO-Kennung bietet. Absolut wasserfest, rostfrei und unverwüstlich – für unbeschwerte Abenteuer bei jedem Wetter.',
+            'description' => 'Sicherheit und Liebe für Ihren treuesten Begleiter: Die Seelen-Pfote ist eine massive, spiegelpolierte Hundemarke in klassischer Knochenform aus rostfreiem V2A-Edelstahl mit integriertem Aufhängungs-Öhr und einem kunstvoll ausgestanzten Pfotenabdruck-Durchbruch auf der rechten Seite. Auf der Vorderseite verewigen wir den Namen Ihres Lieblings samt Wunsch-Symbol in kontraststarker, tief-anthrazitfarbener Faserlaser-Anlassgravur, während die Rückseite ausreichend Platz für Ihre Notfall-Telefonnummer, Adresse oder TASSO-Kennung bietet. Absolut wasserfest, rostfrei und unverwüstlich für unbeschwerte Abenteuer bei jedem Wetter.',
             'short_description' => 'Massive, spiegelpolierte Edelstahl-Hundemarke in Knochenform mit echtem Pfoten-Durchbruch und beidseitiger Faserlaser-Gravur.',
             'status' => 'active',
             'is_personalizable' => true,
             'three_d_active' => true,
-            'price' => 1790,
-            'compare_at_price' => 2190,
+            'price' => 2990,
+            'compare_at_price' => null,
             'purchase_price' => 79, // EK laut Temu-Angebot (goods_id=601099514279197): 7,88€ / 10 Stück = 0,79€ pro Stück
             'laser_runtime_minutes' => 1,
             'electricity_wear_factor' => 5,
@@ -527,10 +530,10 @@ class ProductSeeder extends Seeder
             'three_d_model_path' => 'produkte/products/seelen-pfote-hundemarke/seelen_pfote_3d.glb',
             'three_d_background_path' => 'produkte/products/seelen-pfote-hundemarke/header_bg.png',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-main.jpg', 'is_main' => true, 'is_ai_generated' => true, 'alt' => 'Die Seelen-Pfote – Polierte Edelstahl-Hundemarke Knochenform mit Pfoten-Durchbruch & Gravur'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-back.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Die Seelen-Pfote – Rückseite mit Notfall-Telefonnummer & TASSO-Hinweis'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-lifestyle.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Die Seelen-Pfote Hundemarke am Lederhalsband eines Golden Retrievers'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-dimensions.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Die Seelen-Pfote – Technisches Maßblatt & Abmessungen (40 x 22 x 1,8 mm)'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Die Seelen-Pfote: Polierte Edelstahl-Hundemarke Knochenform mit Pfoten-Durchbruch & Gravur'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-back.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Die Seelen-Pfote: Rückseite mit Notfall-Telefonnummer & TASSO-Hinweis'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_ai_generated' => true, 'alt' => 'Die Seelen-Pfote Hundemarke am Lederhalsband eines Golden Retrievers'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Die Seelen-Pfote: Technisches Maßblatt & Abmessungen (40 x 22 x 1,8 mm)'],
             ],
             'configurator_settings' => [
                 'template_package' => 'seelen-pfote-hundemarke',
@@ -615,18 +618,18 @@ class ProductSeeder extends Seeder
             ['material_type' => 'paper',     'weight_grams' => 3],
         ]);
 
-        // --- PRODUKT 6: Das Goldene Seelen-Herz (Physisch / NEU – 14 Karat vergoldeter Edelstahl-Herzanhänger mit Collierschlaufe von Glücksfieber DE) ---
+        // --- PRODUKT 6: Das Goldene Seelen-Herz (Physisch / NEU – 14 Karat vergoldeter Edelstahl-Herzanhänger inkl. 44–50 cm Gold-Ankerkette von Glücksfieber DE) ---
         $p6GoldHeart = Product::updateOrCreate(['slug' => 'goldenes-seelen-herz'], [
             'name' => 'Das Goldene Seelen-Herz',
             'type' => 'physical',
-            'description' => 'Ein Schmuckstück für die Ewigkeit, gefertigt und veredelt in Deutschland: Das Goldene Seelen-Herz ist ein außergewöhnlich massiver (4,0 mm starker!) Edelstahl-Schmuckanhänger mit edler 14-Karat-Echtgold-Ion-Plating-Vergoldung (IP) und integrierter Collierschlaufe (Öse 3 × 6 mm). Anders als dünne Blechanhänger besticht dieser Rohling aus dem Lübecker Fachgroßhandel Glücksfieber durch sein spürbares Juwelier-Gewicht, sanft facettierte Kanten und eine extrem kratz- sowie anlauffeste Spiegeloberfläche. Mit unserem Präzisions-Faserlaser verewigen wir Ihre Initialen, Namen, ein besonderes Datum oder feine Symbole in tiefem, kontraststarkem Anthrazit-Schwarz direkt im 14k Gold-Finish – auf Wunsch auf Vorder- und Rückseite.',
-            'short_description' => 'Massiver 14 Karat vergoldeter Edelstahl-Herzanhänger (4 mm Stärke, Ion-Plating) mit Collierschlaufe & beidseitiger Faserlaser-Gravur – Made in Germany.',
+            'description' => 'Ein Schmuckstück für die Ewigkeit, handveredelt in unserer Manufaktur in Deutschland und sofort tragfertig als komplettes Collier: Das Goldene Seelen-Herz vereint einen außergewöhnlich massiven (4,0 mm starken!) Edelstahl-Herzanhänger mit der perfekt abgestimmten, feingliedrigen Gold-Edelstahl-Ankerkette (44 cm + 6 cm Verlängerungskettchen für flexibles Tragen von 44 bis 50 cm). Beide Komponenten stammen aus dem Lübecker Fachgroßhandel Glücksfieber und sind mit derselben hochwertigen Echtgold-Ion-Plating-Veredelung (IP) versehen: absolut identischer, warmer Goldton, wasserfest, hautfreundlich und anlaufgeschützt. Anders als dünne Blechanhänger besticht das Herz durch sein spürbares Juwelier-Gewicht, sanft facettierte Kanten und eine extrem kratzfeste Spiegeloberfläche. Mit unserem Präzisions-Faserlaser verewigen wir Ihre Initialen, Namen, ein besonderes Datum oder feine Symbole in tiefem, kontraststarkem Anthrazit-Schwarz direkt im Gold-Finish, auf Wunsch kostenlos auch auf Vorder- und Rückseite.',
+            'short_description' => 'Massiver vergoldeter Edelstahl-Herzanhänger (4 mm Stärke, Ion-Plating) inklusive passender, verstellbarer Gold-Edelstahl-Ankerkette (44–50 cm) & beidseitiger Faserlaser-Gravur.',
             'status' => 'active',
             'is_personalizable' => true,
             'three_d_active' => true,
-            'price' => 2490,
-            'compare_at_price' => 2990,
-            'purchase_price' => 210, // EK bei Glücksfieber (Lübeck, DE) im Staffelbezug: ca. 2,10€ netto pro Stück
+            'price' => 4990,
+            'compare_at_price' => null,
+            'purchase_price' => 441, // EK bei Glücksfieber (Lübeck, DE) im Staffelbezug: Herz STA1274 (2,02€ netto) + Ankerkette STA268 (2,39€ netto) = 4,41€ netto Komplett-Set
             'laser_runtime_minutes' => 1,
             'electricity_wear_factor' => 5,
             'packaging_cost' => 14, // Karton.eu 400stk Luftpolster Versandtüten = 0,14€ netto
@@ -637,9 +640,9 @@ class ProductSeeder extends Seeder
             'barcode' => '',
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
-            'quantity' => 0,
+            'quantity' => 10,
             'continue_selling_when_out_of_stock' => true,
-            'weight' => 14,
+            'weight' => 18,
             'packaging_weight' => 15, // Luftpolster-Versandtüte (15 g)
             'height' => 25,
             'width' => 22,
@@ -649,14 +652,14 @@ class ProductSeeder extends Seeder
             'three_d_model_path' => 'produkte/products/goldenes-seelen-herz/goldenes_seelen_herz_3d.glb',
             'three_d_background_path' => 'produkte/products/goldenes-seelen-herz/header_bg.png',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-main.jpg', 'is_main' => true, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelen-Herz – 14 Karat vergoldeter Edelstahl-Herzanhänger mit Collierschlaufe & Gravur'],
-                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-back.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelen-Herz – Rückseite mit Wunschdatum & Koordinaten-Gravur'],
-                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-lifestyle.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelen-Herz an feiner Goldkette getragen'],
-                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-dimensions.jpg', 'is_main' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelen-Herz – Technisches Maßblatt & Abmessungen (25 x 22 x 4 mm, Öse 3 x 6 mm)'],
+                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelen-Herz: Vergoldeter Edelstahl-Herzanhänger inklusive Gold-Ankerkette (44–50 cm) & Gravur'],
+                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-back.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelen-Herz: Rückseite mit Wunschdatum & Koordinaten-Gravur inklusive Halskette'],
+                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelen-Herz Komplett-Set an der mitgelieferten 44–50 cm Gold-Ankerkette getragen'],
+                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelen-Herz: Technisches Maßblatt & Abmessungen (25 x 22 x 4 mm inkl. 44–50 cm Ankerkette)'],
             ],
             'configurator_settings' => [
                 'template_package' => 'goldenes-seelen-herz',
-                'origin_badge' => 'made_in_germany',
+                'origin_badge' => 'handcrafted_in_germany',
                 'auto_seasonal_main_image' => true,
                 'enable_background_video' => true,
                 'default_background_theme' => 'standard',
@@ -710,16 +713,16 @@ class ProductSeeder extends Seeder
                 ]
             ],
             'attributes' => [
-                'Material' => 'Massiver Edelstahl, 14 Karat vergoldet (Ion-Plating / IP)',
-                'Form' => 'Schmuck-Herz mit Collierschlaufe (Beidseitig gravierbar)',
-                'Größe' => '25 x 22 x 4,0 mm (Collierschlaufe / Öse: 3 x 6 mm)',
-                'Gewicht' => 'ca. 14 g (4 mm starkes Juwelier-Vollmaterial)',
-                'Veredelung' => 'Tief-anthrazitfarbene Faserlaser-Anlassgravur auf 14k Gold',
-                'Herkunft' => 'Made in Germany',
+                'Material' => 'Massiver 304 Edelstahl, Echtgold Ion-Plating (IP) veredelt',
+                'Halskette (Inklusive)' => 'Gold-Edelstahl-Ankerkette (44 cm + 6 cm Verlängerung, 1,5 mm, Karabiner)',
+                'Herz-Größe' => '25 x 22 x 4,0 mm (Collierschlaufe / Öse: 3 x 6 mm)',
+                'Gewicht' => 'ca. 18 g Komplett-Set (14 g massives Herz + 4 g Ankerkette)',
+                'Veredelung' => 'Beidseitige Faserlaser-Anlassgravur (Vorder- & Rückseite inklusive)',
+                'Herkunft' => 'Handveredelt in Deutschland',
             ],
             'tier_pricing' => [],
-            'seo_title' => 'Das Goldene Seelen-Herz | 14k vergoldeter Herzanhänger mit Lasergravur – Made in Germany',
-            'seo_description' => 'Massiver 14 Karat vergoldeter Edelstahl-Herzanhänger (25x22x4 mm) mit Collierschlaufe und individueller Gravur. Made in Germany – jetzt im 3D-Konfigurator gestalten!',
+            'seo_title' => 'Das Goldene Seelen-Herz | Vergoldete Herz-Halskette (44–50 cm) mit Gravur | Handveredelt in Deutschland',
+            'seo_description' => 'Massiver vergoldeter Edelstahl-Herzanhänger (25x22x4 mm) inklusive passender 44–50 cm Gold-Ankerkette und beidseitiger Lasergravur. Jetzt im 3D-Konfigurator gestalten!',
             'completion_step' => 4
         ]);
 
@@ -798,12 +801,13 @@ Zusätzlich erhältst du das vollständige ZIP-Archiv mit allen 200 einsatzberei
         $p5 = Product::updateOrCreate(['slug' => 'geschenkgutschein'], [
             'name' => 'Geschenkgutschein',
             'type' => 'digital',
-            'description' => 'Verschenken Sie unvergessliche Momente mit unserem edlen Seelenfunken Geschenkgutschein. Der Gutschein kann wahlweise digital per E-Mail oder hochwertig gedruckt per Post bestellt werden. Sie können den Betrag flexibel wählen und eine persönliche Grußbotschaft hinzufügen. Der perfekte Ausdruck Ihrer Wertschätzung.',
+            'description' => 'Verschenken Sie unvergessliche Momente mit unserem edlen Seelenfunken Geschenkgutschein. Der Gutschein kann wahlweise digital per E-Mail oder als lasergravierte goldene Metallkarte im schwarzen Edel-Umschlag mit goldenem Siegel per Post bestellt werden. Sie können den Betrag flexibel wählen und eine persönliche Grußbotschaft hinzufügen. Der perfekte Ausdruck Ihrer Wertschätzung.',
             'is_personalizable' => true,
             'three_d_active' => false,
-            'short_description' => 'Der flexible Seelenfunken Geschenkgutschein als E-Mail oder edle Post-Klappkarte mit Wachssiegel.',
+            'short_description' => 'Der flexible Seelenfunken Geschenkgutschein als E-Mail-PDF oder lasergravierte goldene Metallkarte im Edel-Umschlag mit Wachssiegel.',
             'status' => 'active',
             'price' => 0, // Wird dynamisch durch den Konfigurator/Warenkorb bestimmt
+            'tax_class' => 'zero', // Mehrzweck-Gutschein gem. § 3 Abs. 14 UStG (Versteuerung erst bei Einlösung)
             'compare_at_price' => null,
             'sku' => 'GIFT-VOUCHER-001',
             'barcode' => '',
@@ -811,14 +815,15 @@ Zusätzlich erhältst du das vollständige ZIP-Archiv mit allen 200 einsatzberei
             'track_quantity' => false,
             'quantity' => 0,
             'continue_selling_when_out_of_stock' => true,
-            'weight' => null, 'height' => null, 'width' => null, 'length' => null, 'shipping_class' => null,
+            'weight' => 25, 'packaging_weight' => 15, 'height' => 2, 'width' => 114, 'length' => 162, 'shipping_class' => 'brief',
             'preview_image_path' => 'produkte/products/geschenkgutschein/envelope.png',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-main.jpg', 'is_main' => true, 'is_ai_generated' => true, 'holiday' => 'Standard', 'alt' => 'Seelenfunke Geschenkgutschein im schwarz-goldenen Umschlag mit Wachssiegel'],
-                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-halloween.jpg', 'is_main' => false, 'is_ai_generated' => true, 'holiday' => 'Halloween', 'alt' => 'Seelenfunke Geschenkgutschein – Herbst & Lichter Edition'],
-                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-weihnachten.jpg', 'is_main' => false, 'is_ai_generated' => true, 'holiday' => 'Weihnachten', 'alt' => 'Seelenfunke Geschenkgutschein – Weihnachts-Edition'],
-                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-valentinstag.jpg', 'is_main' => false, 'is_ai_generated' => true, 'holiday' => 'Valentinstag', 'alt' => 'Seelenfunke Geschenkgutschein – Romantik & Valentinstag Edition'],
-                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-ostern.jpg', 'is_main' => false, 'is_ai_generated' => true, 'holiday' => 'Ostern', 'alt' => 'Seelenfunke Geschenkgutschein – Frühlings- & Oster-Edition'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_ai_generated' => true, 'holiday' => 'Standard', 'alt' => 'Seelenfunke Geschenkgutschein im schwarz-goldenen Umschlag mit Wachssiegel'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_ai_generated' => true, 'alt' => 'Seelenfunke Geschenkgutschein: Persönliche Übergabe im Schwarz-Gold-Umschlag mit Wachssiegel'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-halloween.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'holiday' => 'Halloween', 'alt' => 'Seelenfunke Geschenkgutschein: Herbst & Lichter Edition'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-weihnachten.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'holiday' => 'Weihnachten', 'alt' => 'Seelenfunke Geschenkgutschein: Weihnachts-Edition'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-valentinstag.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'holiday' => 'Valentinstag', 'alt' => 'Seelenfunke Geschenkgutschein: Romantik & Valentinstag Edition'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-ostern.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'holiday' => 'Ostern', 'alt' => 'Seelenfunke Geschenkgutschein: Frühlings- & Oster-Edition'],
             ],
             'configurator_settings' => [
                 'auto_seasonal_main_image' => true,
@@ -832,7 +837,7 @@ Zusätzlich erhältst du das vollständige ZIP-Archiv mit allen 200 einsatzberei
             ],
             'tier_pricing' => [],
             'seo_title' => 'Geschenkgutschein online kaufen & verschenken | Mein-Seelenfunke',
-            'seo_description' => 'Edler Geschenkgutschein von Mein-Seelenfunke. Flexibler Wert, mit persönlicher Botschaft. Digital per E-Mail oder als Postkarte mit Wachssiegel bestellen.',
+            'seo_description' => 'Edler Geschenkgutschein von Mein-Seelenfunke. Flexibler Wert, mit persönlicher Botschaft. Digital per E-Mail oder als lasergravierte goldene Metallkarte im Edel-Umschlag mit Wachssiegel bestellen.',
             'completion_step' => 4
         ]);
 
@@ -840,6 +845,7 @@ Zusätzlich erhältst du das vollständige ZIP-Archiv mit allen 200 einsatzberei
         $p5->categories()->sync($catIds5);
 
         // Sicherstellen, dass bei allen bestehenden Produkten & Vorlagen jedes Bild als KI-generiert markiert ist
+        // UND nur physische Produkte die einheitlichen Schwarz-Gold-Geschenkverpackungs-Optionen besitzen
         foreach (Product::withTrashed()->get() as $existingProduct) {
             $gallery = is_array($existingProduct->media_gallery) ? $existingProduct->media_gallery : [];
             $changed = false;
@@ -851,6 +857,23 @@ Zusätzlich erhältst du das vollständige ZIP-Archiv mit allen 200 einsatzberei
             }
             if ($changed) {
                 $existingProduct->media_gallery = $gallery;
+            }
+
+            $settings = is_array($existingProduct->configurator_settings) ? $existingProduct->configurator_settings : [];
+            if ($existingProduct->isPhysical()) {
+                $effectiveAddons = $existingProduct->getEffectiveAddons(false);
+                if (($settings['addons'] ?? null) !== $effectiveAddons) {
+                    $settings['addons'] = $effectiveAddons;
+                    $existingProduct->configurator_settings = $settings;
+                    $changed = true;
+                }
+            } elseif (isset($settings['addons'])) {
+                unset($settings['addons']);
+                $existingProduct->configurator_settings = $settings;
+                $changed = true;
+            }
+
+            if ($changed) {
                 $existingProduct->saveQuietly();
             }
         }

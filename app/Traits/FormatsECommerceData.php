@@ -55,12 +55,12 @@ trait FormatsECommerceData
 
             // TAX CALCULATION FOR ITEM
             $itemTax = is_object($item) ? ($item->tax_rate ?? null) : ($item['tax_rate'] ?? null);
-            $taxRate = (float)($itemTax !== null ? $itemTax : $defaultTaxRate);
+            $taxRate = $isSmallBusiness ? 0.0 : (float)($itemTax !== null ? $itemTax : $defaultTaxRate);
             $lineNet = (int)round($lineGross / (1 + ($taxRate / 100)));
             $lineTax = $lineGross - $lineNet;
 
             if (!$isSmallBusiness) {
-                $strRate = number_format($taxRate, 0);
+                $strRate = rtrim(rtrim(number_format((float)$taxRate, 2, ',', '.'), '0'), ',');
                 if (!isset($taxesBreakdownCents[$strRate])) $taxesBreakdownCents[$strRate] = 0;
                 $taxesBreakdownCents[$strRate] += $lineTax;
             }
@@ -137,9 +137,11 @@ trait FormatsECommerceData
             ];
         }
 
-        // Apply discount proportion to taxes
-        $totalDiscountCents = ($this->discount_amount ?? 0) + ($this->volume_discount ?? 0);
-        $discountRatio = $goodsGrossCents > 0 ? max(0, ($goodsGrossCents - $totalDiscountCents) / $goodsGrossCents) : 1;
+        // Apply coupon discount proportion to item taxes (volume_discount is already reflected in item unit_price/total_price)
+        $totalDiscountCents = abs((int)($this->discount_amount ?? 0));
+        $discountProductsCents = min($totalDiscountCents, $goodsGrossCents);
+        $excessDiscountCents = max(0, $totalDiscountCents - $discountProductsCents);
+        $discountRatio = $goodsGrossCents > 0 ? max(0, ($goodsGrossCents - $discountProductsCents) / $goodsGrossCents) : 1;
 
         if (!$isSmallBusiness) {
             foreach ($taxesBreakdownCents as $rate => $tax) {
@@ -156,10 +158,11 @@ trait FormatsECommerceData
             $totalNettoCents = $grossTotalCents;
         } else {
             // Wir suchen das Steuer-Feld: OrderOrder (tax_amount), Quote (tax_total), Invoice (tax_amount)
-            $taxAmountCents = $this->tax_amount ?? $this->tax_total ?? 0;
+            $persistedTaxAmount = $this->tax_amount ?? $this->tax_total ?? null;
+            $taxAmountCents = $persistedTaxAmount !== null ? (int) $persistedTaxAmount : 0;
 
-            // Falls tax_amount 0 ist (z.B. bei Invoices nicht explizit gespeichert), rückrechnen
-            if ($taxAmountCents === 0 && $grossTotalCents > 0) {
+            // Falls tax_amount überhaupt nicht gesetzt (null) ist und steuerpflichtige Umsätze vorliegen, rückrechnen
+            if ($persistedTaxAmount === null && $grossTotalCents != 0 && !empty($taxesBreakdownCents)) {
                 $taxAmountCents = (int)($grossTotalCents - round($grossTotalCents / $divisor));
             }
 
@@ -188,16 +191,19 @@ trait FormatsECommerceData
             $maxTaxRate = $defaultTaxRate;
         }
 
-        $dynamicDivisor = $isSmallBusiness ? 1.0 : (1 + ($maxTaxRate / 100));
+        $billingAddr = (isset($this->billing_address) && is_array($this->billing_address)) ? $this->billing_address : [];
+        $shippingAddr = (isset($this->shipping_address) && is_array($this->shipping_address)) ? $this->shipping_address : [];
+        $targetCountry = (string)($shippingAddr['country'] ?? $billingAddr['country'] ?? $this->country ?? 'DE');
+        $euCountries = ['DE', 'AT', 'BE', 'BG', 'CY', 'CZ', 'DK', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK'];
+        $isEuShipping = in_array(strtoupper($targetCountry), $euCountries, true);
+        $shippingTaxRate = ($isSmallBusiness || !$isEuShipping) ? 0.0 : $maxTaxRate;
+
+        $dynamicDivisor = ($isSmallBusiness || $shippingTaxRate <= 0.0) ? 1.0 : (1 + ($shippingTaxRate / 100));
 
         // 5. Versandkosten-Logik: Persistierten Versandpreis (z.B. 3,50 € für Gutschein per Post im Umschlag oder Auslands-/Standardversand) vorrangig nutzen!
-        $calcBase = $this->subtotal_price ?? $goodsGrossCents;
         $persistedShipping = $this->shipping_price ?? $this->shipping_cost ?? null;
-        if ($persistedShipping !== null) {
-            $actualShippingGross = (int) $persistedShipping;
-        } else {
-            $actualShippingGross = ($calcBase >= $shippingThreshold) ? 0 : 0;
-        }
+        $shippingGrossCents = $persistedShipping !== null ? (int) $persistedShipping : 0;
+        $actualShippingGross = $shippingGrossCents;
         $shippingNettoCents  = (int)round($actualShippingGross / $dynamicDivisor);
 
         // Prüfen, ob ein Geschenkgutschein "Per Post im Umschlag" enthalten ist (für präzise Ausweisung in Mail, Rechnung & Übersicht)
@@ -220,9 +226,13 @@ trait FormatsECommerceData
             $shippingLabel = 'Versandkosten (inkl. Gutschein per Post)';
         }
 
-        if ($actualShippingGross > 0 && !$isSmallBusiness) {
-            $shippingTaxCents = $actualShippingGross - $shippingNettoCents;
-            $strShipRate = number_format($maxTaxRate, 0);
+        $shippingGrossAbs = abs($actualShippingGross);
+        $discountOnShipping = min($shippingGrossAbs, $excessDiscountCents);
+        $effectiveShippingGrossAbs = max(0, $shippingGrossAbs - $discountOnShipping);
+        $effectiveShippingNettoAbs = (int)round($effectiveShippingGrossAbs / $dynamicDivisor);
+        if ($shippingGrossAbs > 0 && !$isSmallBusiness) {
+            $shippingTaxCents = $effectiveShippingGrossAbs - $effectiveShippingNettoAbs;
+            $strShipRate = rtrim(rtrim(number_format((float)$shippingTaxRate, 2, ',', '.'), '0'), ',');
             if (!isset($taxesBreakdownCents[$strShipRate])) $taxesBreakdownCents[$strShipRate] = 0;
             $taxesBreakdownCents[$strShipRate] += $shippingTaxCents;
         }
@@ -234,22 +244,30 @@ trait FormatsECommerceData
         }
         $expressNettoCents = (int)round($expressGross / $dynamicDivisor);
 
-        if ($expressGross > 0 && !$isSmallBusiness) {
-            $expressTaxCents = $expressGross - $expressNettoCents;
-            $strExpRate = number_format($maxTaxRate, 0);
+        $expressGrossAbs = abs($expressGross);
+        $remainingExcessForExpress = max(0, $excessDiscountCents - $discountOnShipping);
+        $discountOnExpress = min($expressGrossAbs, $remainingExcessForExpress);
+        $effectiveExpressGrossAbs = max(0, $expressGrossAbs - $discountOnExpress);
+        $effectiveExpressNettoAbs = (int)round($effectiveExpressGrossAbs / $dynamicDivisor);
+        if ($expressGrossAbs > 0 && !$isSmallBusiness) {
+            $expressTaxCents = $effectiveExpressGrossAbs - $effectiveExpressNettoAbs;
+            $strExpRate = rtrim(rtrim(number_format((float)$shippingTaxRate, 2, ',', '.'), '0'), ',');
             if (!isset($taxesBreakdownCents[$strExpRate])) $taxesBreakdownCents[$strExpRate] = 0;
             $taxesBreakdownCents[$strExpRate] += $expressTaxCents;
         }
 
         // 7. Reiner Warenwert Netto (Gesamt-Netto minus Nebenkosten)
-        // Verhindert negative Werte, falls die Summen-Felder in der DB leer sind
-        $goodsNettoCents = max(0, $totalNettoCents - $expressNettoCents - $shippingNettoCents);
+        // Verhindert negative Werte bei regulären Belegen, erhält aber negative Werte bei Gutschriften/Stornos
+        $goodsNettoCents = $grossTotalCents < 0
+            ? min(0, $totalNettoCents - $expressNettoCents - $shippingNettoCents)
+            : max(0, $totalNettoCents - $expressNettoCents - $shippingNettoCents);
 
         // 7. Breakdown formatieren
         $formattedTaxBreakdown = [];
         if (!$isSmallBusiness) {
             foreach ($taxesBreakdownCents as $rate => $cents) {
-                if ($cents > 0 || floatval($rate) == 0) {
+                $rateFloat = (float)str_replace(',', '.', (string)$rate);
+                if ($cents > 0 || $rateFloat == 0.0) {
                     $formattedTaxBreakdown[$rate] = number_format($cents / 100, 2, ',', '.');
                 }
             }
@@ -319,7 +337,7 @@ trait FormatsECommerceData
             'tax_rate'          => $defaultTaxRate,
             'tax_note'          => $isSmallBusiness
                 ? 'Umsatzsteuerfrei aufgrund der Kleinunternehmerregelung gemäß § 19 UStG.'
-                : "Enthaltene MwSt. ({$defaultTaxRate}%):",
+                : 'Enthaltene MwSt. (' . rtrim(rtrim(number_format((float)$defaultTaxRate, 2, ',', '.'), '0'), ',') . '%):',
 
             // Erweiterung für Buchhaltung & Archivierung
             'is_e_invoice'      => (bool)($this->is_e_invoice ?? false),

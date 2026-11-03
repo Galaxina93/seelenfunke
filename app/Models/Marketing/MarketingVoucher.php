@@ -87,10 +87,6 @@ use HasFactory;
         return $query->where('is_active', true)
             ->whereNull('influencer_id')
             ->where(function ($q) {
-                $q->whereNull('recipient_email')
-                  ->orWhere('recipient_email', '');
-            })
-            ->where(function ($q) {
                 $q->whereNull('usage_limit')
                   ->orWhereColumn('used_count', '<', 'usage_limit');
             })

@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\System\SystemSetting;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -18,6 +20,9 @@ class ProductConfiguratorService
     public const VECTORS_STORAGE_DIR = 'produkte/configurator/vectors';
     public const MANIFEST_REL_PATH = 'produkte/configurator/vectors/manifest.json';
 
+    public const QUOTES_STORAGE_DIR = 'produkte/configurator/quotes';
+    public const QUOTES_MANIFEST_REL_PATH = 'produkte/configurator/quotes/manifest.json';
+
     public const DEFAULT_CATEGORIES = [
         'Liebe',
         'Familie',
@@ -27,6 +32,16 @@ class ProductConfiguratorService
         'Ornamente',
         'Feiertage',
         'Allgemein',
+    ];
+
+    public const DEFAULT_QUOTE_CATEGORIES = [
+        'Liebe & Partnerschaft',
+        'Trauer & Gedenken',
+        'Hochzeit & Jahrestag',
+        'Taufe & Geburt',
+        'Familie & Freundschaft',
+        'Haustiere & Pfotenliebe',
+        'Kurze Gravuren (Schmuck)',
     ];
 
     // =========================================================================
@@ -139,6 +154,7 @@ class ProductConfiguratorService
             ['key' => self::SETTING_VIDEO_PATH],
             ['value' => $storedRelPath]
         );
+        \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
 
         return $this->getTutorialConfig();
     }
@@ -160,6 +176,7 @@ class ProductConfiguratorService
             ['key' => self::SETTING_VIDEO_PATH],
             ['value' => $defaultRelPath]
         );
+        \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
 
         return $this->getTutorialConfig();
     }
@@ -173,6 +190,7 @@ class ProductConfiguratorService
             ['key' => self::SETTING_VIDEO_ENABLED],
             ['value' => $enabled ? '1' : '0']
         );
+        \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
 
         return $enabled;
     }
@@ -849,5 +867,728 @@ class ProductConfiguratorService
             return number_format($bytes / 1048576, 2, ',', '.') . ' MB';
         }
         return number_format(max(1, $bytes / 1024), 0, ',', '.') . ' KB';
+    }
+
+    // =========================================================================
+    // 3. SPRUCH- & WIDMUNGS-BIBLIOTHEK („KREATIV-STARTHILFE“) + KI-GENERATOR
+    // =========================================================================
+
+    /**
+     * Stellt sicher, dass das Spruch-Manifest unter storage/app/public/produkte/configurator/quotes/manifest.json
+     * existiert und mit den Standard-Kategorien sowie kuratierten Seelenfunke-Sprüchen initialisiert ist.
+     */
+    public function ensureQuotesInitialized(): array
+    {
+        $disk = Storage::disk('public');
+        if (!$disk->exists(self::QUOTES_STORAGE_DIR)) {
+            $disk->makeDirectory(self::QUOTES_STORAGE_DIR);
+        }
+
+        $manifestPath = storage_path('app/public/' . self::QUOTES_MANIFEST_REL_PATH);
+        $manifest = [
+            'categories' => self::DEFAULT_QUOTE_CATEGORIES,
+            'items'      => [],
+        ];
+
+        $isFirstInit = !is_file($manifestPath);
+
+        if (!$isFirstInit) {
+            $decoded = json_decode((string) @file_get_contents($manifestPath), true);
+            if (is_array($decoded)) {
+                $manifest['categories'] = array_values(array_unique(array_filter(
+                    is_array($decoded['categories'] ?? null) ? $decoded['categories'] : self::DEFAULT_QUOTE_CATEGORIES,
+                    fn ($c) => is_string($c) && trim($c) !== ''
+                )));
+                $manifest['items'] = is_array($decoded['items'] ?? null) ? $decoded['items'] : [];
+            }
+        }
+
+        if (empty($manifest['categories'])) {
+            $manifest['categories'] = self::DEFAULT_QUOTE_CATEGORIES;
+        }
+
+        if ($isFirstInit || empty($manifest['items'])) {
+            $seedItems = $this->getDefaultSeedQuotes();
+            $manifest['items'] = $seedItems;
+            $this->saveQuotesManifest($manifest);
+        } else {
+            // Aktualisiere unformatierte Standard-Sprüche (seed_*) einmalig auf saubere Mehrzeilen-Umbrüche
+            $seedItems = $this->getDefaultSeedQuotes();
+            $updatedSeeds = false;
+            foreach ($seedItems as $seedId => $seedData) {
+                if (
+                    isset($manifest['items'][$seedId])
+                    && ($manifest['items'][$seedId]['source'] ?? 'default') === 'default'
+                    && !str_contains((string) ($manifest['items'][$seedId]['text'] ?? ''), "\n")
+                    && str_contains($seedData['text'], "\n")
+                ) {
+                    $manifest['items'][$seedId]['text'] = $seedData['text'];
+                    $updatedSeeds = true;
+                }
+            }
+            if ($updatedSeeds) {
+                $this->saveQuotesManifest($manifest);
+            }
+        }
+
+        return $manifest;
+    }
+
+    public function saveQuotesManifest(array $manifest): void
+    {
+        $manifest['categories'] = array_values(array_unique(array_filter(
+            $manifest['categories'] ?? self::DEFAULT_QUOTE_CATEGORIES,
+            fn ($c) => is_string($c) && trim($c) !== ''
+        )));
+
+        $manifestPath = storage_path('app/public/' . self::QUOTES_MANIFEST_REL_PATH);
+        $dir = dirname($manifestPath);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+        }
+
+        @file_put_contents(
+            $manifestPath,
+            json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        );
+    }
+
+    /**
+     * Liefert alle aktiven (nicht archivierten) Sprüche gruppiert nach Kategorie für den Frontend-Konfigurator.
+     */
+    public function getActiveQuotesGrouped(): array
+    {
+        $manifest = $this->ensureQuotesInitialized();
+        $categories = $manifest['categories'] ?? self::DEFAULT_QUOTE_CATEGORIES;
+        $items = $manifest['items'] ?? [];
+
+        $grouped = [];
+        foreach ($categories as $cat) {
+            $grouped[$cat] = [];
+        }
+
+        foreach ($items as $id => $meta) {
+            if (!empty($meta['archived'])) {
+                continue;
+            }
+            $text = trim((string) ($meta['text'] ?? ''));
+            if ($text === '') {
+                continue;
+            }
+            $cat = $meta['category'] ?? ($categories[0] ?? 'Allgemein');
+            if (!isset($grouped[$cat])) {
+                $grouped[$cat] = [];
+            }
+
+            $grouped[$cat][] = [
+                'id'       => $id,
+                'title'    => $meta['title'] ?? '',
+                'text'     => $text,
+                'category' => $cat,
+                'length'   => mb_strlen($text),
+            ];
+        }
+
+        foreach ($grouped as $cat => &$list) {
+            if (empty($list)) {
+                unset($grouped[$cat]);
+            }
+        }
+        unset($list);
+
+        return $grouped;
+    }
+
+    /**
+     * Liefert die komplette Spruch-Datenstruktur für das Admin-Panel (/admin/product-configurator).
+     */
+    public function getAdminQuotesData(): array
+    {
+        $manifest = $this->ensureQuotesInitialized();
+        $categories = $manifest['categories'] ?? self::DEFAULT_QUOTE_CATEGORIES;
+        $items = $manifest['items'] ?? [];
+
+        $quotes = [];
+        $activeCount = 0;
+        $archivedCount = 0;
+        $categoryCounts = array_fill_keys($categories, 0);
+
+        foreach ($items as $id => $meta) {
+            $text = trim((string) ($meta['text'] ?? ''));
+            if ($text === '') {
+                continue;
+            }
+            $cat = $meta['category'] ?? ($categories[0] ?? 'Allgemein');
+            if (!isset($categoryCounts[$cat])) {
+                $categoryCounts[$cat] = 0;
+                $categories[] = $cat;
+            }
+
+            $isArchived = (bool) ($meta['archived'] ?? false);
+            if ($isArchived) {
+                $archivedCount++;
+            } else {
+                $activeCount++;
+                $categoryCounts[$cat]++;
+            }
+
+            $quotes[] = [
+                'id'         => $id,
+                'title'      => trim((string) ($meta['title'] ?? '')),
+                'text'       => $text,
+                'category'   => $cat,
+                'archived'   => $isArchived,
+                'source'     => $meta['source'] ?? 'default',
+                'length'     => mb_strlen($text),
+                'created_at' => $meta['created_at'] ?? null,
+            ];
+        }
+
+        return [
+            'categories'      => array_values(array_unique($categories)),
+            'category_counts' => $categoryCounts,
+            'quotes'          => $quotes,
+            'stats'           => [
+                'total'      => count($quotes),
+                'active'     => $activeCount,
+                'archived'   => $archivedCount,
+                'categories' => count($categories),
+            ],
+        ];
+    }
+
+    /**
+     * Fügt einen neuen Spruch (manuell oder aus dem KI-Generator übernommen) hinzu.
+     */
+    public function addQuote(string $text, string $category, string $title = '', string $source = 'manual'): array
+    {
+        $manifest = $this->ensureQuotesInitialized();
+        $cleanText = $this->sanitizeQuoteText($text);
+        if ($cleanText === '') {
+            throw new \InvalidArgumentException('Bitte gib einen Spruchtext ein.');
+        }
+
+        $cleanCategory = trim($category) !== '' ? trim($category) : ($manifest['categories'][0] ?? 'Liebe & Partnerschaft');
+        if (!in_array($cleanCategory, $manifest['categories'], true)) {
+            $manifest['categories'][] = $cleanCategory;
+        }
+
+        $id = 'q_' . substr(md5($cleanCategory . '|' . $cleanText . '|' . microtime(true)), 0, 12);
+        $entry = [
+            'id'         => $id,
+            'title'      => trim(strip_tags($title)),
+            'text'       => $cleanText,
+            'category'   => $cleanCategory,
+            'archived'   => false,
+            'source'     => $source,
+            'created_at' => date('Y-m-d H:i:s'),
+        ];
+
+        // Vorne einfügen, damit neue Sprüche direkt sichtbar sind
+        $manifest['items'] = [$id => $entry] + ($manifest['items'] ?? []);
+        $this->saveQuotesManifest($manifest);
+
+        return $entry;
+    }
+
+    /**
+     * Aktualisiert einen bestehenden Spruch (Text, Titel und/oder Kategorie).
+     */
+    public function updateQuote(string $id, string $text, string $category, string $title = ''): bool
+    {
+        $manifest = $this->ensureQuotesInitialized();
+        if (!isset($manifest['items'][$id])) {
+            return false;
+        }
+
+        $cleanText = $this->sanitizeQuoteText($text);
+        if ($cleanText === '') {
+            return false;
+        }
+
+        $cleanCategory = trim($category);
+        if ($cleanCategory !== '' && !in_array($cleanCategory, $manifest['categories'], true)) {
+            $manifest['categories'][] = $cleanCategory;
+        }
+
+        $manifest['items'][$id]['text'] = $cleanText;
+        $manifest['items'][$id]['title'] = trim(strip_tags($title));
+        if ($cleanCategory !== '') {
+            $manifest['items'][$id]['category'] = $cleanCategory;
+        }
+
+        $this->saveQuotesManifest($manifest);
+        return true;
+    }
+
+    /**
+     * Schaltet den Archivierungsstatus eines Spruchs um.
+     */
+    public function toggleArchiveQuote(string $id): ?bool
+    {
+        $manifest = $this->ensureQuotesInitialized();
+        if (!isset($manifest['items'][$id])) {
+            return null;
+        }
+
+        $newState = empty($manifest['items'][$id]['archived']);
+        $manifest['items'][$id]['archived'] = $newState;
+        $this->saveQuotesManifest($manifest);
+
+        return $newState;
+    }
+
+    /**
+     * Löscht einen Spruch dauerhaft aus dem Manifest.
+     */
+    public function deleteQuote(string $id): bool
+    {
+        $manifest = $this->ensureQuotesInitialized();
+        if (!isset($manifest['items'][$id])) {
+            return false;
+        }
+
+        unset($manifest['items'][$id]);
+        $this->saveQuotesManifest($manifest);
+        return true;
+    }
+
+    /**
+     * Legt eine neue Spruch-Kategorie an.
+     */
+    public function addQuoteCategory(string $name): bool
+    {
+        $clean = trim(strip_tags($name));
+        if ($clean === '') {
+            return false;
+        }
+
+        $manifest = $this->ensureQuotesInitialized();
+        foreach ($manifest['categories'] as $existing) {
+            if (mb_strtolower($existing) === mb_strtolower($clean)) {
+                return false;
+            }
+        }
+
+        $manifest['categories'][] = $clean;
+        $this->saveQuotesManifest($manifest);
+        return true;
+    }
+
+    /**
+     * Benennt eine Spruch-Kategorie um und zieht alle zugeordneten Sprüche mit.
+     */
+    public function renameQuoteCategory(string $oldName, string $newName): bool
+    {
+        $oldName = trim($oldName);
+        $newName = trim(strip_tags($newName));
+
+        if ($oldName === '' || $newName === '' || $oldName === $newName) {
+            return false;
+        }
+
+        $manifest = $this->ensureQuotesInitialized();
+        $idx = array_search($oldName, $manifest['categories'], true);
+        if ($idx === false) {
+            return false;
+        }
+
+        $manifest['categories'][$idx] = $newName;
+        $manifest['categories'] = array_values(array_unique($manifest['categories']));
+
+        foreach ($manifest['items'] as &$item) {
+            if (($item['category'] ?? '') === $oldName) {
+                $item['category'] = $newName;
+            }
+        }
+        unset($item);
+
+        $this->saveQuotesManifest($manifest);
+        return true;
+    }
+
+    /**
+     * Löscht eine Spruch-Kategorie und verschiebt deren Sprüche in eine Zielkategorie.
+     */
+    public function deleteQuoteCategory(string $categoryName, ?string $fallbackCategory = null): bool
+    {
+        $manifest = $this->ensureQuotesInitialized();
+        if (count($manifest['categories']) <= 1) {
+            return false;
+        }
+
+        $idx = array_search($categoryName, $manifest['categories'], true);
+        if ($idx === false) {
+            return false;
+        }
+
+        unset($manifest['categories'][$idx]);
+        $manifest['categories'] = array_values($manifest['categories']);
+
+        $targetCategory = ($fallbackCategory && in_array($fallbackCategory, $manifest['categories'], true))
+            ? $fallbackCategory
+            : ($manifest['categories'][0] ?? 'Liebe & Partnerschaft');
+
+        foreach ($manifest['items'] as &$item) {
+            if (($item['category'] ?? '') === $categoryName) {
+                $item['category'] = $targetCategory;
+            }
+        }
+        unset($item);
+
+        $this->saveQuotesManifest($manifest);
+        return true;
+    }
+
+    /**
+     * Verschiebt eine Spruch-Kategorie in der Sortierreihenfolge nach oben oder unten.
+     */
+    public function moveQuoteCategoryOrder(string $categoryName, string $direction = 'up'): void
+    {
+        $manifest = $this->ensureQuotesInitialized();
+        $cats = array_values($manifest['categories']);
+        $idx = array_search($categoryName, $cats, true);
+
+        if ($idx === false) {
+            return;
+        }
+
+        $targetIdx = $direction === 'up' ? $idx - 1 : $idx + 1;
+        if ($targetIdx < 0 || $targetIdx >= count($cats)) {
+            return;
+        }
+
+        $tmp = $cats[$targetIdx];
+        $cats[$targetIdx] = $cats[$idx];
+        $cats[$idx] = $tmp;
+
+        $manifest['categories'] = $cats;
+        $this->saveQuotesManifest($manifest);
+    }
+
+    /**
+     * Generiert per Knopfdruck passende, gravurfähige Sprüche (ohne Emojis) über Gemini KI
+     * (mit kuratiertem Kreativ-Fallback, falls der API-Key fehlt oder offline ist).
+     *
+     * @return array<int, array{title: string, text: string, category: string}>
+     */
+    public function generateAiQuotes(string $category, string $styleHint = '', int $maxLength = 60, int $count = 5): array
+    {
+        $category = trim($category) !== '' ? trim($category) : 'Liebe & Partnerschaft';
+        $styleHint = trim($styleHint);
+        $maxLength = max(20, min(140, $maxLength));
+        $count = max(1, min(10, $count));
+
+        $manifest = $this->ensureQuotesInitialized();
+        $existingTexts = array_map(
+            fn ($i) => mb_strtolower(trim((string) ($i['text'] ?? ''))),
+            array_values($manifest['items'] ?? [])
+        );
+
+        $apiKey = config('services.gemini.key', env('GEMINI_API_KEY'));
+        if (!empty($apiKey)) {
+            $hintInstruction = $styleHint !== ''
+                ? "Zusätzlicher Wunsch / Anlass / Stil-Hinweis: \"{$styleHint}\"."
+                : "Stil: Emotional, edel, zeitlos und perfekt für eine hochwertige Geschenk-Gravur der Manufaktur 'Mein Seelenfunke'.";
+
+            $prompt = <<<PROMPT
+Du bist Chef-Texter für 'Mein Seelenfunke', eine deutsche Manufaktur für personalisierte Lasergravur-Unikate (Kristallglas, Schmuckanhänger, Schiefer, Holz).
+Erstelle exakt {$count} verschiedene, tiefgründige und sofort gravierbare Sprüche / Widmungen auf Deutsch für die Kategorie "{$category}".
+{$hintInstruction}
+
+WICHTIGE REGELN FÜR DIE LASERGRAVUR:
+1. Maximale Zeichenlänge pro Spruch: ca. {$maxLength} Zeichen (kurz, prägnant, ästhetisch auf kleiner Fläche).
+2. ZEILENUMBRÜCHE (\n): Füge bei Sprüchen ab 22 Zeichen sinnvolle, harmonische Zeilenumbrüche (\n) nach ca. 18–24 Zeichen pro Zeile ein, damit der Spruch zentriert perfekt auf die Gravurfläche passt und nicht über den Rand hinausragt!
+3. KEINE Emojis oder Farb-Icons verwenden (ein Laser kann keine Emojis gravieren!). Erlaubt sind normale Satzzeichen, Punkte (•) oder kaufmännisches Und (&).
+4. Keine Dubletten zu bestehenden Standardsprüchen.
+5. Gib ausschließlich ein valides JSON-Array mit Objekten im Format [{"title": "Kurzer Anlass/Titel (2-3 Wörter)", "text": "Zeile 1\nZeile 2"}] zurück. Kein Markdown, kein Text drumherum.
+PROMPT;
+
+            $payload = [
+                'contents' => [
+                    [
+                        'role'  => 'user',
+                        'parts' => [['text' => $prompt]],
+                    ],
+                ],
+                'generationConfig' => [
+                    'temperature'      => 0.75,
+                    'responseMimeType' => 'application/json',
+                ],
+            ];
+
+            foreach (['gemini-2.5-flash', 'gemini-1.5-flash'] as $model) {
+                try {
+                    $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent";
+                    $response = Http::timeout(20)->withHeaders([
+                        'x-goog-api-key' => $apiKey,
+                        'Content-Type'   => 'application/json',
+                    ])->post($url, $payload);
+
+                    if ($response->successful()) {
+                        $rawText = $response->json('candidates.0.content.parts.0.text', '[]');
+                        $rawText = preg_replace('/^```json\s*|\s*```$/i', '', trim((string) $rawText));
+                        $parsed = json_decode((string) $rawText, true);
+
+                        if (is_array($parsed)) {
+                            $results = [];
+                            foreach ($parsed as $row) {
+                                $qText = $this->sanitizeQuoteText((string) ($row['text'] ?? ''));
+                                $qTitle = trim(strip_tags((string) ($row['title'] ?? $category)));
+                                if ($qText !== '' && !in_array(mb_strtolower($qText), $existingTexts, true)) {
+                                    $results[] = [
+                                        'title'    => $qTitle,
+                                        'text'     => $qText,
+                                        'category' => $category,
+                                        'length'   => mb_strlen($qText),
+                                    ];
+                                    $existingTexts[] = mb_strtolower($qText);
+                                }
+                            }
+                            if (!empty($results)) {
+                                return array_slice($results, 0, $count);
+                            }
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning("ProductConfiguratorService::generateAiQuotes ({$model}) Fallback: " . $e->getMessage());
+                }
+            }
+        }
+
+        // Deterministischer Kreativ-Fallback (falls kein API-Key gesetzt ist oder Offline-Modus)
+        return $this->getFallbackGeneratedQuotes($category, $styleHint, $maxLength, $count, $existingTexts);
+    }
+
+    /**
+     * Bereinigt Spruchtexte für den Laser (keine HTML-Tags, keine Emojis, saubere Zeilenumbrüche).
+     */
+    public function sanitizeQuoteText(string $value): string
+    {
+        $clean = strip_tags($value);
+        // Entferne Emojis / Pictographs, lasse deutsche Umlaute, Satzzeichen und Zeilenumbrüche intakt
+        $clean = preg_replace('/[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{FE00}-\x{FE0F}]/u', '', $clean) ?? $clean;
+        $clean = preg_replace("/[ \t]+/u", ' ', $clean) ?? $clean;
+        $clean = preg_replace("/\r\n|\r/", "\n", $clean) ?? $clean;
+        $clean = trim($clean);
+
+        // Falls ein längerer Spruch noch gar keinen Zeilenumbruch hat, harmonisch umbrechen
+        if (!str_contains($clean, "\n") && mb_strlen($clean) > 25) {
+            $clean = $this->formatQuoteLineBreaks($clean, 24);
+        }
+
+        return $clean;
+    }
+
+    /**
+     * Bricht zu lange Einzelzeilen harmonisch an Wortgrenzen um (ca. 22–24 Zeichen pro Zeile),
+     * damit Sprüche im Konfigurator nicht über die Gravurfläche hinausragen.
+     */
+    public function formatQuoteLineBreaks(string $text, int $maxLineChars = 24): string
+    {
+        $rawLines = explode("\n", trim($text));
+        $finalLines = [];
+
+        foreach ($rawLines as $rawLine) {
+            $line = trim($rawLine);
+            if ($line === '' || mb_strlen($line) <= $maxLineChars) {
+                if ($line !== '') {
+                    $finalLines[] = $line;
+                }
+                continue;
+            }
+
+            $words = preg_split('/\s+/u', $line) ?: [$line];
+            $current = '';
+            foreach ($words as $word) {
+                $candidate = $current === '' ? $word : ($current . ' ' . $word);
+                if (mb_strlen($candidate) <= $maxLineChars || $current === '') {
+                    $current = $candidate;
+                } else {
+                    $finalLines[] = $current;
+                    $current = $word;
+                }
+            }
+            if ($current !== '') {
+                $finalLines[] = $current;
+            }
+        }
+
+        return implode("\n", $finalLines);
+    }
+
+    /**
+     * Kuratierte Initial-Bibliothek für die „Kreativ-Starthilfe“ im Produkt-Konfigurator.
+     */
+    protected function getDefaultSeedQuotes(): array
+    {
+        $seeds = [
+            // 1. Liebe & Partnerschaft
+            ['category' => 'Liebe & Partnerschaft', 'title' => 'Seelenverwandt', 'text' => "Du bist mein Lieblingsmensch –\nheute, morgen und für immer."],
+            ['category' => 'Liebe & Partnerschaft', 'title' => 'Heimatgefühl',   'text' => "Wo du bist,\nist mein Zuhause."],
+            ['category' => 'Liebe & Partnerschaft', 'title' => 'Ewige Liebe',    'text' => "Zwei Herzen, ein Takt,\nein gemeinsamer Weg."],
+            ['category' => 'Liebe & Partnerschaft', 'title' => 'Liebesbeweis',   'text' => "Unter Millionen Sternen\nbist du mein hellster Funke."],
+            ['category' => 'Liebe & Partnerschaft', 'title' => 'Zusammenhalt',   'text' => "Hand in Hand –\nein Leben lang."],
+
+            // 2. Trauer & Gedenken
+            ['category' => 'Trauer & Gedenken', 'title' => 'Unvergessen',       'text' => "Aus dem Leben bist du uns genommen,\naber nicht aus unseren Herzen."],
+            ['category' => 'Trauer & Gedenken', 'title' => 'Ewiges Licht',      'text' => "Was man tief im Herzen besitzt,\nkann man durch den Tod\nnicht verlieren."],
+            ['category' => 'Trauer & Gedenken', 'title' => 'Sternenhimmel',     'text' => "Wenn du bei Nacht\nden Himmel anschaust,\nlachen dort alle Sterne."],
+            ['category' => 'Trauer & Gedenken', 'title' => 'Stille Erinnerung', 'text' => "Für immer geliebt,\nniemals vergessen,\nauf ewig in unseren Herzen."],
+            ['category' => 'Trauer & Gedenken', 'title' => 'Spuren der Liebe',  'text' => "Deine Schritte sind verstummt,\ndoch die Spuren deiner Liebe\nbleiben überall."],
+
+            // 3. Hochzeit & Jahrestag
+            ['category' => 'Hochzeit & Jahrestag', 'title' => 'Ja-Wort',        'text' => "Ein Ja für den Moment –\nein Versprechen für die Ewigkeit."],
+            ['category' => 'Hochzeit & Jahrestag', 'title' => 'Eheglück',       'text' => "Aus Du und Ich\nwurde unser schönstes Wir."],
+            ['category' => 'Hochzeit & Jahrestag', 'title' => 'Jahrestag',      'text' => "Jeder Tag mit dir\nist mein liebster Tag."],
+            ['category' => 'Hochzeit & Jahrestag', 'title' => 'Lebensreise',    'text' => "Liebe heißt, gemeinsam\nin die gleiche Richtung\nzu blicken."],
+            ['category' => 'Hochzeit & Jahrestag', 'title' => 'Für das Brautpaar', 'text' => "Möge eure Liebe jeden Tag\naufs Neue funkeln."],
+
+            // 4. Taufe & Geburt
+            ['category' => 'Taufe & Geburt', 'title' => 'Willkommen im Leben', 'text' => "Ein kleines Wunder,\ndas unser ganzes Leben\nhell erleuchtet."],
+            ['category' => 'Taufe & Geburt', 'title' => 'Schutzengel-Segen',   'text' => "Mögen Engel dich begleiten\nauf all deinen Wegen."],
+            ['category' => 'Taufe & Geburt', 'title' => 'Zur Geburt',          'text' => "Die Sterne, die Blumen\nund das Leuchten\nin deinen Kinderaugen."],
+            ['category' => 'Taufe & Geburt', 'title' => 'Wurzeln & Flügel',    'text' => "Wurzeln, die dich halten,\nund Flügel, die dich tragen."],
+            ['category' => 'Taufe & Geburt', 'title' => 'Taufspruch',          'text' => "Behütet, geliebt und getragen –\nvom ersten Augenblick an."],
+
+            // 5. Familie & Freundschaft
+            ['category' => 'Familie & Freundschaft', 'title' => 'Familienbande', 'text' => "Familie ist da, wo das Leben\nbeginnt und die Liebe\nniemals endet."],
+            ['category' => 'Familie & Freundschaft', 'title' => 'Beste Mama',    'text' => "Für die Welt bist du eine Mama,\ndoch für uns bist du\ndie ganze Welt."],
+            ['category' => 'Familie & Freundschaft', 'title' => 'Bester Papa',   'text' => "Danke, dass du immer\nunser Fels in der Brandung bist."],
+            ['category' => 'Familie & Freundschaft', 'title' => 'Wahre Freunde', 'text' => "Gute Freunde sind wie Sterne:\nMan sieht sie nicht immer,\naber sie sind immer da."],
+            ['category' => 'Familie & Freundschaft', 'title' => 'Dankbarkeit',   'text' => "Schön, dass es dich gibt –\ndanke für jeden Moment."],
+
+            // 6. Haustiere & Pfotenliebe
+            ['category' => 'Haustiere & Pfotenliebe', 'title' => 'Pfotenabdruck',    'text' => "Kleine Pfoten hinterlassen\ndie größten Spuren\nin unseren Herzen."],
+            ['category' => 'Haustiere & Pfotenliebe', 'title' => 'Regenbogenbrücke', 'text' => "Bis wir uns hinter der\nRegenbogenbrücke wiedersehen,\nkleiner Freund."],
+            ['category' => 'Haustiere & Pfotenliebe', 'title' => 'Treue Seele',      'text' => "Treue hat vier Pfoten\nund ein Herz aus Gold."],
+            ['category' => 'Haustiere & Pfotenliebe', 'title' => 'Seelenhund',       'text' => "Ein Seelenhund bleibt\nfür immer an deiner Seite."],
+
+            // 7. Kurze Gravuren (Schmuck)
+            ['category' => 'Kurze Gravuren (Schmuck)', 'title' => 'Klassiker',       'text' => "Für immer im Herzen"],
+            ['category' => 'Kurze Gravuren (Schmuck)', 'title' => 'Verbundenheit',   'text' => "Für immer & ewig"],
+            ['category' => 'Kurze Gravuren (Schmuck)', 'title' => 'Seelenfunke',     'text' => "Mein kleiner\nSeelenfunke"],
+            ['category' => 'Kurze Gravuren (Schmuck)', 'title' => 'Glücksbringer',   'text' => "Dein Schutzengel"],
+            ['category' => 'Kurze Gravuren (Schmuck)', 'title' => 'Unendlichkeit',   'text' => "Unendlich geliebt"],
+            ['category' => 'Kurze Gravuren (Schmuck)', 'title' => 'Erinnerung',      'text' => "Unvergessen"],
+        ];
+
+        $items = [];
+        foreach ($seeds as $idx => $seed) {
+            $id = 'seed_' . str_pad((string) ($idx + 1), 2, '0', STR_PAD_LEFT);
+            $items[$id] = [
+                'id'         => $id,
+                'title'      => $seed['title'],
+                'text'       => $seed['text'],
+                'category'   => $seed['category'],
+                'archived'   => false,
+                'source'     => 'default',
+                'created_at' => '2026-01-01 00:00:00',
+            ];
+        }
+
+        return $items;
+    }
+
+    protected function getFallbackGeneratedQuotes(string $category, string $styleHint, int $maxLength, int $count, array $existingTexts): array
+    {
+        $pool = [
+            'Liebe & Partnerschaft' => [
+                ['title' => 'Herzensmensch',   'text' => "Mit dir wird jeder Augenblick\nzu einem Funken Ewigkeit."],
+                ['title' => 'Für immer Wir',   'text' => "Du bist mein Anfang,\nmein Glück und mein Zuhause."],
+                ['title' => 'Seelenanker',     'text' => "In deinen Armen liegt\nmein schönstes Zuhause."],
+                ['title' => 'Liebesfunken',    'text' => "Meine Liebe zu dir wächst\nmit jedem Herzschlag."],
+                ['title' => 'Sternstunde',     'text' => "Unter tausend Wegen würde ich\nimmer wieder deinen wählen."],
+            ],
+            'Trauer & Gedenken' => [
+                ['title' => 'Stilles Licht',   'text' => "Ein Seelenfunke erlischt nie –\ner leuchtet im Herzen weiter."],
+                ['title' => 'In Liebe',        'text' => "Du fehlst uns jeden Tag,\ndoch deine Liebe trägt uns weiter."],
+                ['title' => 'Himmelsstern',    'text' => "Jetzt leuchtest du als hellster Stern\nüber unseren Wegen."],
+                ['title' => 'Ewige Nähe',      'text' => "Dem Auge fern, dem Herzen\nfür alle Zeit ganz nah."],
+                ['title' => 'Dankbare Stille', 'text' => "Danke für jedes Lächeln\nund jede Stunde mit dir."],
+            ],
+            'Hochzeit & Jahrestag' => [
+                ['title' => 'Lebensbund',      'text' => "Zwei Seelen, ein Versprechen,\neine gemeinsame Zukunft."],
+                ['title' => 'Liebesglück',     'text' => "Heute, morgen und an jedem Tag\nunseres gemeinsamen Lebens."],
+                ['title' => 'Gemeinsamer Weg', 'text' => "Das schönste Kapitel unserer\nGeschichte beginnt genau hier."],
+                ['title' => 'Ewiges Band',     'text' => "Verbunden in Liebe, Vertrauen\nund gemeinsamen Träumen."],
+                ['title' => 'Jubiläum',        'text' => "Danke für all die wundervollen\nJahre an meiner Seite."],
+            ],
+            'Taufe & Geburt' => [
+                ['title' => 'Lebenslicht',     'text' => "Möge dein Lebensweg immer\nvoll Wärme und Zuversicht sein."],
+                ['title' => 'Kleiner Stern',   'text' => "Folge deinem Herzen und leuchte\nauf deine eigene Weise."],
+                ['title' => 'Gottes Segen',    'text' => "Geborgen in Liebe auf all\ndeinen künftigen Wegen."],
+                ['title' => 'Glückskind',      'text' => "Mit dir ist die Welt ein Stück\nheller und wärmer geworden."],
+                ['title' => 'Beschützt',       'text' => "Ein Schutzengel an deiner Seite –\nheute und für immer."],
+            ],
+            'Familie & Freundschaft' => [
+                ['title' => 'Herzensband',     'text' => "Zeit vergeht, doch echte\nVerbundenheit bleibt für immer."],
+                ['title' => 'Lebensmensch',    'text' => "Danke, dass du mein Leben\nso viel heller machst."],
+                ['title' => 'Zusammenhalt',    'text' => "Gemeinsam stark – durch jeden\nSturm und jeden Sonnenschein."],
+                ['title' => 'Familienherz',    'text' => "Unsere Wurzeln geben uns Halt,\nunsere Liebe gibt uns Kraft."],
+                ['title' => 'Freundschaft',    'text' => "Wahre Freundschaft ist ein Schatz,\nder nie seinen Glanz verliert."],
+            ],
+            'Haustiere & Pfotenliebe' => [
+                ['title' => 'Pfotenherz',      'text' => "Vier Pfoten, die mein Herz\nfür immer erobert haben."],
+                ['title' => 'Treuer Begleiter','text' => "Danke für deine bedingungslose\nTreue an jedem einzelnen Tag."],
+                ['title' => 'Sternenpfote',    'text' => "Dein Platz in unserem Herzen\nbleibt für immer dein Zuhause."],
+                ['title' => 'Lieblingstier',   'text' => "Du warst nicht nur ein Tier,\ndu warst Familie."],
+                ['title' => 'Für immer treu',  'text' => "Spuren im Sand verwehen,\nSpuren im Herzen bleiben."],
+            ],
+            'Kurze Gravuren (Schmuck)' => [
+                ['title' => 'Kurz & Edel',     'text' => "Immer bei dir"],
+                ['title' => 'Herzenswort',     'text' => "Aus tiefstem Herzen"],
+                ['title' => 'Lebensmotto',     'text' => "Glaube • Liebe • Hoffnung"],
+                ['title' => 'Erinnerung',      'text' => "Für alle Zeit"],
+                ['title' => 'Talisman',        'text' => "Mut & Zuversicht"],
+            ],
+        ];
+
+        $candidates = $pool[$category] ?? $pool['Liebe & Partnerschaft'];
+        $results = [];
+
+        foreach ($candidates as $cand) {
+            $text = $cand['text'];
+            if ($styleHint !== '' && mb_strlen($text) + mb_strlen($styleHint) + 3 <= $maxLength) {
+                $title = ucfirst(mb_substr($styleHint, 0, 24));
+            } else {
+                $title = $cand['title'];
+            }
+            if (mb_strlen($text) > $maxLength && $maxLength <= 40) {
+                $shortPool = $pool['Kurze Gravuren (Schmuck)'];
+                $shortCand = $shortPool[count($results) % count($shortPool)];
+                $text = $shortCand['text'];
+                $title = $shortCand['title'];
+            }
+
+            if (!in_array(mb_strtolower($text), $existingTexts, true)) {
+                $results[] = [
+                    'title'    => $title,
+                    'text'     => $text,
+                    'category' => $category,
+                    'length'   => mb_strlen($text),
+                ];
+            }
+
+            if (count($results) >= $count) {
+                break;
+            }
+        }
+
+        if (empty($results)) {
+            foreach ($candidates as $cand) {
+                $results[] = [
+                    'title'    => $cand['title'],
+                    'text'     => $cand['text'],
+                    'category' => $category,
+                    'length'   => mb_strlen($cand['text']),
+                ];
+                if (count($results) >= $count) {
+                    break;
+                }
+            }
+        }
+
+        return $results;
     }
 }

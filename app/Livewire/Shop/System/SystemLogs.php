@@ -97,7 +97,7 @@ class SystemLogs extends Component
                     'role_description' => 'CEO Agent und Hauptkoordinatorin des Seelenfunke Systems.',
                     'system_prompt' => 'Du bist Funkira, die künstliche Intelligenz und CEO des Seelenfunke Systems.',
                     'is_active' => true,
-                    'model' => 'gemini-3.8-flash',
+                    'model' => 'gemini-2.5-flash',
                     'color' => 'cyan-500',
                     'icon' => 'sparkles'
                 ]);
@@ -114,7 +114,7 @@ class SystemLogs extends Component
         }
 
         $query = SystemLog::with('agent')
-            ->selectRaw('*, (SELECT COUNT(*) FROM system_logs as l2 WHERE l2.message = system_logs.message AND l2.status IN ("error", "warning")) as error_count');
+            ->selectRaw("*, (SELECT COUNT(*) FROM system_logs as l2 WHERE l2.message = system_logs.message AND l2.status IN ('error', 'warning')) as error_count");
 
         if ($this->search) {
             $escapedSearch = addcslashes((string) $this->search, '%_\\');

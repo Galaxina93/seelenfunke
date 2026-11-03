@@ -73,11 +73,17 @@ class ProductFrontendFilterArea extends Component
         $this->resetPage();
     }
 
+    public function toggleWishlist(string $productId, \App\Services\WishlistService $wishlistService): void
+    {
+        $wishlistService->toggle($productId);
+        $this->dispatch('wishlist-updated');
+    }
+
     #[Title('Unsere Kollektion - Mein Seelenfunke')]
     public function render()
     {
-        // Wartungsmodus Check
-        if (shop_setting('maintenance_mode', false)) {
+        // Wartungsmodus Check (Admins dürfen trotz Wartungsmodus testen)
+        if (shop_setting('maintenance_mode', false) && !\Illuminate\Support\Facades\Auth::guard('admin')->check()) {
             return view('global.errors.503_fragment')->layout('components.layouts.frontend_layout');
         }
 
@@ -231,25 +237,27 @@ class ProductFrontendFilterArea extends Component
             ];
         }
 
-        $shopTitle = 'Unsere Kollektion – Personalisierte Geschenke & Lasergravur | Mein Seelenfunke';
+        $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
+        $city = shop_setting('company_city', shop_setting('owner_city', 'Gifhorn'));
+        $shopTitle = "Unsere Kollektion – Personalisierte Geschenke & Lasergravur | {$companyName}";
         $shopMetaDesc = 'Entdecke handveredelte Unikate mit präziser Lasergravur: K9-Kristallglas-Trophäen, Edelstahl-Schlüsselanhänger, Hundemarken & Kristallgläser – live im 3D-Konfigurator gestalten.';
         $shopCanonical = route('shop');
 
         if (!empty($this->filterHoliday)) {
             $normH = mb_strtolower(trim((string) $this->filterHoliday));
             $hLabel = $holidayLabels[$normH] ?? ucfirst($normH);
-            $shopTitle = "{$hLabel} Geschenke personalisiert mit Lasergravur | Mein Seelenfunke";
+            $shopTitle = "{$hLabel} Geschenke personalisiert mit Lasergravur | {$companyName}";
             $shopMetaDesc = "Besondere Geschenke zu {$hLabel}: Handveredelte Unikate aus K9-Kristallglas, Edelstahl & Metall mit eigener Wunschgravur im 2D/3D-Konfigurator gestalten.";
             $shopCanonical = route('shop', ['filterHoliday' => $normH]);
         } elseif (!empty($this->filterCategory)) {
             $selectedCat = $categories->firstWhere('id', (int) $this->filterCategory);
             if ($selectedCat) {
-                $shopTitle = "{$selectedCat->name} – Personalisiert mit Lasergravur | Mein Seelenfunke";
-                $shopMetaDesc = "Entdecke personalisierbare Unikate in der Kategorie {$selectedCat->name} – individuell graviert in unserer deutschen Manufaktur in Gifhorn.";
+                $shopTitle = "{$selectedCat->name} – Personalisiert mit Lasergravur | {$companyName}";
+                $shopMetaDesc = "Entdecke personalisierbare Unikate in der Kategorie {$selectedCat->name} – individuell graviert in unserer deutschen Manufaktur in {$city}.";
             }
         } elseif ($this->filterSale) {
-            $shopTitle = 'Angebote & Reduzierte Geschenkideen mit Gravur | Mein Seelenfunke';
-            $shopMetaDesc = 'Sichere dir personalisierte Geschenke mit Lasergravur zum Aktionspreis – handveredelt in unserer Manufaktur in Gifhorn.';
+            $shopTitle = "Angebote & Reduzierte Geschenkideen mit Gravur | {$companyName}";
+            $shopMetaDesc = "Sichere dir personalisierte Geschenke mit Lasergravur zum Aktionspreis – handveredelt in unserer Manufaktur in {$city}.";
         }
 
         $shopSchema = [
@@ -299,6 +307,7 @@ class ProductFrontendFilterArea extends Component
             'saleCount' => $saleCount,
             'heroBanner' => $heroBanner,
             'shopSchema' => $shopSchema,
+            'wishlistProductIds' => app(\App\Services\WishlistService::class)->getProductIds(),
         ])
             ->title($shopTitle)
             ->layout('components.layouts.frontend_layout', [

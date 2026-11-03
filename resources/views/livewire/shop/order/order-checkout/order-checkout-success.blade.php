@@ -84,7 +84,13 @@
                 <svg class="w-3.5 h-3.5 text-primary/80 fill-current shrink-0" viewBox="0 0 24 24">
                     <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                 </svg>
-                <span>Dein Einkauf unterstützt regionale Kinderprojekte.</span>
+                @php
+                    $successHerzensEuro = \App\Services\HerzensprojektService::resolveFormattedEuro();
+                    $successHerzensUnit = \App\Services\HerzensprojektService::resolveUnitLabel(true);
+                @endphp
+                <a href="{{ route('manufacture') }}#herzensprojekte" target="_blank" class="hover:text-gray-800 hover:underline transition-colors">
+                    Dein Einkauf unterstützt regionale Kinderprojekte ({{ $successHerzensEuro }}&nbsp;€ {{ $successHerzensUnit }} aus unseren Erlösen im Herzensprojekte-Topf).*
+                </a>
             </div>
         </div>
 
@@ -259,6 +265,10 @@
                         <svg x-show="sharedFeedback" style="display: none;" class="w-3.5 h-3.5 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                     </button>
                 </div>
+
+                <p class="text-[10px] text-gray-400 leading-snug pt-1">
+                    <strong>Teilnahmebedingungen (§ 6 DDG):</strong> 10 % Neukunden-Rabatt für geworbene Freunde (keine Eigenwerbung, nicht mit anderen Aktionscodes kombinierbar). Nach erfolgreichem Abschluss der geworbenen Bestellung erhältst du per E-Mail einen 5,00 € Wertgutschein (3 Jahre gültig gemäß §§ 195, 199 BGB, einlösbar auf das gesamte Sortiment, keine Barauszahlung).
+                </p>
             </div>
         </div>
 

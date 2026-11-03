@@ -28,7 +28,7 @@ class ReferralRewardEarnedMail extends Mailable
 
     public function envelope(): Envelope
     {
-        $companyName = shop_setting('company_name', 'Mein Seelenfunke');
+        $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
         return new Envelope(
             subject: '🎁 Juhu! Ein Freund hat über dich bestellt – Deine 5 € Belohnung von ' . $companyName,
         );

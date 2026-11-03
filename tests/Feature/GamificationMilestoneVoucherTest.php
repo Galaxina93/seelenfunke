@@ -240,28 +240,28 @@ class GamificationMilestoneVoucherTest extends TestCase
         $gameService = app(GamificationService::class);
         $profile = $gameService->getProfile($customer);
 
-        // Kunde hat 1.000 Lebenszeit-Funken (= Funki Level 5) und 800 einlösbare Funken
+        // Kunde hat 1.000 Lebenszeit-Funken (= Funki Level 5) und 250 einlösbare Funken
         $profile->update([
             'is_active' => true,
             'level' => 5,
             'funki_level' => 5,
-            'funken_balance' => 800,
+            'funken_balance' => 250,
             'funken_total_earned' => 1000,
         ]);
 
-        // 250 Funken gegen 5% Gutschein einlösen
+        // 60 Funken gegen 5% Gutschein einlösen
         $res5 = $gameService->redeemSparksForVoucher($customer, 'voucher_5');
         $this->assertTrue($res5['success']);
         $this->assertEquals(5, $res5['discount_percent']);
-        $this->assertEquals(550, $res5['new_balance']);
+        $this->assertEquals(190, $res5['new_balance']);
 
-        // 500 Funken gegen 10% Gutschein einlösen
+        // 150 Funken gegen 10% Gutschein einlösen
         $res10 = $gameService->redeemSparksForVoucher($customer, 'voucher_10');
         $this->assertTrue($res10['success']);
         $this->assertEquals(10, $res10['discount_percent']);
-        $this->assertEquals(50, $res10['new_balance']);
+        $this->assertEquals(40, $res10['new_balance']);
 
-        // Restguthaben 50 reicht nicht für 750er Gutschein (15%)
+        // Restguthaben 40 reicht nicht für 350er Gutschein (15%)
         $res15 = $gameService->redeemSparksForVoucher($customer, 'voucher_15');
         $this->assertFalse($res15['success']);
 
@@ -269,6 +269,6 @@ class GamificationMilestoneVoucherTest extends TestCase
         $profile->refresh();
         $this->assertEquals(5, $profile->funki_level);
         $this->assertEquals(1000, $profile->funken_total_earned);
-        $this->assertEquals(50, $profile->funken_balance);
+        $this->assertEquals(40, $profile->funken_balance);
     }
 }

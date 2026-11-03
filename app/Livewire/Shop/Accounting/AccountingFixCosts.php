@@ -134,6 +134,7 @@ class AccountingFixCosts extends Component
         $this->selectedYear = $this->selectedYear ?? date('Y');
         $this->selectedMonth = $this->selectedMonth ?? date('n');
         $this->itemDate = date('Y-m-d');
+        $this->itemTaxRate = app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness() ? 0 : (float) shop_setting('default_tax_rate', 19);
     }
 
     private function getAdminId()
@@ -419,9 +420,6 @@ class AccountingFixCosts extends Component
                 abort(403);
             }
 
-            // Automatisch zum richtigen Tab (Privat/Gewerblich) wechseln
-            $this->isBusiness = $item->is_business;
-
             $this->itemName = $item->name;
             $this->itemAmount = $item->amount;
             $this->itemInterval = $item->interval_months;
@@ -429,7 +427,7 @@ class AccountingFixCosts extends Component
             $this->itemDescription = $item->description;
             $this->itemIsBusiness = (bool) $item->is_business;
             $this->itemRequiresContract = (bool) $item->requires_contract;
-            $this->itemTaxRate = $item->tax_rate ?? 0;
+            $this->itemTaxRate = (float) ($item->tax_rate ?? 0);
             $this->itemExistingFile = $item->contract_file_path;
             $this->itemLastPaymentDate = $item->last_payment_date ? $item->last_payment_date->format('Y-m-d') : null;
             $this->targetGroupId = $item->accounting_group_id;
@@ -448,6 +446,7 @@ class AccountingFixCosts extends Component
             $this->itemTags = is_array($item->tags) ? $item->tags : [];
         } else {
             $this->itemTags = [];
+            $this->itemTaxRate = app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness() ? 0 : (float) shop_setting('default_tax_rate', 19);
         }
     }
 
@@ -478,7 +477,7 @@ class AccountingFixCosts extends Component
             'description'        => $this->itemDescription,
             'is_business'        => $this->itemIsBusiness ? 1 : 0,
             'requires_contract'  => $this->itemRequiresContract ? 1 : 0,
-            'tax_rate'           => (int) $this->itemTaxRate,
+            'tax_rate'           => (float) $this->itemTaxRate,
             'provider_company'        => $this->itemProviderCompany,
             'provider_street'         => $this->itemProviderStreet,
             'provider_house_number'   => $this->itemProviderHouseNumber,
@@ -528,7 +527,7 @@ class AccountingFixCosts extends Component
             $descChanged = ($originalSnapshot['description'] ?? '') !== ($item->description ?? '');
             $businessChanged = (bool)($originalSnapshot['is_business'] ?? false) !== (bool)$item->is_business;
             $requiresContractChanged = (bool)($originalSnapshot['requires_contract'] ?? true) !== (bool)$item->requires_contract;
-            $taxChanged = (int)($originalSnapshot['tax_rate'] ?? 0) !== (int)$item->tax_rate;
+            $taxChanged = abs((float)($originalSnapshot['tax_rate'] ?? 0) - (float)$item->tax_rate) > 0.001;
                    $oldFirstDate = isset($originalSnapshot['first_payment_date'])
                 ? \Carbon\Carbon::parse($originalSnapshot['first_payment_date'])->timezone(config('app.timezone'))->format('Y-m-d')
                 : null;
@@ -686,6 +685,7 @@ class AccountingFixCosts extends Component
         $this->itemContractNumber       = $history->contract_number;
         $this->itemNoticePeriod         = $history->notice_period;
         $this->itemContractEndDate      = $history->contract_end_date ? $history->contract_end_date->format('Y-m-d') : null;
+        $this->itemTags                 = is_array($history->tags) ? $history->tags : [];
         
         // Auto-save the restored state instantly
         $this->saveItem();
@@ -791,7 +791,7 @@ class AccountingFixCosts extends Component
                     $this->itemInterval = (int) $analysis['interval_months'];
                 }
                 if (isset($analysis['tax_rate'])) {
-                    $this->itemTaxRate = (int) $analysis['tax_rate'];
+                    $this->itemTaxRate = (float) $analysis['tax_rate'];
                 }
                 if (!empty($analysis['first_payment_date'])) {
                     $this->itemDate = $analysis['first_payment_date'];
@@ -1066,6 +1066,7 @@ class AccountingFixCosts extends Component
         ]);
         $this->itemRequiresContract = true;
         $this->itemDate = date('Y-m-d');
+        $this->itemTaxRate = app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness() ? 0 : (float) shop_setting('default_tax_rate', 19);
     }
 
     private function getFilteredGroups()

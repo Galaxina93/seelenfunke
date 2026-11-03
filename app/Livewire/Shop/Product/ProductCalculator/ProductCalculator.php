@@ -65,13 +65,18 @@ class ProductCalculator extends Component
     #[\Livewire\Attributes\Locked]
     public $dbProducts = [];
 
-    protected $rules = [
-        'form.vorname' => 'required|string|max:100',
-        'form.nachname' => 'required|string|max:100',
-        'form.email' => 'required|email',
-        'form.country' => 'required|string|size:2',
-        'cartItems' => 'required|array|min:1',
-    ];
+    protected function rules()
+    {
+        $allowedCountries = implode(',', array_keys(shop_setting('active_countries', ['DE' => 'Deutschland'])));
+
+        return [
+            'form.vorname' => 'required|string|max:100',
+            'form.nachname' => 'required|string|max:100',
+            'form.email' => 'required|email',
+            'form.country' => 'required|string|size:2|in:' . $allowedCountries,
+            'cartItems' => 'required|array|min:1',
+        ];
+    }
 
     public function mount()
     {
@@ -160,6 +165,9 @@ class ProductCalculator extends Component
                     'percent' => $t->percent
                 ])->toArray(),
                 'variants_data' => $p->variants_data ?? [],
+                'configurator_settings' => array_merge($p->configurator_settings ?? [], [
+                    'addons' => $p->getEffectiveAddons(true),
+                ]),
                 'image' => !empty($p->media_gallery[0]['path']) ? 'storage/'.$p->media_gallery[0]['path'] : null,
                 'preview_image' => $previewPath ? 'storage/'.$previewPath : null,
                 'allow_logo' => $p->configurator_settings['allow_logo'] ?? true,
@@ -339,7 +347,7 @@ class ProductCalculator extends Component
             return isset($item['configuration']['is_express']) && filter_var($item['configuration']['is_express'], FILTER_VALIDATE_BOOLEAN);
         });
         $this->isExpress = $hasExpressItem;
-        $shopLevel = (int)\Illuminate\Support\Facades\Cache::get('shop_capacity_level', \App\Models\System\SystemSetting::where('key', 'shop_capacity_level')->value('value') ?? 0);
+        $shopLevel = (int) \Illuminate\Support\Facades\Cache::get('shop_capacity_level', shop_setting('shop_capacity_level', 0));
         if ($shopLevel >= 2 && $this->isExpress) {
             $this->isExpress = false;
         }
@@ -377,12 +385,16 @@ class ProductCalculator extends Component
             $totalQty = $quantitiesPerProduct[$item['product_id']];
             $itemConfig = is_array($item['configuration'] ?? null) ? $item['configuration'] : [];
 
-            // Rabattierter Preis und Originalpreis abrufen (inkl. Varianten-Preis)
-            $unitPriceCents = $this->getTierPriceCents($product, $totalQty, $itemConfig);
-            $basePriceCents = $this->getTierPriceCents($product, 1, $itemConfig); // NEU: Originalpreis (inkl. Variante)
+            // Rabattierter Preis und Originalpreis abrufen (inkl. Varianten-Preis, Addons separat als Brutto-Cents)
+            $productUnitCents = $this->getTierPriceCents($product, $totalQty, $itemConfig, false);
+            $productBaseCents = $this->getTierPriceCents($product, 1, $itemConfig, false);
+            $addonGrossCents = $this->getAddonPriceCents($product, $itemConfig);
 
             $rate = $isSmallBusiness ? 0.0 : (float)$product['tax_rate'];
             $isGross = $product['tax_included'];
+
+            $unitPriceCents = $productUnitCents + $addonGrossCents;
+            $basePriceCents = $productBaseCents + $addonGrossCents;
 
             $lineTotalCents = $unitPriceCents * $item['qty'];
             $lineOriginalCents = $basePriceCents * $item['qty']; // NEU: Original Zeilenwert
@@ -394,6 +406,7 @@ class ProductCalculator extends Component
 
                 $cartSubtotalGross += ($lineGross / 100);
                 $originalSubtotalGross += ($lineOriginalCents / 100);
+                $grossUnitCents = $unitPriceCents;
             } elseif ($isGross) {
                 $lineGross = $lineTotalCents;
                 $lineNet  = $lineGross / (1 + ($rate / 100));
@@ -401,19 +414,29 @@ class ProductCalculator extends Component
 
                 $cartSubtotalGross += ($lineGross / 100);
                 $originalSubtotalGross += ($lineOriginalCents / 100); // NEU
+                $grossUnitCents = $unitPriceCents;
             } else {
-                $lineNet = $lineTotalCents;
-                $lineTax = $lineNet * ($rate / 100);
+                $productLineNet = $productUnitCents * $item['qty'];
+                $productLineTax = $productLineNet * ($rate / 100);
+
+                $addonLineGross = $addonGrossCents * $item['qty'];
+                $addonLineNet = $rate > 0 ? ($addonLineGross / (1 + ($rate / 100))) : $addonLineGross;
+                $addonLineTax = $addonLineGross - $addonLineNet;
+
+                $lineNet = $productLineNet + $addonLineNet;
+                $lineTax = $productLineTax + $addonLineTax;
 
                 $cartSubtotalGross += (($lineNet + $lineTax) / 100);
 
-                $origNet = $lineOriginalCents;
-                $origTax = $origNet * ($rate / 100);
-                $originalSubtotalGross += (($origNet + $origTax) / 100); // NEU
+                $origProductNet = $productBaseCents * $item['qty'];
+                $origProductTax = $origProductNet * ($rate / 100);
+                $originalSubtotalGross += (($origProductNet + $origProductTax + $addonLineGross) / 100); // NEU
+
+                $grossUnitCents = (int) round($productUnitCents * (1 + ($rate / 100))) + $addonGrossCents;
             }
 
-            $this->cartItems[$index]['calculated_single_price'] = $unitPriceCents / 100;
-            $this->cartItems[$index]['calculated_total'] = ($isGross ? $lineTotalCents : round($lineNet + $lineTax)) / 100;
+            $this->cartItems[$index]['calculated_single_price'] = $grossUnitCents / 100;
+            $this->cartItems[$index]['calculated_total'] = (($isGross || $isSmallBusiness) ? $lineTotalCents : ($grossUnitCents * $item['qty'])) / 100;
 
             $sumNetto += $lineNet;
             $sumMwst += $lineTax;
@@ -434,10 +457,12 @@ class ProductCalculator extends Component
         $countryCode = $this->form['country'];
 
         if ($countryCode === 'DE') {
-            if ($cartSubtotalGross >= 50.00 || count($this->cartItems) === 0) {
+            $freeShippingEuro = ((int) shop_setting('shipping_free_threshold', 5000)) / 100;
+            $standardShippingEuro = ((int) shop_setting('shipping_cost', 490)) / 100;
+            if ($cartSubtotalGross >= $freeShippingEuro || count($this->cartItems) === 0) {
                 $this->shippingCost = 0;
             } else {
-                $this->shippingCost = 4.90;
+                $this->shippingCost = $standardShippingEuro;
             }
         } else {
             $zone = \App\Models\Logistics\LogisticsShippingZone::where('is_active', true)->whereHas('countries', function($q) use ($countryCode) {
@@ -457,6 +482,7 @@ class ProductCalculator extends Component
                                     ->orWhereNull('max_weight');
                             });
                     })
+                    ->where('min_price', '<=', (int) round($cartSubtotalGross * 100))
                     ->orderBy('price', 'asc')
                     ->first();
 
@@ -548,27 +574,72 @@ class ProductCalculator extends Component
         }
     }
 
-    private function getTierPriceCents($product, $qty, array $configuration = [])
+    private function getTierPriceCents($product, $qty, array $configuration = [], bool $includeAddons = true)
     {
         $basePrice = $product['price_cents'];
         if (!empty($configuration['variant_id']) && !empty($product['variants_data']) && is_array($product['variants_data'])) {
             $variant = collect($product['variants_data'])->firstWhere('id', $configuration['variant_id']);
-            if ($variant && !empty($variant['price'])) {
-                $basePrice = (int) round((float) $variant['price'] * 100);
+            if ($variant && isset($variant['price']) && $variant['price'] !== '') {
+                $basePrice += (int) round(((float) str_replace(',', '.', (string) $variant['price'])) * 100);
             }
         }
         $tiers = $product['tier_pricing'] ?? [];
 
+        $unitPrice = $basePrice;
         if (!empty($tiers) && is_array($tiers)) {
             usort($tiers, fn($a, $b) => $b['qty'] <=> $a['qty']);
             foreach ($tiers as $tier) {
                 if ($qty >= $tier['qty']) {
                     $discount = $basePrice * ($tier['percent'] / 100);
-                    return (int) round($basePrice - $discount);
+                    $unitPrice = (int) round($basePrice - $discount);
+                    break;
                 }
             }
         }
-        return $basePrice;
+
+        if ($includeAddons) {
+            $addonCents = $this->getAddonPriceCents($product, $configuration);
+            if ($addonCents > 0) {
+                $isSmallBusiness = (bool) shop_setting('is_small_business', false);
+                $isGross = (bool) ($product['tax_included'] ?? true);
+                if (!$isSmallBusiness && !$isGross) {
+                    $rate = (float) ($product['tax_rate'] ?? shop_setting('default_tax_rate', 19.0));
+                    $addonCents = $rate > 0 ? (int) round($addonCents / (1 + ($rate / 100))) : $addonCents;
+                }
+                $unitPrice += $addonCents;
+            }
+        }
+
+        return $unitPrice;
+    }
+
+    private function getAddonPriceCents($product, array $configuration = []): int
+    {
+        $addonTotal = 0;
+
+        // Aufpreis-Extras (z. B. Geschenkbox / Verpackung) sind bereits in Brutto-Cents hinterlegt
+        if (!empty($configuration['addons_summary']) && is_array($configuration['addons_summary'])) {
+            foreach ($configuration['addons_summary'] as $addon) {
+                if (is_array($addon) && isset($addon['price_cents'])) {
+                    $addonTotal += max(0, (int) $addon['price_cents']);
+                }
+            }
+        } elseif (!empty($configuration['selected_addons']) && is_array($configuration['selected_addons'])) {
+            $productAddons = is_array($product['effective_addons'] ?? null)
+                ? $product['effective_addons']
+                : (is_array($product['configurator_settings']['addons'] ?? null) ? $product['configurator_settings']['addons'] : []);
+            $selectedIds = array_map(fn($item) => is_array($item) ? (string) ($item['id'] ?? '') : (string) $item, $configuration['selected_addons']);
+            foreach ($productAddons as $addon) {
+                if (!empty($addon['id']) && (($addon['is_active'] ?? true) != false) && in_array((string) $addon['id'], $selectedIds, true)) {
+                    $addonCents = isset($addon['price_cents'])
+                        ? max(0, (int) $addon['price_cents'])
+                        : max(0, (int) round(((float) str_replace(',', '.', (string) ($addon['price'] ?? 0))) * 100));
+                    $addonTotal += $addonCents;
+                }
+            }
+        }
+
+        return $addonTotal;
     }
 
     public function updatedForm($value, $key) {
@@ -672,7 +743,7 @@ class ProductCalculator extends Component
 
                 try {
                     Mail::to($this->form['email'])->send(new NewCalcMailToCustomer($data));
-                    $owner_mail = shop_setting('owner_email', 'kontakt@mein-seelenfunke.de');
+                    $owner_mail = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
                     Mail::to($owner_mail)->send(new NewCalcMailToAdmin($data));
                 } catch (\Exception $e) {
                     \Illuminate\Support\Facades\Log::error('Calculator Mail Error: ' . $e->getMessage());
@@ -725,7 +796,7 @@ class ProductCalculator extends Component
 
     public function render()
     {
-        if (shop_setting('maintenance_mode', false)) {
+        if (shop_setting('maintenance_mode', false) && !\Illuminate\Support\Facades\Auth::guard('admin')->check()) {
             return view('global.errors.503_fragment')->layout('components.layouts.frontend_layout');
         }
 

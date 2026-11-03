@@ -108,10 +108,12 @@ class MarketingLinktreePage extends Component
 
     public function render()
     {
+        $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
+        $city = shop_setting('company_city', shop_setting('owner_city', 'Gifhorn'));
         return view('livewire.frontend.marketing.marketing-linktree-page')
-            ->title('Alle wichtigen Links auf einen Blick | Mein Seelenfunke')
+            ->title("Alle wichtigen Links auf einen Blick | {$companyName}")
             ->layout('components.layouts.frontend_layout', [
-                'meta_description' => 'Alle Links zu unserer Kollektion, der Manufaktur in Gifhorn, Social Media und aktuellen Aktionen von Mein Seelenfunke auf einen Blick.',
+                'meta_description' => "Alle Links zu unserer Kollektion, der Manufaktur in {$city}, Social Media und aktuellen Aktionen von {$companyName} auf einen Blick.",
                 'canonical' => route('frontend.linktree'),
             ]);
     }
