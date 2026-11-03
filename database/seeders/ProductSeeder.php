@@ -28,7 +28,7 @@ class ProductSeeder extends Seeder
         $sup3 = \App\Models\Product\ProductSupplier::where('name', 'Sendez')->first();
         $sup4 = \App\Models\Product\ProductSupplier::where('name', 'Mambocat')->first();
         $sup5 = \App\Models\Product\ProductSupplier::where('name', 'HaoYiZF (Fuhao) - Temu')->first();
-        $sup6 = \App\Models\Product\ProductSupplier::where('name', 'Thal-Versand / Amazon Business DE')->first();
+        $sup6 = \App\Models\Product\ProductSupplier::where('name', 'CTHOLD (Wuxi Qiyue) - Temu & Amazon DE')->first();
         $sup8 = \App\Models\Product\ProductSupplier::where('name', 'Glücksfieber (Lübeck)')->first();
         $sup9 = \App\Models\Product\ProductSupplier::where('name', 'like', '%Print Equipment%')->first();
 
@@ -507,18 +507,18 @@ class ProductSeeder extends Seeder
             'three_d_active' => true,
             'price' => 2990,
             'compare_at_price' => null,
-            'purchase_price' => 79, // EK laut Temu-Angebot (goods_id=601099514279197): 7,88€ / 10 Stück = 0,79€ pro Stück
+            'purchase_price' => 98, // EK Komplett-Set: Temu Rohling PO-076-04964841144950774 (0,80€ netto) + Amazon Order 028-1563466-9621923: 1x Flacher Schlüsselring Gold B093R9HS4Y (0,14€ netto) + 1x Edelstahl-Spaltring Gold B0H6FG92JY (0,04€ netto) = 0,98€ netto pro Stück
             'laser_runtime_minutes' => 1,
             'electricity_wear_factor' => 5,
             'packaging_cost' => 14, // Karton.eu 400stk Luftpolster Versandtüten = 0,14€ netto
             'marketing_cost_percent' => 10.00,
             'sku' => 'STEEL-PAW-001',
-            'product_supplier_id' => $sup5?->id,
-            'reorder_url' => 'https://www.temu.com/de/set-mit-10-edelstahl-hundeanhangern-in-knochenform-mit-pfotenabdrucken-zur--von-haustierdetails-g-601099514279197.html?_oak_mp_inf=EJ3ql5im1ogBGiBkNjZjMjc4ZjQ0YTI0NjlhYjE2MGNjNjhiY2Y1NzhiNyDqkKTNlzQ%3D&top_gallery_url=https%3A%2F%2Fimg.kwcdn.com%2Fproduct%2F1e78ea4c92%2F416669dd-5910-4266-893b-80df84f544b1_800x800.jpeg&spec_gallery_id=601099514279197&refer_page_sn=10009&freesia_scene=2&_oak_freesia_scene=2&_oak_rec_ext_1=Nzg4&_oak_gallery_order=778608168&search_key=Hundemarke&refer_page_el_sn=200049&ab_scene=1&_x_sessn_id=b339htugah&refer_page_name=search_result&refer_page_id=10009_1793042484946_vy0ba9cjoe',
+            'product_supplier_id' => $sup6?->id ?? $sup5?->id,
+            'reorder_url' => 'https://www.temu.com/goods.html?_bg_fs=1&goods_id=601099544143627&parent_order_sn=PO-076-04964841144950774&_oak_order_sn=076-04964799201910774&_oak_goods_num=3&_x_sessn_id=qexm6jf56e&refer_page_name=bgt_order_receipt&refer_page_id=10471_1793672371535_hlekpk8i9o&refer_page_sn=10471&is_back=1',
             'barcode' => '',
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
-            'quantity' => 0,
+            'quantity' => 30,
             'continue_selling_when_out_of_stock' => true,
             'weight' => 12,
             'packaging_weight' => 15, // Luftpolster-Versandtüte (15 g)

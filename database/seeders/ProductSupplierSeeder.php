@@ -116,34 +116,56 @@ class ProductSupplierSeeder extends Seeder
                 'notes' => 'Reale Vorbestellung Beleg 15.10.2026: 2x 8er Pack (16 Stk.) Gold/Schwarz Edelstahl-Schlüsselanhänger (goods_id=606203291790930, sku_id=89857024078818). EK: 1,16 € netto / 1,48 € inkl. Einfuhrabgaben.',
                 'dynamic_links' => [
                     [
-                        'title' => 'Temu Direkt-Nachbestellung (8er Set Gold)',
+                        'title' => 'Temu Direkt-Nachbestellung: Seelen-Talisman (8er Set Gold, PO-076-11149563187830774)',
                         'url' => 'https://www.temu.com/goods.html?_bg_fs=1&goods_id=606203291790930&parent_order_sn=PO-076-11149563187830774&_oak_order_sn=076-11149531730550774&_oak_goods_num=2&sku_id=89857024078818'
-                    ]
+                    ],
+                    [
+                        'title' => 'Temu Direkt-Nachbestellung: Seelen-Pfote (3x 10er Set Gold, PO-076-04964841144950774)',
+                        'url' => 'https://www.temu.com/goods.html?_bg_fs=1&goods_id=601099544143627&parent_order_sn=PO-076-04964841144950774&_oak_order_sn=076-04964799201910774&_oak_goods_num=3&_x_sessn_id=qexm6jf56e&refer_page_name=bgt_order_receipt&refer_page_id=10471_1793672371535_hlekpk8i9o&refer_page_sn=10471&is_back=1'
+                    ],
                 ],
             ]
         );
 
-        // 6. HÄNDLER 6: Thal-Versand / Amazon Business DE (Seelen-Pfote Hundemarken-Rohlinge)
+        // 6. HÄNDLER 6: CTHOLD (Wuxi Qiyue) - Temu & Amazon DE (Die Seelen-Pfote Hundemarke Gold + passende Gold-Spaltringe)
+        ProductSupplier::where('name', 'Thal-Versand / Amazon Business DE')->delete();
         ProductSupplier::updateOrCreate(
-            ['name' => 'Thal-Versand / Amazon Business DE'],
+            ['name' => 'CTHOLD (Wuxi Qiyue) - Temu & Amazon DE'],
             [
-                'company_name' => 'Thal-Versand e.K. / Amazon Business EU S.à r.l.',
-                'contact_person' => 'B2B Rohlinge & Eloxal-Marken',
-                'website' => 'https://www.amazon.de/s?k=Hundemarken+Rohlinge+Aluminium+Knochen+50+St%C3%BCck+Schwarz+Gravur',
-                'country' => 'Deutschland',
-                'country_code' => 'DE',
-                'lead_time_land_days' => 2,
+                'company_name' => 'Wuxi Qiyue Industry and Trade Co., Ltd (CTHOLD via Temu) & Amazon DE',
+                'contact_person' => 'CTHOLD (PO-076-04964841144950774) / Amazon DE (028-1563466-9621923)',
+                'website' => 'https://www.temu.com/goods.html?_bg_fs=1&goods_id=601099544143627&parent_order_sn=PO-076-04964841144950774&_oak_order_sn=076-04964799201910774&_oak_goods_num=3',
+                'country' => 'China / Deutschland',
+                'country_code' => 'CN',
+                'lead_time_land_days' => 10,
+                'lead_time_air_days' => 7,
                 'shipping_method' => 'land',
-                'notes' => '50er / 100er Pack eloxierte Aluminium Hundemarken Knochenform (38x25 mm) inkl. Schlüsselring. EK ca. 0,28 € pro Stück bei 50er Packung.',
+                'notes' => 'Reale Bestellungen vom 03.11.2026: (1) Temu Order PO-076-04964841144950774: 3x 10er Set = 30 Stk. Edelstahl-Hundeanhänger Knochenform mit hohlem Pfoten-Durchbruch in Gold (40x22x1,8 mm, goods_id=601099544143627) für 28,59 € brutto (24,03 € netto = 0,80 € netto/Stk.). (2) Amazon DE Order 028-1563466-9621923 (16,67 € brutto): 30x JeoPoom Flache Schlüsselringe Gold (20/25/30mm, ASIN B093R9HS4Y, 4,99 € brutto / 0,14 € netto/Stk.) + 100x Nogeqi Edelstahl Spaltringe Klein Gold (6-12mm, ASIN B0H6FG92JY, 4,99 € brutto / 0,04 € netto/Stk.) + 1x LEONTOOL Mini-Spaltringzange (10,2 cm, ASIN B0C2TCMBSG, 6,69 € brutto). Komplett-EK pro Seelen-Pfote inkl. Ring-Set: 0,98 € netto.',
                 'dynamic_links' => [
                     [
-                        'title' => 'Amazon DE – 50x Alu-Knochen Rohlinge Schwarz',
-                        'url' => 'https://www.amazon.de/s?k=Hundemarken+Rohlinge+Aluminium+Knochen+50+St%C3%BCck+Schwarz+Gravur'
+                        'title' => 'Temu Direkt-Nachbestellung: 3x 10er Set Seelen-Pfote Gold (Order PO-076-04964841144950774)',
+                        'url' => 'https://www.temu.com/goods.html?_bg_fs=1&goods_id=601099544143627&parent_order_sn=PO-076-04964841144950774&_oak_order_sn=076-04964799201910774&_oak_goods_num=3&_x_sessn_id=qexm6jf56e&refer_page_name=bgt_order_receipt&refer_page_id=10471_1793672371535_hlekpk8i9o&refer_page_sn=10471&is_back=1'
                     ],
                     [
-                        'title' => 'Thal-Versand Hundemarken Großhandel',
-                        'url' => 'https://www.thal-versand.de/'
-                    ]
+                        'title' => 'Amazon DE – 200x Goldene Schlüsselringe / Spaltringe Ø 20 mm (HUAZIZ, ASIN B0F9FKZK3M)',
+                        'url' => 'https://www.amazon.de/dp/B0F9FKZK3M'
+                    ],
+                    [
+                        'title' => 'Amazon DE – 30x Flache Schlüsselringe Gold Set (JeoPoom, ASIN B093R9HS4Y)',
+                        'url' => 'https://www.amazon.de/dp/B093R9HS4Y'
+                    ],
+                    [
+                        'title' => 'Amazon DE – 100x Edelstahl Spaltringe Gold klein 6–12 mm (Nogeqi, ASIN B0H6FG92JY)',
+                        'url' => 'https://www.amazon.de/dp/B0H6FG92JY'
+                    ],
+                    [
+                        'title' => 'Amazon DE – LEONTOOL Mini-Spaltringzange / Ringöffnungszange (ASIN B0C2TCMBSG)',
+                        'url' => 'https://www.amazon.de/dp/B0C2TCMBSG'
+                    ],
+                    [
+                        'title' => 'Amazon DE – WISEUP 8-tlg. Mini-Zangen-Set Schmuckherstellung (ASIN B0F38B4DMC)',
+                        'url' => 'https://www.amazon.de/dp/B0F38B4DMC'
+                    ],
                 ],
             ]
         );

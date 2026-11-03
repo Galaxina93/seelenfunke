@@ -643,6 +643,32 @@ class AccountingSeeder extends Seeder
 
         $specialIssues = [
             [
+                'title'          => '30x Flache Schlüsselringe Gold (3 Größen), 100x Edelstahl-Spaltringe Klein Gold (6–12mm) & LEONTOOL Mini-Spaltringzange (10,2 cm)',
+                'location'       => 'Amazon (TsunYew / railing / LEONTOOL EU)',
+                'amount'         => -16.67,
+                'date'           => '2026-11-03',
+                'category'       => 'Rohmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => '028-1563466-9621923',
+                'note'           => "Bestellnummer: 028-1563466-9621923 | Bestellt am: 03.11.2026 (03:50 Uhr) | Zahlungsart: Volksbank eG Braunschweig Wolfsburg •••• 000\nPositionen (inkl. 19% USt.):\n- 1x JeoPoom Schlüsselring [30 Stück], Flache Schlüsselanhänger Ring, 3 verschiedene Größen (je 10x 20mm, 25mm, 30mm, Golden, ASIN: B093R9HS4Y, Verkauf durch: TsunYew): 4,99 € brutto (4,19 € netto / 0,14 € netto pro Stück)\n- 1x Nogeqi 100 Stück Schlüsselringe Klein, 6/8/10/12mm Edelstahl Biegeringe / Spaltringe Gold (ASIN: B0H6FG92JY, Verkauf durch: railing): 4,99 € brutto (4,19 € netto / 0,04 € netto pro Stück)\n- 1x LEONTOOL Mini-Spaltringzange für Schmuckherstellung, 10,2 cm, Ringöffnungszange / Spaltringöffner (ASIN: B0C2TCMBSG, Verkauf durch: LEONTOOL EU): 6,69 € brutto (5,62 € netto)\nVerpackung & Versand: 0,00 € | Gesamtsumme: 16,67 € brutto (14,01 € netto zzgl. 2,66 € USt. 19%)\nProdukt-Links:\n- https://www.amazon.de/dp/B093R9HS4Y\n- https://www.amazon.de/dp/B0H6FG92JY\n- https://www.amazon.de/dp/B0C2TCMBSG",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-03_Amazon_30x-Flache-Schluesselringe-100x-Edelstahl-Spaltringe-Gold-Mini-Spaltringzange-Order-028-1563466-9621923.pdf'
+                ]
+            ],
+            [
+                'title'          => '3x 10er Set Edelstahl-Hundeanhänger Knochenform mit Pfoten-Durchbruch (30 Stk., Gold)',
+                'location'       => 'Temu (Wuxi Qiyue Industry and Trade Co., Ltd)',
+                'amount'         => -28.59,
+                'date'           => '2026-11-03',
+                'category'       => 'Rohmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => 'PO-076-04964841144950774',
+                'note'           => "Bestellnummer: PO-076-04964841144950774 | Bestellzeit & Bezahlt am: 03.11.2026 via PayPal (a***e@t-online.de) | Zustellung bis: 18.11.2026\nPosition:\n- 3x 10 leere Edelstahl-Hundeanhänger mit hohlen Pfotenmustern für Haustiere (Variante: Golden / Einheitsgröße, 30 Stück gesamt) à 8,34 € = 25,02 €\nVersand: KOSTENLOS (0,00 €) | Einfuhrabgaben: 3,57 €\nGesamtsumme: 28,59 € brutto (24,03 € netto zzgl. 4,56 € USt. 19% | Stückpreis: 0,80 € netto / 0,95 € brutto)\nVerkäufer: CTHOLD | Wuxi Qiyue Industry and Trade Co., Ltd (via Temu)\nProdukt-Link: https://www.temu.com/goods.html?_bg_fs=1&goods_id=601099544143627&parent_order_sn=PO-076-04964841144950774&_oak_order_sn=076-04964799201910774&_oak_goods_num=3&_x_sessn_id=qexm6jf56e&refer_page_name=bgt_order_receipt&refer_page_id=10471_1793672371535_hlekpk8i9o&refer_page_sn=10471&is_back=1",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-03_Temu_30x-Edelstahl-Hundeanhaenger-Knochen-Pfote-Gold-Order-PO-076-04964841144950774.pdf'
+                ]
+            ],
+            [
                 'title'          => '10x Edelstahl-Ankerkette (44+6 cm, 1,5 mm, Ion-Plating) & 5x Edelstahl-Herzanhänger mit Collierschlaufe (14k vergoldet, 25x22x4 mm)',
                 'location'       => 'www.gluecksfieber.de',
                 'amount'         => -45.39,
