@@ -774,6 +774,43 @@ use HasFactory, HasUuids, SoftDeletes;
     }
 
     /**
+     * Löst die optionale Kurzbeschreibung eines Aufpreis-Extras auf (inkl. Fallback auf die Produktdefinition für bestehende Warenkorb-/Bestellpositionen).
+     */
+    public static function resolveAddonDescription(array $addon, ?self $product = null): string
+    {
+        $directDesc = trim((string) ($addon['description'] ?? ''));
+        if ($directDesc !== '') {
+            return $directDesc;
+        }
+
+        $addonId = trim((string) ($addon['id'] ?? ''));
+        $addonNameLower = mb_strtolower(trim((string) ($addon['name'] ?? '')));
+
+        if ($product) {
+            foreach ($product->getEffectiveAddons(false) as $eff) {
+                $effId = trim((string) ($eff['id'] ?? ''));
+                $effNameLower = mb_strtolower(trim((string) ($eff['name'] ?? '')));
+                if (($addonId !== '' && $effId === $addonId) || ($addonNameLower !== '' && $effNameLower === $addonNameLower)) {
+                    $effDesc = trim((string) ($eff['description'] ?? ''));
+                    if ($effDesc !== '') {
+                        return $effDesc;
+                    }
+                }
+            }
+        }
+
+        if ($addonId === 'gift_box_westpack' || str_contains($addonNameLower, 'schmuckbox') || str_contains($addonNameLower, 'geschenkbox')) {
+            return 'Mattschwarze Schmuckschachtel mit Schaumstoffeinlage & Gold-Logo statt Versandtasche';
+        }
+
+        if ($addonId === 'gift_wrap_black_gold' || str_contains($addonNameLower, 'geschenkpapier')) {
+            return 'Von Hand in edles Schwarz-Gold-Geschenkpapier eingeschlagen – direkt verschenkfertig';
+        }
+
+        return '';
+    }
+
+    /**
      * Liefert die bereinigten, deduplizierten Aufpreis-Extras / Geschenkverpackungen für dieses Produkt.
      * WICHTIG: Nur physische Produkte ($this->type === 'physical') vertreten diese Option!
      */

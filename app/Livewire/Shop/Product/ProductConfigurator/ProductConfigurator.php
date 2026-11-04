@@ -528,6 +528,7 @@ class ProductConfigurator extends Component
                 $summary[] = [
                     'id'          => $addon['id'],
                     'name'        => $addon['name'],
+                    'description' => trim((string) ($addon['description'] ?? '')),
                     'price_cents' => (int) $addon['price_cents'],
                     'image_path'  => $addon['image_path'] ?? null,
                 ];

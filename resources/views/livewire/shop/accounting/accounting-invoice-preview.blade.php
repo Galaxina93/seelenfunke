@@ -243,22 +243,23 @@
                                                     @endif
 
                                                     @if(!empty($config['addons_summary']) && is_array($config['addons_summary']))
-                                                        <div class="flex flex-wrap gap-1.5 mb-1.5">
+                                                        <div class="flex flex-col gap-1 mb-1.5">
                                                             @foreach($config['addons_summary'] as $prevAddon)
                                                                 @if(!empty($prevAddon['name']))
                                                                     @php
                                                                         $prevAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($prevAddon);
                                                                     @endphp
-                                                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-900 text-[10px] font-bold">
+                                                                    <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-gray-800">
                                                                         @if($prevAddonImg)
-                                                                            <img src="{{ $prevAddonImg }}" alt="{{ $prevAddon['name'] }}" class="w-5 h-5 rounded object-cover border border-amber-300 shrink-0">
-                                                                        @else
-                                                                            <span>🎁</span>
+                                                                            <img src="{{ $prevAddonImg }}" alt="{{ $prevAddon['name'] }}" class="w-5 h-5 rounded-md object-cover border border-gray-200 shrink-0">
                                                                         @endif
                                                                         <span>{{ $prevAddon['name'] }}</span>
                                                                         @if(($prevAddon['price_cents'] ?? 0) > 0)
-                                                                            <span>(+{{ number_format($prevAddon['price_cents'] / 100, 2, ',', '.') }} €)</span>
+                                                                            <span class="text-primary font-semibold">(+{{ number_format($prevAddon['price_cents'] / 100, 2, ',', '.') }} €)</span>
                                                                         @endif
+                                                                        <svg class="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.75">
+                                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                                                        </svg>
                                                                     </span>
                                                                 @endif
                                                             @endforeach

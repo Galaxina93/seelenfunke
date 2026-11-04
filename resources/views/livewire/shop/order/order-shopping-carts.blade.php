@@ -361,22 +361,23 @@
                                     @endif
 
                                     @if(!empty($item->configuration['addons_summary']) && is_array($item->configuration['addons_summary']))
-                                        <div class="flex flex-wrap gap-1.5 justify-center sm:justify-start my-1">
+                                        <div class="flex flex-col items-center sm:items-start gap-1 my-1">
                                             @foreach($item->configuration['addons_summary'] as $addon)
                                                 @if(!empty($addon['name']))
                                                     @php
                                                         $scAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addon);
                                                     @endphp
-                                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700/50">
+                                                    <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-gray-800 dark:text-gray-200">
                                                         @if($scAddonImg)
-                                                            <img src="{{ $scAddonImg }}" alt="{{ $addon['name'] }}" class="w-4 h-4 rounded object-cover border border-amber-300/60 shrink-0">
-                                                        @else
-                                                            <span>🎁</span>
+                                                            <img src="{{ $scAddonImg }}" alt="{{ $addon['name'] }}" class="w-5 h-5 rounded-md object-cover border border-gray-200 dark:border-gray-700 shrink-0">
                                                         @endif
                                                         <span>{{ $addon['name'] }}</span>
                                                         @if(($addon['price_cents'] ?? 0) > 0)
-                                                            <span>(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }} €)</span>
+                                                            <span class="text-primary font-semibold">(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }} €)</span>
                                                         @endif
+                                                        <svg class="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.75">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                                        </svg>
                                                     </span>
                                                 @endif
                                             @endforeach

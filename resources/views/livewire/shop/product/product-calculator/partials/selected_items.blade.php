@@ -44,23 +44,38 @@
                                 </div>
                             @endif
                             @if(!empty($item['configuration']['addons_summary']) && is_array($item['configuration']['addons_summary']))
-                                <div class="mt-1 flex flex-wrap gap-1">
+                                <div class="mt-1.5 flex flex-col gap-1">
                                     @foreach($item['configuration']['addons_summary'] as $addon)
                                         @if(!empty($addon['name']))
                                             @php
                                                 $calcAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addon);
+                                                $calcAddonDesc = \App\Models\Product\Product::resolveAddonDescription($addon);
+                                                $calcAddonPrice = (($addon['price_cents'] ?? 0) > 0)
+                                                    ? '+ ' . number_format($addon['price_cents'] / 100, 2, ',', '.') . ' €'
+                                                    : '';
                                             @endphp
-                                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80">
+                                            <button type="button"
+                                                    @click="$dispatch('open-addon-modal', @js([
+                                                        'name' => $addon['name'],
+                                                        'price' => $calcAddonPrice,
+                                                        'image' => $calcAddonImg,
+                                                        'description' => $calcAddonDesc,
+                                                    ]))"
+                                                    title="Extra-Bild &amp; Details in Großansicht öffnen"
+                                                    class="group/addon inline-flex items-center gap-2 w-fit text-left text-xs text-gray-800 hover:text-primary transition-colors cursor-zoom-in">
                                                 @if($calcAddonImg)
-                                                    <img src="{{ $calcAddonImg }}" alt="{{ $addon['name'] }}" class="w-4 h-4 rounded object-cover border border-amber-300/60 shrink-0">
-                                                @else
-                                                    <span>🎁</span>
+                                                    <span class="relative w-5 h-5 rounded-md overflow-hidden border border-gray-200 group-hover/addon:border-primary/60 shadow-2xs shrink-0 block">
+                                                        <img src="{{ $calcAddonImg }}" alt="{{ $addon['name'] }}" class="w-full h-full object-cover group-hover/addon:scale-110 transition-transform duration-200">
+                                                    </span>
                                                 @endif
-                                                <span>{{ $addon['name'] }}</span>
+                                                <span class="font-medium leading-snug">{{ $addon['name'] }}</span>
                                                 @if(($addon['price_cents'] ?? 0) > 0)
-                                                    <span class="text-amber-600">(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }}&nbsp;€)</span>
+                                                    <span class="text-primary font-semibold whitespace-nowrap">(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }}&nbsp;€)</span>
                                                 @endif
-                                            </span>
+                                                <svg class="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.75">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            </button>
                                         @endif
                                     @endforeach
                                 </div>
@@ -151,23 +166,38 @@
                                     </span>
                                 @endif
                                 @if(!empty($item['configuration']['addons_summary']) && is_array($item['configuration']['addons_summary']))
-                                    <div class="mt-1 flex flex-wrap gap-1">
+                                    <div class="mt-1.5 flex flex-col gap-1">
                                         @foreach($item['configuration']['addons_summary'] as $addon)
                                             @if(!empty($addon['name']))
                                                 @php
                                                     $calcMobAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addon);
+                                                    $calcMobAddonDesc = \App\Models\Product\Product::resolveAddonDescription($addon);
+                                                    $calcMobAddonPrice = (($addon['price_cents'] ?? 0) > 0)
+                                                        ? '+ ' . number_format($addon['price_cents'] / 100, 2, ',', '.') . ' €'
+                                                        : '';
                                                 @endphp
-                                                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80">
+                                                <button type="button"
+                                                        @click="$dispatch('open-addon-modal', @js([
+                                                            'name' => $addon['name'],
+                                                            'price' => $calcMobAddonPrice,
+                                                            'image' => $calcMobAddonImg,
+                                                            'description' => $calcMobAddonDesc,
+                                                        ]))"
+                                                        title="Extra-Bild &amp; Details in Großansicht öffnen"
+                                                        class="group/addon inline-flex items-center gap-2 w-fit text-left text-xs text-gray-800 hover:text-primary transition-colors cursor-zoom-in">
                                                     @if($calcMobAddonImg)
-                                                        <img src="{{ $calcMobAddonImg }}" alt="{{ $addon['name'] }}" class="w-4 h-4 rounded object-cover border border-amber-300/60 shrink-0">
-                                                    @else
-                                                        <span>🎁</span>
+                                                        <span class="relative w-5 h-5 rounded-md overflow-hidden border border-gray-200 group-hover/addon:border-primary/60 shadow-2xs shrink-0 block">
+                                                            <img src="{{ $calcMobAddonImg }}" alt="{{ $addon['name'] }}" class="w-full h-full object-cover group-hover/addon:scale-110 transition-transform duration-200">
+                                                        </span>
                                                     @endif
-                                                    <span>{{ $addon['name'] }}</span>
+                                                    <span class="font-medium leading-snug">{{ $addon['name'] }}</span>
                                                     @if(($addon['price_cents'] ?? 0) > 0)
-                                                        <span class="text-amber-600">(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }}&nbsp;€)</span>
+                                                        <span class="text-primary font-semibold whitespace-nowrap">(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }}&nbsp;€)</span>
                                                     @endif
-                                                </span>
+                                                    <svg class="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.75">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                </button>
                                             @endif
                                         @endforeach
                                     </div>
@@ -388,5 +418,6 @@
                 @error('cart') <div class="text-red-500 text-xs mt-2 font-bold">{{ $message }}</div> @enderror
             </div>
         </div>
+        <x-shop.addon-preview-modal />
     </div>
 @endif

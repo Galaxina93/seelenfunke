@@ -222,23 +222,38 @@
                                     @endif
 
                                     @if(!empty($item->configuration['addons_summary']) && is_array($item->configuration['addons_summary']))
-                                        <div class="mt-1.5 flex flex-wrap gap-1.5">
+                                        <div class="mt-2 flex flex-col gap-1.5">
                                             @foreach($item->configuration['addons_summary'] as $addon)
                                                 @if(!empty($addon['name']))
                                                     @php
                                                         $chkAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addon);
+                                                        $chkAddonDesc = \App\Models\Product\Product::resolveAddonDescription($addon, $item->product ?? null);
+                                                        $chkAddonPrice = (($addon['price_cents'] ?? 0) > 0)
+                                                            ? '+ ' . number_format($addon['price_cents'] / 100, 2, ',', '.') . ' €'
+                                                            : '';
                                                     @endphp
-                                                    <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs">
+                                                    <button type="button"
+                                                            @click="$dispatch('open-addon-modal', @js([
+                                                                'name' => $addon['name'],
+                                                                'price' => $chkAddonPrice,
+                                                                'image' => $chkAddonImg,
+                                                                'description' => $chkAddonDesc,
+                                                            ]))"
+                                                            title="Extra-Bild &amp; Details in Großansicht öffnen"
+                                                            class="group/addon inline-flex items-center gap-2 w-fit text-left text-xs text-gray-800 hover:text-primary transition-colors cursor-zoom-in">
                                                         @if($chkAddonImg)
-                                                            <img src="{{ $chkAddonImg }}" alt="{{ $addon['name'] }}" class="w-5 h-5 rounded object-cover border border-amber-300/60 shrink-0">
-                                                        @else
-                                                            <span>🎁</span>
+                                                            <span class="relative w-6 h-6 rounded-md overflow-hidden border border-gray-200 group-hover/addon:border-primary/60 shadow-2xs shrink-0 block">
+                                                                <img src="{{ $chkAddonImg }}" alt="{{ $addon['name'] }}" class="w-full h-full object-cover group-hover/addon:scale-110 transition-transform duration-200">
+                                                            </span>
                                                         @endif
-                                                        <span>{{ $addon['name'] }}</span>
+                                                        <span class="font-medium leading-snug">{{ $addon['name'] }}</span>
                                                         @if(($addon['price_cents'] ?? 0) > 0)
-                                                            <span class="text-amber-600 font-semibold">(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }}&nbsp;€)</span>
+                                                            <span class="text-primary font-semibold whitespace-nowrap">(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }}&nbsp;€)</span>
                                                         @endif
-                                                    </span>
+                                                        <svg class="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.75">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                    </button>
                                                 @endif
                                             @endforeach
                                         </div>
@@ -369,22 +384,25 @@
                 <div x-show="imageModalOpen"
                      x-cloak
                      style="display: none;"
-                     class="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs"
+                     class="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-[#262016]/45 backdrop-blur-md"
                      @click.self="imageModalOpen = false"
                      @keydown.escape.window="imageModalOpen = false">
-                    <div class="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden p-4" @click.stop>
+                    <div class="relative bg-[#fdfbf7] border border-[#e6d7bc] rounded-[2rem] shadow-[0_25px_70px_-15px_rgba(120,90,40,0.35)] max-w-lg w-full overflow-hidden p-5" @click.stop>
                         <button type="button"
                                 @click="imageModalOpen = false"
-                                class="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors cursor-pointer">
+                                class="absolute top-3.5 right-3.5 z-10 w-8 h-8 rounded-full bg-white hover:bg-[#f7f1e6] border border-[#e6d7bc] flex items-center justify-center text-gray-600 transition-colors cursor-pointer">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
-                        <div class="flex items-center justify-center max-h-[75vh] overflow-auto p-2">
+                        <div class="flex items-center justify-center max-h-[75vh] overflow-auto p-3 rounded-2xl bg-gradient-to-b from-white to-[#faf6ef] border border-[#eadcc4]">
                             <template x-if="imageModalOpen && imageModalUrl">
-                                <img :src="imageModalUrl" alt="Vorschau" class="max-w-full max-h-[70vh] object-contain rounded-lg">
+                                <img :src="imageModalUrl" alt="Vorschau" class="max-w-full max-h-[68vh] object-contain rounded-xl">
                             </template>
                         </div>
                     </div>
                 </div>
+
+                {{-- Globale Hellmodus-Großansicht für Produkt-Extras --}}
+                <x-shop.addon-preview-modal />
             </div>
 
             @php

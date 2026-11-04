@@ -164,22 +164,37 @@
 
                                             {{-- Anzeige der gewählten Aufpreis-Extras / Verpackung --}}
                                             @if(!empty($item->configuration['addons_summary']) && is_array($item->configuration['addons_summary']))
-                                                <div class="flex flex-wrap justify-center sm:justify-start gap-1.5 mt-1.5">
+                                                <div class="flex flex-col items-center sm:items-start gap-1.5 mt-2">
                                                     @foreach($item->configuration['addons_summary'] as $addonBadge)
                                                         @php
                                                             $cartAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addonBadge);
+                                                            $cartAddonDesc = \App\Models\Product\Product::resolveAddonDescription($addonBadge, $prod ?? null);
+                                                            $cartAddonPrice = isset($addonBadge['price_cents'])
+                                                                ? '+ ' . number_format(((int) $addonBadge['price_cents']) / 100, 2, ',', '.') . ' €'
+                                                                : '';
                                                         @endphp
-                                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold shadow-2xs">
+                                                        <button type="button"
+                                                                @click="$dispatch('open-addon-modal', @js([
+                                                                    'name' => $addonBadge['name'] ?? 'Extra',
+                                                                    'price' => $cartAddonPrice,
+                                                                    'image' => $cartAddonImg,
+                                                                    'description' => $cartAddonDesc,
+                                                                ]))"
+                                                                title="Extra-Bild &amp; Details in Großansicht öffnen"
+                                                                class="group/addon inline-flex items-center gap-2 w-fit text-left text-xs text-gray-800 hover:text-primary transition-colors cursor-zoom-in">
                                                             @if($cartAddonImg)
-                                                                <img src="{{ $cartAddonImg }}" alt="{{ $addonBadge['name'] ?? '' }}" class="w-5 h-5 rounded object-cover border border-amber-300/60 shrink-0">
-                                                            @else
-                                                                <span>🎁</span>
+                                                                <span class="relative w-6 h-6 rounded-md overflow-hidden border border-gray-200 group-hover/addon:border-primary/60 shadow-2xs shrink-0 block">
+                                                                    <img src="{{ $cartAddonImg }}" alt="{{ $addonBadge['name'] ?? '' }}" class="w-full h-full object-cover group-hover/addon:scale-110 transition-transform duration-200">
+                                                                </span>
                                                             @endif
-                                                            <span>{{ $addonBadge['name'] ?? '' }}</span>
+                                                            <span class="font-medium leading-snug">{{ $addonBadge['name'] ?? '' }}</span>
                                                             @if(isset($addonBadge['price_cents']))
-                                                                <span class="font-mono">(+{{ number_format(((int) $addonBadge['price_cents']) / 100, 2, ',', '.') }}&nbsp;€)</span>
+                                                                <span class="text-primary font-semibold whitespace-nowrap">(+{{ number_format(((int) $addonBadge['price_cents']) / 100, 2, ',', '.') }}&nbsp;€)</span>
                                                             @endif
-                                                        </span>
+                                                            <svg class="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.75">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                                            </svg>
+                                                        </button>
                                                     @endforeach
                                                 </div>
                                             @endif
@@ -502,24 +517,32 @@
         <svg class="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
     </div>
 
-    {{-- Global Image Modal --}}
+    {{-- Global Image Modal (Hellmodus) --}}
     <template x-teleport="body">
         <div x-data="{ show: false, src: '' }" 
              @open-image-modal.window="src = $event.detail; show = true"
              @keydown.escape.window="show = false"
              x-show="show" 
              x-cloak 
-             class="fixed inset-0 z-[9999999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 sm:p-8 animate-fade-in"
+             class="fixed inset-0 z-[9999999] flex items-center justify-center bg-[#262016]/45 backdrop-blur-md p-4 sm:p-8 animate-fade-in"
              style="display: none;">
             <div class="absolute inset-0 cursor-pointer" @click="show = false"></div>
-            <button @click="show = false" class="absolute top-6 right-6 text-white hover:text-red-400 bg-black/50 hover:bg-black/80 border border-gray-600 rounded-full p-2 transition-colors z-[10000000] cursor-pointer">
-                <svg class="w-6 h-6 sm:w-8 sm:h-8 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-            </button>
-            <div class="relative w-full max-w-5xl h-full flex items-center justify-center pointer-events-none">
-                <img :src="src" class="max-w-full max-h-full object-contain drop-shadow-2xl pointer-events-auto rounded-lg" x-show="show" x-transition.scale.95.duration.300ms>
+            <div class="relative max-w-2xl w-full rounded-[2rem] bg-[#fdfbf7] border border-[#e6d7bc] shadow-[0_25px_70px_-15px_rgba(120,90,40,0.35)] p-5 sm:p-7 z-10"
+                 @click.stop
+                 x-show="show"
+                 x-transition.scale.95.duration.250ms>
+                <button @click="show = false" class="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center bg-white hover:bg-[#f7f1e6] text-gray-500 hover:text-gray-900 border border-[#e6d7bc] shadow-sm transition-all hover:rotate-90 z-20 cursor-pointer">
+                    <svg class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+                <div class="w-full max-h-[75vh] rounded-2xl overflow-hidden bg-gradient-to-b from-white to-[#faf6ef] border border-[#eadcc4] p-3 flex items-center justify-center">
+                    <img :src="src" class="max-w-full max-h-[68vh] object-contain rounded-xl drop-shadow-md">
+                </div>
             </div>
         </div>
     </template>
+
+    {{-- Globale Hellmodus-Großansicht für Produkt-Extras --}}
+    <x-shop.addon-preview-modal />
 
     {{-- NEU: Configurator als Modal Overlay (verhindert Layout-Verschiebungen) --}}
     @if($editingItemId)

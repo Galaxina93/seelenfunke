@@ -599,6 +599,7 @@ class CartService
                     $canonicalSummary[] = [
                         'id'          => $aid,
                         'name'        => (string) $addon['name'],
+                        'description' => trim((string) ($addon['description'] ?? '')),
                         'price_cents' => $addonCents,
                         'image_path'  => $addon['image_path'] ?? \App\Models\Product\Product::resolveAddonImagePath($addon),
                     ];
