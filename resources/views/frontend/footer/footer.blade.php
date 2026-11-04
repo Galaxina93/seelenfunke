@@ -19,7 +19,7 @@
                     </div>
                 </div>
                 <p class="text-sm text-gray-600 leading-relaxed">
-                    Mit einer zertifizierten <strong>Laserschutzbeauftragten</strong> stehen Sicherheit und Präzision bei der Veredelung Ihrer Unikate an erster Stelle.
+                    Mit einer zertifizierten <a href="{{ route('manufacture') }}#kompetenz" title="Zu unserem Laserschutz-Zertifikat: Unsere Kompetenz für Ihre Sicherheit" class="font-bold text-gray-800 underline decoration-primary/60 underline-offset-4 hover:text-amber-800 hover:decoration-amber-800 transition-colors">Laserschutzbeauftragten</a> stehen Sicherheit und Präzision bei der Veredelung Ihrer Unikate an erster Stelle.
                 </p>
             </div>
 

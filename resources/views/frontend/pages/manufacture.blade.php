@@ -480,7 +480,7 @@
             SECTION 4: ZERTIFIZIERUNG / FACTS (Dunkel, Matt & Ruhig über die Seite)
             Unternehmens-Kompetenznachweis
         --}}
-        <section class="relative bg-stone-950 border-y border-stone-800/80 py-24 lg:py-32 overflow-hidden" aria-labelledby="kompetenz-heading">
+        <section id="kompetenz" class="relative bg-stone-950 border-y border-stone-800/80 py-24 lg:py-32 overflow-hidden scroll-mt-20" aria-labelledby="kompetenz-heading">
             {{-- Hintergrundbild: Geprüfte Sicherheitsstandards & Präzisionsoptik --}}
             <img src="{{ asset('shop/frontend/banners/manufaktur_sicherheit_kompetenz.webp') }}"
                  alt="Geprüfte Sicherheitsstandards: Laserschutzoptik, Messschraube und Kristallglas auf dunkler Werkbank"
