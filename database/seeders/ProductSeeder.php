@@ -18,6 +18,8 @@ class ProductSeeder extends Seeder
             'Bestseller' => 'physical',
             'Metall & Alu' => 'physical',
             'Schmuck & Anhänger' => 'physical',
+            'Schiefer & Natur' => 'physical',
+            'Gutscheine' => 'digital',
             'E-Books & Guides' => 'digital',
             'Beratung' => 'service',
             'Express-Service' => 'service',
@@ -66,7 +68,7 @@ class ProductSeeder extends Seeder
             'electricity_wear_factor' => 15,
             'packaging_cost' => 60, // Karton.eu 240stk Kartons für Trophäe = 0,60€ netto
             'marketing_cost_percent' => 15.00,
-            'sku' => 'CRYSTAL-3D-001',
+            'sku' => 'MSF-KRISTALL-3D-001',
             'product_supplier_id' => $sup1?->id,
             'reorder_url' => 'https://german.alibaba.com/product-detail/Pujiang-Wangzhe-Manufacturer-Wholesale-Blank-Glass-1600897934261.html?chatToken=TDFKeWNGRlpkWFZTWmtkNFRYRnZjVWxhVTBsU1ozUklWbW96V1M5dmVGQkxla1pYWlZWM1RHTTBSbHB6V0ZKak9YVnNSeXR3ZW5aUVNVTmphWE0yVWxaU1ZGa3haa0p3T0hjclQyaDVjRFZhSzJOVmNtbHFSalYwUzFkM1dGRlBVRVZ1WVhaU1JHaGhjRlptUkRJeWFISk5XRTFuZGpGa2FHVjJaWFJFZVd0dVIyZHFlV0ZzUjBKVFZUbFJNVWd3TVRGUGR5OUdkbEp2TmtSTlowSmpXR3N4WjFCSVYwWmtWa0ZZVjAxdVN6VmxNVWxzV2sxcU1FaDRlVmRoUzJadCZ2ZXJzaW9uPTIuMC4w&encryptTargetLoginId=8pctgRBMALM%2FQHxJOCLxWd%2BlWrcRHecO6wdkfYSa%2Bs4%3D',
             'barcode' => '',
@@ -170,7 +172,7 @@ class ProductSeeder extends Seeder
             'electricity_wear_factor' => 5,
             'packaging_cost' => 14, // Karton.eu 400stk Luftpolster Versandtüten = 0,14€ netto
             'marketing_cost_percent' => 10.00,
-            'sku' => 'ALU-HEART-001',
+            'sku' => 'MSF-ALU-HERZ-001',
             'product_supplier_id' => $sup2?->id,
             'reorder_url' => 'https://www.temu.com/goods.html?_bg_fs=1&goods_id=601100677385875&sku_id=17596815295317&_oak_page_source=501&_x_sessn_id=53dsx2mzic&refer_page_name=shopping_cart&refer_page_id=10037_1770854253534_8i2pculylb&refer_page_sn=10037',
             'barcode' => '',
@@ -255,7 +257,7 @@ class ProductSeeder extends Seeder
                 ]
             ],
             'attributes' => [
-                'Material' => 'Eloxiertes Luftfahrt-Aluminium (Massiv)',
+                'Material' => 'Schwarz eloxiertes Aluminium (Massiv)',
                 'Form' => 'Handschmeichler-Herz (Beidseitig gravierbar)',
                 'Größe' => '45 x 40 x 2,3 mm',
                 'Gewicht' => 'ca. 19 g',
@@ -298,9 +300,9 @@ class ProductSeeder extends Seeder
             'purchase_price' => 333, // EK: 19,99€ / 6 Stück = 3,33€ pro Stück
             'laser_runtime_minutes' => 1,
             'electricity_wear_factor' => 15,
-            'packaging_cost' => 60, // Karton.eu 240stk Kartons = 0,60€ netto
+            'packaging_cost' => 50, // Karton.eu 140stk 300x230x150 mm (Art.-Nr. 2633) = 0,50 € netto
             'marketing_cost_percent' => 12.50,
-            'sku' => 'GLASS-WEIZEN-001',
+            'sku' => 'MSF-GLAS-WEIZEN-001',
             'product_supplier_id' => $sup4?->id,
             'reorder_url' => 'https://www.metro.de/marktplatz/product/70a1602b-8551-48a6-aff4-d763d68f1f33',
             'barcode' => '',
@@ -309,7 +311,7 @@ class ProductSeeder extends Seeder
             'quantity' => 200,
             'continue_selling_when_out_of_stock' => true,
             'weight' => 450,
-            'packaging_weight' => 120,
+            'packaging_weight' => 180, // Karton.eu Art.-Nr. 2633 (300x230x150 mm) = 0,18 kg (180 g) lt. Rechnung 26169398
             'width' => 74,      // 7,4 cm
             'height' => 218,    // 21,8 cm
             'length' => 74,     // 7,4 cm
@@ -400,7 +402,7 @@ class ProductSeeder extends Seeder
             'electricity_wear_factor' => 5,
             'packaging_cost' => 14, // Karton.eu 400stk Luftpolster Versandtüten = 0,14€ netto
             'marketing_cost_percent' => 10.00,
-            'sku' => 'STEEL-BAR-001',
+            'sku' => 'MSF-EDELSTAHL-TALISMAN-001',
             'product_supplier_id' => $sup5?->id,
             'reorder_url' => 'https://www.temu.com/goods.html?_bg_fs=1&goods_id=606203291790930&parent_order_sn=PO-076-11149563187830774&_oak_order_sn=076-11149531730550774&_oak_goods_num=2&sku_id=89857024078818',
             'barcode' => '',
@@ -500,7 +502,7 @@ class ProductSeeder extends Seeder
         $p5Paw = Product::updateOrCreate(['slug' => 'seelen-pfote-hundemarke'], [
             'name' => 'Die Seelen-Pfote',
             'type' => 'physical',
-            'description' => 'Sicherheit und Liebe für Ihren treuesten Begleiter: Die Seelen-Pfote ist eine massive, spiegelpolierte Hundemarke in klassischer Knochenform aus rostfreiem V2A-Edelstahl mit integriertem Aufhängungs-Öhr und einem kunstvoll ausgestanzten Pfotenabdruck-Durchbruch auf der rechten Seite. Auf der Vorderseite verewigen wir den Namen Ihres Lieblings samt Wunsch-Symbol in kontraststarker, tief-anthrazitfarbener Faserlaser-Anlassgravur, während die Rückseite ausreichend Platz für Ihre Notfall-Telefonnummer, Adresse oder TASSO-Kennung bietet. Absolut wasserfest, rostfrei und unverwüstlich für unbeschwerte Abenteuer bei jedem Wetter.',
+            'description' => 'Sicherheit und Liebe für Ihren treuesten Begleiter: Die Seelen-Pfote ist eine massive, spiegelpolierte Hundemarke in klassischer Knochenform aus rostfreiem Edelstahl mit integriertem Aufhängungs-Öhr und einem kunstvoll ausgestanzten Pfotenabdruck-Durchbruch auf der rechten Seite. Auf der Vorderseite verewigen wir den Namen Ihres Lieblings samt Wunsch-Symbol in kontraststarker, tief-anthrazitfarbener Faserlaser-Anlassgravur, während die Rückseite ausreichend Platz für Ihre Notfall-Telefonnummer, Adresse oder TASSO-Kennung bietet. Absolut wasserfest, rostfrei und robust für unbeschwerte Abenteuer bei jedem Wetter.',
             'short_description' => 'Massive, spiegelpolierte Edelstahl-Hundemarke in Knochenform mit echtem Pfoten-Durchbruch und beidseitiger Faserlaser-Gravur.',
             'status' => 'active',
             'is_personalizable' => true,
@@ -512,7 +514,7 @@ class ProductSeeder extends Seeder
             'electricity_wear_factor' => 5,
             'packaging_cost' => 14, // Karton.eu 400stk Luftpolster Versandtüten = 0,14€ netto
             'marketing_cost_percent' => 10.00,
-            'sku' => 'STEEL-PAW-001',
+            'sku' => 'MSF-EDELSTAHL-PFOTE-001',
             'product_supplier_id' => $sup6?->id ?? $sup5?->id,
             'reorder_url' => 'https://www.temu.com/goods.html?_bg_fs=1&goods_id=601099544143627&parent_order_sn=PO-076-04964841144950774&_oak_order_sn=076-04964799201910774&_oak_goods_num=3&_x_sessn_id=qexm6jf56e&refer_page_name=bgt_order_receipt&refer_page_id=10471_1793672371535_hlekpk8i9o&refer_page_sn=10471&is_back=1',
             'barcode' => '',
@@ -589,7 +591,7 @@ class ProductSeeder extends Seeder
                 ]
             ],
             'attributes' => [
-                'Material' => 'Hochglanzpolierter V2A-Edelstahl (Rostfrei & Wasserfest)',
+                'Material' => 'Hochglanzpolierter Edelstahl (Rostfrei & Wasserfest)',
                 'Form' => 'Hundeknochen mit echtem Pfoten-Durchbruch (Beidseitig gravierbar)',
                 'Größe' => '40 x 22 x 1,8 mm (1,57 x 0,87 in, inkl. integrierter Öse)',
                 'Gewicht' => 'ca. 12 g / 0,43 oz (robust & alltagstauglich)',
@@ -622,8 +624,8 @@ class ProductSeeder extends Seeder
         $p6GoldHeart = Product::updateOrCreate(['slug' => 'goldenes-seelen-herz'], [
             'name' => 'Das Goldene Seelen-Herz',
             'type' => 'physical',
-            'description' => 'Ein Schmuckstück für die Ewigkeit, handveredelt in unserer Manufaktur in Deutschland und sofort tragfertig als komplettes Collier: Das Goldene Seelen-Herz vereint einen außergewöhnlich massiven (4,0 mm starken!) Edelstahl-Herzanhänger mit der perfekt abgestimmten, feingliedrigen Gold-Edelstahl-Ankerkette (44 cm + 6 cm Verlängerungskettchen für flexibles Tragen von 44 bis 50 cm). Beide Komponenten stammen aus dem Lübecker Fachgroßhandel Glücksfieber und sind mit derselben hochwertigen Echtgold-Ion-Plating-Veredelung (IP) versehen: absolut identischer, warmer Goldton, wasserfest, hautfreundlich und anlaufgeschützt. Anders als dünne Blechanhänger besticht das Herz durch sein spürbares Juwelier-Gewicht, sanft facettierte Kanten und eine extrem kratzfeste Spiegeloberfläche. Mit unserem Präzisions-Faserlaser verewigen wir Ihre Initialen, Namen, ein besonderes Datum oder feine Symbole in tiefem, kontraststarkem Anthrazit-Schwarz direkt im Gold-Finish, auf Wunsch kostenlos auch auf Vorder- und Rückseite.',
-            'short_description' => 'Massiver vergoldeter Edelstahl-Herzanhänger (4 mm Stärke, Ion-Plating) inklusive passender, verstellbarer Gold-Edelstahl-Ankerkette (44–50 cm) & beidseitiger Faserlaser-Gravur.',
+            'description' => 'Ein Schmuckstück für die Ewigkeit, handveredelt in unserer Manufaktur in Deutschland und sofort tragfertig als komplettes Collier: Das Goldene Seelen-Herz vereint einen außergewöhnlich massiven (4,0 mm starken!) Edelstahl-Herzanhänger mit der perfekt abgestimmten, feingliedrigen Gold-Edelstahl-Ankerkette (44 cm + 6 cm Verlängerungskettchen für flexibles Tragen von 44 bis 50 cm). Beide Komponenten stammen aus dem Lübecker Fachgroßhandel Glücksfieber und bestehen aus vergoldetem Edelstahl (Ion-Plating): identischer, warmer Goldton, wasserfest, hautfreundlich und anlaufgeschützt. Anders als dünne Blechanhänger besticht das Herz durch sein spürbares Gewicht, sanft facettierte Kanten und eine kratzfeste Spiegeloberfläche. Mit unserem Präzisions-Faserlaser verewigen wir Ihre Initialen, Namen, ein besonderes Datum oder feine Symbole in tiefem, kontraststarkem Anthrazit-Schwarz direkt im Gold-Finish, auf Wunsch kostenlos auch auf Vorder- und Rückseite.',
+            'short_description' => 'Massiver vergoldeter Edelstahl-Herzanhänger (4 mm Stärke) inklusive passender, verstellbarer Gold-Edelstahl-Ankerkette (44–50 cm) & beidseitiger Faserlaser-Gravur.',
             'status' => 'active',
             'is_personalizable' => true,
             'three_d_active' => true,
@@ -634,7 +636,7 @@ class ProductSeeder extends Seeder
             'electricity_wear_factor' => 5,
             'packaging_cost' => 14, // Karton.eu 400stk Luftpolster Versandtüten = 0,14€ netto
             'marketing_cost_percent' => 10.00,
-            'sku' => 'GOLD-HEART-001',
+            'sku' => 'MSF-GOLD-HERZ-001',
             'product_supplier_id' => $sup8?->id,
             'reorder_url' => 'https://www.gluecksfieber.de/shop/laserrohlinge/edelstahl-laserrohling-anhaenger-herz-mit-collierschlaufe-14-karat-vergoldet-25-x-22-x-4-mm-oese-3-x-6-mm-ion-plating-ip.html',
             'barcode' => '',
@@ -713,7 +715,7 @@ class ProductSeeder extends Seeder
                 ]
             ],
             'attributes' => [
-                'Material' => 'Massiver 304 Edelstahl, Echtgold Ion-Plating (IP) veredelt',
+                'Material' => 'Massiver Edelstahl (14 Karat vergoldet, Ion-Plating)',
                 'Halskette (Inklusive)' => 'Gold-Edelstahl-Ankerkette (44 cm + 6 cm Verlängerung, 1,5 mm, Karabiner)',
                 'Herz-Größe' => '25 x 22 x 4,0 mm (Collierschlaufe / Öse: 3 x 6 mm)',
                 'Gewicht' => 'ca. 18 g Komplett-Set (14 g massives Herz + 4 g Ankerkette)',
@@ -809,7 +811,7 @@ Zusätzlich erhältst du das vollständige ZIP-Archiv mit allen 200 einsatzberei
             'price' => 0, // Wird dynamisch durch den Konfigurator/Warenkorb bestimmt
             'tax_class' => 'zero', // Mehrzweck-Gutschein gem. § 3 Abs. 14 UStG (Versteuerung erst bei Einlösung)
             'compare_at_price' => null,
-            'sku' => 'GIFT-VOUCHER-001',
+            'sku' => 'MSF-GUTSCHEIN-001',
             'barcode' => '',
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => false,
@@ -841,7 +843,7 @@ Zusätzlich erhältst du das vollständige ZIP-Archiv mit allen 200 einsatzberei
             'completion_step' => 4
         ]);
 
-        $catIds5 = ProductCategory::whereIn('name', ['Geschenksets', 'Bestseller'])->pluck('id');
+        $catIds5 = ProductCategory::whereIn('name', ['Gutscheine', 'Geschenksets', 'Bestseller'])->pluck('id');
         $p5->categories()->sync($catIds5);
 
         // Sicherstellen, dass bei allen bestehenden Produkten & Vorlagen jedes Bild als KI-generiert markiert ist

@@ -172,12 +172,9 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
 
             // 2. Synchronize "cancelled" or "refunded" status
             if (
-                !$order->cancellationAlreadyHandled && (
-                    ($order->isDirty('payment_status') && $order->payment_status === 'refunded') ||
-                    ($order->isDirty('status') && in_array($order->status, ['cancelled', 'refunded']))
-                )
+                ($order->isDirty('payment_status') && $order->payment_status === 'refunded') ||
+                ($order->isDirty('status') && in_array($order->status, ['cancelled', 'refunded']))
             ) {
-                $order->cancellationAlreadyHandled = true;
                 $invoices = $order->invoices()->where('type', 'invoice')->whereIn('status', ['paid', 'open'])->get();
                 foreach ($invoices as $invoice) {
                     try {
@@ -187,16 +184,16 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
                     }
                 }
 
-                try {
-                    app(\App\Services\Marketing\InfluencerService::class)->reverseOrderCommission($order, (string) ($order->cancellation_reason ?: 'Stornierung/Erstattung'));
-                } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::error('Influencer commission reversal error on status sync: ' . $e->getMessage());
-                }
-
-                try {
-                    app(\App\Services\Gamification\GamificationService::class)->reverseOrderFunken($order);
-                } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::error('Gamification order reversal error on status sync: ' . $e->getMessage());
+                if (
+                    !$order->cancellationAlreadyHandled
+                    && !in_array((string) $order->getOriginal('status'), ['cancelled', 'refunded'], true)
+                    && (string) $order->getOriginal('payment_status') !== 'refunded'
+                ) {
+                    $order->handleCancellation(
+                        (string) ($order->cancellation_reason ?: 'Stornierung/Erstattung'),
+                        (string) $order->getOriginal('status'),
+                        (string) $order->getOriginal('payment_status')
+                    );
                 }
             }
         });
@@ -449,6 +446,30 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
             $isNearLimit = true;
         }
 
+        // Automatische Paketanzahl-Empfehlung für Großbestellungen (z.B. 100 Trophäen = ~92 kg Ware -> 5 Pakete à max. ~20 kg Ware im 600x400x400 mm 2-welligen Umkarton)
+        $singleParcelGrossGrams = $weightToUse + $packagingWeightGrams + $bufferGrams;
+        $recommendedPackageCount = 1;
+        if ($singleParcelGrossGrams > 25000) {
+            // Sicherer Split bei ~20 kg reinem Warengewicht pro Paket (max. 20 Trophäen pro 600x400x400 mm Karton = ~22,4 kg brutto, weit unter 30 kg Karton- & 31,5 kg DHL-Grenze)
+            $recommendedPackageCount = max(2, min(30, (int) ceil($weightToUse / 20000)));
+        }
+        $isBulkOrder = $recommendedPackageCount > 1;
+        if ($packagingType === 'envelope') {
+            $recommendedBoxHint = 'Karton.eu Luftpolster-Versandtasche (15 g) oder Westpack Schmuckschachtel 86×86×17 mm (Großbrief)';
+        } elseif ($isBulkOrder) {
+            $recommendedBoxHint = ($weightToUse / $recommendedPackageCount > 10000)
+                ? 'Karton.eu Art.-Nr. 069 (600×400×400 mm, 2-wellig BC-Welle bis 30 kg, max. 20 Trophäen/Paket)'
+                : 'Karton.eu Art.-Nr. 165 (600×400×200 mm, 2-wellig BC-Welle bis 30 kg, max. 10 Trophäen/Paket)';
+        } elseif ($weightToUse > 10000) {
+            $recommendedBoxHint = 'Karton.eu Art.-Nr. 069 (600×400×400 mm, 2-wellig BC-Welle bis 30 kg, 11–20 Trophäen)';
+        } elseif ($weightToUse > 3000) {
+            $recommendedBoxHint = 'Karton.eu Art.-Nr. 165 (600×400×200 mm, 2-wellig BC-Welle bis 30 kg, 4–10 Trophäen)';
+        } elseif ($totalItemsCount === 1 && $weightToUse >= 800 && $weightToUse <= 1100) {
+            $recommendedBoxHint = 'Karton.eu Art.-Nr. 6227 (284×244×0–70 mm Buchverpackung, Einzel-Trophäe)';
+        } else {
+            $recommendedBoxHint = 'Karton.eu Art.-Nr. 2633 (300×230×150 mm Universal-/Bundle- & Weizenglas-Karton)';
+        }
+
         return [
             'items'                          => $itemsList,
             'total_items_count'              => $totalItemsCount,
@@ -460,6 +481,9 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
             'total_grams'                    => $totalGrams,
             'total_weight_kg'                => round($totalGrams / 1000, 2),
             'recommended_weight_per_package' => $weightPerPackageKg,
+            'recommended_package_count'      => $recommendedPackageCount,
+            'is_bulk_order'                  => $isBulkOrder,
+            'recommended_box_hint'           => $recommendedBoxHint,
             'dhl_class'                      => $dhlClass,
             'dhl_badge_color'                => $dhlBadgeColor,
             'is_near_limit'                  => $isNearLimit,
@@ -731,7 +755,8 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
         $effectiveStatus = $previousStatus ?? $this->getOriginal('status') ?? $this->status;
         $effectivePaymentStatus = $previousPaymentStatus ?? $this->getOriginal('payment_status') ?? $this->payment_status;
         $wasPaid = in_array($effectivePaymentStatus, ['paid', 'refunded'], true);
-        $alreadyCancelledOrRefunded = in_array($effectiveStatus, ['cancelled', 'refunded'], true);
+        $alreadyCancelledOrRefunded = in_array($effectiveStatus, ['cancelled', 'refunded'], true)
+            || $effectivePaymentStatus === 'refunded';
 
         // 1. Lagerbestand: NUR für bezahlte, unpersonalisierte Produkte und nur wenn vorher pending/processing (nicht bereits storniert/ausgeliefert)
         if ($wasPaid && !$alreadyCancelledOrRefunded && in_array($effectiveStatus, ['pending', 'processing'], true)) {

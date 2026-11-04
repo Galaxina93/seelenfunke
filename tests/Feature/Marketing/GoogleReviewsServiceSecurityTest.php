@@ -20,8 +20,10 @@ class GoogleReviewsServiceSecurityTest extends TestCase
 
         $this->assertArrayHasKey('rating', $reviews);
         $this->assertArrayHasKey('reviews', $reviews);
-        $this->assertCount(8, $reviews['reviews']);
-        $this->assertEquals(4.9, $reviews['rating']);
+        $this->assertIsArray($reviews['reviews']);
+        $this->assertSame('none', $reviews['source'] ?? 'none');
+        $this->assertCount(0, $reviews['reviews']);
+        $this->assertNull($reviews['rating']);
     }
 
     public function test_get_reviews_queries_places_api_and_caches_result()

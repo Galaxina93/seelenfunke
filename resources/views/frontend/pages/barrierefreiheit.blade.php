@@ -26,7 +26,7 @@
                 <article>
                     <h2 class="text-2xl font-serif font-bold text-gray-900 mb-4">1. Geltende Vorschriften & Stand der Vereinbarkeit</h2>
                     <p class="mb-4 text-gray-700 leading-relaxed">
-                        Als Betreiber dieser Website sind wir bemüht, die Seite in Einklang mit den Anforderungen des <strong>Barrierefreiheitsstärkungsgesetzes (BFSG)</strong> zu gestalten. Wir orientieren uns technisch an den Richtlinien der <strong>Web Content Accessibility Guidelines (WCAG) 2.1</strong> auf Konformitätsstufe AA.
+                        Als Betreiber dieser Website sind wir bemüht, unseren Online-Shop im Einklang mit den gesetzlichen Anforderungen gemäß <strong>§ 14 BFSG i.V.m. Anlage 3 BFSG</strong>, der <strong>Barrierefreiheitsstärkungsverordnung (BFSGV)</strong> sowie der harmonisierten europäischen Norm <strong>EN 301 549 (WCAG 2.1 Konformitätsstufe AA)</strong> barrierefrei zugänglich zu gestalten.
                     </p>
                     <div class="bg-gray-50 border-l-4 border-primary p-6 rounded-r-2xl mt-6">
                         <p class="font-bold text-gray-900 mb-1">Aktueller Status: Teilweise barrierefrei</p>

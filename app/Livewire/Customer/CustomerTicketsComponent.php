@@ -454,7 +454,7 @@ class CustomerTicketsComponent extends Component
     {
         $this->enforceCustomerId();
         $this->validate([
-            'closeReason' => 'nullable|string|max:1000'
+            'closeReason' => 'nullable|string|min:5|max:1000'
         ]);
 
         $ticket = SupportTicket::where('customer_id', $this->customerId)->where('id', $this->activeTicketId)->firstOrFail();

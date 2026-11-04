@@ -302,7 +302,7 @@
         ],
         [
             'name' => 'Die Seelen-Pfote',
-            'material' => 'Hochglanzpolierter V2A-Edelstahl',
+            'material' => 'Hochglanzpolierter Edelstahl',
             'details' => 'Maße: 40 × 22 × 1,8 mm · Hundemarke mit Pfoten-Durchbruch & Gravur',
             'img' => $encodeImg('produkte/products/seelen-pfote-hundemarke/seelen-pfote-main.jpg'),
         ],

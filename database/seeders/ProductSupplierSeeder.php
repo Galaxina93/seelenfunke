@@ -140,7 +140,7 @@ class ProductSupplierSeeder extends Seeder
                 'lead_time_land_days' => 10,
                 'lead_time_air_days' => 7,
                 'shipping_method' => 'land',
-                'notes' => 'Reale Bestellungen vom 03.11.2026: (1) Temu Order PO-076-04964841144950774: 3x 10er Set = 30 Stk. Edelstahl-Hundeanhänger Knochenform mit hohlem Pfoten-Durchbruch in Gold (40x22x1,8 mm, goods_id=601099544143627) für 28,59 € brutto (24,03 € netto = 0,80 € netto/Stk.). (2) Amazon DE Order 028-1563466-9621923 (16,67 € brutto): 30x JeoPoom Flache Schlüsselringe Gold (20/25/30mm, ASIN B093R9HS4Y, 4,99 € brutto / 0,14 € netto/Stk.) + 100x Nogeqi Edelstahl Spaltringe Klein Gold (6-12mm, ASIN B0H6FG92JY, 4,99 € brutto / 0,04 € netto/Stk.) + 1x LEONTOOL Mini-Spaltringzange (10,2 cm, ASIN B0C2TCMBSG, 6,69 € brutto). Komplett-EK pro Seelen-Pfote inkl. Ring-Set: 0,98 € netto.',
+                'notes' => 'Reale Bestellungen vom 03.11.2026: (1) Temu Order PO-076-04964841144950774: 3x 10er Set = 30 Stk. Edelstahl-Hundeanhänger Knochenform mit hohlem Pfoten-Durchbruch in Gold (40x22x1,8 mm, goods_id=601099544143627) für 28,59 € brutto (24,03 € netto = 0,80 € netto/Stk.). (2) Amazon DE Order 028-1563466-9621923 (16,67 € brutto): 30x JeoPoom Flache Schlüsselringe Gold (20/25/30mm, ASIN B093R9HS4Y, Teilrechnung TVtCBC8ZD-1793755138 vom 04.11.2026 von Hong Kong Tsun Yew Limited, 4,99 € brutto / 4,19 € netto = 0,14 € netto/Stk.) + 100x Nogeqi Edelstahl Spaltringe Klein Gold (6-12mm, ASIN B0H6FG92JY, 4,99 € brutto / 0,04 € netto/Stk.) + 1x LEONTOOL Mini-Spaltringzange (10,2 cm, ASIN B0C2TCMBSG, 6,69 € brutto). Komplett-EK pro Seelen-Pfote inkl. Ring-Set: 0,98 € netto.',
                 'dynamic_links' => [
                     [
                         'title' => 'Temu Direkt-Nachbestellung: 3x 10er Set Seelen-Pfote Gold (Order PO-076-04964841144950774)',
@@ -198,7 +198,7 @@ class ProductSupplierSeeder extends Seeder
             ['name' => 'Glücksfieber (Lübeck)'],
             [
                 'company_name' => 'Stefan Spreier & Sandra Schmidt GbR (Glücksfieber)',
-                'contact_person' => 'Stefan Spreier & Sandra Schmidt',
+                'contact_person' => 'Stefan Spreier & Sandra Schmidt (Kundennr.: 252590)',
                 'street' => 'Stockholmring',
                 'house_number' => '8',
                 'zip' => '23560',
@@ -211,7 +211,7 @@ class ProductSupplierSeeder extends Seeder
                 'vat_id' => 'DE246566105',
                 'lead_time_land_days' => 2,
                 'shipping_method' => 'land',
-                'notes' => 'Deutscher Fachhändler für Edelstahl-Laserrohlinge & passende Edelstahl-Halsketten (304 Chirurgenstahl & Ion-Plating IP). Hauptprodukt: Edelstahl Laserrohling Anhänger, Herz, mit Collierschlaufe (Art.-Nr. STA1274, 25 x 22 x 4 mm, Öse 3 x 6 mm) + passende vergoldete IP-Edelstahlketten (Art.-Nr. STA268, STA1073, STA918).',
+                'notes' => 'Kundennr.: 252590 (Steuer-Nr. 22 285 50300). Deutscher Fachhändler für Edelstahl-Laserrohlinge & passende Edelstahl-Halsketten (14 Karat vergoldet & Ion-Plating IP). Hauptprodukt: Edelstahl Laserrohling Anhänger, Herz, mit Collierschlaufe (Art.-Nr. STA1274, 25 x 22 x 4 mm, Öse 3 x 6 mm) + passende vergoldete IP-Edelstahlketten (Art.-Nr. STA268, STA1073, STA918). Letzte Rechnung: RE2613436 (Bestellung 325015 vom 03.11.2026).',
                 'dynamic_links' => [
                     [
                         'title' => 'Herz-Anhänger mit Collierschlaufe (Art. STA1274, 25x22x4 mm, Öse 3x6 mm)',
@@ -278,7 +278,7 @@ class ProductSupplierSeeder extends Seeder
             ['name' => 'Westpack A/S'],
             [
                 'company_name' => 'Westpack A/S',
-                'contact_person' => 'B2B Schmuckverpackungen & Etuis',
+                'contact_person' => 'Azizah Fitria Nada Zahra (Kundennr.: 7164015 | Klischee: L247401)',
                 'street' => 'Sletten',
                 'house_number' => '21',
                 'zip' => '7500',
@@ -286,12 +286,12 @@ class ProductSupplierSeeder extends Seeder
                 'country' => 'Dänemark',
                 'country_code' => 'DK',
                 'phone' => '+45 97 41 23 45',
-                'email' => 'sales@westpack.com',
+                'email' => 'afz@westpack.com',
                 'website' => 'https://www.westpack.com/eur_eu_ger/',
                 'vat_id' => 'DK15505908',
                 'lead_time_land_days' => 4,
                 'shipping_method' => 'land',
-                'notes' => 'Order #29000069521 vom 02.11.2026: 96 Stk. Frankfurt ECO Schmuckschachtel Anhänger/Armreif (Art.-Nr. 30286060102, 86 x 86 x 17 mm, Schwarz matt inkl. eigenem Mein-Seelenfunke-Logodruck & Klischee 60000002000 zu 0,00 €). EK: 1,06 € netto / Stk. (101,76 € netto + 15,00 € Versand + 29,19 € Steuer = 145,95 € per PayPal). 17 mm flach für 1,80 € Großbrief-Versand!',
+                'notes' => 'Kundennr.: 7164015 | Westpack Klischee-Nr.: L247401 (Logo-Abmessung: 60 x 11,4 mm auf 86 x 86 x 17 mm Schachtel, Logokorrektur vom 03.11.2026 durch Azizah Fitria Nada Zahra, afz@westpack.com). Order #29000069521 vom 02.11.2026: 96 Stk. Frankfurt ECO Schmuckschachtel Anhänger/Armreif (Art.-Nr. 30286060102, 86 x 86 x 17 mm, Schwarz matt inkl. eigenem Mein-Seelenfunke-Logodruck & Klischee 60000002000 zu 0,00 €). EK: 1,06 € netto / Stk. (101,76 € netto + 15,00 € Versand + 29,19 € Steuer = 145,95 € per PayPal). 17 mm flach für 1,80 € Großbrief-Versand!',
                 'dynamic_links' => [
                     [
                         'title' => 'Frankfurt ECO Schmuckschachtel 86×86×17 mm (Art. 30286060102)',
@@ -305,29 +305,46 @@ class ProductSupplierSeeder extends Seeder
             ]
         );
 
-        // 11. HÄNDLER 11: Karton.eu / Lausitzer Kartonagenfabrik GmbH (Versandkartons & Luftpolstertaschen)
+        // 11. HÄNDLER 11: IPS Karton.eu GmbH & Co. KG (Versandkartons, Schwerlast-Umkartons & Luftpolstertaschen)
+        ProductSupplier::where('name', 'Karton.eu (Lausitzer Kartonagen)')->delete();
         ProductSupplier::updateOrCreate(
-            ['name' => 'Karton.eu (Lausitzer Kartonagen)'],
+            ['name' => 'IPS Karton.eu GmbH & Co. KG'],
             [
-                'company_name' => 'Karton.eu - Lausitzer Kartonagenfabrik GmbH',
-                'contact_person' => 'B2B Versandmaterial',
-                'street' => 'Auestraße',
-                'house_number' => '18',
-                'zip' => '01900',
-                'city' => 'Großröhrsdorf',
+                'company_name' => 'IPS Karton.eu GmbH & Co. KG',
+                'contact_person' => 'Bestellabteilung (Kundennr.: K523045)',
+                'street' => 'Tuchmacherallee',
+                'house_number' => '6',
+                'zip' => '03130',
+                'city' => 'Spremberg',
                 'country' => 'Deutschland',
                 'country_code' => 'DE',
-                'phone' => '+49 35952 42290',
+                'phone' => '+49 3563 348030',
                 'email' => 'info@karton.eu',
                 'website' => 'https://www.karton.eu/',
-                'vat_id' => 'DE260791848',
+                'vat_id' => 'DE288964141',
                 'lead_time_land_days' => 2,
                 'shipping_method' => 'land',
-                'notes' => 'Deutscher Hersteller für einwellige Versandkartons, Großbrief-Kartons und Luftpolster-Versandtaschen.',
+                'notes' => 'Kundennr.: K523045 (St.-Nr.: 056/156/00190). Vollständiger Verpackungsbestand auf Lager: 1) Rechnung 26001745 (04.01.2026): 240x Buchverpackung 284x244x0-70 mm (Art.-Nr. 6227, 140g, 0,60 € netto) für Einzel-Trophäen + 400x Luftpolster-Versandtaschen (15g, 0,14 € netto). 2) Rechnung 26169398 / Bestellung B2075689 / Auftrag A2416277 (03.11.2026, 273,27 € brutto, 67,40 kg): 140x Universal-/Bundle- & Weizenglas-Karton 300x230x150 mm einwellig (Art.-Nr. 2633, 180g, 0,50 € netto) + 20x Schwerlastkarton 600x400x200 mm 2-wellig BC-Welle (Art.-Nr. 165, 750g, 2,78 € netto, für 4–10 Trophäen) + 20x Schwerlastkarton 600x400x400 mm 2-wellig BC-Welle (Art.-Nr. 069, 1.040g, 3,24 € netto, für 11–20 Trophäen) + 36 Rollen Leise abrollendes BOPP-Klebeband braun (Art.-Nr. 128, 170g, 1,09 € netto).',
                 'dynamic_links' => [
                     [
-                        'title' => 'Karton.eu Online-Shop',
-                        'url' => 'https://www.karton.eu/'
+                        'title' => 'Einzel-Trophäe (240×): Buchverpackung 284×244×0–70 mm (Art.-Nr. 6227, 0,60 € netto)',
+                        'url' => 'https://www.karton.eu/284x244x0-70-mm-Buchverpackung-DHL-Kleinpaket'
+                    ],
+                    [
+                        'title' => 'Universal-Bundle & Weizenglas (140×): 300×230×150 mm 1-wellig (Art.-Nr. 2633, 0,50 € netto)',
+                        'url' => 'https://www.karton.eu/300x230x150-mm-einwellige-Kartons'
+                    ],
+                    [
+                        'title' => 'Mittlere Großbestellung 4–10 Trophäen (20×): 600×400×200 mm 2-wellig (Art.-Nr. 165, 2,78 € netto)',
+                        'url' => 'https://www.karton.eu/600x400x200-mm-zweiwellige-Kartons-Aussenmass'
+                    ],
+                    [
+                        'title' => 'Großbestellung 11–20 Trophäen/Paket (20×): 600×400×400 mm 2-wellig (Art.-Nr. 069, 3,24 € netto)',
+                        'url' => 'https://www.karton.eu/?qs=600x400x400'
+                    ],
+                    [
+                        'title' => 'Klebeband (36 Rollen): Leise abrollendes BOPP-Klebeband braun (Art.-Nr. 128, 1,09 € netto)',
+                        'url' => 'https://www.karton.eu/?qs=128'
                     ],
                 ],
             ]

@@ -202,7 +202,7 @@
                                                     </td>
                                                 @endif
                                                 <td valign="middle" style="padding: 2px 0; font-size: 10px; color: #785c22; font-weight: bold;">
-                                                    🎁 {{ $avItem['label'] }}
+                                                    {{ !empty($isPdf) ? '' : '🎁 ' }}{{ $avItem['label'] }}
                                                 </td>
                                             </tr>
                                         @endforeach
@@ -211,7 +211,18 @@
                             @endif
                         @endif
 
-                        @if(!empty($conf['texts']) && is_array($conf['texts']))
+                        @if(!empty($conf['custom_fields_data']) && is_array($conf['custom_fields_data']))
+                            @foreach($conf['custom_fields_data'] as $cfRow)
+                                @if(is_array($cfRow) && !empty($cfRow['label']) && isset($cfRow['value']) && trim((string) $cfRow['value']) !== '')
+                                    <div style="margin-bottom: 2px;">
+                                        <strong style="color: #444;">{{ $cfRow['label'] }}:</strong> "{!! nl2br(e($cfRow['value'])) !!}"
+                                        @if(!empty($cfRow['surcharge_cents']) && (int) $cfRow['surcharge_cents'] > 0)
+                                            <span style="color: #785c22; font-size: 9px; font-weight: bold;">(+{{ number_format(((int) $cfRow['surcharge_cents']) / 100, 2, ',', '.') }}&nbsp;€)</span>
+                                        @endif
+                                    </div>
+                                @endif
+                            @endforeach
+                        @elseif(!empty($conf['texts']) && is_array($conf['texts']))
                             @foreach($conf['texts'] as $idx => $t)
                                 @if(!empty($t['text']))
                                     <div style="margin-bottom: 2px;"><strong style="color: #444;">{{ count($conf['texts']) > 1 ? 'Text '.($idx+1).' (Vorderseite)' : 'Gravur (Vorderseite)' }}:</strong> "{!! nl2br(e($t['text'])) !!}"</div>

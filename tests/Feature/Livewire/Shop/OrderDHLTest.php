@@ -421,5 +421,41 @@ class OrderDHLTest extends TestCase
             ->assertSet('dhlRecommendedWeight', 0.14)
             ->assertSet('dhlWeightPerPackage', 0.14);
     }
+
+    public function test_dhl_modal_auto_splits_bulk_order_of_100_trophies_into_multiple_packages()
+    {
+        $order = $this->createDummyOrder();
+
+        $trophy = \App\Models\Product\Product::create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'name' => 'Der Seelen Kristall',
+            'slug' => 'seelen-kristall-' . uniqid(),
+            'sku' => 'MSF-KRISTALL-3D-' . uniqid(),
+            'price' => 6990,
+            'status' => 'active',
+            'type' => 'physical',
+            'weight' => 920,
+            'packaging_weight' => 150,
+        ]);
+
+        $order->items()->create([
+            'product_id' => $trophy->id,
+            'product_name' => $trophy->name,
+            'quantity' => 100, // 92.000 g pure product weight
+            'unit_price' => 6990,
+            'total_price' => 699000,
+        ]);
+
+        // 92.000g / 20.000g = ceil(4.6) = 5 packages recommended
+        // Total weight for 5 packages: 92.000g + (5 * 150g) + (5 * 50g) = 93.000g -> 18.60 kg per package
+        Livewire::test(OrderOverview::class)
+            ->call('openDhlModal', $order->id)
+            ->assertSet('dhlModalOrderId', $order->id)
+            ->assertSet('dhlPackageCount', 5)
+            ->assertSet('dhlRecommendedWeight', 18.60)
+            ->assertSet('dhlWeightPerPackage', 18.60)
+            ->assertSee('Großbestellung erkannt (Empfehlung: 5 Pakete)')
+            ->assertSee('Karton.eu Art.-Nr. 069');
+    }
 }
 

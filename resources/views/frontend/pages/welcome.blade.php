@@ -1,6 +1,6 @@
 <x-layouts.frontend_layout
-    title="Personalisierte Geschenke & exklusive Lasergravur aus Gifhorn | Mein Seelenfunke"
-    meta_description="Verwandle Momente in Ewigkeit ✨ Handveredelte Unikate aus K9-Kristallglas, Naturschiefer & Edelmetall mit 2D/3D-Live-Konfigurator. Manufaktur aus Gifhorn.">
+    title="Personalisierte Geschenke, Gravur-Schmuck & K9-Kristall aus Deutschland | Mein Seelenfunke"
+    meta_description="Ein Funke, der bleibt ✨ Personalisierter Edelstahl-Schmuck, Schlüsselanhänger, Hundemarken, 360° Gläser & K9-Kristall mit Live-3D-Konfigurator. Deutsche Laser-Manufaktur in Gifhorn.">
 
     <x-sections.page-container>
 

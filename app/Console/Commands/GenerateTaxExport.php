@@ -80,7 +80,8 @@ class GenerateTaxExport extends Command
             ->where(function ($q) {
                 $q->where('payment_status', 'paid')
                     ->orWhere(function ($sub) {
-                        $sub->where('payment_status', 'refunded')->whereNotNull('paid_at');
+                        $sub->where('payment_status', 'refunded')
+                            ->whereHas('invoices', fn ($iq) => $iq->whereNotNull('paid_at'));
                     });
             })
             ->get();

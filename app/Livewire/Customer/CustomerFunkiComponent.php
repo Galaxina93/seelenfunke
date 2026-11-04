@@ -36,6 +36,19 @@ class CustomerFunkiComponent extends CustomerDashboardComponent
         $this->redirectRoute('customer.dashboard');
     }
 
+    public function updatedRankingOptIn(): void
+    {
+        if ($this->rankingOptIn && !$this->useRealName && trim((string) $this->playerName) === '') {
+            $this->rankingOptIn = false;
+            $msg = 'Bitte lege zuerst deinen Spielernamen fest und klicke auf Speichern (oder wähle Echtname), bevor du die Ranglisten-Anzeige aktivierst.';
+            $this->playerNameError = $msg;
+            $this->addError('playerName', $msg);
+            return;
+        }
+
+        parent::updatedRankingOptIn();
+    }
+
     public function render()
     {
         return view('livewire.customer.customer-funki-component');

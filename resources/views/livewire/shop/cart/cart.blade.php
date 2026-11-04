@@ -145,6 +145,23 @@
                                                 </p>
                                             @endif
 
+                                            {{-- Anzeige der Schnell-Personalisierungs-Felder (custom_fields_data) --}}
+                                            @if(!empty($item->configuration['custom_fields_data']) && is_array($item->configuration['custom_fields_data']))
+                                                <div class="mt-1.5 flex flex-wrap justify-center sm:justify-start gap-1.5">
+                                                    @foreach($item->configuration['custom_fields_data'] as $cfRow)
+                                                        @if(is_array($cfRow) && trim((string) ($cfRow['value'] ?? '')) !== '')
+                                                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-gray-100 border border-gray-200 text-gray-800 text-[11px]">
+                                                                <strong class="text-gray-600">{{ $cfRow['label'] ?? 'Gravur' }}:</strong>
+                                                                <span class="font-bold">{{ $cfRow['value'] }}</span>
+                                                                @if(((int) ($cfRow['surcharge_cents'] ?? 0)) > 0)
+                                                                    <span class="text-primary font-mono font-bold">(+{{ number_format(((int) $cfRow['surcharge_cents']) / 100, 2, ',', '.') }}&nbsp;€)</span>
+                                                                @endif
+                                                            </span>
+                                                        @endif
+                                                    @endforeach
+                                                </div>
+                                            @endif
+
                                             {{-- Anzeige der gewählten Aufpreis-Extras / Verpackung --}}
                                             @if(!empty($item->configuration['addons_summary']) && is_array($item->configuration['addons_summary']))
                                                 <div class="flex flex-wrap justify-center sm:justify-start gap-1.5 mt-1.5">
@@ -190,6 +207,12 @@
                                                         <span class="text-blue-600 inline-flex items-center gap-1 bg-blue-50/80 border border-blue-100 px-2 py-1 rounded-lg">
                                                             <span>+&nbsp;Sofort-PDF</span>
                                                         </span>
+                                                        @if($deliveryTime)
+                                                            <span class="text-green-700 inline-flex items-center gap-1.5 bg-green-50/80 border border-green-100 px-2.5 py-1 rounded-lg">
+                                                                <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                                <span>Lieferzeit: {{ $deliveryTime }}</span>
+                                                            </span>
+                                                        @endif
                                                     @else
                                                         <span class="text-blue-600 inline-flex items-center gap-1.5 bg-blue-50/80 border border-blue-100 px-2.5 py-1 rounded-lg">
                                                             <span>📧 Per E-Mail / PDF-Download (Versandfrei)</span>
@@ -286,7 +309,21 @@
                                 <div class="px-4 pb-4 sm:px-6 sm:pb-6 break-words">
                                     <div x-show="showText" x-collapse x-cloak class="bg-gray-50 rounded-xl p-4 border border-gray-100 text-xs text-gray-600 text-left mb-2">
                                         @php $conf = $item->configuration; @endphp
-                                        @if(!empty($conf['texts']))
+                                        @if(!empty($conf['custom_fields_data']) && is_array($conf['custom_fields_data']))
+                                            <div class="space-y-1.5">
+                                                @foreach($conf['custom_fields_data'] as $cfRow)
+                                                    @if(is_array($cfRow) && trim((string) ($cfRow['value'] ?? '')) !== '')
+                                                        <div>
+                                                            <strong>{{ $cfRow['label'] ?? 'Gravur' }}:</strong>
+                                                            <span class="text-gray-900 font-semibold">{{ $cfRow['value'] }}</span>
+                                                            @if(((int) ($cfRow['surcharge_cents'] ?? 0)) > 0)
+                                                                <span class="text-primary font-bold">(+{{ number_format(((int) $cfRow['surcharge_cents']) / 100, 2, ',', '.') }}&nbsp;€)</span>
+                                                            @endif
+                                                        </div>
+                                                    @endif
+                                                @endforeach
+                                            </div>
+                                        @elseif(!empty($conf['texts']))
                                             @foreach($conf['texts'] as $idx => $t)
                                                 @if(!empty($t['text']))
                                                     <div class="mb-2"><strong>{{ count($conf['texts']) > 1 ? 'Text '.($idx+1).' (Vorderseite)' : 'Gravur (Vorderseite)' }}:</strong> <br>"{!! nl2br(e($t['text'])) !!}" <br><span class="text-[10px] text-gray-400">Schrift: {{ $t['font'] ?? 'Standard' }}</span></div>
@@ -432,6 +469,7 @@
                         @endif
 
                         <a href="{{ route('checkout') }}"
+                           data-sf-portal="checkout"
                            class="w-full bg-primary text-white py-4 rounded-full font-bold shadow-lg shadow-primary/30 hover:bg-white hover:text-primary border border-transparent hover:border-primary transition transform hover:-translate-y-1 flex justify-center gap-2 items-center">
                             <span>Zur Kasse</span>
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

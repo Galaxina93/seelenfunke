@@ -65,6 +65,20 @@
                                     @endforeach
                                 </div>
                             @endif
+                            @if(!empty($item['configuration']['custom_fields_data']) && is_array($item['configuration']['custom_fields_data']))
+                                <div class="mt-1 flex flex-wrap gap-1">
+                                    @foreach($item['configuration']['custom_fields_data'] as $cfRow)
+                                        @if(is_array($cfRow) && !empty($cfRow['label']) && isset($cfRow['value']) && trim((string) $cfRow['value']) !== '')
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-700 border border-gray-200">
+                                                <strong>{{ $cfRow['label'] }}:</strong> {{ Str::limit($cfRow['value'], 25) }}
+                                                @if(!empty($cfRow['surcharge_cents']) && (int) $cfRow['surcharge_cents'] > 0)
+                                                    <span class="text-amber-700 font-bold">(+{{ number_format(((int) $cfRow['surcharge_cents']) / 100, 2, ',', '.') }}&nbsp;€)</span>
+                                                @endif
+                                            </span>
+                                        @endif
+                                    @endforeach
+                                </div>
+                            @endif
                             @if($currentTier)
                                 <div class="text-[10px] text-green-600 font-bold uppercase flex items-center gap-1 mt-0.5">
                                     <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.64.304 1.24.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"/></svg>
@@ -158,7 +172,21 @@
                                         @endforeach
                                     </div>
                                 @endif
-                                @if($currentTier)
+                                @if(!empty($item['configuration']['custom_fields_data']) && is_array($item['configuration']['custom_fields_data']))
+                                <div class="mt-1 flex flex-wrap gap-1">
+                                    @foreach($item['configuration']['custom_fields_data'] as $cfRow)
+                                        @if(is_array($cfRow) && !empty($cfRow['label']) && isset($cfRow['value']) && trim((string) $cfRow['value']) !== '')
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-700 border border-gray-200">
+                                                <strong>{{ $cfRow['label'] }}:</strong> {{ Str::limit($cfRow['value'], 25) }}
+                                                @if(!empty($cfRow['surcharge_cents']) && (int) $cfRow['surcharge_cents'] > 0)
+                                                    <span class="text-amber-700 font-bold">(+{{ number_format(((int) $cfRow['surcharge_cents']) / 100, 2, ',', '.') }}&nbsp;€)</span>
+                                                @endif
+                                            </span>
+                                        @endif
+                                    @endforeach
+                                </div>
+                            @endif
+                            @if($currentTier)
                                     <span class="text-[10px] text-green-600 font-bold uppercase mt-0.5">{{ $currentTier['percent'] }}% Rabatt aktiv</span>
                                 @endif
                             </div>

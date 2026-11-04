@@ -4,7 +4,7 @@
         <p class="text-gray-500">Geben Sie Ihre Kontaktdaten ein, damit wir Ihnen das Angebot als PDF zusenden können.</p>
     </div>
 
-    <form wire:submit.prevent="submit" class="grid grid-cols-1 gap-4 sm:grid-cols-2 bg-gray-50 p-4 sm:p-6 rounded-xl border border-gray-100">
+    <form wire:submit.prevent="submit" @submit="window.dispatchEvent(new CustomEvent('quote-submitting'))" class="grid grid-cols-1 gap-4 sm:grid-cols-2 bg-gray-50 p-4 sm:p-6 rounded-xl border border-gray-100">
         <div>
             <label class="block text-sm font-bold text-gray-700 mb-1">Vorname *</label>
             <input wire:model.live="form.vorname" type="text" required class="w-full rounded border-gray-300 focus:ring-primary focus:border-primary p-2">

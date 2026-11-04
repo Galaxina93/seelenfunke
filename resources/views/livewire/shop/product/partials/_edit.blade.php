@@ -179,8 +179,11 @@
                         @php
                             $allowedStep3 = $this->getStep3AllowedSubSteps();
                             $step3Idx = array_search($step3SubStep, $allowedStep3, true);
+                            $hasMoreStep1SubSteps = ($currentStep === 1 && $step1SubStep < 5);
                             $hasMoreStep3SubSteps = ($currentStep === 3 && $step3Idx !== false && $step3Idx < count($allowedStep3) - 1);
                             $hasMoreStep4SubSteps = ($currentStep === 4 && $step4SubStep < 4);
+                            $hasMoreSubSteps = $hasMoreStep1SubSteps || $hasMoreStep3SubSteps || $hasMoreStep4SubSteps;
+                            $canAdvanceButton = $hasMoreSubSteps ? $this->canProceedSubStep() : $canProceed;
                             $isLastStep = ($type === 'physical' && $currentStep === 4 && !$hasMoreStep4SubSteps) || ($type !== 'physical' && $currentStep === 3 && !$hasMoreStep3SubSteps);
                         @endphp
 
@@ -189,8 +192,8 @@
                                 Fertigstellen & Veröffentlichen
                             </button>
                         @else
-                            <button wire:click="nextStep" @if(!$canProceed) disabled @endif class="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm dark:shadow-lg transition-all transform cursor-pointer {{ $canProceed ? 'bg-gray-900 dark:bg-gray-800 text-white border border-gray-800 dark:border-gray-600 hover:bg-gray-800 dark:hover:bg-gray-700 hover:-translate-y-0.5' : 'bg-gray-100 dark:bg-gray-950 text-gray-400 dark:text-gray-600 border border-gray-200 dark:border-gray-800 cursor-not-allowed' }}">
-                                @if($currentStep === 1 && $step1SubStep < 5)
+                            <button wire:click="{{ $hasMoreSubSteps ? 'nextSubStep' : 'nextStep' }}" @if(!$canAdvanceButton) disabled @endif class="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm dark:shadow-lg transition-all transform cursor-pointer {{ $canAdvanceButton ? 'bg-gray-900 dark:bg-gray-800 text-white border border-gray-800 dark:border-gray-600 hover:bg-gray-800 dark:hover:bg-gray-700 hover:-translate-y-0.5' : 'bg-gray-100 dark:bg-gray-950 text-gray-400 dark:text-gray-600 border border-gray-200 dark:border-gray-800 cursor-not-allowed' }}">
+                                @if($hasMoreStep1SubSteps)
                                     Nächster Unter-Schritt ({{ $step1SubStep + 1 }}/5) &rarr;
                                 @elseif($hasMoreStep3SubSteps)
                                     Nächster Unter-Schritt ({{ ($step3Idx ?: 0) + 2 }}/{{ count($allowedStep3) }}) &rarr;
@@ -447,23 +450,105 @@
                                     </div>
                                 </div>
 
-                                {{-- 4. Konfigurator-Startauswahl (wenn personalisierbar) --}}
-                                @if($is_personalizable && $type === 'physical')
-                                    <div class="p-4 rounded-2xl bg-gray-50/80 border border-gray-200 space-y-3">
-                                        <span class="text-xs font-serif font-bold text-gray-900 block text-center">Wie möchtest du starten?</span>
-                                        <div class="grid grid-cols-2 gap-2.5">
-                                            <div class="bg-white border border-gray-200 p-3 rounded-2xl text-center">
-                                                <div class="w-8 h-8 mx-auto bg-[var(--theme-color-10)] rounded-full flex items-center justify-center text-[var(--theme-color)] mb-1.5 text-xs font-bold">✦</div>
-                                                <span class="text-xs font-bold text-gray-900 block">Vorlage nutzen</span>
-                                                <span class="text-[10px] text-gray-500 block mt-0.5">{{ $product->templates ? $product->templates->where('is_active', true)->count() : 0 }} Vorlagen aktiv</span>
-                                            </div>
-                                            <div class="bg-white border border-gray-200 p-3 rounded-2xl text-center">
-                                                <div class="w-8 h-8 mx-auto bg-gray-100 rounded-full flex items-center justify-center text-gray-600 mb-1.5 text-xs font-bold">✎</div>
-                                                <span class="text-xs font-bold text-gray-900 block">Selber gestalten</span>
-                                                <span class="text-[10px] text-gray-500 block mt-0.5">{{ $three_d_active ? '3D & 2D Studio' : '2D Studio' }}</span>
+                                {{-- 4. Konfigurator-Startauswahl / Schnell-Personalisierung / Sofortkauf --}}
+                                @if($type === 'physical')
+                                    @if(!$is_personalizable)
+                                        <div class="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 flex items-center gap-3">
+                                            <div class="w-9 h-9 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 font-bold">✓</div>
+                                            <div>
+                                                <span class="text-xs font-bold text-gray-900 block">Bereit zum Kauf (Fertiges Produkt)</span>
+                                                <span class="text-[11px] text-gray-600 block">Vorgefertigter Artikel ohne weitere Personalisierung.</span>
                                             </div>
                                         </div>
-                                    </div>
+                                    @elseif(($configSettings['personalization_mode'] ?? 'studio') === 'custom_fields')
+                                        @php
+                                            $previewCustomFields = [];
+                                            foreach (($configSettings['custom_fields'] ?? []) as $pCfIdx => $pCfRaw) {
+                                                if (is_array($pCfRaw)) {
+                                                    $normPcf = \App\Models\Product\Product::normalizeCustomFieldItem($pCfRaw, $pCfIdx);
+                                                    if ($normPcf) {
+                                                        $previewCustomFields[] = $normPcf;
+                                                    }
+                                                }
+                                            }
+                                        @endphp
+                                        <div class="p-4 rounded-2xl bg-gray-50/90 border border-gray-200 space-y-3.5">
+                                            <div class="flex items-center justify-between gap-2 border-b border-gray-200 pb-2.5">
+                                                <span class="text-xs font-serif font-bold text-gray-900">Deine Wunsch-Personalisierung</span>
+                                                <span class="text-[10px] font-bold text-[var(--theme-color)] uppercase tracking-wider">Lasergravur inklusive</span>
+                                            </div>
+
+                                            @if(count($previewCustomFields) === 0)
+                                                <p class="text-xs text-amber-700 italic">Noch keine Eingabefelder in Schritt 1.1 angelegt.</p>
+                                            @else
+                                                <div class="space-y-3">
+                                                    @foreach($previewCustomFields as $pField)
+                                                        <div class="space-y-1" x-data="{ showFieldInfo: false }">
+                                                            <div class="flex items-center justify-between gap-2">
+                                                                <div class="flex items-center gap-1.5 min-w-0">
+                                                                    <label class="text-xs font-bold text-gray-800 truncate">
+                                                                        {{ $pField['label'] }}
+                                                                        @if($pField['required'])
+                                                                            <span class="text-rose-500">*</span>
+                                                                        @else
+                                                                            <span class="text-[10px] font-normal text-gray-400">(optional)</span>
+                                                                        @endif
+                                                                    </label>
+                                                                    @if(!empty($pField['info_text']))
+                                                                        <button type="button"
+                                                                                @click="showFieldInfo = !showFieldInfo"
+                                                                                class="w-4 h-4 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-black inline-flex items-center justify-center shrink-0 cursor-pointer"
+                                                                                title="{{ $pField['info_text'] }}">!</button>
+                                                                    @endif
+                                                                </div>
+                                                                @if($pField['surcharge_cents'] > 0)
+                                                                    <span class="text-[10px] font-bold text-[var(--theme-color)] bg-[var(--theme-color-10)] px-2 py-0.5 rounded-md shrink-0">
+                                                                        + {{ number_format($pField['surcharge_cents'] / 100, 2, ',', '.') }}&nbsp;€
+                                                                    </span>
+                                                                @endif
+                                                            </div>
+
+                                                            @if(!empty($pField['info_text']))
+                                                                <div x-show="showFieldInfo" x-cloak class="p-2 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-900 leading-snug">
+                                                                    {{ $pField['info_text'] }}
+                                                                </div>
+                                                            @endif
+
+                                                            @if($pField['type'] === 'select')
+                                                                <select class="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs text-gray-700">
+                                                                    @foreach($pField['options'] as $optVal)
+                                                                        <option>{{ $optVal }}</option>
+                                                                    @endforeach
+                                                                </select>
+                                                            @elseif($pField['type'] === 'textarea')
+                                                                <textarea rows="2" class="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs text-gray-700" placeholder="{{ $pField['placeholder'] ?: 'Deine Eingabe...' }}"></textarea>
+                                                            @elseif($pField['type'] === 'date')
+                                                                <input type="date" class="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs text-gray-700">
+                                                            @else
+                                                                <input type="text" maxlength="{{ $pField['max_length'] }}" class="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs text-gray-700" placeholder="{{ $pField['placeholder'] ?: 'Deine Eingabe...' }}">
+                                                            @endif
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            @endif
+                                        </div>
+                                    @else
+                                        <div class="p-4 rounded-2xl bg-gray-50/80 border border-gray-200 space-y-3">
+                                            <span class="text-xs font-serif font-bold text-gray-900 block text-center">Wie möchtest du starten?</span>
+                                            <div class="grid grid-cols-2 gap-2.5">
+                                                <div class="bg-white border border-gray-200 p-3 rounded-2xl text-center">
+                                                    <div class="w-8 h-8 mx-auto bg-[var(--theme-color-10)] rounded-full flex items-center justify-center text-[var(--theme-color)] mb-1.5 text-xs font-bold">✦</div>
+                                                    <span class="text-xs font-bold text-gray-900 block">Vorlage nutzen</span>
+                                                    <span class="text-[10px] text-gray-500 block mt-0.5">{{ $product->templates ? $product->templates->where('is_active', true)->count() : 0 }} Vorlagen aktiv</span>
+                                                </div>
+                                                <div class="bg-white border border-gray-200 p-3 rounded-2xl text-center">
+                                                    <div class="w-8 h-8 mx-auto bg-gray-100 rounded-full flex items-center justify-center text-gray-600 mb-1.5 text-xs font-bold">✎</div>
+                                                    <span class="text-xs font-bold text-gray-900 block">Selber gestalten</span>
+                                                    <span class="text-[10px] text-gray-500 block mt-0.5">{{ $three_d_active ? '3D & 2D Studio' : '2D Studio' }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @endif
                                 @endif
 
                                 {{-- 5. Verpackung & Extras + Warenkorb-Footer (exakt wie in footer.blade.php) --}}

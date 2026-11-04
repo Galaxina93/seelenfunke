@@ -101,7 +101,7 @@
                                 Doch „Mein-Seelenfunke“ ist kein Projekt von vielen. Es ist mein absolutes Herzensprojekt.
                             </p>
                             <p>
-                                Ich bin nicht hier, um von einer Idee zur nächsten zu springen. Mein Ziel ist es, diese Firma mit 100% Fokus, Liebe und handwerklicher Perfektion langfristig zum Erfolg zu führen. Wenn Sie einen Seelen-Kristall in den Händen halten, halten Sie ein Stück meiner Vision und meiner Beständigkeit fest.
+                                Ich bin nicht hier, um von einer Idee zur nächsten zu springen. Mein Ziel ist es, diese Firma mit 100% Fokus, Liebe und handwerklicher Perfektion langfristig zum Erfolg zu führen. Wenn Sie unser Goldenes Seelen-Herz, einen Seelen-Talisman oder unseren Seelen-Kristall in den Händen halten, spüren Sie ein Stück meiner Vision und meiner Beständigkeit.
                             </p>
                         </div>
 
@@ -165,7 +165,7 @@
                             <p class="text-primary font-bold text-2xl transition-transform duration-300 group-hover:scale-125 group-hover:-translate-y-1 inline-block">Heute</p>
                             <h4 class="text-gray-900 font-bold text-sm uppercase mt-2">„Mein-Seelenfunke“</h4>
                             <p class="text-xs text-gray-600 font-semibold mt-1 leading-relaxed italic">
-                                Vollendung der Vision: Die Verschmelzung von IT-Präzision und emotionaler Glaskunst als langfristiges Lebenswerk.
+                                Vollendung der Vision: Die Verschmelzung von IT-Präzision und emotionaler Gravurkunst auf Schmuck, Edelstahl und Kristallglas als langfristiges Lebenswerk.
                             </p>
                         </div>
 
@@ -223,10 +223,10 @@
             <div class="max-w-4xl mx-auto px-4 text-center">
                 <h2 id="philosophie-heading" class="text-3xl font-serif font-bold text-gray-900 mb-6">Unsere Philosophie: Fokus statt Masse</h2>
                 <p class="text-gray-600 text-lg leading-relaxed">
-                    In einer Welt voller Massenware haben wir uns bewusst für einen anderen Weg entschieden.
-                    Anstatt hunderte verschiedene Plastik-Pokale anzubieten, konzentrieren wir uns voll und ganz auf
-                    <strong>ein perfektes Material: K9 Kristallglas</strong>. Wir kennen jede Facette, jeden Lichtbrechungswinkel
-                    und die exakten Lasereinstellungen, um dieses Material zum Leuchten zu bringen.
+                    In einer Welt voller anonymer Massenware haben wir uns bewusst für kompromisslose Materialqualität entschieden.
+                    Statt dünner Bleche oder kurzlebiger Druckartikel veredeln wir ausschließlich <strong>handverlesene Werkstoffe für die Ewigkeit</strong>:
+                    vergoldeten und polierten Edelstahl, schwarz eloxiertes Aluminium, brillantes 360°-Kristallglas und optisch reines K9-Kristallglas.
+                    Wir kennen jede Oberfläche und die exakten Laserparameter, um jedes einzelne Unikat zum Leuchten zu bringen.
                 </p>
             </div>
         </section>
@@ -359,7 +359,7 @@
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-24">
 
                 {{-- Header für Screenreader / SEO Struktur --}}
-                <h2 id="prozess-heading" class="sr-only">Der Fertigungsprozess unserer Glas-Unikate</h2>
+                <h2 id="prozess-heading" class="sr-only">Der Fertigungsprozess unserer Manufaktur-Unikate</h2>
 
                 {{-- SCHRITT 1: Das Rohmaterial --}}
                 <article class="flex flex-col md:flex-row items-center gap-12">
@@ -369,7 +369,7 @@
                         <div class="absolute -inset-4 bg-primary/20 rounded-2xl transform rotate-2 transition-all duration-700 group-hover:rotate-1 group-hover:bg-primary/30" aria-hidden="true"></div>
                         <div class="relative rounded-xl shadow-xl overflow-hidden h-80 bg-[#F5EFE6]">
                             <img src="{{ asset('shop/frontend/other/k9_glas.webp') }}"
-                                 alt="Hochreiner K9 Kristallglas Rohling vor der Gravur"
+                                 alt="Hochreine Rohlinge aus K9-Kristallglas, vergoldetem Edelstahl und Aluminium vor der Gravur"
                                  loading="lazy"
                                  class="sf-card-img w-full h-full object-cover">
 
@@ -384,21 +384,20 @@
                     <div class="w-full md:w-1/2">
                         <div class="flex items-center mb-4">
                             <span class="text-5xl font-serif text-gray-200 font-bold mr-4" aria-hidden="true">01</span>
-                            <h3 class="text-2xl font-bold text-gray-900">Das Material: K9 Kristall</h3>
+                            <h3 class="text-2xl font-bold text-gray-900">Edle Rohmaterialien: Vergoldeter Edelstahl, Aluminium & K9-Kristall</h3>
                         </div>
                         <p class="text-gray-600 leading-relaxed mb-4">
-                            Normales Glas hat oft einen Grünstich und Einschlüsse. Wir verwenden für unsere Arbeit ausschließlich <strong>K9 Hochleistungskristall</strong>.
-                            Dieses optische Glas wird sonst für Linsen und Prismen verwendet.
+                            Wahre Wertigkeit spürt man sofort beim ersten Berühren. Für unseren Schmuck und unsere Schlüsselbegleiter nutzen wir <strong>rostfreien, vergoldeten und polierten Edelstahl</strong> sowie schwarz eloxiertes Aluminium. Für unsere Trophäen und Gläser kommt ausschließlich <strong>optisch reines K9-Hochleistungskristall</strong> und brillantes Gastronomie-Kristallglas zum Einsatz.
                         </p>
                         <ul class="space-y-2 text-gray-600">
                             <li class="flex items-start">
-                                <span class="text-primary mr-2" aria-hidden="true">✓</span> Extreme Klarheit und Brillanz
+                                <span class="text-primary mr-2" aria-hidden="true">✓</span> Wasserfester, vergoldeter Edelstahl-Schmuck & rostfreie Alltagsbegleiter
                             </li>
                             <li class="flex items-start">
-                                <span class="text-primary mr-2" aria-hidden="true">✓</span> Hohes Eigengewicht (Fühlt sich wertig an)
+                                <span class="text-primary mr-2" aria-hidden="true">✓</span> Lupenreines K9-Kristallglas & spülmaschinenfeste 360°-Kristallgläser
                             </li>
                             <li class="flex items-start">
-                                <span class="text-primary mr-2" aria-hidden="true">✓</span> Von uns persönlich ausgewählt
+                                <span class="text-primary mr-2" aria-hidden="true">✓</span> Spürbares Eigengewicht und handverlesene Oberflächenqualität
                             </li>
                         </ul>
                     </div>
@@ -413,7 +412,7 @@
                         <div class="relative rounded-xl shadow-xl overflow-hidden h-80 bg-[#EAEDF2]">
                             <img src="{{ asset('shop/frontend/process/lasergravur.webp') }}"
                                  onerror="this.style.display='none'"
-                                 alt="Präzise 3D-Lasergravur im Inneren des Glases"
+                                 alt="Präzise UV- und Faserlasergravur in unserer deutschen Manufaktur"
                                  loading="lazy"
                                  class="sf-card-img w-full h-full object-cover">
 
@@ -428,14 +427,13 @@
                     <div class="w-full md:w-1/2">
                         <div class="flex items-center mb-4">
                             <span class="text-5xl font-serif text-gray-200 font-bold mr-4" aria-hidden="true">02</span>
-                            <h3 class="text-2xl font-bold text-gray-900">Präzision & Sicherheit</h3>
+                            <h3 class="text-2xl font-bold text-gray-900">5W UV-Kaltlicht & MOPA-Faserlaser</h3>
                         </div>
                         <p class="text-gray-600 leading-relaxed mb-4">
-                            Eine <strong class="text-gray-900">zertifizierte Laserschutzbeauftragte</strong> (<button @click="showCertModal = true" class="text-primary hover:underline font-semibold focus:outline-none">Zertifikat ansehen</button>) ist in unserem Unternehmen tätig. Mit modernster Lasertechnologie brennen wir Ihr Motiv dauerhaft in das Glas ein.
-                            Dabei entstehen winzige, präzise Veränderungen im Material (Weiß-Effekt).
+                            Als staatlich geprüfte und <strong class="text-gray-900">zertifizierte Laserschutzbeauftragte</strong> (<button @click="showCertModal = true" class="text-primary hover:underline font-semibold focus:outline-none">Zertifikat ansehen</button>) vereinen wir modernste Industrietechnik mit handwerklicher Sorgfalt. Unser 5W UV-Kaltlichtlaser erzeugt feinste Frost-Gravuren in Kristallglas, während unser Faserlaser tiefschwarze, abriebfeste Anlassgravuren auf vergoldetem Edelstahl und silberweiße Kontraste auf eloxiertem Aluminium schafft.
                         </p>
                         <p class="text-gray-600 leading-relaxed">
-                            Das Ergebnis ist eine Veredelung, die im Gegensatz zum Bedrucken niemals verblasst. Wir fertigen mit technischem Verstand und sicherem Handwerk.
+                            Das Ergebnis ist eine Veredelung im tausendstel Millimeterbereich, die im Gegensatz zu oberflächlichen Druckverfahren niemals verblasst oder sich abnutzt.
                         </p>
                     </div>
                 </article>
@@ -448,7 +446,7 @@
                         <div class="absolute -inset-4 bg-primary/20 rounded-2xl transform rotate-2 transition-all duration-700 group-hover:rotate-1 group-hover:bg-primary/30" aria-hidden="true"></div>
                         <div class="relative rounded-xl shadow-xl overflow-hidden h-80 bg-[#F5EFE6]">
                             <img src="{{ asset('shop/frontend/other/white_hands.webp') }}"
-                                 alt="Manuelle Endkontrolle und Reinigung des Kristalls mit Handschuhen"
+                                 alt="Manuelle Endkontrolle und Politur jedes Unikats mit weißen Handschuhen"
                                  loading="lazy"
                                  class="sf-card-img w-full h-full object-cover">
 
@@ -466,11 +464,11 @@
                             <h3 class="text-2xl font-bold text-gray-900">Der weiße Handschuh</h3>
                         </div>
                         <p class="text-gray-600 leading-relaxed mb-4">
-                            Bevor ein "Seelen-Kristall" in die Box kommt, durchläuft er unsere <strong>manuelle Endkontrolle</strong>.
-                            Wir entfernen jeden Fingerabdruck, polieren das Glas und prüfen die Gravur auf absolute Makellosigkeit.
+                            Bevor Ihr persönliches Unikat in die Verpackung gelegt wird, durchläuft es unsere <strong>manuelle Endkontrolle</strong>.
+                            Wir entfernen jeden Fingerabdruck, polieren Edelmetall und Kristallglas von Hand und prüfen jede Gravurlinie auf absolute Makellosigkeit.
                         </p>
                         <p class="text-gray-600 leading-relaxed">
-                            Erst wenn wir zu 100% zufrieden sind, betten wir Ihr Unikat in die mit Seide ausgeschlagene Geschenkbox.
+                            Erst wenn wir zu 100 % zufrieden sind, betten wir Ihr Werkstück in die gepolsterte Geschenkbox beim Seelen-Kristall oder auf Wunsch in unsere mattschwarze Schmuckschachtel mit goldenem „Mein Seelenfunke“-Logo.
                         </p>
                     </div>
                 </article>

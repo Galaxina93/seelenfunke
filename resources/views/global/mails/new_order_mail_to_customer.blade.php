@@ -107,20 +107,14 @@
         </div>
     @endif
 
-    @if(!empty($data['customer_needs_password_change']) && !empty($data['customer_temporary_password']))
-        {{-- HINWEIS: KONTO ERSTELLT MIT EINMAL-PASSWORT --}}
+    @if(!empty($data['customer_needs_password_change']))
+        {{-- HINWEIS: KUNDENKONTO AKTIVIEREN OHNE KLARTEXT-PASSWORT (ART. 32 DSGVO) --}}
         <div style="margin-top: 30px; padding: 20px; background-color: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px; text-align: center;">
-            <h3 style="margin-top: 0; color: #6d28d9; font-size: 16px;">🔑 Dein Kundenkonto wurde erstellt!</h3>
+            <h3 style="margin-top: 0; color: #6d28d9; font-size: 16px;">🔑 Dein Kundenkonto wurde vorbereitet!</h3>
             <p style="font-size: 14px; color: #4b5563; line-height: 1.6; margin-bottom: 15px;">
-                Da du als Gast eingekauft hast, haben wir automatisch ein Kundenkonto für dich angelegt, damit du jederzeit auf deine Bestellungen und digitalen Güter zugreifen kannst.
-                Bitte logge dich mit folgenden Zugangsdaten ein und ändere anschließend dein Passwort:
+                Falls du deine Bestellung zusätzlich zu den direkten Download-Links oben auch im Kundenportal verwalten möchtest, kannst du für deine E-Mail-Adresse (<strong>{{ $data['customer_email'] }}</strong>) jederzeit ein persönliches Passwort festlegen (aus Sicherheitsgründen gemäß Art.&nbsp;32 DSGVO versenden wir keine Passwörter im Klartext per E-Mail):
             </p>
-            <div style="display: inline-block; padding: 10px 20px; background-color: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 6px; text-align: left; font-family: monospace; font-size: 14px; color: #1f2937; margin-bottom: 20px;">
-                <strong>E-Mail:</strong> {{ $data['customer_email'] }}<br>
-                <strong>Passwort:</strong> {{ $data['customer_temporary_password'] }}
-            </div>
-            <br>
-            <a href="{{ url('/login') }}" style="display: inline-block; padding: 10px 20px; background-color: #6d28d9; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px;">Jetzt einloggen &amp; herunterladen</a>
+            <a href="{{ $data['password_setup_url'] ?? route('password.request') }}" style="display: inline-block; padding: 10px 20px; background-color: #6d28d9; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px;">Passwort festlegen / Kundenkonto aktivieren</a>
         </div>
     @elseif($hasDigital && empty($data['instant_downloads']))
         {{-- HINWEIS: DIGITALE DOWNLOADS --}}
@@ -143,43 +137,16 @@
         </div>
     @endif
 
-    {{-- GESETZLICHE VERTRAGSBESTÄTIGUNG & WIDERRUFSBELEHRUNG AUF DAUERHAFTEM DATENTRÄGER (§ 312f Abs. 2 BGB) --}}
-    @php
-        $revCompanyName = function_exists('shop_setting') ? shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) : 'Mein Seelenfunke';
-        $revOwnerName   = function_exists('shop_setting') ? shop_setting('owner_proprietor', 'Alina Steinhauer') : 'Alina Steinhauer';
-        $revStreet      = function_exists('shop_setting')
-            ? (shop_setting('company_street') ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', '')) : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26'))
-            : 'Carl-Goerdeler-Ring 26';
-        $revZip         = function_exists('shop_setting') ? shop_setting('company_zip', '38518') : '38518';
-        $revCity        = function_exists('shop_setting') ? shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) : 'Gifhorn';
-        $revEmail       = function_exists('shop_setting') ? shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) : 'kontakt@mein-seelenfunke.de';
-        $revPhone       = function_exists('shop_setting') ? shop_setting('company_phone', shop_setting('owner_phone', '+49 159 019 668 64')) : '+49 159 019 668 64';
-    @endphp
-    <div style="margin-top: 28px; padding: 16px 18px; background-color: #fafaf9; border: 1px solid #e7e5e4; border-radius: 8px; font-size: 12px; color: #57534e; line-height: 1.55;">
-        <strong style="color: #1c1917;">Rechtliche Hinweise &amp; Vertragsbestätigung (§ 312f Abs. 2 BGB):</strong><br>
-        Für deine Bestellung gelten unsere <a href="{{ url('/agb') }}" style="color: #9a6f1a; text-decoration: underline;">Allgemeinen Geschäftsbedingungen (AGB)</a> sowie die nachfolgende gesetzliche Widerrufsbelehrung.<br>
-        • <strong>Personalisierte Unikate (§ 312g Abs. 2 Nr. 1 BGB):</strong> Für Waren, die nicht vorgefertigt sind und für deren Herstellung eine individuelle Auswahl oder Bestimmung durch den Verbraucher maßgeblich ist oder die eindeutig auf die persönlichen Bedürfnisse des Verbrauchers zugeschnitten sind (z.&nbsp;B. mit Wunschtext, Namen, Datum oder eigenem Motiv per Lasergravur), besteht <strong>kein</strong> gesetzliches Widerrufsrecht. Deine gesetzlichen Mängelrechte (2 Jahre Gewährleistung bei Transportschäden, Materialfehlern oder Fehlgravuren durch uns) bleiben hiervon uneingeschränkt bestehen.<br>
-        • <strong>Nicht personalisierte Artikel &amp; Wertgutscheine:</strong> Hierfür gilt das gesetzliche 14-tägige Widerrufsrecht (<a href="{{ url('/widerruf') }}" style="color: #9a6f1a; text-decoration: underline;">elektronische Widerrufsfunktion gem. § 356a BGB</a>).
-        @if($hasDigital)
-            <br>• <strong>Bestätigung bei digitalen Inhalten (§ 356 Abs. 5 BGB):</strong> Du hast im Bestellprozess ausdrücklich zugestimmt, dass wir vor Ablauf der Widerrufsfrist mit der Bereitstellung der digitalen Inhalte beginnen, und deine Kenntnis bestätigt, dass mit Beginn der Vertragsausführung dein Widerrufsrecht für diese digitalen Inhalte erlischt.
-        @endif
-
-        <hr style="border: 0; border-top: 1px solid #e7e5e4; margin: 14px 0;">
-
-        <strong style="color: #1c1917;">Widerrufsbelehrung für Verbraucher (§ 13 BGB)</strong><br>
-        <strong>Widerrufsrecht:</strong> Sie haben das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen. Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag, an dem Sie oder ein von Ihnen benannter Dritter, der nicht der Beförderer ist, die letzte Ware in Besitz genommen haben bzw. hat (bei Verträgen über digitale Inhalte, die nicht auf einem körperlichen Datenträger geliefert werden: ab dem Tag des Vertragsabschlusses).<br>
-        Um Ihr Widerrufsrecht auszuüben, müssen Sie uns (<strong>{{ $revCompanyName }}, Inh. {{ $revOwnerName }}, {{ $revStreet }}, {{ $revZip }} {{ $revCity }}, Deutschland, Telefon: {{ $revPhone }}, E-Mail: {{ $revEmail }}</strong>) mittels einer eindeutigen Erklärung (z.&nbsp;B. ein mit der Post versandter Brief oder eine E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren. Sie können dafür das nachfolgende Muster-Widerrufsformular oder unsere elektronische Widerrufsfunktion unter <a href="{{ url('/widerruf') }}" style="color: #9a6f1a; text-decoration: underline;">{{ url('/widerruf') }}</a> verwenden, was jedoch nicht vorgeschrieben ist. Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.<br><br>
-        <strong>Folgen des Widerrufs:</strong> Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen, die wir von Ihnen erhalten haben, einschließlich der Lieferkosten (mit Ausnahme der zusätzlichen Kosten, die sich daraus ergeben, dass Sie eine andere Art der Lieferung als die von uns angebotene, günstigste Standardlieferung gewählt haben), unverzüglich und spätestens binnen vierzehn Tagen ab dem Tag zurückzuzahlen, an dem die Mitteilung über Ihren Widerruf dieses Vertrags bei uns eingegangen ist. Für diese Rückzahlung verwenden wir dasselbe Zahlungsmittel, das Sie bei der ursprünglichen Transaktion eingesetzt haben, es sei denn, mit Ihnen wurde ausdrücklich etwas anderes vereinbart; in keinem Fall werden Ihnen wegen dieser Rückzahlung Entgelte berechnet. Wir können die Rückzahlung verweigern, bis wir die Waren wieder zurückerhalten haben oder bis Sie den Nachweis erbracht haben, dass Sie die Waren zurückgesandt haben, je nachdem, welches der frühere Zeitpunkt ist. Sie haben die Waren unverzüglich und in jedem Fall spätestens binnen vierzehn Tagen ab dem Tag, an dem Sie uns über den Widerruf dieses Vertrags unterrichten, an uns zurückzusenden oder zu übergeben. Die Frist ist gewahrt, wenn Sie die Waren vor Ablauf der Frist von vierzehn Tagen absenden. Sie tragen die unmittelbaren Kosten der Rücksendung der Waren. Sie müssen für einen etwaigen Wertverlust der Waren nur aufkommen, wenn dieser Wertverlust auf einen zur Prüfung der Beschaffenheit, Eigenschaften und Funktionsweise der Waren nicht notwendigen Umgang mit ihnen zurückzuführen ist.<br><br>
-        <strong style="color: #1c1917;">Muster-Widerrufsformular (Anlage 2 zu Art. 246a § 1 Abs. 2 S. 1 Nr. 1 EGBGB):</strong><br>
-        <em>(Wenn Sie den Vertrag widerrufen wollen, dann füllen Sie bitte dieses Formular aus und senden Sie es zurück.)</em><br>
-        — An: {{ $revCompanyName }}, Inh. {{ $revOwnerName }}, {{ $revStreet }}, {{ $revZip }} {{ $revCity }}, Telefon: {{ $revPhone }}, E-Mail: {{ $revEmail }}<br>
-        — Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*) abgeschlossenen Vertrag über den Kauf der folgenden Waren (*) / die Erbringung der folgenden Dienstleistung (*)<br>
-        — Bestellt am (*) / erhalten am (*)<br>
-        — Name des/der Verbraucher(s)<br>
-        — Anschrift des/der Verbraucher(s)<br>
-        — Unterschrift des/der Verbraucher(s) (nur bei Mitteilung auf Papier)<br>
-        — Datum<br>
-        <em>(*) Unzutreffendes streichen.</em>
+    {{-- KOMPAKTER HINWEIS AUF ANGEHÄNGTE AGB & WIDERRUFSBELEHRUNG (§ 312f Abs. 2 BGB) --}}
+    <div style="margin-top: 26px; padding: 14px 18px; background-color: #faf8f5; border: 1px solid #e7e2d8; border-left: 4px solid #C5A059; border-radius: 6px; font-size: 12px; color: #57534e; line-height: 1.55;">
+        <strong style="color: #1c1917;">📄 Vertragsunterlagen im Anhang (AGB &amp; Widerrufsbelehrung):</strong><br>
+        Unsere <a href="{{ url('/agb') }}" style="color: #9a6f1a; text-decoration: underline; font-weight: bold;">Allgemeinen Geschäftsbedingungen (AGB)</a> sowie die gesetzliche <a href="{{ url('/widerruf') }}" style="color: #9a6f1a; text-decoration: underline; font-weight: bold;">Widerrufsbelehrung inkl. Muster-Widerrufsformular</a> findest du als PDF-Dokument (<strong>AGB-und-Widerrufsbelehrung.pdf</strong>) im Anhang dieser E-Mail.
+        <span style="display: block; margin-top: 4px; font-size: 11px; color: #78716c;">
+            Hinweis: Für individuell nach Kundenwunsch gravierte Unikate besteht gemäß § 312g Abs. 2 Nr. 1 BGB kein Widerrufsrecht (deine 2-jährige gesetzliche Gewährleistung bei Mängeln bleibt uneingeschränkt bestehen).
+            @if($hasDigital)
+                Bei digitalen Inhalten erlischt das Widerrufsrecht gemäß § 356 Abs. 5 BGB mit Beginn der Vertragsausführung.
+            @endif
+        </span>
     </div>
 
     {{--FOOTER--}}

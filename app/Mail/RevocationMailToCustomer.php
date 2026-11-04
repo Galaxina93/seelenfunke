@@ -51,22 +51,8 @@ class RevocationMailToCustomer extends Mailable
      */
     public function attachments(): array
     {
-        $attachments = [];
-        if (!empty($this->revocationData['attachments']) && is_array($this->revocationData['attachments'])) {
-            foreach ($this->revocationData['attachments'] as $path) {
-                if (!is_string($path) || $path === '' || str_contains($path, '..') || str_contains($path, "\0") || str_contains($path, '\\')) {
-                    continue;
-                }
-                $normalized = ltrim($path, '/');
-                if (!str_starts_with($normalized, 'revocations/') && !str_starts_with($normalized, 'bestellungen/private/revocations/')) {
-                    continue;
-                }
-                if (!\Illuminate\Support\Facades\Storage::disk('local')->exists($normalized)) {
-                    continue;
-                }
-                $attachments[] = \Illuminate\Mail\Mailables\Attachment::fromStorageDisk('local', $normalized);
-            }
-        }
-        return $attachments;
+        // Sicherheit (Kein Open-Attachment-Relay): Vom unauthentifizierten Formular hochgeladene Dateien
+        // werden niemals an beliebige E-Mail-Adressen zurückgesendet, sondern nur intern gespeichert.
+        return [];
     }
 }

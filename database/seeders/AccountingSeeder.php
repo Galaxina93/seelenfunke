@@ -643,15 +643,32 @@ class AccountingSeeder extends Seeder
 
         $specialIssues = [
             [
+                'title'          => '20x Schwerlastkarton 600x400x400 mm (069), 20x Schwerlastkarton 600x400x200 mm (165), 140x Bundle-Karton 300x230x150 mm (2633) & 36x Leise abrollendes BOPP-Klebeband braun (128)',
+                'location'       => 'www.karton.eu (IPS Karton.eu GmbH & Co. KG)',
+                'amount'         => -273.27,
+                'date'           => '2026-11-03',
+                'category'       => 'Verpackungen',
+                'tax_rate'       => 19,
+                'invoice_number' => '26169398 (Bestellnr. B2075689)',
+                'note'           => "Rechnungsnr.: 26169398 vom 03.11.2026 | Bestellnr.: B2075689 | Auftragsnr.: A2416277 | Kundennr.: K523045 | Zahlungsart: PayPal Checkout (Transaktionscode: 7SN65368SR6734133, Volksbank eG Braunschweig Wolfsburg x-6000)\nPositionen (Netto-Einzelpreise zzgl. 19% MwSt., Gesamtgewicht: 67,40 kg):\n- Pos. 1: 20 Stück 600x400x400 mm zweiwellige Kartons (Außenmaß, BC-Welle bis 30 kg, Art.-Nr.: 069, E-Gew.: 1,04 kg / G-Gew.: 20,80 kg): 3,24 € netto/Stk. (3,86 € brutto) = 64,80 € netto\n- Pos. 2: 36 Rollen Leise abrollendes BOPP-Klebeband braun (Art.-Nr.: 128, E-Gew.: 0,17 kg / G-Gew.: 6,12 kg): 1,09 € netto/Rolle (1,30 € brutto) = 39,24 € netto\n- Pos. 3: 20 Stück 600x400x200 mm zweiwellige Kartons (Außenmaß, BC-Welle bis 30 kg, Art.-Nr.: 165, E-Gew.: 0,75 kg / G-Gew.: 15,00 kg): 2,78 € netto/Stk. (3,31 € brutto) = 55,60 € netto\n- Pos. 4: 140 Stück 300x230x150 mm einwellige Kartons (Universal-/Bundle- & Weizenglas-Karton, Art.-Nr.: 2633, E-Gew.: 0,18 kg / G-Gew.: 25,48 kg): 0,50 € netto/Stk. (0,60 € brutto) = 70,00 € netto\n- Pos. 5–7: Paketversand (0,00 €), Jahres-Wandkalender \"karton.eu\" (0,00 €), Katalog karton.eu (0,00 €)\nGesamt (Netto): 229,64 € | zzgl. 19% MwSt.: 43,63 € | Rechnungsbetrag (Brutto): 273,27 €\nHändler: IPS Karton.eu GmbH & Co. KG, Tuchmacherallee 6, 03130 Spremberg, AG Cottbus HRA 2809 CB, St.-Nr.: 056/156/00190, USt-IdNr.: DE288964141, E-Mail: info@karton.eu\nProdukt-Links:\n- https://www.karton.eu/?qs=600x400x400\n- https://www.karton.eu/600x400x200-mm-zweiwellige-Kartons-Aussenmass\n- https://www.karton.eu/300x230x150-mm-einwellige-Kartons\n- https://www.karton.eu/?qs=128",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-03_Karton-eu_Rechnung-26169398-Bestellung-B2075689.pdf',
+                    'buchhaltung/receipts/2026/11/2026-11-03_Karton-eu_20x-069-20x-165-140x-2633-36x-Klebeband-128-PayPal-Order-B2075689.pdf',
+                    'buchhaltung/receipts/2026/11/2026-11-03_Karton-eu_Bestellbestaetigung-Order-B2075689.png',
+                    'buchhaltung/receipts/2026/11/2026-11-03_Karton-eu_Warenkorb-Order-B2075689.png'
+                ]
+            ],
+            [
                 'title'          => '30x Flache Schlüsselringe Gold (3 Größen), 100x Edelstahl-Spaltringe Klein Gold (6–12mm) & LEONTOOL Mini-Spaltringzange (10,2 cm)',
-                'location'       => 'Amazon (TsunYew / railing / LEONTOOL EU)',
+                'location'       => 'Amazon (Hong Kong Tsun Yew Limited / railing / LEONTOOL EU)',
                 'amount'         => -16.67,
                 'date'           => '2026-11-03',
                 'category'       => 'Rohmaterial',
                 'tax_rate'       => 19,
-                'invoice_number' => '028-1563466-9621923',
-                'note'           => "Bestellnummer: 028-1563466-9621923 | Bestellt am: 03.11.2026 (03:50 Uhr) | Zahlungsart: Volksbank eG Braunschweig Wolfsburg •••• 000\nPositionen (inkl. 19% USt.):\n- 1x JeoPoom Schlüsselring [30 Stück], Flache Schlüsselanhänger Ring, 3 verschiedene Größen (je 10x 20mm, 25mm, 30mm, Golden, ASIN: B093R9HS4Y, Verkauf durch: TsunYew): 4,99 € brutto (4,19 € netto / 0,14 € netto pro Stück)\n- 1x Nogeqi 100 Stück Schlüsselringe Klein, 6/8/10/12mm Edelstahl Biegeringe / Spaltringe Gold (ASIN: B0H6FG92JY, Verkauf durch: railing): 4,99 € brutto (4,19 € netto / 0,04 € netto pro Stück)\n- 1x LEONTOOL Mini-Spaltringzange für Schmuckherstellung, 10,2 cm, Ringöffnungszange / Spaltringöffner (ASIN: B0C2TCMBSG, Verkauf durch: LEONTOOL EU): 6,69 € brutto (5,62 € netto)\nVerpackung & Versand: 0,00 € | Gesamtsumme: 16,67 € brutto (14,01 € netto zzgl. 2,66 € USt. 19%)\nProdukt-Links:\n- https://www.amazon.de/dp/B093R9HS4Y\n- https://www.amazon.de/dp/B0H6FG92JY\n- https://www.amazon.de/dp/B0C2TCMBSG",
+                'invoice_number' => '028-1563466-9621923 (Teilrechnung TVtCBC8ZD-1793755138)',
+                'note'           => "Bestellnummer: 028-1563466-9621923 | Bestellt am: 03.11.2026 (03:47 / 03:50 Uhr) | Zahlungsart: Volksbank eG Braunschweig Wolfsburg •••• 000\nPositionen (inkl. 19% USt.):\n- Pos. 1 (Teilrechnung 1/3: Nr. TVtCBC8ZD-1793755138 vom 04.11.2026): 1x JeoPoom Schlüsselring [30 Stück], Flache Schlüsselanhänger Ring, 3 verschiedene Größen (je 10x 20mm, 25mm, 30mm, Golden, ASIN: B093R9HS4Y, Verkäufer: Hong Kong Tsun Yew Limited, H22, ROOM 1017, 10/F, Wing Hing Industrial Building, No. 83-93 Chai Wan Kok St, Tsuen Wan, Hong Kong, CN, USt-IdNr.: –): 4,99 € brutto (4,19 € netto zzgl. 0,80 € USt. 19% / 0,14 € netto pro Stück) – Bezahlt\n- Pos. 2: 1x Nogeqi 100 Stück Schlüsselringe Klein, 6/8/10/12mm Edelstahl Biegeringe / Spaltringe Gold (ASIN: B0H6FG92JY, Verkauf durch: railing): 4,99 € brutto (4,19 € netto / 0,04 € netto pro Stück)\n- Pos. 3: 1x LEONTOOL Mini-Spaltringzange für Schmuckherstellung, 10,2 cm, Ringöffnungszange / Spaltringöffner (ASIN: B0C2TCMBSG, Verkauf durch: LEONTOOL EU): 6,69 € brutto (5,62 € netto)\nVerpackung & Versand: 0,00 € | Gesamtsumme: 16,67 € brutto (14,01 € netto zzgl. 2,66 € USt. 19%)\nProdukt-Links:\n- https://www.amazon.de/dp/B093R9HS4Y\n- https://www.amazon.de/dp/B0H6FG92JY\n- https://www.amazon.de/dp/B0C2TCMBSG",
                 'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-04_Amazon-TsunYew_30x-Flache-Schluesselringe-Gold-Rechnung-TVtCBC8ZD-1793755138-Order-028-1563466-9621923.pdf',
                     'buchhaltung/receipts/2026/11/2026-11-03_Amazon_30x-Flache-Schluesselringe-100x-Edelstahl-Spaltringe-Gold-Mini-Spaltringzange-Order-028-1563466-9621923.pdf'
                 ]
             ],
@@ -675,9 +692,11 @@ class AccountingSeeder extends Seeder
                 'date'           => '2026-11-03',
                 'category'       => 'Rohmaterial',
                 'tax_rate'       => 19,
-                'invoice_number' => '325015',
-                'note'           => "Bestellung #325015 vom 03.11.2026 | PayPal-Transaktionscode: 29A72875SB338471W (Volksbank eG Braunschweig Wolfsburg x-6000)\nPositionen (inkl. 19% MwSt.):\n- 10x Edelstahl Gliederkette mit Karabinerverschluss, Ankerkette, goldfarben, Länge 44 cm + 6 cm Verlängerungskettchen, Kettenglieder 1,5 mm, Ion Plating (IP) (Art. Nr. STA268): Einzelpreis 2,84 € brutto (2,39 € netto) = 28,40 € brutto\n- 5x Edelstahl Laserrohling Anhänger, Herz, mit Collierschlaufe, 14 Karat vergoldet, 25 x 22 x 4 mm, Öse: 3 x 6 mm, Ion Plating (IP) (Art. Nr. STA1274): Einzelpreis 2,40 € brutto (2,02 € netto) = 12,00 € brutto\nSumme Artikel: 40,40 € brutto (inkl. 6,45 € MwSt.) | Versandkosten (DHL): 4,99 € brutto (4,19 € netto + 0,80 € MwSt.)\nGesamtbetrag: 45,39 € brutto (38,14 € netto zzgl. 7,25 € MwSt.)\nHändler: Stefan Spreier & Sandra Schmidt GbR (Glücksfieber), Stockholmring 8, 23560 Lübeck, Tel.: +49 451 4799850, E-Mail: kundenservice@gluecksfieber.de\nProdukt-Links:\n- https://www.gluecksfieber.de/shop/edelstahl/edelstahl-gliederketten/edelstahl-gliederkette-mit-karabinerverschluss-ankerkette-goldfarben-laenge-44-cm-6-cm-verlaengerungskettchen-kettenglieder-1-5-mm-ion-plating-ip.html\n- https://www.gluecksfieber.de/shop/laserrohlinge/edelstahl-laserrohling-anhaenger-herz-mit-collierschlaufe-14-karat-vergoldet-25-x-22-x-4-mm-oese-3-x-6-mm-ion-plating-ip.html",
+                'invoice_number' => 'RE2613436 (Bestellung 325015)',
+                'note'           => "Rechnung Nr. RE2613436 vom 03.11.2026 | Bestellnummer: 325015 | Kundennr.: 252590 | PayPal-Transaktionscode: 29A72875SB338471W (Volksbank eG Braunschweig Wolfsburg x-6000)\nPositionen (inkl. 19% MwSt.):\n- Pos. 1: 5x Edelstahl Laserrohling Anhänger, Herz, mit Collierschlaufe, 14 Karat vergoldet, 25 x 22 x 4 mm, Öse: 3 x 6 mm, Ion Plating (IP) (Art. Nr. STA1274): Einzelpreis 2,40 € brutto (2,02 € netto) = 12,00 € brutto\n- Pos. 2: 10x Edelstahl Gliederkette mit Karabinerverschluss, Ankerkette, goldfarben, Länge 44 cm + 6 cm Verlängerungskettchen, Kettenglieder 1,5 mm, Ion Plating (IP) (Art. Nr. STA268): Einzelpreis 2,84 € brutto (2,39 € netto) = 28,40 € brutto\n- Pos. 3: 1x Porto & Verpackung (Art. Nr. P / DHL): 4,99 € brutto (4,19 € netto)\nWarenwert Gesamt (netto): 38,14 € | MwSt. 19%: 7,25 € | Rechnungsbetrag (brutto): 45,39 €\nHändler: Glücksfieber-Perlen, Stefan Spreier & Sandra Schmidt GbR, Stockholmring 8, 23560 Lübeck, Steuer-Nr. 22 285 50300, USt-IdNr.: DE246566105, Tel.: +49 451 4799850, E-Mail: kundenservice@gluecksfieber.de\nProdukt-Links:\n- https://www.gluecksfieber.de/shop/edelstahl/edelstahl-gliederketten/edelstahl-gliederkette-mit-karabinerverschluss-ankerkette-goldfarben-laenge-44-cm-6-cm-verlaengerungskettchen-kettenglieder-1-5-mm-ion-plating-ip.html\n- https://www.gluecksfieber.de/shop/laserrohlinge/edelstahl-laserrohling-anhaenger-herz-mit-collierschlaufe-14-karat-vergoldet-25-x-22-x-4-mm-oese-3-x-6-mm-ion-plating-ip.html",
                 'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-03_Gluecksfieber_Rechnung-RE2613436-Bestellung-325015.pdf',
+                    'buchhaltung/receipts/2026/11/2026-11-03_Gluecksfieber_Rechnung-RE2613436-Bestellung-325015.xml',
                     'buchhaltung/receipts/2026/11/2026-11-03_Gluecksfieber_10x-Edelstahl-Ankerkette-STA268-5x-Herz-Anhaenger-STA1274-Order-325015.pdf',
                     'buchhaltung/receipts/2026/11/2026-11-03_Gluecksfieber_10x-Edelstahl-Ankerkette-STA268-5x-Herz-Anhaenger-STA1274-Order-325015.png'
                 ]
@@ -715,10 +734,13 @@ class AccountingSeeder extends Seeder
                 'date'           => '2026-11-02',
                 'category'       => 'Verpackungen',
                 'tax_rate'       => 25,
-                'invoice_number' => '29000069521',
-                'note'           => "Bestellung Order #29000069521 vom 02.11.2026 (Order-ID: 485928)\nPositionen:\n- 96x Frankfurt ECO Schmuckschachtel Anhänger/Armreif (Art.-Nr.: 30286060102, Schwarz matt, 86 x 86 x 17 mm inkl. Schaumstoffeinlage & eigenem Mein-Seelenfunke-Logodruck): Einzelpreis 1,06 € netto = 101,76 € netto\n- 1x Klischeekosten / Druckstempel (Art.-Nr.: 60000002000): 0,00 €\nZwischensumme: 101,76 € netto | Versand & Bearbeitung (Standard nach DE): 15,00 € netto | Steuer (25% DK MwSt.): 29,19 € | Gesamtsumme: 145,95 € brutto (1,52 € brutto / Stk.)\nZahlungsart: PayPal (Alina Steinhauer - Mein Seelenfunke)\nHändler: Westpack A/S, Sletten 21, 7500 Holstebro, Dänemark, USt-IdNr.: DK15505908\nProdukt-Link: https://www.westpack.com/eur_eu_ger/frankfurt-eco-jewellery-box-for-pendant-bangle-30286060102.html",
+                'invoice_number' => '29000069521 (Klischee L247401 / Kd.-Nr. 7164015)',
+                'note'           => "Bestellung Order #29000069521 vom 02.11.2026 (Order-ID: 485928) | Kundennummer: 7164015 | Westpack Klischee-Nr.: L247401\nLogokorrektur / Proof vom 03.11.2026 (Azizah Fitria Nada Zahra, afz@westpack.com): Logo \"mein-seelenfunke – EIN FUNKE, DER BLEIBT\" (60 x h11,4 mm mittig auf Schachteldeckel 86 x 86 x 17 mm)\nPositionen:\n- 96x Frankfurt ECO Schmuckschachtel Anhänger/Armreif (Art.-Nr.: 30286060102, Schwarz matt, 86 x 86 x 17 mm inkl. Schaumstoffeinlage & eigenem Mein-Seelenfunke-Logodruck): Einzelpreis 1,06 € netto = 101,76 € netto\n- 1x Klischeekosten / Druckstempel (Art.-Nr.: 60000002000, Klischee-Nr. L247401): 0,00 €\nZwischensumme: 101,76 € netto | Versand & Bearbeitung (Standard nach DE): 15,00 € netto | Steuer (25% DK MwSt.): 29,19 € | Gesamtsumme: 145,95 € brutto (1,52 € brutto / Stk.)\nZahlungsart: PayPal (Alina Steinhauer - Mein Seelenfunke)\nHändler: Westpack A/S, Sletten 21, 7500 Holstebro, Dänemark, USt-IdNr.: DK15505908, Kontakt Klischee: afz@westpack.com\nProdukt-Link: https://www.westpack.com/eur_eu_ger/frankfurt-eco-jewellery-box-for-pendant-bangle-30286060102.html",
                 'file_paths'     => [
-                    'buchhaltung/receipts/2026/11/2026-11-02_Westpack_96x-Frankfurt-ECO-Schmuckschachtel-Order-29000069521.pdf'
+                    'buchhaltung/receipts/2026/11/2026-11-02_Westpack_96x-Frankfurt-ECO-Schmuckschachtel-Order-29000069521.pdf',
+                    'buchhaltung/receipts/2026/11/2026-11-03_Westpack_Logokorrektur-Klischee-L247401-Kundennr-7164015.pdf',
+                    'buchhaltung/receipts/2026/11/2026-11-03_Westpack_Logo-Vektor-L247401-Kundennr-7164015.pdf',
+                    'buchhaltung/receipts/2026/11/2026-11-03_Westpack_Logo-Vorschau-L247401-Kundennr-7164015.jpg'
                 ]
             ],
             [

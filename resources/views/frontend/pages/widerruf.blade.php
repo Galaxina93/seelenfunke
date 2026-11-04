@@ -154,7 +154,7 @@
                     </a>
                 </div>
                 <div>
-                    <a href="{{ route('agb') }}#widerrufsbelehrung" class="text-xs text-gray-400 hover:text-primary underline underline-offset-4 transition-colors">
+                    <a href="{{ route('agb') }}#widerruf" class="text-xs text-gray-400 hover:text-primary underline underline-offset-4 transition-colors">
                         Zur vollständigen Widerrufsbelehrung & AGB
                     </a>
                 </div>

@@ -141,7 +141,11 @@ class InvoiceService
                 $this->storePdf($invoice);
 
                 // Synchronize order cancellation if order exists and is not yet cancelled
-                if ($originalInvoice->order && !in_array($originalInvoice->order->status, ['cancelled', 'refunded'], true)) {
+                if (
+                    $originalInvoice->order
+                    && !in_array($originalInvoice->order->status, ['cancelled', 'refunded'], true)
+                    && $originalInvoice->order->payment_status !== 'refunded'
+                ) {
                     $prevStatus = $originalInvoice->order->status;
                     $prevPaymentStatus = $originalInvoice->order->payment_status;
                     $originalInvoice->order->handleCancellation('Rechnungsstornierung ' . $originalInvoice->invoice_number, $prevStatus, $prevPaymentStatus);

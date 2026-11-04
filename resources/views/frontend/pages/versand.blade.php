@@ -40,7 +40,7 @@
 
             <div id="lieferung" class="scroll-mt-28">
                 <h2 class="text-2xl font-bold text-gray-900 mb-8 border-b pb-4 flex items-center gap-3">
-                    <span class="bg-gray-900 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-normal">III</span>
+                    <span class="bg-gray-900 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-normal">§</span>
                     Lieferung, Versand & Fertigungszeiten
                 </h2>
 
@@ -62,7 +62,7 @@
                             ->sort()
                             ->implode(', ');
                         if ($euCountryNames === '') {
-                            $euCountryNames = 'Belgien, Bulgarien, Dänemark, Estland, Finnland, Frankreich, Griechenland, Irland, Italien, Kroatien, Lettland, Litauen, Luxemburg, Malta, Monaco, Niederlande, Österreich, Polen, Portugal, Rumänien, Schweden, Slowakei, Slowenien, Spanien, Tschechien, Ungarn, Zypern';
+                            $euCountryNames = 'Belgien, Bulgarien, Dänemark, Estland, Finnland, Frankreich, Griechenland, Irland, Italien, Kroatien, Lettland, Litauen, Luxemburg, Malta, Niederlande, Österreich, Polen, Portugal, Rumänien, Schweden, Slowakei, Slowenien, Spanien, Tschechien, Ungarn, Zypern';
                         }
 
                         $euZone = null;
@@ -163,7 +163,7 @@
                             </table>
                         </div>
                         <p class="mt-4 text-xs text-gray-500 italic">
-                            Hinweis: Für den Versand in Länder der EU fallen keine Zollgebühren an. Es fallen innerhalb Deutschlands keine nachträglichen Inselzuschläge an. Bei Lieferungen in das Nicht-EU-Ausland (z.&nbsp;B. Schweiz) können zusätzliche Zölle, Steuern (Einfuhrumsatzsteuer) und Gebühren anfallen.
+                            Hinweis: Für den Versand in Länder der EU fallen keine Zollgebühren an. Es fallen innerhalb Deutschlands keine nachträglichen Inselzuschläge an. Da wir ausschließlich innerhalb der oben genannten Länder der Europäischen Union liefern, fallen für Sie keine zusätzlichen Drittlands-Zölle oder Einfuhrumsatzsteuern an.
                         </p>
                     </div>
 

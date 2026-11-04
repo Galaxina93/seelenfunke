@@ -32,6 +32,10 @@
                 if (waiverEl) {
                     @this.set('digital_waiver_accepted', !!waiverEl.checked, false);
                 }
+                const createAccountEl = document.getElementById('create_account');
+                if (createAccountEl) {
+                    @this.set('create_account', !!createAccountEl.checked, false);
+                }
             }
 
             async function initializeStripe() {

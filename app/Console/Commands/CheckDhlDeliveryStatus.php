@@ -84,6 +84,7 @@ class CheckDhlDeliveryStatus extends Command
                 }
 
                 $isDelivered = false;
+                $apiFailed = false;
                 $trackingNumber = trim((string) ($shipment->tracking_number ?? ''));
                 $dhlApiKey = config('services.dhl.tracking_api_key', config('services.dhl.api_key', env('DHL_API_KEY', '')));
                 $dhlConfigured = !empty($dhlApiKey);
@@ -92,6 +93,7 @@ class CheckDhlDeliveryStatus extends Command
                     try {
                         $isDelivered = $this->checkDhlTracking($trackingNumber);
                     } catch (\Exception $e) {
+                        $apiFailed = true;
                         $this->warn("   -> DHL Tracking Info: " . $e->getMessage());
                         Log::warning("DHL Tracking Warning für Sendung {$trackingNumber}: " . $e->getMessage());
                     }
@@ -102,7 +104,7 @@ class CheckDhlDeliveryStatus extends Command
                 if ($isDelivered) {
                     $shipment->update(['status' => 'delivered']);
                     $this->line("   -> Per DHL Tracking als ZUGESTELLT bestätigt! ✓");
-                } elseif (!$dhlConfigured || $trackingNumber === '') {
+                } elseif (!$dhlConfigured || $trackingNumber === '' || $apiFailed) {
                     // Auto-Complete Fallback: Wenn kein DHL Tracking konfiguriert ist (oder keine Sendungsnummer vorhanden) und Sendung seit >= X Tagen unterwegs ist
                     $shipmentAge = $shipment->created_at ?? $order->updated_at ?? now();
                     $daysSinceShipment = (int) $shipmentAge->diffInDays(now());

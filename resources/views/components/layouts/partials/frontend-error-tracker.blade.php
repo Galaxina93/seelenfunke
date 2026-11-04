@@ -141,9 +141,47 @@
             );
         });
 
-        // Fange fehlgeschlagene Livewire-Requests (z.B. HTTP 500, 419, 502/504)
+        // Fange fehlgeschlagene Livewire-Requests (z.B. HTTP 500, 419, 502/504) & synchronisiere Root-Keys gegen PublicPropertyNotFoundException [$]
         document.addEventListener('livewire:init', function() {
             if (!window.Livewire || typeof window.Livewire.hook !== 'function') return;
+
+            window.Livewire.hook('commit.prepare', ({ component }) => {
+                try {
+                    if (!component || !component.canonical || !component.ephemeral) return;
+                    delete component.canonical[''];
+                    delete component.ephemeral[''];
+
+                    const cKeys = Object.keys(component.canonical);
+                    const eKeys = Object.keys(component.ephemeral);
+                    if (cKeys.length === eKeys.length && cKeys.some((k, i) => k !== eKeys[i])) {
+                        const aligned = {};
+                        eKeys.forEach((k) => {
+                            if (Object.prototype.hasOwnProperty.call(component.canonical, k)) {
+                                aligned[k] = component.canonical[k];
+                            }
+                        });
+                        cKeys.forEach((k) => {
+                            if (!Object.prototype.hasOwnProperty.call(aligned, k)) {
+                                aligned[k] = component.canonical[k];
+                            }
+                        });
+                        component.canonical = aligned;
+                    }
+                } catch (e) {}
+            });
+
+            window.Livewire.hook('commit', ({ component, commit }) => {
+                try {
+                    if (commit && commit.updates && typeof commit.updates === 'object') {
+                        Object.keys(commit.updates).forEach((k) => {
+                            if (k === '' || k.startsWith('.')) {
+                                delete commit.updates[k];
+                            }
+                        });
+                    }
+                } catch (e) {}
+            });
+
             window.Livewire.hook('request', ({ uri, options, payload, respond, succeed, fail }) => {
                 fail(({ status, content, preventDefault }) => {
                     if (status === 419) return; // Regulärer Session-Ablauf

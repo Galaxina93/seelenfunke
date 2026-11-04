@@ -232,6 +232,38 @@ class FileDownloadService
             ? ($config['texts_back'] ?? $config['back']['texts'] ?? []) 
             : ($config['texts'] ?? $config['front']['texts'] ?? []);
 
+        // Fallback für Schnell-Personalisierung (custom_fields_data), falls $texts leer ist oder nur leere Platzhalter enthält
+        $hasNonEmptyTexts = collect($texts)->contains(fn($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== '');
+        if (!$hasNonEmptyTexts && $side !== 'back' && !empty($config['custom_fields_data']) && is_array($config['custom_fields_data'])) {
+            $chosenFont = 'Arial';
+            $customLines = [];
+            foreach ($config['custom_fields_data'] as $cfd) {
+                if (!is_array($cfd)) {
+                    continue;
+                }
+                $cfdVal = trim((string) ($cfd['value'] ?? ''));
+                if ($cfdVal === '') {
+                    continue;
+                }
+                if (($cfd['type'] ?? 'text') === 'font') {
+                    $chosenFont = $cfdVal;
+                } elseif (!in_array(mb_strtolower($cfdVal), ['kein symbol', 'keine', 'nein', '-'], true)) {
+                    $customLines[] = $cfdVal;
+                }
+            }
+            if (!empty($customLines)) {
+                $texts = [[
+                    'text' => implode("\n", $customLines),
+                    'font' => $chosenFont,
+                    'align' => 'center',
+                    'x' => 50,
+                    'y' => 50,
+                    'size' => 1.0,
+                    'rotation' => 0,
+                ]];
+            }
+        }
+
         $productConfig = is_string($product->configurator_settings) ? json_decode($product->configurator_settings, true) : ($product->configurator_settings ?? []);
         $overlayType = $config['overlay_type'] ?? ($productConfig['overlay_type'] ?? 'plane');
 
@@ -243,7 +275,11 @@ class FileDownloadService
         $heightMm = null;
 
         if (!empty($config['variant_name'])) {
-            if (preg_match('/(\d+)\s*[xX]\s*(\d+)/', $config['variant_name'], $matches)) {
+            if (preg_match('/(\d+(?:[.,]\d+)?)\s*[xX×]\s*(\d+(?:[.,]\d+)?)(?!\s*[xX×\d])\s*(mm|cm)\b/iu', $config['variant_name'], $matches)) {
+                $unitFactor = strtolower($matches[3]) === 'cm' ? 10.0 : 1.0;
+                $widthMm = floatval(str_replace(',', '.', $matches[1])) * $unitFactor;
+                $heightMm = floatval(str_replace(',', '.', $matches[2])) * $unitFactor;
+            } elseif (preg_match('/(\d{2,4})\s*[xX×]\s*(\d{2,4})(?!\s*[xX×\d])/u', $config['variant_name'], $matches)) {
                 $widthMm = floatval($matches[1]);
                 $heightMm = floatval($matches[2]);
             }

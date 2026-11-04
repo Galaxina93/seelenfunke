@@ -367,15 +367,15 @@ class ProductCreateTest extends TestCase
 
         $this->assertEquals('active', $product->fresh()->status);
 
-        // Toggle Origin Badge (handcrafted_in_germany -> none -> made_in_germany)
+        // Toggle Origin Badge (handcrafted_in_germany <-> none, § 5 UWG / Madrider Abkommen)
         $this->assertEquals('handcrafted_in_germany', $product->fresh()->getOriginBadgeMode());
         Livewire::test(ProductCreate::class)
             ->call('toggleOriginBadge', $product->id);
         $this->assertEquals('none', $product->fresh()->getOriginBadgeMode());
         Livewire::test(ProductCreate::class)
             ->call('toggleOriginBadge', $product->id);
-        $this->assertEquals('made_in_germany', $product->fresh()->getOriginBadgeMode());
-        $this->assertEquals('Made in Germany', $product->fresh()->getOriginBadgeLabel());
+        $this->assertEquals('handcrafted_in_germany', $product->fresh()->getOriginBadgeMode());
+        $this->assertEquals('Handveredelt in Deutschland', $product->fresh()->getOriginBadgeLabel());
 
         // Create a turnkey AI product per 1-click
         Livewire::test(ProductCreate::class)
@@ -395,5 +395,204 @@ class ProductCreateTest extends TestCase
         $this->assertEquals(4, $created->completion_step);
         $this->assertEquals(1990, $created->price);
         $this->assertEquals(116, $created->purchase_price);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_manages_custom_fields_and_configurator_fonts_in_product_create_and_quick_ai(): void
+    {
+        $product = Product::create([
+            'name' => 'Schnell-Gravur Herz',
+            'slug' => 'schnell-gravur-herz',
+            'sku' => 'GOLD-HEART-099',
+            'status' => 'active',
+            'type' => 'physical',
+            'price' => 2490,
+            'is_personalizable' => true,
+            'completion_step' => 4,
+        ]);
+
+        $component = Livewire::test(ProductCreate::class)
+            ->call('edit', $product->id)
+            ->call('setPersonalizationMode', 'custom_fields')
+            ->call('applyCustomFieldsPreset', 'name_and_font');
+
+        $fields = $component->get('configSettings.custom_fields');
+        $this->assertCount(2, $fields);
+        $this->assertSame('text', $fields[0]['type']);
+        $this->assertTrue($fields[0]['required']);
+        $this->assertNotEmpty($fields[0]['info_text']);
+        $this->assertSame('font', $fields[1]['type']);
+        $this->assertFalse($fields[1]['required']);
+        $this->assertSame('', $fields[1]['info_text']);
+        $this->assertSame('Arial', $fields[1]['options'][0]);
+        $this->assertCount(22, $fields[1]['options']);
+
+        // Filter fonts via preset and toggle single font
+        $component->call('setCustomFieldFontPreset', 1, 'jewelry_top6');
+        $this->assertCount(6, $component->get('configSettings.custom_fields.1.options'));
+
+        $component->call('toggleCustomFieldFont', 1, 'Great Vibes');
+        $this->assertCount(5, $component->get('configSettings.custom_fields.1.options'));
+
+        // Add additional text and font fields
+        $component->call('addCustomField')
+            ->call('addCustomFontField');
+        $this->assertCount(4, $component->get('configSettings.custom_fields'));
+        $this->assertSame('font', $component->get('configSettings.custom_fields.3.type'));
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_switches_custom_field_types_and_enforces_pangv_surcharge_and_font_rules(): void
+    {
+        $product = Product::create([
+            'name' => 'Logik-Test Anhänger',
+            'slug' => 'logik-test-anhaenger',
+            'sku' => 'LOGIC-TEST-01',
+            'status' => 'active',
+            'type' => 'physical',
+            'price' => 2990,
+            'is_personalizable' => true,
+            'completion_step' => 4,
+        ]);
+
+        $component = Livewire::test(ProductCreate::class)
+            ->call('edit', $product->id)
+            ->call('setPersonalizationMode', 'custom_fields')
+            ->call('applyCustomFieldsPreset', 'single_name');
+
+        // 1. Start: single_name ('text', required = true, has info_text)
+        $this->assertSame('text', $component->get('configSettings.custom_fields.0.type'));
+        $this->assertTrue($component->get('configSettings.custom_fields.0.required'));
+        $this->assertNotEmpty($component->get('configSettings.custom_fields.0.info_text'));
+
+        // 2. Switch type from 'text' to 'font' -> clears info_text, required = false, surcharge = 0, options = 22 fonts starting with Arial
+        $component->set('configSettings.custom_fields.0.type', 'font');
+        $this->assertSame('Schriftart wählen', $component->get('configSettings.custom_fields.0.label'));
+        $this->assertSame('', $component->get('configSettings.custom_fields.0.info_text'));
+        $this->assertFalse($component->get('configSettings.custom_fields.0.required'));
+        $this->assertSame('Arial', $component->get('configSettings.custom_fields.0.options.0'));
+        $this->assertCount(22, $component->get('configSettings.custom_fields.0.options'));
+
+        // 3. Switch type from 'font' to 'select' -> replaces the 22 font names with symbol dropdown options & restores info_text + required
+        $component->set('configSettings.custom_fields.0.type', 'select');
+        $this->assertSame('Auswahl / Symbol', $component->get('configSettings.custom_fields.0.label'));
+        $this->assertTrue($component->get('configSettings.custom_fields.0.required'));
+        $this->assertNotEmpty($component->get('configSettings.custom_fields.0.info_text'));
+        $this->assertContains('Kein Symbol', $component->get('configSettings.custom_fields.0.options'));
+        $this->assertNotContains('Times New Roman', $component->get('configSettings.custom_fields.0.options'));
+
+        // 4. Switch type to 'date' -> clears placeholder, sets date info_text
+        $component->set('configSettings.custom_fields.0.type', 'date');
+        $this->assertSame('Wunschdatum', $component->get('configSettings.custom_fields.0.label'));
+        $this->assertSame('', $component->get('configSettings.custom_fields.0.placeholder'));
+        $this->assertStringContainsString('Datum', $component->get('configSettings.custom_fields.0.info_text'));
+
+        // 5. Switch type to 'textarea' -> bumps max_length to 150
+        $component->set('configSettings.custom_fields.0.type', 'textarea');
+        $this->assertSame(150, $component->get('configSettings.custom_fields.0.max_length'));
+        $this->assertTrue($component->get('configSettings.custom_fields.0.required'));
+
+        // 6. PAngV-Schutz: Setting surcharge_price > 0 on a text/textarea/date field automatically sets required = false
+        $component->set('configSettings.custom_fields.0.surcharge_price', '5.00');
+        $this->assertFalse($component->get('configSettings.custom_fields.0.required'));
+
+        $persistedDefs = $product->fresh()->getCustomFieldsDefinition();
+        $this->assertFalse($persistedDefs[0]['required']);
+        $this->assertSame(500, $persistedDefs[0]['surcharge_cents']);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_handles_font_default_arial_date_formatting_and_long_select_options_in_configurator_and_cart(): void
+    {
+        $product = Product::create([
+            'name' => 'Kombi-Unikat',
+            'slug' => 'kombi-unikat',
+            'sku' => 'KOMBI-01',
+            'status' => 'active',
+            'type' => 'physical',
+            'price' => 2990,
+            'is_personalizable' => true,
+            'completion_step' => 4,
+            'configurator_settings' => [
+                'personalization_mode' => 'custom_fields',
+                'custom_fields' => [
+                    [
+                        'id' => 'cf_font',
+                        'label' => 'Schriftart wählen',
+                        'type' => 'font',
+                        'required' => true, // Should be normalized to false
+                        'info_text' => 'Alter Text der verschwinden muss', // Should be normalized to ''
+                        'surcharge_price' => '4.00', // Should be normalized to 0
+                    ],
+                    [
+                        'id' => 'cf_name',
+                        'label' => 'Wunschtext',
+                        'type' => 'text',
+                        'required' => true,
+                        'max_length' => 25,
+                    ],
+                    [
+                        'id' => 'cf_date',
+                        'label' => 'Wunschdatum',
+                        'type' => 'date',
+                        'required' => false,
+                    ],
+                    [
+                        'id' => 'cf_symbol',
+                        'label' => 'Gravur-Symbol',
+                        'type' => 'select',
+                        'required' => true,
+                        'max_length' => 15, // Intentionally small to test that select options > 15 chars are NOT truncated
+                        'options_raw' => 'Kein Symbol, Unendlichkeitssymbol mit Doppelherz (Groß)',
+                    ],
+                ],
+            ],
+        ]);
+
+        // 1. Verify normalization on Product model
+        $defs = $product->getCustomFieldsDefinition();
+        $this->assertFalse($defs[0]['required']);
+        $this->assertSame('', $defs[0]['info_text']);
+        $this->assertSame(0, $defs[0]['surcharge_cents']);
+        $this->assertSame('Arial', $defs[0]['options'][0]);
+
+        // 2. Mount ProductConfigurator when 'font' is at index 0 and legacy text is passed:
+        //    'cf_font' must stay 'Arial', and 'cf_name' (index 1, first text field) receives the legacy text!
+        $configurator = Livewire::test(\App\Livewire\Shop\Product\ProductConfigurator\ProductConfigurator::class, [
+            'product' => $product,
+            'initialData' => ['text' => 'Emilia'],
+            'context' => 'add',
+        ]);
+
+        $this->assertSame('Arial', $configurator->get('customFieldValues.cf_font'));
+        $this->assertSame('Emilia', $configurator->get('customFieldValues.cf_name'));
+
+        // 3. Set HTML5 ISO date (2026-08-14) and long select option (> 15 chars) and save to cart
+        $longOption = 'Unendlichkeitssymbol mit Doppelherz (Groß)';
+        $configurator
+            ->set('customFieldValues.cf_date', '2026-08-14')
+            ->set('customFieldValues.cf_symbol', $longOption)
+            ->set('config_confirmed', true)
+            ->call('save');
+
+        $cart = app(\App\Services\CartService::class)->getCart();
+        $cartItem = $cart->items()->first();
+        $this->assertNotNull($cartItem);
+
+        $cfData = collect($cartItem->configuration['custom_fields_data'])->keyBy('id');
+        $this->assertSame('Arial', $cfData['cf_font']['value']);
+        $this->assertSame('Emilia', $cfData['cf_name']['value']);
+        // Date must be converted from ISO 2026-08-14 to German 14.08.2026
+        $this->assertSame('14.08.2026', $cfData['cf_date']['value']);
+        // Long select option must NOT be truncated by max_length=15
+        $this->assertSame($longOption, $cfData['cf_symbol']['value']);
+
+        // 4. Re-mounting ProductConfigurator in edit mode converts German 14.08.2026 back to ISO 2026-08-14 for <input type="date">
+        $editConfigurator = Livewire::test(\App\Livewire\Shop\Product\ProductConfigurator\ProductConfigurator::class, [
+            'product' => $product,
+            'initialData' => $cartItem->configuration,
+            'context' => 'edit',
+        ]);
+        $this->assertSame('2026-08-14', $editConfigurator->get('customFieldValues.cf_date'));
     }
 }

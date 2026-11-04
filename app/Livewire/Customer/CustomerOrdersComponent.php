@@ -54,7 +54,8 @@ class CustomerOrdersComponent extends Component
         if (request()->has('edit')) {
             $editId = request()->get('edit');
             $belongs = OrderOrderItem::where('id', $editId)->whereHas('order', function ($q) use ($user) {
-                $q->where('customer_id', $user->id);
+                $q->where('customer_id', $user->id)
+                  ->where('status', 'pending');
             })->exists();
             if ($belongs) {
                 $this->editItemId = $editId;
@@ -119,7 +120,8 @@ class CustomerOrdersComponent extends Component
         if (!$user) return;
 
         $belongs = OrderOrderItem::where('id', $itemId)->whereHas('order', function ($q) use ($user) {
-            $q->where('customer_id', $user->id);
+            $q->where('customer_id', $user->id)
+              ->where('status', 'pending');
         })->exists();
 
         if (!$belongs) {
@@ -255,7 +257,7 @@ class CustomerOrdersComponent extends Component
         })->with('product')->find($this->previewItemId);
     }
 
-    // Computed Property für die Edit-Funktion (strikt mandantengeschützt)
+    // Computed Property für die Edit-Funktion (strikt mandantengeschützt & nur für offene Bestellungen)
     public function getEditItemProperty()
     {
         if (!$this->editItemId) return null;
@@ -263,7 +265,8 @@ class CustomerOrdersComponent extends Component
         if (!$user) return null;
 
         return OrderOrderItem::whereHas('order', function ($q) use ($user) {
-            $q->where('customer_id', $user->id);
+            $q->where('customer_id', $user->id)
+              ->where('status', 'pending');
         })->with('product')->find($this->editItemId);
     }
 

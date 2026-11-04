@@ -36,6 +36,88 @@ class AppServiceProvider extends ServiceProvider
                 \App\Http\Middleware\EnsureEmployeeRole::class,
             ]);
             \Livewire\Livewire::componentHook(\App\Livewire\Hooks\EmployeeRoleIsolationHook::class);
+
+            // Schutz gegen Livewire-JS Root-Diff Key-Order-Mismatch (updates[""] -> PublicPropertyNotFoundException [$])
+            \Livewire\on('request', function ($payload) {
+                return function ($requestPayload) {
+                    if (!is_array($requestPayload)) {
+                        return $requestPayload;
+                    }
+
+                    $unwrapLivewireArray = function ($node) use (&$unwrapLivewireArray) {
+                        if (
+                            is_array($node)
+                            && count($node) === 2
+                            && array_key_exists(0, $node)
+                            && array_key_exists(1, $node)
+                            && is_array($node[1])
+                            && isset($node[1]['s'])
+                        ) {
+                            if ($node[1]['s'] === 'arr' && is_array($node[0])) {
+                                $out = [];
+                                foreach ($node[0] as $k => $v) {
+                                    $out[$k] = $unwrapLivewireArray($v);
+                                }
+                                return $out;
+                            }
+                            return '__LIVEWIRE_SYNTH__';
+                        }
+                        return $node;
+                    };
+
+                    foreach ($requestPayload as $idx => $componentPayload) {
+                        if (!isset($componentPayload['updates']) || !is_array($componentPayload['updates'])) {
+                            continue;
+                        }
+
+                        if (array_key_exists('', $componentPayload['updates'])) {
+                            $rootDump = $componentPayload['updates'][''];
+                            unset($requestPayload[$idx]['updates']['']);
+
+                            if (is_array($rootDump) && !empty($componentPayload['snapshot'])) {
+                                $snapshot = json_decode((string) $componentPayload['snapshot'], true);
+                                $snapshotData = is_array($snapshot['data'] ?? null) ? $snapshot['data'] : [];
+
+                                foreach ($rootDump as $propKey => $propVal) {
+                                    if (!is_string($propKey) || $propKey === '' || !array_key_exists($propKey, $snapshotData)) {
+                                        continue;
+                                    }
+                                    if (array_key_exists($propKey, $requestPayload[$idx]['updates'])) {
+                                        continue;
+                                    }
+
+                                    $unwrapped = $unwrapLivewireArray($snapshotData[$propKey]);
+                                    if ($unwrapped === '__LIVEWIRE_SYNTH__') {
+                                        continue;
+                                    }
+
+                                    if ($unwrapped !== $propVal) {
+                                        $hasNestedUpdate = false;
+                                        foreach (array_keys($requestPayload[$idx]['updates']) as $existingPath) {
+                                            if (str_starts_with((string) $existingPath, $propKey . '.')) {
+                                                $hasNestedUpdate = true;
+                                                break;
+                                            }
+                                        }
+                                        if (!$hasNestedUpdate) {
+                                            $requestPayload[$idx]['updates'][$propKey] = $propVal;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        foreach (array_keys($requestPayload[$idx]['updates']) as $updateKey) {
+                            $updateKeyStr = (string) $updateKey;
+                            if ($updateKeyStr === '' || str_starts_with($updateKeyStr, '.')) {
+                                unset($requestPayload[$idx]['updates'][$updateKey]);
+                            }
+                        }
+                    }
+
+                    return $requestPayload;
+                };
+            });
         }
         // 1. Füge die Morph Map hinzu
         Relation::enforceMorphMap([

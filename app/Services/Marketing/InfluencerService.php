@@ -833,20 +833,24 @@ class InfluencerService
                 $effectiveTaxRate = round($eligibleItemsWeightedTaxSum / $eligibleItemsGrossCents, 4);
             } elseif ((int) $order->tax_amount > 0) {
                 $taxableGrossBase = max(0, (int) $order->total_price + ($isGiftVoucherRedemption ? (int) $order->discount_amount : 0) - $giftVoucherItemsGrossCents);
+                $defaultRate = (float) shop_setting('default_tax_rate', 19.0);
+                $reducedRate = (float) shop_setting('reduced_tax_rate', 7.0);
                 if ($taxableGrossBase > (int) $order->tax_amount) {
                     $netTotalApprox = $taxableGrossBase - (int) $order->tax_amount;
                     $derivedRate = round(((int) $order->tax_amount / $netTotalApprox) * 100, 2);
-                    $defaultRate = (float) shop_setting('default_tax_rate', 19.0);
-                    $reducedRate = (float) shop_setting('reduced_tax_rate', 7.0);
-                    if (abs($derivedRate - $defaultRate) <= 0.5) {
+                    $merchNetApprox = max(1, $grossMerchandiseCents - (int) $order->tax_amount);
+                    $derivedMerchRate = $grossMerchandiseCents > (int) $order->tax_amount
+                        ? round(((int) $order->tax_amount / $merchNetApprox) * 100, 2)
+                        : $derivedRate;
+                    if (abs($derivedRate - $defaultRate) <= 0.5 || abs($derivedMerchRate - $defaultRate) <= 0.5) {
                         $effectiveTaxRate = $defaultRate;
-                    } elseif (abs($derivedRate - $reducedRate) <= 0.5) {
+                    } elseif (abs($derivedRate - $reducedRate) <= 0.5 || abs($derivedMerchRate - $reducedRate) <= 0.5) {
                         $effectiveTaxRate = $reducedRate;
                     } else {
                         $effectiveTaxRate = $derivedRate;
                     }
                 } else {
-                    $effectiveTaxRate = (float) shop_setting('default_tax_rate', 19.0);
+                    $effectiveTaxRate = $defaultRate;
                 }
             } elseif ((bool) shop_setting('is_small_business', false)) {
                 $effectiveTaxRate = 0.0;

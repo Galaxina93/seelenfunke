@@ -63,6 +63,12 @@
                                 $completedOrderItems = $selectedOrder->items->filter(fn($it) => !empty($it->is_completed) || (($it->completed_quantity ?? 0) >= max(1, (int) $it->quantity)))->count();
                                 $allItemsEngraved = $totalOrderItems > 0 && $completedOrderItems >= $totalOrderItems;
                                 $someItemsEngraved = $completedOrderItems > 0;
+                                $hasPersonalizableOrderItems = $selectedOrder->items->contains(function($it) {
+                                    if ($it->product) {
+                                        return $it->product->isPersonalizable();
+                                    }
+                                    return !empty($it->configuration['texts']) || !empty($it->configuration['custom_fields_data']) || !empty($it->configuration['text']);
+                                });
 
                                 $progress = match($status) {
                                     'pending' => $allItemsEngraved ? '68%' : ($someItemsEngraved ? '45%' : '20%'),
@@ -100,11 +106,11 @@
                                     };
                                     $emotionalBadgeLabel = match($status) {
                                         'pending' => $allItemsEngraved
-                                            ? 'Gravur & Prüfung fertig • Wird verpackt'
-                                            : ($someItemsEngraved ? 'In der Manufaktur (Gravur)' : 'Im Atelier eingegangen'),
+                                            ? ($hasPersonalizableOrderItems ? 'Gravur & Prüfung fertig • Wird verpackt' : 'Geprüft • Wird verpackt')
+                                            : ($someItemsEngraved ? ($hasPersonalizableOrderItems ? 'In der Manufaktur (Gravur)' : 'Qualitätsprüfung') : 'Im Atelier eingegangen'),
                                         'processing' => $allItemsEngraved
-                                            ? 'Gravur & Prüfung fertig • Wird verpackt'
-                                            : 'In der Manufaktur (Lasergravur)',
+                                            ? ($hasPersonalizableOrderItems ? 'Gravur & Prüfung fertig • Wird verpackt' : 'Geprüft • Wird verpackt')
+                                            : ($hasPersonalizableOrderItems ? 'In der Manufaktur (Lasergravur)' : 'In der Manufaktur (Qualitätsprüfung)'),
                                         'shipped' => 'Liebevoll verpackt & Unterwegs',
                                         'completed' => 'Dein Seelenfunke ist da',
                                         'cancelled' => 'Storniert',
@@ -113,14 +119,14 @@
                                     };
                                     $emotionalSubtitle = match($status) {
                                         'pending' => $allItemsEngraved
-                                            ? '✓ Dein Unikat hat die Lasergravur & Qualitätsprüfung erfolgreich durchlaufen und wird nun für den Versand vorbereitet.'
+                                            ? ($hasPersonalizableOrderItems ? '✓ Dein Unikat hat die Lasergravur & Qualitätsprüfung erfolgreich durchlaufen und wird nun für den Versand vorbereitet.' : '✓ Deine Bestellung hat die Qualitätsprüfung erfolgreich durchlaufen und wird nun für den Versand vorbereitet.')
                                             : ($someItemsEngraved
-                                                ? "🔥 Wir gravieren gerade deine Unikate in unserer Manufaktur ({$completedOrderItems}/{$totalOrderItems} bereits fertig veredelt)."
-                                                : '✨ Dein Auftrag & deine Gravurdaten sind sicher im Atelier eingegangen und für den Laser vorbereitet.'),
+                                                ? ($hasPersonalizableOrderItems ? "🔥 Wir gravieren gerade deine Unikate in unserer Manufaktur ({$completedOrderItems}/{$totalOrderItems} bereits fertig veredelt)." : "✨ Wir bereiten deine Artikel in unserer Manufaktur vor ({$completedOrderItems}/{$totalOrderItems} bereits geprüft).")
+                                                : ($hasPersonalizableOrderItems ? '✨ Dein Auftrag & deine Gravurdaten sind sicher im Atelier eingegangen und für den Laser vorbereitet.' : '✨ Deine Bestellung ist sicher im Atelier eingegangen und wird für den Versand vorbereitet.')),
                                         'processing' => $allItemsEngraved
-                                            ? '✓ Dein Unikat hat die Lasergravur & Qualitätsprüfung erfolgreich durchlaufen und wird nun für den Versand vorbereitet.'
-                                            : '🔥 Dein Unikat wird in unserer Manufaktur präzise graviert, handveredelt und auf Qualität geprüft.',
-                                        'shipped' => '🎁 Sorgfältig im Seelenfunke-Etui verpackt und an DHL übergeben: Dein Paket ist auf dem Weg zu dir.',
+                                            ? ($hasPersonalizableOrderItems ? '✓ Dein Unikat hat die Lasergravur & Qualitätsprüfung erfolgreich durchlaufen und wird nun für den Versand vorbereitet.' : '✓ Deine Bestellung hat die Qualitätsprüfung erfolgreich durchlaufen und wird nun für den Versand vorbereitet.')
+                                            : ($hasPersonalizableOrderItems ? '🔥 Dein Unikat wird in unserer Manufaktur präzise graviert, handveredelt und auf Qualität geprüft.' : '✨ Deine Bestellung wird in unserer Manufaktur sorgfältig geprüft und für den Versand vorbereitet.'),
+                                        'shipped' => '🎁 Sorgfältig in unserer Manufaktur verpackt und versendet: Deine Bestellung ist auf dem Weg zu dir.',
                                         'completed' => '💛 Erfolgreich zugestellt. Wir wünschen dir unendlich viel Freude mit deinem Seelenfunken!',
                                         default => null
                                     };
@@ -139,7 +145,7 @@
                             @if(!$isCancelled)
                                 <div class="grid grid-cols-4 gap-1 text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 dark:text-gray-600 text-center">
                                     <span class="text-orange-500 font-bold">1. Im Atelier</span>
-                                    <span class="{{ $isProcessing ? 'text-blue-600 dark:text-blue-400 font-bold' : '' }}">2. Lasergravur</span>
+                                    <span class="{{ $isProcessing ? 'text-blue-600 dark:text-blue-400 font-bold' : '' }}">{{ $hasPersonalizableOrderItems ? '2. Lasergravur' : '2. Qualitätsprüfung' }}</span>
                                     <span class="{{ $isShipped ? 'text-purple-600 dark:text-purple-400 font-bold' : '' }}">3. Verpackt & DHL</span>
                                     <span class="{{ $isCompleted ? 'text-emerald-600 dark:text-emerald-500 font-bold' : '' }}">4. Angekommen</span>
                                 </div>
@@ -149,7 +155,7 @@
                                         <span>{{ $emotionalSubtitle }}</span>
                                         @if($someItemsEngraved && in_array($status, ['pending', 'processing']))
                                             <span class="shrink-0 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-                                                ✓ {{ $completedOrderItems }}/{{ $totalOrderItems }} graviert
+                                                ✓ {{ $completedOrderItems }}/{{ $totalOrderItems }} {{ $hasPersonalizableOrderItems ? 'graviert' : 'geprüft' }}
                                             </span>
                                         @endif
                                     </div>
@@ -228,7 +234,7 @@
                                                     </p>
                                                     @if((!empty($item->is_completed) || (($item->completed_quantity ?? 0) >= max(1, (int) $item->quantity)) || in_array($selectedOrder->status, ['shipped', 'completed'])) && !in_array($selectedOrder->status, ['cancelled', 'refunded']))
                                                         <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                                                            ✓ Fertig graviert & geprüft
+                                                            ✓ {{ ($item->product && !$item->product->isPersonalizable()) ? 'Versandfertig geprüft' : 'Fertig graviert & geprüft' }}
                                                         </span>
                                                     @endif
                                                 </div>
@@ -260,6 +266,22 @@
                                                                 @endif
                                                             @endforeach
                                                         @endif
+                                                    </div>
+                                                @endif
+
+                                                @if(!empty($item->configuration['custom_fields_data']) && is_array($item->configuration['custom_fields_data']))
+                                                    <div class="mt-2.5 flex flex-wrap items-center gap-2">
+                                                        @foreach($item->configuration['custom_fields_data'] as $cfRow)
+                                                            @if(is_array($cfRow) && !empty($cfRow['label']) && isset($cfRow['value']) && trim((string) $cfRow['value']) !== '')
+                                                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs bg-gray-100 dark:bg-gray-800/80 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 shadow-2xs">
+                                                                    <strong class="text-primary font-bold">{{ $cfRow['label'] }}:</strong>
+                                                                    <span class="font-medium">{{ $cfRow['value'] }}</span>
+                                                                    @if(!empty($cfRow['surcharge_cents']) && (int) $cfRow['surcharge_cents'] > 0)
+                                                                        <span class="text-amber-600 dark:text-amber-400 font-mono text-[11px]">(+{{ number_format(((int) $cfRow['surcharge_cents']) / 100, 2, ',', '.') }}&nbsp;€)</span>
+                                                                    @endif
+                                                                </span>
+                                                            @endif
+                                                        @endforeach
                                                     </div>
                                                 @endif
 

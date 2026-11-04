@@ -386,6 +386,14 @@ class CustomerDashboardComponent extends Component
             return;
         }
 
+        if ($this->rankingOptIn && !$this->useRealName && trim((string) $this->playerName) === '') {
+            $this->rankingOptIn = false;
+            $msg = 'Bitte lege zuerst deinen Spielernamen fest und klicke auf Speichern (oder wähle Echtname), bevor du die Ranglisten-Anzeige aktivierst.';
+            $this->playerNameError = $msg;
+            $this->addError('playerName', $msg);
+            return;
+        }
+
         $this->playerNameError = null;
         $this->hofFeedbackMessage = null;
 
@@ -410,6 +418,20 @@ class CustomerDashboardComponent extends Component
             'type'    => !empty($res['success']) ? 'success' : 'error',
             'message' => $res['message'] ?? 'Halle der Helden Einstellungen gespeichert.',
         ]);
+    }
+
+    public function updatedRankingOptIn(): void
+    {
+        if ($this->rankingOptIn && !$this->useRealName && trim((string) $this->playerName) === '') {
+            $this->rankingOptIn = false;
+            $msg = 'Bitte lege zuerst deinen Spielernamen fest und klicke auf Speichern (oder wähle Echtname), bevor du die Ranglisten-Anzeige aktivierst.';
+            $this->playerNameError = $msg;
+            $this->addError('playerName', $msg);
+            return;
+        }
+
+        $this->resetErrorBag('playerName');
+        $this->saveHallOfFameSettings(app(GamificationService::class));
     }
 
     public function saveCustomerBirthday(GamificationService $gameService): void

@@ -1688,6 +1688,9 @@
                                     <p class="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
                                         Entscheide selbst, ob du in der Halle der Helden sichtbar sein möchtest und ob dein <strong>Spielername</strong> oder dein <strong>Echtname (Vorname + Initial)</strong> angezeigt wird.
                                     </p>
+                                    <p class="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                                        <strong>Transparenz-Hinweis (DSGVO):</strong> Bei aktivierter Ranglisten-Anzeige werden ausschließlich dein gewählter <strong>Anzeigename, Funki-Stufe, aktiver Rang-Titel und Anzahl der Diamant-Titel</strong> öffentlich dargestellt (keine E-Mail-Adresse, kein Einkaufsvolumen).
+                                    </p>
                                 </div>
                                 <label class="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer shrink-0">
                                     <input type="checkbox" wire:model.live="rankingOptIn" @change="if(window.sfCockpitSound) window.sfCockpitSound('click')" class="w-4 h-4 rounded border-gray-300 text-amber-500 focus:ring-amber-500 cursor-pointer">
@@ -1841,10 +1844,10 @@
 
                                             <div class="text-right shrink-0">
                                                 <span class="font-mono font-black text-xs sm:text-base text-amber-700 dark:text-[#f5dca0] block">
-                                                    {{ number_format($leader['funken_total_earned'], 0, ',', '.') }} ✨
+                                                    {{ (int) ($leader['diamonds_count'] ?? 0) }}/{{ (int) ($leader['total_titles'] ?? 5) }} 💎
                                                 </span>
                                                 <span class="text-[9px] uppercase tracking-wider font-bold text-gray-400 block">
-                                                    Lebenszeit-Funken
+                                                    Diamant-Titel
                                                 </span>
                                             </div>
                                         </div>
@@ -2050,8 +2053,8 @@
                             <span class="text-sm font-mono font-black text-amber-700 dark:text-[#f5dca0]" x-text="heroProfileModal.diamonds_count + ' / ' + heroProfileModal.total_titles + ' 💎'"></span>
                         </div>
                         <div class="p-2.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
-                            <span class="text-[9px] font-black uppercase tracking-wider text-gray-400 block">Lebenszeit-Funken</span>
-                            <span class="text-sm font-mono font-black text-amber-700 dark:text-[#f5dca0]" x-text="(heroProfileModal.funken_total_earned || 0).toLocaleString('de-DE') + ' ✨'"></span>
+                            <span class="text-[9px] font-black uppercase tracking-wider text-gray-400 block">Funki-Stufe</span>
+                            <span class="text-sm font-mono font-black text-amber-700 dark:text-[#f5dca0]" x-text="'Level ' + heroProfileModal.level + ' / 10 ✨'"></span>
                         </div>
                     </div>
 

@@ -1,4 +1,5 @@
-<div class="min-h-screen bg-white text-gray-900" style="color-scheme: light;" x-data="{ isProcessing: false }" @checkout-processing.window="isProcessing = true" @checkout-processing-done.window="isProcessing = false">
+<div class="min-h-screen bg-white text-gray-900"
+     style="color-scheme: light;">
     <style>
         #payment-form,
         #payment-form input,
@@ -18,15 +19,11 @@
             caret-color: #111827 !important;
         }
     </style>
-    @if ($isFinished)
-        @include('livewire.shop.order.order-checkout.order-checkout-success')
-    @else
-        {{-- LADE-OVERLAY (Nur für Mobile) --}}
-    <div x-show="isProcessing"
-         x-cloak
-         class="lg:hidden fixed top-0 left-0 w-screen h-screen z-[9999] flex flex-col items-center justify-center bg-white/80 backdrop-blur-md transition-all animate-fade-in">
-    </div>
 
+    {{-- DURCHGEHENDE MAGIE-BÜHNE (Lade-Animation -> Nahtloser Übergang in "Vielen Dank!" & Endinfos) --}}
+    @include('livewire.shop.order.order-checkout.order-checkout-success', ['isEmbeddedInCheckout' => true])
+
+    @if (!$isFinished)
     {{-- HAUPT-FORMULAR --}}
     <div wire:loading.class="opacity-30 blur-[2px] pointer-events-none"
          wire:target="handlePaymentSuccess"

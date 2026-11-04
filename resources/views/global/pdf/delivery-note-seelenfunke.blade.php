@@ -294,6 +294,7 @@
                 {{ $ownerStreet }} · {{ $ownerCity }}
             </td>
             <td style="width: 32%; text-align: center;">
+                @if(!empty($ownerPhone))Tel.: {{ $ownerPhone }}<br>@endif
                 E-Mail: {{ $ownerEmail }}<br>
                 Web: {{ str_replace(['http://', 'https://'], '', $ownerWeb) }}
             </td>

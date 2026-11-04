@@ -580,6 +580,7 @@
                             @else
                                 Freiwillige Angabe (Art.&nbsp;6 Abs.&nbsp;1 lit.&nbsp;a DSGVO) ausschließlich für deine jährliche Geburtstags-Gutschrift.
                             @endif
+                            Geburtstags- und Jubiläums-E-Mails kannst du jederzeit mit 1 Klick unter <a href="{{ route('newsletter.page', ['tab' => 'unsubscribe', 'type' => 'birthday', 'email' => auth()->user()->email ?? '']) }}" class="underline hover:text-[#C5A059]">E-Mail-Einstellungen</a> abbestellen.
                         </p>
                     @endif
                     @if($birthdayFeedbackMessage)
@@ -619,13 +620,19 @@
                             </span>
                         </div>
                     @endif
+                    <div class="pt-1.5 flex justify-end">
+                        <a href="{{ route('newsletter.page', ['tab' => 'unsubscribe', 'type' => 'anniversary', 'email' => auth()->user()->email ?? '']) }}"
+                           class="text-[10px] text-gray-400 hover:text-[#C5A059] underline underline-offset-2 transition-colors">
+                            Treue-E-Mails (Geburtstag &amp; Jubiläum) jederzeit mit 1 Klick abbestellen
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
 
         {{-- Transparenz- & Einlösebedingungen gem. § 6 Abs. 1 Nr. 3 & 4 DDG --}}
         <div class="rounded-2xl px-4 py-3 bg-gray-50/80 dark:bg-gray-900/50 border border-gray-200/80 dark:border-gray-800 text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-            <strong class="text-gray-700 dark:text-gray-300">Hinweise zum Treueprogramm (§ 6 Abs. 1 Nr. 3 &amp; 4 DDG):</strong> Gesammelte Seelenfunken sowie freigeschaltete Rabatt-Gutscheine sind personengebunden, nicht übertragbar und nicht in bar auszahlbar. Pro Bestellung ist jeweils ein prozentualer Rabattcode einlösbar. Im Falle eines Widerrufs oder einer Stornierung werden die für die betreffende Bestellung gutgeschriebenen Bestell-Funken wieder mit dem Punktekonto verrechnet (<a href="{{ route('agb') }}#agb-gamification" target="_blank" class="underline hover:text-[#C5A059]">§ 11 AGB</a>).
+            <strong class="text-gray-700 dark:text-gray-300">Hinweise zum Treueprogramm (§ 6 Abs. 1 Nr. 3 &amp; 4 DDG):</strong> Gesammelte Seelenfunken sowie freigeschaltete Rabatt-Gutscheine sind personengebunden, nicht übertragbar und nicht in bar auszahlbar. Pro Bestellung ist jeweils ein prozentualer Rabattcode einlösbar. Im Falle eines Widerrufs oder einer Stornierung werden die für die betreffende Bestellung gutgeschriebenen Bestell-Funken wieder mit dem Punktekonto verrechnet (<a href="{{ route('agb') }}#agb-gamification" target="_blank" class="underline hover:text-[#C5A059]">§ 8 AGB</a>).
         </div>
     </div>
 
@@ -877,6 +884,9 @@
                 <div>
                     <h2 class="text-base font-serif font-bold text-gray-900 dark:text-white">Deine Anzeige in der Rangliste</h2>
                     <p class="text-xs text-gray-600 dark:text-gray-400">Wähle frei zwischen eigenem Spielernamen oder Vornamen + Initial.</p>
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                        <strong>Transparenz-Hinweis (DSGVO):</strong> Bei aktivierter Ranglisten-Anzeige werden ausschließlich dein gewählter <strong>Anzeigename, Funki-Stufe, aktiver Rang-Titel und Anzahl der Diamant-Titel</strong> öffentlich dargestellt (keine E-Mail-Adresse, kein Einkaufsvolumen).
+                    </p>
                 </div>
                 <label class="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer shrink-0">
                     <input type="checkbox" wire:model.live="rankingOptIn" @change="if(window.sfCockpitSound) window.sfCockpitSound('click')" class="w-4 h-4 rounded border-gray-300 text-amber-500 focus:ring-amber-500 cursor-pointer">
@@ -1000,7 +1010,7 @@
 
                             <div class="text-right shrink-0">
                                 <span class="font-mono font-black text-xs sm:text-base text-amber-700 dark:text-[#f5dca0] block">
-                                    {{ number_format($leader['funken_total_earned'], 0, ',', '.') }} ✨
+                                    {{ (int) ($leader['diamonds_count'] ?? 0) }}/{{ (int) ($leader['total_titles'] ?? 5) }} 💎
                                 </span>
                             </div>
                         </div>
@@ -1117,7 +1127,7 @@
 
                     <h4 class="text-2xl font-serif font-bold text-gray-900 dark:text-white" x-text="heroProfileModal.display_name"></h4>
                     <p class="text-xs font-bold text-amber-700 dark:text-[#f5dca0] mt-1" x-text="heroProfileModal.rank_name"></p>
-                    <p class="text-xs text-gray-500 mt-1" x-text="'Level ' + heroProfileModal.level + ' • ' + (heroProfileModal.funken_total_earned || 0).toLocaleString('de-DE') + ' ✨'"></p>
+                    <p class="text-xs text-gray-500 mt-1" x-text="'Level ' + heroProfileModal.level + ' • ' + (heroProfileModal.diamonds_count || 0) + '/' + (heroProfileModal.total_titles || 5) + ' Diamant-Titel 💎'"></p>
 
                     <button type="button"
                             @click="heroProfileModal = null"

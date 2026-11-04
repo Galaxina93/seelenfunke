@@ -56,6 +56,13 @@ trait HandlesStripePayment
                     'shipping_country' => $targetCountry
                 ];
 
+                if (Session::has('checkout_from_quote_id')) {
+                    $activeQuote = OrderQuoteRequest::find(Session::get('checkout_from_quote_id'));
+                    if ($activeQuote && !empty($activeQuote->quote_number)) {
+                        $metadata['quote_number'] = (string) $activeQuote->quote_number;
+                    }
+                }
+
                 $intentData = [
                     'amount' => $amount,
                     'currency' => 'eur',
@@ -171,86 +178,88 @@ trait HandlesStripePayment
             $order = $candidate;
         }
 
-        if ($order) {
-            // 2. Serverseitige Verifikation über die Stripe API für kostenpflichtige Bestellungen
-            if ($order->total_price > 0) {
-                if (!app()->environment('testing')) {
-                    $stripeSecret = config('services.stripe.secret') ?: shop_setting('stripe_secret_key');
-                    if (empty($order->stripe_payment_intent_id) || empty($stripeSecret)) {
-                        $this->addError('payment', 'Keine gültige Zahlungsinformation vorhanden.');
+        if (!$order) {
+            $this->addError('payment', 'Bestellung nicht gefunden.');
+            return;
+        }
+
+        // 2. Serverseitige Verifikation über die Stripe API für kostenpflichtige Bestellungen
+        if ($order->total_price > 0) {
+            if (!app()->environment('testing')) {
+                $stripeSecret = config('services.stripe.secret') ?: shop_setting('stripe_secret_key');
+                if (empty($order->stripe_payment_intent_id) || empty($stripeSecret)) {
+                    $this->addError('payment', 'Keine gültige Zahlungsinformation vorhanden.');
+                    return;
+                }
+
+                Stripe::setApiKey($stripeSecret);
+                try {
+                    $intent = PaymentIntent::retrieve($order->stripe_payment_intent_id);
+
+                    if ($intent->status !== 'succeeded') {
+                        Log::warning("Zahlungsverifikation fehlgeschlagen für Order {$order->order_number}: Status ist '{$intent->status}' (erwartet: 'succeeded').");
+                        $this->addError('payment', 'Die Zahlung wurde von Stripe noch nicht freigegeben.');
                         return;
                     }
 
-                    Stripe::setApiKey($stripeSecret);
-                    try {
-                        $intent = PaymentIntent::retrieve($order->stripe_payment_intent_id);
-
-                        if ($intent->status !== 'succeeded') {
-                            Log::warning("Zahlungsverifikation fehlgeschlagen für Order {$order->order_number}: Status ist '{$intent->status}' (erwartet: 'succeeded').");
-                            $this->addError('payment', 'Die Zahlung wurde von Stripe noch nicht freigegeben.');
-                            return;
-                        }
-
-                        if ((int)$intent->amount !== (int)$order->total_price) {
-                            Log::error("Betrags-Mismatch bei Order {$order->order_number}: Stripe={$intent->amount}, Order={$order->total_price}");
-                            $this->addError('payment', 'Der bezahlte Betrag stimmt nicht mit der Auftragssumme überein.');
-                            return;
-                        }
-                    } catch (\Exception $e) {
-                        Log::error("Stripe API Fehler bei Verifikation von Order {$order->order_number}: " . $e->getMessage());
-                        $this->addError('payment', 'Zahlung konnte serverseitig nicht verifiziert werden.');
+                    if ((int)$intent->amount !== (int)$order->total_price) {
+                        Log::error("Betrags-Mismatch bei Order {$order->order_number}: Stripe={$intent->amount}, Order={$order->total_price}");
+                        $this->addError('payment', 'Der bezahlte Betrag stimmt nicht mit der Auftragssumme überein.');
                         return;
                     }
+                } catch (\Exception $e) {
+                    Log::error("Stripe API Fehler bei Verifikation von Order {$order->order_number}: " . $e->getMessage());
+                    $this->addError('payment', 'Zahlung konnte serverseitig nicht verifiziert werden.');
+                    return;
                 }
             }
+        }
 
-            // Fulfill the order using the unified, idempotent completePayment method
-            try {
-                $order->completePayment($order->stripe_payment_intent_id ?: $this->currentPaymentIntentId);
-            } catch (\Throwable $e) {
-                Log::error("Fehler beim Abschluss von Order {$order->order_number}: " . $e->getMessage());
-                $this->addError('payment', $e->getMessage());
-                return;
-            }
-            Session::forget('checkout_order_id');
+        // Fulfill the order using the unified, idempotent completePayment method
+        try {
+            $order->completePayment($order->stripe_payment_intent_id ?: $this->currentPaymentIntentId);
+        } catch (\Throwable $e) {
+            Log::error("Fehler beim Abschluss von Order {$order->order_number}: " . $e->getMessage());
+            $this->addError('payment', $e->getMessage());
+            return;
+        }
+        Session::forget('checkout_order_id');
 
-            $this->finalOrderId = (string) $order->id;
-            $this->finalOrderNumber = $order->order_number;
-            $this->instantDownloads = $order->fresh(['items.product'])?->getInstantDownloads() ?? [];
+        $this->finalOrderId = (string) $order->id;
+        $this->finalOrderNumber = $order->order_number;
+        $this->email = $order->email ?: $this->email;
+        $this->instantDownloads = $order->fresh(['items.product'])?->getInstantDownloads() ?? [];
 
-            try {
-                $this->earnedSparks = app(\App\Services\Gamification\GamificationService::class)->calculateOrderSparks($order);
-            } catch (\Throwable $e) {
-                $this->earnedSparks = 0;
-            }
+        try {
+            $this->earnedSparks = app(\App\Services\Gamification\GamificationService::class)->calculateOrderSparks($order);
+        } catch (\Throwable $e) {
+            $this->earnedSparks = 0;
+        }
 
-            try {
-                $ref = app(\App\Services\ReferralService::class)->getOrCreateReferralForCustomer(
-                    $order->email,
-                    $order->billing_address['first_name'] ?? ($this->first_name ?? ''),
-                    $order->billing_address['last_name'] ?? ($this->last_name ?? ''),
-                    $order->customer_id
-                );
-                $this->referralCode = $ref->code;
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error('Referral code resolution error: ' . $e->getMessage());
-            }
+        try {
+            $ref = app(\App\Services\ReferralService::class)->getOrCreateReferralForCustomer(
+                $order->email,
+                $order->billing_address['first_name'] ?? ($this->first_name ?? ''),
+                $order->billing_address['last_name'] ?? ($this->last_name ?? ''),
+                $order->customer_id
+            );
+            $this->referralCode = $ref->code;
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Referral code resolution error: ' . $e->getMessage());
+        }
 
-            // --- VERKNÜPFUNG ZUM ANGEBOT (QUOTE) ---
-            if (Session::has('checkout_from_quote_id')) {
-                $quoteId = Session::get('checkout_from_quote_id');
-                $quote = OrderQuoteRequest::find($quoteId);
+        // --- VERKNÜPFUNG ZUM ANGEBOT (QUOTE) ---
+        if (Session::has('checkout_from_quote_id')) {
+            $quoteId = Session::get('checkout_from_quote_id');
+            $quote = OrderQuoteRequest::find($quoteId);
 
-                if ($quote) {
-                    $quote->update([
-                        'status' => 'converted',
-                        'converted_order_id' => $order->id
-                    ]);
+            if ($quote && $quote->status !== 'converted' && empty($quote->converted_order_id)) {
+                $quote->update([
+                    'status' => 'converted',
+                    'converted_order_id' => $order->id
+                ]);
 
-                    Session::forget('checkout_from_quote_id');
-
-                    # \Illuminate\Support\Facades\Log::info("Angebot {$quote->quote_number} wurde erfolgreich in Order {$order->order_number} umgewandelt.");
-                }
+                Session::forget('checkout_from_quote_id');
             }
         }
 

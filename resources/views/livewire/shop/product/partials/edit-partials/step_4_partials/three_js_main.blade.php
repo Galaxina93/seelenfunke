@@ -37,7 +37,7 @@ modelPath: '{{ $adminResolvedModelUrl }}',
 bgPath: '{{ $adminResolvedBgUrl }}',
 bgVideoUrl: '{{ $adminResolvedVidUrl }}',
 fallbackImg: '{{ $adminResolvedFallbackUrl }}',
-configSettings: @entangle('configSettings'),
+configSettings: $wire.entangle('configSettings'),
 
 activeSide: 'front',
 

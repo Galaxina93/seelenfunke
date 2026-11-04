@@ -135,6 +135,19 @@ class ReferralService
     }
 
     /**
+     * Prüft, ob es sich bei dem eingegebenen Code um einen Empfehlungscode handelt.
+     */
+    public function isReferralCode(string $code): bool
+    {
+        $code = strtoupper(trim($code));
+        if ($code === '') {
+            return false;
+        }
+
+        return MarketingReferral::where('code', $code)->exists();
+    }
+
+    /**
      * Prüft, ob ein Code ein Empfehlungscode ist und ob er für den aktuellen Käufer zulässig ist.
      * Beinhaltet:
      * - Eigenmissbrauch-Schutz (Kunde darf nicht eigenen Code nutzen)

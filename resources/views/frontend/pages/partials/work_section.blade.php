@@ -22,30 +22,34 @@
                 </div>
                 {{-- SEO: Die wichtige Aussage ist jetzt H3 --}}
                 <h3 class="mt-2 text-white text-3xl font-serif font-bold sm:text-4xl">
-                    Unvergessliche <span class="text-primary">Momente</span>
+                    Unvergessliche <span class="text-primary">Momente</span> zum Anfassen
                 </h3>
-                <p class="mt-4 text-gray-300 text-lg">
-                    Ein Geschenk sagt mehr als tausend Worte. Unsere Glas-Unikate sind perfekt für die emotionalen Höhepunkte des Lebens, veredelt durch präzise Lasergravur.
+                <p class="mt-4 text-gray-300 text-lg leading-relaxed">
+                    Ein persönliches Geschenk berührt dort, wo Worte allein nicht mehr ausreichen. Ob vergoldeter Edelstahl-Herzschmuck, ein massiver Talisman mit Koordinaten, eine gravierte Hundemarke, ein 360° Weizenglas oder unser K9-Seelen-Kristall: Wir verewigen deine Geschichte für die Ewigkeit.
                 </p>
                 <ul class="mt-6 space-y-3 text-white text-lg list-none">
                     <li class="flex items-center gap-3">
-                        <span class="text-primary text-xl" aria-hidden="true">✨</span> Hochzeiten & Jahrestage
+                        <span class="text-primary text-xl shrink-0" aria-hidden="true">✨</span>
+                        <span>Hochzeiten, Jahrestage & Herzensmenschen</span>
                     </li>
                     <li class="flex items-center gap-3">
-                        <span class="text-primary text-xl" aria-hidden="true">✨</span> Geburten & Taufen
+                        <span class="text-primary text-xl shrink-0" aria-hidden="true">✨</span>
+                        <span>Mama, Papa & unvergessliche Familienmomente</span>
                     </li>
                     <li class="flex items-center gap-3">
-                        <span class="text-primary text-xl" aria-hidden="true">✨</span> Erinnerungen an Haustiere
+                        <span class="text-primary text-xl shrink-0" aria-hidden="true">✨</span>
+                        <span>Treue Seelentiere & liebevolle Pfoten-Andenken</span>
                     </li>
                     <li class="flex items-center gap-3">
-                        <span class="text-primary text-xl" aria-hidden="true">✨</span> Geburtstage & Feiertage
+                        <span class="text-primary text-xl shrink-0" aria-hidden="true">✨</span>
+                        <span>Geburtstage, Taufen & besondere Jubiläen</span>
                     </li>
                 </ul>
                 <div class="mt-8">
                     <a href="{{ route('shop') }}"
                        title="Zum Online-Shop für personalisierte Geschenke"
                        class="text-primary font-bold hover:text-white transition-colors border-b-2 border-primary pb-1">
-                        Zum Shop →
+                        Alle Unikate im Shop entdecken →
                     </a>
                 </div>
             </div>
@@ -60,7 +64,7 @@
         <div class="h-56 sm:h-72 md:absolute md:left-0 md:h-full md:w-1/2">
             <img class="w-full h-full object-cover"
                  src="{{ asset('shop/frontend/other/appreciation.webp') }}"
-                 alt="Hochwertige Firmenawards und Trophäen aus Glas für Mitarbeiter"
+                 alt="Hochwertige Firmenawards, Vereinsgeschenke und Trophäen mit Lasergravur"
                  loading="lazy">
         </div>
 
@@ -68,15 +72,15 @@
             <div class="md:ml-auto md:w-1/2 md:pl-12 md:text-right">
 
                 <div class="text-sm font-bold uppercase tracking-widest text-primary-dark">
-                    Für B2B Kunden & Vereine
+                    Für B2B Kunden, Teams & Vereine
                 </div>
 
                 <h3 class="mt-2 text-gray-900 text-3xl font-serif font-bold sm:text-4xl">
-                    Der <span class="text-[#8a6820]">Seelen-Kristall</span>
+                    Wertschätzung mit <span class="text-[#8a6820]">bleibendem Eindruck</span>
                 </h3>
 
                 <p class="mt-4 text-gray-600 text-lg leading-relaxed">
-                    Wir glauben an Klasse statt Masse. Deshalb konzentrieren wir uns voll und ganz auf dieses Meisterstück aus massivem <strong>K9-Kristallglas</strong>. Die perfekte Wahl für besondere Ehrungen, Awards und Jubiläen.
+                    Wahre Anerkennung verdient echte Substanz statt kurzlebiger Streuartikel. Von repräsentativen <strong>K9-Kristall-Trophäen</strong> für Firmenjubiläen und Ehrenämter über <strong>360° gravierte Kristall-Weizengläser</strong> für den Vereins-Stammtisch bis hin zu edlen <strong>Edelstahl- und Aluminium-Schlüsselanhängern</strong> mit eigenem Vereins- oder Firmenlogo fertigen wir Ihre Serie präzise in unserer deutschen Manufaktur.
                 </p>
 
                 {{-- Liste: Rechtsbündig mit Icons rechts --}}
@@ -84,25 +88,25 @@
 
                     {{-- Item 1 --}}
                     <li class="flex items-start justify-end gap-3">
-                        <span class="text-right"><strong>Mengenrabatte</strong> automatisch berechnen</span>
+                        <span class="text-right"><strong>Attraktive Mengenrabatte</strong> live im Kalkulator berechnen</span>
                         <span class="text-primary text-xl flex-shrink-0 mt-1" aria-hidden="true">💎</span>
                     </li>
 
                     {{-- Item 2 --}}
                     <li class="flex items-start justify-end gap-3">
-                        <span class="text-right"><strong>Inklusive Lasergravur</strong> & Geschenkbox</span>
+                        <span class="text-right"><strong>Eigenes Firmen- oder Vereinslogo</strong> inklusive Präzisionsgravur</span>
                         <span class="text-primary text-xl flex-shrink-0 mt-1" aria-hidden="true">🎁</span>
                     </li>
 
                     {{-- Item 3 --}}
                     <li class="flex items-start justify-end gap-3">
-                        <span class="text-right">Bequemer <strong>Rechnungskauf</strong> für Vereine</span>
+                        <span class="text-right">Bequemer <strong>Rechnungskauf</strong> für Firmen, Behörden & Vereine</span>
                         <span class="text-primary text-xl flex-shrink-0 mt-1" aria-hidden="true">📄</span>
                     </li>
 
                     {{-- Item 4 --}}
                     <li class="flex items-start justify-end gap-3">
-                        <span class="text-right">Das Highlight für Jubiläen & Awards</span>
+                        <span class="text-right">Sofort überreichfertig in edler <strong>Geschenkverpackung</strong></span>
                         <span class="text-primary text-xl flex-shrink-0 mt-1" aria-hidden="true">🏆</span>
                     </li>
                 </ul>
@@ -110,9 +114,9 @@
                 {{-- Button zum Kalkulator --}}
                 <div class="mt-10 flex justify-center md:justify-end">
                     <a href="/calculator"
-                       title="Individuelles Angebot für Firmenawards berechnen"
+                       title="Individuelles Angebot für Firmenawards und Vereinsgeschenke berechnen"
                        class="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-gray-900 hover:bg-primary transition shadow-lg transform hover:-translate-y-1">
-                        Jetzt Preis berechnen
+                        Jetzt Serien-Preis berechnen
                         <svg class="ml-2 -mr-1 w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                         </svg>
@@ -124,7 +128,7 @@
     </div>
 
     {{-- ========================================== --}}
-    {{-- 3. MANUFAKTUR & VISION (Vertrauen aufbauen) --}}
+    {{-- 3. MANUFAKTUR & DIE 5 ENORMEN VORTEILE --}}
     {{-- ========================================== --}}
     <div id="manufaktur" class="relative bg-primary-dark overflow-hidden">
         {{-- Bild rechtsbündig --}}
@@ -138,23 +142,34 @@
         <div class="relative max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8 lg:py-24">
             <div class="md:w-1/2 md:pr-12">
                 <div class="text-sm font-bold uppercase tracking-widest text-primary">
-                    Unsere Manufaktur
+                    Die Manufaktur
                 </div>
                 <h3 class="mt-2 text-white text-3xl font-serif font-bold sm:text-4xl">
                     Handveredelt in <span class="text-primary">Deutschland</span>
                 </h3>
-                <p class="mt-4 text-gray-300 text-lg">
-                    Wir sind kein anonymer Großhändler. Jedes Stück wird in unserer Manufaktur in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }} geprüft, gereinigt und mit modernster Laser-Technologie für dich personalisiert.
+                <p class="mt-4 text-gray-300 text-lg leading-relaxed">
+                    Bei <strong>Mein Seelenfunke</strong> entsteht jedes Schmuckstück, jedes Glas und jeder Kristall in unserer eigenen Werkstatt in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}. Mit höchster Laserpräzision, echter Handarbeit und kurzen Wegen.
                 </p>
                 <ul class="mt-6 space-y-3 text-white text-lg list-none">
                     <li class="flex items-center gap-3">
-                        <x-heroicon-s-check class="w-6 h-6 text-yellow-500 group-hover:rotate-12 group-active:scale-90 transition-transform duration-300" /> Liebe zum Detail bei jedem Stück
+                        <x-heroicon-s-check class="w-6 h-6 text-primary shrink-0" />
+                        <span>High-End 5W UV- & MOPA-Faserlaser-Präzision</span>
                     </li>
                     <li class="flex items-center gap-3">
-                        <x-heroicon-s-check class="w-6 h-6 text-yellow-500 group-hover:rotate-12 group-active:scale-90 transition-transform duration-300" /> Schnelle Bearbeitung (1-3 Tage)
+                        <x-heroicon-s-check class="w-6 h-6 text-primary shrink-0" />
+                        <span>Deutsche Manufaktur mit Sitz in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}</span>
                     </li>
                     <li class="flex items-center gap-3">
-                        <x-heroicon-s-check class="w-6 h-6 text-yellow-500 group-hover:rotate-12 group-active:scale-90 transition-transform duration-300" /> Wir starten mit Glas und haben noch viel vor.
+                        <x-heroicon-s-check class="w-6 h-6 text-primary shrink-0" />
+                        <span>Interaktiver Live-3D- & 2D-Echtzeit-Konfigurator</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <x-heroicon-s-check class="w-6 h-6 text-primary shrink-0" />
+                        <span>Eingetragene Marke (DPMA) & geprüfte Fachkunde</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <x-heroicon-s-check class="w-6 h-6 text-primary shrink-0" />
+                        <span>Deutschsprachiger Support & optionaler Geschenkbox-Service</span>
                     </li>
                 </ul>
             </div>

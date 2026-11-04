@@ -14,7 +14,11 @@
                     @endif
                 </div>
 
-                <div class="bg-transparent relative w-full flex flex-col min-h-[500px] flex-1">
+                @php
+                    $isItemCustomFields = (($previewItem->configuration['personalization_mode'] ?? null) === 'custom_fields')
+                        || !empty($previewItem->configuration['custom_fields_data']);
+                @endphp
+                <div class="bg-transparent relative w-full flex flex-col {{ $isItemCustomFields ? 'min-h-0' : 'min-h-[500px]' }} flex-1">
                     @if($previewItem->product)
                         <div class="w-full flex-1 relative flex flex-col">
                             <livewire:shop.product.product-configurator.product-configurator
@@ -45,6 +49,96 @@
                     </div>
                 @endif
             </div>
+
+            @php
+                // Für Schnell-Personalisierung (custom_fields) sind die Copy-Buttons bereits direkt in der Vorschau-Karte oben integriert.
+                // Der separate Laser-Steckbrief wird daher nur für 2D/3D-Studio-Positionen unterhalb des 3D-Canvas angezeigt.
+                $laserSteckbriefRows = [];
+                if (!$isItemCustomFields) {
+                    if (!empty($previewItem->configuration['texts']) && is_array($previewItem->configuration['texts'])) {
+                        foreach ($previewItem->configuration['texts'] as $idx => $tRow) {
+                            if (!empty($tRow['text']) && trim((string) $tRow['text']) !== '') {
+                                $laserSteckbriefRows[] = [
+                                    'label' => count($previewItem->configuration['texts']) > 1 ? 'Gravurtext ' . ($idx + 1) . ' (Vorderseite)' : 'Gravurtext (Vorderseite)',
+                                    'value' => trim((string) $tRow['text']),
+                                    'meta' => !empty($tRow['font']) ? 'Schrift: ' . $tRow['font'] : null,
+                                    'surcharge_cents' => 0,
+                                ];
+                            }
+                        }
+                    } elseif (!empty($previewItem->configuration['text']) && trim((string) $previewItem->configuration['text']) !== '') {
+                        $laserSteckbriefRows[] = [
+                            'label' => 'Gravurtext',
+                            'value' => trim((string) $previewItem->configuration['text']),
+                            'meta' => !empty($previewItem->configuration['font']) ? 'Schrift: ' . $previewItem->configuration['font'] : null,
+                            'surcharge_cents' => 0,
+                        ];
+                    }
+                    if (!empty($previewItem->configuration['texts_back']) && is_array($previewItem->configuration['texts_back'])) {
+                        foreach ($previewItem->configuration['texts_back'] as $idx => $tRow) {
+                            if (!empty($tRow['text']) && trim((string) $tRow['text']) !== '') {
+                                $laserSteckbriefRows[] = [
+                                    'label' => count($previewItem->configuration['texts_back']) > 1 ? 'Gravurtext ' . ($idx + 1) . ' (Rückseite)' : 'Gravurtext (Rückseite)',
+                                    'value' => trim((string) $tRow['text']),
+                                    'meta' => !empty($tRow['font']) ? 'Schrift: ' . $tRow['font'] : null,
+                                    'surcharge_cents' => 0,
+                                ];
+                            }
+                        }
+                    }
+                }
+                $allCustomFieldsCopyText = collect($laserSteckbriefRows)
+                    ->map(fn($r) => $r['label'] . ': ' . $r['value'])
+                    ->implode("\n");
+            @endphp
+            @if(!empty($laserSteckbriefRows))
+                <div class="bg-emerald-50/70 dark:bg-emerald-950/20 rounded-[1.5rem] sm:rounded-[2rem] shadow-none dark:shadow-inner border border-emerald-200 dark:border-emerald-500/30 overflow-hidden shrink-0">
+                    <div class="bg-emerald-100/70 dark:bg-emerald-500/10 px-5 sm:px-6 py-3 sm:py-4 border-b border-emerald-200 dark:border-emerald-500/20 flex flex-wrap items-center justify-between gap-2">
+                        <h3 class="text-[9px] sm:text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                            <span>⚡</span>
+                            Laser-Steckbrief (1-Klick Copy für XCS)
+                        </h3>
+                        <button type="button"
+                                x-data="{ copiedAll: false }"
+                                @click="navigator.clipboard.writeText(@js($allCustomFieldsCopyText)); copiedAll = true; setTimeout(() => copiedAll = false, 2000)"
+                                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border"
+                                :class="copiedAll ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white dark:bg-gray-900 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/40 hover:bg-emerald-600 hover:text-white'">
+                            <span x-show="!copiedAll">📋 Alle Werte kopieren</span>
+                            <span x-show="copiedAll" x-cloak>✓ In Zwischenablage</span>
+                        </button>
+                    </div>
+                    <div class="p-4 sm:p-6 space-y-2.5">
+                        @foreach($laserSteckbriefRows as $cfRow)
+                            <div class="flex items-center justify-between gap-3 bg-white dark:bg-gray-950/80 rounded-xl px-4 py-3 border border-emerald-200/80 dark:border-emerald-800/60 shadow-2xs">
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">{{ $cfRow['label'] }}</span>
+                                        @if(!empty($cfRow['meta']))
+                                            <span class="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-[9px] font-bold">
+                                                {{ $cfRow['meta'] }}
+                                            </span>
+                                        @endif
+                                        @if(!empty($cfRow['surcharge_cents']) && (int) $cfRow['surcharge_cents'] > 0)
+                                            <span class="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-mono text-[9px] font-bold">
+                                                +{{ number_format(((int) $cfRow['surcharge_cents']) / 100, 2, ',', '.') }} €
+                                            </span>
+                                        @endif
+                                    </div>
+                                    <div class="text-sm sm:text-base font-bold text-gray-900 dark:text-white font-mono break-words whitespace-pre-line mt-0.5 select-all">{{ $cfRow['value'] }}</div>
+                                </div>
+                                <button type="button"
+                                        x-data="{ copied: false }"
+                                        @click="navigator.clipboard.writeText(@js((string) $cfRow['value'])); copied = true; setTimeout(() => copied = false, 1800)"
+                                        class="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border shadow-2xs"
+                                        :class="copied ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400'">
+                                    <span x-show="!copied">Kopieren</span>
+                                    <span x-show="copied" x-cloak>✓ Kopiert</span>
+                                </button>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
 
             @if(!empty($previewItem->configuration['variant_name']) || (!empty($previewItem->configuration['addons_summary']) && is_array($previewItem->configuration['addons_summary'])))
                 <div class="bg-amber-50 dark:bg-amber-900/10 rounded-[1.5rem] sm:rounded-[2rem] shadow-none dark:shadow-inner border border-amber-200 dark:border-amber-500/20 overflow-hidden shrink-0">

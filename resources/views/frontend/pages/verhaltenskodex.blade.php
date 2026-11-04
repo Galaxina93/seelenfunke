@@ -11,7 +11,7 @@
 
             <div id="verhaltenskodex" class="scroll-mt-28">
                 <h2 class="text-2xl font-bold text-gray-900 mb-8 border-b pb-4 flex items-center gap-3">
-                    <span class="bg-gray-900 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-normal">III</span>
+                    <span class="bg-gray-900 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-normal">§</span>
                     Verhaltenskodex
                 </h2>
 

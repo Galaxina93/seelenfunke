@@ -13,17 +13,27 @@ class SystemSettingSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Die Master-Länderliste definieren (Code => Name)
-        $countries = [
-            'DE' => 'Deutschland', 'AT' => 'Österreich', 'NL' => 'Niederlande',
-            'BE' => 'Belgien', 'FR' => 'Frankreich', 'IT' => 'Italien',
-            'ES' => 'Spanien', 'PL' => 'Polen', 'CZ' => 'Tschechien',
-            'DK' => 'Dänemark', 'SE' => 'Schweden', 'FI' => 'Finnland',
-            'IE' => 'Irland', 'PT' => 'Portugal', 'GR' => 'Griechenland',
-            'HU' => 'Ungarn', 'RO' => 'Rumänien', 'BG' => 'Bulgarien',
-            'SK' => 'Slowakei', 'SI' => 'Slowenien', 'HR' => 'Kroatien',
-            'EE' => 'Estland', 'LV' => 'Lettland', 'LT' => 'Litauen', 'LU' => 'Luxemburg'
-        ];
+        // 1. Aktive Lieferländer anhand der aktiven Versandzonen bestimmen (Standard: nur Deutschland aktiv)
+        $allCountries = \App\Livewire\Shop\System\SystemShipping::getAllCountries();
+        $countries = ['DE' => 'Deutschland'];
+        if (\Illuminate\Support\Facades\Schema::hasTable('logistics_shipping_zones')
+            && \Illuminate\Support\Facades\Schema::hasTable('logistics_shipping_zone_countries')
+            && \App\Models\Logistics\LogisticsShippingZone::withTrashed()->exists()
+        ) {
+            $activeCodes = \App\Models\Logistics\LogisticsShippingZoneCountry::whereHas('zone', function ($q) {
+                $q->whereNull('deleted_at')->where('is_active', true);
+            })->pluck('country_code')->map(fn($c) => strtoupper((string) $c))->unique()->toArray();
+
+            $resolved = [];
+            foreach ($activeCodes as $code) {
+                if (isset($allCountries[$code])) {
+                    $resolved[$code] = $allCountries[$code];
+                }
+            }
+            if (!empty($resolved)) {
+                $countries = $resolved;
+            }
+        }
 
         // 2. Alle Einstellungen definieren
         $settings = [

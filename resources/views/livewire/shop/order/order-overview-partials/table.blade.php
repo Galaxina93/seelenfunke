@@ -66,12 +66,22 @@
                 } else {
                     $rowClass = 'hover:bg-gray-50 dark:hover:bg-gray-800/40 border-l-4 border-l-transparent';
                 }
+
+                $hasItems = $order->items && $order->items->isNotEmpty();
+                $totalPositions = $hasItems ? $order->items->count() : 0;
+                $totalUnits = $hasItems ? (int) $order->items->sum('quantity') : 0;
+                $isOnlyDigitalOrder = $hasItems && $order->isOnlyDigital();
+                $dhlPreview = (!$isOnlyDigitalOrder && $hasItems) ? $order->getDhlWeightDetails(1, 'box') : null;
+                $estPackages = $dhlPreview ? (int) ($dhlPreview['recommended_package_count'] ?? 1) : 1;
+                if ($estPackages > 1 && $dhlPreview) {
+                    $dhlPreview = $order->getDhlWeightDetails($estPackages, 'box');
+                }
             @endphp
 
-            <tr class="transition-all duration-300 group text-sm border-b border-gray-200 dark:border-gray-800 last:border-b-0 {{ $rowClass }}">
+            <tr class="transition-all duration-300 group text-sm {{ $hasItems ? 'border-b-0' : 'border-b border-gray-200 dark:border-gray-800 last:border-b-0' }} {{ $rowClass }}">
 
                 {{-- SPALTE 1: NR & PRIO --}}
-                <td class="px-6 py-5 whitespace-nowrap align-middle">
+                <td class="px-6 {{ $hasItems ? 'pt-5 pb-2.5' : 'py-5' }} whitespace-nowrap align-middle">
                     <div class="flex flex-col">
                         <span class="font-mono font-bold text-gray-700 dark:text-gray-300 group-hover:text-[var(--theme-color)] transition-colors cursor-pointer text-base tracking-wide"
                               wire:click="openDetail('{{ $order->id }}')">
@@ -91,7 +101,7 @@
                 </td>
 
                 {{-- SPALTE 2: DATUM & DEADLINE --}}
-                <td class="px-6 py-5 text-gray-400 whitespace-nowrap align-middle">
+                <td class="px-6 {{ $hasItems ? 'pt-5 pb-2.5' : 'py-5' }} text-gray-400 whitespace-nowrap align-middle">
                     <div class="font-medium text-gray-800 dark:text-gray-300">{{ $order->created_at->format('d.m.Y') }} <span class="text-[10px] text-gray-500 ml-1">{{ $order->created_at->format('H:i') }}</span></div>
 
                     @if($order->deadline && !$order->is_express)
@@ -102,18 +112,18 @@
                 </td>
 
                 {{-- SPALTE 3: KUNDE --}}
-                <td class="px-6 py-5 align-middle">
+                <td class="px-6 {{ $hasItems ? 'pt-5 pb-2.5' : 'py-5' }} align-middle">
                     <div class="font-bold text-gray-900 dark:text-white truncate max-w-[200px]">{{ $order->customer_name }}</div>
                     <div class="text-[11px] text-gray-500 truncate max-w-[200px]">{{ $order->email }}</div>
                 </td>
 
                 {{-- SPALTE 4: SUMME --}}
-                <td class="px-6 py-5 text-right font-serif font-bold text-[var(--theme-color)] text-lg align-middle whitespace-nowrap">
+                <td class="px-6 {{ $hasItems ? 'pt-5 pb-2.5' : 'py-5' }} text-right font-serif font-bold text-[var(--theme-color)] text-lg align-middle whitespace-nowrap">
                     {{ number_format($order->total_price / 100, 2, ',', '.') }} €
                 </td>
 
                 {{-- SPALTE 5: ZAHLUNG & RECHNUNG --}}
-                <td class="px-6 py-5 text-center align-middle">
+                <td class="px-6 {{ $hasItems ? 'pt-5 pb-2.5' : 'py-5' }} text-center align-middle">
                     <div class="flex flex-col items-center gap-2">
                         <span class="inline-flex items-center px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border {{ $paymentColors[$order->payment_status] ?? 'bg-gray-800 border-gray-700 text-gray-400' }}">
                             {{ $paymentMap[$order->payment_status] ?? $order->payment_status }}
@@ -136,7 +146,7 @@
                 </td>
 
                 {{-- SPALTE 6: STATUS (SELECT) --}}
-                <td class="px-6 py-5 text-center align-middle">
+                <td class="px-6 {{ $hasItems ? 'pt-5 pb-2.5' : 'py-5' }} text-center align-middle">
                     <div class="flex flex-col items-center gap-2">
                         <div class="relative inline-block w-40" onclick="event.stopPropagation()">
                             <select
@@ -170,13 +180,81 @@
                 </td>
 
                 {{-- SPALTE 7: ACTIONS --}}
-                <td class="px-6 py-5 text-right align-middle">
+                <td class="px-6 {{ $hasItems ? 'pt-5 pb-2.5' : 'py-5' }} text-right align-middle">
                     <button wire:click="openDetail('{{ $order->id }}')"
                             class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-500 dark:text-gray-400 hover:bg-[var(--theme-color)] hover:border-[var(--theme-color)] hover:text-gray-900 transition-all duration-300 transform hover:-translate-y-0.5 shadow-sm dark:shadow-inner">
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
                     </button>
                 </td>
             </tr>
+
+            {{-- EXTRA ZEILE: KOMPAKTE PRODUKT- & PAKET-KURZANSICHT (Horizontal scrollbar) --}}
+            @if($hasItems)
+                <tr class="!border-t-0 border-b border-gray-200 dark:border-gray-800 last:border-b-0 transition-all duration-300 {{ $rowClass }}">
+                    <td colspan="7" class="px-6 pt-0 pb-4">
+                        <div class="flex items-center gap-2.5 bg-gray-50/80 dark:bg-gray-950/60 border border-gray-200/80 dark:border-gray-800/80 rounded-xl px-3 py-1.5">
+                            {{-- Logistik- & Mengen-Einschätzung (Links fixiert) --}}
+                            <div class="flex items-center gap-2 shrink-0 text-[10px] font-bold text-gray-500 dark:text-gray-400">
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 shadow-2xs" title="{{ $totalUnits }} Stück verteilt auf {{ $totalPositions }} Position(en)">
+                                    <span class="font-black text-[var(--theme-color)]">{{ $totalUnits }}×</span>
+                                    <span>{{ $totalUnits === 1 ? 'Produkt' : 'Produkte' }}</span>
+                                </span>
+
+                                @if($isOnlyDigitalOrder)
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400">
+                                        ⚡ Digital
+                                    </span>
+                                @elseif($dhlPreview)
+                                    @if(!empty($dhlPreview['can_fit_in_envelope']))
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400" title="Für Luftpolstertasche / Großbrief geeignet">
+                                            ✉️ 1 Tasche · {{ number_format($dhlPreview['total_weight_kg'] ?? 0.1, 2, ',', '.') }} kg
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md {{ $estPackages > 1 ? 'bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300' : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400' }} border" title="{{ $dhlPreview['recommended_box_hint'] ?? ($dhlPreview['dhl_class'] ?? 'DHL Paket') }}">
+                                            📦 {{ $estPackages }} {{ $estPackages === 1 ? 'Paket' : 'Pakete' }} · {{ number_format($dhlPreview['total_weight_kg'] ?? 0.5, 2, ',', '.') }} kg
+                                        </span>
+                                    @endif
+                                @endif
+                            </div>
+
+                            <div class="h-4 w-px bg-gray-200 dark:bg-gray-800 shrink-0"></div>
+
+                            {{-- Horizontal scrollbare Produkt-Kurzansicht (Bilder + Namen klein & kompakt) --}}
+                            <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
+                                @foreach($order->items as $item)
+                                    @php
+                                        $conf = is_array($item->configuration) ? $item->configuration : [];
+                                        $snapshotImg = null;
+                                        if (!empty($conf['snapshot_path'])) {
+                                            $snapshotImg = is_array($conf['snapshot_path']) ? ($conf['snapshot_path']['front'] ?? null) : $conf['snapshot_path'];
+                                        }
+                                        $thumbUrl = $snapshotImg
+                                            ? asset('storage/' . ltrim($snapshotImg, '/'))
+                                            : $item->resolveDisplayImageUrl();
+                                    @endphp
+                                    <button type="button"
+                                            wire:click="openDetail('{{ $order->id }}')"
+                                            class="inline-flex items-center gap-2 pl-1 pr-2.5 py-1 rounded-lg bg-white dark:bg-gray-900 border border-gray-200/90 dark:border-gray-800 hover:border-[var(--theme-color-50)] transition-all shrink-0 group/chip text-left shadow-2xs cursor-pointer"
+                                            title="{{ $item->quantity }}× {{ $item->product_name }}{{ $item->product?->sku ? ' (' . $item->product->sku . ')' : '' }}">
+                                        <span class="w-6 h-6 rounded-md bg-gray-100 dark:bg-gray-950 border border-gray-200/70 dark:border-gray-800 overflow-hidden shrink-0 flex items-center justify-center">
+                                            @if($thumbUrl)
+                                                <img src="{{ $thumbUrl }}" alt="{{ $item->product_name }}" class="w-full h-full object-cover" loading="lazy">
+                                            @else
+                                                <svg class="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                            @endif
+                                        </span>
+                                        <span class="text-[11px] font-black text-[var(--theme-color)] font-mono">{{ $item->quantity }}×</span>
+                                        <span class="text-[11px] font-medium text-gray-700 dark:text-gray-300 group-hover/chip:text-gray-900 dark:group-hover/chip:text-white max-w-[160px] truncate">{{ $item->product_name }}</span>
+                                        @if($item->is_completed)
+                                            <span class="text-[10px] text-emerald-500 font-black" title="Position fertiggestellt">✓</span>
+                                        @endif
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            @endif
         @empty
             <tr>
                 <td colspan="7" class="px-6 py-16 text-center text-gray-500">
@@ -282,6 +360,49 @@
                             @endif
                         </div>
                     </div>
+
+                    @if($order->items && $order->items->isNotEmpty())
+                        @php
+                            $mUnits = (int) $order->items->sum('quantity');
+                            $mDigital = $order->isOnlyDigital();
+                            $mDhl = !$mDigital ? $order->getDhlWeightDetails(1, 'box') : null;
+                            $mPackages = $mDhl ? (int) ($mDhl['recommended_package_count'] ?? 1) : 1;
+                            if ($mPackages > 1 && $mDhl) {
+                                $mDhl = $order->getDhlWeightDetails($mPackages, 'box');
+                            }
+                        @endphp
+                        <div class="mt-3 pt-2.5 border-t border-gray-200/70 dark:border-gray-800/70 flex items-center gap-2 overflow-x-auto no-scrollbar">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-[10px] font-bold text-gray-700 dark:text-gray-300 shrink-0">
+                                <span class="font-black text-[var(--theme-color)]">{{ $mUnits }}×</span> Prod.
+                            </span>
+                            @if($mDigital)
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/20 text-[10px] font-bold text-blue-600 dark:text-blue-400 shrink-0">⚡ Digital</span>
+                            @elseif($mDhl)
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-[10px] font-bold text-gray-600 dark:text-gray-400 shrink-0">
+                                    {{ !empty($mDhl['can_fit_in_envelope']) ? '✉️ 1 Tasche' : '📦 ' . $mPackages . ' ' . ($mPackages === 1 ? 'Paket' : 'Pakete') }} · {{ number_format($mDhl['total_weight_kg'] ?? 0.5, 2, ',', '.') }} kg
+                                </span>
+                            @endif
+
+                            @foreach($order->items as $item)
+                                @php
+                                    $conf = is_array($item->configuration) ? $item->configuration : [];
+                                    $snapshotImg = !empty($conf['snapshot_path'])
+                                        ? (is_array($conf['snapshot_path']) ? ($conf['snapshot_path']['front'] ?? null) : $conf['snapshot_path'])
+                                        : null;
+                                    $thumbUrl = $snapshotImg ? asset('storage/' . ltrim($snapshotImg, '/')) : $item->resolveDisplayImageUrl();
+                                @endphp
+                                <span class="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-lg bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 shrink-0">
+                                    <span class="w-5 h-5 rounded bg-gray-100 dark:bg-gray-900 overflow-hidden shrink-0 flex items-center justify-center">
+                                        @if($thumbUrl)
+                                            <img src="{{ $thumbUrl }}" alt="{{ $item->product_name }}" class="w-full h-full object-cover" loading="lazy">
+                                        @endif
+                                    </span>
+                                    <span class="text-[10px] font-black text-[var(--theme-color)] font-mono">{{ $item->quantity }}×</span>
+                                    <span class="text-[10px] font-medium text-gray-700 dark:text-gray-300 max-w-[120px] truncate">{{ $item->product_name }}</span>
+                                </span>
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
             @endforeach
         </x-slot>

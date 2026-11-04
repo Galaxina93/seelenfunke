@@ -91,3 +91,15 @@ Wenn bei der Arbeitsvorbereitung (z. B. vor dem Laserauftrag) auffällt, dass ei
    - Der Kunde gelangt direkt in den Produktkonfigurator, lädt ein optimiertes Bild hoch und speichert.
    - [`ProductConfigurator.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductConfigurator/ProductConfigurator.php) erkennt die Nachbesserung, entfernt die Mängelnotiz und setzt den Auftragsstatus automatisch wieder auf `processing` (In Bearbeitung).
 
+### 6. Schnell-Personalisierung (`custom_fields_data`), „Laser-Steckbrief“ (1-Klick-Copy) & xTool-Schriftarten-Export (03.11.2026)
+Für Bestellpositionen, die über die **Schnell-Personalisierung (`personalization_mode = 'custom_fields'`)** bestellt wurden:
+1. **Laser-Steckbrief mit 1-Klick-Copy ([`custom_fields_form.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/custom_fields_form.blade.php) & [`details-pane.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-overview-partials/details-pane.blade.php))**:
+   - In der rechten Vorschau-Spalte von `/admin/orders` wird aus dem gespeicherten Bestell-Snapshot (`configuration['custom_fields_data']`) der **Laser-Steckbrief** gerendert – ohne unnötige Initialisierung der 3D-Three.js-Engine.
+   - Jedes ausgefüllte Kundenfeld (z. B. *Wunschname*, *Datum*, *Symbol*) besitzt einen eigenen **„Kopieren“**-Button sowie oben rechts den Sammel-Button **„📋 Alle Werte kopieren“** für die sofortige Übernahme in xTool Creative Space (XCS).
+   - Hat der Kunde über ein Feld vom Typ **`font` („Schriftart-Auswahl“)** eine der 22 Konfigurator-Schriftarten gewählt, wird diese im Laser-Steckbrief sowohl im echten `@font-face`-Schriftbild als auch mit ihrem technischen Namen dargestellt.
+2. **Maßstabsgetreuer xTool-Laser-SVG-Export ([`FileDownloadService::downloadLaserSvg()`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/Export/FileDownloadService.php))**:
+   - Beim Klick auf **„XTOOL LASER-DATEI LADEN“** werden die eingegebenen Texte und die gewählte Konfigurator-Schriftart (`type === 'font'`) automatisch aus `custom_fields_data` / `texts` übernommen, die `.woff2`-Schrift als Base64-`@font-face` in die SVG eingebettet und maßstabsgetreu ausgegeben.
+3. **Deduplizierte Bestelldetailansicht**:
+   - „Besondere Kundenwünsche“ (`notes`), „Gebuchte Verpackung & Extras“ (`addons_summary`) und der „Laser-Steckbrief“ werden in [`details-pane.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-overview-partials/details-pane.blade.php) und [`footer.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/footer.blade.php) jeweils nur an einer einzigen, eindeutigen Stelle gerendert.
+
+

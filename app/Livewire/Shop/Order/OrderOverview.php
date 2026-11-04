@@ -661,11 +661,14 @@ class OrderOverview extends Component
         $this->dhlPackageCount = 1;
         $this->dhlError = null;
 
-        // Verpackungsart smart vorwählen: Falls es sich um kleine, leichte Schmuckstücke handelt -> envelope, sonst box
+        // Verpackungsart & Paketanzahl smart vorwählen: Falls Leichtware -> envelope, falls Großbestellung (> 25 kg) -> automatischer Mehrpaket-Split
         $order = OrderOrder::with('items.product')->find($orderId);
         if ($order) {
             $initialDetails = $order->getDhlWeightDetails(1, 'box');
             $this->dhlPackagingType = $initialDetails['suggested_packaging_type'] ?? 'box';
+            if (($initialDetails['recommended_package_count'] ?? 1) > 1) {
+                $this->dhlPackageCount = (int) $initialDetails['recommended_package_count'];
+            }
         } else {
             $this->dhlPackagingType = 'box';
         }
@@ -916,7 +919,7 @@ class OrderOverview extends Component
 
     private function buildBaseQuery()
     {
-        $query = OrderOrder::query();
+        $query = OrderOrder::query()->with(['items.product', 'invoices', 'shipments']);
 
         // 1. Suche
         if ($this->search) {

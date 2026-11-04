@@ -247,3 +247,72 @@ In [`formluar.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-proj
      *„Tipp für beste Ergebnisse: Das Bild ist recht klein. Für ein gestochen scharfes Laserergebnis empfehlen wir eine höhere Auflösung.“*
    - Der Upload wird nicht blockiert, sondern der Kunde freundlich beraten.
 
+---
+
+## 9. 3-Modi-Personalisierungs-Architektur (`studio`, `custom_fields`, `standard`), Dynamischer Eingabefeld-Baukasten & Konfigurator-Schriftarten (`type === 'font'`) (03. November 2026)
+
+### 9.1 Zielsetzung & Produktstrategie
+Nicht jedes Produkt benötigt den vollwertigen interaktiven 2D-/3D-Studio-Konfigurator. Insbesondere bei filigranem Gravurschmuck (nach dem Vorbild schlanker Personalisierungs-Shops wie *byheartjewelry.com*) oder fertig gelaserten Spruch-Artikeln steigert ein schlankes, direktes Eingabeformular die mobile Conversion-Rate erheblich und reduziert gleichzeitig den Einrichtungsaufwand für neue Produkte auf wenige Sekunden.
+
+Hierfür unterstützt jedes Produkt in [`Product.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Product/Product.php) über `configurator_settings['personalization_mode']` (sowie `is_personalizable`) drei klar getrennte Betriebsmodi:
+
+1. **Modus A – `studio` („🎨 Interaktives 2D/3D-Design-Studio“):**
+   - Klassischer Echtzeit-Konfigurator mit 3D-Three.js-Modell (`.glb`), 2D-Canvas-Overlay, freier Text-/Motivplatzierung, Vorlagen-Karussell und 3D-Snapshot-Generierung.
+2. **Modus B – `custom_fields` („⚡ Schlanke Schnell-Personalisierung / Nur Eingabefelder“):**
+   - Kein 3D-Modell und kein Canvas-Editor nötig; die Produktgalerie bleibt auf der Produktdetailseite im Fokus.
+   - Der Kunde füllt direkt schlanke, vom Admin frei definierte Eingabefelder aus (inklusive eigenem **`!`-Ausrufungszeichen-Tooltip** pro Feld, Zeichenzähler, Pflichtfeld-Prüfung, optionalem Feld-Aufpreis und **echter Konfigurator-Schriftarten-Auswahl**).
+3. **Modus C – `standard` (`is_personalizable = false`, „📦 Fertiges Produkt / Bereit zum Kauf“):**
+   - Für vorab gelaserte Spruch-/Motiv-Artikel mit festem Design: Keine Texteingabe und kein Widerrufs-Ausschluss-Haken erforderlich, sofortiger 1-Klick-Warenkorb.
+
+---
+
+### 9.2 Datenmodell & Feldtypen des Dynamischen Eingabefeld-Baukastens (`custom_fields`)
+In [`Product::normalizeCustomFieldItem()`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Product/Product.php#L498-L580) und `Product::getCustomFieldsDefinition()` wird jedes Feld in `configurator_settings['custom_fields']` kanonisch normalisiert:
+
+- **`id`** (`string`): Stabile eindeutige Kennung (z. B. `cf_name_1`, `cf_font`).
+- **`label`** (`string`): Feldbeschriftung im Shop, Warenkorb, Laser-Steckbrief und auf der Rechnung (z. B. *„Dein Wunschname“*, *„Schriftart wählen“*).
+- **`type`** (`string`): Unterstützte Feld-Arten:
+  - `text`: Einzeiliges Textfeld mit Live-Zeichenzähler (`max_length`).
+  - `textarea`: Mehrzeiliges Textfeld mit Live-Zeichenzähler.
+  - `font`: **Schriftart-Auswahl (Konfigurator-Schriften)** – greift direkt auf die 22 lokal gehosteten `.woff2`-Schriftarten aus [`ConfiguratorService::getFonts()`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/ConfiguratorService.php#L133-L159) zu (`Arial`, `Times New Roman`, `Verdana`, `Courier New`, `Georgia`, `ABeeZee`, `Alex Brush`, `Bebas Neue`, `Caveat`, `Cinzel`, `Comfortaa`, `Dancing Script`, `Great Vibes`, `Lobster`, `Lobster Two`, `Marck Script`, `Montserrat`, `Pacifico`, `Playfair Display`, `Righteous`, `Sacramento`, `Satisfy`).
+  - `select`: Auswahl-Dropdown mit frei definierbaren, kommagetrennten Auswahlwerten (z. B. `Kein Symbol, ♥ Herz, ∞ Unendlichkeit, ★ Stern`).
+  - `date`: Datums-Auswahlfeld.
+- **`info_text`** (`string`): Individueller Hilfetext, der beim Klick oder Hover auf das gelb/goldene **`!`-Ausrufungszeichen** neben dem Feldnamen aufklappt.
+- **`required`** (`bool`): Pflichtfeld-Steuerung.
+- **`surcharge_cents` / `surcharge_price`**: Optionaler Aufpreis pro Feld (z. B. `+ 5,00 €` für eine optionale Rückseiten-Gravur), der nur berechnet wird, wenn das Feld nicht leer und nicht auf einer neutralen Option (`Kein Symbol`, `Keine`, `Nein`, `-`) steht.
+
+---
+
+### 9.3 Admin-Editor (`_edit_step_1.blade.php`) & „Neu (KI)“-Generator (`_list.blade.php`)
+1. **Produkt-Editor Schritt 1 ([`_edit_step_1.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/partials/edit-partials/_edit_step_1.blade.php) & [`ProductCreate.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductCreate.php)):**
+   - Unter „1. Produkttyp wählen“ erscheint bei aktiviertem Schalter *„Personalisierbares Produkt“* die Modus-Auswahl zwischen **„🎨 Interaktives 2D/3D-Design-Studio“** und **„⚡ Schlanke Schnell-Personalisierung (Nur Eingabefelder)“**.
+   - **1-Klick-Schnell-Vorlagen:** `1× Wunschname`, `Wunschname + Schriftart` (`name_and_font`), `Name + Datum + Symbol`, `Bis zu 4 Namen`, `Vorder- & Rückseite (+5 €)`.
+   - **Schriftarten-Auswahl im Baukasten (`type === 'font'`):** Alle 22 Konfigurator-Schriften werden als interaktive Kacheln in ihrer echten `@font-face`-Schrift dargestellt. Der Admin kann per Klick einzelne Schriften für das Produkt ein-/ausblenden oder über die Schnellfilter **„Alle 22 Schriften“**, **„✨ Top 6 Schmuck & Schreibschrift“** und **„Klassisch & Modern“** vorselektieren.
+   - Unten stehen die beiden Direkt-Buttons **`+ Weiteres Eingabefeld hinzufügen`** (`addCustomField`) und **`𝐀 + Schriftart-Auswahl hinzufügen`** (`addCustomFontField`) bereit.
+2. **Integration in „Neu (KI)“ ([`_list.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/partials/_list.blade.php)):**
+   - Direkt im KI-Produktgenerator kann vor dem Klick auf *„Produkt sofort verkaufsfertig anlegen“* zwischen `⚡ Schnell-Felder` (Standard-Empfehlung), `🎨 2D/3D-Studio` und `📦 Standard-Artikel` sowie den Feld-Vorlagen (inkl. `Wunschname + Schriftart`) gewählt werden.
+
+---
+
+### 9.4 Shop-Frontend, Bestellansicht & xTool-Laser-SVG-Export
+1. **Kunden-Formular & Live-Schriftvorschau ([`custom_fields_form.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/custom_fields_form.blade.php)):**
+   - Rendert bei `type === 'font'` ein visuelles Schriftarten-Dropdown, in dem jede erlaubte Schriftart direkt mit dem vom Kunden eingegebenen Wunschnamen in Echtzeit-`@font-face` dargestellt wird, ergänzt durch eine zentrierte **Schriftbild-Vorschau**-Box.
+   - Beim Klick auf „In den Warenkorb“ überspringt [`scripts_frontend_1.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/scripts_frontend_1.blade.php) im Modus `custom_fields` jegliche 3D-/Canvas-Snapshot-Erstellung und speichert verzögerungsfrei.
+2. **Durchgängige Speicherung & Preisberechnung ([`ProductConfigurator.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductConfigurator/ProductConfigurator.php), [`HandlesConfiguratorLogic.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductConfigurator/Traits/HandlesConfiguratorLogic.php), [`CartService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/CartService.php)):**
+   - Speichert die Eingaben strukturiert in `configuration['custom_fields_data']` und überträgt den gewählten Schriftnamen (`type === 'font'`) samt Gravurtext zusätzlich nach `configuration['texts']`.
+   - Validiert Pflichtfelder, Zeichenlängen und erlaubte Dropdown-/Schriftart-Werte serverseitig.
+3. **Deduplizierte Admin-Bestellansicht & „Laser-Steckbrief“ ([`details-pane.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-overview-partials/details-pane.blade.php)):**
+   - In der Bestellansicht (`context === 'preview'`) erkennt `ProductConfigurator` anhand des gespeicherten Bestell-Snapshots (`savedCustomFieldsSnapshot`), ob die Bestellung im Modus `custom_fields` aufgegeben wurde, lädt kein 3D-Modell (`_engine`-Guard in `scripts_frontend_1.blade.php`) und zeigt im **Laser-Steckbrief** alle Felder inkl. `1-Klick-Kopieren`-Buttons sowie die gewählte Schriftart in ihrem echten `@font-face` an.
+   - Doppelte Kacheln für „Besondere Kundenwünsche“ und „Ausführung, Verpackung & Extras“ wurden in `details-pane.blade.php` und `footer.blade.php` konsolidiert, sodass jede Information exakt einmal erscheint.
+4. **Maßstabsgetreuer xTool-Laser-SVG-Export ([`FileDownloadService::downloadLaserSvg()`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/Export/FileDownloadService.php#L228-L351)):**
+   - Liest bei `custom_fields`-Bestellungen automatisch die gewählte Schriftart (`type === 'font'`) und die eingegebenen Gravurtexte aus, bettet die `.woff2`-Schriftdatei als Base64-`@font-face` in die SVG ein und erzeugt eine direkt in xTool Creative Space (XCS) importierbare Laserdatei.
+
+---
+
+### 9.5 Livewire 3 Root-Diff-Schutz (`PublicPropertyNotFoundException [$]`)
+- **Ursache:** In `livewire.js` erzeugt die Funktion `diff(left, right, path = "")` bei gleich vielen Schlüsseln in unterschiedlicher Reihenfolge auf oberster Ebene einen leeren Schlüssel `""` (`updates: {"": {...}}`), den `HandleComponents::updateProperties()` nach `explode('.', '')` in `['$']` umwandelt (`PublicPropertyNotFoundException: Public property [$] not found`).
+- **Dauerhafte Behebung (Defense-in-Depth):**
+  1. **Serverseitig ([`AppServiceProvider.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Providers/AppServiceProvider.php)):** Ein globaler `\Livewire\on('request', ...)`-Hook fängt Root-Level-Keys (`""` oder `"$"`) in `$payload['updates']` vor `HandleComponents::updateProperties()` ab und entpackt assoziative Eigenschafts-Arrays sauber in gültige Dot-Notation-Pfade.
+  2. **Clientseitig ([`frontend-error-tracker.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/components/layouts/partials/frontend-error-tracker.blade.php)):** Ein globaler `Livewire.hook('commit', ...)`-Filter bereinigt fehlerhafte `""`-/`"$"`-Einträge bereits im Browser, ergänzt durch gezieltes `$wire.entangle('configSettings')` in [`three_js_main.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/partials/edit-partials/step_4_partials/three_js_main.blade.php).
+
+

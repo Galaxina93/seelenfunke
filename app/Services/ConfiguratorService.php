@@ -216,6 +216,8 @@ class ConfiguratorService
             'engraving_rot_z' => 0,
 
             // Funktionalität & Vorlage-Paket / Themen-Hintergrund
+            'personalization_mode'     => 'studio',
+            'custom_fields'            => [],
             'allow_logo'               => true,
             'allow_text_pos'           => true,
             'template_package'         => 'custom',

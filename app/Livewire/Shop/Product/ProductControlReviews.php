@@ -57,6 +57,7 @@ class ProductControlReviews extends Component
 
         $review = ProductReview::findOrFail($id);
         $review->update(['status' => 'approved']);
+        \Illuminate\Support\Facades\Cache::forget('google_reviews');
         $awarded = app(\App\Services\Gamification\GamificationService::class)->rewardReviewFunken($review->fresh() ?? $review);
         session()->flash('success', 'Bewertung wurde erfolgreich veröffentlicht.' . ($awarded > 0 ? " (+{$awarded} ✨ Seelenfunken an den Kunden vergeben)" : ''));
     }
@@ -69,6 +70,7 @@ class ProductControlReviews extends Component
 
         $review = ProductReview::findOrFail($id);
         $review->update(['status' => 'rejected']);
+        \Illuminate\Support\Facades\Cache::forget('google_reviews');
         app(\App\Services\Gamification\GamificationService::class)->reverseReviewFunken($review);
         session()->flash('warning', 'Bewertung wurde abgelehnt und versteckt.');
     }
@@ -91,6 +93,7 @@ class ProductControlReviews extends Component
         }
 
         $review->delete();
+        \Illuminate\Support\Facades\Cache::forget('google_reviews');
         app(\App\Services\Gamification\GamificationService::class)->reverseReviewFunken($reviewSnapshot);
         session()->flash('danger', 'Bewertung wurde endgültig gelöscht.');
     }

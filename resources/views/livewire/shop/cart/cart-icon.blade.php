@@ -132,13 +132,13 @@
 
             {{-- Footer Buttons: Express-Kauf & Warenkorb --}}
             <div class="p-2.5 bg-gray-50 border-t border-gray-100 space-y-1.5">
-                <a href="{{ route('checkout') }}" @click="closePreview()" class="flex items-center justify-center gap-1.5 w-full bg-primary text-gray-950 text-center py-2.5 rounded-lg text-xs font-black uppercase tracking-wider hover:brightness-105 transition shadow-xs">
+                <a href="{{ route('checkout') }}" data-sf-portal="checkout" @click="closePreview()" class="flex items-center justify-center gap-1.5 w-full bg-primary text-gray-950 text-center py-2.5 rounded-lg text-xs font-black uppercase tracking-wider hover:brightness-105 transition shadow-xs">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                     <span>Direkt zur Kasse</span>
                 </a>
-                <a href="{{ route('cart') }}" @click="closePreview()" class="block w-full bg-gray-900 text-white text-center py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider hover:bg-black transition">
+                <a href="{{ route('cart') }}" data-sf-portal="cart" @click="closePreview()" class="block w-full bg-gray-900 text-white text-center py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider hover:bg-black transition">
                     Zum Warenkorb
                 </a>
             </div>

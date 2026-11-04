@@ -467,6 +467,117 @@ class ProductConfiguratorCalculatorIntegrationTest extends TestCase
         $this->assertStringContainsString('width="' . $expectedWidth . 'mm"', $content);
         $this->assertStringContainsString('height="180mm"', $content);
     }
+
+    #[Test]
+    public function custom_fields_select_preserves_symbol_options_and_order_edit_blocks_unpaid_surcharge()
+    {
+        $product = Product::create([
+            'name' => 'Schlüsselanhänger Schnellgravur',
+            'slug' => 'schluesselanhaenger-schnellgravur-' . uniqid(),
+            'status' => 'active',
+            'type' => 'physical',
+            'price' => 1490,
+            'is_personalizable' => true,
+            'configurator_settings' => [
+                'personalization_mode' => 'custom_fields',
+                'custom_fields' => [
+                    [
+                        'id' => 'cf_name',
+                        'label' => 'Wunschname',
+                        'type' => 'text',
+                        'required' => true,
+                        'max_length' => 25,
+                        'surcharge_cents' => 0,
+                    ],
+                    [
+                        'id' => 'cf_symbol',
+                        'label' => 'Wunsch-Symbol',
+                        'type' => 'select',
+                        'required' => false,
+                        'options' => ['Kein Symbol', 'Herz ♥', 'Stern ★', 'Pfote 🐾'],
+                        'surcharge_cents' => 0,
+                    ],
+                    [
+                        'id' => 'cf_back',
+                        'label' => 'Gravur Rückseite',
+                        'type' => 'text',
+                        'required' => false,
+                        'max_length' => 25,
+                        'surcharge_cents' => 500,
+                    ],
+                ],
+            ],
+        ]);
+
+        // 1. Symbol-Optionen (z. B. 'Herz ♥', 'Pfote 🐾') dürfen beim Speichern nicht auf 'Kein Symbol' zurückgesetzt werden
+        $calcComp = Livewire::test(ProductConfigurator::class, [
+            'product' => $product,
+            'context' => 'calculator',
+        ])
+            ->set('customFieldValues.cf_name', 'Balu')
+            ->set('customFieldValues.cf_symbol', 'Pfote 🐾')
+            ->call('save', app(\App\Services\CartService::class));
+
+        $calcComp->assertDispatched('calculator-save', function ($event, $params) {
+            $cfData = collect($params['data']['custom_fields_data'] ?? [])->keyBy('id');
+            return ($cfData->get('cf_name')['value'] ?? '') === 'Balu'
+                && ($cfData->get('cf_symbol')['value'] ?? '') === 'Pfote 🐾';
+        });
+
+        // 2. Im 'order_edit' Modus darf der Kunde keine unbezahlten Aufpreis-Felder (surcharge_cents > 0) nachträglich aktivieren
+        $customer = \App\Models\Customer\Customer::factory()->create();
+        $order = \App\Models\Order\OrderOrder::create([
+            'order_number' => 'ORD-CF-' . uniqid(),
+            'customer_id' => $customer->id,
+            'email' => $customer->email,
+            'status' => 'pending',
+            'payment_status' => 'paid',
+            'payment_method' => 'stripe',
+            'total_price' => 1490,
+            'subtotal_price' => 1490,
+            'tax_amount' => 0,
+            'shipping_price' => 0,
+            'billing_address' => ['first_name' => 'Max', 'last_name' => 'Mustermann', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE', 'address' => 'Teststr. 1'],
+            'shipping_address' => ['first_name' => 'Max', 'last_name' => 'Mustermann', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE', 'address' => 'Teststr. 1'],
+        ]);
+
+        $orderItem = \App\Models\Order\OrderOrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'quantity' => 1,
+            'unit_price' => 1490,
+            'total_price' => 1490,
+            'configuration' => [
+                'personalization_mode' => 'custom_fields',
+                'custom_fields_data' => [
+                    ['id' => 'cf_name', 'label' => 'Wunschname', 'type' => 'text', 'value' => 'Balo', 'surcharge_cents' => 0],
+                    ['id' => 'cf_symbol', 'label' => 'Wunsch-Symbol', 'type' => 'select', 'value' => 'Herz ♥', 'surcharge_cents' => 0],
+                    ['id' => 'cf_back', 'label' => 'Gravur Rückseite', 'type' => 'text', 'value' => '', 'surcharge_cents' => 0],
+                ],
+            ],
+        ]);
+
+        \Illuminate\Support\Facades\Auth::guard('admin')->logout();
+        $this->actingAs($customer, 'customer');
+
+        Livewire::test(ProductConfigurator::class, [
+            'product' => $product,
+            'context' => 'order_edit',
+            'cartItem' => $orderItem,
+        ])
+            ->set('customFieldValues.cf_name', 'Balu')
+            ->set('customFieldValues.cf_back', 'Gratis Rückseite Versuch')
+            ->set('config_confirmed', true)
+            ->call('save', app(\App\Services\CartService::class));
+
+        $orderItem->refresh();
+        $savedCf = collect($orderItem->configuration['custom_fields_data'] ?? [])->keyBy('id');
+        $this->assertSame('Balu', $savedCf->get('cf_name')['value']);
+        $this->assertSame('Herz ♥', $savedCf->get('cf_symbol')['value']);
+        $this->assertSame('', $savedCf->get('cf_back')['value']);
+        $this->assertSame(0, $savedCf->get('cf_back')['surcharge_cents']);
+    }
 }
 
 

@@ -104,8 +104,18 @@ class OrderCheckoutSuccess extends Component
             }
 
             if ($intent->status === 'succeeded') {
+                if (isset($intent->currency) && strtolower((string) $intent->currency) !== 'eur') {
+                    Log::error("CheckoutSuccess: Währungsabweichung für Order {$order->order_number} (Intent: {$intent->currency}).");
+                    return;
+                }
+
                 if (isset($intent->amount) && (int) $intent->amount < (int) $order->total_price) {
                     Log::error("CheckoutSuccess: Betragsabweichung für Order {$order->order_number} (Intent: {$intent->amount}, Order: {$order->total_price}).");
+                    return;
+                }
+
+                if (in_array($order->status, ['cancelled', 'refunded'], true) || $order->payment_status === 'refunded') {
+                    Log::warning("CheckoutSuccess: Order {$order->order_number} ist bereits storniert oder erstattet.");
                     return;
                 }
 
@@ -124,14 +134,19 @@ class OrderCheckoutSuccess extends Component
                 // Clean Up (Falls via Redirect zurückgekommen)
                 if (Session::has('checkout_from_quote_id')) {
                     $quote = OrderQuoteRequest::find(Session::get('checkout_from_quote_id'));
-                    if ($quote) $quote->update(['status' => 'converted', 'converted_order_id' => $order->id]);
+                    if ($quote && $quote->status !== 'converted' && empty($quote->converted_order_id) && $order->payment_status === 'paid') {
+                        $quote->update(['status' => 'converted', 'converted_order_id' => $order->id]);
+                    }
                     Session::forget('checkout_from_quote_id');
                 }
 
-                if (Auth::guard('customer')->check()) {
-                    Cart::where('customer_id', Auth::guard('customer')->id())->delete();
-                } else {
-                    Cart::where('session_id', Session::getId())->delete();
+                $cartsToClean = Auth::guard('customer')->check()
+                    ? Cart::where('customer_id', Auth::guard('customer')->id())->orWhere('session_id', Session::getId())->get()
+                    : Cart::where('session_id', Session::getId())->get();
+
+                foreach ($cartsToClean as $c) {
+                    $c->items()->delete();
+                    $c->delete();
                 }
 
                 $this->dispatch('cart-updated');

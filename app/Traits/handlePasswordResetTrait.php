@@ -164,6 +164,10 @@ trait handlePasswordResetTrait
         $user->setRememberToken(Str::random(60));
         $user->save();
 
+        if ($this->guard === 'customer' && method_exists($user, 'hasVerifiedEmail') && !$user->hasVerifiedEmail()) {
+            $user->markEmailAsVerified();
+        }
+
         if (method_exists($user, 'tokens')) {
             $user->tokens()->delete();
         }

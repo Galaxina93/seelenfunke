@@ -86,9 +86,21 @@ class NewOrderMailToCustomer extends Mailable
         $attachments = [];
 
         // Die Rechnung als PDF anhängen
-        if ($safePdf = $this->resolveSafeAttachmentPath($this->pdfPath)) {
+        $safePdf = $this->resolveSafeAttachmentPath($this->pdfPath);
+        if ($safePdf) {
             $attachments[] = Attachment::fromPath($safePdf)
                 ->as('Rechnung-' . preg_replace('/[^A-Za-z0-9._-]/', '_', (string) ($this->data['quote_number'] ?? 'Bestellung')) . '.pdf')
+                ->withMime('application/pdf');
+        }
+
+        // AGB & Widerrufsbelehrung als PDF anhängen (§ 312f Abs. 2 BGB – Dauerhafter Datenträger)
+        if ($this->order !== null || $safePdf !== null) {
+            $legalPdf = Pdf::loadView('global.mails.legal_terms_pdf_template', [
+                'data' => $this->data,
+                'order' => $this->order,
+            ])->setOptions(['isRemoteEnabled' => false]);
+
+            $attachments[] = Attachment::fromData(fn () => $legalPdf->output(), 'AGB-und-Widerrufsbelehrung.pdf')
                 ->withMime('application/pdf');
         }
 

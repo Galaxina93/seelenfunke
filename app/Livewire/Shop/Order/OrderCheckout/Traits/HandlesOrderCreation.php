@@ -245,7 +245,7 @@ trait HandlesOrderCreation
             }
 
             if (!$customer) {
-                $tempPassword = Str::random(10);
+                $tempPassword = Str::random(32);
                 $wantsAccount = (bool) ($this->create_account || $this->hasDigitalOrIngameItems($cart));
                 $customer = Customer::create([
                     'email' => $this->email,
@@ -253,7 +253,7 @@ trait HandlesOrderCreation
                     'last_name' => $this->last_name,
                     'password' => bcrypt($tempPassword),
                     'needs_password_change' => $wantsAccount,
-                    'temporary_password' => $wantsAccount ? $tempPassword : null,
+                    'temporary_password' => null,
                 ]);
 
                 // Split street and house number

@@ -472,6 +472,25 @@
                             </div>
                         @endif
 
+                        {{-- Großbestellungs-Hinweis & Lager-Karton-Empfehlung (Karton.eu) --}}
+                        @if(!empty($dhlWeightDetails['is_bulk_order']))
+                            <div class="mt-2.5 pt-2 border-t border-yellow-500/20 flex items-start gap-2 text-[11px] text-yellow-700 dark:text-yellow-300/90 bg-yellow-500/10 px-2.5 py-2 rounded-lg">
+                                <span class="text-sm leading-none shrink-0 mt-0.5">📦</span>
+                                <div>
+                                    <strong>Großbestellung erkannt (Empfehlung: {{ $dhlWeightDetails['recommended_package_count'] }} Pakete):</strong>
+                                    Automatisch auf sichere Paketgewichte (&le; 23 kg/Paket) aufgeteilt.
+                                    @if(!empty($dhlWeightDetails['recommended_box_hint']))
+                                        <span class="block text-[10px] opacity-90 mt-0.5">Umkarton-Tipp: {{ $dhlWeightDetails['recommended_box_hint'] }}</span>
+                                    @endif
+                                </div>
+                            </div>
+                        @elseif(!empty($dhlWeightDetails['recommended_box_hint']))
+                            <div class="mt-2 pt-2 border-t border-gray-200/80 dark:border-gray-800/80 flex items-center justify-between gap-2 text-[11px] text-gray-600 dark:text-gray-400">
+                                <span class="font-semibold text-gray-500 dark:text-gray-400 shrink-0">📦 Lager-Karton Empfehlung:</span>
+                                <span class="font-medium text-gray-800 dark:text-gray-200 text-right">{{ $dhlWeightDetails['recommended_box_hint'] }}</span>
+                            </div>
+                        @endif
+
                         {{-- Schwellenwert-Warnung --}}
                         @if(!empty($dhlWeightDetails['is_near_limit']))
                             <div class="mt-2.5 pt-2 border-t border-amber-500/20 flex items-center gap-2 text-[11px] text-amber-300/90 bg-amber-500/10 px-2.5 py-1.5 rounded-lg">

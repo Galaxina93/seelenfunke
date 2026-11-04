@@ -38,6 +38,7 @@
                                     copied: false,
                                     copyCode() {
                                         window.dispatchEvent(new CustomEvent('voucher-code-selected', { detail: { code: '{{ $voucher->code }}' } }));
+                                        setTimeout(() => window.dispatchEvent(new CustomEvent('close-vouchers')), 450);
                                         if (navigator.clipboard && navigator.clipboard.writeText) {
                                             navigator.clipboard.writeText('{{ $voucher->code }}').then(() => {
                                                 this.copied = true;

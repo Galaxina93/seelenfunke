@@ -658,13 +658,13 @@
                                             </div>
 
                                             @if(!$isSoldOut && $product->compare_at_price > $product->price)
-                                                <span class="text-[8px] text-gray-400 font-medium leading-tight mt-0.5">
+                                                <span class="text-[10px] sm:text-[11px] text-gray-500 font-medium leading-tight mt-0.5">
                                                     30-Tage-Bestpreis (§ 11 PAngV): {{ number_format($product->compare_at_price / 100, 2, ',', '.') }} €
                                                 </span>
                                             @endif
 
                                             {{-- NEU: RECHTLICHE PAngV ANGABE (Sehr wichtig) --}}
-                                            <span class="text-[8px] text-gray-400 font-medium leading-tight mt-1">
+                                            <span class="text-[10px] sm:text-[11px] text-gray-500 font-medium leading-tight mt-1">
                                                 @if(shop_setting('is_small_business', false))
                                                     Keine MwSt. gem. § 19 UStG · <a href="{{ route('versand') }}" target="_blank" class="hover:text-gray-600 underline">zzgl. Versand</a>
                                                 @else

@@ -14,12 +14,12 @@
                     Ob für verdiente Mitarbeiter, langjährige Partner oder einen Herzensmenschen: Schenken sollte Freude bereiten, keinen Stress verursachen.
                 </p>
                 <p class="text-gray-700 text-lg mb-6 leading-relaxed">
-                    Bei <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong> erhalten Sie nicht einfach nur ein Stück Glas. Wir übernehmen für Sie den kompletten Prozess von der Prüfung Ihrer Daten bis zum sicheren Versand an den Empfänger.
+                    Bei <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong> erhalten Sie kein anonymes Massenprodukt, sondern ein handveredeltes Unikat aus vergoldetem Edelstahl, massivem Aluminium, 360°-Kristallglas oder optisch reinem K9-Kristall. Wir übernehmen für Sie den kompletten Prozess von der Prüfung Ihrer Daten bis zum sicheren Versand an den Empfänger.
                 </p>
 
                 {{-- Highlight Box --}}
                 <p class="text-white text-lg mb-10 leading-relaxed bg-gradient-to-r from-[#6e5218] to-primary-dark p-6 rounded-xl shadow-lg border-l-4 border-white/30">
-                    <strong>Unser Anspruch:</strong> Sie bestellen bequem vom Schreibtisch oder Sofa aus und wir sorgen dafür, dass beim Auspacken Begeisterung entsteht.
+                    <strong>Unser Anspruch:</strong> Sie gestalten Ihr Wunschstück bequem im Live-3D-Konfigurator und wir sorgen in unserer deutschen Manufaktur dafür, dass beim Auspacken echte Begeisterung entsteht.
                 </p>
 
                 <h3 class="text-xl font-bold text-gray-800 mb-6">Ihre Vorteile im Überblick:</h3>
@@ -29,8 +29,8 @@
                     <li class="flex items-start">
                         <svg class="flex-shrink-0 h-6 w-6 text-primary mr-3 mt-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                         <div>
-                            <strong class="font-semibold text-gray-900">Alles aus einer Hand:</strong>
-                            Keine externen Dienstleister, keine Verzögerungen. Designprüfung, Veredelung und Logistik erfolgen direkt in unserer Manufaktur. Das sorgt für kurze Wege und präzise Ergebnisse.
+                            <strong class="font-semibold text-gray-900">Alles aus einer Hand in Deutschland:</strong>
+                            Keine externen Dienstleister, kein Dropshipping, keine Verzögerungen. Designprüfung, High-End-Laserveredelung und Logistik erfolgen direkt in unserer Manufaktur in Gifhorn.
                         </div>
                     </li>
 
@@ -38,7 +38,7 @@
                     <li class="flex items-start">
                         <svg class="flex-shrink-0 h-6 w-6 text-primary mr-3 mt-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                         <div>
-                            <strong class="font-semibold text-gray-900">Qualitätsversprechen:</strong> Bevor ein Paket unser Haus verlässt, wird es streng kontrolliert. Keine Kratzer, keine Fingerabdrücke. Nur reines Glas und eine perfekte Gravur.
+                            <strong class="font-semibold text-gray-900">Qualitätsversprechen:</strong> Bevor ein Paket unser Haus verlässt, wird jedes Stück von Hand kontrolliert und poliert. Keine Kratzer, keine Fingerabdrücke. Nur makellose Edelmetalle, lupenreines Kristallglas und eine gestochen scharfe Lasergravur.
                         </div>
                     </li>
 
@@ -47,7 +47,7 @@
                         <svg class="flex-shrink-0 h-6 w-6 text-primary mr-3 mt-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                         <div>
                             <strong class="font-semibold text-gray-900">Geschenkfertig geliefert:</strong>
-                            Unsere Glastrophäen kommen <strong>standardmäßig</strong> in einer hochwertigen, mit Stoff ausgelegten Geschenkbox und sind sofort bereit zur Übergabe oder Ehrung. Bei anderen Artikeln variiert die Verpackung und ist der jeweiligen Produktbeschreibung zu entnehmen.
+                            Jedes Unikat verlässt unsere Manufaktur sorgfältig verpackt, von der mit Seide ausgeschlagenen Geschenkbox beim Seelen-Kristall bis zu unserer optionalen mattschwarzen Schmuckschachtel mit Gold-Logo oder dem Schwarz-Gold-Geschenkpapier.
                         </div>
                     </li>
 
@@ -55,8 +55,8 @@
                     <li class="flex items-start">
                         <svg class="flex-shrink-0 h-6 w-6 text-primary mr-3 mt-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                         <div>
-                            <strong class="font-semibold text-gray-900">Service:</strong>
-                            Haben Sie Sonderwünsche? Wir finden für fast jede Anforderung eine Lösung.
+                            <strong class="font-semibold text-gray-900">Persönlicher deutschsprachiger Support:</strong>
+                            Haben Sie Sonderwünsche oder Fragen zu Ihrem Motiv? Bei uns sprechen Sie direkt mit der Manufaktur und wir finden für fast jede Anforderung die passende Lösung.
                         </div>
                     </li>
 

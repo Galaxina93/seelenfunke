@@ -60,5 +60,11 @@ namespace Tests {
         use CreatesApplication;
 
         public static bool $useCurlMock = false;
+
+        protected function setUp(): void
+        {
+            parent::setUp();
+            \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
+        }
     }
 }

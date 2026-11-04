@@ -162,7 +162,20 @@
                                                 @endforeach
                                             </div>
                                         @endif
-                                        @if(!empty($item->configuration['text']))
+                                        @if(!empty($item->configuration['custom_fields_data']) && is_array($item->configuration['custom_fields_data']))
+                                            <div class="mt-1 flex flex-wrap gap-1.5">
+                                                @foreach($item->configuration['custom_fields_data'] as $cfRow)
+                                                    @if(is_array($cfRow) && !empty($cfRow['label']) && isset($cfRow['value']) && trim((string) $cfRow['value']) !== '')
+                                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-700 border border-gray-200">
+                                                            <strong class="text-gray-900">{{ $cfRow['label'] }}:</strong> {{ Str::limit($cfRow['value'], 30) }}
+                                                            @if(!empty($cfRow['surcharge_cents']) && (int) $cfRow['surcharge_cents'] > 0)
+                                                                <span class="text-amber-700 font-bold">(+{{ number_format(((int) $cfRow['surcharge_cents']) / 100, 2, ',', '.') }}&nbsp;€)</span>
+                                                            @endif
+                                                        </span>
+                                                    @endif
+                                                @endforeach
+                                            </div>
+                                        @elseif(!empty($item->configuration['text']))
                                             <div class="text-xs text-gray-500 mt-0.5">Gravur: "{{ Str::limit($item->configuration['text'], 30) }}"</div>
                                         @endif
                                         @php
@@ -202,7 +215,7 @@
 
                         {{-- CALCULATION SUMMARY (Angepasst an Kundenansicht Brutto) --}}
                         <div class="bg-gray-50 p-6 border-t border-gray-200">
-                            <div class="flex flex-col gap-2 max-w-xs ml-auto">
+                            <div class="flex flex-col gap-2 w-full sm:max-w-sm ml-auto">
 
                                 @php
                                     // Shop Settings laden
@@ -284,22 +297,30 @@
                                     $quoteBonusSparks = \App\Services\Gamification\GameConfig::calculateSparksForCents(max(0, $goodsGross - $discountAmount));
                                 @endphp
                                 @if($quoteBonusSparks > 0)
-                                    <div class="mb-2 flex justify-between items-center text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200/80 px-2.5 py-1.5 rounded-lg">
-                                        <span>✨ Seelenfunken Treue-Bonus (100&nbsp;%):</span>
-                                        <span class="font-mono font-black">+{{ number_format($quoteBonusSparks, 0, ',', '.') }} ✨ Funken</span>
+                                    <div class="mb-2 flex justify-between items-center gap-3 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200/80 px-2.5 py-1.5 rounded-lg whitespace-nowrap">
+                                        <span class="whitespace-nowrap">✨ Seelenfunken Treue-Bonus (100&nbsp;%):</span>
+                                        <span class="font-mono font-black whitespace-nowrap shrink-0">+{{ number_format($quoteBonusSparks, 0, ',', '.') }} ✨ Funken</span>
                                     </div>
                                 @endif
 
                                 {{-- 5. Steuer-Hinweis (Klein & Dezent) --}}
                                 <div class="text-right text-[11px] text-gray-400 italic leading-tight">
                                     @if(!$isSmallBusiness)
+                                        @php
+                                            $displayNetTotal = $activeCoupon
+                                                ? ($taxRate > 0 ? (int) round($displayGrossTotal / (1 + ($taxRate / 100))) : $displayGrossTotal)
+                                                : (int) $quote->net_total;
+                                            $displayTaxTotal = $activeCoupon
+                                                ? max(0, $displayGrossTotal - $displayNetTotal)
+                                                : (int) $quote->tax_total;
+                                        @endphp
                                         <div class="flex justify-between gap-4">
                                             <span>Nettowarenwert:</span>
-                                            <span>{{ number_format($quote->net_total / 100, 2, ',', '.') }} €</span>
+                                            <span>{{ number_format($displayNetTotal / 100, 2, ',', '.') }} €</span>
                                         </div>
                                         <div class="flex justify-between gap-4 mt-0.5">
                                             <span>Enthaltene MwSt. ({{ number_format($taxRate, 0) }}%):</span>
-                                            <span>{{ number_format($quote->tax_total / 100, 2, ',', '.') }} €</span>
+                                            <span>{{ number_format($displayTaxTotal / 100, 2, ',', '.') }} €</span>
                                         </div>
                                     @else
                                         <div class="mt-1 text-gray-500 font-medium">
@@ -387,7 +408,10 @@
 
                             {{-- 2. Zur Kasse (Groß) --}}
                             @if($quote->isValid())
-                                <button wire:click="proceedToCheckout" wire:loading.attr="disabled" class="w-full sm:w-auto px-10 py-4 bg-gradient-to-r from-[var(--theme-color)] to-[var(--theme-color)]-dark text-white rounded-full hover:shadow-lg hover:scale-[1.02] transition font-bold text-base shadow-md flex items-center justify-center gap-2">
+                                <button type="button"
+                                        @click.prevent="if (window.sfRunPortalThen) { window.sfRunPortalThen(() => $wire.proceedToCheckout(), 'checkout'); } else { $wire.proceedToCheckout(); }"
+                                        wire:loading.attr="disabled"
+                                        class="w-full sm:w-auto px-10 py-4 bg-gradient-to-r from-[var(--theme-color)] to-[#9a7428] text-white rounded-full hover:shadow-lg hover:scale-[1.02] transition font-bold text-base shadow-md flex items-center justify-center gap-2 cursor-pointer">
                                     <svg class="w-5 h-5 text-white/90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
                                     <span>Zur Kasse & Bezahlen</span>
                                 </button>

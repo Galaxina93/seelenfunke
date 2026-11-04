@@ -179,7 +179,11 @@
                                             'variant_id',
                                             'variant_name',
                                             'selected_addons',
-                                            'addons_summary'
+                                            'addons_summary',
+                                            'personalization_mode',
+                                            'custom_fields_data',
+                                            'text',
+                                            'font'
                                         ];
                                     @endphp
 
@@ -258,6 +262,27 @@
                                                                     </span>
                                                                 @endif
                                                             @endforeach
+                                                        </div>
+                                                    @endif
+                                                    @if(!empty($config['custom_fields_data']) && is_array($config['custom_fields_data']))
+                                                        <div class="text-[11px] text-gray-700 space-y-0.5 mb-1.5">
+                                                            @foreach($config['custom_fields_data'] as $cfRow)
+                                                                @if(is_array($cfRow) && !empty($cfRow['label']) && isset($cfRow['value']) && trim((string) $cfRow['value']) !== '')
+                                                                    <div>
+                                                                        <strong>{{ $cfRow['label'] }}:</strong> "{{ $cfRow['value'] }}"
+                                                                        @if(!empty($cfRow['surcharge_cents']) && (int) $cfRow['surcharge_cents'] > 0)
+                                                                            <span class="text-amber-700 font-bold text-[10px]">(+{{ number_format(((int) $cfRow['surcharge_cents']) / 100, 2, ',', '.') }} €)</span>
+                                                                        @endif
+                                                                    </div>
+                                                                @endif
+                                                            @endforeach
+                                                        </div>
+                                                    @elseif(!empty($config['text']))
+                                                        <div class="text-[11px] text-gray-700 mb-1">
+                                                            <strong>Gravur:</strong> "{{ $config['text'] }}"
+                                                            @if(!empty($config['font']))
+                                                                <span class="text-gray-500">({{ $config['font'] }})</span>
+                                                            @endif
                                                         </div>
                                                     @endif
                                                     {{-- 'break-all' sorgt dafür, dass lange Wörter notfalls umgebrochen werden --}}

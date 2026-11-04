@@ -1,9 +1,9 @@
 # Abschlussbericht & Standard-Betriebsablauf (SOP): KI-Automatisierte Produkterstellung & Sortimentssteuerung
 
-**Status:** Aktiv / Verbindliche Standard-Operating-Procedure (SOP v3.2)  
+**Status:** Aktiv / Verbindliche Standard-Operating-Procedure (SOP v3.3)  
 **Projekt:** Mein-Seelenfunke (`/home/ubuntuxina/meine-projekte/seelenfunke`)  
 **Abteilung:** Produkte / Konfigurator / 3D-Pipeline / Sourcing / Verpackung (LUCID)  
-**Letzte Aktualisierung:** 27.10.2026  
+**Letzte Aktualisierung:** 03.11.2026  
 
 **Trigger-Kommandos (Chat):**
 - `Workflow "KI Produkterstellung" für [Kauflink / Originalbild] ausführen`
@@ -186,6 +186,10 @@ Unter **`Produkte -> Produktübersicht („Deine Kollektion“)`** ([`ProductCre
    - In allen drei Ansichtsmodi (**Groß**, **Mittel**, **Liste**) wird die **Artikelnummer (`SKU`)** sichtbar am Produkt ausgewiesen.
 2. **Einziges Pflichtfeld im Modal „Neu (KI)“ ist der Link zum Rohling (`quickAiReorderUrl`):**
    - Der Benutzer fügt lediglich die URL zum Händler-Rohling ein und klickt direkt auf **„Produkt sofort verkaufsfertig anlegen“**.
+   - **Wählbarer Personalisierungs- & Verkaufs-Modus direkt im KI-Modal (`quickAiPersonalizationMode`):**
+     - **`⚡ Schnell-Felder` (`custom_fields` – Standard-Empfehlung):** Legt ein schlankes Personalisierungs-Produkt ohne 3D-Modell-Abhängigkeit (`three_d_active = false`) mit dynamischen Kundeneingabefeldern, **`!`-Info-Tooltips** und optionaler **Konfigurator-Schriftarten-Auswahl (`type = 'font'`)** an. Vorlagen im KI-Modal: `🤖 KI-Passend`, `1x Wunschname`, `Wunschname + Schriftart` (`name_and_font`), `Name + Datum + Symbol`, `Bis zu 4 Namen`, `Hundemarke`, `Vorder- & Rückseite (+5 €)`.
+     - **`🎨 2D/3D-Studio` (`studio`):** Aktiviert den vollwertigen interaktiven 2D-/3D-Konfigurator samt `.glb`-Modell und Vorlagen.
+     - **`📦 Standard-Artikel` (`standard`):** Legt ein fertig gelasertes Spruch-/Motiv-Produkt (`is_personalizable = false`, „Bereit zum Kauf“) ohne Konfigurator und ohne Widerrufs-Ausschluss-Checkbox an.
 3. **Vollautomatische Berechnung inkl. fortlaufender SKU, Startbestand `0`, Versand & LUCID-Verpackungsanlage:**
    - `inferFromQuickAiUrl()` und `createQuickAiProduct()` berechnen automatisch:
      - Produkttyp, 3D-/2D-Geometrie, Gebindegröße (`packSize`) und Stück-EK,

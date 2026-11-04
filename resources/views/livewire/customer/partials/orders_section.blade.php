@@ -176,6 +176,21 @@
                                                     @endif
                                                 </div>
                                             @endif
+                                            @if(!empty($item->configuration['custom_fields_data']) && is_array($item->configuration['custom_fields_data']))
+                                                <div class="mt-2 flex flex-wrap gap-1.5">
+                                                    @foreach($item->configuration['custom_fields_data'] as $cfRow)
+                                                        @if(is_array($cfRow) && !empty($cfRow['label']) && isset($cfRow['value']) && trim((string) $cfRow['value']) !== '')
+                                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] bg-gray-800/80 text-gray-200 border border-gray-700">
+                                                                <strong class="text-primary font-bold">{{ $cfRow['label'] }}:</strong>
+                                                                <span>{{ $cfRow['value'] }}</span>
+                                                                @if(!empty($cfRow['surcharge_cents']) && (int) $cfRow['surcharge_cents'] > 0)
+                                                                    <span class="text-amber-400 font-mono text-[10px]">(+{{ number_format(((int) $cfRow['surcharge_cents']) / 100, 2, ',', '.') }} €)</span>
+                                                                @endif
+                                                            </span>
+                                                        @endif
+                                                    @endforeach
+                                                </div>
+                                            @endif
                                         </div>
 
                                         <div class="mt-6 flex flex-col items-start gap-4">

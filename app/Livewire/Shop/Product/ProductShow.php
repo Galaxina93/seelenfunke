@@ -29,22 +29,25 @@ class ProductShow extends Component
         // Telemetrie: Seitenaufruf Konfigurator
         ProductTrackingService::trackConfiguratorView($this->product->id);
 
-        $templates = ProductTemplate::where('product_id', $this->product->id)->where('is_active', true)->get();
+        // Vorlagen-Startauswahl nur anzeigen, wenn das Produkt den interaktiven 2D/3D Studio-Konfigurator nutzt
+        if ($this->product->usesStudioConfigurator()) {
+            $templates = ProductTemplate::where('product_id', $this->product->id)->where('is_active', true)->get();
 
-        if ($templates->isNotEmpty()) {
-            $this->productTemplates = $templates->toArray();
+            if ($templates->isNotEmpty()) {
+                $this->productTemplates = $templates->toArray();
 
-            // Template Projection Deep-Link Check
-            $requestedTemplateId = request()->query('t');
-            if ($requestedTemplateId) {
-                $matchingTemplate = $templates->firstWhere('id', $requestedTemplateId);
-                if ($matchingTemplate) {
-                    $this->selectTemplate($matchingTemplate->id);
-                    return;
+                // Template Projection Deep-Link Check
+                $requestedTemplateId = request()->query('t');
+                if ($requestedTemplateId) {
+                    $matchingTemplate = $templates->firstWhere('id', $requestedTemplateId);
+                    if ($matchingTemplate) {
+                        $this->selectTemplate($matchingTemplate->id);
+                        return;
+                    }
                 }
-            }
 
-            $this->showTemplateSelection = true;
+                $this->showTemplateSelection = true;
+            }
         }
     }
 
@@ -89,8 +92,8 @@ class ProductShow extends Component
                     $tplPriceCents += (int) round(((float) str_replace(',', '.', (string) $matchedVar['price'])) * 100);
                 }
             }
-            if ($this->product->tax_included === false && !\App\Services\TaxSettingService::isSmallBusiness()) {
-                $taxRate = (float) ($this->product->tax_rate ?? \App\Services\TaxSettingService::defaultTaxRate());
+            if ($this->product->tax_included === false && !app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness()) {
+                $taxRate = (float) ($this->product->tax_rate ?? shop_setting('default_tax_rate', 19.0));
                 $tplPriceCents = (int) round($tplPriceCents * (1 + ($taxRate / 100)));
             }
             $tplImgUrl = !empty($template->preview_image)

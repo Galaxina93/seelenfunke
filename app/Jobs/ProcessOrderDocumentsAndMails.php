@@ -127,15 +127,33 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
                 $itemIndex++;
             }
 
+            // Klartext-Initialpasswort NIEMALS per unverschlüsselter E-Mail übertragen (Art. 32 DSGVO & DSK-Beschluss)
+            $mailData['customer_temporary_password'] = null;
+            if ($this->order->customer && !empty($this->order->customer->temporary_password)) {
+                $this->order->customer->update(['temporary_password' => null]);
+            }
+            if (!empty($mailData['customer_needs_password_change']) || ($this->order->customer && (!empty($this->order->customer->needs_password_change) || !empty($this->order->customer->must_change_password)))) {
+                $mailData['customer_needs_password_change'] = true;
+                $targetEmail = trim((string) ($this->order->customer->email ?? $this->order->email));
+                if ($targetEmail !== '') {
+                    $rawActivationToken = \Illuminate\Support\Str::random(64);
+                    \Illuminate\Support\Facades\DB::table('system_password_reset_tokens')->updateOrInsert(
+                        ['email' => $targetEmail, 'guard' => 'customer'],
+                        [
+                            'token' => \Illuminate\Support\Facades\Hash::make($rawActivationToken),
+                            'created_at' => now(),
+                        ]
+                    );
+                    $mailData['password_setup_url'] = url('/customer/password-reset/' . $rawActivationToken . '?email=' . urlencode($targetEmail));
+                } else {
+                    $mailData['password_setup_url'] = route('password.request');
+                }
+            }
+
             // 2a. Kundenbestätigung direkt synchron via SMTP senden
             try {
                 Mail::to($this->order->email)
                     ->sendNow(new NewOrderMailToCustomer($mailData, $pdfPath, $xmlPath, $snapshotPaths, $this->order));
-
-                // Klartext-Initialpasswort sofort nach erfolgreichem Versand aus der Datenbank entfernen
-                if ($this->order->customer && !empty($this->order->customer->temporary_password)) {
-                    $this->order->customer->update(['temporary_password' => null]);
-                }
             } catch (\Throwable $customerEx) {
                 Log::error("Kunden-Bestellbestätigung konnte nicht gesendet werden für {$this->order->order_number}: " . $customerEx->getMessage());
             }

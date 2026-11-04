@@ -12,13 +12,37 @@
             $sub3Done = !empty($configSettings['area_width']) && !empty($configSettings['area_height']);
             $sub4Done = $activeTemplatesCount > 0;
 
+            $isStudioPersonalizable = $is_personalizable && (($configSettings['personalization_mode'] ?? 'studio') === 'studio');
+
             $step4Tabs = [
-                1 => ['title' => 'Dateien & 3D-Assets', 'done' => $sub1Done, 'required' => true],
+                1 => ['title' => 'Dateien & 3D-Assets', 'done' => $sub1Done, 'required' => $isStudioPersonalizable],
                 2 => ['title' => 'xTool Laser-Parameter', 'done' => $sub2Done, 'required' => false],
                 3 => ['title' => 'Live-Konfigurator', 'done' => $sub3Done, 'required' => false],
-                4 => ['title' => 'Gravur- & Saison-Vorlagen', 'done' => $sub4Done, 'required' => true],
+                4 => ['title' => 'Gravur- & Saison-Vorlagen', 'done' => $sub4Done, 'required' => $isStudioPersonalizable],
             ];
         @endphp
+
+        @if(!$isStudioPersonalizable)
+            <div class="mb-6 p-5 rounded-[2rem] bg-emerald-50/80 dark:bg-emerald-950/25 border border-emerald-200 dark:border-emerald-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div class="flex items-start gap-3.5">
+                    <div class="w-10 h-10 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 font-bold text-lg">✓</div>
+                    <div class="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
+                        @if(!$is_personalizable)
+                            <span class="font-bold text-gray-900 dark:text-white block text-sm mb-0.5">Standard-Produkt (Sofortkauf ohne Konfigurator)</span>
+                            Für dieses vorproduzierte Produkt werden keine 3D-Modelle (.glb) oder 2D-Konfigurator-Overlays benötigt. Du kannst die xTool-Laser-Parameter (4.2) optional für deine interne Produktion hinterlegen oder das Produkt direkt veröffentlichen.
+                        @else
+                            <span class="font-bold text-gray-900 dark:text-white block text-sm mb-0.5">Schnell-Personalisierung mit dynamischen Eingabefeldern aktiv</span>
+                            Deine individuellen Eingabefelder sind bereits in Schritt 1.1 eingerichtet. Es werden keine 3D-Modelle (.glb) oder 2D-Konfigurator-Overlays benötigt. Du kannst optional xTool-Laser-Parameter (4.2) hinterlegen oder das Produkt direkt veröffentlichen.
+                        @endif
+                    </div>
+                </div>
+                <button type="button"
+                        wire:click="finish"
+                        class="shrink-0 px-5 py-3 rounded-xl bg-[var(--theme-color)] text-white dark:text-gray-900 text-[10px] font-black uppercase tracking-widest shadow-sm hover:opacity-90 transition-all cursor-pointer">
+                    Jetzt veröffentlichen &rarr;
+                </button>
+            </div>
+        @endif
 
         {{-- Unsichtbarer Wrapper hält den Alpine.js Status für alle Blöcke zusammen --}}
         <div class="space-y-6"

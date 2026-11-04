@@ -30,7 +30,7 @@ class OrderRevocationForm extends Component
         'order_number' => 'required|string|min:3|max:50',
         'items' => 'nullable|string|max:1000',
         'attachments' => 'nullable|array|max:2',
-        'attachments.*' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+        'attachments.*' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
     ];
 
     protected $messages = [
@@ -39,7 +39,7 @@ class OrderRevocationForm extends Component
         'email.email' => 'Die E-Mail-Adresse ist ungültig.',
         'order_number.required' => 'Bitte geben Sie die Bestellnummer an, um den Vertrag zuzuordnen.',
         'attachments.max' => 'Es sind maximal 2 Dateien erlaubt. Überzählige Dateien wurden automatisch entfernt.',
-        'attachments.*.mimes' => 'Nur JPG, PNG oder PDF Dateien sind erlaubt.',
+        'attachments.*.mimes' => 'Nur JPG, PNG, WEBP oder PDF Dateien sind erlaubt.',
         'attachments.*.max' => 'Eine Datei darf maximal 5 MB groß sein.',
         'attachments.*.uploaded' => 'Upload fehlgeschlagen: Die Datei ist zu groß oder beschädigt.',
         'attachments.0.uploaded' => 'Fehler bei Datei 1: Die Datei ist zu groß oder das Format wird nicht unterstützt.',
@@ -68,8 +68,8 @@ class OrderRevocationForm extends Component
                 $isValid = false;
             } else {
                 $ext = strtolower($file->getClientOriginalExtension());
-                if (!in_array($ext, ['jpg', 'jpeg', 'png', 'pdf'])) {
-                    $this->addError("attachments", "Format von '" . $file->getClientOriginalName() . "' ungültig (nur JPG, PNG, PDF). Wurde entfernt.");
+                if (!in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'pdf'])) {
+                    $this->addError("attachments", "Format von '" . $file->getClientOriginalName() . "' ungültig (nur JPG, PNG, WEBP, PDF). Wurde entfernt.");
                     $isValid = false;
                 }
             }
@@ -150,7 +150,12 @@ class OrderRevocationForm extends Component
 
         try {
             // In der Datenbank speichern
-            $revocation = OrderRevocation::create($data);
+            $revocation = OrderRevocation::create([
+                'name' => $this->name,
+                'email' => $this->email,
+                'order_number' => $this->order_number,
+                'items' => $this->items,
+            ]);
 
             // Datei-Uploads verarbeiten (Try/Catch in Try/Catch für non-fatal Errors)
             try {

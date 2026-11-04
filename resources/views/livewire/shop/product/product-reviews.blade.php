@@ -2,9 +2,66 @@
         reviewerModal: null,
         openReviewerProfile(data) {
             this.reviewerModal = data;
+        },
+        mediaLightbox: {
+            open: false,
+            items: [],
+            index: 0,
+            author: '',
+            rating: 5,
+            text: ''
+        },
+        openMediaLightbox(items, startIndex = 0, meta = {}) {
+            if (!items || !items.length) return;
+            this.mediaLightbox.items = items;
+            this.mediaLightbox.index = startIndex;
+            this.mediaLightbox.author = meta.author || 'Verifizierter Kunde';
+            this.mediaLightbox.rating = meta.rating || 5;
+            this.mediaLightbox.text = meta.text || '';
+            this.mediaLightbox.open = true;
+        },
+        closeMediaLightbox() {
+            this.mediaLightbox.open = false;
+        },
+        nextMediaSlide() {
+            if (!this.mediaLightbox.items.length) return;
+            this.mediaLightbox.index = (this.mediaLightbox.index + 1) % this.mediaLightbox.items.length;
+        },
+        prevMediaSlide() {
+            if (!this.mediaLightbox.items.length) return;
+            this.mediaLightbox.index = (this.mediaLightbox.index - 1 + this.mediaLightbox.items.length) % this.mediaLightbox.items.length;
         }
      }"
+     @keydown.escape.window="if (mediaLightbox.open) closeMediaLightbox()"
+     @keydown.arrow-right.window="if (mediaLightbox.open) nextMediaSlide()"
+     @keydown.arrow-left.window="if (mediaLightbox.open) prevMediaSlide()"
      style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="w-full relative z-10">
+    <style>
+        @keyframes sfProdMediaSparkleA {
+            0% { transform: translate(0, 6px) scale(0.35) rotate(0deg); opacity: 0; }
+            35% { opacity: 1; }
+            100% { transform: translate(-8px, -16px) scale(1.15) rotate(25deg); opacity: 0; }
+        }
+        @keyframes sfProdMediaSparkleB {
+            0% { transform: translate(0, 6px) scale(0.3) rotate(0deg); opacity: 0; }
+            40% { opacity: 1; }
+            100% { transform: translate(10px, -18px) scale(1.1) rotate(-22deg); opacity: 0; }
+        }
+        @keyframes sfProdMediaSparkleC {
+            0% { transform: translate(0, 4px) scale(0.4) rotate(0deg); opacity: 0; }
+            45% { opacity: 0.95; }
+            100% { transform: translate(-4px, -14px) scale(1.05) rotate(18deg); opacity: 0; }
+        }
+        .group\/media:hover .sf-p-sparkle-1 {
+            animation: sfProdMediaSparkleA 1.25s ease-out infinite;
+        }
+        .group\/media:hover .sf-p-sparkle-2 {
+            animation: sfProdMediaSparkleB 1.45s ease-out infinite 0.22s;
+        }
+        .group\/media:hover .sf-p-sparkle-3 {
+            animation: sfProdMediaSparkleC 1.35s ease-out infinite 0.5s;
+        }
+    </style>
     <div class="mt-2 w-full">
 
         <div class="border-t border-gray-100 pt-6 w-full">
@@ -133,7 +190,7 @@
                                     </label>
 
                                     <div class="w-full">
-                                        <span class="block text-sm font-bold text-gray-700 mb-2">Bilder & Videos hinzufügen (Max. 3 Dateien)</span>
+                                        <span class="block text-sm font-bold text-gray-700 mb-2">Bilder & Video hinzufügen (Max. 3 Dateien, davon max. 1 Video)</span>
 
                                         <label class="w-full flex flex-col items-center justify-center px-6 py-8 border-2 border-dashed rounded-2xl transition-colors cursor-pointer focus-within:ring-2 focus-within:ring-amber-500"
                                                x-data="{ isDropping: false }"
@@ -147,7 +204,7 @@
                                                 <span class="font-medium text-amber-600 hover:text-amber-500">Lade eine Datei hoch</span>
                                                 <p class="pl-1 hidden sm:block">oder Drag & Drop</p>
                                             </div>
-                                            <p class="text-xs text-gray-500 mt-1 pointer-events-none">PNG, JPG, MP4 bis max. 10MB</p>
+                                            <p class="text-xs text-gray-500 mt-1 pointer-events-none text-center">Bilder (JPG, PNG, WEBP bis 5 MB • automatische WebP-Optimierung) • max. 1 Video (MP4, MOV bis 8 MB)</p>
                                             <input type="file" x-ref="fileInput" wire:model.live="newMedia" class="sr-only" multiple accept="image/png, image/jpeg, image/webp, video/mp4, video/quicktime">
                                         </label>
 
@@ -218,6 +275,19 @@
                                                 </p>
                                             </div>
                                         </label>
+                                    </div>
+
+                                    {{-- Rechtliche Einwilligung (Veröffentlichung & Bildrechte) --}}
+                                    <div class="w-full bg-white/90 border @error('acceptReviewTerms') border-red-400 ring-1 ring-red-400/30 @else border-amber-200/80 @enderror rounded-xl p-4 shadow-sm transition-colors hover:border-amber-300">
+                                        <label class="flex items-start gap-3.5 cursor-pointer select-none">
+                                            <div class="pt-0.5 shrink-0">
+                                                <input type="checkbox" wire:model.live="acceptReviewTerms" class="h-5 w-5 rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer transition">
+                                            </div>
+                                            <div class="text-xs text-gray-600 leading-relaxed">
+                                                Ich bestätige, dass meine Bewertung auf eigener Erfahrung mit dem gekauften Produkt beruht. Sofern ich Fotos oder Videos hochlade, besitze ich sämtliche Bildrechte (keine unbefugte Abbildung Dritter gem. § 22 KUG) und bin mit der öffentlichen Anzeige im Shop sowie auf der Startseite („Was unsere Kunden sagen“) gemäß den <a href="{{ route('agb') }}" target="_blank" class="text-amber-700 underline hover:text-amber-900 font-semibold">AGB (§ 8a)</a> und der <a href="{{ route('datenschutz') }}" target="_blank" class="text-amber-700 underline hover:text-amber-900 font-semibold">Datenschutzerklärung</a> einverstanden. <span class="text-red-500 font-bold">*</span>
+                                            </div>
+                                        </label>
+                                        @error('acceptReviewTerms') <span class="text-red-500 text-xs mt-1.5 block font-bold">{{ $message }}</span> @enderror
                                     </div>
                                 </div>
 
@@ -297,51 +367,68 @@
                                         $uCard = $userReview->customer
                                             ? app(\App\Services\Gamification\GamificationService::class)->getPublicProfileCardData($userReview->customer, $userReview->customer->gamification)
                                             : null;
+                                        $canOpenUProfile = $uCard && (isset($uCard['can_show_public_profile'])
+                                            ? !empty($uCard['can_show_public_profile'])
+                                            : (bool) ($userReview->customer?->gamification?->is_active && $userReview->customer?->gamification?->ranking_opt_in));
                                     @endphp
                                     @if($uCard)
-                                        <button type="button"
-                                                @click="openReviewerProfile(@js($uCard))"
-                                                title="Klicken, um dein öffentliches Bewertungs-Profil anzusehen"
-                                                class="relative h-20 w-20 sm:h-24 sm:w-24 rounded-full shrink-0 group cursor-pointer focus:outline-none">
-                                            <div class="absolute inset-[-4px] rounded-full border border-dashed border-[#C5A059]/50 pointer-events-none"></div>
-                                            @if(!empty($uCard['custom_photo_url']))
-                                                <img src="{{ $uCard['custom_photo_url'] }}" alt="{{ $uCard['display_name'] }}" class="h-full w-full rounded-full object-cover border-2 border-[#C5A059] shadow-md transition-transform duration-300 group-hover:scale-105">
-                                            @else
-                                                <div style="{{ $uCard['circle_css'] }}"
-                                                     class="relative h-full w-full rounded-full border-2 border-[#C5A059] shadow-[0_0_20px_rgba(197,160,89,0.35)] overflow-hidden flex items-center justify-center transition-transform duration-300 group-hover:scale-105">
-                                                    @if(!empty($uCard['video_url']))
-                                                        <video src="{{ $uCard['video_url'] }}"
-                                                               autoplay loop muted playsinline
-                                                               class="absolute inset-0 w-full h-full object-cover rounded-full pointer-events-none z-[1]"></video>
-                                                    @endif
-                                                    <div class="absolute inset-[-18%] rounded-full opacity-55 mix-blend-screen animate-[spin_22s_linear_infinite] pointer-events-none z-[2]"
-                                                         style="background: conic-gradient(from 0deg, transparent 0%, {{ $uCard['accent_hex'] }}55 25%, transparent 50%, {{ $uCard['accent_hex'] }}44 75%, transparent 100%);"></div>
-                                                    <img src="{{ $uCard['image_url'] }}" alt="Funki Level {{ $uCard['display_level'] }}" class="relative z-10 w-full h-full object-contain p-2 drop-shadow-[0_6px_12px_rgba(0,0,0,0.55)]">
-                                                </div>
-                                            @endif
-                                            <span class="absolute -bottom-1 -right-1 z-20 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-300 via-[#C5A059] to-amber-500 text-gray-950 border border-white text-[9px] font-black shadow-sm">
-                                                Lvl. {{ $uCard['level'] }}
-                                            </span>
-                                        </button>
+                                        @if($canOpenUProfile)
+                                            <button type="button"
+                                                    @click="openReviewerProfile(@js($uCard))"
+                                                    title="Klicken, um dein öffentliches Bewertungs-Profil anzusehen"
+                                                    class="relative h-20 w-20 sm:h-24 sm:w-24 rounded-full shrink-0 group cursor-pointer focus:outline-none">
+                                                <div class="absolute inset-[-4px] rounded-full border border-dashed border-[#C5A059]/50 pointer-events-none"></div>
+                                                @if(!empty($uCard['custom_photo_url']))
+                                                    <img src="{{ $uCard['custom_photo_url'] }}" alt="{{ $uCard['display_name'] }}" class="h-full w-full rounded-full object-cover border-2 border-[#C5A059] shadow-md transition-transform duration-300 group-hover:scale-105">
+                                                @else
+                                                    <div style="{{ $uCard['circle_css'] }}"
+                                                         class="relative h-full w-full rounded-full border-2 border-[#C5A059] shadow-[0_0_20px_rgba(197,160,89,0.35)] overflow-hidden flex items-center justify-center transition-transform duration-300 group-hover:scale-105">
+                                                        @if(!empty($uCard['video_url']))
+                                                            <video src="{{ $uCard['video_url'] }}"
+                                                                   autoplay loop muted playsinline
+                                                                   class="absolute inset-0 w-full h-full object-cover rounded-full pointer-events-none z-[1]"></video>
+                                                        @endif
+                                                        <div class="absolute inset-[-18%] rounded-full opacity-55 mix-blend-screen animate-[spin_22s_linear_infinite] pointer-events-none z-[2]"
+                                                             style="background: conic-gradient(from 0deg, transparent 0%, {{ $uCard['accent_hex'] }}55 25%, transparent 50%, {{ $uCard['accent_hex'] }}44 75%, transparent 100%);"></div>
+                                                        <img src="{{ $uCard['image_url'] }}" alt="Funki Level {{ $uCard['display_level'] }}" class="relative z-10 w-full h-full object-contain p-2 drop-shadow-[0_6px_12px_rgba(0,0,0,0.55)]">
+                                                    </div>
+                                                @endif
+                                                <span class="absolute -bottom-1 -right-1 z-20 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-300 via-[#C5A059] to-amber-500 text-gray-950 border border-white text-[9px] font-black shadow-sm">
+                                                    Lvl. {{ $uCard['level'] }}
+                                                </span>
+                                            </button>
+                                        @else
+                                            <div class="relative h-14 w-14 rounded-full bg-amber-100 text-[#8a6820] font-serif font-bold text-lg flex items-center justify-center border-2 border-white shadow-sm ring-2 ring-[#C5A059]/25 shrink-0 select-none">
+                                                {{ mb_strtoupper(mb_substr((string) ($uCard['display_name'] ?? 'K'), 0, 1)) }}
+                                            </div>
+                                        @endif
                                         <div>
                                             <div class="flex items-center gap-2 flex-wrap">
-                                                <button type="button"
-                                                        @click="openReviewerProfile(@js($uCard))"
-                                                        class="text-base sm:text-lg font-bold text-gray-900 hover:text-amber-700 transition-colors cursor-pointer">
-                                                    {{ $uCard['display_name'] }}
-                                                </button>
-                                                <span class="text-[10px] font-black uppercase tracking-wider bg-amber-500/15 border border-[#C5A059]/40 text-amber-800 px-2.5 py-0.5 rounded-full">
-                                                    ✨ Funki Lvl. {{ $uCard['level'] }}
-                                                </span>
-                                                @if(!empty($uCard['rank_name']))
-                                                    <span class="text-[10px] font-black uppercase tracking-wider {{ !empty($uCard['is_seelengott']) ? 'bg-gradient-to-r from-amber-400 via-[#C5A059] to-amber-500 text-gray-950 border-amber-300' : 'bg-white border-amber-300 text-amber-900' }} border px-2.5 py-0.5 rounded-full">
-                                                        {{ !empty($uCard['is_seelengott']) ? '👑' : '🏆' }} {{ $uCard['rank_name'] }}
+                                                @if($canOpenUProfile)
+                                                    <button type="button"
+                                                            @click="openReviewerProfile(@js($uCard))"
+                                                            class="text-base sm:text-lg font-bold text-gray-900 hover:text-amber-700 transition-colors cursor-pointer">
+                                                        {{ $uCard['display_name'] }}
+                                                    </button>
+                                                    <span class="text-[10px] font-black uppercase tracking-wider bg-amber-500/15 border border-[#C5A059]/40 text-amber-800 px-2.5 py-0.5 rounded-full">
+                                                        ✨ Funki Lvl. {{ $uCard['level'] }}
+                                                    </span>
+                                                    @if(!empty($uCard['rank_name']))
+                                                        <span class="text-[10px] font-black uppercase tracking-wider {{ !empty($uCard['is_seelengott']) ? 'bg-gradient-to-r from-amber-400 via-[#C5A059] to-amber-500 text-gray-950 border-amber-300' : 'bg-white border-amber-300 text-amber-900' }} border px-2.5 py-0.5 rounded-full">
+                                                            {{ !empty($uCard['is_seelengott']) ? '👑' : '🏆' }} {{ $uCard['rank_name'] }}
+                                                        </span>
+                                                    @endif
+                                                @else
+                                                    <span class="text-base sm:text-lg font-bold text-gray-900">
+                                                        {{ $uCard['display_name'] }}
                                                     </span>
                                                 @endif
                                             </div>
                                             <p class="text-xs text-gray-500 flex items-center mt-1 font-medium">
-                                                <i class="bi bi-check-circle-fill text-green-500 mr-1.5"></i> Verifizierter Kauf &bull; {{ $userReview->created_at->format('d.m.Y') }} &bull;
-                                                <button type="button" @click="openReviewerProfile(@js($uCard))" class="ml-1 text-amber-700 hover:underline font-semibold cursor-pointer">Profil ansehen</button>
+                                                <i class="bi bi-check-circle-fill text-green-500 mr-1.5"></i> Verifizierter Kauf &bull; {{ $userReview->created_at->format('d.m.Y') }}
+                                                @if($canOpenUProfile)
+                                                    &bull; <button type="button" @click="openReviewerProfile(@js($uCard))" class="ml-1 text-amber-700 hover:underline font-semibold cursor-pointer">Profil ansehen</button>
+                                                @endif
                                             </p>
                                         </div>
                                     @endif
@@ -362,21 +449,43 @@
                             </div>
 
                             @if(!empty($userReview->media))
+                                @php
+                                    $userMediaList = collect($userReview->media)->map(function ($mPath) {
+                                        $mExt = strtolower(pathinfo((string) $mPath, PATHINFO_EXTENSION));
+                                        return [
+                                            'url' => '/storage/' . ltrim((string) $mPath, '/'),
+                                            'type' => in_array($mExt, ['mp4', 'mov', 'webm'], true) ? 'video' : 'image',
+                                        ];
+                                    })->values()->all();
+                                    $userAuthorName = $userReview->is_anonymous ? 'Anonymer Kunde' : ($uCard['display_name'] ?? 'Deine Bewertung');
+                                @endphp
                                 <div class="flex flex-wrap gap-3 mt-6 pt-4 border-t border-amber-200/50 w-full">
-                                    @foreach($userReview->media as $mediaPath)
-                                        @php
-                                            $ext = strtolower(pathinfo($mediaPath, PATHINFO_EXTENSION));
-                                            $isVideo = in_array($ext, ['mp4', 'mov', 'webm']);
-                                        @endphp
-                                        <div class="w-24 h-24 sm:w-32 sm:h-32 rounded-xl overflow-hidden border border-amber-200 shadow-sm relative group">
-                                            @if($isVideo)
-                                                <video src="{{ asset('storage/' . $mediaPath) }}" controls class="w-full h-full object-cover"></video>
+                                    @foreach($userMediaList as $mIdx => $mItem)
+                                        <button type="button"
+                                                @click="openMediaLightbox(@js($userMediaList), {{ $mIdx }}, {
+                                                    author: @js($userAuthorName),
+                                                    rating: {{ (int) $userReview->rating }},
+                                                    text: @js($userReview->content)
+                                                })"
+                                                class="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl overflow-hidden border border-[#C5A059]/35 bg-gradient-to-br from-[#fdfbf7] via-[#f9f4e8] to-[#f4ecdc] shadow-sm relative group/media cursor-pointer transition-all duration-300 hover:border-[#C5A059] hover:shadow-[0_8px_22px_rgba(197,160,89,0.3)] focus:outline-none p-1.5 flex items-center justify-center">
+                                            @if($mItem['type'] === 'video')
+                                                <video src="{{ $mItem['url'] }}" muted preload="metadata" class="relative z-10 max-w-full max-h-full object-contain rounded-xl transition-transform duration-500 group-hover/media:scale-105"></video>
+                                                <span class="absolute inset-0 z-20 flex items-center justify-center">
+                                                    <span class="w-9 h-9 rounded-full bg-white/95 border border-[#C5A059] text-[#8a6820] flex items-center justify-center shadow-md">
+                                                        <svg class="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                                    </span>
+                                                </span>
                                             @else
-                                                <a href="{{ asset('storage/' . $mediaPath) }}" target="_blank" class="block w-full h-full">
-                                                    <img src="{{ asset('storage/' . $mediaPath) }}" class="w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer">
-                                                </a>
+                                                <img src="{{ $mItem['url'] }}" alt="" aria-hidden="true" class="absolute inset-0 w-full h-full object-cover blur-lg opacity-25 scale-110 pointer-events-none">
+                                                <img src="{{ $mItem['url'] }}" alt="Bewertungsbild {{ $mIdx + 1 }}" class="relative z-10 max-w-full max-h-full object-contain rounded-xl shadow-xs transition-transform duration-500 group-hover/media:scale-105">
                                             @endif
-                                        </div>
+                                            <div class="absolute inset-0 bg-gradient-to-t from-amber-500/10 via-transparent to-white/20 opacity-0 group-hover/media:opacity-100 transition-opacity duration-300 pointer-events-none z-10"></div>
+                                            <div class="absolute inset-0 pointer-events-none overflow-hidden z-20" aria-hidden="true">
+                                                <svg class="sf-p-sparkle-1 opacity-0 absolute bottom-3 left-3 w-3.5 h-3.5 text-amber-500 drop-shadow-[0_0_5px_rgba(251,191,36,0.95)]" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.3 6.9L21 11.2l-6.7 2.3L12 20.5l-2.3-7L3 11.2l6.7-2.3L12 2z"/></svg>
+                                                <svg class="sf-p-sparkle-2 opacity-0 absolute bottom-4 right-3 w-4 h-4 text-[#C5A059] drop-shadow-[0_0_6px_rgba(197,160,89,0.95)]" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.3 6.9L21 11.2l-6.7 2.3L12 20.5l-2.3-7L3 11.2l6.7-2.3L12 2z"/></svg>
+                                                <svg class="sf-p-sparkle-3 opacity-0 absolute top-3 right-1/3 w-3 h-3 text-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.9)]" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.3 6.9L21 11.2l-6.7 2.3L12 20.5l-2.3-7L3 11.2l6.7-2.3L12 2z"/></svg>
+                                            </div>
+                                        </button>
                                     @endforeach
                                 </div>
                             @endif
@@ -505,51 +614,68 @@
                                         @else
                                             @php
                                                 $rCard = app(\App\Services\Gamification\GamificationService::class)->getPublicProfileCardData($review->customer, $review->customer->gamification);
+                                                $canOpenProfile = isset($rCard['can_show_public_profile'])
+                                                    ? !empty($rCard['can_show_public_profile'])
+                                                    : (bool) ($review->customer?->gamification?->is_active && $review->customer?->gamification?->ranking_opt_in);
                                             @endphp
-                                            <button type="button"
-                                                    @click="openReviewerProfile(@js($rCard))"
-                                                    title="Profil von {{ $rCard['display_name'] }} ansehen"
-                                                    class="relative h-16 w-16 sm:h-20 sm:w-20 rounded-full shrink-0 group cursor-pointer focus:outline-none">
-                                                <div class="absolute inset-[-3px] rounded-full border border-dashed border-[#C5A059]/45 pointer-events-none"></div>
-                                                @if(!empty($rCard['custom_photo_url']))
-                                                    <img src="{{ $rCard['custom_photo_url'] }}" alt="{{ $rCard['display_name'] }}" class="h-full w-full rounded-full object-cover border-2 border-[#C5A059] shadow-sm transition-transform duration-300 group-hover:scale-105">
-                                                @else
-                                                    <div style="{{ $rCard['circle_css'] }}"
-                                                         class="relative h-full w-full rounded-full border-2 border-[#C5A059] shadow-[0_0_16px_rgba(197,160,89,0.3)] overflow-hidden flex items-center justify-center transition-transform duration-300 group-hover:scale-105">
-                                                        @if(!empty($rCard['video_url']))
-                                                            <video src="{{ $rCard['video_url'] }}"
-                                                                   autoplay loop muted playsinline
-                                                                   class="absolute inset-0 w-full h-full object-cover rounded-full pointer-events-none z-[1]"></video>
-                                                        @endif
-                                                        <div class="absolute inset-[-18%] rounded-full opacity-55 mix-blend-screen animate-[spin_22s_linear_infinite] pointer-events-none z-[2]"
-                                                             style="background: conic-gradient(from 0deg, transparent 0%, {{ $rCard['accent_hex'] }}55 25%, transparent 50%, {{ $rCard['accent_hex'] }}44 75%, transparent 100%);"></div>
-                                                        <img src="{{ $rCard['image_url'] }}" alt="Funki Level {{ $rCard['display_level'] }}" class="relative z-10 w-full h-full object-contain p-1.5 drop-shadow-[0_5px_10px_rgba(0,0,0,0.5)]">
-                                                    </div>
-                                                @endif
-                                                <span class="absolute -bottom-1 -right-1 z-20 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-300 via-[#C5A059] to-amber-500 text-gray-950 border border-white text-[8px] font-black shadow-xs">
-                                                    Lvl. {{ $rCard['level'] }}
-                                                </span>
-                                            </button>
+                                            @if($canOpenProfile)
+                                                <button type="button"
+                                                        @click="openReviewerProfile(@js($rCard))"
+                                                        title="Profil von {{ $rCard['display_name'] }} ansehen"
+                                                        class="relative h-16 w-16 sm:h-20 sm:w-20 rounded-full shrink-0 group cursor-pointer focus:outline-none">
+                                                    <div class="absolute inset-[-3px] rounded-full border border-dashed border-[#C5A059]/45 pointer-events-none"></div>
+                                                    @if(!empty($rCard['custom_photo_url']))
+                                                        <img src="{{ $rCard['custom_photo_url'] }}" alt="{{ $rCard['display_name'] }}" class="h-full w-full rounded-full object-cover border-2 border-[#C5A059] shadow-sm transition-transform duration-300 group-hover:scale-105">
+                                                    @else
+                                                        <div style="{{ $rCard['circle_css'] }}"
+                                                             class="relative h-full w-full rounded-full border-2 border-[#C5A059] shadow-[0_0_16px_rgba(197,160,89,0.3)] overflow-hidden flex items-center justify-center transition-transform duration-300 group-hover:scale-105">
+                                                            @if(!empty($rCard['video_url']))
+                                                                <video src="{{ $rCard['video_url'] }}"
+                                                                       autoplay loop muted playsinline
+                                                                       class="absolute inset-0 w-full h-full object-cover rounded-full pointer-events-none z-[1]"></video>
+                                                            @endif
+                                                            <div class="absolute inset-[-18%] rounded-full opacity-55 mix-blend-screen animate-[spin_22s_linear_infinite] pointer-events-none z-[2]"
+                                                                 style="background: conic-gradient(from 0deg, transparent 0%, {{ $rCard['accent_hex'] }}55 25%, transparent 50%, {{ $rCard['accent_hex'] }}44 75%, transparent 100%);"></div>
+                                                            <img src="{{ $rCard['image_url'] }}" alt="Funki Level {{ $rCard['display_level'] }}" class="relative z-10 w-full h-full object-contain p-1.5 drop-shadow-[0_5px_10px_rgba(0,0,0,0.5)]">
+                                                        </div>
+                                                    @endif
+                                                    <span class="absolute -bottom-1 -right-1 z-20 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-300 via-[#C5A059] to-amber-500 text-gray-950 border border-white text-[8px] font-black shadow-xs">
+                                                        Lvl. {{ $rCard['level'] }}
+                                                    </span>
+                                                </button>
+                                            @else
+                                                <div class="h-12 w-12 rounded-full bg-amber-50 text-[#8a6820] font-serif font-bold text-lg flex items-center justify-center border-2 border-white shadow-sm ring-2 ring-[#C5A059]/20 shrink-0 select-none">
+                                                    {{ mb_strtoupper(mb_substr((string) ($rCard['display_name'] ?? 'K'), 0, 1)) }}
+                                                </div>
+                                            @endif
 
                                             <div>
                                                 <div class="flex items-center gap-2 flex-wrap">
-                                                    <button type="button"
-                                                            @click="openReviewerProfile(@js($rCard))"
-                                                            class="text-base font-bold text-gray-900 hover:text-amber-700 transition-colors cursor-pointer">
-                                                        {{ $rCard['display_name'] }}
-                                                    </button>
-                                                    <span class="text-[10px] font-black uppercase tracking-wider bg-amber-500/15 border border-[#C5A059]/40 text-amber-800 px-2 py-0.5 rounded-full">
-                                                        ✨ Funki Lvl. {{ $rCard['level'] }}
-                                                    </span>
-                                                    @if(!empty($rCard['rank_name']))
-                                                        <span class="text-[10px] font-black uppercase tracking-wider {{ !empty($rCard['is_seelengott']) ? 'bg-gradient-to-r from-amber-400 via-[#C5A059] to-amber-500 text-gray-950 border-amber-300' : 'bg-gray-100 border-gray-200 text-gray-700' }} border px-2 py-0.5 rounded-full">
-                                                            {{ !empty($rCard['is_seelengott']) ? '👑' : '🏆' }} {{ $rCard['rank_name'] }}
+                                                    @if($canOpenProfile)
+                                                        <button type="button"
+                                                                @click="openReviewerProfile(@js($rCard))"
+                                                                class="text-base font-bold text-gray-900 hover:text-amber-700 transition-colors cursor-pointer">
+                                                            {{ $rCard['display_name'] }}
+                                                        </button>
+                                                        <span class="text-[10px] font-black uppercase tracking-wider bg-amber-500/15 border border-[#C5A059]/40 text-amber-800 px-2 py-0.5 rounded-full">
+                                                            ✨ Funki Lvl. {{ $rCard['level'] }}
+                                                        </span>
+                                                        @if(!empty($rCard['rank_name']))
+                                                            <span class="text-[10px] font-black uppercase tracking-wider {{ !empty($rCard['is_seelengott']) ? 'bg-gradient-to-r from-amber-400 via-[#C5A059] to-amber-500 text-gray-950 border-amber-300' : 'bg-gray-100 border-gray-200 text-gray-700' }} border px-2 py-0.5 rounded-full">
+                                                                {{ !empty($rCard['is_seelengott']) ? '👑' : '🏆' }} {{ $rCard['rank_name'] }}
+                                                            </span>
+                                                        @endif
+                                                    @else
+                                                        <span class="text-base font-semibold text-gray-900">
+                                                            {{ $rCard['display_name'] }}
                                                         </span>
                                                     @endif
                                                 </div>
                                                 <p class="text-xs text-gray-500 flex items-center mt-0.5 font-medium">
-                                                    <i class="bi bi-check-circle-fill text-green-500 mr-1.5"></i> Verifizierter Kauf &bull; {{ $review->created_at->format('d.m.Y') }} &bull;
-                                                    <button type="button" @click="openReviewerProfile(@js($rCard))" class="ml-1 text-amber-700 hover:underline font-semibold cursor-pointer">Profil ansehen</button>
+                                                    <i class="bi bi-check-circle-fill text-green-500 mr-1.5"></i> Verifizierter Kauf &bull; {{ $review->created_at->format('d.m.Y') }}
+                                                    @if($canOpenProfile)
+                                                        &bull; <button type="button" @click="openReviewerProfile(@js($rCard))" class="ml-1 text-amber-700 hover:underline font-semibold cursor-pointer">Profil ansehen</button>
+                                                    @endif
                                                 </p>
                                             </div>
                                         @endif
@@ -570,21 +696,43 @@
                                 </div>
 
                                 @if(!empty($review->media))
+                                    @php
+                                        $revMediaList = collect($review->media)->map(function ($mPath) {
+                                            $mExt = strtolower(pathinfo((string) $mPath, PATHINFO_EXTENSION));
+                                            return [
+                                                'url' => '/storage/' . ltrim((string) $mPath, '/'),
+                                                'type' => in_array($mExt, ['mp4', 'mov', 'webm'], true) ? 'video' : 'image',
+                                            ];
+                                        })->values()->all();
+                                        $revAuthorName = ($review->is_anonymous || !$review->customer) ? 'Anonymer Kunde' : ($rCard['display_name'] ?? 'Verifizierter Kunde');
+                                    @endphp
                                     <div class="flex flex-wrap gap-3 mt-6 pt-4 border-t border-gray-100 w-full">
-                                        @foreach($review->media as $mediaPath)
-                                            @php
-                                                $ext = strtolower(pathinfo($mediaPath, PATHINFO_EXTENSION));
-                                                $isVideo = in_array($ext, ['mp4', 'mov', 'webm']);
-                                            @endphp
-                                            <div class="w-24 h-24 sm:w-32 sm:h-32 rounded-xl overflow-hidden border border-gray-200 shadow-sm relative group">
-                                                @if($isVideo)
-                                                    <video src="{{ asset('storage/' . $mediaPath) }}" controls class="w-full h-full object-cover"></video>
+                                        @foreach($revMediaList as $mIdx => $mItem)
+                                            <button type="button"
+                                                    @click="openMediaLightbox(@js($revMediaList), {{ $mIdx }}, {
+                                                        author: @js($revAuthorName),
+                                                        rating: {{ (int) $review->rating }},
+                                                        text: @js($review->content)
+                                                    })"
+                                                    class="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl overflow-hidden border border-[#C5A059]/35 bg-gradient-to-br from-[#fdfbf7] via-[#f9f4e8] to-[#f4ecdc] shadow-sm relative group/media cursor-pointer transition-all duration-300 hover:border-[#C5A059] hover:shadow-[0_8px_22px_rgba(197,160,89,0.3)] focus:outline-none p-1.5 flex items-center justify-center">
+                                                @if($mItem['type'] === 'video')
+                                                    <video src="{{ $mItem['url'] }}" muted preload="metadata" class="relative z-10 max-w-full max-h-full object-contain rounded-xl transition-transform duration-500 group-hover/media:scale-105"></video>
+                                                    <span class="absolute inset-0 z-20 flex items-center justify-center">
+                                                        <span class="w-9 h-9 rounded-full bg-white/95 border border-[#C5A059] text-[#8a6820] flex items-center justify-center shadow-md">
+                                                            <svg class="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                                        </span>
+                                                    </span>
                                                 @else
-                                                    <a href="{{ asset('storage/' . $mediaPath) }}" target="_blank" class="block w-full h-full">
-                                                        <img src="{{ asset('storage/' . $mediaPath) }}" class="w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer">
-                                                    </a>
+                                                    <img src="{{ $mItem['url'] }}" alt="" aria-hidden="true" class="absolute inset-0 w-full h-full object-cover blur-lg opacity-25 scale-110 pointer-events-none">
+                                                    <img src="{{ $mItem['url'] }}" alt="Kundenbild {{ $mIdx + 1 }}" class="relative z-10 max-w-full max-h-full object-contain rounded-xl shadow-xs transition-transform duration-500 group-hover/media:scale-105">
                                                 @endif
-                                            </div>
+                                                <div class="absolute inset-0 bg-gradient-to-t from-amber-500/10 via-transparent to-white/20 opacity-0 group-hover/media:opacity-100 transition-opacity duration-300 pointer-events-none z-10"></div>
+                                                <div class="absolute inset-0 pointer-events-none overflow-hidden z-20" aria-hidden="true">
+                                                    <svg class="sf-p-sparkle-1 opacity-0 absolute bottom-3 left-3 w-3.5 h-3.5 text-amber-500 drop-shadow-[0_0_5px_rgba(251,191,36,0.95)]" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.3 6.9L21 11.2l-6.7 2.3L12 20.5l-2.3-7L3 11.2l6.7-2.3L12 2z"/></svg>
+                                                    <svg class="sf-p-sparkle-2 opacity-0 absolute bottom-4 right-3 w-4 h-4 text-[#C5A059] drop-shadow-[0_0_6px_rgba(197,160,89,0.95)]" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.3 6.9L21 11.2l-6.7 2.3L12 20.5l-2.3-7L3 11.2l6.7-2.3L12 2z"/></svg>
+                                                    <svg class="sf-p-sparkle-3 opacity-0 absolute top-3 right-1/3 w-3 h-3 text-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.9)]" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.3 6.9L21 11.2l-6.7 2.3L12 20.5l-2.3-7L3 11.2l6.7-2.3L12 2z"/></svg>
+                                                </div>
+                                            </button>
                                         @endforeach
                                     </div>
                                 @endif
@@ -601,6 +749,133 @@
 
         </div>
     </div>
+
+    {{-- FREUNDLICHES, HELLES LIGHTBOX SLIDER MODAL FÜR BEWERTUNGSBILDER & VIDEOS --}}
+    <template x-teleport="body">
+        <div x-show="mediaLightbox.open"
+             style="display: none;"
+             x-transition.opacity.duration.250ms
+             class="fixed inset-0 z-[9800] flex items-center justify-center p-3 sm:p-6">
+
+            <div class="fixed inset-0 bg-gray-900/35 backdrop-blur-sm"
+                 @click="closeMediaLightbox()"></div>
+
+            <template x-if="mediaLightbox.open && mediaLightbox.items.length > 0">
+                <div class="relative z-10 w-full max-w-3xl rounded-[2rem] bg-white border-2 border-[#C5A059]/45 shadow-[0_25px_80px_rgba(138,104,32,0.22)] overflow-hidden flex flex-col max-h-[92vh]"
+                     @click.stop>
+
+                    <div class="flex items-center justify-between px-5 sm:px-7 py-4 border-b border-amber-100 bg-gradient-to-r from-[#fdfbf7] via-amber-50/45 to-[#fdfbf7]">
+                        <div class="flex items-center gap-3.5 min-w-0">
+                            <div class="w-11 h-11 rounded-full bg-amber-50 text-[#8a6820] font-serif font-bold text-base flex items-center justify-center border-2 border-white shadow-sm ring-2 ring-[#C5A059]/25 shrink-0 select-none"
+                                 x-text="(mediaLightbox.author || 'K').charAt(0).toUpperCase()"></div>
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="font-serif font-bold text-gray-900 text-base sm:text-lg truncate" x-text="mediaLightbox.author"></span>
+                                    <div class="flex text-amber-400">
+                                        <template x-for="star in 5" :key="star">
+                                            <svg class="w-4 h-4" :class="star <= mediaLightbox.rating ? 'text-amber-400' : 'text-gray-200'" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fill-rule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clip-rule="evenodd" />
+                                            </svg>
+                                        </template>
+                                    </div>
+                                    <span class="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200/80 text-emerald-700 text-[10px] font-bold">
+                                        <span>✓</span>
+                                        <span>Verifizierter Kauf</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2.5 shrink-0">
+                            <template x-if="mediaLightbox.items.length > 1">
+                                <span class="px-3 py-1 rounded-full bg-amber-50 border border-[#C5A059]/40 text-xs font-bold text-[#8a6820]"
+                                      x-text="(mediaLightbox.index + 1) + ' / ' + mediaLightbox.items.length"></span>
+                            </template>
+                            <button type="button"
+                                    @click="closeMediaLightbox()"
+                                    class="w-9 h-9 rounded-full bg-white hover:bg-amber-50 text-gray-500 hover:text-gray-900 border border-gray-200 hover:border-[#C5A059] shadow-xs flex items-center justify-center transition-all cursor-pointer"
+                                    aria-label="Großansicht schließen">
+                                ✕
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="relative flex-1 bg-gradient-to-b from-[#fdfbf7] via-[#f7f2e4] to-[#fdfbf7] flex items-center justify-center min-h-[300px] sm:min-h-[450px] max-h-[65vh] overflow-hidden select-none p-4 sm:p-6">
+                        <template x-if="mediaLightbox.items[mediaLightbox.index]">
+                            <div class="relative w-full h-full flex items-center justify-center">
+                                <template x-if="mediaLightbox.items[mediaLightbox.index].type === 'video'">
+                                    <video :key="mediaLightbox.items[mediaLightbox.index].url"
+                                           :src="mediaLightbox.items[mediaLightbox.index].url"
+                                           controls autoplay playsinline
+                                           class="relative z-10 max-h-[58vh] max-w-full rounded-2xl shadow-[0_15px_40px_rgba(138,104,32,0.18)] border-2 border-white ring-1 ring-[#C5A059]/30 bg-white"></video>
+                                </template>
+                                <template x-if="mediaLightbox.items[mediaLightbox.index].type !== 'video'">
+                                    <div class="relative w-full h-full flex items-center justify-center">
+                                        <img :src="mediaLightbox.items[mediaLightbox.index].url"
+                                             alt=""
+                                             aria-hidden="true"
+                                             class="absolute inset-0 w-full h-full object-cover blur-2xl opacity-20 scale-110 pointer-events-none">
+                                        <img :key="mediaLightbox.items[mediaLightbox.index].url"
+                                             :src="mediaLightbox.items[mediaLightbox.index].url"
+                                             :alt="'Kundenaufnahme von ' + mediaLightbox.author"
+                                             class="relative z-10 max-h-[58vh] max-w-full object-contain rounded-2xl shadow-[0_15px_40px_rgba(138,104,32,0.18)] border-2 border-white ring-1 ring-[#C5A059]/25 bg-white">
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+
+                        <template x-if="mediaLightbox.items.length > 1">
+                            <div>
+                                <button type="button"
+                                        @click="prevMediaSlide()"
+                                        class="absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full bg-white/95 hover:bg-[#C5A059] text-[#8a6820] hover:text-white border border-[#C5A059]/45 flex items-center justify-center shadow-md hover:shadow-lg transition-all cursor-pointer"
+                                        aria-label="Vorherige Aufnahme">
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+                                </button>
+                                <button type="button"
+                                        @click="nextMediaSlide()"
+                                        class="absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full bg-white/95 hover:bg-[#C5A059] text-[#8a6820] hover:text-white border border-[#C5A059]/45 flex items-center justify-center shadow-md hover:shadow-lg transition-all cursor-pointer"
+                                        aria-label="Nächste Aufnahme">
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="px-5 sm:px-7 py-4 bg-white border-t border-amber-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div class="flex items-start gap-2.5 flex-1 min-w-0" x-show="mediaLightbox.text">
+                            <span class="text-2xl leading-none font-serif text-[#C5A059] select-none" aria-hidden="true">„</span>
+                            <p class="text-xs sm:text-sm text-gray-700 italic line-clamp-2"
+                               x-text="mediaLightbox.text + '“'"></p>
+                        </div>
+
+                        <template x-if="mediaLightbox.items.length > 1">
+                            <div class="flex items-center gap-2.5 shrink-0 justify-center sm:justify-end">
+                                <template x-for="(item, idx) in mediaLightbox.items" :key="idx">
+                                    <button type="button"
+                                            @click="mediaLightbox.index = idx"
+                                            :class="mediaLightbox.index === idx ? 'ring-2 ring-[#C5A059] border-white opacity-100 scale-105 shadow-sm' : 'opacity-60 hover:opacity-95 border-amber-200/70'"
+                                            class="relative w-14 h-14 rounded-xl overflow-hidden border transition-all cursor-pointer bg-[#fdfbf7] shrink-0">
+                                        <template x-if="item.type === 'video'">
+                                            <div class="w-full h-full relative">
+                                                <video :src="item.url" muted preload="metadata" class="w-full h-full object-cover"></video>
+                                                <span class="absolute inset-0 flex items-center justify-center bg-black/25 text-white">
+                                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                                </span>
+                                            </div>
+                                        </template>
+                                        <template x-if="item.type !== 'video'">
+                                            <img :src="item.url" class="w-full h-full object-cover" alt="">
+                                        </template>
+                                    </button>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </template>
 
     {{-- SÜSSES REVIEWER-PROFIL-MODAL (WIE IN DER HALLE DER HELDEN) --}}
     <template x-teleport="body">
@@ -677,8 +952,8 @@
                             <span class="text-sm font-mono font-black text-amber-700 dark:text-[#f5dca0]" x-text="reviewerModal.diamonds_count + ' / ' + reviewerModal.total_titles + ' 💎'"></span>
                         </div>
                         <div class="p-2.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
-                            <span class="text-[9px] font-black uppercase tracking-wider text-gray-400 block">Funken</span>
-                            <span class="text-sm font-mono font-black text-amber-700 dark:text-[#f5dca0]" x-text="(reviewerModal.funken_total_earned || 0).toLocaleString('de-DE') + ' ✨'"></span>
+                            <span class="text-[9px] font-black uppercase tracking-wider text-gray-400 block">Status</span>
+                            <span class="text-sm font-mono font-black text-emerald-600 dark:text-emerald-400">Verifiziert ✓</span>
                         </div>
                     </div>
 

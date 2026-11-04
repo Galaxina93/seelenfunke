@@ -1323,7 +1323,7 @@ class ProductAssetSeeder extends Seeder
             [15, 11, 8],
             ['Mama ♥', 'Du bist unser', 'Goldstück'],
             'INKLUSIVE 44–50 CM GOLD-ANKERKETTE • SOFORT TRAGFERTIG',
-            'Wasserfeste Echtgold-Ion-Plating-Veredelung auf antiallergischem 304 Edelstahl'
+            'Wasserfeste 14k Ion-Plating-Veredelung auf rostfreiem Edelstahl'
         );
 
         // 2. Alle 8 saisonalen Feiertags-Vorlagenbilder in storage/app/public/produkte/product-templates/
@@ -1443,7 +1443,7 @@ class ProductAssetSeeder extends Seeder
                 'callouts' => [],
                 'specs' => [
                     ['label' => 'Plaketten-Maß', 'value' => '50 × 28 mm', 'sub' => '5,0 × 2,8 cm (1,97 × 1,10 in)'],
-                    ['label' => 'Materialstärke', 'value' => '2,2 mm (Massiv)', 'sub' => 'Rostfreier 304 Edelstahl'],
+                    ['label' => 'Materialstärke', 'value' => '2,2 mm (Massiv)', 'sub' => 'Rostfreier Edelstahl'],
                     ['label' => 'Gewicht', 'value' => 'ca. 24 g', 'sub' => 'Spürbar wertige Haptik'],
                     ['label' => 'Veredelung', 'value' => 'Beidseitig', 'sub' => 'Dunkle Faserlaser-Anlassgravur'],
                 ],
@@ -1466,7 +1466,7 @@ class ProductAssetSeeder extends Seeder
                 ],
                 'specs' => [
                     ['label' => 'Knochen-Maß', 'value' => '40 × 22 mm', 'sub' => '1,57 × 0,87 in (inkl. Öse)'],
-                    ['label' => 'Materialstärke', 'value' => '1,8 mm', 'sub' => 'Massiver V2A-Edelstahl'],
+                    ['label' => 'Materialstärke', 'value' => '1,8 mm', 'sub' => 'Rostfreier Edelstahl'],
                     ['label' => 'Gewicht', 'value' => 'ca. 12 g (0,43 oz)', 'sub' => 'Rostfrei, wasser- & kratzfest'],
                     ['label' => 'Gravur', 'value' => 'Beidseitig', 'sub' => 'Name vorn + Notfall-Nr. hinten'],
                 ],
@@ -1489,7 +1489,7 @@ class ProductAssetSeeder extends Seeder
                 'specs' => [
                     ['label' => 'Herz-Maß', 'value' => '25 × 22 × 4 mm', 'sub' => 'Massives 4,0 mm Vollmaterial'],
                     ['label' => 'Halskette (Inkl.)', 'value' => '44 + 6 cm (1,5 mm)', 'sub' => 'Gold-Ankerkette (Karabiner)'],
-                    ['label' => 'Oberfläche', 'value' => 'Echtgold Ion-Plating', 'sub' => 'Wasserfest & anlaufgeschützt'],
+                    ['label' => 'Oberfläche', 'value' => '14k Vergoldet (IP)', 'sub' => 'Wasserfest & anlaufgeschützt'],
                     ['label' => 'Herkunft & Gravur', 'value' => 'Handveredelt in DE', 'sub' => 'Beidseitige Faserlaser-Gravur'],
                 ],
             ],

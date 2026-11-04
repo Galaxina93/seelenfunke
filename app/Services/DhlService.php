@@ -80,8 +80,8 @@ class DhlService
      */
     public function createLabels(OrderOrder $order, int $packageCount = 1, float $weightPerPackage = 1.0): array
     {
-        $packageCount = max(1, min(20, $packageCount));
-        $weightPerPackage = max(0.1, min(31.5, round($weightPerPackage, 2)));
+        $packageCount = max(1, min(30, $packageCount));
+        $weightPerPackage = max(0.01, min(31.5, round($weightPerPackage, 2)));
 
         // 1. Prüfen ob die alternative Lieferadresse *wirklich* Daten enthält
         $hasShipping = !empty($order->shipping_address)
@@ -169,7 +169,7 @@ class DhlService
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
             ])
-            ->timeout(30)
+            ->timeout(60)
             ->post($this->baseUrl . '/orders?printFormat=910-300-410', $payload);
 
         return $this->handleResponse($response, $order);

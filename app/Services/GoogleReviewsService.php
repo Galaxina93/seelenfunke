@@ -115,13 +115,32 @@ class GoogleReviewsService
                     }
                 }
 
+                $mediaItems = [];
+                if (is_array($rev->media)) {
+                    foreach ($rev->media as $mediaPath) {
+                        if (is_string($mediaPath) && trim($mediaPath) !== '' && !str_contains($mediaPath, '..')) {
+                            $cleanPath = ltrim(trim($mediaPath), '/');
+                            $ext = strtolower(pathinfo($cleanPath, PATHINFO_EXTENSION));
+                            $isVideo = in_array($ext, ['mp4', 'mov', 'webm'], true);
+                            $mediaItems[] = [
+                                'url' => '/storage/' . $cleanPath,
+                                'type' => $isVideo ? 'video' : 'image',
+                            ];
+                        }
+                    }
+                }
+
                 return [
                     'author_name' => $authorName,
                     'rating' => (int) $rev->rating,
+                    'title' => $rev->title ? trim((string) $rev->title) : null,
                     'text' => trim(($rev->title ? $rev->title . ' – ' : '') . (string) $rev->content),
+                    'content_only' => trim((string) $rev->content),
                     'time' => $rev->created_at ? $rev->created_at->timestamp : time(),
                     'product_name' => $rev->product?->name,
+                    'product_url' => $rev->product ? route('product.show', $rev->product->slug, false) : null,
                     'verified_purchase' => true,
+                    'media' => $mediaItems,
                 ];
             })->values()->all();
 

@@ -20,19 +20,49 @@
     @php
         $productCount = count($products ?? []);
     @endphp
-    <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-10 gap-4 animate-fade-in-up">
-        <div class="shrink-0">
-            <h1 class="text-2xl sm:text-3xl font-serif font-bold text-gray-900 dark:text-white tracking-tight whitespace-nowrap">Deine Kollektion</h1>
+    <div class="flex flex-col gap-4 mb-10 animate-fade-in-up">
+        {{-- Obere Zeile: Titel & Primäre Aktionen --}}
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h1 class="text-2xl sm:text-3xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">
+                Deine Kollektion
+            </h1>
+
+            {{-- ARCHIV / NEU (KI) / + NEU BUTTONS OBEN RECHTS --}}
+            <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                @if(!$showArchived)
+                    <button wire:click="toggleArchiveMode"
+                            class="flex-1 sm:flex-initial bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-400 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest dark:shadow-inner hover:bg-gray-50 dark:hover:bg-gray-900 hover:text-gray-900 dark:hover:text-white transition-all flex items-center justify-center gap-1.5 whitespace-nowrap">
+                        Archiv öffnen
+                    </button>
+                    <button type="button" wire:click="openQuickAiModal"
+                            class="flex-1 sm:flex-initial bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest shadow-sm hover:scale-[1.02] transition-all flex items-center justify-center gap-1.5 whitespace-nowrap"
+                            title="KI-Produkt per Knopfdruck vollautomatisch anlegen">
+                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.3"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        <span>Neu (KI)</span>
+                    </button>
+                    <button wire:click="createDraft"
+                            class="flex-1 sm:flex-initial bg-[var(--theme-color)] border border-[var(--theme-color-50)] text-white dark:text-gray-900 px-4 py-2.5 sm:py-3 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest dark:shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:bg-black/90 dark:hover:bg-white hover:scale-[1.02] transition-all flex items-center justify-center gap-1.5 whitespace-nowrap">
+                        <span class="text-sm leading-none">+</span>
+                        <span>Neu</span>
+                    </button>
+                @else
+                    <button wire:click="toggleArchiveMode"
+                            class="w-full sm:w-auto bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-400 px-5 py-3 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest dark:shadow-inner hover:bg-gray-50 dark:hover:bg-gray-900 hover:text-gray-900 dark:hover:text-white transition-all flex items-center justify-center gap-2 whitespace-nowrap">
+                        Zurück zur Kollektion
+                    </button>
+                @endif
+            </div>
         </div>
 
-        <div class="flex flex-wrap xl:flex-nowrap items-center justify-start xl:justify-end gap-2.5 w-full xl:w-auto">
+        {{-- Untere Zeile: Ansichtsauswahl, Sortierung & Suche --}}
+        <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
             {{-- ANSICHTSAUSWAHL (Groß / Mittel / Liste) --}}
-            <div class="inline-flex items-center p-1 bg-white dark:bg-gray-900/90 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-[1.5rem] dark:shadow-inner shrink-0" role="group" aria-label="Ansichtsauswahl">
+            <div class="inline-flex items-center p-1 bg-white dark:bg-gray-900/90 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-[1.5rem] dark:shadow-inner w-full md:w-auto" role="group" aria-label="Ansichtsauswahl">
                 {{-- Groß (Standard) --}}
                 <button type="button"
                         wire:click="setLayoutMode('large')"
                         onclick="try { localStorage.setItem('admin_products_layout_mode', 'large'); } catch (e) {}"
-                        class="px-3 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 {{ $currentLayout === 'large' ? 'bg-[var(--theme-color)] text-white dark:text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}"
+                        class="flex-1 md:flex-initial justify-center px-3 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 {{ $currentLayout === 'large' ? 'bg-[var(--theme-color)] text-white dark:text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}"
                         title="Große Kachelansicht">
                     <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <rect x="3" y="3" width="7" height="7" rx="1.5" />
@@ -47,7 +77,7 @@
                 <button type="button"
                         wire:click="setLayoutMode('medium')"
                         onclick="try { localStorage.setItem('admin_products_layout_mode', 'medium'); } catch (e) {}"
-                        class="px-3 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 {{ $currentLayout === 'medium' ? 'bg-[var(--theme-color)] text-white dark:text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}"
+                        class="flex-1 md:flex-initial justify-center px-3 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 {{ $currentLayout === 'medium' ? 'bg-[var(--theme-color)] text-white dark:text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}"
                         title="Mittlere Kachelansicht">
                     <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <rect x="3" y="3" width="4.5" height="4.5" rx="1" />
@@ -67,7 +97,7 @@
                 <button type="button"
                         wire:click="setLayoutMode('list')"
                         onclick="try { localStorage.setItem('admin_products_layout_mode', 'list'); } catch (e) {}"
-                        class="px-3 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 {{ $currentLayout === 'list' ? 'bg-[var(--theme-color)] text-white dark:text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}"
+                        class="flex-1 md:flex-initial justify-center px-3 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 {{ $currentLayout === 'list' ? 'bg-[var(--theme-color)] text-white dark:text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}"
                         title="Listenansicht">
                     <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -76,70 +106,48 @@
                 </button>
             </div>
 
-            {{-- SORTIERUNG & SCHNELLFILTER --}}
-            <div class="relative w-full sm:w-44 2xl:w-52 shrink-0">
-                <select wire:model.live="sortBy"
-                        aria-label="Produkte sortieren und filtern"
-                        class="w-full pl-3.5 pr-8 py-3 bg-white dark:bg-gray-900/80 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-[1.5rem] text-xs font-bold text-gray-800 dark:text-gray-200 focus:bg-white dark:focus:bg-gray-950 focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all dark:shadow-inner outline-none appearance-none cursor-pointer">
-                    <optgroup label="Sortieren nach">
-                        <option value="newest">Neueste zuerst</option>
-                        <option value="bestseller">Am meisten verkauft</option>
-                        <option value="least_sold">Am wenigsten verkauft</option>
-                        <option value="revenue_desc">Höchster Umsatz</option>
-                        <option value="rating_desc">Beste Bewertung</option>
-                        <option value="reviews_desc">Meiste Bewertungen</option>
-                        <option value="stock_asc">Niedrigster Bestand</option>
-                        <option value="stock_desc">Höchster Bestand</option>
-                        <option value="price_desc">Preis: Hoch &rarr; Niedrig</option>
-                        <option value="price_asc">Preis: Niedrig &rarr; Hoch</option>
-                        <option value="name_asc">Name: A &ndash; Z</option>
-                    </optgroup>
-                    <optgroup label="Filtern nach">
-                        <option value="filter_active">Nur Aktive Produkte</option>
-                        <option value="filter_draft">Nur Entwürfe</option>
-                        <option value="filter_incomplete">Unvollständig (&lt; 100 %)</option>
-                        <option value="filter_low_stock">Kritischer Bestand / Leer</option>
-                        <option value="filter_physical">Nur Physisch</option>
-                        <option value="filter_digital">Nur Digital</option>
-                    </optgroup>
-                </select>
-                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 dark:text-gray-500">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1 md:justify-end">
+                {{-- SORTIERUNG & SCHNELLFILTER --}}
+                <div class="relative w-full sm:w-52 lg:w-56">
+                    <select wire:model.live="sortBy"
+                            aria-label="Produkte sortieren und filtern"
+                            class="w-full pl-3.5 pr-8 py-3 bg-white dark:bg-gray-900/80 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-[1.5rem] text-xs font-bold text-gray-800 dark:text-gray-200 focus:bg-white dark:focus:bg-gray-950 focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all dark:shadow-inner outline-none appearance-none cursor-pointer">
+                        <optgroup label="Sortieren nach">
+                            <option value="newest">Neueste zuerst</option>
+                            <option value="bestseller">Am meisten verkauft</option>
+                            <option value="least_sold">Am wenigsten verkauft</option>
+                            <option value="revenue_desc">Höchster Umsatz</option>
+                            <option value="rating_desc">Beste Bewertung</option>
+                            <option value="reviews_desc">Meiste Bewertungen</option>
+                            <option value="stock_asc">Niedrigster Bestand</option>
+                            <option value="stock_desc">Höchster Bestand</option>
+                            <option value="price_desc">Preis: Hoch &rarr; Niedrig</option>
+                            <option value="price_asc">Preis: Niedrig &rarr; Hoch</option>
+                            <option value="name_asc">Name: A &ndash; Z</option>
+                        </optgroup>
+                        <optgroup label="Filtern nach">
+                            <option value="filter_active">Nur Aktive Produkte</option>
+                            <option value="filter_draft">Nur Entwürfe</option>
+                            <option value="filter_incomplete">Unvollständig (&lt; 100 %)</option>
+                            <option value="filter_low_stock">Kritischer Bestand / Leer</option>
+                            <option value="filter_physical">Nur Physisch</option>
+                            <option value="filter_digital">Nur Digital</option>
+                        </optgroup>
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 dark:text-gray-500">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                    </div>
+                </div>
+
+                {{-- SUCHE MIT INTEGRIERTER PRODUKTANZAHL --}}
+                <div class="relative w-full sm:flex-1 md:w-64 lg:w-72 md:flex-initial group">
+                    <input type="text" wire:model.live="search" placeholder="{{ $productCount }} {{ $productCount === 1 ? 'Produkt' : 'Produkte' }} suchen..."
+                           class="w-full pl-10 pr-3.5 py-3 bg-white dark:bg-gray-900/80 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-[1.5rem] text-xs sm:text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:bg-white dark:focus:bg-gray-950 focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all dark:shadow-inner outline-none">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                        <svg class="h-4 w-4 text-gray-400 dark:text-gray-500 group-focus-within:text-[var(--theme-color)] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </div>
                 </div>
             </div>
-
-            {{-- SUCHE MIT INTEGRIERTER PRODUKTANZAHL --}}
-            <div class="relative w-full sm:w-52 2xl:w-64 group shrink-0">
-                <input type="text" wire:model.live="search" placeholder="{{ $productCount }} {{ $productCount === 1 ? 'Produkt' : 'Produkte' }} suchen..."
-                       class="w-full pl-10 pr-3.5 py-3 bg-white dark:bg-gray-900/80 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-[1.5rem] text-xs sm:text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:bg-white dark:focus:bg-gray-950 focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all dark:shadow-inner outline-none">
-                <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                    <svg class="h-4 w-4 text-gray-400 dark:text-gray-500 group-focus-within:text-[var(--theme-color)] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                </div>
-            </div>
-
-            {{-- ARCHIV / NEU (KI) / + NEU BUTTONS OBEN RECHTS --}}
-            @if(!$showArchived)
-                <button wire:click="toggleArchiveMode"
-                        class="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-400 px-4 py-3 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest dark:shadow-inner hover:bg-gray-50 dark:hover:bg-gray-900 hover:text-gray-900 dark:hover:text-white transition-all flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0">
-                    Archiv öffnen
-                </button>
-                <button type="button" wire:click="openQuickAiModal"
-                        class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-3 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest shadow-sm hover:scale-[1.02] transition-all flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0"
-                        title="KI-Produkt per Knopfdruck vollautomatisch anlegen">
-                    <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.3"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                    <span>Neu (KI)</span>
-                </button>
-                <button wire:click="createDraft"
-                        class="bg-[var(--theme-color)] border border-[var(--theme-color-50)] text-white dark:text-gray-900 px-4 py-3 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest dark:shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:bg-black/90 dark:hover:bg-white hover:scale-[1.02] transition-all flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0">
-                    <span class="text-sm leading-none">+</span>
-                    <span>Neu</span>
-                </button>
-            @else
-                <button wire:click="toggleArchiveMode"
-                        class="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-400 px-5 py-3 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest dark:shadow-inner hover:bg-gray-50 dark:hover:bg-gray-900 hover:text-gray-900 dark:hover:text-white transition-all flex items-center justify-center gap-2 whitespace-nowrap shrink-0">
-                    Zurück zur Kollektion
-                </button>
-            @endif
         </div>
     </div>
 
@@ -227,6 +235,13 @@
                                         <span class="px-2.5 py-0.5 rounded-lg bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-500/20 text-[9px] font-black uppercase tracking-widest">Service</span>
                                     @else
                                         <span class="px-2.5 py-0.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-[9px] font-black uppercase tracking-widest">Physisch</span>
+                                        @if($prod->usesCustomFieldsPersonalization())
+                                            <span class="px-2.5 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 text-[9px] font-black uppercase tracking-widest">⚡ Schnell-Gravur ({{ count($prod->getCustomFieldsDefinition()) }})</span>
+                                        @elseif($prod->usesStudioConfigurator())
+                                            <span class="px-2.5 py-0.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 text-[9px] font-black uppercase tracking-widest">🎨 {{ $prod->three_d_active ? '3D-Studio' : '2D-Studio' }}</span>
+                                        @else
+                                            <span class="px-2.5 py-0.5 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 border border-stone-200 dark:border-stone-700 text-[9px] font-black uppercase tracking-widest">📦 Fertig-Artikel</span>
+                                        @endif
                                     @endif
                                 </div>
 
@@ -532,13 +547,30 @@
                             </span>
                         </div>
 
-                        <div class="{{ $currentLayout === 'medium' ? 'mb-3.5' : 'mb-6' }} flex items-center justify-between gap-2 select-none cursor-default">
+                        <div class="{{ $currentLayout === 'medium' ? 'mb-3.5' : 'mb-6' }} flex flex-wrap items-center justify-between gap-2 select-none cursor-default">
                             <p class="{{ $currentLayout === 'medium' ? 'text-xs sm:text-sm' : 'text-sm md:text-base' }} text-[var(--theme-color)] font-mono font-bold dark:drop-shadow-[0_0_8px_rgba(197,160,89,0.5)]">{{ number_format($prod->price / 100, 2, ',', '.') }} €</p>
-                            @if(!empty($prod->sku))
-                                <span class="px-2 py-0.5 rounded-lg bg-gray-50 dark:bg-gray-950 border border-gray-200/80 dark:border-gray-800 text-[9px] font-mono font-bold text-gray-500 dark:text-gray-400 tracking-wider" title="Artikelnummer (SKU)">
-                                    {{ $prod->sku }}
-                                </span>
-                            @endif
+                            <div class="flex flex-wrap items-center gap-1.5">
+                                @if($prod->type === 'physical')
+                                    @if($prod->usesCustomFieldsPersonalization())
+                                        <span class="px-2 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-[9px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400" title="Schnell-Personalisierung mit dynamischen Eingabefeldern">
+                                            ⚡ Schnell-Gravur ({{ count($prod->getCustomFieldsDefinition()) }})
+                                        </span>
+                                    @elseif($prod->usesStudioConfigurator())
+                                        <span class="px-2 py-0.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 text-[9px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400" title="Interaktiver 2D/3D-Live-Konfigurator">
+                                            🎨 {{ $prod->three_d_active ? '3D-Studio' : '2D-Studio' }}
+                                        </span>
+                                    @else
+                                        <span class="px-2 py-0.5 rounded-lg bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-[9px] font-black uppercase tracking-wider text-stone-600 dark:text-stone-300" title="Fertiges Standard-Produkt ohne Konfigurator">
+                                            📦 Fertig-Artikel
+                                        </span>
+                                    @endif
+                                @endif
+                                @if(!empty($prod->sku))
+                                    <span class="px-2 py-0.5 rounded-lg bg-gray-50 dark:bg-gray-950 border border-gray-200/80 dark:border-gray-800 text-[9px] font-mono font-bold text-gray-500 dark:text-gray-400 tracking-wider" title="Artikelnummer (SKU)">
+                                        {{ $prod->sku }}
+                                    </span>
+                                @endif
+                            </div>
                         </div>
 
                         {{-- Lagerbestand & Herkunfts-Siegel Anzeige --}}
@@ -713,12 +745,17 @@
 
                 {{-- Geometrie-Modus / Schnellvorlagen (Optional) --}}
                 <div class="mb-4">
-                    <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2">Geometrie-Erkennung / Optionales Preset</label>
-                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2">Geometrie-Erkennung / Optionales Produkt-Preset</label>
+                    <div class="grid grid-cols-2 sm:grid-cols-6 gap-2">
                         <button type="button" wire:click="applyQuickAiPreset('auto')"
                                 class="p-2.5 rounded-2xl border text-left transition-all {{ $quickAiPreset === 'auto' ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
                             <div class="text-[10px] font-black uppercase tracking-wider">🤖 KI-Auto</div>
                             <div class="text-[9px] opacity-75 mt-0.5">Aus Link erkennen</div>
+                        </button>
+                        <button type="button" wire:click="applyQuickAiPreset('goldenes-seelen-herz')"
+                                class="p-2.5 rounded-2xl border text-left transition-all {{ $quickAiPreset === 'goldenes-seelen-herz' ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
+                            <div class="text-[10px] font-black uppercase tracking-wider">Gold-Herz</div>
+                            <div class="text-[9px] opacity-75 mt-0.5">22x25 mm Schmuck</div>
                         </button>
                         <button type="button" wire:click="applyQuickAiPreset('seelen-pfote-hundemarke')"
                                 class="p-2.5 rounded-2xl border text-left transition-all {{ $quickAiPreset === 'seelen-pfote-hundemarke' ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
@@ -743,6 +780,83 @@
                     </div>
                 </div>
 
+                {{-- NEU: PERSONALISIERUNGS- & VERKAUFS-MODUS IM KI-GENERATOR --}}
+                <div class="mb-5 p-4 rounded-2xl bg-gray-50 dark:bg-gray-950/80 border border-gray-200 dark:border-gray-800 space-y-3">
+                    <div class="flex items-center justify-between gap-2">
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-300">
+                            Personalisierungs- &amp; Verkaufs-Modus wählen
+                        </label>
+                        <span class="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">100 % verkaufsfertig ohne Fehl-Angaben</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <button type="button" wire:click="setQuickAiPersonalizationMode('custom_fields')"
+                                class="p-3 rounded-2xl border text-left transition-all {{ $quickAiPersonalizationMode === 'custom_fields' ? 'border-emerald-500 bg-emerald-50/80 dark:bg-emerald-500/10 text-emerald-900 dark:text-emerald-200 ring-1 ring-emerald-500/30' : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
+                            <div class="flex items-center justify-between gap-1">
+                                <span class="text-[10px] font-black uppercase tracking-wider">⚡ Schnell-Felder</span>
+                                <span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[8px] font-black uppercase">Empfohlen</span>
+                            </div>
+                            <div class="text-[10px] opacity-80 mt-1 leading-snug">Schlanke Wunschtext-Felder mit <strong>!</strong>-Info-Tooltip (ohne 3D-Modell)</div>
+                        </button>
+
+                        <button type="button" wire:click="setQuickAiPersonalizationMode('studio')"
+                                class="p-3 rounded-2xl border text-left transition-all {{ $quickAiPersonalizationMode === 'studio' ? 'border-amber-500 bg-amber-50/80 dark:bg-amber-500/10 text-amber-900 dark:text-amber-200 ring-1 ring-amber-500/30' : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
+                            <div class="text-[10px] font-black uppercase tracking-wider">🎨 2D/3D-Studio</div>
+                            <div class="text-[10px] opacity-80 mt-1 leading-snug">Interaktiver Live-Konfigurator mit 3D-Modell &amp; Design-Vorlagen</div>
+                        </button>
+
+                        <button type="button" wire:click="setQuickAiPersonalizationMode('standard')"
+                                class="p-3 rounded-2xl border text-left transition-all {{ $quickAiPersonalizationMode === 'standard' ? 'border-stone-500 bg-stone-100 dark:bg-stone-800/80 text-stone-900 dark:text-stone-100 ring-1 ring-stone-500/30' : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
+                            <div class="text-[10px] font-black uppercase tracking-wider">📦 Standard-Artikel</div>
+                            <div class="text-[10px] opacity-80 mt-1 leading-snug">Fertig gelasertes Produkt („Bereit zum Kauf“ ohne Konfigurator)</div>
+                        </button>
+                    </div>
+
+                    @if($quickAiPersonalizationMode === 'custom_fields')
+                        @php
+                            $previewDetectedArchetype = $quickAiPreset !== 'auto' ? $quickAiPreset : 'seelen-talisman';
+                            $previewCustomFields = $this->buildQuickAiCustomFields($previewDetectedArchetype, $quickAiCustomFieldsPreset);
+                        @endphp
+                        <div class="pt-2 border-t border-gray-200/80 dark:border-gray-800 space-y-2.5">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <span class="text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">Eingabefeld-Vorlage (später im Editor frei anpassbar):</span>
+                                <div class="flex flex-wrap gap-1.5">
+                                    @foreach([
+                                        'auto' => '🤖 KI-Passend',
+                                        'single_name' => '1x Wunschname',
+                                        'name_and_font' => 'Wunschname + Schriftart',
+                                        'name_date_symbol' => 'Name + Datum + Symbol',
+                                        'family_names_4' => 'Bis zu 4 Namen',
+                                        'pet_tag' => 'Hundemarke',
+                                        'front_back_engraving' => 'Vorder- & Rückseite (+5 €)',
+                                    ] as $cfKey => $cfLabel)
+                                        <button type="button" wire:click="setQuickAiCustomFieldsPreset('{{ $cfKey }}')"
+                                                class="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border transition-all {{ $quickAiCustomFieldsPreset === $cfKey ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-emerald-400' }}">
+                                            {{ $cfLabel }}
+                                        </button>
+                                    @endforeach
+                                </div>
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-1.5">
+                                @foreach($previewCustomFields as $pcf)
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white dark:bg-gray-900 border border-emerald-200 dark:border-emerald-500/30 text-[10px] text-gray-700 dark:text-gray-200" title="{{ $pcf['info_text'] ?? '' }}">
+                                        <strong class="text-emerald-700 dark:text-emerald-400">{{ $pcf['label'] }}{{ !empty($pcf['required']) ? ' *' : '' }}</strong>
+                                        @if(($pcf['type'] ?? 'text') === 'font')
+                                            <span class="text-[9px] text-indigo-600 dark:text-indigo-400 font-bold">(22 Konfigurator-Schriften)</span>
+                                        @else
+                                            <span class="text-[9px] text-gray-400">(max. {{ $pcf['max_length'] ?? 30 }} Z.)</span>
+                                        @endif
+                                        @if(!empty($pcf['info_text']))
+                                            <span class="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-black text-[9px]" title="{{ $pcf['info_text'] }}">!</span>
+                                        @endif
+                                    </span>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                </div>
+
                 {{-- 2. OPTIONALE FELDER (Werden bei Leerfeld automatisch von der KI berechnet) --}}
                 <div class="mb-2 flex items-center justify-between">
                     <span class="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">
@@ -757,7 +871,7 @@
                     </div>
                     <div>
                         <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Artikelnummer / SKU <span class="font-normal opacity-70">(Optional)</span></label>
-                        <input type="text" wire:model="quickAiSku" placeholder="Auto-SKU (z.B. STEEL-PAW-001)" class="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-sm font-mono font-bold text-gray-900 dark:text-white outline-none focus:border-emerald-500">
+                        <input type="text" wire:model="quickAiSku" placeholder="Auto-SKU (z.B. MSF-EDELSTAHL-PFOTE-001)" class="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-sm font-mono font-bold text-gray-900 dark:text-white outline-none focus:border-emerald-500">
                     </div>
                 </div>
 

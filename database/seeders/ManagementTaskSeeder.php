@@ -24,10 +24,14 @@ class ManagementTaskSeeder extends Seeder
                 ],
                 'taks' => [
                     ['title' => '4-6 mega geile Produktbilder und 1 Video pro Produkt generieren (Auch mit Geschenkebox) - Made in Germany hinzufügen', 'priority' => 'medium'],
+                    [
+                        'title' => 'Aufpreis-Extras, Verpackungs-Upgrades & Bundle-Optionen: Hier muss das Bild der Geschenkebox geändert werden und das Geschenkpapier muss rein (Echte Fotos, keine KI)',
+                        'priority' => 'high',
+                        'ai_plan' => 'In der Produktverwaltung unter "Aufpreis-Extras, Verpackungs-Upgrades & Bundle-Optionen" (sowie im ProductSeeder) das bisherige KI-/Platzhalterbild der Geschenkbox durch ein echtes Produktfoto der schwarzen Westpack-Schmuckbox ersetzen und das wendbare Westpack-Geschenkpapier (Nr. 0751) ebenfalls mit einem echten Foto (keine KI-Generierung) hinterlegen.',
+                    ],
                     ['title' => 'Produktbild mit Maßangabe pro Produkt', 'priority' => 'medium'],
                     ['title' => 'Produktvorlagen erstellen', 'priority' => 'medium'],
                     ['title' => 'Landing Pages umfangreich und fett aufbauen', 'priority' => 'high'],
-                    ['title' => 'Im Bereich "Wie möchtest du starten?" Erklärvideo des Konfigurators angezeigen', 'priority' => 'high'],
                 ]
             ],
             [
@@ -49,8 +53,6 @@ class ManagementTaskSeeder extends Seeder
                     'color' => '#3182CE',
                 ],
                 'taks' => [
-                    ['title' => 'Krankenkasse bescheid geben Selbständigkeit ab Mitte Februar spätestens 15.07.2026', 'priority' => 'high'],
-                    ['title' => 'Gewerbe anmelden https://gewerbe.buergerdienste-online.de/webclient/app/m/3151009/gewerbeanzeige?startPage=0', 'priority' => 'high'],
                     ['title' => 'Fragebogen zur steuerlichen Erfassung (ELSTER) ausfüllen -> Betriebliche Steuernummer & USt-IdNr. beantragen (https://www.elster.de)', 'priority' => 'high'],
                     [
                         'title' => 'Sobald USt-IdNr. (DE...) vorliegt: Westpack Geschenkpapier Nr. 0751 - Wendbar (1x 30 cm × 100 m, Art.-Nr. 03307510300, 67,90 € netto) per Reverse-Charge bestellen -> https://www.westpack.com/eur_eu_ger/wrapping-paper-n-0751-reversible-03307510200.html',
@@ -62,12 +64,8 @@ class ManagementTaskSeeder extends Seeder
                         'priority' => 'high',
                         'ai_plan' => '1. E-Mail an sales@westpack.com senden mit Angabe von Order #29000069521 (Order-ID: 485928 vom 02.11.2026) und der neuen deutschen USt-IdNr. (DE...): Höflich um nachträgliche Umschreibung auf innergemeinschaftliche Lieferung (Reverse-Charge, 0 % MwSt.) und Rückerstattung der gezahlten 29,19 € dänischen MwSt. (25 %) bitten. 2. Falls Westpack rückwirkend nicht korrigiert: Den Beleg in der Buchhaltung auf 0 % Vorsteuerabzug stellen, damit die vollen 145,95 € brutto nach § 9b Abs. 1 EStG zu 100 % als gewinnmindernde Betriebsausgabe in die EÜR einfließen (da ausländische EU-MwSt. unter 50 € Jahresgrenze nicht über die deutsche UStVA abziehbar ist).',
                     ],
-                    ['title' => 'Konto bei Qonto / Finom eröffnen', 'priority' => 'high'],
-                    ['title' => 'Marke schützen -> https://direkt.dpma.de/DpmaDirektWebEditoren/w7005/w7005web.xhtml?jftfdi=&jffi=w7005&jfwid=64cea193-7eb1-4028-ac97-7d08a38df852:0', 'priority' => 'medium'],
-                    ['title' => 'Versicherung abschließen Versicherungen für Gründer: online absichern | Hiscox Tätigkeit: E-Commerce, Händler von Büro ... https://direkt-versicherung.hiscox.de/antrag/Angebot?ProductId=H-DPD-PSC-1-VersicherungfuerShops', 'priority' => 'high'],
                     ['title' => 'Arbeitslosenversicherung abschließen - https://www.arbeitsagentur.de/freiwillige-arbeitslosenversicherung', 'priority' => 'medium'],
                     ['title' => 'Verpackungslizenz erwerben -> https://lucid.verpackungsregister.org/Hersteller/Registrierung/Teil-1 https://www.lizenzero.de/verpackungsmengen-kalkulator/', 'priority' => 'medium'],
-                    ['title' => 'Google Business Account einrichten', 'priority' => 'high'],
                     ['title' => 'Google Bewertungen aktivieren', 'priority' => 'high'],
                 ]
             ],
@@ -78,7 +76,6 @@ class ManagementTaskSeeder extends Seeder
                     'color' => '#805AD5',
                 ],
                 'taks' => [
-                    ['title' => 'Webhook in Stripe anpassen (Zahlungslinks für Kunden) -> https://dashboard.stripe.com/acct_1Sttm3GnukHKxpOe/test/settings', 'priority' => 'high'],
                     ['title' => 'testdata Ordner in Storage ziehen', 'priority' => 'high'],
                     ['title' => 'blog Ordner in Storage ziehen', 'priority' => 'high'],
                     ['title' => 'env Datei anpassen', 'priority' => 'high'],
@@ -87,41 +84,11 @@ class ManagementTaskSeeder extends Seeder
                     ['title' => 'DHL API Keys auf Live anpassen', 'priority' => 'high'],
                     ['title' => 'GOOGLE_PLACES_API_KEY in der Google Cloud Console auf den Live Server anpassen (Domain-Einschränkungen einrichten)', 'priority' => 'high'],
                     ['title' => 'Google Bewertungen implementieren - TEMPORÄRER TEST-MODUS', 'priority' => 'medium'],
-                    ['title' => 'Final prüfen -> STEUER 0.5 Punkte von Noah auf mich übertragen', 'priority' => 'high'],
                     ['title' => 'Die Archivrechnungen entfernen für einen cleanen start', 'priority' => 'high'],
                     [
                         'title' => 'Beim echten Livegang die Produkte die ersten 14–30 Tage zum regulären Basispreis laufen lassen und danach den Angebots-Autopiloten scharf schalten – damit der Normalpreis nachweislich im Umlauf war (§ 11 PAngV / 30-Tage-Bestpreis)',
                         'priority' => 'high',
                         'ai_plan' => 'Vor dem Livegang unter /admin/newsletter den Switch "Angebots-Autopilot" auf INAKTIV setzen, damit alle Produkte zunächst 14–30 Tage zum regulären Basispreis angeboten werden (Rechtssicherheit gegen Mondpreis-Abmahnungen nach § 5 UWG & § 11 PAngV). Nach 14–30 Tagen den Angebots-Autopiloten wieder aktivieren.',
-                    ],
-                ]
-            ],
-            [
-                'list' => [
-                    'name' => 'Existenzgründung & Behörden',
-                    'icon' => 'briefcase',
-                    'color' => '#10b981',
-                ],
-                'taks' => [
-                    [
-                        'title' => 'PIN-Rücksetzbrief für Online-Ausweis abwarten & BundID aktivieren',
-                        'priority' => 'urgent',
-                        'ai_plan' => 'Sobald der PIN-Rücksetzbrief der Bundesdruckerei / Bürgeramt per Post eintrifft, den Online-Ausweis über die AusweisApp freischalten, um den kostenlosen Zugang zu "Mein Justizpostfach" (MJP) freizuschalten.',
-                    ],
-                    [
-                        'title' => 'Eilantrag nach § 86b SGG über Mein Justizpostfach (MJP) beim SG Braunschweig einreichen',
-                        'priority' => 'urgent',
-                        'ai_plan' => 'Nach BundID-Aktivierung über mein-justizpostfach.bund.de den Eilantrag (00_EILANTRAG...) und die Anlagen K01 bis K08 digital und papierlos an das Sozialgericht Braunschweig (EGVP-ID: govello-1272982110140-000216760) senden.',
-                    ],
-                    [
-                        'title' => 'Businessplan & Liquiditätsplan an Steuerberaterin übergeben',
-                        'priority' => 'high',
-                        'ai_plan' => 'Übergabe des fertigen Businessplans und des Liquiditätsplans an die Steuerberaterin zur Ausstellung der fachkundigen Tragfähigkeitsbescheinigung.',
-                    ],
-                    [
-                        'title' => '150 Tage Restanspruch sichern & Gründungszuschuss bei Frau Grandke (AfA) beantragen',
-                        'priority' => 'high',
-                        'ai_plan' => 'Genaue Überwachung der 150-Tage-Grenze beim ALG 1 vor Gründungsbeginn (01.11.2026) und formelle Antragstellung bei Frau Grandke bei der Agentur für Arbeit Gifhorn.',
                     ],
                 ]
             ],

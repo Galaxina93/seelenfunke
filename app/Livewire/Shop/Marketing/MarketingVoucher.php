@@ -93,9 +93,8 @@ class MarketingVoucher extends Component
     public function toggleVoucherSectionMode()
     {
         $this->voucherSectionMode = match ($this->voucherSectionMode) {
-            'manual' => 'auto',
-            'auto' => 'gift',
-            default => 'manual',
+            'auto' => 'manual',
+            default => 'auto',
         };
         $this->cancelManualCoupon();
         $this->resetPage();
@@ -141,6 +140,8 @@ class MarketingVoucher extends Component
 
     public function saveManualCoupon()
     {
+        $this->manual_code = strtoupper(trim((string) $this->manual_code));
+
         $rules = [
             'manual_code' => 'required|string|min:3|max:50|alpha_dash|unique:marketing_vouchers,code,' . $this->manualId,
             'manual_type' => 'required|in:fixed,percent',

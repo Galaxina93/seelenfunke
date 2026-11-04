@@ -25,7 +25,7 @@ class ProductCreate extends Component
     public string $layoutMode = 'large'; // 'large' (Groß), 'medium' (Mittel), 'list' (Listenansicht)
     public $showArchived = false;
     #[\Livewire\Attributes\Locked]
-    public Product $product;
+    public ?Product $product = null;
 
     public $currentStep = 1;
     public $totalSteps = 4;
@@ -198,6 +198,8 @@ class ProductCreate extends Component
     // --- 1-Klick KI-Produkt-Generator Modal ---
     public bool $showQuickAiModal = false;
     public string $quickAiPreset = 'auto';
+    public string $quickAiPersonalizationMode = 'custom_fields'; // 'custom_fields', 'studio', 'standard'
+    public string $quickAiCustomFieldsPreset = 'auto'; // 'auto', 'single_name', 'name_date_symbol', 'family_names_4', 'front_back_engraving', 'pet_tag'
     public string $quickAiName = '';
     public string $quickAiSku = '';
     public string $quickAiPrice = '';
@@ -235,13 +237,13 @@ class ProductCreate extends Component
             abort(403, 'Zugriff verweigert.');
         }
 
-        $savedLayout = shop_setting('admin_products_layout_mode', 'list');
+        $savedLayout = shop_setting('admin_products_layout_mode', 'large');
         if (in_array($savedLayout, ['large', 'medium', 'list'], true)) {
             $this->layoutMode = $savedLayout;
         }
 
         // Wenn es ein neues Produkt ist oder ein bestehendes geladen wird:
-        $this->configSettings = $configService->mergeWithDefaults($this->product->config_settings ?? []);
+        $this->configSettings = $configService->mergeWithDefaults($this->product?->configurator_settings ?? []);
     }
 
     public function setLayoutMode(string $mode): void
@@ -811,6 +813,11 @@ class ProductCreate extends Component
             $this->configSettings['template_package'] = $this->product->slug;
         }
 
+        // Personalisierungs-Modus & dynamische Eingabefelder initialisieren
+        $pMode = strtolower(trim((string) ($this->configSettings['personalization_mode'] ?? 'studio')));
+        $this->configSettings['personalization_mode'] = in_array($pMode, ['studio', 'custom_fields'], true) ? $pMode : 'studio';
+        $this->configSettings['custom_fields'] = $this->product->getCustomFieldsDefinition();
+
         $this->viewMode = 'edit';
 
         // Step Berechnung korrigieren (Falls man von Physical auf Digital gewechselt hat und Step auf 4 stand)
@@ -955,12 +962,236 @@ class ProductCreate extends Component
     {
         $this->resetValidation();
         $this->showQuickAiModal = true;
+        $this->quickAiPersonalizationMode = 'custom_fields';
+        $this->quickAiCustomFieldsPreset = 'auto';
         $this->applyQuickAiPreset('auto');
     }
 
     public function closeQuickAiModal(): void
     {
         $this->showQuickAiModal = false;
+    }
+
+    public function setQuickAiPersonalizationMode(string $mode): void
+    {
+        if (!in_array($mode, ['custom_fields', 'studio', 'standard'], true)) {
+            $mode = 'custom_fields';
+        }
+        $this->quickAiPersonalizationMode = $mode;
+    }
+
+    public function setQuickAiCustomFieldsPreset(string $preset): void
+    {
+        if (!in_array($preset, ['auto', 'single_name', 'name_and_font', 'name_date_symbol', 'family_names_4', 'front_back_engraving', 'pet_tag'], true)) {
+            $preset = 'auto';
+        }
+        $this->quickAiCustomFieldsPreset = $preset;
+    }
+
+    /**
+     * Erzeugt die dynamischen Schnell-Personalisierungsfelder (inkl. !-Tooltip) für den 1-Klick KI-Generator.
+     */
+    public function buildQuickAiCustomFields(string $detectedArchetype = 'seelen-talisman', string $fieldPreset = 'auto'): array
+    {
+        $resolvedPreset = $fieldPreset;
+        if ($resolvedPreset === 'auto') {
+            $resolvedPreset = match ($detectedArchetype) {
+                'seelen-pfote-hundemarke' => 'pet_tag',
+                'goldenes-seelen-herz', 'seelen-anhaenger' => 'name_date_symbol',
+                'bambus-pen', 'heavytool-opener' => 'single_name',
+                default => 'front_back_engraving',
+            };
+        }
+
+        $allConfiguratorFonts = array_keys(app(\App\Services\ConfiguratorService::class)->getFonts());
+        $allFontsRaw = implode(', ', $allConfiguratorFonts);
+
+        $rawFields = match ($resolvedPreset) {
+            'single_name' => [
+                [
+                    'id' => 'cf_wunschname',
+                    'label' => 'Wunschname / Gravurtext',
+                    'type' => 'text',
+                    'placeholder' => 'z.B. Alina',
+                    'options_raw' => '',
+                    'required' => true,
+                    'max_length' => 20,
+                    'surcharge_price' => '0.00',
+                    'info_text' => 'Bitte gib hier den gewünschten Namen oder das Wort ein. Wir passen die Schriftgröße für ein harmonisches Gravurbild optimal an.',
+                ],
+            ],
+            'name_and_font' => [
+                [
+                    'id' => 'cf_wunschname',
+                    'label' => '1. Wunschname / Gravurtext',
+                    'type' => 'text',
+                    'placeholder' => 'z.B. Emilia',
+                    'options_raw' => '',
+                    'required' => true,
+                    'max_length' => 22,
+                    'surcharge_price' => '0.00',
+                    'info_text' => 'Gib hier deinen gewünschten Namen oder Begriff ein. Wir richten die Gravur millimetergenau mittig auf dem Schmuckstück aus.',
+                ],
+                [
+                    'id' => 'cf_schriftart',
+                    'label' => '2. Schriftart wählen',
+                    'type' => 'font',
+                    'placeholder' => '',
+                    'options' => $allConfiguratorFonts,
+                    'options_raw' => $allFontsRaw,
+                    'required' => false,
+                    'max_length' => 60,
+                    'surcharge_price' => '0.00',
+                    'info_text' => '',
+                ],
+            ],
+            'name_date_symbol' => [
+                [
+                    'id' => 'cf_wunschname',
+                    'label' => 'Wunschname',
+                    'type' => 'text',
+                    'placeholder' => 'z.B. Mia',
+                    'options_raw' => '',
+                    'required' => true,
+                    'max_length' => 18,
+                    'surcharge_price' => '0.00',
+                    'info_text' => 'Der Name wird zentriert und abriebfest per Präzisionslaser auf der Vorderseite verewigt.',
+                ],
+                [
+                    'id' => 'cf_wunschdatum',
+                    'label' => 'Wunschdatum (Optional)',
+                    'type' => 'text',
+                    'placeholder' => 'z.B. 14.08.2026',
+                    'options_raw' => '',
+                    'required' => false,
+                    'max_length' => 12,
+                    'surcharge_price' => '0.00',
+                    'info_text' => 'Optionales Datum unterhalb des Namens. Leer lassen, wenn kein Datum gewünscht ist.',
+                ],
+                [
+                    'id' => 'cf_symbol',
+                    'label' => 'Kleines Symbol',
+                    'type' => 'select',
+                    'placeholder' => '',
+                    'options_raw' => 'Kein Symbol, Herz ♥, Unendlichkeit ∞, Stern ★, Pfote 🐾, Schutzengel 👼',
+                    'required' => true,
+                    'max_length' => 30,
+                    'surcharge_price' => '0.00',
+                    'info_text' => 'Wähle ein feines Zusatz-Symbol, das wir dezent neben oder unter deine Gravur setzen.',
+                ],
+            ],
+            'family_names_4' => [
+                [
+                    'id' => 'cf_name_1',
+                    'label' => '1. Name (Pflichtfeld)',
+                    'type' => 'text',
+                    'placeholder' => '1. Name (z.B. Mama)',
+                    'options_raw' => '',
+                    'required' => true,
+                    'max_length' => 15,
+                    'surcharge_price' => '0.00',
+                    'info_text' => 'Erster Name für dein Schmuckstück.',
+                ],
+                [
+                    'id' => 'cf_name_2',
+                    'label' => '2. Name (Optional)',
+                    'type' => 'text',
+                    'placeholder' => '2. Name (leer lassen falls nicht gewünscht)',
+                    'options_raw' => '',
+                    'required' => false,
+                    'max_length' => 15,
+                    'surcharge_price' => '0.00',
+                    'info_text' => 'Nur ausfüllen, wenn ein zweiter Name graviert werden soll.',
+                ],
+                [
+                    'id' => 'cf_name_3',
+                    'label' => '3. Name (Optional)',
+                    'type' => 'text',
+                    'placeholder' => '3. Name (optional)',
+                    'options_raw' => '',
+                    'required' => false,
+                    'max_length' => 15,
+                    'surcharge_price' => '0.00',
+                    'info_text' => 'Nur ausfüllen, wenn ein dritter Name graviert werden soll.',
+                ],
+                [
+                    'id' => 'cf_name_4',
+                    'label' => '4. Name (Optional)',
+                    'type' => 'text',
+                    'placeholder' => '4. Name (optional)',
+                    'options_raw' => '',
+                    'required' => false,
+                    'max_length' => 15,
+                    'surcharge_price' => '0.00',
+                    'info_text' => 'Nur ausfüllen, wenn ein vierter Name graviert werden soll.',
+                ],
+            ],
+            'pet_tag' => [
+                [
+                    'id' => 'cf_tiername',
+                    'label' => 'Name des Vierbeiners (Vorderseite)',
+                    'type' => 'text',
+                    'placeholder' => 'z.B. Balu',
+                    'options_raw' => '',
+                    'required' => true,
+                    'max_length' => 16,
+                    'surcharge_price' => '0.00',
+                    'info_text' => 'Wird groß und gut lesbar auf der Vorderseite der Marke eingraviert.',
+                ],
+                [
+                    'id' => 'cf_notfallnummer',
+                    'label' => 'Telefonnummer / Notfall-Info (Rückseite)',
+                    'type' => 'text',
+                    'placeholder' => 'z.B. +49 170 1234567',
+                    'options_raw' => '',
+                    'required' => false,
+                    'max_length' => 28,
+                    'surcharge_price' => '0.00',
+                    'info_text' => 'Optional: Damit dein Liebling im Fall der Fälle sofort zu dir zurückfindet, gravieren wir deine Nummer auf die Rückseite.',
+                ],
+            ],
+            default => [
+                [
+                    'id' => 'cf_vorderseite',
+                    'label' => 'Gravurtext Vorderseite',
+                    'type' => 'text',
+                    'placeholder' => 'z.B. Für immer vereint',
+                    'options_raw' => '',
+                    'required' => true,
+                    'max_length' => 25,
+                    'surcharge_price' => '0.00',
+                    'info_text' => 'Deine Wunschgravur auf der Vorderseite ist bereits im Grundpreis enthalten.',
+                ],
+                [
+                    'id' => 'cf_rueckseite',
+                    'label' => 'Optionale Rückseiten-Gravur (+5,00 €)',
+                    'type' => 'text',
+                    'placeholder' => 'Leer lassen = keine Rückseiten-Gravur',
+                    'options_raw' => '',
+                    'required' => false,
+                    'max_length' => 25,
+                    'surcharge_price' => '5.00',
+                    'info_text' => 'Nur ausfüllen, wenn zusätzlich auch die Rückseite graviert werden soll (+5,00 € Aufpreis).',
+                ],
+            ],
+        };
+
+        return $this->normalizeCustomFieldsForStorage($rawFields);
+    }
+
+    protected function normalizeCustomFieldsForStorage(array $rawFields): array
+    {
+        $normalized = [];
+        foreach (array_values($rawFields) as $cfIdx => $cfItem) {
+            if (!is_array($cfItem)) {
+                continue;
+            }
+            $normCf = Product::normalizeCustomFieldItem($cfItem, $cfIdx);
+            if ($normCf !== null) {
+                $normalized[] = $normCf;
+            }
+        }
+        return $normalized;
     }
 
     public function applyQuickAiPreset(string $presetKey): void
@@ -985,7 +1216,7 @@ class ProductCreate extends Component
         if ($presetKey === 'heavytool-opener') {
             $sup = \App\Models\Product\ProductSupplier::where('name', 'like', '%Heavytool%')->first();
             $this->quickAiName = 'Der Seelen-Öffner (Alu-Schlüsselanhänger)';
-            $this->quickAiSku = $this->generateNextCleanSku('ALU-OPENER');
+            $this->quickAiSku = $this->generateNextCleanSku('MSF-ALU-OEFFNER');
             $this->quickAiPrice = '14.90';
             $this->quickAiPurchasePrice = '0.29';
             if (trim($this->quickAiReorderUrl) === '') {
@@ -1000,7 +1231,7 @@ class ProductCreate extends Component
         } elseif ($presetKey === 'bambus-pen') {
             $sup = \App\Models\Product\ProductSupplier::where('name', 'like', '%HaoYiZF%')->first();
             $this->quickAiName = 'Der Seelen-Schreiber (Bambus-Kugelschreiber)';
-            $this->quickAiSku = $this->generateNextCleanSku('BAMBOO-PEN');
+            $this->quickAiSku = $this->generateNextCleanSku('MSF-HOLZ-SCHREIBER');
             $this->quickAiPrice = '12.90';
             $this->quickAiPurchasePrice = '0.30';
             if (trim($this->quickAiReorderUrl) === '') {
@@ -1013,13 +1244,13 @@ class ProductCreate extends Component
             $this->quickAiHeight = 140;
             $this->quickAiLength = 11.0;
         } elseif ($presetKey === 'seelen-pfote-hundemarke') {
-            $sup = \App\Models\Product\ProductSupplier::where('name', 'like', '%HaoYiZF%')->first();
+            $sup = \App\Models\Product\ProductSupplier::where('name', 'like', '%CTHOLD%')->orWhere('name', 'like', '%HaoYiZF%')->first();
             $this->quickAiName = 'Die Seelen-Pfote Edition';
-            $this->quickAiSku = $this->generateNextCleanSku('STEEL-PAW');
-            $this->quickAiPrice = '17.90';
-            $this->quickAiPurchasePrice = '0.79';
+            $this->quickAiSku = $this->generateNextCleanSku('MSF-EDELSTAHL-PFOTE');
+            $this->quickAiPrice = '29.90';
+            $this->quickAiPurchasePrice = '0.98';
             if (trim($this->quickAiReorderUrl) === '') {
-                $this->quickAiReorderUrl = 'https://www.temu.com/de/set-mit-10-edelstahl-hundeanhangern-in-knochenform-mit-pfotenabdrucken-zur--von-haustierdetails-g-601099514279197.html';
+                $this->quickAiReorderUrl = 'https://www.temu.com/goods.html?_bg_fs=1&goods_id=601099544143627&parent_order_sn=PO-076-04964841144950774&_oak_order_sn=076-04964799201910774&_oak_goods_num=3&_x_sessn_id=qexm6jf56e&refer_page_name=bgt_order_receipt&refer_page_id=10471_1793672371535_hlekpk8i9o&refer_page_sn=10471&is_back=1';
             }
             $this->quickAiSupplierId = $sup?->id;
             $this->quickAiQuantity = 0;
@@ -1030,23 +1261,23 @@ class ProductCreate extends Component
         } elseif ($presetKey === 'goldenes-seelen-herz') {
             $sup = \App\Models\Product\ProductSupplier::where('name', 'like', '%Glücksfieber%')->first();
             $this->quickAiName = 'Das Goldene Seelen-Herz';
-            $this->quickAiSku = $this->generateNextCleanSku('GOLD-HEART');
-            $this->quickAiPrice = '24.90';
-            $this->quickAiPurchasePrice = '2.10';
+            $this->quickAiSku = $this->generateNextCleanSku('MSF-GOLD-HERZ');
+            $this->quickAiPrice = '49.90';
+            $this->quickAiPurchasePrice = '4.41';
             if (trim($this->quickAiReorderUrl) === '') {
                 $this->quickAiReorderUrl = 'https://www.gluecksfieber.de/shop/laserrohlinge/edelstahl-laserrohling-anhaenger-herz-mit-collierschlaufe-14-karat-vergoldet-25-x-22-x-4-mm-oese-3-x-6-mm-ion-plating-ip.html';
             }
             $this->quickAiSupplierId = $sup?->id;
             $this->quickAiQuantity = 0;
-            $this->quickAiWeight = 14;
+            $this->quickAiWeight = 18;
             $this->quickAiWidth = 22;
             $this->quickAiHeight = 25;
             $this->quickAiLength = 4.0;
         } else {
             $sup = \App\Models\Product\ProductSupplier::where('name', 'like', '%HaoYiZF%')->first();
             $this->quickAiName = 'Der Seelen-Talisman Edition';
-            $this->quickAiSku = $this->generateNextCleanSku('STEEL-BAR');
-            $this->quickAiPrice = '19.90';
+            $this->quickAiSku = $this->generateNextCleanSku('MSF-EDELSTAHL-TALISMAN');
+            $this->quickAiPrice = '36.90';
             $this->quickAiPurchasePrice = '1.16';
             if (trim($this->quickAiReorderUrl) === '') {
                 $this->quickAiReorderUrl = 'https://www.temu.com/goods.html?_bg_fs=1&goods_id=606203291790930&sku_id=89857024078818';
@@ -1062,7 +1293,7 @@ class ProductCreate extends Component
 
     /**
      * Erzeugt eine saubere, fortlaufende und eindeutige Artikelnummer (SKU)
-     * im Standardformat <MATERIAL>-<FORM>-<NNN> (z.B. STEEL-PAW-001, STEEL-PAW-002).
+     * im Mein-Seelenfunke-Standardformat MSF-<MATERIAL>-<FORM>-<NNN> (z.B. MSF-EDELSTAHL-PFOTE-001).
      */
     public function generateNextCleanSku(string $prefix = 'MSF-UNIKAT', ?string $ignoreProductId = null): string
     {
@@ -1171,24 +1402,24 @@ class ProductCreate extends Component
             'seelen-pfote-hundemarke' => [
                 'ref_slug' => 'seelen-pfote-hundemarke',
                 'name' => 'Die Seelen-Pfote (Edelstahl-Hundemarke)',
-                'sku_prefix' => 'STEEL-PAW',
-                'sku' => $this->generateNextCleanSku('STEEL-PAW'),
-                'unit_ek' => 0.79,
-                'vk' => 17.90,
+                'sku_prefix' => 'MSF-EDELSTAHL-PFOTE',
+                'sku' => $this->generateNextCleanSku('MSF-EDELSTAHL-PFOTE'),
+                'unit_ek' => 0.98,
+                'vk' => 29.90,
                 'width' => 40,
                 'height' => 22,
                 'length' => 1.8,
                 'weight' => 12,
                 'qty' => 0,
-                'material' => 'Hochglanzpolierter Edelstahl (Silber, rostfrei)',
+                'material' => 'Hochglanzpolierter Edelstahl (rostfrei)',
             ],
             'weizenglas-personalisiert' => [
                 'ref_slug' => 'weizenglas-personalisiert',
                 'name' => 'Das Seelen-Glas (Personalisiertes Kristallglas)',
-                'sku_prefix' => 'GLASS-WEIZEN',
-                'sku' => $this->generateNextCleanSku('GLASS-WEIZEN'),
+                'sku_prefix' => 'MSF-GLAS-WEIZEN',
+                'sku' => $this->generateNextCleanSku('MSF-GLAS-WEIZEN'),
                 'unit_ek' => 3.33,
-                'vk' => 24.90,
+                'vk' => 29.90,
                 'width' => 74,
                 'height' => 218,
                 'length' => 74.0,
@@ -1199,10 +1430,10 @@ class ProductCreate extends Component
             'seelen-kristall' => [
                 'ref_slug' => 'seelen-kristall',
                 'name' => 'Der Seelen-Kristall (Optischer 3D-Kristallblock)',
-                'sku_prefix' => 'CRYSTAL-3D',
-                'sku' => $this->generateNextCleanSku('CRYSTAL-3D'),
+                'sku_prefix' => 'MSF-KRISTALL-3D',
+                'sku' => $this->generateNextCleanSku('MSF-KRISTALL-3D'),
                 'unit_ek' => 5.36,
-                'vk' => 39.90,
+                'vk' => 69.90,
                 'width' => 180,
                 'height' => 200,
                 'length' => 40.0,
@@ -1213,24 +1444,24 @@ class ProductCreate extends Component
             'goldenes-seelen-herz' => [
                 'ref_slug' => 'goldenes-seelen-herz',
                 'name' => 'Das Goldene Seelen-Herz (Edelstahl-Herz mit Collierschlaufe)',
-                'sku_prefix' => 'GOLD-HEART',
-                'sku' => $this->generateNextCleanSku('GOLD-HEART'),
-                'unit_ek' => 2.10,
-                'vk' => 24.90,
+                'sku_prefix' => 'MSF-GOLD-HERZ',
+                'sku' => $this->generateNextCleanSku('MSF-GOLD-HERZ'),
+                'unit_ek' => 4.41,
+                'vk' => 49.90,
                 'width' => 22,
                 'height' => 25,
                 'length' => 4.0,
-                'weight' => 14,
+                'weight' => 18,
                 'qty' => 0,
-                'material' => '14 Karat vergoldeter 304/316 Edelstahl (Ion-Plating)',
+                'material' => '14 Karat vergoldeter Edelstahl (Ion-Plating)',
             ],
             'seelen-anhaenger' => [
                 'ref_slug' => 'seelen-anhaenger',
                 'name' => 'Der Seelen-Anhänger (Herz-Edelstahlmarke)',
-                'sku_prefix' => 'ALU-HEART',
-                'sku' => $this->generateNextCleanSku('ALU-HEART'),
+                'sku_prefix' => 'MSF-ALU-HERZ',
+                'sku' => $this->generateNextCleanSku('MSF-ALU-HERZ'),
                 'unit_ek' => 1.36,
-                'vk' => 16.99,
+                'vk' => 29.90,
                 'width' => 45,
                 'height' => 40,
                 'length' => 2.3,
@@ -1241,8 +1472,8 @@ class ProductCreate extends Component
             'heavytool-opener' => [
                 'ref_slug' => 'seelen-talisman',
                 'name' => 'Der Seelen-Öffner (Alu-Schlüsselanhänger)',
-                'sku_prefix' => 'ALU-OPENER',
-                'sku' => $this->generateNextCleanSku('ALU-OPENER'),
+                'sku_prefix' => 'MSF-ALU-OEFFNER',
+                'sku' => $this->generateNextCleanSku('MSF-ALU-OEFFNER'),
                 'unit_ek' => 0.29,
                 'vk' => 14.90,
                 'width' => 15,
@@ -1255,8 +1486,8 @@ class ProductCreate extends Component
             'bambus-pen' => [
                 'ref_slug' => 'seelen-talisman',
                 'name' => 'Der Seelen-Schreiber (Bambus-Kugelschreiber)',
-                'sku_prefix' => 'BAMBOO-PEN',
-                'sku' => $this->generateNextCleanSku('BAMBOO-PEN'),
+                'sku_prefix' => 'MSF-HOLZ-SCHREIBER',
+                'sku' => $this->generateNextCleanSku('MSF-HOLZ-SCHREIBER'),
                 'unit_ek' => 0.30,
                 'vk' => 12.90,
                 'width' => 11,
@@ -1269,16 +1500,16 @@ class ProductCreate extends Component
             default => [
                 'ref_slug' => 'seelen-talisman',
                 'name' => 'Der Seelen-Talisman (Edelstahl-Schlüsselanhänger)',
-                'sku_prefix' => 'STEEL-BAR',
-                'sku' => $this->generateNextCleanSku('STEEL-BAR'),
+                'sku_prefix' => 'MSF-EDELSTAHL-TALISMAN',
+                'sku' => $this->generateNextCleanSku('MSF-EDELSTAHL-TALISMAN'),
                 'unit_ek' => 1.16,
-                'vk' => 19.90,
+                'vk' => 36.90,
                 'width' => 28,
                 'height' => 50,
                 'length' => 2.2,
                 'weight' => 24,
                 'qty' => 0,
-                'material' => 'Massiver 304 Edelstahl (Spiegelpoliert)',
+                'material' => 'Massiver Edelstahl (Spiegelpoliert)',
             ],
         };
 
@@ -1320,6 +1551,7 @@ class ProductCreate extends Component
             $supplier = \App\Models\Product\ProductSupplier::first();
         }
 
+        $defaults['detected_preset'] = $detectedPreset;
         $defaults['supplier_id'] = $supplier?->id;
         $defaults['top_gallery_url'] = !empty($queryParams['top_gallery_url'])
             ? urldecode((string) $queryParams['top_gallery_url'])
@@ -1422,14 +1654,33 @@ class ProductCreate extends Component
         $ekCents = max(0, (int) round($ekFloat * 100));
 
         $refSlug = $inferred['ref_slug'];
+        $detectedArchetype = $inferred['detected_preset'] ?? $refSlug;
         $refProduct = Product::where('slug', $refSlug)->first();
         $configSettings = $refProduct && is_array($refProduct->configurator_settings)
             ? $refProduct->configurator_settings
             : app(ConfiguratorService::class)->getDefaultSettings();
 
-        $previewPath = $refProduct?->preview_image_path ?? 'produkte/products/seelen-talisman/overlay.png';
-        $modelPath = $refProduct?->three_d_model_path ?? 'produkte/products/seelen-talisman/seelen_talisman_3d.glb';
-        $bgPath = $refProduct?->three_d_background_path ?? 'produkte/products/seelen-talisman/header_bg.png';
+        $selectedMode = in_array($this->quickAiPersonalizationMode, ['custom_fields', 'studio', 'standard'], true)
+            ? $this->quickAiPersonalizationMode
+            : 'custom_fields';
+
+        $isPersonalizable = $selectedMode !== 'standard';
+        $threeDActive = $selectedMode === 'studio';
+
+        if ($selectedMode === 'custom_fields') {
+            $configSettings['personalization_mode'] = 'custom_fields';
+            $configSettings['custom_fields'] = $this->buildQuickAiCustomFields($detectedArchetype, $this->quickAiCustomFieldsPreset);
+        } elseif ($selectedMode === 'studio') {
+            $configSettings['personalization_mode'] = 'studio';
+            $configSettings['custom_fields'] = $configSettings['custom_fields'] ?? [];
+        } else {
+            $configSettings['personalization_mode'] = 'studio';
+            $configSettings['custom_fields'] = [];
+        }
+
+        $previewPath = $threeDActive ? ($refProduct?->preview_image_path ?? 'produkte/products/seelen-talisman/overlay.png') : ($refProduct?->preview_image_path ?? null);
+        $modelPath = $threeDActive ? ($refProduct?->three_d_model_path ?? 'produkte/products/seelen-talisman/seelen_talisman_3d.glb') : null;
+        $bgPath = $threeDActive ? ($refProduct?->three_d_background_path ?? 'produkte/products/seelen-talisman/header_bg.png') : null;
 
         $dimensionImgMap = [
             'seelen-pfote-hundemarke'   => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-dimensions.jpg',
@@ -1460,7 +1711,7 @@ class ProductCreate extends Component
                 'path' => $dimensionImagePath,
                 'is_main' => false,
                 'is_ai_generated' => true,
-                'alt' => "{$name} – Detaillierte Maßangaben ({$width} x {$height} x {$length} mm)",
+                'alt' => "{$name}: Detaillierte Maßangaben ({$width} x {$height} x {$length} mm)",
             ];
         }
 
@@ -1471,15 +1722,32 @@ class ProductCreate extends Component
         $packagingWeightGrams = $isEnvelope ? 15 : ($refSlug === 'weizenglas-personalisiert' ? 120 : 150);
         $wearFactorCents = $isEnvelope ? 5 : 15;
 
+        if ($selectedMode === 'standard') {
+            $descriptionText = "{$name}: Fertig veredeltes Unikat aus unserer deutschen Manufaktur Mein-Seelenfunke. Jedes Exemplar ({$width} x {$height} x {$length} mm, ca. {$weight} g) wird per Hochpräzisions-Laser dauerhaft veredelt, handgeprüft und direkt versandfertig an dich geliefert.";
+            $shortDescText = "Handveredeltes Manufaktur-Unikat ({$width} x {$height} mm) mit präziser Lasergravur, sofort bereit zum Kauf.";
+            $seoTitleText = "{$name} | Handveredeltes Unikat aus Deutschland | Mein-Seelenfunke";
+            $seoDescText = "{$name} ({$width} x {$height} mm) fertig laserveredelt aus unserer Manufaktur in Gifhorn. Sofort bereit zum Kauf ohne Wartezeit.";
+        } elseif ($selectedMode === 'custom_fields') {
+            $descriptionText = "{$name}: Individuell in unserer deutschen Manufaktur Mein-Seelenfunke per Hochpräzisions-Laser für dich veredelt. Gib einfach deinen Wunschnamen oder Wunschtext ein und wir fertigen dein persönliches Unikat ({$width} x {$height} x {$length} mm, ca. {$weight} g) millimetergenau und abriebfest.";
+            $shortDescText = "Personalisiertes Unikat ({$width} x {$height} mm) mit individueller Wunschgravur aus unserer Manufaktur Mein-Seelenfunke.";
+            $seoTitleText = "{$name} | Mit Wunschnamen gravieren lassen | Mein-Seelenfunke";
+            $seoDescText = "{$name} ({$width} x {$height} mm) mit deinem Wunschnamen gravieren lassen. Handveredelt per Präzisionslaser in unserer Manufaktur in Gifhorn.";
+        } else {
+            $descriptionText = "{$name}: Individuell in unserer Manufaktur Mein-Seelenfunke per Hochpräzisions-Laser für dich veredelt. Jedes Exemplar ({$width} x {$height} x {$length} mm, ca. {$weight} g) wird nach deinen Wünschen im Live-3D-Konfigurator gestaltet, abriebfest graviert und sorgfältig geprüft versendet.";
+            $shortDescText = "Personalisiertes Unikat ({$width} x {$height} mm) mit hochpräziser Lasergravur aus der Manufaktur Mein-Seelenfunke.";
+            $seoTitleText = "{$name} | Mit eigener Gravur im 3D-Konfigurator gestalten | Mein-Seelenfunke";
+            $seoDescText = "{$name} ({$width} x {$height} mm) individuell gravieren lassen im 3D-Live-Konfigurator von Mein-Seelenfunke. Handveredelt in unserer Manufaktur in Gifhorn.";
+        }
+
         $created = Product::create([
             'name' => $name,
             'slug' => $slug,
             'type' => 'physical',
             'status' => 'active',
-            'is_personalizable' => true,
-            'three_d_active' => true,
-            'description' => "{$name} – Individuell in unserer Manufaktur Mein-Seelenfunke per Hochpräzisions-Laser für Sie veredelt. Jedes Exemplar ({$width} x {$height} x {$length} mm, ca. {$weight} g) wird nach Ihren Wünschen im Live-3D-Konfigurator gestaltet, abriebfest graviert und sorgfältig geprüft versendet.",
-            'short_description' => "Personalisiertes Unikat ({$width} x {$height} mm) mit hochpräziser Lasergravur aus der Manufaktur Mein-Seelenfunke.",
+            'is_personalizable' => $isPersonalizable,
+            'three_d_active' => $threeDActive,
+            'description' => $descriptionText,
+            'short_description' => $shortDescText,
             'price' => $priceCents,
             'compare_at_price' => null,
             'purchase_price' => $ekCents,
@@ -1514,10 +1782,24 @@ class ProductCreate extends Component
                 'Lieferzeit' => '3-5 Werktage',
             ],
             'tier_pricing' => [],
-            'seo_title' => "{$name} | Mit eigener Gravur gestalten | Mein-Seelenfunke",
-            'seo_description' => "{$name} ({$width} x {$height} mm) individuell gravieren lassen im 3D-Live-Konfigurator von Mein-Seelenfunke. Handveredelt in unserer Manufaktur in Gifhorn (Lieferzeit: 3–5 Werktage).",
+            'seo_title' => $seoTitleText,
+            'seo_description' => $seoDescText,
             'completion_step' => 4,
         ]);
+
+        // Im Studio-Modus aktive Design-Vorlagen vom Referenzprodukt übernehmen, damit Check #9 sofort auf 100% steht
+        if ($selectedMode === 'studio' && $refProduct) {
+            foreach ($refProduct->templates()->where('is_active', true)->get() as $refTpl) {
+                \App\Models\Product\ProductTemplate::create([
+                    'product_id' => $created->id,
+                    'name' => $refTpl->name,
+                    'holiday' => $refTpl->holiday,
+                    'preview_image' => $refTpl->preview_image,
+                    'configuration' => $refTpl->configuration,
+                    'is_active' => true,
+                ]);
+            }
+        }
 
         $createdSettings = is_array($created->configurator_settings) ? $created->configurator_settings : [];
         $createdSettings['addons'] = $created->getEffectiveAddons(false);
@@ -1539,8 +1821,14 @@ class ProductCreate extends Component
 
         \App\Models\Marketing\MarketingLandingPage::syncForProduct($created);
 
+        $modeLabel = match ($selectedMode) {
+            'custom_fields' => 'Schnell-Personalisierung (' . count($configSettings['custom_fields'] ?? []) . ' Felder)',
+            'standard' => 'Fertiges Standard-Produkt',
+            default => '2D/3D-Live-Konfigurator',
+        };
+
         $this->showQuickAiModal = false;
-        session()->flash('success', "KI-Produkt „{$created->name}“ ({$width}x{$height} mm, EK " . number_format($ekFloat, 2, ',', '.') . " €, VK " . number_format($vkFloat, 2, ',', '.') . " €) wurde vollautomatisch aus dem Link erstellt!");
+        session()->flash('success', "KI-Produkt „{$created->name}“ [{$modeLabel}] ({$width}x{$height} mm, EK " . number_format($ekFloat, 2, ',', '.') . " €, VK " . number_format($vkFloat, 2, ',', '.') . " €) wurde vollautomatisch erstellt!");
     }
 
     public function backToList()
@@ -1569,9 +1857,9 @@ class ProductCreate extends Component
         $this->currentStep = $step;
     }
 
-    public function nextStep()
+    public function nextSubStep()
     {
-        if(!$this->canProceed()) return;
+        if (!$this->canProceedSubStep()) return;
 
         if ($this->currentStep === 1 && $this->step1SubStep < 5) {
             $this->save(false);
@@ -1594,6 +1882,13 @@ class ProductCreate extends Component
             $this->step4SubStep++;
             return;
         }
+
+        $this->nextStep();
+    }
+
+    public function nextStep()
+    {
+        if(!$this->canProceed()) return;
 
         // Fortschritt speichern
         if($this->currentStep >= $this->product->completion_step) {
@@ -1670,7 +1965,7 @@ class ProductCreate extends Component
         return $validBasic;
     }
 
-    public function canProceed()
+    public function canProceedSubStep(): bool
     {
         $this->normalizePriceInputs();
         if ($this->currentStep === 1) {
@@ -1693,6 +1988,16 @@ class ProductCreate extends Component
                 return !empty($this->slug_input) || !empty($this->name);
             }
 
+            return $this->canProceedStep1();
+        }
+
+        return (bool) $this->canProceed();
+    }
+
+    public function canProceed()
+    {
+        $this->normalizePriceInputs();
+        if ($this->currentStep === 1) {
             return $this->canProceedStep1();
         }
         if ($this->currentStep === 2) {
@@ -1837,6 +2142,28 @@ class ProductCreate extends Component
 
         $this->product->attributes = $this->productAttributes;
         $this->product->tier_pricing = $this->tiers;
+
+        // Personalisierungs-Modus & dynamische Eingabefelder sauber normalisieren
+        $pMode = strtolower(trim((string) ($this->configSettings['personalization_mode'] ?? 'studio')));
+        $this->configSettings['personalization_mode'] = in_array($pMode, ['studio', 'custom_fields'], true) ? $pMode : 'studio';
+
+        $normalizedCustomFields = [];
+        $rawCustomFields = isset($this->configSettings['custom_fields']) && is_array($this->configSettings['custom_fields'])
+            ? array_values($this->configSettings['custom_fields'])
+            : [];
+        foreach ($rawCustomFields as $cfIdx => $cfItem) {
+            if (!is_array($cfItem)) {
+                continue;
+            }
+            if (trim((string) ($cfItem['label'] ?? '')) === '') {
+                $cfItem['label'] = ($cfIdx + 1) . '. Eingabefeld';
+            }
+            $normCf = Product::normalizeCustomFieldItem($cfItem, $cfIdx);
+            if ($normCf !== null) {
+                $normalizedCustomFields[] = $normCf;
+            }
+        }
+        $this->configSettings['custom_fields'] = $normalizedCustomFields;
 
         $this->product->configurator_settings = $this->configSettings;
         if ($this->type === 'physical') {
@@ -2566,6 +2893,476 @@ class ProductCreate extends Component
             'canProceed' => $this->canProceed(),
             'suiteCounts' => $suiteCounts,
         ]);
+    }
+
+    // --- DYNAMISCHE SCHNELL-PERSONALISIERUNGS-FELDER (MODUS B: custom_fields) ---
+
+    protected function persistCustomFieldsToProduct(): void
+    {
+        if (!isset($this->product) || !$this->product?->exists) {
+            return;
+        }
+
+        $settings = is_array($this->product->configurator_settings) ? $this->product->configurator_settings : [];
+        $pMode = strtolower(trim((string) ($this->configSettings['personalization_mode'] ?? 'studio')));
+        $settings['personalization_mode'] = in_array($pMode, ['studio', 'custom_fields'], true) ? $pMode : 'studio';
+
+        $rawCustomFields = isset($this->configSettings['custom_fields']) && is_array($this->configSettings['custom_fields'])
+            ? array_values($this->configSettings['custom_fields'])
+            : [];
+        $normalizedForDb = [];
+        foreach ($rawCustomFields as $cfIdx => $cfItem) {
+            if (!is_array($cfItem)) {
+                continue;
+            }
+            $dbCandidate = $cfItem;
+            if (trim((string) ($dbCandidate['label'] ?? '')) === '') {
+                $dbCandidate['label'] = ($cfIdx + 1) . '. Eingabefeld';
+            }
+            $normCf = Product::normalizeCustomFieldItem($dbCandidate, $cfIdx);
+            if ($normCf !== null) {
+                $normalizedForDb[] = $normCf;
+            }
+        }
+
+        $settings['custom_fields'] = $normalizedForDb;
+        $this->product->configurator_settings = $settings;
+        $this->product->saveQuietly();
+    }
+
+    public function updatedConfigSettings($value, $key = null): void
+    {
+        $keyStr = (string) $key;
+        if (preg_match('/^custom_fields\.(\d+)\.type$/', $keyStr, $m)) {
+            $idx = (int) $m[1];
+            if (isset($this->configSettings['custom_fields'][$idx]) && is_array($this->configSettings['custom_fields'][$idx])) {
+                $allFonts = array_keys(app(ConfiguratorService::class)->getFonts());
+                $currentLabel = trim((string) ($this->configSettings['custom_fields'][$idx]['label'] ?? ''));
+                $currentInfo = trim((string) ($this->configSettings['custom_fields'][$idx]['info_text'] ?? ''));
+                $isGenericLabel = $currentLabel === ''
+                    || str_contains($currentLabel, 'Eingabefeld')
+                    || in_array($currentLabel, ['Wunschname / Gravurtext', '1. Wunschname / Gravurtext', 'Schriftart wählen', '2. Schriftart wählen', 'Wunschdatum', 'Auswahl / Symbol'], true);
+                $isGenericInfo = $currentInfo === ''
+                    || str_contains($currentInfo, 'Gib hier deinen gewünschten Text')
+                    || str_contains($currentInfo, 'Gib hier den gewünschten Namen')
+                    || str_contains($currentInfo, 'Wähle hier dein gewünschtes Datum')
+                    || str_contains($currentInfo, 'Wähle hier deine gewünschte Option');
+
+                if ($value === 'font') {
+                    if ($isGenericLabel) {
+                        $this->configSettings['custom_fields'][$idx]['label'] = 'Schriftart wählen';
+                    }
+                    // Für Schriftart-Auswahl machen weder „!“-Hinweistext noch Pflichtfeld-Stern oder Aufpreis Sinn (Standard: Arial)
+                    $this->configSettings['custom_fields'][$idx]['info_text'] = '';
+                    $this->configSettings['custom_fields'][$idx]['required'] = false;
+                    $this->configSettings['custom_fields'][$idx]['placeholder'] = '';
+                    $this->configSettings['custom_fields'][$idx]['surcharge_price'] = '0.00';
+                    $this->configSettings['custom_fields'][$idx]['surcharge_cents'] = 0;
+                    $norm = Product::normalizeCustomFieldItem($this->configSettings['custom_fields'][$idx], $idx);
+                    $this->configSettings['custom_fields'][$idx]['options'] = $norm['options'] ?? $allFonts;
+                    $this->configSettings['custom_fields'][$idx]['options_raw'] = implode(', ', $this->configSettings['custom_fields'][$idx]['options']);
+                    $this->configSettings['custom_fields'][$idx]['max_length'] = 60;
+                } elseif ($value === 'date') {
+                    if ($isGenericLabel) {
+                        $this->configSettings['custom_fields'][$idx]['label'] = 'Wunschdatum';
+                    }
+                    if ($isGenericInfo) {
+                        $this->configSettings['custom_fields'][$idx]['info_text'] = 'Wähle hier dein gewünschtes Datum für die Gravur aus.';
+                    }
+                    $this->configSettings['custom_fields'][$idx]['placeholder'] = '';
+                    $this->configSettings['custom_fields'][$idx]['max_length'] = 20;
+                } elseif ($value === 'select') {
+                    if ($isGenericLabel) {
+                        $this->configSettings['custom_fields'][$idx]['label'] = 'Auswahl / Symbol';
+                    }
+                    if ($isGenericInfo) {
+                        $this->configSettings['custom_fields'][$idx]['info_text'] = 'Wähle hier deine gewünschte Option für die Gravur aus.';
+                    }
+                    // Falls vorher 'font' aktiv war (oder Optionen leer sind), Standard-Symbole statt der 22 Schriftarten setzen
+                    $existingOpts = is_array($this->configSettings['custom_fields'][$idx]['options'] ?? null)
+                        ? $this->configSettings['custom_fields'][$idx]['options']
+                        : [];
+                    if (empty($existingOpts) || count(array_intersect($existingOpts, $allFonts)) >= 3) {
+                        $defaultSelectOpts = ['Kein Symbol', '♥ Herz', '∞ Unendlichkeit', '★ Stern', '🐾 Pfote', '⚓ Anker'];
+                        $this->configSettings['custom_fields'][$idx]['options'] = $defaultSelectOpts;
+                        $this->configSettings['custom_fields'][$idx]['options_raw'] = implode(', ', $defaultSelectOpts);
+                    }
+                    $this->configSettings['custom_fields'][$idx]['max_length'] = 120;
+                    $this->configSettings['custom_fields'][$idx]['required'] = true;
+                } else {
+                    // 'text' oder 'textarea'
+                    if ($isGenericLabel) {
+                        $this->configSettings['custom_fields'][$idx]['label'] = 'Wunschname / Gravurtext';
+                    }
+                    if ($isGenericInfo) {
+                        $this->configSettings['custom_fields'][$idx]['info_text'] = 'Gib hier deinen gewünschten Text für die Lasergravur ein.';
+                    }
+                    if (trim((string) ($this->configSettings['custom_fields'][$idx]['placeholder'] ?? '')) === '') {
+                        $this->configSettings['custom_fields'][$idx]['placeholder'] = 'z. B. Emilia';
+                    }
+                    $curMax = (int) ($this->configSettings['custom_fields'][$idx]['max_length'] ?? 25);
+                    if ($value === 'textarea' && $curMax <= 60) {
+                        $this->configSettings['custom_fields'][$idx]['max_length'] = 150;
+                    } elseif ($value === 'text' && $curMax > 60) {
+                        $this->configSettings['custom_fields'][$idx]['max_length'] = 25;
+                    }
+                    $surchargeFloat = (float) str_replace(',', '.', (string) ($this->configSettings['custom_fields'][$idx]['surcharge_price'] ?? 0));
+                    $this->configSettings['custom_fields'][$idx]['required'] = ($surchargeFloat <= 0);
+                }
+            }
+        } elseif (preg_match('/^custom_fields\.(\d+)\.surcharge_price$/', $keyStr, $m)) {
+            $idx = (int) $m[1];
+            if (isset($this->configSettings['custom_fields'][$idx]) && is_array($this->configSettings['custom_fields'][$idx])) {
+                $surchargeFloat = (float) str_replace(',', '.', (string) $value);
+                $cfType = (string) ($this->configSettings['custom_fields'][$idx]['type'] ?? 'text');
+                if ($surchargeFloat > 0 && in_array($cfType, ['text', 'textarea', 'date'], true)) {
+                    $this->configSettings['custom_fields'][$idx]['required'] = false;
+                }
+            }
+        }
+
+        if ($key === null || str_starts_with($keyStr, 'custom_fields') || $keyStr === 'personalization_mode') {
+            $this->persistCustomFieldsToProduct();
+        }
+    }
+
+    public function setPersonalizationMode(string $mode): void
+    {
+        $cleanMode = in_array($mode, ['studio', 'custom_fields'], true) ? $mode : 'studio';
+        $this->configSettings['personalization_mode'] = $cleanMode;
+
+        if ($cleanMode === 'custom_fields' && empty($this->configSettings['custom_fields'])) {
+            $this->applyCustomFieldsPreset('single_name');
+            return;
+        }
+
+        $this->persistCustomFieldsToProduct();
+    }
+
+    public function addCustomField(): void
+    {
+        if (!isset($this->configSettings['custom_fields']) || !is_array($this->configSettings['custom_fields'])) {
+            $this->configSettings['custom_fields'] = [];
+        }
+
+        $this->configSettings['custom_fields'] = array_values($this->configSettings['custom_fields']);
+        $nextIndex = count($this->configSettings['custom_fields']) + 1;
+        $this->configSettings['custom_fields'][] = [
+            'id'              => 'cf_' . Str::lower(Str::random(6)),
+            'label'           => $nextIndex . '. Eingabefeld (z. B. Wunschname)',
+            'type'            => 'text',
+            'placeholder'     => 'z. B. Emilia',
+            'info_text'       => 'Gib hier deinen gewünschten Text für die Lasergravur ein.',
+            'required'        => true,
+            'max_length'      => 25,
+            'options'         => [],
+            'options_raw'     => '',
+            'surcharge_cents' => 0,
+            'surcharge_price' => '0.00',
+        ];
+
+        $this->persistCustomFieldsToProduct();
+    }
+
+    public function addCustomFontField(): void
+    {
+        if (!isset($this->configSettings['custom_fields']) || !is_array($this->configSettings['custom_fields'])) {
+            $this->configSettings['custom_fields'] = [];
+        }
+
+        $allFonts = array_keys(app(ConfiguratorService::class)->getFonts());
+        $this->configSettings['custom_fields'] = array_values($this->configSettings['custom_fields']);
+        $this->configSettings['custom_fields'][] = [
+            'id'              => 'cf_font_' . Str::lower(Str::random(4)),
+            'label'           => 'Schriftart wählen',
+            'type'            => 'font',
+            'placeholder'     => '',
+            'info_text'       => '',
+            'required'        => false,
+            'max_length'      => 60,
+            'options'         => $allFonts,
+            'options_raw'     => implode(', ', $allFonts),
+            'surcharge_cents' => 0,
+            'surcharge_price' => '0.00',
+        ];
+
+        $this->persistCustomFieldsToProduct();
+    }
+
+    public function toggleCustomFieldFont(int $index, string $fontName): void
+    {
+        if (!isset($this->configSettings['custom_fields'][$index]) || !is_array($this->configSettings['custom_fields'][$index])) {
+            return;
+        }
+
+        $allFonts = array_keys(app(ConfiguratorService::class)->getFonts());
+        if (!in_array($fontName, $allFonts, true)) {
+            return;
+        }
+
+        $norm = Product::normalizeCustomFieldItem($this->configSettings['custom_fields'][$index], $index);
+        $currentFonts = $norm['options'] ?? $allFonts;
+
+        if (in_array($fontName, $currentFonts, true)) {
+            if (count($currentFonts) <= 1) {
+                return; // Mindestens 1 Schriftart muss aktiv bleiben
+            }
+            $currentFonts = array_values(array_diff($currentFonts, [$fontName]));
+        } else {
+            $currentFonts[] = $fontName;
+            // In Original-Konfigurator-Reihenfolge sortieren
+            $currentFonts = array_values(array_intersect($allFonts, $currentFonts));
+        }
+
+        $this->configSettings['custom_fields'][$index]['options'] = $currentFonts;
+        $this->configSettings['custom_fields'][$index]['options_raw'] = implode(', ', $currentFonts);
+        $this->persistCustomFieldsToProduct();
+    }
+
+    public function setCustomFieldFontPreset(int $index, string $preset): void
+    {
+        if (!isset($this->configSettings['custom_fields'][$index]) || !is_array($this->configSettings['custom_fields'][$index])) {
+            return;
+        }
+
+        $allFonts = array_keys(app(ConfiguratorService::class)->getFonts());
+        $selectedFonts = match ($preset) {
+            'jewelry_top6' => ['Arial', 'Great Vibes', 'Dancing Script', 'Alex Brush', 'Cinzel', 'Playfair Display'],
+            'clean_modern' => ['Arial', 'Montserrat', 'Cinzel', 'Playfair Display', 'Comfortaa', 'Bebas Neue', 'Georgia'],
+            default => $allFonts,
+        };
+
+        $selectedFonts = array_values(array_intersect($allFonts, $selectedFonts));
+        if (empty($selectedFonts)) {
+            $selectedFonts = $allFonts;
+        }
+
+        $this->configSettings['custom_fields'][$index]['options'] = $selectedFonts;
+        $this->configSettings['custom_fields'][$index]['options_raw'] = implode(', ', $selectedFonts);
+        $this->persistCustomFieldsToProduct();
+    }
+
+    public function removeCustomField(int $index): void
+    {
+        if (!isset($this->configSettings['custom_fields'][$index])) {
+            return;
+        }
+
+        unset($this->configSettings['custom_fields'][$index]);
+        $this->configSettings['custom_fields'] = array_values($this->configSettings['custom_fields']);
+        $this->persistCustomFieldsToProduct();
+    }
+
+    public function moveCustomFieldUp(int $index): void
+    {
+        if ($index <= 0 || !isset($this->configSettings['custom_fields'][$index])) {
+            return;
+        }
+
+        $fields = array_values($this->configSettings['custom_fields']);
+        $tmp = $fields[$index - 1];
+        $fields[$index - 1] = $fields[$index];
+        $fields[$index] = $tmp;
+        $this->configSettings['custom_fields'] = $fields;
+        $this->persistCustomFieldsToProduct();
+    }
+
+    public function moveCustomFieldDown(int $index): void
+    {
+        $fields = isset($this->configSettings['custom_fields']) && is_array($this->configSettings['custom_fields'])
+            ? array_values($this->configSettings['custom_fields'])
+            : [];
+
+        if ($index < 0 || $index >= count($fields) - 1) {
+            return;
+        }
+
+        $tmp = $fields[$index + 1];
+        $fields[$index + 1] = $fields[$index];
+        $fields[$index] = $tmp;
+        $this->configSettings['custom_fields'] = $fields;
+        $this->persistCustomFieldsToProduct();
+    }
+
+    public function applyCustomFieldsPreset(string $presetKey): void
+    {
+        $this->configSettings['personalization_mode'] = 'custom_fields';
+
+        if ($presetKey === 'single_name') {
+            $this->configSettings['custom_fields'] = [
+                [
+                    'id'              => 'cf_wunschname',
+                    'label'           => 'Wunschname / Gravurtext',
+                    'type'            => 'text',
+                    'placeholder'     => 'z. B. Emilia',
+                    'info_text'       => 'Gib hier den gewünschten Namen oder Begriff ein. Wir richten die Gravur in unserer Manufaktur millimetergenau mittig auf dem Schmuckstück aus.',
+                    'required'        => true,
+                    'max_length'      => 20,
+                    'options'         => [],
+                    'options_raw'     => '',
+                    'surcharge_cents' => 0,
+                    'surcharge_price' => '0.00',
+                ],
+            ];
+        } elseif ($presetKey === 'name_and_font') {
+            $allFonts = array_keys(app(ConfiguratorService::class)->getFonts());
+            $this->configSettings['custom_fields'] = [
+                [
+                    'id'              => 'cf_wunschname',
+                    'label'           => '1. Wunschname / Gravurtext',
+                    'type'            => 'text',
+                    'placeholder'     => 'z. B. Emilia',
+                    'info_text'       => 'Gib hier den gewünschten Namen oder Begriff ein. Wir richten die Gravur in unserer Manufaktur millimetergenau mittig auf dem Schmuckstück aus.',
+                    'required'        => true,
+                    'max_length'      => 22,
+                    'options'         => [],
+                    'options_raw'     => '',
+                    'surcharge_cents' => 0,
+                    'surcharge_price' => '0.00',
+                ],
+                [
+                    'id'              => 'cf_schriftart',
+                    'label'           => '2. Schriftart wählen',
+                    'type'            => 'font',
+                    'placeholder'     => '',
+                    'info_text'       => '',
+                    'required'        => false,
+                    'max_length'      => 60,
+                    'options'         => $allFonts,
+                    'options_raw'     => implode(', ', $allFonts),
+                    'surcharge_cents' => 0,
+                    'surcharge_price' => '0.00',
+                ],
+            ];
+        } elseif ($presetKey === 'name_date_symbol') {
+            $this->configSettings['custom_fields'] = [
+                [
+                    'id'              => 'cf_name',
+                    'label'           => '1. Wunschname',
+                    'type'            => 'text',
+                    'placeholder'     => 'z. B. Emilia & Lukas',
+                    'info_text'       => 'Dein Haupt-Gravurtext auf der Vorderseite. Maximal 25 Zeichen für optimale Lesbarkeit.',
+                    'required'        => true,
+                    'max_length'      => 25,
+                    'options'         => [],
+                    'options_raw'     => '',
+                    'surcharge_cents' => 0,
+                    'surcharge_price' => '0.00',
+                ],
+                [
+                    'id'              => 'cf_datum',
+                    'label'           => '2. Wunschdatum (Optional)',
+                    'type'            => 'text',
+                    'placeholder'     => 'z. B. 14.08.2026',
+                    'info_text'       => 'Optionales Datum (z. B. Jahrestag, Geburtstag oder Taufe), das fein unter dem Namen eingraviert wird.',
+                    'required'        => false,
+                    'max_length'      => 15,
+                    'options'         => [],
+                    'options_raw'     => '',
+                    'surcharge_cents' => 0,
+                    'surcharge_price' => '0.00',
+                ],
+                [
+                    'id'              => 'cf_symbol',
+                    'label'           => '3. Kleines Gravur-Symbol',
+                    'type'            => 'select',
+                    'placeholder'     => 'Bitte wählen...',
+                    'info_text'       => 'Wähle auf Wunsch ein feines Laser-Symbol, das wir harmonisch neben oder unter deine Gravur setzen.',
+                    'required'        => true,
+                    'max_length'      => 40,
+                    'options'         => ['Kein Symbol', '♥ Herz', '∞ Unendlichkeit', '★ Stern', '🐾 Pfote', '⚓ Anker'],
+                    'options_raw'     => 'Kein Symbol, ♥ Herz, ∞ Unendlichkeit, ★ Stern, 🐾 Pfote, ⚓ Anker',
+                    'surcharge_cents' => 0,
+                    'surcharge_price' => '0.00',
+                ],
+            ];
+        } elseif ($presetKey === 'family_names_4') {
+            $this->configSettings['custom_fields'] = [
+                [
+                    'id'              => 'cf_name_1',
+                    'label'           => '1. Name (Pflichtfeld)',
+                    'type'            => 'text',
+                    'placeholder'     => 'z. B. Mama / 1. Kind',
+                    'info_text'       => 'Erster Name für die Gravur (im Grundpreis enthalten).',
+                    'required'        => true,
+                    'max_length'      => 18,
+                    'options'         => [],
+                    'options_raw'     => '',
+                    'surcharge_cents' => 0,
+                    'surcharge_price' => '0.00',
+                ],
+                [
+                    'id'              => 'cf_name_2',
+                    'label'           => '2. Name (Optional)',
+                    'type'            => 'text',
+                    'placeholder'     => 'z. B. 2. Name (leer lassen falls nicht gewünscht)',
+                    'info_text'       => 'Optionaler zweiter Name auf dem Schmuckstück.',
+                    'required'        => false,
+                    'max_length'      => 18,
+                    'options'         => [],
+                    'options_raw'     => '',
+                    'surcharge_cents' => 0,
+                    'surcharge_price' => '0.00',
+                ],
+                [
+                    'id'              => 'cf_name_3',
+                    'label'           => '3. Name (Optional)',
+                    'type'            => 'text',
+                    'placeholder'     => 'z. B. 3. Name (leer lassen falls nicht gewünscht)',
+                    'info_text'       => 'Optionaler dritter Name auf dem Schmuckstück.',
+                    'required'        => false,
+                    'max_length'      => 18,
+                    'options'         => [],
+                    'options_raw'     => '',
+                    'surcharge_cents' => 0,
+                    'surcharge_price' => '0.00',
+                ],
+                [
+                    'id'              => 'cf_name_4',
+                    'label'           => '4. Name (Optional)',
+                    'type'            => 'text',
+                    'placeholder'     => 'z. B. 4. Name (leer lassen falls nicht gewünscht)',
+                    'info_text'       => 'Optionaler vierter Name auf dem Schmuckstück.',
+                    'required'        => false,
+                    'max_length'      => 18,
+                    'options'         => [],
+                    'options_raw'     => '',
+                    'surcharge_cents' => 0,
+                    'surcharge_price' => '0.00',
+                ],
+            ];
+        } elseif ($presetKey === 'front_back_engraving') {
+            $this->configSettings['custom_fields'] = [
+                [
+                    'id'              => 'cf_front',
+                    'label'           => 'Gravur Vorderseite',
+                    'type'            => 'text',
+                    'placeholder'     => 'z. B. Balu',
+                    'info_text'       => 'Wird gut sichtbar und zentriert auf der Vorderseite eingraviert (inklusive).',
+                    'required'        => true,
+                    'max_length'      => 22,
+                    'options'         => [],
+                    'options_raw'     => '',
+                    'surcharge_cents' => 0,
+                    'surcharge_price' => '0.00',
+                ],
+                [
+                    'id'              => 'cf_back',
+                    'label'           => 'Zusätzliche Gravur Rückseite (Optional)',
+                    'type'            => 'text',
+                    'placeholder'     => 'z. B. Tel. 0171 1234567 oder Geheime Widmung',
+                    'info_text'       => 'Wenn du dieses Feld ausfüllst, gravieren wir zusätzlich die Rückseite für dich (+5,00 € Aufpreis).',
+                    'required'        => false,
+                    'max_length'      => 30,
+                    'options'         => [],
+                    'options_raw'     => '',
+                    'surcharge_cents' => 500,
+                    'surcharge_price' => '5.00',
+                ],
+            ];
+        }
+
+        $this->persistCustomFieldsToProduct();
     }
 
     #[Computed]

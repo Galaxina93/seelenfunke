@@ -2,8 +2,8 @@
     <div :class="isMaximized ? 'px-4 py-2.5' : 'p-4'"
          class="border-t z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] shrink-0 {{ $isDark ? 'bg-gray-950 border-gray-800' : 'bg-white border-gray-200' }}">
         <div :class="isMaximized ? 'max-w-6xl mx-auto space-y-2' : 'max-w-4xl mx-auto space-y-3.5'">
-            {{-- VERPACKUNGS-UPGRADES NUR FÜR NICHT-PERSONALISIERBARE PHYSISCHE PRODUKTE IM FOOTER (BEI PERSONALISIERBAREN LIEGEN SIE IN DER RECHTEN STUDIO-SPALTE / FORMULAR) --}}
-            @if(!$this->product->isPersonalizable() && $context !== 'template_admin' && $context !== 'order_edit' && $this->type === 'physical' && !$isDigital && !$isService && count($this->availableAddons) > 0)
+            {{-- VERPACKUNGS-UPGRADES FÜR NICHT-PERSONALISIERBARE PHYSISCHE PRODUKTE SOWIE SCHNELL-PERSONALISIERUNG IM FOOTER (BEI STUDIO LIEGEN SIE IN DER RECHTEN STUDIO-SPALTE) --}}
+            @if((!$this->product->isPersonalizable() || $this->product->usesCustomFieldsPersonalization()) && $context !== 'template_admin' && $context !== 'order_edit' && $this->type === 'physical' && !$isDigital && !$isService && count($this->availableAddons) > 0)
                 <div class="space-y-2 animate-fade-in-up"
                      x-data="{ previewAddon: null }"
                      @keydown.escape.window="if (previewAddon) previewAddon = null">
@@ -72,6 +72,8 @@
                                     Ich stimme ausdrücklich zu, dass mit der Ausführung des Vertrags vor Ablauf der Widerrufsfrist begonnen wird. Mir ist bekannt, dass ich durch diese Zustimmung mein Widerrufsrecht verliere.
                                 @elseif(!$this->product->isPersonalizable())
                                     Ich bestätige meine Bestellung. Da dieses Produkt nicht personalisiert ist, gilt das gesetzliche 14-tägige Widerrufsrecht.
+                                @elseif($this->product->usesCustomFieldsPersonalization())
+                                    Ich habe meine Wunschgravur-Angaben auf korrekte Schreibweise geprüft. Individualisierte Artikel werden speziell nach Kundenwunsch gefertigt und sind vom <strong>Widerrufsrecht ausgeschlossen</strong>.
                                 @else
                                     Ich habe meine Texte, Logos und Positionen geprüft. Die Vorschau ist eine <strong>Visualisierung</strong>; handwerkliche Abweichungen sind möglich. Individualisierte Artikel sind vom <strong>Widerrufsrecht ausgeschlossen</strong>.
                                 @endif
@@ -224,6 +226,11 @@
             @if($context !== 'template_admin')
                 <div class="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[10px] {{ $isDark ? 'text-gray-400' : 'text-gray-500' }}">
                     <span>
+                        @if(!empty($this->priceBreakdown['compare_at_cents']))
+                            <span class="font-semibold {{ $isDark ? 'text-gray-300' : 'text-gray-600' }}">30-Tage-Bestpreis (§ 11 PAngV): {{ number_format($this->priceBreakdown['compare_at_cents'] / 100, 2, ',', '.') }} €</span> ·
+                        @elseif(($this->product->compare_at_price ?? 0) > ($this->product->price ?? 0))
+                            <span class="font-semibold {{ $isDark ? 'text-gray-300' : 'text-gray-600' }}">30-Tage-Bestpreis (§ 11 PAngV): {{ number_format($this->product->compare_at_price / 100, 2, ',', '.') }} €</span> ·
+                        @endif
                         @if((bool) shop_setting('is_small_business', false))
                             Endpreis gem. § 19 UStG (keine Ausweisung der USt.)
                         @else
@@ -245,6 +252,7 @@
                      class="w-full pt-2.5 space-y-2">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <a href="{{ route('checkout') }}"
+                           data-sf-portal="checkout"
                            class="w-full bg-gradient-to-r from-[#C5A059] to-[#b38c42] text-gray-950 text-xs sm:text-sm rounded-xl font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all duration-300 group py-2.5 px-4 shadow-md hover:brightness-110">
                             <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -252,6 +260,7 @@
                             <span>Direkt zur Kasse</span>
                         </a>
                         <a href="{{ route('cart') }}"
+                           data-sf-portal="cart"
                            class="w-full border-2 text-xs sm:text-sm rounded-xl font-bold flex items-center justify-center gap-2 transition-all duration-300 group py-2.5 px-4 {{ $isDark ? 'border-primary text-primary hover:bg-primary hover:text-gray-900' : 'border-primary text-gray-900 hover:bg-primary hover:text-white' }}">
                             <span>Zum Warenkorb wechseln</span>
                             <svg class="w-4 h-4 transition-transform group-hover:translate-x-1 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -287,7 +296,7 @@
                                 $confHerzensEuro = \App\Services\HerzensprojektService::resolveFormattedEuro();
                                 $confHerzensUnit = \App\Services\HerzensprojektService::resolveUnitLabel(true);
                             @endphp
-                            <a href="{{ route('manufacture') }}#herzensprojekte" target="_blank" title="Wir führen {{ $confHerzensEuro }} € {{ $confHerzensUnit }} aus unseren Unternehmenserlösen an unsere regionalen Herzensprojekte für Kinder ab (Details & Transparenzhinweis)" class="text-[11px] font-bold {{ $isDark ? 'text-gray-300 hover:text-primary' : 'text-gray-700 hover:text-primary' }} leading-tight transition-colors">Soziales leisten ({{ $confHerzensEuro }}&nbsp;€ {{ $confHerzensUnit }})*</a>
+                            <a href="{{ route('manufacture') }}#herzensprojekte" target="_blank" title="Wir führen {{ $confHerzensEuro }} € {{ $confHerzensUnit }} aus unseren Unternehmenserlösen an unsere regionalen Herzensprojekte für Kinder ab (Details & Transparenzhinweis)" class="text-[11px] font-bold {{ $isDark ? 'text-gray-300 hover:text-primary' : 'text-gray-700 hover:text-primary' }} leading-tight transition-colors">Soziales leisten ({{ $confHerzensEuro }}&nbsp;€ {{ $confHerzensUnit }})</a>
                         </div>
                         <div class="flex items-center sm:justify-center gap-2.5">
                             <div class="w-7 h-7 rounded-full {{ $isDark ? 'bg-amber-500/15 border-amber-500/30 text-amber-400' : 'bg-amber-50 border-amber-200/80 text-amber-600' }} border flex items-center justify-center shrink-0">

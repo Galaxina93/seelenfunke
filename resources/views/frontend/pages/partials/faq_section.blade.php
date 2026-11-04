@@ -43,7 +43,7 @@
                     </div>
                 </summary>
                 <div class="px-8 pb-8 sm:pl-20 text-gray-600 leading-relaxed border-t border-gray-50 pt-4">
-                    Bei uns gibt es kein billiges Plastik oder dünnes Blech. Für unseren <a href="{{ route('product.show', 'seelen-kristall') }}" class="text-[#8a6820] font-bold hover:underline">Seelen-Kristall</a> verwenden wir ausschließlich <strong>massives, optisch reines K9-Kristallglas</strong> mit handpolierten Facetten. Unser Schmuck (<a href="{{ route('product.show', 'goldenes-seelen-herz') }}" class="text-[#8a6820] font-bold hover:underline">Das Goldene Seelen-Herz</a>) und <a href="{{ route('product.show', 'seelen-talisman') }}" class="text-[#8a6820] font-bold hover:underline">Der Seelen-Talisman</a> bestehen aus schwerem, rostfreiem <strong>Edelstahl mit edler 14-Karat-Echtgold-Ion-Plating-Veredelung</strong>, während unsere tiefschwarzen Herz- und Hundemarken aus federleichtem, <strong>eloxiertem Aluminium</strong> gefertigt sind.
+                    Bei uns gibt es kein billiges Plastik oder dünnes Blech. Für unseren <a href="{{ route('product.show', 'seelen-kristall') }}" class="text-[#8a6820] font-bold hover:underline">Seelen-Kristall</a> verwenden wir ausschließlich <strong>massives, optisch reines K9-Kristallglas</strong> mit handpolierten Facetten. Unser Schmuck (<a href="{{ route('product.show', 'goldenes-seelen-herz') }}" class="text-[#8a6820] font-bold hover:underline">Das Goldene Seelen-Herz</a>), <a href="{{ route('product.show', 'seelen-talisman') }}" class="text-[#8a6820] font-bold hover:underline">Der Seelen-Talisman</a> und <a href="{{ route('product.show', 'seelen-pfote-hundemarke') }}" class="text-[#8a6820] font-bold hover:underline">Die Seelen-Pfote</a> bestehen aus rostfreiem, <strong>vergoldetem und poliertem Edelstahl</strong>, während unser <a href="{{ route('product.show', 'seelen-anhaenger') }}" class="text-[#8a6820] font-bold hover:underline">Seelenanhänger</a> aus massivem, schwarz <strong>eloxiertem Aluminium</strong> gefertigt ist.
                 </div>
             </details>
 
@@ -85,7 +85,7 @@
                     </div>
                 </summary>
                 <div class="px-8 pb-8 sm:pl-20 text-gray-600 leading-relaxed border-t border-gray-50 pt-4">
-                    Da wir nichts aufdrucken oder aufkleben, sondern mit unserem <strong>Dual-Lasersystem (Kaltlicht-UV- & MOPA-Faserlaser)</strong> direkt in die Materialoberfläche gravieren, ist deine Personalisierung <strong>für die Ewigkeit gemacht</strong>. Auf Edelstahl, 14k Gold-Schmuck und Hundemarken (<a href="{{ route('product.show', 'seelen-pfote-hundemarke') }}" class="text-[#8a6820] font-bold hover:underline">Die Seelen-Pfote</a>) ist die Gravur <strong>100 % wasserfest, rostfrei und abriebfest</strong>. Auf K9-Kristallglas und unserem <a href="{{ route('product.show', 'weizenglas-personalisiert') }}" class="text-[#8a6820] font-bold hover:underline">personalisierten Weizenbierglas</a> entsteht ein dauerhafter, edler Frost-Effekt, der niemals verblasst.
+                    Da wir nichts aufdrucken oder aufkleben, sondern mit unserem <strong>Dual-Lasersystem (Kaltlicht-UV- & MOPA-Faserlaser)</strong> direkt in die Materialoberfläche gravieren, ist deine Personalisierung <strong>für die Ewigkeit gemacht</strong>. Auf vergoldetem Edelstahl, Schlüsselanhängern und Hundemarken (<a href="{{ route('product.show', 'seelen-pfote-hundemarke') }}" class="text-[#8a6820] font-bold hover:underline">Die Seelen-Pfote</a>) ist die Gravur <strong>100 % wasserfest, rostfrei und abriebfest</strong>. Auf K9-Kristallglas und unserem <a href="{{ route('product.show', 'weizenglas-personalisiert') }}" class="text-[#8a6820] font-bold hover:underline">personalisierten Weizenbierglas</a> entsteht ein dauerhafter, edler Frost-Effekt, der niemals verblasst.
                 </div>
             </details>
 
@@ -106,7 +106,7 @@
                     </div>
                 </summary>
                 <div class="px-8 pb-8 sm:pl-20 text-gray-600 leading-relaxed border-t border-gray-50 pt-4">
-                    Jedes Stück verlässt unsere Manufaktur liebevoll verpackt, je nach Produkt im edlen Samtschaum-Etui, Schmuckbeutel oder Seidenpapier mit unserem goldenen <strong>„Mein Seelenfunke“-Markensiegel</strong> (zusätzliche Geschenkbox-Upgrades kannst du direkt im Konfigurator auswählen). <strong>Perfekt zum direkten Verschenken:</strong> Wir legen <strong>keine Papierrechnung mit Preisen ins Paket</strong>! Deine Rechnung erhältst du ausschließlich digital per E-Mail, sodass du das Paket auch direkt an die beschenkte Person senden lassen kannst.
+                    Der <a href="{{ route('product.show', 'seelen-kristall') }}" class="text-[#8a6820] font-bold hover:underline">Seelen-Kristall</a> wird standardmäßig in einer gepolsterten Geschenkbox geliefert; für Schmuck und Anhänger kannst du direkt im Konfigurator unsere <strong>mattschwarze Schmuckschachtel mit goldenem „Mein Seelenfunke“-Logo</strong> oder unseren <strong>Schwarz-Gold-Geschenkpapier-Service</strong> dazubuchen. <strong>Perfekt zum direkten Verschenken:</strong> Wir legen <strong>keine Papierrechnung mit Preisen ins Paket</strong>! Deine Rechnung erhältst du ausschließlich digital per E-Mail, sodass du das Paket direkt an die beschenkte Person senden lassen kannst.
                 </div>
             </details>
 
@@ -131,7 +131,7 @@
                         Innerhalb Deutschlands versenden wir ab einem Bestellwert von <strong>{{ number_format($freeThreshold / 100, 2, ',', '.') }} €</strong> grundsätzlich <strong>versandkostenfrei</strong>. Darunter berechnen wir eine faire Pauschale von {{ number_format($shippingCost / 100, 2, ',', '.') }} €.
                     </p>
                     <p class="mb-4">
-                        Da jedes Stück individuell für dich in unserer Manufaktur in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }} gefertigt wird, beträgt die Produktionszeit in der Regel <strong>1–3 Werktage</strong>. Der anschließende Versand erfolgt klimafreundlich und stoßsicher verpackt per <strong>DHL inklusive Sendungsverfolgung</strong>.
+                        Da jedes Stück individuell für dich in unserer Manufaktur in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }} gefertigt wird, beträgt die Produktionszeit in der Regel <strong>1 bis 3 Werktage</strong>. Der anschließende Versand erfolgt klimafreundlich und stoßsicher verpackt per <strong>DHL inklusive Sendungsverfolgung</strong>.
                     </p>
                     <a href="{{ url('/versand') }}"
                        title="Übersicht der Versandkosten und Lieferzeiten"
@@ -218,7 +218,7 @@
           "name": "Aus welchen Materialien bestehen eure Rohlinge, ist das echtes Kristallglas und Edelstahl?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Für unseren Seelen-Kristall verwenden wir ausschließlich massives, optisch reines K9-Kristallglas mit handpolierten Facetten. Unser Schmuck (Das Goldene Seelen-Herz) und Der Seelen-Talisman bestehen aus rostfreiem Edelstahl mit 14-Karat-Echtgold-Ion-Plating-Veredelung, während unsere schwarzen Herz- und Hundemarken aus federleichtem, eloxiertem Aluminium gefertigt sind."
+            "text": "Für unseren Seelen-Kristall verwenden wir ausschließlich massives, optisch reines K9-Kristallglas mit handpolierten Facetten. Unser Schmuck (Das Goldene Seelen-Herz), Der Seelen-Talisman und Die Seelen-Pfote bestehen aus rostfreiem, vergoldetem und poliertem Edelstahl, während unser schwarzer Seelenanhänger aus massivem, schwarz eloxiertem Aluminium gefertigt ist."
           }
         },
         {
@@ -234,7 +234,7 @@
           "name": "Wie haltbar ist die Lasergravur auf Schmuck, Schlüsselanhängern, Hundemarken & Gläsern?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Durch unser Dual-Lasersystem (Kaltlicht-UV- & MOPA-Faserlaser) wird direkt in das Material graviert. Auf Edelstahl, 14k Gold-Schmuck und Hundemarken ist die Gravur 100 % wasserfest, rostfrei und abriebfest. Auf K9-Kristallglas und Weizenbiergläsern entsteht ein dauerhafter Frost-Effekt, der niemals verblasst."
+            "text": "Durch unser Dual-Lasersystem (Kaltlicht-UV- & MOPA-Faserlaser) wird direkt in das Material graviert. Auf vergoldetem Edelstahl, Schlüsselanhängern und Hundemarken ist die Gravur 100 % wasserfest, rostfrei und abriebfest. Auf K9-Kristallglas und Weizenbiergläsern entsteht ein dauerhafter Frost-Effekt, der niemals verblasst."
           }
         },
         {
@@ -242,7 +242,7 @@
           "name": "Kommt mein Unikat in einer Geschenkverpackung und liegt eine Rechnung im Paket?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Jedes Stück wird liebevoll im Samtschaum-Etui, Schmuckbeutel oder Seidenpapier mit goldenem Mein Seelenfunke-Siegel verpackt. Wir legen keine Papierrechnung mit Preisen ins Paket. Die Rechnung erhältst du rein digital per E-Mail, ideal für den direkten Geschenkversand."
+            "text": "Der Seelen-Kristall wird in einer gepolsterten Geschenkbox geliefert; für Schmuck und Anhänger können unsere mattschwarze Schmuckschachtel mit goldenem Logo oder unser Schwarz-Gold-Geschenkpapier direkt im Konfigurator gewählt werden. Wir legen keine Papierrechnung mit Preisen ins Paket. Die Rechnung erhältst du rein digital per E-Mail, ideal für den direkten Geschenkversand."
           }
         },
         {
@@ -250,7 +250,7 @@
           "name": "Was kostet der Versand & wie schnell wird meine Bestellung geliefert?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Innerhalb Deutschlands versenden wir ab {{ number_format($freeThreshold / 100, 2, ',', '.') }} € Bestellwert versandkostenfrei (darunter {{ number_format($shippingCost / 100, 2, ',', '.') }} €). Die Manufaktur-Fertigung dauert ca. 1–3 Werktage, der Versand erfolgt per DHL inklusive Sendungsverfolgung."
+            "text": "Innerhalb Deutschlands versenden wir ab {{ number_format($freeThreshold / 100, 2, ',', '.') }} € Bestellwert versandkostenfrei (darunter {{ number_format($shippingCost / 100, 2, ',', '.') }} €). Die Manufaktur-Fertigung dauert ca. 1 bis 3 Werktage, der Versand erfolgt per DHL inklusive Sendungsverfolgung."
           }
         }
     @if($expressPercent > 0)

@@ -14,15 +14,32 @@ class NewsletterAutomaticMail extends Mailable implements ShouldQueue
 
     public $template;
     public $subscriber;
+    public $unsubscribeUrl;
 
     public function __construct(MarketingNewsletter $template, MarketingNewsletterSubscriber $subscriber)
     {
         $this->template = $template;
         $this->subscriber = $subscriber;
+        $this->unsubscribeUrl = url('/newsletter?tab=unsubscribe&type=newsletter' . (!empty($subscriber->email) ? '&email=' . urlencode($subscriber->email) : ''));
+    }
+
+    public function headers(): \Illuminate\Mail\Mailables\Headers
+    {
+        $unsubUrl = $this->unsubscribeUrl ?: url('/newsletter?tab=unsubscribe&type=newsletter' . (!empty($this->subscriber->email) ? '&email=' . urlencode($this->subscriber->email) : ''));
+
+        return new \Illuminate\Mail\Mailables\Headers(
+            text: [
+                'List-Unsubscribe' => '<' . $unsubUrl . '>',
+            ],
+        );
     }
 
     public function build()
     {
+        if (empty($this->unsubscribeUrl)) {
+            $this->unsubscribeUrl = url('/newsletter?tab=unsubscribe&type=newsletter' . (!empty($this->subscriber->email) ? '&email=' . urlencode($this->subscriber->email) : ''));
+        }
+
         // Name ermitteln (Datenbank oder Kundenkonto-Fallback) und gegen HTML-Injection escapen
         $rawFirstName = $this->subscriber->first_name ?? null;
         if (empty($rawFirstName) && !empty($this->subscriber->email)) {
@@ -37,7 +54,7 @@ class NewsletterAutomaticMail extends Mailable implements ShouldQueue
         // Platzhalter ersetzen (Unterstützt alte und neue Tag-Syntax)
         $contentReplaced = str_replace(
             ['{first_name}', '{NAME}', '{year}', '{URL}', '{UNSUBSCRIBE_LINK}'],
-            [$nameToUse, $nameToUse, date('Y'), url('/'), url('/newsletter')],
+            [$nameToUse, $nameToUse, date('Y'), url('/'), $this->unsubscribeUrl],
             $safeTemplateContent
         );
 
@@ -45,6 +62,9 @@ class NewsletterAutomaticMail extends Mailable implements ShouldQueue
 
         return $this->subject($safeSubject)
             ->view('global.mails.newsletter.new_newsletter_test_mail_to_admin')
-            ->with(['content' => $contentReplaced]);
+            ->with([
+                'content' => $contentReplaced,
+                'unsubscribeUrl' => $this->unsubscribeUrl,
+            ]);
     }
 }

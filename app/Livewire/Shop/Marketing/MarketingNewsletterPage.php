@@ -243,14 +243,11 @@ class MarketingNewsletterPage extends Component
 
         // Kundenprofil synchronisieren (Geburtstags-Funke & Vorfreude-Funken zum Kauf-Jubiläum)
         $normalizedEmail = trim((string) $this->email);
-        if (\Illuminate\Support\Facades\Auth::guard('customer')->check()
-            && strcasecmp(trim((string) \Illuminate\Support\Facades\Auth::guard('customer')->user()->email), $normalizedEmail) === 0) {
-            $this->syncCustomerEmailPreferences(
-                $normalizedEmail,
-                $this->unsub_birthday ? false : null,
-                $this->unsub_anniversary ? false : null
-            );
-        }
+        $this->syncCustomerEmailPreferences(
+            $normalizedEmail,
+            $this->unsub_birthday ? false : null,
+            $this->unsub_anniversary ? false : null
+        );
 
         // Einheitliche Erfolgsmeldung zum Schutz vor User-Enumeration
         $this->successMessage = 'Falls diese E-Mail-Adresse in unserem Verteiler eingetragen war, wurde sie erfolgreich abgemeldet.';
@@ -273,8 +270,14 @@ class MarketingNewsletterPage extends Component
     {
         try {
             $normalizedEmail = trim($email);
-            if (!\Illuminate\Support\Facades\Auth::guard('customer')->check()
-                || strcasecmp(trim((string) \Illuminate\Support\Facades\Auth::guard('customer')->user()->email), $normalizedEmail) !== 0) {
+            $isUnsubscribing = ($receiveBirthday === false || $receiveAnniversary === false)
+                && $receiveBirthday !== true
+                && $receiveAnniversary !== true;
+
+            if (!$isUnsubscribing && (
+                !\Illuminate\Support\Facades\Auth::guard('customer')->check()
+                || strcasecmp(trim((string) \Illuminate\Support\Facades\Auth::guard('customer')->user()->email), $normalizedEmail) !== 0
+            )) {
                 return;
             }
 

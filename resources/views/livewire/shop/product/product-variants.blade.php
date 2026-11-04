@@ -179,7 +179,7 @@
                             + Geschenkpapier (+3,90 €)
                         </button>
                         <button type="button"
-                                wire:click="addAddon('Edle Schmuckbox (Schwarz-Gold)', 'Mattschwarze Juwelierschachtel mit Samteinlage & Gold-Logo statt Versandtasche', '4.90', 'produkte/addons/edle-schmuckbox-schwarz-gold.jpg')"
+                                wire:click="addAddon('Edle Schmuckbox (Schwarz-Gold)', 'Mattschwarze Schmuckschachtel mit Schaumstoffeinlage & Gold-Logo statt Versandtasche', '4.90', 'produkte/addons/edle-schmuckbox-schwarz-gold.jpg')"
                                 class="px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-[10px] font-black uppercase tracking-widest transition cursor-pointer">
                             + Schmuckbox (+4,90 €)
                         </button>

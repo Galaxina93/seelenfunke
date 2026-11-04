@@ -11,13 +11,12 @@
     {{-- Rechtliche Zusatzangaben --}}
     @php
         $footerIban = shop_setting('owner_iban', '');
-        $footerUstId = shop_setting('company_ust_id', shop_setting('owner_ust_id'));
-        $footerTaxId = shop_setting('owner_tax_id', '19/143/11624');
+        $taxId = shop_setting('company_ust_id', shop_setting('owner_ust_id'));
+        $steuernummer = shop_setting('owner_tax_id', '19/143/11624');
     @endphp
     <p style="font-size: 10px; color: #bbb; margin-top: 10px; line-height: 1.4;">
         @if(!empty($footerIban)) IBAN: {{ $footerIban }}<br> @endif
-        Steuernummer: {{ $footerTaxId }}
-        @if($footerUstId) | USt-IdNr.: {{ $footerUstId }} @endif
+        @if($taxId) USt-IdNr.: {{ $taxId }} @elseif($steuernummer) Steuernummer: {{ $steuernummer }} @endif
         | Gerichtsstand (für Kaufleute): {{ shop_setting('owner_court', 'Gifhorn') }}
     </p>
 

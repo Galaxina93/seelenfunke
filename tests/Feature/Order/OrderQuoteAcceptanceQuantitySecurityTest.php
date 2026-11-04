@@ -66,4 +66,55 @@ class OrderQuoteAcceptanceQuantitySecurityTest extends TestCase
         // Quantity should be clamped to 10000 maximum!
         $this->assertEquals(10000, $item->quantity);
     }
+
+    public function test_b2b_quote_with_quantity_over_100_retains_full_quantity_and_quote_unit_price_in_cart(): void
+    {
+        $product = Product::create([
+            'name' => 'B2B Schlüsselanhänger',
+            'slug' => 'b2b-schluesselanhaenger-' . Str::uuid(),
+            'price' => 1500,
+            'quantity' => 500,
+            'track_quantity' => true,
+            'status' => 'active',
+            'type' => 'physical',
+        ]);
+
+        $quote = OrderQuoteRequest::create([
+            'quote_number' => 'ANG-2026-B2B250',
+            'first_name' => 'Anna',
+            'last_name' => 'Schmidt',
+            'company' => 'Schmidt GmbH',
+            'email' => 'anna@schmidt-gmbh.de',
+            'status' => 'open',
+            'token' => Str::random(40),
+            'expires_at' => now()->addDays(14),
+            'net_total' => 210084,
+            'tax_total' => 39916,
+            'gross_total' => 250000,
+            'is_express' => false,
+        ]);
+
+        OrderQuoteRequestItem::create([
+            'quote_request_id' => $quote->id,
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'quantity' => 250,
+            'unit_price' => 1000, // Sonderpreis 10,00 € statt 15,00 €
+            'total_price' => 250000,
+            'tax_rate' => 19,
+            'configuration' => [],
+        ]);
+
+        Livewire::test(OrderQuoteAcceptance::class, ['token' => $quote->token])
+            ->call('proceedToCheckout')
+            ->assertRedirect(route('checkout'));
+
+        $cart = app(\App\Services\CartService::class)->getCart(false);
+        $this->assertNotNull($cart);
+        $cartItem = $cart->items()->first();
+        $this->assertNotNull($cartItem);
+        $this->assertSame(250, (int) $cartItem->quantity);
+        $this->assertSame(1000, (int) $cartItem->unit_price);
+        $this->assertSame(250000, (int) $cartItem->total_price);
+    }
 }

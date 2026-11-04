@@ -1315,6 +1315,8 @@ XML;
 
         $customerMail = new \App\Mail\NewOrderMailToCustomer($formatted, null, null, [], $order);
         $this->assertSame($order, $customerMail->content()->with['order'] ?? null);
+        $this->assertCount(1, $customerMail->attachments());
+        $this->assertStringContainsString('AGB-und-Widerrufsbelehrung.pdf', $customerMail->render());
 
         $adminMail = new \App\Mail\NewOrderMailToAdmin($formatted, null, null, [], $order);
         $this->assertSame($order, $adminMail->content()->with['order'] ?? null);

@@ -51,7 +51,8 @@ class Cart extends Component
     {
         try {
             DB::transaction(function () use ($itemId) {
-                $item = \App\Models\Cart\CartItem::find($itemId);
+                $cart = $this->cartService->getCart(false);
+                $item = $cart ? $cart->items()->where('id', $itemId)->first() : null;
                 if ($item) {
                     $this->cartService->updateQuantity($itemId, $item->quantity + 1);
                     $this->dispatch('cart-updated'); // Aktualisiert das Icon im Header
@@ -67,7 +68,8 @@ class Cart extends Component
     {
         try {
             DB::transaction(function () use ($itemId) {
-                $item = \App\Models\Cart\CartItem::find($itemId);
+                $cart = $this->cartService->getCart(false);
+                $item = $cart ? $cart->items()->where('id', $itemId)->first() : null;
                 if ($item) {
                     $this->cartService->updateQuantity($itemId, $item->quantity - 1);
                     $this->dispatch('cart-updated');

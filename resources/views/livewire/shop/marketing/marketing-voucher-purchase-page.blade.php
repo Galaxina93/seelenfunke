@@ -493,9 +493,14 @@
                                 <div>
                                     <p class="text-xs uppercase tracking-wider text-gray-500 font-bold">Gesamtsumme</p>
                                     @if($this->shippingCost > 0)
-                                        <span class="text-xs text-gray-500">inkl. Postversand im edlen Umschlag</span>
+                                        <span class="text-xs text-gray-500 block">inkl. Postversand im edlen Umschlag</span>
                                     @else
-                                        <span class="text-xs text-emerald-600 font-semibold">Versandkostenfrei per E-Mail</span>
+                                        <span class="text-xs text-emerald-600 font-semibold block">Versandkostenfrei per E-Mail</span>
+                                    @endif
+                                    @if($deliveryMethod === 'post')
+                                        <span class="text-xs text-emerald-700 font-semibold block mt-1">
+                                            🚚 Lieferzeit (Postversand): {{ \App\Models\Delivery\DeliverySetting::getCurrentDeliveryText() }}
+                                        </span>
                                     @endif
                                 </div>
 
@@ -503,6 +508,12 @@
                                     {{ number_format($this->finalTotal, 2, ',', '.') }}&nbsp;€
                                 </span>
                             </div>
+
+                            @if($deliveryMethod === 'post')
+                                <p class="text-[11px] text-gray-500 leading-relaxed bg-white/80 border border-gray-200/70 rounded-xl px-3.5 py-2.5">
+                                    <strong>Hersteller &amp; Produktsicherheit (GPSR):</strong> {{ shop_setting('company_name', 'Mein Seelenfunke') }}, {{ shop_setting('company_street', 'achtern Heben 9') }}, {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}, {{ shop_setting('company_email', 'kontakt@mein-seelenfunke.de') }}. Hinweis: Dekorative Metall-Gutscheinplakette, kein Spielzeug.
+                                </p>
+                            @endif
 
                             <p class="text-[11px] text-gray-500 leading-relaxed bg-white/80 border border-gray-200/70 rounded-xl px-3.5 py-2.5">
                                 Mehrzweck-Wertgutschein gem. § 3 Abs. 14 UStG (Endbetrag; die Umsatzsteuer wird bei Einlösung berechnet). Gesetzliche Gültigkeit: <strong>3 Jahre</strong> ab Ende des Kaufjahres (§ 195 BGB). Es gilt das gesetzliche 14-tägige <a href="{{ route('widerruf') }}" target="_blank" class="underline font-semibold text-gray-700 hover:text-primary">Widerrufsrecht</a> sowie unsere <a href="{{ route('agb') }}" target="_blank" class="underline font-semibold text-gray-700 hover:text-primary">AGB</a>.

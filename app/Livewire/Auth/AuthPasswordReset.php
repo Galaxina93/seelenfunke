@@ -22,6 +22,10 @@ class AuthPasswordReset extends Component
     public function mount($token)
     {
         $this->token = (string) $token;
+        $queryEmail = trim((string) request()->query('email', ''));
+        if ($queryEmail !== '' && filter_var($queryEmail, FILTER_VALIDATE_EMAIL)) {
+            $this->email = $queryEmail;
+        }
         $segment = request()->segment(1);
         if (in_array($segment, ['admin', 'employee', 'customer'], true)) {
             $this->guard = $segment;
@@ -108,6 +112,10 @@ class AuthPasswordReset extends Component
         }
         $user->setRememberToken(\Illuminate\Support\Str::random(60));
         $user->save();
+
+        if ($this->guard === 'customer' && method_exists($user, 'hasVerifiedEmail') && !$user->hasVerifiedEmail()) {
+            $user->markEmailAsVerified();
+        }
 
         if (method_exists($user, 'tokens')) {
             $user->tokens()->delete();

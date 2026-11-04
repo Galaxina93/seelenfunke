@@ -8,6 +8,7 @@ use App\Models\Customer\Customer;
 use App\Models\Order\OrderQuoteRequest;
 use App\Models\Order\OrderQuoteRequestItem;
 use App\Models\Product\Product;
+use App\Models\Product\ProductCategory;
 use App\Models\Product\ProductTemplate;
 use App\Models\System\SystemLog;
 use App\Services\ProductTrackingService;
@@ -18,10 +19,22 @@ use Illuminate\Support\Str;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use Livewire\WithPagination;
 
 class ProductCalculator extends Component
 {
-    use WithFileUploads;
+    use WithFileUploads, WithPagination;
+
+    // --- SORTIMENT FILTER, ANSICHT & PAGINIERUNG ---
+    public string $search = '';
+    public string $filterPersonalizable = 'all'; // all, yes, no
+    public bool $filterSale = false;
+    public bool $filterTierPricing = false;
+    public string $filterCategory = '';
+    public string $filterHoliday = '';
+    public string $sortBy = 'default'; // default, price_asc, price_desc, name_asc
+    public string $viewMode = 'grid'; // grid, list
+    public int $perPage = 6; // 6, 12, 24
 
     // --- STEPS ---
     public $step = 0;
@@ -61,6 +74,12 @@ class ProductCalculator extends Component
     ];
 
     public $agb_accepted = false;
+
+    #[\Livewire\Attributes\Locked]
+    public string $lastQuoteNumber = '';
+
+    #[\Livewire\Attributes\Locked]
+    public string $lastQuoteToken = '';
 
     #[\Livewire\Attributes\Locked]
     public $dbProducts = [];
@@ -150,6 +169,9 @@ class ProductCalculator extends Component
             $rate = $isSmallBusiness ? 0.0 : ($p->tax_rate !== null ? (float)$p->tax_rate : (float)shop_setting('default_tax_rate', 19.0));
             $isGross = (bool)$p->tax_included;
 
+            $mainMediaMeta = $p->resolveMainMediaMeta();
+            $resolvedImageUrl = $mainMediaMeta['poster_url'] ?? $mainMediaMeta['url'] ?? (!empty($p->media_gallery[0]['path']) ? 'storage/'.$p->media_gallery[0]['path'] : null);
+
             return [
                 'id' => $p->id,
                 'name' => $p->name,
@@ -168,7 +190,8 @@ class ProductCalculator extends Component
                 'configurator_settings' => array_merge($p->configurator_settings ?? [], [
                     'addons' => $p->getEffectiveAddons(true),
                 ]),
-                'image' => !empty($p->media_gallery[0]['path']) ? 'storage/'.$p->media_gallery[0]['path'] : null,
+                'image' => $resolvedImageUrl,
+                'is_ai_generated' => (bool) ($mainMediaMeta['is_ai_generated'] ?? false),
                 'preview_image' => $previewPath ? 'storage/'.$previewPath : null,
                 'allow_logo' => $p->configurator_settings['allow_logo'] ?? true,
                 'is_personalizable' => (bool) $p->is_personalizable, // NEU
@@ -188,7 +211,7 @@ class ProductCalculator extends Component
     }
 
     // --- NEU: Vorlagen Logik Start ---
-    public function openConfig($productId)
+    public function openConfig($productId, $templateId = null)
     {
         $this->editingIndex = -1;
         $this->currentProduct = $this->dbProducts[$productId] ?? null;
@@ -208,7 +231,20 @@ class ProductCalculator extends Component
             return;
         }
 
-        // Prüfen, ob es aktive Vorlagen für dieses Produkt gibt
+        if ($templateId) {
+            $this->selectTemplate($templateId);
+            $this->dispatch('scroll-top');
+            return;
+        }
+
+        // Prüfen, ob es aktive Vorlagen für dieses Produkt gibt (nur im Studio-Modus relevant)
+        $personalizationMode = $this->currentProduct['configurator_settings']['personalization_mode'] ?? 'studio';
+        if ($personalizationMode === 'custom_fields') {
+            $this->startCustomConfig();
+            $this->dispatch('scroll-top');
+            return;
+        }
+
         $templates = ProductTemplate::where('product_id', $productId)
             ->where('is_active', true)
             ->get();
@@ -580,7 +616,10 @@ class ProductCalculator extends Component
         if (!empty($configuration['variant_id']) && !empty($product['variants_data']) && is_array($product['variants_data'])) {
             $variant = collect($product['variants_data'])->firstWhere('id', $configuration['variant_id']);
             if ($variant && isset($variant['price']) && $variant['price'] !== '') {
-                $basePrice += (int) round(((float) str_replace(',', '.', (string) $variant['price'])) * 100);
+                $variantCents = (int) round(((float) str_replace(',', '.', (string) $variant['price'])) * 100);
+                if ($variantCents > 0) {
+                    $basePrice = $variantCents;
+                }
             }
         }
         $tiers = $product['tier_pricing'] ?? [];
@@ -639,6 +678,15 @@ class ProductCalculator extends Component
             }
         }
 
+        // Aufpreis für ausgefüllte dynamische Schnell-Personalisierungsfelder
+        if (!empty($configuration['custom_fields_data']) && is_array($configuration['custom_fields_data'])) {
+            foreach ($configuration['custom_fields_data'] as $cfRow) {
+                if (is_array($cfRow) && trim((string) ($cfRow['value'] ?? '')) !== '' && !empty($cfRow['surcharge_cents'])) {
+                    $addonTotal += max(0, (int) $cfRow['surcharge_cents']);
+                }
+            }
+        }
+
         return $addonTotal;
     }
 
@@ -673,6 +721,7 @@ class ProductCalculator extends Component
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
             $seconds = RateLimiter::availableIn($throttleKey);
             $this->addError('cart', "Zu viele Anfragen. Bitte warte {$seconds} Sekunden.");
+            $this->dispatch('quote-submit-failed');
             return;
         }
 
@@ -680,6 +729,7 @@ class ProductCalculator extends Component
             $this->validate();
         } catch (\Illuminate\Validation\ValidationException $e) {
             ProductTrackingService::trackCalculatorValidationFailed(3, $e->errors());
+            $this->dispatch('quote-submit-failed');
             throw $e;
         }
 
@@ -689,11 +739,13 @@ class ProductCalculator extends Component
 
         if (count($this->cartItems) == 0) {
             $this->addError('cart', 'Bitte wählen Sie Produkte aus.');
+            $this->dispatch('quote-submit-failed');
             return;
         }
 
         if ($this->totalBrutto < 0) {
             $this->addError('cart', 'Ungültiger Gesamtbetrag.');
+            $this->dispatch('quote-submit-failed');
             return;
         }
 
@@ -758,12 +810,16 @@ class ProductCalculator extends Component
                 );
 
                 session()->forget(['calc_cart', 'calc_form']);
+                $this->lastQuoteNumber = (string) $quote->quote_number;
+                $this->lastQuoteToken = (string) ($quote->token ?? '');
                 $this->cartItems = [];
                 $this->gesamtKosten = 0;
                 $this->step = 4;
                 $this->dispatch('scroll-top');
+                $this->dispatch('quote-submitted');
             });
         } catch (\Exception $e) {
+            $this->dispatch('quote-submit-failed');
             SystemLog::create([
                 'type' => 'error',
                 'agent_id' => null,
@@ -783,9 +839,100 @@ class ProductCalculator extends Component
 
     public function restartCalculator()
     {
-        $this->reset(['cartItems', 'form', 'isExpress', 'step', 'gesamtKosten', 'shippingCost', 'totalWeight', 'showTemplateSelection', 'showTemplatesList', 'productTemplates']);
+        $this->reset(['cartItems', 'form', 'isExpress', 'step', 'gesamtKosten', 'shippingCost', 'totalWeight', 'showTemplateSelection', 'showTemplatesList', 'productTemplates', 'lastQuoteNumber', 'lastQuoteToken']);
         session()->forget(['calc_cart', 'calc_form']);
         $this->step = 1;
+        $this->dispatch('quote-restarted');
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedFilterPersonalizable(): void
+    {
+        if (!in_array($this->filterPersonalizable, ['all', 'yes', 'no'], true)) {
+            $this->filterPersonalizable = 'all';
+        }
+        $this->resetPage();
+    }
+
+    public function updatedFilterSale(): void
+    {
+        $this->resetPage();
+    }
+
+    public function toggleSaleFilter(): void
+    {
+        $this->filterSale = !$this->filterSale;
+        $this->resetPage();
+    }
+
+    public function updatedFilterTierPricing(): void
+    {
+        $this->resetPage();
+    }
+
+    public function toggleTierPricingFilter(): void
+    {
+        $this->filterTierPricing = !$this->filterTierPricing;
+        $this->resetPage();
+    }
+
+    public function updatedFilterCategory(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedFilterHoliday(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedSortBy(): void
+    {
+        if (!in_array($this->sortBy, ['default', 'price_asc', 'price_desc', 'name_asc'], true)) {
+            $this->sortBy = 'default';
+        }
+        $this->resetPage();
+    }
+
+    public function updatedPerPage(): void
+    {
+        if (!in_array((int) $this->perPage, [6, 12, 24], true)) {
+            $this->perPage = 6;
+        }
+        $this->resetPage();
+    }
+
+    public function setViewMode(string $mode): void
+    {
+        if (in_array($mode, ['grid', 'list'], true)) {
+            $this->viewMode = $mode;
+        }
+    }
+
+    public function setPerPage(int $perPage): void
+    {
+        if (in_array($perPage, [6, 12, 24], true)) {
+            $this->perPage = $perPage;
+            $this->resetPage();
+        }
+    }
+
+    public function resetFilters(): void
+    {
+        $this->reset([
+            'search',
+            'filterPersonalizable',
+            'filterSale',
+            'filterTierPricing',
+            'filterCategory',
+            'filterHoliday',
+            'sortBy',
+        ]);
+        $this->resetPage();
     }
 
     public function persist()
@@ -800,8 +947,145 @@ class ProductCalculator extends Component
             return view('global.errors.503_fragment')->layout('components.layouts.frontend_layout');
         }
 
+        // Kategorien mit aktiven physischen Produkten laden
+        $categories = ProductCategory::whereHas('products', function ($query) {
+            $query->where('status', 'active')->where('type', 'physical');
+        })->orderBy('name')->get();
+
+        if (!empty($this->filterCategory) && !$categories->contains('id', (int) $this->filterCategory)) {
+            $this->filterCategory = '';
+        }
+
+        // Verfügbare Anlässe (Holidays) aus aktiven Vorlagen aktiver physischer Produkte
+        $rawHolidays = ProductTemplate::where('is_active', true)
+            ->whereNotNull('holiday')
+            ->whereNotIn('holiday', ['', 'kein feiertag', 'Kein Feiertag', 'kein_feiertag', 'none', 'null'])
+            ->whereHas('product', function ($q) {
+                $q->where('status', 'active')->where('type', 'physical');
+            })
+            ->distinct()
+            ->pluck('holiday')
+            ->toArray();
+
+        $holidayLabels = [
+            'muttertag' => 'Muttertag',
+            'valentinstag' => 'Valentinstag',
+            'weihnachten' => 'Weihnachten',
+            'vatertag' => 'Vatertag',
+            'ostern' => 'Ostern',
+            'geburtstag' => 'Geburtstag',
+            'hochzeit' => 'Hochzeit',
+            'taufe' => 'Taufe',
+            'einschulung' => 'Einschulung',
+            'jubilaeum' => 'Jubiläum',
+            'trauer' => 'Trauer',
+        ];
+
+        $availableHolidays = [];
+        foreach ($rawHolidays as $h) {
+            $trimmed = trim((string) $h);
+            $lower = strtolower($trimmed);
+            $availableHolidays[$trimmed] = $holidayLabels[$lower] ?? ucfirst($trimmed);
+        }
+
+        if (!empty($this->filterHoliday)) {
+            $holidayExists = collect($availableHolidays)->contains(function ($label, $val) {
+                return strtolower((string) $val) === strtolower((string) $this->filterHoliday);
+            });
+            if (!$holidayExists) {
+                $this->filterHoliday = '';
+            }
+        }
+
+        $saleCount = Product::where('status', 'active')
+            ->where('type', 'physical')
+            ->whereNotNull('compare_at_price')
+            ->whereColumn('compare_at_price', '>', 'price')
+            ->count();
+
+        $tierPricingCount = Product::where('status', 'active')
+            ->where('type', 'physical')
+            ->whereHas('tierPrices')
+            ->count();
+
+        $query = Product::where('status', 'active')
+            ->where('type', 'physical')
+            ->with(['categories', 'tierPrices'])
+            ->withCount(['reviews as approved_reviews_count' => function ($q) {
+                $q->where('status', 'approved');
+            }])
+            ->withAvg(['reviews as approved_reviews_avg' => function ($q) {
+                $q->where('status', 'approved');
+            }], 'rating');
+
+        if (trim($this->search) !== '') {
+            $escapedSearch = addcslashes(trim($this->search), '%_\\');
+            $query->where(function ($q) use ($escapedSearch) {
+                $q->where('name', 'like', '%' . $escapedSearch . '%')
+                    ->orWhere('short_description', 'like', '%' . $escapedSearch . '%')
+                    ->orWhere('sku', 'like', '%' . $escapedSearch . '%');
+            });
+        }
+
+        if (!empty($this->filterCategory)) {
+            $query->whereHas('categories', function ($q) {
+                $q->where('product_categories.id', $this->filterCategory);
+            });
+        }
+
+        if ($this->filterPersonalizable === 'yes') {
+            $query->where('is_personalizable', true);
+        } elseif ($this->filterPersonalizable === 'no') {
+            $query->where('is_personalizable', false);
+        }
+
+        if ($this->filterSale) {
+            $query->whereNotNull('compare_at_price')
+                ->whereColumn('compare_at_price', '>', 'price');
+        }
+
+        if ($this->filterTierPricing) {
+            $query->whereHas('tierPrices');
+        }
+
+        if (!empty($this->filterHoliday)) {
+            $query->whereHas('templates', function ($q) {
+                $q->where(function ($sub) {
+                    $sub->where('holiday', $this->filterHoliday)
+                        ->orWhere('holiday', strtolower($this->filterHoliday))
+                        ->orWhere('holiday', ucfirst($this->filterHoliday));
+                })->where('is_active', true);
+            });
+            $query->with(['templates' => function ($q) {
+                $q->where(function ($sub) {
+                    $sub->where('holiday', $this->filterHoliday)
+                        ->orWhere('holiday', strtolower($this->filterHoliday))
+                        ->orWhere('holiday', ucfirst($this->filterHoliday));
+                })->where('is_active', true);
+            }]);
+        } else {
+            $query->with(['templates' => function ($q) {
+                $q->where('is_active', true);
+            }]);
+        }
+
+        match ($this->sortBy) {
+            'price_asc' => $query->orderBy('price', 'asc'),
+            'price_desc' => $query->orderBy('price', 'desc'),
+            'name_asc' => $query->orderBy('name', 'asc'),
+            default => $query->latest(),
+        };
+
+        $safePerPage = in_array((int) $this->perPage, [6, 12, 24], true) ? (int) $this->perPage : 6;
+        $catalogProducts = $query->paginate($safePerPage);
+
         return view('livewire.shop.product.product-calculator.product-calculator', [
-            'dbProducts' => $this->dbProducts
+            'dbProducts' => $this->dbProducts,
+            'catalogProducts' => $catalogProducts,
+            'categories' => $categories,
+            'availableHolidays' => $availableHolidays,
+            'saleCount' => $saleCount,
+            'tierPricingCount' => $tierPricingCount,
         ]);
     }
 }

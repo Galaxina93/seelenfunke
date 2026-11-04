@@ -94,5 +94,6 @@ class LogisticsShippingSeeder extends Seeder
 
         // HINWEIS: Zonen für USA, Weltweit etc. wurden entfernt,
         // da nur noch in die EU versendet werden soll.
+        app(\App\Livewire\Shop\System\SystemShipping::class)->syncActiveCountriesWithSettings();
     }
 }

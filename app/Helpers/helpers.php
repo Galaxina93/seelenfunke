@@ -15,7 +15,32 @@ function shop_setting($key, $default = null) {
             if (!\Illuminate\Support\Facades\Schema::hasTable('shop_settings') && !\Illuminate\Support\Facades\Schema::hasTable('shop-settings')) {
                 return [];
             }
-            return \App\Models\System\SystemSetting::pluck('value', 'key');
+            $dbSettings = \App\Models\System\SystemSetting::pluck('value', 'key')->all();
+
+            // Wenn Versandzonen (LogisticsShippingZone) existieren, sind ausschließlich die Länder
+            // aus AKTIVEN Versandzonen für active_countries maßgeblich (Single Source of Truth).
+            if (\Illuminate\Support\Facades\Schema::hasTable('logistics_shipping_zones')
+                && \Illuminate\Support\Facades\Schema::hasTable('logistics_shipping_zone_countries')
+                && \App\Models\Logistics\LogisticsShippingZone::withTrashed()->exists()
+            ) {
+                $activeCodes = \App\Models\Logistics\LogisticsShippingZoneCountry::whereHas('zone', function ($q) {
+                    $q->whereNull('deleted_at')->where('is_active', true);
+                })->pluck('country_code')->map(fn($c) => strtoupper((string) $c))->unique()->toArray();
+
+                $allCountries = \App\Livewire\Shop\System\SystemShipping::getAllCountries();
+                $activeMap = [];
+                foreach ($activeCodes as $code) {
+                    if (isset($allCountries[$code])) {
+                        $activeMap[$code] = $allCountries[$code];
+                    }
+                }
+                if (empty($activeMap)) {
+                    $activeMap = ['DE' => 'Deutschland'];
+                }
+                $dbSettings['active_countries'] = json_encode($activeMap);
+            }
+
+            return $dbSettings;
         });
     } catch (\Throwable $e) {
         $settings = [];

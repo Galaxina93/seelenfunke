@@ -128,4 +128,41 @@ class OrderQuoteSecurityTest extends TestCase
         $this->assertEquals(3000, $resolvedPrice);
         $this->assertNull(session('checkout_from_quote_id'));
     }
+
+    public function test_quote_acceptance_apply_coupon_works_without_undefined_referral_method(): void
+    {
+        $quote = OrderQuoteRequest::create([
+            'quote_number' => 'AN-CPN-004',
+            'token' => 'coupon_test_token_456',
+            'email' => 'kunde@example.com',
+            'first_name' => 'Alina',
+            'last_name' => 'Steinhauer',
+            'status' => 'open',
+            'expires_at' => now()->addDays(14),
+            'net_total' => 3664,
+            'tax_total' => 696,
+            'gross_total' => 4360,
+            'shipping_price' => 490,
+            'express_price' => 0,
+        ]);
+
+        \App\Models\Marketing\MarketingVoucher::create([
+            'code' => 'COZY-2026',
+            'title' => 'Cozy Rabatt',
+            'type' => 'percent',
+            'value' => 10,
+            'is_active' => true,
+            'mode' => 'manual',
+            'valid_from' => now()->subDay(),
+            'valid_until' => now()->addDays(7),
+        ]);
+
+        Livewire::test(\App\Livewire\Shop\Order\OrderQuoteAcceptance::class, ['token' => $quote->token])
+            ->set('couponCodeInput', 'COZY-2026')
+            ->call('applyCoupon')
+            ->assertHasNoErrors('couponCodeInput')
+            ->assertSet('activeCoupon.code', 'COZY-2026')
+            ->assertSet('activeCoupon.type', 'percent')
+            ->assertSet('activeCoupon.value', 10);
+    }
 }

@@ -92,7 +92,7 @@
                                 (3) <strong>Verbindliches Kaufangebot & Vertragsannahme:</strong> Durch Anklicken des Buttons <strong>„Zahlungspflichtig bestellen“</strong> im abschließenden Schritt des Bestellprozesses geben Sie ein verbindliches Kaufangebot über die im Warenkorb enthaltenen Waren ab (§ 312j Abs. 3 BGB). Unmittelbar nach dem Absenden der Bestellung erhalten Sie eine automatisierte Bestellbestätigung per E-Mail, die den Eingang Ihrer Bestellung dokumentiert (§ 312i Abs. 1 Satz 1 Nr. 3 BGB). Ein verbindlicher Kaufvertrag kommt zustande:
                             </p>
                             <ul class="list-disc list-inside mt-2 space-y-1 text-sm text-gray-700 ml-2">
-                                <li>bei Auswahl einer Sofortzahlungsart (Kreditkarte, Apple Pay, Google Pay, Klarna, SEPA-Lastschrift) unmittelbar mit Abschluss der Zahlungsautorisierung bzw. Zahlungsanweisung im Bestellprozess, oder</li>
+                                <li>bei Auswahl einer Sofortzahlungsart (Kreditkarte, PayPal, Apple Pay, Google Pay, Klarna, SEPA-Lastschrift) unmittelbar mit Abschluss der Zahlungsautorisierung bzw. Zahlungsanweisung im Bestellprozess, oder</li>
                                 <li>spätestens durch unsere ausdrückliche Auftrags- oder Versandbestätigung per E-Mail innerhalb von 2 Werktagen.</li>
                             </ul>
                             <p class="mt-2">
@@ -160,12 +160,13 @@
                             <ul class="list-disc list-inside ml-4 mt-2 mb-2">
                                 <li>Vorkasse (Banküberweisung / SEPA-Überweisung)</li>
                                 <li>Kreditkarte (Visa, Mastercard, American Express)</li>
+                                <li>PayPal (abgewickelt über Stripe / PayPal (Europe) S.à r.l. et Cie, S.C.A.)</li>
                                 <li>Apple Pay / Google Pay</li>
                                 <li>Klarna (Sofort bezahlen, Rechnung, Ratenkauf)</li>
                                 <li>SEPA-Lastschrift</li>
                             </ul>
                             <p>
-                                Die Abwicklung der Kartenzahlungen, digitalen Wallets, Klarna- und SEPA-Lastschriftzahlungen erfolgt über den Zahlungsdienstleister <strong>Stripe Payments Europe, Ltd.</strong> Die Belastung Ihres Zahlungsmittels erfolgt unmittelbar nach Abschluss der Bestellung bzw. gemäß den Bedingungen der gewählten Zahlungsart.
+                                Die Abwicklung der Kartenzahlungen, digitalen Wallets, PayPal-, Klarna- und SEPA-Lastschriftzahlungen erfolgt über den Zahlungsdienstleister <strong>Stripe Payments Europe, Ltd.</strong> (bzw. bei PayPal ergänzend über <strong>PayPal (Europe) S.à r.l. et Cie, S.C.A.</strong>). Die Belastung Ihres Zahlungsmittels erfolgt unmittelbar nach Abschluss der Bestellung bzw. gemäß den Bedingungen der gewählten Zahlungsart.
                             </p>
                         </div>
 
@@ -296,6 +297,20 @@
                             </p>
                             <p class="mt-2 text-sm bg-gray-50 border-l-4 border-gray-400 p-3 rounded">
                                 (5) <strong>Änderungsvorbehalt & Haftungsausschluss:</strong> Da es sich um eine freiwillige, unentgeltliche Treueleistung handelt, besteht kein Rechtsanspruch auf eine bestimmte Verfügbarkeit oder Fortführung des Bonusprogramms. Mein-Seelenfunke behält sich vor, die Bedingungen, Punktewerte und Prämienstufen jederzeit mit Wirkung für die Zukunft anzupassen oder das Programm einzustellen.
+                            </p>
+                        </div>
+
+                        {{-- §8a Kundenbewertungen, Foto-/Video-Uploads & Nutzungsrechte --}}
+                        <div id="agb-kundenbewertungen" class="scroll-mt-28">
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">8a. Kundenbewertungen, Foto-/Video-Uploads & Nutzungsrechte</h3>
+                            <p>
+                                (1) <strong>Echtheitsprüfung gem. § 5b Abs. 3 UWG:</strong> Produktbewertungen können ausschließlich von registrierten Kunden über ihr Kundenkonto für solche Artikel abgegeben werden, die sie nachweislich in unserem Shop erworben haben. Etwaige Treuepunkte („Seelenfunken“) werden ergebnisoffen und unabhängig von der vergebenen Sternezahl gutgeschrieben.
+                            </p>
+                            <p class="mt-2">
+                                (2) <strong>Nutzungsrechte an Bewertungsmedien:</strong> Lädt der Kunde im Rahmen einer Bewertung eigene Fotos oder kurze Videos hoch, räumt er dem Anbieter ein unentgeltliches, einfaches, räumlich unbeschränktes Recht ein, diese Inhalte zusammen mit der Bewertung im Online-Shop (insbesondere auf der jeweiligen Produktseite sowie im Bewertungs-Showcase auf der Startseite unter „Was unsere Kunden sagen“) öffentlich zugänglich zu machen (§ 19a UrhG), zu vervielfältigen (§ 16 UrhG) und technisch für die Darstellung zu optimieren (automatische Komprimierung/WebP-Konvertierung und Entfernung von EXIF-/GPS-Metadaten). Dieses Nutzungsrecht erlischt für die Zukunft automatisch, sobald der Kunde seine Bewertung oder das jeweilige Medium über sein Kundenkonto löscht.
+                            </p>
+                            <p class="mt-2">
+                                (3) <strong>Rechtegarantie & zulässige Inhalte:</strong> Der Kunde versichert, dass er über sämtliche erforderlichen Rechte an den hochgeladenen Fotos/Videos verfügt, keine Rechte Dritter verletzt werden und insbesondere keine dritten Personen ohne deren ausdrückliche Einwilligung (§ 22 KUG) erkennbar abgebildet sind. Rechtswidrige, beleidigende oder werbliche Inhalte sind unzulässig und können vom Anbieter moderiert oder abgelehnt werden (Art. 14 DSA).
                             </p>
                         </div>
 
@@ -438,7 +453,7 @@
                         <div class="bg-gray-100 border-l-4 border-gray-700 p-6 rounded-r-xl shadow-sm mb-8">
                             <h3 class="font-bold text-gray-900 text-lg mb-2">Elektronische Widerrufsfunktion gemäß § 356a BGB („Vertrag widerrufen“)</h3>
                             <p class="text-gray-700 text-sm leading-relaxed">
-                                Soweit Ihnen für eine Bestellung ein gesetzliches Widerrufsrecht zusteht (z. B. beim Erwerb nicht-personalisierter Standardartikel oder Geschenkgutscheine), können Sie Ihren Widerruf gemäß <strong>§ 356a BGB</strong> auch direkt elektronisch über unsere 2-stufige Online-Widerrufsfunktion unter <a href="{{ route('widerruf') }}" class="text-primary font-bold underline hover:text-primary-dark">Vertrag widerrufen</a> (jederzeit erreichbar in der Fußzeile unserer Website) erklären. Nach Eingabe Ihrer Bestelldaten (Stufe 1: „Vertrag widerrufen“) und verbindlicher Bestätigung (Stufe 2: „Jetzt verbindlich widerrufen“) übermitteln wir Ihnen unverzüglich eine Eingangsbestätigung Ihres Widerrufs inklusive Zeitstempel auf einem dauerhaften Datenträger (per E-Mail).
+                                Soweit Ihnen für eine Bestellung ein gesetzliches Widerrufsrecht zusteht (z. B. beim Erwerb nicht-personalisierter Standardartikel oder Geschenkgutscheine), können Sie Ihren Widerruf gemäß <strong>§ 356a BGB</strong> auch direkt elektronisch über unsere 2-stufige Online-Widerrufsfunktion unter <a href="{{ route('widerruf') }}" class="text-primary font-bold underline hover:text-primary-dark">Vertrag widerrufen</a> (jederzeit erreichbar in der Fußzeile unserer Website) erklären. Nach Eingabe Ihrer Bestelldaten (Stufe 1: „Vertrag widerrufen“) und verbindlicher Bestätigung (Stufe 2: „Widerruf bestätigen“) übermitteln wir Ihnen unverzüglich eine Eingangsbestätigung Ihres Widerrufs inklusive Zeitstempel auf einem dauerhaften Datenträger (per E-Mail).
                             </p>
                         </div>
                         <p class="font-medium bg-gray-100 p-2 inline-block rounded text-sm mb-4">

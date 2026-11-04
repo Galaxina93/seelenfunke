@@ -110,7 +110,11 @@ class GamificationService
         $eligibleCents = 0;
         if ($order->items->isNotEmpty()) {
             foreach ($order->items as $item) {
-                $isGiftVoucher = ($item->product && $item->product->type === 'geschenkgutschein')
+                $isGiftVoucher = ($item->product && (
+                        $item->product->type === 'geschenkgutschein'
+                        || $item->product->slug === 'geschenkgutschein'
+                        || (method_exists($item->product, 'isGiftVoucher') && $item->product->isGiftVoucher(is_array($item->configuration) ? $item->configuration : null))
+                    ))
                     || !empty($item->configuration['is_gift_voucher']);
                 if ($isGiftVoucher) {
                     continue;
@@ -604,9 +608,54 @@ class GamificationService
                     ? (int) $rewardedAmounts[(string) $order->id]
                     : $this->calculateOrderSparks($order);
 
-                $profile->funken_balance = max(0, (int) $profile->funken_balance - $orderSparks);
+                $oldBalance = (int) $profile->funken_balance;
+                $deficit = max(0, $orderSparks - $oldBalance);
+                $profile->funken_balance = max(0, $oldBalance - $orderSparks);
                 $profile->funken_total_earned = max(0, (int) $profile->funken_total_earned - $orderSparks);
-                $this->syncLevelFromLifetimeSparks($profile, true);
+                $newLevel = $this->syncLevelFromLifetimeSparks($profile, true);
+
+                // Wenn der Kunde die Funken dieser stornierten Bestellung bereits in ungenutzte FUNKI-Rabattgutscheine
+                // eingetauscht hat (oder durch den Level-Abstieg Meilenstein-Gutscheine verliert), werden diese gesperrt.
+                if ($deficit > 0 || is_array($profile->unlocked_coupons)) {
+                    $customerEmail = $order->customer?->email ?? Customer::where('id', $order->customer_id)->value('email');
+                    $unlocked = is_array($profile->unlocked_coupons) ? $profile->unlocked_coupons : [];
+
+                    // 1. Meilenstein-Gutscheine oberhalb des neuen Levels sperren
+                    foreach ($unlocked as $key => $code) {
+                        if (is_numeric($key) && (int) $key > $newLevel && is_string($code) && $code !== '') {
+                            MarketingVoucher::where('code', $code)
+                                ->where('used_count', 0)
+                                ->update(['is_active' => false]);
+                            unset($unlocked[$key]);
+                        }
+                    }
+
+                    // 2. Bei Funken-Defizit jüngste ungenutzte FUNKI-Prämiengutscheine sperren
+                    if ($deficit > 0 && !empty($customerEmail)) {
+                        $unusedFunkiVouchers = MarketingVoucher::where('recipient_email', $customerEmail)
+                            ->where('code', 'like', 'FUNKI-%')
+                            ->where('is_active', true)
+                            ->where('used_count', 0)
+                            ->orderByDesc('created_at')
+                            ->get();
+
+                        foreach ($unusedFunkiVouchers as $unusedVoucher) {
+                            if ($deficit <= 0) {
+                                break;
+                            }
+                            $unusedVoucher->update(['is_active' => false]);
+                            $unlocked = array_filter($unlocked, fn($c) => $c !== $unusedVoucher->code);
+                            $reclaimed = match ((int) $unusedVoucher->value) {
+                                15 => 750,
+                                10 => 500,
+                                default => 250,
+                            };
+                            $deficit = max(0, $deficit - $reclaimed);
+                        }
+                    }
+
+                    $profile->unlocked_coupons = $unlocked;
+                }
 
                 unset($rewardedAmounts[(string) $order->id]);
                 $progress['_rewarded_order_amounts'] = $rewardedAmounts;
@@ -736,16 +785,59 @@ class GamificationService
             if (in_array($productKey, $rewardedProductIds, true)) {
                 $rewardSparks = GameConfig::REVIEW_SPARK_REWARD;
                 $oldBalance = (int) $profile->funken_balance;
+                $deficit = max(0, $rewardSparks - $oldBalance);
                 $fullyReversed = $oldBalance >= $rewardSparks;
 
                 $profile->funken_balance = max(0, $oldBalance - $rewardSparks);
                 $profile->funken_total_earned = max(0, (int) $profile->funken_total_earned - $rewardSparks);
-                $this->syncLevelFromLifetimeSparks($profile, true);
+                $newLevel = $this->syncLevelFromLifetimeSparks($profile, true);
 
-                // Nur freigeben, wenn die 15 Funken auch vollständig vom Guthaben abgezogen werden konnten (verhindert Ausgeben -> Löschen -> Neu-Bewerten Exploit)
+                // Nur freigeben, wenn die Funken auch vollständig vom Guthaben abgezogen werden konnten (verhindert Ausgeben -> Löschen -> Neu-Bewerten Exploit)
                 if ($fullyReversed) {
                     $progress['_rewarded_review_product_ids'] = array_values(array_diff($rewardedProductIds, [$productKey]));
                 }
+
+                // Sicherheit: Falls Bewertungs-Funken vor dem Löschen/Ablehnen bereits in FUNKI-Gutscheine getauscht wurden
+                // oder durch den Abzug eine Meilenstein-Stufe unterschritten wird, ungenutzte Gutscheine deaktivieren.
+                if ($deficit > 0 || is_array($profile->unlocked_coupons)) {
+                    $customerEmail = Customer::where('id', $review->customer_id)->value('email');
+                    $unlocked = is_array($profile->unlocked_coupons) ? $profile->unlocked_coupons : [];
+
+                    foreach ($unlocked as $key => $code) {
+                        if (is_numeric($key) && (int) $key > $newLevel && is_string($code) && $code !== '') {
+                            MarketingVoucher::where('code', $code)
+                                ->where('used_count', 0)
+                                ->update(['is_active' => false]);
+                            unset($unlocked[$key]);
+                        }
+                    }
+
+                    if ($deficit > 0 && !empty($customerEmail)) {
+                        $unusedFunkiVouchers = MarketingVoucher::where('recipient_email', $customerEmail)
+                            ->where('code', 'like', 'FUNKI-%')
+                            ->where('is_active', true)
+                            ->where('used_count', 0)
+                            ->orderByDesc('created_at')
+                            ->get();
+
+                        foreach ($unusedFunkiVouchers as $unusedVoucher) {
+                            if ($deficit <= 0) {
+                                break;
+                            }
+                            $unusedVoucher->update(['is_active' => false]);
+                            $unlocked = array_filter($unlocked, fn($c) => $c !== $unusedVoucher->code);
+                            $reclaimed = match ((int) $unusedVoucher->value) {
+                                15 => 750,
+                                10 => 500,
+                                default => 250,
+                            };
+                            $deficit = max(0, $deficit - $reclaimed);
+                        }
+                    }
+
+                    $profile->unlocked_coupons = $unlocked;
+                }
+
                 $progress['funkenkoenig'] = (int) $profile->funken_total_earned;
                 $profile->titles_progress = $progress;
                 $profile->save();
@@ -1298,8 +1390,13 @@ class GamificationService
             return $realNameFormatted;
         }
 
-        if (!$profile->use_real_name && !empty(trim((string) $profile->player_name))) {
-            return trim((string) $profile->player_name);
+        if (!$profile->use_real_name) {
+            $playerName = trim((string) $profile->player_name);
+            if ($playerName !== '') {
+                return $playerName;
+            }
+
+            return 'Funken-Sammler #' . substr((string) abs(crc32((string) $customer->id)), 0, 4);
         }
 
         return $realNameFormatted;
@@ -1337,10 +1434,9 @@ class GamificationService
             ? ($this->resolveActiveRankName($activeProfile, $titlesData) ?: $defaultRankName)
             : $defaultRankName;
 
-        // Eigenes Profilfoto nur ausliefern, wenn kein aktives Pseudonym (use_real_name = false + player_name) genutzt wird
-        $usesPseudonym = $activeProfile && !$activeProfile->use_real_name && !empty(trim((string) $activeProfile->player_name));
+        // Eigenes Profilfoto nur ausliefern, wenn aktives DSGVO-Opt-In und Echtname-Anzeige gewählt wurden
         $customPhotoUrl = null;
-        if (!$usesPseudonym && $customer->profile && !empty($customer->profile->photo_path)) {
+        if ($activeProfile && $activeProfile->ranking_opt_in && $activeProfile->use_real_name && $customer->profile && !empty($customer->profile->photo_path)) {
             $pp = $customer->profile->photo_path;
             $customPhotoUrl = (str_starts_with($pp, 'shopverwaltung/images/') || str_starts_with($pp, 'shop/') || str_starts_with($pp, '/'))
                 ? asset($pp)
@@ -1348,26 +1444,27 @@ class GamificationService
         }
 
         return [
-            'display_name'        => $this->resolvePublicDisplayName($customer, $activeProfile),
-            'level'               => $level,
-            'display_level'       => $displayLevel,
-            'funki_name'          => $lvlCfg['name'] ?? ('Funki Level ' . $displayLevel),
-            'badge'               => $lvlCfg['badge'] ?? ('STUFE ' . $displayLevel),
-            'bg_name'             => $lvlCfg['bg_name'] ?? 'Stilles Manufaktur-Atelier',
-            'bg_subtitle'         => $lvlCfg['bg_subtitle'] ?? '',
-            'image_url'           => asset($lvlCfg['image_path'] ?? 'shop/customer/gamification/models/images/original/funki_lvl_1_rags.png'),
-            'video_url'           => !empty($lvlCfg['video_url']) ? asset(ltrim($lvlCfg['video_url'], '/')) : null,
-            'video_filter_css'    => $lvlCfg['video_filter_css'] ?? 'none',
-            'video_transform_css' => $lvlCfg['video_transform_css'] ?? 'scale(1.0)',
-            'circle_css'          => $lvlCfg['circle_css'] ?? '',
-            'accent_hex'          => $lvlCfg['accent_hex'] ?? '#c5a059',
-            'custom_photo_url'    => $customPhotoUrl,
-            'rank_name'           => $activeRankName,
-            'is_seelengott'       => !empty($titlesData['is_seelengott']),
-            'diamonds_count'      => (int) ($titlesData['diamonds_count'] ?? 0),
-            'total_titles'        => (int) ($titlesData['total_titles'] ?? 5),
-            'funken_total_earned' => (int) ($activeProfile?->funken_total_earned ?? 0),
-            'member_since'        => $customer->created_at ? $customer->created_at->format('m/Y') : '',
+            'display_name'            => $this->resolvePublicDisplayName($customer, $activeProfile),
+            'can_show_public_profile' => (bool) ($activeProfile && $activeProfile->ranking_opt_in),
+            'level'                   => $level,
+            'display_level'           => $displayLevel,
+            'funki_name'              => $lvlCfg['name'] ?? ('Funki Level ' . $displayLevel),
+            'badge'                   => $lvlCfg['badge'] ?? ('STUFE ' . $displayLevel),
+            'bg_name'                 => $lvlCfg['bg_name'] ?? 'Stilles Manufaktur-Atelier',
+            'bg_subtitle'             => $lvlCfg['bg_subtitle'] ?? '',
+            'image_url'               => asset($lvlCfg['image_path'] ?? 'shop/customer/gamification/models/images/original/funki_lvl_1_rags.png'),
+            'video_url'               => !empty($lvlCfg['video_url']) ? asset(ltrim($lvlCfg['video_url'], '/')) : null,
+            'video_filter_css'        => $lvlCfg['video_filter_css'] ?? 'none',
+            'video_transform_css'     => $lvlCfg['video_transform_css'] ?? 'scale(1.0)',
+            'circle_css'              => $lvlCfg['circle_css'] ?? '',
+            'accent_hex'              => $lvlCfg['accent_hex'] ?? '#c5a059',
+            'custom_photo_url'        => $customPhotoUrl,
+            'rank_name'               => $activeRankName,
+            'is_seelengott'           => !empty($titlesData['is_seelengott']),
+            'diamonds_count'          => (int) ($titlesData['diamonds_count'] ?? 0),
+            'total_titles'            => (int) ($titlesData['total_titles'] ?? 5),
+            'funken_total_earned'     => null,
+            'member_since'            => null,
         ];
     }
 

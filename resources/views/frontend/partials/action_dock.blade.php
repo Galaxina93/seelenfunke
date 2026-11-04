@@ -189,21 +189,32 @@
         </svg>
     </button>
 
-    {{-- GUTSCHEIN PANEL (Wird über das Geschenk-Icon neben den Gutschein-Inputfeldern geöffnet) --}}
+    {{-- GUTSCHEIN MODAL (Wird über das Geschenk-Icon neben den Gutschein-Inputfeldernzentriert geöffnet) --}}
     <template x-teleport="body">
         <div x-show="vouchersOpen"
              x-cloak
-             @click.outside="if (!$event.target.closest('[data-voucher-trigger]')) vouchersOpen = false"
-             x-transition:enter="transition ease-[cubic-bezier(0.23,1,0.32,1)] duration-300"
-             x-transition:enter-start="translate-y-4 opacity-0 scale-95"
-             x-transition:enter-end="translate-y-0 opacity-100 scale-100"
+             @click.self="vouchersOpen = false"
+             x-transition:enter="transition ease-out duration-250"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
              x-transition:leave="transition ease-in duration-200"
-             x-transition:leave-start="translate-y-0 opacity-100 scale-100"
-             x-transition:leave-end="translate-y-4 opacity-0 scale-95"
-             class="fixed left-3 right-3 sm:left-auto sm:right-6 top-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-2xl sm:w-[340px] max-h-[82dvh] shadow-[0_25px_60px_rgba(0,0,0,0.18)] rounded-[2rem] border border-stone-200/90 flex flex-col pointer-events-auto overflow-hidden"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             class="fixed inset-0 flex items-center justify-center p-4 bg-black/35 backdrop-blur-[2px] pointer-events-auto"
              style="z-index: 99998;"
         >
-            @livewire('shop.marketing.marketing-voucher-slider')
+            <div x-show="vouchersOpen"
+                 @click.outside="if (!$event.target.closest('[data-voucher-trigger]')) vouchersOpen = false"
+                 x-transition:enter="transition ease-[cubic-bezier(0.23,1,0.32,1)] duration-300"
+                 x-transition:enter-start="translate-y-4 opacity-0 scale-95"
+                 x-transition:enter-end="translate-y-0 opacity-100 scale-100"
+                 x-transition:leave="transition ease-in duration-200"
+                 x-transition:leave-start="translate-y-0 opacity-100 scale-100"
+                 x-transition:leave-end="translate-y-4 opacity-0 scale-95"
+                 class="relative w-full max-w-[380px] max-h-[82dvh] bg-white/95 backdrop-blur-2xl shadow-[0_25px_60px_rgba(0,0,0,0.22)] rounded-[2rem] border border-stone-200/90 flex flex-col overflow-hidden"
+            >
+                @livewire('shop.marketing.marketing-voucher-slider')
+            </div>
         </div>
     </template>
 

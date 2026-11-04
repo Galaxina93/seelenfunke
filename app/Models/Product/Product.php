@@ -455,6 +455,173 @@ use HasFactory, HasUuids, SoftDeletes;
         return (bool) $this->is_personalizable;
     }
 
+    /**
+     * Gibt den Personalisierungs-Modus zurück:
+     * - 'studio': Interaktiver 2D/3D-Live-Konfigurator (Standard)
+     * - 'custom_fields': Schlanke Schnell-Personalisierung über dynamische Eingabefelder (mit !-Info-Tooltips)
+     */
+    public function getPersonalizationMode(): string
+    {
+        if (!$this->isPersonalizable()) {
+            return 'none';
+        }
+
+        $settings = is_array($this->configurator_settings) ? $this->configurator_settings : [];
+        $mode = strtolower(trim((string) ($settings['personalization_mode'] ?? 'studio')));
+
+        return in_array($mode, ['studio', 'custom_fields'], true) ? $mode : 'studio';
+    }
+
+    public function usesCustomFieldsPersonalization(): bool
+    {
+        return $this->isPersonalizable() && $this->getPersonalizationMode() === 'custom_fields';
+    }
+
+    public function usesStudioConfigurator(): bool
+    {
+        return $this->isPersonalizable() && $this->getPersonalizationMode() === 'studio';
+    }
+
+    /**
+     * Normalisiert ein einzelnes dynamisches Eingabefeld für den Schnell-Personalisierungs-Modus.
+     */
+    public static function normalizeCustomFieldItem(array $field, int $index = 0): ?array
+    {
+        $label = trim((string) ($field['label'] ?? ''));
+        if ($label === '') {
+            return null;
+        }
+
+        $rawId = trim((string) ($field['id'] ?? ''));
+        $id = $rawId !== '' ? preg_replace('/[^a-zA-Z0-9_-]/', '_', $rawId) : ('cf_' . ($index + 1));
+
+        $type = strtolower(trim((string) ($field['type'] ?? 'text')));
+        if (!in_array($type, ['text', 'textarea', 'select', 'font', 'date'], true)) {
+            $type = 'text';
+        }
+
+        $placeholder = trim((string) ($field['placeholder'] ?? ''));
+        $infoText = trim((string) ($field['info_text'] ?? ''));
+        $required = filter_var($field['required'] ?? true, FILTER_VALIDATE_BOOLEAN);
+
+        $defaultMaxLen = $type === 'textarea' ? 150 : ($type === 'font' ? 60 : 30);
+        $maxLength = isset($field['max_length']) && (int) $field['max_length'] > 0
+            ? min(500, max(1, (int) $field['max_length']))
+            : $defaultMaxLen;
+
+        // Auswahl-Optionen für 'select' und 'font'
+        $options = [];
+        if (isset($field['options_raw']) && is_string($field['options_raw']) && trim($field['options_raw']) !== '') {
+            $parts = preg_split('/[,;\r\n]+/', $field['options_raw']) ?: [];
+            foreach ($parts as $part) {
+                $trimmed = trim($part);
+                if ($trimmed !== '') {
+                    $options[] = $trimmed;
+                }
+            }
+        } elseif (isset($field['options']) && is_array($field['options'])) {
+            foreach ($field['options'] as $opt) {
+                $trimmed = trim((string) $opt);
+                if ($trimmed !== '') {
+                    $options[] = $trimmed;
+                }
+            }
+        } elseif (isset($field['options']) && is_string($field['options'])) {
+            $parts = preg_split('/[,;\r\n]+/', $field['options']) ?: [];
+            foreach ($parts as $part) {
+                $trimmed = trim($part);
+                if ($trimmed !== '') {
+                    $options[] = $trimmed;
+                }
+            }
+        }
+        $options = array_values(array_unique($options));
+
+        if ($type === 'font') {
+            $availableFonts = array_keys(app(\App\Services\ConfiguratorService::class)->getFonts());
+            $fontLookup = [];
+            foreach ($availableFonts as $fName) {
+                $fontLookup[mb_strtolower($fName)] = $fName;
+            }
+            $validFonts = [];
+            foreach ($options as $opt) {
+                $key = mb_strtolower(trim((string) $opt));
+                if (isset($fontLookup[$key])) {
+                    $validFonts[] = $fontLookup[$key];
+                }
+            }
+            $options = !empty($validFonts) ? array_values(array_unique($validFonts)) : $availableFonts;
+            $maxLength = max(60, $maxLength);
+            // Bei Schriftart-Dropdowns ist immer „Arial“ (bzw. die erste aktive Schrift) fest vorausgewählt:
+            // Weder ein „!“-Hinweis noch eine Pflichtfeld-Markierung (*) ergeben hier Sinn.
+            $infoText = '';
+            $required = false;
+            $placeholder = '';
+        }
+
+        // Optionaler Aufpreis (in Cent + formatiert in Euro)
+        if (isset($field['surcharge_price']) && $field['surcharge_price'] !== '' && $field['surcharge_price'] !== null) {
+            $surchargeCents = max(0, (int) round(((float) str_replace(',', '.', (string) $field['surcharge_price'])) * 100));
+        } elseif (isset($field['surcharge_cents'])) {
+            $surchargeCents = max(0, (int) $field['surcharge_cents']);
+        } else {
+            $surchargeCents = 0;
+        }
+
+        if ($type === 'font') {
+            $surchargeCents = 0;
+        } elseif ($type === 'date') {
+            $placeholder = '';
+            $maxLength = 20;
+        } elseif ($type === 'select') {
+            $maxLength = max(120, $maxLength);
+        }
+
+        // PAngV-Schutz: Ein Freitext- oder Datumsfeld mit Zusatz-Aufpreis (> 0 €) darf niemals ein Pflichtfeld sein,
+        // da der Aufpreis sonst unumgänglich wäre.
+        if ($surchargeCents > 0 && in_array($type, ['text', 'textarea', 'date'], true)) {
+            $required = false;
+        }
+
+        return [
+            'id'              => $id,
+            'label'           => $label,
+            'type'            => $type,
+            'placeholder'     => $placeholder,
+            'info_text'       => $infoText,
+            'required'        => $required,
+            'max_length'      => $maxLength,
+            'options'         => $options,
+            'options_raw'     => implode(', ', $options),
+            'surcharge_cents' => $surchargeCents,
+            'surcharge_price' => $surchargeCents > 0 ? number_format($surchargeCents / 100, 2, '.', '') : '0.00',
+        ];
+    }
+
+    /**
+     * Liefert die bereinigte Liste aller definierten Schnell-Personalisierungs-Eingabefelder.
+     */
+    public function getCustomFieldsDefinition(): array
+    {
+        $settings = is_array($this->configurator_settings) ? $this->configurator_settings : [];
+        $rawFields = isset($settings['custom_fields']) && is_array($settings['custom_fields'])
+            ? $settings['custom_fields']
+            : [];
+
+        $normalized = [];
+        foreach (array_values($rawFields) as $idx => $field) {
+            if (!is_array($field)) {
+                continue;
+            }
+            $norm = self::normalizeCustomFieldItem($field, $idx);
+            if ($norm !== null) {
+                $normalized[] = $norm;
+            }
+        }
+
+        return $normalized;
+    }
+
     public function isPhysical(): bool
     {
         return $this->type === 'physical';
@@ -516,7 +683,7 @@ use HasFactory, HasUuids, SoftDeletes;
             $addons[] = [
                 'id'          => 'gift_box_westpack',
                 'name'        => 'Edle Schmuckbox (Schwarz-Gold)',
-                'description' => 'Mattschwarze Juwelierschachtel mit Samteinlage & Gold-Logo statt Versandtasche',
+                'description' => 'Mattschwarze Schmuckschachtel mit Schaumstoffeinlage & Gold-Logo statt Versandtasche',
                 'price'       => '4.90',
                 'price_cents' => 490,
                 'image_path'  => 'produkte/addons/edle-schmuckbox-schwarz-gold.jpg',
@@ -667,9 +834,9 @@ use HasFactory, HasUuids, SoftDeletes;
                 }
                 $canonicalId = 'gift_box_westpack';
                 $rawName = 'Edle Schmuckbox (Schwarz-Gold)';
-                $rawDesc = ($rawDesc !== '' && !str_contains($rawDesc, 'Luftpolstertasche'))
+                $rawDesc = ($rawDesc !== '' && !str_contains($rawDesc, 'Luftpolstertasche') && !str_contains($rawDesc, 'Samteinlage'))
                     ? $rawDesc
-                    : 'Mattschwarze Juwelierschachtel mit Samteinlage & Gold-Logo statt Versandtasche';
+                    : 'Mattschwarze Schmuckschachtel mit Schaumstoffeinlage & Gold-Logo statt Versandtasche';
                 if ($priceCents === 290 || $priceCents === 0) {
                     $priceCents = 490;
                 }
@@ -911,36 +1078,56 @@ use HasFactory, HasUuids, SoftDeletes;
         }
 
         if ($isPhysical && $isPersonalizable) {
-            // 9. 3D/2D Konfigurator Setup (Schritt 4 -> Unter-Step 1)
-            $has3dOr2d = (!$this->three_d_active || !empty($this->three_d_model_path)) && !empty($this->preview_image_path);
-            $checks[] = [
-                'key'           => 'configurator',
-                'step'          => 4,
-                'sub_step'      => 1,
-                'section'       => 'collection',
-                'label'         => '3D / 2D Konfigurator',
-                'short_missing' => '3D/2D Datei fehlt',
-                'passed'        => $has3dOr2d,
-                'detail'        => $has3dOr2d
-                    ? ($this->three_d_active ? '3D-Modell (.glb) & Overlay aktiv' : '2D-Konfigurator aktiv')
-                    : '3D-Modell (.glb) oder Konfigurator-Vorschaubild fehlt',
-            ];
+            if ($this->usesCustomFieldsPersonalization()) {
+                // 9. Schnell-Personalisierung: Dynamische Eingabefelder (Schritt 1 -> Unter-Step 1)
+                $customFields = $this->getCustomFieldsDefinition();
+                $customFieldsCount = count($customFields);
+                $customFieldsPassed = $customFieldsCount > 0;
 
-            // 10. Gravur-Vorlagen (Schritt 4 -> Unter-Step 4 / Tab Vorlagen)
-            $activeTplCount = $activeTemplates->count();
-            $templatesPassed = $activeTplCount > 0;
-            $checks[] = [
-                'key'           => 'templates',
-                'step'          => 4,
-                'sub_step'      => 4,
-                'section'       => 'templates',
-                'label'         => 'Gravur-Vorlagen',
-                'short_missing' => 'Keine Vorlage',
-                'passed'        => $templatesPassed,
-                'detail'        => $templatesPassed
-                    ? $activeTplCount . ' aktive ' . ($activeTplCount === 1 ? 'Gravur-Vorlage' : 'Gravur-Vorlagen')
-                    : 'Noch keine Design-/Saison-Vorlage für dieses Produkt angelegt',
-            ];
+                $checks[] = [
+                    'key'           => 'custom_fields',
+                    'step'          => 1,
+                    'sub_step'      => 1,
+                    'section'       => 'collection',
+                    'label'         => 'Schnell-Personalisierung (Felder)',
+                    'short_missing' => 'Keine Eingabefelder',
+                    'passed'        => $customFieldsPassed,
+                    'detail'        => $customFieldsPassed
+                        ? $customFieldsCount . ' dynamische ' . ($customFieldsCount === 1 ? 'Eingabefeld' : 'Eingabefelder') . ' aktiv (kein 3D/2D nötig)'
+                        : 'Mindestens 1 Eingabefeld für die Schnell-Personalisierung in Schritt 1.1 anlegen',
+                ];
+            } else {
+                // 9. 3D/2D Konfigurator Setup (Schritt 4 -> Unter-Step 1)
+                $has3dOr2d = (!$this->three_d_active || !empty($this->three_d_model_path)) && !empty($this->preview_image_path);
+                $checks[] = [
+                    'key'           => 'configurator',
+                    'step'          => 4,
+                    'sub_step'      => 1,
+                    'section'       => 'collection',
+                    'label'         => '3D / 2D Konfigurator',
+                    'short_missing' => '3D/2D Datei fehlt',
+                    'passed'        => $has3dOr2d,
+                    'detail'        => $has3dOr2d
+                        ? ($this->three_d_active ? '3D-Modell (.glb) & Overlay aktiv' : '2D-Konfigurator aktiv')
+                        : '3D-Modell (.glb) oder Konfigurator-Vorschaubild fehlt',
+                ];
+
+                // 10. Gravur-Vorlagen (Schritt 4 -> Unter-Step 4 / Tab Vorlagen)
+                $activeTplCount = $activeTemplates->count();
+                $templatesPassed = $activeTplCount > 0;
+                $checks[] = [
+                    'key'           => 'templates',
+                    'step'          => 4,
+                    'sub_step'      => 4,
+                    'section'       => 'templates',
+                    'label'         => 'Gravur-Vorlagen',
+                    'short_missing' => 'Keine Vorlage',
+                    'passed'        => $templatesPassed,
+                    'detail'        => $templatesPassed
+                        ? $activeTplCount . ' aktive ' . ($activeTplCount === 1 ? 'Gravur-Vorlage' : 'Gravur-Vorlagen')
+                        : 'Noch keine Design-/Saison-Vorlage für dieses Produkt angelegt',
+                ];
+            }
         }
 
         $totalCount = count($checks);

@@ -32,7 +32,7 @@
                             'video' => 'lasergravur',
                             'image' => '/shop/frontend/process/lasergravur.webp',
                             'title' => 'Dual-Laser-Präzision',
-                            'text' => 'Ob K9-Kristallglas per Kaltlicht-Laser oder 14k Gold-Schmuck, Edelstahl und eloxiertes Aluminium per MOPA-Faserlaser: Ihre Gravur entsteht dauerhaft im Mikrometerbereich.'
+                            'text' => 'Ob K9-Kristallglas per Kaltlicht-Laser oder vergoldeter Edelstahl und eloxiertes Aluminium per MOPA-Faserlaser: Ihre Gravur entsteht dauerhaft im Mikrometerbereich.'
                         ],
                         [
                             'video' => '4_augen',
@@ -44,7 +44,7 @@
                             'video' => 'edle_verpackung',
                             'image' => '/shop/frontend/process/edle_verpackung.webp',
                             'title' => 'Manufaktur-Verpackung',
-                            'text' => 'Ihr Unikat wird liebevoll in Seidenpapier, Schmuckbeutel oder unsere edle Geschenkbox mit passgenauem Schaumstoff-Inlay und goldenem „Mein Seelenfunke“-Siegel gebettet.'
+                            'text' => 'Ihr Unikat wird sicher gepolstert oder auf Wunsch in unserer mattschwarzen Schmuckschachtel mit Schaumstoff-Inlay und goldenem „Mein Seelenfunke“-Logo verpackt.'
                         ],
                         [
                             'video' => 'sicherer_versand',

@@ -208,19 +208,16 @@ class OrderCheckout extends Component
             }
         }
 
-        // 2. Daten laden: Aus Angebot (Quote) falls vorhanden
-        elseif (Session::has('checkout_from_quote_id')) {
+        // 2. Daten laden: Aus Angebot (Quote) falls vorhanden (auch ergänzend für eingeloggte B2B-Kunden)
+        if (Session::has('checkout_from_quote_id')) {
             $quoteId = Session::get('checkout_from_quote_id');
             $quote = OrderQuoteRequest::find($quoteId);
 
             if ($quote) {
-                $this->email = $quote->email;
-                // Namen trennen falls nötig oder direkt übernehmen
-                if($quote->customer) {
-                    $this->first_name = $quote->customer->first_name;
-                    $this->last_name = $quote->customer->last_name;
-                }
-                $this->company = $quote->company;
+                $this->email = $this->email ?: $quote->email;
+                $this->first_name = $this->first_name ?: ($quote->first_name ?: ($quote->customer?->first_name ?? ''));
+                $this->last_name = $this->last_name ?: ($quote->last_name ?: ($quote->customer?->last_name ?? ''));
+                $this->company = $this->company ?: $quote->company;
             }
         }
 
@@ -397,7 +394,8 @@ class OrderCheckout extends Component
                     });
 
                     if ($matchingItem) {
-                        $newQty = min(100, $matchingItem->quantity + $item->quantity);
+                        $maxQty = Session::has('checkout_from_quote_id') ? 10000 : 100;
+                        $newQty = min($maxQty, $matchingItem->quantity + $item->quantity);
                         $unitPrice = $item->product
                             ? $cartService->resolveItemUnitPrice($item->product, $newQty, $matchingItem->configuration)
                             : $matchingItem->unit_price;

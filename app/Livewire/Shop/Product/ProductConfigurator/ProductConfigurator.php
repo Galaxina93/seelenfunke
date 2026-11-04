@@ -70,6 +70,10 @@ class ProductConfigurator extends Component
     public $variantId = null;
     public $variantName = null;
     public array $selectedAddons = [];
+    public array $customFieldValues = [];
+    #[Locked]
+    public array $savedCustomFieldsSnapshot = [];
+    public string $effectivePersonalizationMode = 'studio';
 
     public function mount(ConfiguratorService $configService, $product, $context = 'add', $cartItem = null, $initialData = [], $qty = null)
     {
@@ -188,6 +192,64 @@ class ProductConfigurator extends Component
 
         $this->notes = $source['notes'] ?? '';
         $this->is_express = filter_var($source['is_express'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        // Dynamische Eingabefelder (Schnell-Personalisierung) initialisieren
+        $this->customFieldValues = [];
+        $this->savedCustomFieldsSnapshot = isset($source['custom_fields_data']) && is_array($source['custom_fields_data'])
+            ? array_values($source['custom_fields_data'])
+            : [];
+
+        $hasStudioPayload = !empty($source['texts']) || !empty($source['logos']) || !empty($source['texts_back']) || !empty($source['logos_back']) || !empty($source['snapshot_path']);
+        $sourceMode = $source['personalization_mode'] ?? null;
+
+        if (in_array($this->context, ['preview', 'order_edit'], true) && !empty($source)) {
+            if (!empty($this->savedCustomFieldsSnapshot) || $sourceMode === 'custom_fields') {
+                $this->effectivePersonalizationMode = 'custom_fields';
+            } elseif ($hasStudioPayload || $sourceMode === 'studio') {
+                $this->effectivePersonalizationMode = 'studio';
+            } else {
+                $this->effectivePersonalizationMode = $this->product->getPersonalizationMode();
+            }
+        } else {
+            $this->effectivePersonalizationMode = $this->product->getPersonalizationMode();
+        }
+
+        $savedCustomFieldsById = collect($this->savedCustomFieldsSnapshot)->keyBy('id');
+        $savedCustomFieldsByLabel = collect($this->savedCustomFieldsSnapshot)->keyBy(fn($r) => mb_strtolower(trim((string) ($r['label'] ?? ''))));
+        $customFieldsDef = $this->product->getCustomFieldsDefinition();
+
+        $legacyTextAssigned = false;
+        foreach ($customFieldsDef as $cfIdx => $cfDef) {
+            $cfId = $cfDef['id'];
+            $cfType = $cfDef['type'] ?? 'text';
+            $cfLabelKey = mb_strtolower(trim((string) ($cfDef['label'] ?? '')));
+            if ($savedCustomFieldsById->has($cfId)) {
+                $val = (string) ($savedCustomFieldsById->get($cfId)['value'] ?? '');
+            } elseif ($cfLabelKey !== '' && $savedCustomFieldsByLabel->has($cfLabelKey)) {
+                $val = (string) ($savedCustomFieldsByLabel->get($cfLabelKey)['value'] ?? '');
+            } elseif (isset($this->savedCustomFieldsSnapshot[$cfIdx]['value'])) {
+                $val = (string) $this->savedCustomFieldsSnapshot[$cfIdx]['value'];
+            } elseif ($cfType === 'font' && !empty($cfDef['options'])) {
+                $val = in_array('Arial', $cfDef['options'], true)
+                    ? 'Arial'
+                    : (string) ($cfDef['options'][0] ?? 'Arial');
+            } elseif (!$legacyTextAssigned && in_array($cfType, ['text', 'textarea'], true) && empty($this->savedCustomFieldsSnapshot) && !empty($source['text'])) {
+                $val = (string) $source['text'];
+                $legacyTextAssigned = true;
+            } elseif ($cfType === 'select' && !empty($cfDef['options']) && !empty($cfDef['required'])) {
+                $val = (string) ($cfDef['options'][0] ?? '');
+            } else {
+                $val = '';
+            }
+
+            // Für HTML5 <input type="date"> ein gespeichertes deutsches Datum (TT.MM.JJJJ) zurück in YYYY-MM-DD wandeln
+            if ($cfType === 'date' && $this->context !== 'preview' && preg_match('/^(\d{2})\.(\d{2})\.(\d{4})$/', trim($val), $dm)) {
+                $val = "{$dm[3]}-{$dm[2]}-{$dm[1]}";
+            }
+
+            $this->customFieldValues[$cfId] = $val;
+        }
+
         if (isset($source['selected_addons']) && is_array($source['selected_addons'])) {
             $validAddonIds = array_column($this->availableAddons, 'id');
             $this->selectedAddons = array_values(array_intersect(array_map('strval', $source['selected_addons']), $validAddonIds));
@@ -312,6 +374,110 @@ class ProductConfigurator extends Component
         ], $this->product->getEffectiveAddons(true));
     }
 
+    #[Computed]
+    public function customFieldsDefinition(): array
+    {
+        return $this->product->getCustomFieldsDefinition();
+    }
+
+    protected function buildCustomFieldsData(bool $validateRequired = true): array
+    {
+        $definitions = $this->product->getCustomFieldsDefinition();
+        $result = [];
+        $hasErrors = false;
+
+        $isOrderEditCustomer = ($this->context === 'order_edit')
+            && !auth()->guard('admin')->check()
+            && !\App\Services\AI\AiAuthHelper::isAdmin()
+            && !\App\Services\AI\AiAuthHelper::isEmployee();
+
+        $savedById = collect($this->savedCustomFieldsSnapshot)->keyBy('id');
+        $savedByLabel = collect($this->savedCustomFieldsSnapshot)->keyBy(fn($r) => mb_strtolower(trim((string) ($r['label'] ?? ''))));
+
+        foreach ($definitions as $cfDef) {
+            $cfId = $cfDef['id'];
+            $fieldType = $cfDef['type'] ?? 'text';
+            $rawVal = (string) ($this->customFieldValues[$cfId] ?? '');
+
+            if ($fieldType === 'font' && !empty($cfDef['options'])) {
+                $defaultFont = in_array('Arial', $cfDef['options'], true)
+                    ? 'Arial'
+                    : (string) ($cfDef['options'][0] ?? 'Arial');
+                $trimmedRaw = trim($rawVal);
+                if ($trimmedRaw !== '' && in_array($trimmedRaw, $cfDef['options'], true)) {
+                    $cleanVal = $trimmedRaw;
+                } else {
+                    $sanitizedCandidate = $this->sanitizeLaserText($trimmedRaw);
+                    $cleanVal = in_array($sanitizedCandidate, $cfDef['options'], true)
+                        ? $sanitizedCandidate
+                        : $defaultFont;
+                }
+                $this->customFieldValues[$cfId] = $cleanVal;
+            } elseif ($fieldType === 'select' && !empty($cfDef['options'])) {
+                $trimmedRaw = trim($rawVal);
+                if ($trimmedRaw === '') {
+                    $cleanVal = '';
+                } elseif (in_array($trimmedRaw, $cfDef['options'], true)) {
+                    $cleanVal = $trimmedRaw;
+                } else {
+                    $sanitizedCandidate = $this->sanitizeLaserText($trimmedRaw);
+                    $cleanVal = in_array($sanitizedCandidate, $cfDef['options'], true)
+                        ? $sanitizedCandidate
+                        : (string) ($cfDef['options'][0] ?? '');
+                }
+            } elseif ($fieldType === 'date') {
+                $trimmedDate = trim($rawVal);
+                if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $trimmedDate, $dm)) {
+                    $cleanVal = "{$dm[3]}.{$dm[2]}.{$dm[1]}";
+                } else {
+                    $cleanVal = $this->sanitizeLaserText($trimmedDate);
+                }
+            } else {
+                $cleanVal = $this->sanitizeLaserText($rawVal);
+                $maxLen = max(1, (int) ($cfDef['max_length'] ?? 50));
+                if (mb_strlen($cleanVal) > $maxLen) {
+                    $cleanVal = mb_substr($cleanVal, 0, $maxLen);
+                }
+            }
+
+            $surchargeCents = max(0, (int) ($cfDef['surcharge_cents'] ?? 0));
+            if ($isOrderEditCustomer && $surchargeCents > 0) {
+                $cfLabelKey = mb_strtolower(trim((string) ($cfDef['label'] ?? '')));
+                $savedEntry = $savedById->get($cfId) ?? ($cfLabelKey !== '' ? $savedByLabel->get($cfLabelKey) : null);
+                $savedVal = is_array($savedEntry) ? trim((string) ($savedEntry['value'] ?? '')) : '';
+                $savedWasNeutral = in_array(mb_strtolower($savedVal), ['', 'kein symbol', 'keine', 'nein', '-'], true);
+                $wasPreviouslyPaid = is_array($savedEntry) && (((int) ($savedEntry['surcharge_cents'] ?? 0)) > 0 || !$savedWasNeutral);
+
+                if (!$wasPreviouslyPaid) {
+                    $cleanVal = $savedVal;
+                    $this->customFieldValues[$cfId] = $cleanVal;
+                }
+            }
+
+            if ($validateRequired && $fieldType !== 'font' && !empty($cfDef['required']) && trim($cleanVal) === '') {
+                $this->addError('customFieldValues.' . $cfId, "Bitte fülle das Pflichtfeld „{$cfDef['label']}“ aus.");
+                $hasErrors = true;
+            }
+
+            $isNeutralOption = in_array(mb_strtolower(trim($cleanVal)), ['', 'kein symbol', 'keine', 'nein', '-'], true);
+            $effectiveSurcharge = (!$isNeutralOption && $surchargeCents > 0) ? $surchargeCents : 0;
+
+            $result[] = [
+                'id'              => $cfId,
+                'label'           => $cfDef['label'],
+                'type'            => $fieldType,
+                'value'           => $cleanVal,
+                'surcharge_cents' => $effectiveSurcharge,
+            ];
+        }
+
+        if ($hasErrors) {
+            throw ValidationException::withMessages($this->getErrorBag()->messages());
+        }
+
+        return $result;
+    }
+
     public function toggleAddon(string $addonId): void
     {
         if ($this->context === 'preview') {
@@ -391,8 +557,8 @@ class ProductConfigurator extends Component
             $surchargeCents = (int) round(((float) str_replace(',', '.', (string) $variant['price'])) * 100);
         }
         $displayUnitCents = (int) $this->product->price + $surchargeCents;
-        if ($this->product->tax_included === false && !\App\Services\TaxSettingService::isSmallBusiness()) {
-            $taxRate = (float) ($this->product->tax_rate ?? \App\Services\TaxSettingService::defaultTaxRate());
+        if ($this->product->tax_included === false && !app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness()) {
+            $taxRate = (float) ($this->product->tax_rate ?? shop_setting('default_tax_rate', 19.0));
             $displayUnitCents = (int) round($displayUnitCents * (1 + ($taxRate / 100)));
         }
 
@@ -463,6 +629,11 @@ class ProductConfigurator extends Component
 
         if ($propertyName === 'qty') {
             if ($this->qty < 1) $this->qty = 1;
+            $this->calculatePrice();
+        }
+
+        if (str_starts_with((string) $propertyName, 'customFieldValues')) {
+            $this->resetErrorBag($propertyName);
             $this->calculatePrice();
         }
 
@@ -920,8 +1091,14 @@ class ProductConfigurator extends Component
             $this->validate(['qty' => 'required|integer|min:1']);
         }
 
+        $customFieldsData = [];
+        if ($this->product->usesCustomFieldsPersonalization()) {
+            $validateReq = !in_array($this->context, ['template_admin', 'calculator'], true);
+            $customFieldsData = $this->buildCustomFieldsData($validateReq);
+        }
+
         try {
-            DB::transaction(function () use ($cartService, $snapshotPath) {
+            DB::transaction(function () use ($cartService, $snapshotPath, $customFieldsData) {
                 $cleanTexts = array_map(function ($t) {
                     if (is_array($t) && isset($t['text'])) {
                         $t['text'] = $this->sanitizeLaserText($t['text']);
@@ -972,6 +1149,42 @@ class ProductConfigurator extends Component
                 $mainLogo = !empty($this->logos) ? $this->logos[0]['value'] : null;
                 $mainText = collect($cleanTexts)->firstWhere('text', '!=', '')['text'] ?? '';
 
+                if ($this->product->usesCustomFieldsPersonalization()) {
+                    $summaryParts = [];
+                    $chosenCustomFont = 'Arial';
+                    foreach ($customFieldsData as $cfd) {
+                        if (($cfd['type'] ?? 'text') === 'font' && trim((string) ($cfd['value'] ?? '')) !== '') {
+                            $chosenCustomFont = trim((string) $cfd['value']);
+                            break;
+                        }
+                    }
+
+                    $customLaserTexts = [];
+                    foreach ($customFieldsData as $cfd) {
+                        $cfdVal = trim((string) ($cfd['value'] ?? ''));
+                        if ($cfdVal !== '') {
+                            $summaryParts[] = $cfd['label'] . ': ' . $cfdVal;
+                            if (($cfd['type'] ?? 'text') !== 'font' && !in_array(mb_strtolower($cfdVal), ['kein symbol', 'keine', 'nein', '-'], true)) {
+                                $customLaserTexts[] = $cfdVal;
+                            }
+                        }
+                    }
+                    $mainText = implode(' · ', $summaryParts);
+
+                    if (!empty($customLaserTexts)) {
+                        $cleanTexts = [[
+                            'id' => Str::uuid()->toString(),
+                            'text' => implode("\n", $customLaserTexts),
+                            'font' => $chosenCustomFont,
+                            'align' => 'center',
+                            'x' => 50,
+                            'y' => 50,
+                            'size' => 1.0,
+                            'rotation' => 0,
+                        ]];
+                    }
+                }
+
                 $finalSnapshotPath = !empty($snapshotPath) ? $snapshotPath : $this->snapshot_path;
                 if (is_array($finalSnapshotPath)) {
                     foreach ($finalSnapshotPath as $k => $p) {
@@ -984,6 +1197,8 @@ class ProductConfigurator extends Component
                 }
 
                 $configData = [
+                    'personalization_mode' => $this->product->getPersonalizationMode(),
+                    'custom_fields_data' => $customFieldsData,
                     'texts' => $cleanTexts,
                     'logos' => $this->logos,
                     'texts_back' => $cleanTextsBack,

@@ -62,6 +62,21 @@ trait HandlesConfiguratorLogic
             }
         }
 
+        // 5. Optionale Feld-Aufpreise aus der Schnell-Personalisierung (custom_fields) pro Stück addieren
+        if ($this->product->usesCustomFieldsPersonalization() && property_exists($this, 'customFieldValues') && is_array($this->customFieldValues)) {
+            foreach ($this->product->getCustomFieldsDefinition() as $cfDef) {
+                $surcharge = max(0, (int) ($cfDef['surcharge_cents'] ?? 0));
+                if ($surcharge <= 0) {
+                    continue;
+                }
+                $rawVal = trim((string) ($this->customFieldValues[$cfDef['id']] ?? ''));
+                $isNeutralOption = in_array(mb_strtolower($rawVal), ['', 'kein symbol', 'keine', 'nein', '-'], true);
+                if (!$isNeutralOption) {
+                    $basePrice += $surcharge;
+                }
+            }
+        }
+
         $this->currentPrice = $basePrice;
 
         $expressFee = 0;

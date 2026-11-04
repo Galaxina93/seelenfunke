@@ -119,7 +119,7 @@
 
                 {{-- Dateiupload (Optional) --}}
                 <div x-data="{ isDropping: false }" class="mt-4">
-                    <label class="block text-sm font-bold text-gray-700 mb-2">Nachweise / Bilder (Optional)</label>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">Optionale Dateianhänge (freiwillig – für den gesetzlichen Widerruf sind keinerlei Nachweise erforderlich)</label>
                     <div 
                         class="relative flex flex-col justify-center items-center w-full h-32 bg-gray-50 rounded-xl border-2 border-dashed transition-colors"
                         x-bind:class="isDropping ? 'border-[var(--theme-color)] bg-[var(--theme-color)]/5' : 'border-gray-300 hover:bg-gray-100'"
@@ -134,7 +134,7 @@
                             <p class="mb-1 text-sm text-gray-500"><span class="font-semibold text-gray-700">Klicken</span> oder Dateien ablegen</p>
                             <p class="text-xs text-gray-500">Bilder oder PDFs (max. 5MB pro Datei, bis zu 2 Dateien)</p>
                         </div>
-                        <input x-ref="fileInput" id="attachments" type="file" wire:model.live="attachments" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".jpg,.jpeg,.png,.pdf">
+                        <input x-ref="fileInput" id="attachments" type="file" wire:model.live="attachments" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".jpg,.jpeg,.png,.webp,.pdf">
                     </div>
                     
                     @error('attachments') <span class="text-red-500 text-xs font-bold mt-2 block">{{ $message }}</span> @enderror
@@ -157,7 +157,7 @@
                                 @foreach($attachments as $index => $file)
                                     <li class="flex items-center justify-between bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
                                         <div class="flex items-center gap-3 overflow-hidden">
-                                            @if(in_array(strtolower($file->getClientOriginalExtension()), ['jpg', 'jpeg', 'png']) && method_exists($file, 'isPreviewable') && $file->isPreviewable())
+                                            @if(in_array(strtolower($file->getClientOriginalExtension()), ['jpg', 'jpeg', 'png', 'webp']) && method_exists($file, 'isPreviewable') && $file->isPreviewable())
                                                 <img src="{{ $file->temporaryUrl() }}" class="w-8 h-8 object-cover rounded shadow-sm shrink-0">
                                             @else
                                                 <svg class="w-8 h-8 text-gray-400 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>

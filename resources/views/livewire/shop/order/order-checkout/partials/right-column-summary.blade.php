@@ -22,7 +22,7 @@
     <div class="bg-white p-5 sm:p-6 rounded-2xl border border-gray-150 shadow-md transition-all duration-300">
 
         <div x-show="isProcessing" x-cloak class="flex flex-col items-center justify-center py-12 space-y-6 animate-fade-in">
-            <div x-data x-init="window.scrollTo({ top: 0, behavior: 'smooth' })" class="relative w-64 h-64 sm:w-80 sm:h-80 mx-auto">
+            <div class="relative w-64 h-64 sm:w-80 sm:h-80 mx-auto">
                 <img src="{{ funki_asset('shop/projekt/funki/checkout/funki_happy.webp') }}" class="w-full h-full object-contain animate-bounce-slow" alt="Verarbeite Bestellung">
             </div>
             <div class="text-center space-y-2">
@@ -208,6 +208,19 @@
                                         </p>
                                     @endif
 
+                                    @if(!empty($item->configuration['custom_fields_data']) && is_array($item->configuration['custom_fields_data']))
+                                        <div class="mt-1.5 flex flex-wrap gap-1">
+                                            @foreach($item->configuration['custom_fields_data'] as $cfRow)
+                                                @if(is_array($cfRow) && trim((string) ($cfRow['value'] ?? '')) !== '')
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] bg-gray-100 text-gray-800 border border-gray-200/80">
+                                                        <span class="text-gray-500 font-semibold">{{ $cfRow['label'] ?? 'Gravur' }}:</span>
+                                                        <span class="font-bold">{{ $cfRow['value'] }}</span>
+                                                    </span>
+                                                @endif
+                                            @endforeach
+                                        </div>
+                                    @endif
+
                                     @if(!empty($item->configuration['addons_summary']) && is_array($item->configuration['addons_summary']))
                                         <div class="mt-1.5 flex flex-wrap gap-1.5">
                                             @foreach($item->configuration['addons_summary'] as $addon)
@@ -284,7 +297,18 @@
                             @if($hasPersonalization)
                                 <div x-show="showText" x-collapse x-cloak class="mt-3 bg-white rounded-xl p-3 border border-gray-200/80 text-xs text-gray-600 text-left break-words shadow-2xs">
                                     @php $conf = $item->configuration; @endphp
-                                    @if(!empty($conf['texts']))
+                                    @if(!empty($conf['custom_fields_data']) && is_array($conf['custom_fields_data']))
+                                        <div class="space-y-1">
+                                            @foreach($conf['custom_fields_data'] as $cfRow)
+                                                @if(is_array($cfRow) && trim((string) ($cfRow['value'] ?? '')) !== '')
+                                                    <div>
+                                                        <strong class="text-gray-800">{{ $cfRow['label'] ?? 'Gravur' }}:</strong>
+                                                        <span class="text-gray-900 font-semibold">{{ $cfRow['value'] }}</span>
+                                                    </div>
+                                                @endif
+                                            @endforeach
+                                        </div>
+                                    @elseif(!empty($conf['texts']))
                                         @foreach($conf['texts'] as $idx => $t)
                                             @if(!empty($t['text']))
                                                 <div class="mb-2 last:mb-0">
@@ -368,7 +392,7 @@
                     return ($ci->product->type ?? 'physical') === 'physical';
                 });
             @endphp
-            @if($hasPhysicalItems)
+            @if($hasPhysical)
                 <div class="mt-4 p-3 bg-emerald-50/70 border border-emerald-100 rounded-xl flex items-center gap-3 text-xs text-emerald-900">
                     <span class="text-base shrink-0">🚚</span>
                     <div class="min-w-0">
@@ -377,12 +401,135 @@
                 </div>
             @endif
 
+            {{-- OPTIONALES KUNDENKONTO (DSK-Beschluss vom 24.03.2022 / Art. 5 Abs. 1 lit. c DSGVO) --}}
+            @if(!auth('customer')->check())
+                <div class="mt-3">
+                    <label for="create_account" class="flex items-start gap-2.5 bg-amber-50/50 px-3.5 py-2.5 rounded-xl border border-amber-200/70 cursor-pointer hover:bg-amber-50/80 transition-colors select-none">
+                        <input id="create_account" type="checkbox" wire:model.live="create_account" class="mt-0.5 h-4 w-4 text-primary rounded border-gray-300 focus:ring-primary cursor-pointer shrink-0">
+                        <span class="text-xs text-gray-700 leading-snug">
+                            <strong class="font-semibold text-gray-900">Kostenloses Kundenkonto anlegen</strong> <span class="text-gray-400 text-[11px]">(optional)</span>
+                            <span class="block text-[11px] text-gray-500 mt-0.5">Aktivierungslink per E-Mail für Bestellstatus, Design-Korrektur &amp; Seelenfunken-Treuepunkte.</span>
+                        </span>
+                    </label>
+                </div>
+            @endif
+
+            {{-- Gesamtsumme inkl. MwSt. & Versandkosten (§ 312j Abs. 2 & 3 BGB) --}}
             <div class="mt-4 pt-4 border-t border-gray-100">
                 <x-shop.cost-summary :totals="$totals" :country="$targetCountry" :showTitle="false">
                     <button type="button" wire:click="removeCoupon" class="text-red-400 hover:text-red-600 transition cursor-pointer" title="Gutschein entfernen">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                 </x-shop.cost-summary>
+            </div>
+
+            {{-- KOMPAKTE RECHTS- & GEWÄHRLEISTUNGS-BOX DIREKT ÜBER DEM BESTELL-BUTTON --}}
+            <div id="checkout-legal-box"
+                 x-data="{ zoomModal: false }"
+                 class="p-3.5 rounded-xl mt-4 border transition-all duration-200"
+                 :class="showLegalWarning && (!terms || !privacy || (requiresDigitalWaiver && !digitalWaiver)) ? 'bg-red-50/40 border-red-400 ring-2 ring-red-500/15' : 'bg-gray-50/90 border-gray-200/80'">
+                <div class="flex items-start rounded-lg transition-all duration-200"
+                     :class="showLegalWarning && !terms ? 'bg-red-50 border border-red-300 p-2 -mx-1' : ''">
+                    <div class="flex h-5 items-center">
+                        <input id="terms"
+                               x-model="terms"
+                               wire:model.live="terms_accepted"
+                               type="checkbox"
+                               :class="showLegalWarning && !terms ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50 text-red-600 focus:ring-red-500' : 'border-gray-300 text-primary focus:ring-primary'"
+                               class="h-4 w-4 rounded cursor-pointer transition-all">
+                    </div>
+                    <div class="ml-2.5 text-xs">
+                        <label for="terms"
+                               :class="showLegalWarning && !terms ? 'text-red-700 font-semibold' : 'text-gray-700 font-medium'"
+                               class="cursor-pointer select-none leading-snug block transition-colors">
+                            Ich akzeptiere die <a href="/agb" target="_blank" class="text-primary underline hover:text-primary-dark">AGB</a> (inkl. <a href="/agb#urheberrecht-freistellung" target="_blank" class="text-primary underline hover:text-primary-dark">Rechtegarantie für eigene Motive</a>), habe die <a href="/widerruf" target="_blank" class="text-primary underline hover:text-primary-dark">Widerrufsbelehrung</a> <span class="text-gray-500 font-normal">(kein Widerruf bei personalisierten Unikaten gem. § 312g Abs. 2 Nr. 1 BGB)</span> sowie die <a href="/datenschutz" target="_blank" class="text-primary underline hover:text-primary-dark">Datenschutzerklärung</a> zur Kenntnis genommen. <span class="text-red-500 font-bold">*</span>
+                        </label>
+                    </div>
+                </div>
+
+                @if($hasDigitalOrIngame)
+                    <div class="flex items-start mt-2.5 pt-2.5 border-t -mx-2 px-2 py-2 rounded-lg transition-all duration-200"
+                         :class="showLegalWarning && !digitalWaiver ? 'bg-red-50 border border-red-400 ring-2 ring-red-500/20' : 'border-blue-200/70 bg-blue-50/70'">
+                        <div class="flex h-5 items-center">
+                            <input id="digital_waiver"
+                                   x-model="digitalWaiver"
+                                   wire:model.live="digital_waiver_accepted"
+                                   type="checkbox"
+                                   :class="showLegalWarning && !digitalWaiver ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50 text-red-600 focus:ring-red-500' : 'border-blue-300 text-primary focus:ring-primary'"
+                                   class="h-4 w-4 rounded cursor-pointer transition-all">
+                        </div>
+                        <div class="ml-2.5 text-xs">
+                            <label for="digital_waiver"
+                                   :class="showLegalWarning && !digitalWaiver ? 'text-red-700 font-semibold' : 'text-blue-950 font-medium'"
+                                   class="cursor-pointer select-none leading-snug block transition-colors">
+                                Ich stimme ausdrücklich zu, dass mit der Ausführung des Vertrags über die <strong>digitalen Inhalte</strong> sofort nach Zahlungsabschluss (vor Ablauf der Widerrufsfrist) begonnen wird, und bestätige meine Kenntnis davon, dass mein <strong>Widerrufsrecht mit Beginn der Vertragsausführung erlischt (§ 356 Abs. 5 BGB)</strong>. <span class="text-red-500 font-bold">*</span>
+                            </label>
+                        </div>
+                    </div>
+                @endif
+
+                <div x-show="showLegalWarning && (!terms || !privacy || (requiresDigitalWaiver && !digitalWaiver))"
+                     x-cloak
+                     style="display: none;"
+                     class="mt-2.5 flex items-center gap-2 text-red-700 bg-red-100/90 border border-red-300 rounded-lg px-3 py-2 text-xs font-bold animate-fade-in">
+                    <svg class="w-4 h-4 text-red-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <span>Bitte bestätige die rot markierten Pflichthaken, um fortzufahren.</span>
+                </div>
+
+                @if($errors->has('terms_accepted') || $errors->has('privacy_accepted') || $errors->has('digital_waiver_accepted'))
+                    <div class="text-red-500 text-xs mt-2 font-bold">
+                        {{ $errors->first('digital_waiver_accepted') ?: 'Bitte stimme allen rechtlichen Bedingungen zu.' }}
+                    </div>
+                @endif
+
+                {{-- 1-Klick Pop-up-Link für die harmonisierte EU-Gewährleistungsmitteilung (Durchführungsverordnung (EU) 2025/1960) --}}
+                <div class="mt-2.5 pt-2.5 border-t border-gray-200/70 flex items-center justify-between gap-2 text-[11px]">
+                    <button type="button"
+                            @click="zoomModal = true"
+                            class="inline-flex items-center gap-1.5 text-gray-600 hover:text-gray-900 transition-colors cursor-pointer text-left focus:outline-none group">
+                        <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#003399] text-white font-serif text-[9px] font-bold shrink-0">🇪🇺</span>
+                        <span class="underline decoration-gray-300 group-hover:decoration-primary">Informationen zur gesetzlichen Gewährleistung (2 Jahre EU-Schutz)</span>
+                    </button>
+                    <button type="button"
+                            @click="zoomModal = true"
+                            class="text-[11px] text-primary hover:text-primary-dark font-bold shrink-0 cursor-pointer focus:outline-none">
+                        EU-Mitteilung öffnen
+                    </button>
+                </div>
+
+                {{-- Pop-up zur Direktansicht der offiziellen farbigen EU-Grafik in Originalgröße --}}
+                <div x-show="zoomModal"
+                     x-cloak
+                     style="display: none;"
+                     class="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs"
+                     @click.self="zoomModal = false"
+                     @keydown.escape.window="zoomModal = false">
+                    <div class="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden animate-fade-in"
+                         @click.stop>
+                        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
+                            <div class="flex items-center gap-2">
+                                <span class="text-base">🇪🇺</span>
+                                <h3 class="text-sm font-bold text-gray-900">Gesetzliche Gewährleistung (EU-Mitteilung)</h3>
+                            </div>
+                            <button type="button" @click="zoomModal = false" class="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                        <div class="p-4 overflow-y-auto flex justify-center bg-gray-100/60 max-h-[75vh]">
+                            <img src="{{ asset('shop/frontend/legal/eu_gewaehrleistung_notice_de.svg') }}"
+                                 alt="EU Harmonisierte Mitteilung über die gesetzliche Gewährleistung"
+                                 class="max-w-full h-auto rounded-lg shadow-sm border border-gray-200">
+                        </div>
+                        <div class="p-3 border-t border-gray-100 bg-white flex justify-between items-center text-xs">
+                            <a href="https://europa.eu/youreurope/garantien" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-primary-dark hover:underline flex items-center gap-1 font-medium transition-colors">
+                                <span>europa.eu/youreurope/garantien</span>
+                            </a>
+                            <button type="button" @click="zoomModal = false" class="px-4 py-1.5 bg-gray-900 text-white rounded-lg font-semibold hover:bg-black transition-colors">
+                                Schließen
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             @if($errors->has('coupon') || $errors->has('cart') || $errors->has('payment'))
@@ -407,162 +554,6 @@
                     @enderror
                 </div>
             @endif
-
-            <div id="checkout-legal-box"
-                 class="space-y-3 p-3.5 rounded-xl mt-4 border transition-all duration-200"
-                 :class="showLegalWarning && (!terms || !privacy || (requiresDigitalWaiver && !digitalWaiver)) ? 'bg-red-50/40 border-red-400 ring-2 ring-red-500/15' : 'bg-gray-50/90 border-gray-150'">
-                <div class="flex items-start rounded-lg transition-all duration-200"
-                     :class="showLegalWarning && !terms ? 'bg-red-50 border border-red-300 p-2 -mx-1' : ''">
-                    <div class="flex h-5 items-center">
-                        <input id="terms"
-                               x-model="terms"
-                               wire:model.live="terms_accepted"
-                               type="checkbox"
-                               :class="showLegalWarning && !terms ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50 text-red-600 focus:ring-red-500' : 'border-gray-300 text-primary focus:ring-primary'"
-                               class="h-4 w-4 rounded cursor-pointer transition-all">
-                    </div>
-                    <div class="ml-3 text-xs sm:text-sm">
-                        <label for="terms"
-                               :class="showLegalWarning && !terms ? 'text-red-700 font-semibold' : 'text-gray-700 font-medium'"
-                               class="cursor-pointer select-none transition-colors">
-                            Ich habe die <a href="/agb" target="_blank" class="text-primary underline hover:text-primary-dark">AGB</a> (inkl. <a href="/agb#urheberrecht-freistellung" target="_blank" class="text-primary underline hover:text-primary-dark">Rechtegarantie &amp; Haftungsfreistellung für eigene Motive</a>) gelesen und akzeptiere diese und habe die <a href="/widerruf" target="_blank" class="text-primary underline hover:text-primary-dark">Widerrufsbelehrung</a> zur Kenntnis genommen. <span class="text-red-500 font-bold">*</span>
-                        </label>
-                    </div>
-                </div>
-                <div class="flex items-start rounded-lg text-xs text-gray-600 leading-snug pt-1">
-                    <svg class="w-4 h-4 text-gray-400 shrink-0 mt-0.5 mr-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    <span>
-                        Informationen zur Verarbeitung Ihrer personenbezogenen Daten zur Vertragsabwicklung (Art. 6 Abs. 1 lit. b DSGVO) finden Sie in unserer <a href="/datenschutz" target="_blank" class="text-primary underline hover:text-primary-dark font-medium">Datenschutzerklärung</a>.
-                    </span>
-                </div>
-                @if($hasDigitalOrIngame)
-                    <div class="flex items-start pt-2 border-t -mx-2 px-2 py-2 rounded-lg transition-all duration-200"
-                         :class="showLegalWarning && !digitalWaiver ? 'bg-red-50 border border-red-400 ring-2 ring-red-500/20' : 'border-blue-200/70 bg-blue-50/70'">
-                        <div class="flex h-5 items-center">
-                            <input id="digital_waiver"
-                                   x-model="digitalWaiver"
-                                   wire:model.live="digital_waiver_accepted"
-                                   type="checkbox"
-                                   :class="showLegalWarning && !digitalWaiver ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50 text-red-600 focus:ring-red-500' : 'border-blue-300 text-primary focus:ring-primary'"
-                                   class="h-4 w-4 rounded cursor-pointer transition-all">
-                        </div>
-                        <div class="ml-3 text-xs">
-                            <label for="digital_waiver"
-                                   :class="showLegalWarning && !digitalWaiver ? 'text-red-700 font-semibold' : 'text-blue-950 font-medium'"
-                                   class="cursor-pointer select-none leading-snug block transition-colors">
-                                Ich stimme ausdrücklich zu, dass mit der Ausführung des Vertrags über die <strong>digitalen Inhalte</strong> sofort nach Zahlungsabschluss (vor Ablauf der Widerrufsfrist) begonnen wird, und bestätige meine Kenntnis davon, dass mein <strong>Widerrufsrecht mit Beginn der Vertragsausführung erlischt (§ 356 Abs. 5 BGB)</strong>. <span class="text-red-500 font-bold">*</span>
-                            </label>
-                        </div>
-                    </div>
-                @endif
-                <div x-show="showLegalWarning && (!terms || !privacy || (requiresDigitalWaiver && !digitalWaiver))"
-                     x-cloak
-                     style="display: none;"
-                     class="flex items-center gap-2 text-red-700 bg-red-100/90 border border-red-300 rounded-lg px-3 py-2 text-xs font-bold animate-fade-in">
-                    <svg class="w-4 h-4 text-red-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                    <span>Bitte bestätige die rot markierten Pflichthaken, um fortzufahren.</span>
-                </div>
-                <p class="text-[11px] text-gray-500 leading-snug pt-1 border-t border-gray-200/70">
-                    <strong>Hinweis gemäß § 312g Abs. 2 Nr. 1 BGB &amp; § 3 Abs. 7–9 AGB:</strong> Für individuell nach Kundenspezifikation gravierte oder personalisierte Waren besteht kein Widerrufsrecht (Ihre 2-jährige gesetzliche Gewährleistung bei Mängeln bleibt unberührt). Bei eigenen Motiven/Texten versichern Sie, alle Urheber- und Markenrechte zu besitzen, und stellen uns von Ansprüchen Dritter frei.
-                </p>
-                @if($errors->has('terms_accepted') || $errors->has('privacy_accepted') || $errors->has('digital_waiver_accepted'))
-                    <div class="text-red-500 text-xs mt-1 font-bold">
-                        {{ $errors->first('digital_waiver_accepted') ?: 'Bitte stimme allen rechtlichen Bedingungen zu.' }}
-                    </div>
-                @endif
-            </div>
-
-            {{-- EU-Gewährleistung Hinweis (Aufklappbar vor dem Bestell-Button) --}}
-            <div x-data="{ openWarranty: false, zoomModal: false }" class="mt-3 border border-gray-200 bg-gray-50/80 rounded-xl overflow-hidden transition-all duration-200">
-                <button type="button"
-                        @click="openWarranty = !openWarranty"
-                        class="w-full px-3.5 py-2.5 flex items-center justify-between text-left text-xs font-medium text-gray-900 hover:bg-gray-100/70 transition-colors focus:outline-none select-none">
-                    <span class="flex items-center gap-2">
-                        <span class="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-[#003399] text-white font-serif text-[11px] font-bold shadow-xs">
-                            🇪🇺
-                        </span>
-                        <span>
-                            <strong class="font-semibold text-gray-900">Gesetzliche Gewährleistung:</strong>
-                            <span class="text-gray-600">Mind. 2 Jahre EU-Schutz</span>
-                        </span>
-                    </span>
-                    <span class="flex items-center gap-1 text-[11px] text-primary hover:text-primary-dark font-bold ml-2 flex-shrink-0 transition-colors">
-                        <span x-text="openWarranty ? 'Weniger anzeigen' : 'Hinweis anzeigen'">Hinweis anzeigen</span>
-                        <svg class="w-3.5 h-3.5 text-primary transform transition-transform duration-200" :class="{ 'rotate-180': openWarranty }" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </span>
-                </button>
-
-                <div x-show="openWarranty" x-collapse x-cloak class="border-t border-gray-100 bg-white p-3.5 text-xs text-gray-700 space-y-3">
-                    <div class="flex items-start gap-3">
-                        <div class="w-16 h-22 flex-shrink-0 bg-white border border-gray-200 rounded p-1 shadow-xs cursor-pointer hover:border-primary hover:shadow-md transition-all group"
-                             @click="zoomModal = true"
-                             title="Zum Vergrößern klicken">
-                            <img src="{{ asset('shop/frontend/legal/eu_gewaehrleistung_notice_de.svg') }}"
-                                 alt="EU Harmonisierte Mitteilung über die gesetzliche Gewährleistung"
-                                 class="w-full h-full object-contain group-hover:scale-105 transition-transform">
-                        </div>
-                        <div class="space-y-1 flex-1">
-                            <p class="font-bold text-gray-900 text-[11px] leading-tight">
-                                Harmonisierte Mitteilung über die gesetzliche Gewährleistung der Vertragsmäßigkeit
-                            </p>
-                            <p class="text-[11px] text-gray-600 leading-relaxed">
-                                Für Waren in der EU gilt eine gesetzliche Gewährleistungsfrist von mindestens <strong>zwei Jahren</strong> ab Lieferung (kostenlose Reparatur, Neulieferung oder Kaufpreiserstattung bei Mängeln).
-                            </p>
-                            <div class="flex flex-wrap items-center gap-3 pt-1 text-[11px]">
-                                <button type="button"
-                                        @click="zoomModal = true"
-                                        class="inline-flex items-center gap-1 font-semibold text-primary hover:text-primary-dark underline cursor-pointer transition-colors">
-                                    <svg class="w-3 h-3 text-primary flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
-                                    EU-Label vergrößern
-                                </button>
-                                <a href="https://europa.eu/youreurope/garantien"
-                                   target="_blank"
-                                   rel="noopener noreferrer"
-                                   class="inline-flex items-center gap-1 font-semibold text-primary hover:text-primary-dark underline transition-colors">
-                                    <span>Offizielle EU-Infos</span>
-                                    <svg class="w-3.5 h-3.5 text-primary flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- Modal zur Großansicht des offiziellen EU-Hinweises --}}
-                    <div x-show="zoomModal"
-                         x-cloak
-                         class="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs"
-                         @click.self="zoomModal = false"
-                         @keydown.escape.window="zoomModal = false">
-                        <div class="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden animate-fade-in"
-                             @click.stop>
-                            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
-                                <div class="flex items-center gap-2">
-                                    <span class="text-base">🇪🇺</span>
-                                    <h3 class="text-sm font-bold text-gray-900">Gesetzliche Gewährleistung (EU-Mitteilung)</h3>
-                                </div>
-                                <button type="button" @click="zoomModal = false" class="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                                </button>
-                            </div>
-                            <div class="p-4 overflow-y-auto flex justify-center bg-gray-100/60 max-h-[75vh]">
-                                <img src="{{ asset('shop/frontend/legal/eu_gewaehrleistung_notice_de.svg') }}"
-                                     alt="EU Harmonisierte Mitteilung über die gesetzliche Gewährleistung"
-                                     class="max-w-full h-auto rounded-lg shadow-sm border border-gray-200">
-                            </div>
-                            <div class="p-3 border-t border-gray-100 bg-white flex justify-between items-center text-xs">
-                                <a href="https://europa.eu/youreurope/garantien" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-primary-dark hover:underline flex items-center gap-1 font-medium transition-colors">
-                                    <span>europa.eu/youreurope/garantien</span>
-                                    <svg class="w-3.5 h-3.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-                                </a>
-                                <button type="button" @click="zoomModal = false" class="px-4 py-1.5 bg-gray-900 text-white rounded-lg font-semibold hover:bg-black transition-colors">
-                                    Schließen
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
             @if($errors->any())
                 <div class="mt-4 p-3.5 rounded-xl bg-red-50 border border-red-300 text-red-700 text-xs font-semibold space-y-1.5 animate-fade-in">
@@ -627,7 +618,7 @@
                                     $checkoutHerzensUnit = \App\Services\HerzensprojektService::resolveUnitLabel(true);
                                 @endphp
                                 <a href="{{ route('manufacture') }}#herzensprojekte" target="_blank" title="Wir führen {{ $checkoutHerzensEuro }} € {{ $checkoutHerzensUnit }} aus unseren Unternehmenserlösen an unsere regionalen Herzensprojekte für Kinder ab (Details & Transparenzhinweis)" class="group hover:opacity-90 transition-opacity">
-                                    <p class="text-xs font-bold text-gray-900 leading-tight tracking-tight group-hover:text-primary transition-colors">Soziales leisten*</p>
+                                    <p class="text-xs font-bold text-gray-900 leading-tight tracking-tight group-hover:text-primary transition-colors">Soziales leisten</p>
                                     <p class="text-[11px] sm:text-[10px] text-amber-900/80 font-medium leading-tight mt-0.5">Kinder aktiv unterstützen ({{ $checkoutHerzensEuro }}&nbsp;€ {{ $checkoutHerzensUnit }})</p>
                                 </a>
                             </div>

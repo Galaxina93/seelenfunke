@@ -340,11 +340,11 @@
                     this.updateScaleFactor();
 
                     const startConfigurator = () => {
-                        if (this.config.modelPath) {
+                        if (this.config.modelPath && this.$refs.container3d && this.config.isPersonalizable !== false && this.config.personalizationMode !== 'custom_fields') {
                             this.$refs.container3d._engine = new window.Configurator3DEngine(this, this.$refs.container3d, this.config.modelPath, this.activeBgImage || this.config.bgPath, this.config);
 
                             const forceStart3D = () => {
-                                if (this.modelLoaded || this.isInitializing) return;
+                                if (this.modelLoaded || this.isInitializing || !this.$refs.container3d || !this.$refs.container3d._engine) return;
                                 this.isInitializing = true;
 
                                 this.$refs.container3d._engine.init(() => {
@@ -352,7 +352,7 @@
                                     this.isInitializing = false;
                                     this.updateTexture();
 
-                                    if (this.showDrawingBoard === false) {
+                                    if (this.showDrawingBoard === false && this.$refs.container3d && this.$refs.container3d._engine) {
                                         this.$refs.container3d._engine.animate();
                                     }
                                 });
@@ -778,11 +778,12 @@
                     this.selectedType = null;
                     this.showFontMenu = this.showSizeMenu = this.showAlignMenu = this.showPosMenu = false;
 
-                    // Snapshot-Erstellung mit TIMEOUT (max. 3.5 Sekunden), ohne das Live-DOM auf dem Bildschirm umzuschalten!
-                    try {
-                        const timeoutPromise = new Promise(resolve => setTimeout(resolve, 3500));
+                    // Snapshot-Erstellung nur für den 2D/3D Studio-Konfigurator ausführen (NICHT bei Schnell-Personalisierung oder Standard-Sofortkauf!)
+                    if (this.config.isPersonalizable !== false && this.config.personalizationMode !== 'custom_fields') {
+                        try {
+                            const timeoutPromise = new Promise(resolve => setTimeout(resolve, 3500));
 
-                        const capturePromise = (async () => {
+                            const capturePromise = (async () => {
                             let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
                             if (this.config.modelPath && !engine) {
                                 if (typeof this._forceStart3D === 'function') this._forceStart3D();
@@ -968,11 +969,23 @@
                             }
                         })();
 
-                        await Promise.race([capturePromise, timeoutPromise]);
-                    } catch(captureErr) {
-                        console.error("Konnte keinen Snapshot erstellen:", captureErr);
-                    } finally {
-                        this.isCapturing = false;
+                            await Promise.race([capturePromise, timeoutPromise]);
+                        } catch(captureErr) {
+                            console.error("Konnte keinen Snapshot erstellen:", captureErr);
+                        } finally {
+                            this.isCapturing = false;
+                        }
+                    }
+
+                    // Vor dem Speichern alle dynamischen Eingabefelder synchronisieren (verhindert Debounce-Verlust bei schnellem Klick)
+                    if (this.config.personalizationMode === 'custom_fields') {
+                        const rootEl = this.$root || document;
+                        rootEl.querySelectorAll('[data-custom-field-id]').forEach(el => {
+                            const cfId = el.getAttribute('data-custom-field-id');
+                            if (cfId) {
+                                $wire.set('customFieldValues.' + cfId, el.value ?? '', false);
+                            }
+                        });
                     }
 
                     // 2. An Livewire übergeben

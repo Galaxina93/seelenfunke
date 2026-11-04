@@ -313,12 +313,50 @@ class OrderQuoteAcceptance extends Component
         $code = trim((string) $this->couponCodeInput);
         $quoteEmail = $this->quote->email ?? ($this->quote->billing_address['email'] ?? null);
 
+        // 1. Zuerst prüfen, ob es sich um einen Wertgutschein (MarketingGiftVoucher) handelt
+        $giftVoucher = \App\Models\Marketing\MarketingGiftVoucher::where('code', $code)->where('is_active', true)->first();
+        if ($giftVoucher) {
+            if ($giftVoucher->current_balance <= 0) {
+                RateLimiter::hit($throttleKey, 300);
+                $this->addError('couponCodeInput', 'Dieser Gutschein ist bereits aufgebraucht.');
+                return;
+            }
+            if ($giftVoucher->valid_until && now()->gt($giftVoucher->valid_until)) {
+                RateLimiter::hit($throttleKey, 300);
+                $this->addError('couponCodeInput', 'Dieser Gutschein ist abgelaufen.');
+                return;
+            }
+            if (!empty($giftVoucher->recipient_email) && str_starts_with($giftVoucher->code, 'DANKE-')) {
+                $authenticatedCustomer = \Illuminate\Support\Facades\Auth::guard('customer')->user();
+                if (
+                    !$authenticatedCustomer
+                    || !$authenticatedCustomer->hasVerifiedEmail()
+                    || strtolower(trim((string) $authenticatedCustomer->email)) !== strtolower(trim((string) $giftVoucher->recipient_email))
+                ) {
+                    RateLimiter::hit($throttleKey, 300);
+                    $this->addError('couponCodeInput', 'Für diesen persönlichen Belohnungsgutschein musst du mit dem verifizierten Empfänger-Konto eingeloggt sein.');
+                    return;
+                }
+            }
+
+            RateLimiter::clear($throttleKey);
+            $this->activeCoupon = [
+                'code' => $giftVoucher->code,
+                'type' => 'fixed',
+                'value' => (int) $giftVoucher->current_balance,
+            ];
+            $this->couponCodeInput = '';
+            session()->flash('coupon_success', 'Geschenkgutschein erfolgreich angewendet!');
+            return;
+        }
+
+        // 2. Prüfen auf Empfehlungscode
         $referralService = app(\App\Services\ReferralService::class);
         if ($referralService->isReferralCode($code)) {
             $validation = $referralService->validateReferralCode($code, $quoteEmail, $this->quote->customer_id);
             if (!$validation['valid']) {
                 RateLimiter::hit($throttleKey, 300);
-                $this->addError('couponCodeInput', $validation['error'] ?? 'Empfehlungscode ist ungültig.');
+                $this->addError('couponCodeInput', $validation['message'] ?? $validation['error'] ?? 'Empfehlungscode ist ungültig.');
                 return;
             }
         }
@@ -331,9 +369,34 @@ class OrderQuoteAcceptance extends Component
             return;
         }
 
+        if (!empty($coupon->influencer_id)) {
+            $cartService = app(CartService::class);
+            if ($cartService->isInfluencerSelfRedemption($coupon, (string) $quoteEmail)) {
+                RateLimiter::hit($throttleKey, 300);
+                $this->addError('couponCodeInput', 'Eigenbestellungen mit dem eigenen Creator-Rabattcode sind nicht zulässig.');
+                return;
+            }
+        }
+
         if (!empty($coupon->recipient_email)) {
             $authenticatedCustomer = \Illuminate\Support\Facades\Auth::guard('customer')->user();
-            if (!$authenticatedCustomer || !$authenticatedCustomer->hasVerifiedEmail() || strtolower(trim((string) $authenticatedCustomer->email)) !== strtolower(trim((string) $coupon->recipient_email))) {
+            $isFunkiCoupon = str_starts_with(strtoupper((string) $coupon->code), 'FUNKI-');
+            $ownsFunkiCoupon = $isFunkiCoupon && $authenticatedCustomer && (
+                (!empty($coupon->customer_id) && (string) $coupon->customer_id === (string) $authenticatedCustomer->id)
+                || in_array($coupon->code, (array) (\App\Models\Customer\CustomerGamification::where('customer_id', $authenticatedCustomer->id)->where('is_active', true)->value('unlocked_coupons') ?? []), true)
+            );
+            if ($isFunkiCoupon && !empty($coupon->funki_game_id)) {
+                if (!$authenticatedCustomer || (string) ($authenticatedCustomer->profile?->funki_active_game ?? '') !== (string) $coupon->funki_game_id) {
+                    $ownsFunkiCoupon = false;
+                }
+            }
+
+            if (
+                !$authenticatedCustomer
+                || (!$authenticatedCustomer->hasVerifiedEmail() && !$ownsFunkiCoupon)
+                || ($isFunkiCoupon && !$ownsFunkiCoupon)
+                || strtolower(trim((string) $authenticatedCustomer->email)) !== strtolower(trim((string) $coupon->recipient_email))
+            ) {
                 RateLimiter::hit($throttleKey, 300);
                 $this->addError('couponCodeInput', 'Für diesen persönlichen Gutschein musst du mit dem verifizierten Empfänger-Konto eingeloggt sein.');
                 return;

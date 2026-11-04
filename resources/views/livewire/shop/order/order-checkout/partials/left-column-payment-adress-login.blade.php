@@ -82,6 +82,7 @@
          x-data="{
             isOpen: true,
             isBillingComplete: false,
+            manuallyOpened: false,
 
             isValid(val) {
                 return val !== null && val !== undefined && String(val).trim().length > 0;
@@ -91,7 +92,12 @@
                 return this.isValid(val) && /\d+/.test(String(val));
             },
 
-            checkCompletion(allowCollapse = false) {
+            toggleHeader() {
+                this.isOpen = !this.isOpen;
+                this.manuallyOpened = this.isOpen;
+            },
+
+            checkCompletion(forceCollapse = false) {
                 let e = $wire.email;
                 let f = $wire.first_name;
                 let l = $wire.last_name;
@@ -112,7 +118,8 @@
 
                 if (!this.isBillingComplete || !shippingComplete) {
                     this.isOpen = true;
-                } else if (allowCollapse) {
+                    this.manuallyOpened = false;
+                } else if (forceCollapse || !this.manuallyOpened) {
                     this.isOpen = false;
                 }
             }
@@ -120,10 +127,10 @@
          x-init="checkCompletion(true)"
          @checkout-updated.window="checkCompletion(false)"
          @checkout-address-changed.window="checkCompletion(false)"
-         @checkout-open-billing.window="isOpen = true"
+         @checkout-open-billing.window="isOpen = true; manuallyOpened = true"
          @checkout-processing-done.window="checkCompletion(false)">
 
-        <div class="p-6 sm:p-8 flex justify-between items-center cursor-pointer hover:bg-gray-50/50 transition-colors" @click="isOpen = !isOpen">
+        <div class="p-6 sm:p-8 flex justify-between items-center cursor-pointer hover:bg-gray-50/50 transition-colors" @click="toggleHeader()">
             <h2 class="text-xl font-serif font-bold text-gray-900 flex items-center gap-2">
                 <span class="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary text-sm font-bold">1</span>
                 Rechnungsdetails
@@ -132,9 +139,12 @@
                 <template x-if="!isOpen">
                     <div class="text-right mr-2 animate-fade-in">
                         <template x-if="isBillingComplete">
-                            <div>
-                                <p class="text-[10px] uppercase font-bold text-green-600">Vollständig</p>
-                                <p class="text-xs text-gray-500 font-medium" x-text="(typeof $wire.first_name !== 'undefined' && $wire.first_name !== null ? String($wire.first_name) : '') + ' ' + (typeof $wire.last_name !== 'undefined' && $wire.last_name !== null ? String($wire.last_name) : '')"></p>
+                            <div class="flex flex-col items-end">
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] uppercase font-bold bg-green-50 text-green-700 border border-green-200">
+                                    <svg class="w-3 h-3 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                    Fertig ausgefüllt
+                                </span>
+                                <p class="text-xs text-gray-500 font-medium mt-0.5" x-text="(typeof $wire.first_name !== 'undefined' && $wire.first_name !== null ? String($wire.first_name) : '') + ' ' + (typeof $wire.last_name !== 'undefined' && $wire.last_name !== null ? String($wire.last_name) : '')"></p>
                             </div>
                         </template>
                         <template x-if="!isBillingComplete">
@@ -253,19 +263,6 @@
                         @error('country') <span class="text-red-500 text-xs mt-1 block font-medium">{{ $message }}</span> @enderror
                     </div>
                 </div>
-
-                {{-- OPTIONALES KUNDENKONTO (DSK-Beschluss vom 24.03.2022 / Art. 5 Abs. 1 lit. c DSGVO) --}}
-                @if(!auth('customer')->check())
-                    <div class="mt-6 pt-5 border-t border-gray-100">
-                        <label for="create_account" class="flex items-start gap-3 bg-amber-50/50 p-4 rounded-xl border border-amber-200/70 cursor-pointer hover:bg-amber-50 transition-colors select-none">
-                            <input id="create_account" type="checkbox" wire:model.live="create_account" class="mt-0.5 h-5 w-5 text-primary rounded border-gray-300 focus:ring-primary cursor-pointer shrink-0">
-                            <span class="text-xs sm:text-sm text-gray-700 leading-snug">
-                                <strong class="font-bold text-gray-900 block">Kostenloses Kundenkonto anlegen (Optional)</strong>
-                                <span class="text-xs text-gray-500">Erhalte per E-Mail ein Zugangs-Passwort für deine Bestellübersicht, nachträgliche Design-Korrektur &amp; Seelenfunken-Treuepunkte. Ohne Auswahl bestellst du als Gast.</span>
-                            </span>
-                        </label>
-                    </div>
-                @endif
 
                 {{-- ERWEITERUNG ABWEICHENDE LIEFERADRESSE --}}
                 <div class="mt-8 pt-6 border-t border-gray-100">

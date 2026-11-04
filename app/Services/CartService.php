@@ -112,7 +112,8 @@ class CartService
             return;
         }
 
-        $quantity = max(1, min(100, $quantity));
+        $maxQty = session()->has('checkout_from_quote_id') ? 10000 : 100;
+        $quantity = max(1, min($maxQty, $quantity));
         $configuration = $this->sanitizeConfiguration($product, $configuration);
         $cart = $this->getCart();
 
@@ -123,7 +124,7 @@ class CartService
             return json_encode($item->configuration) === json_encode($configuration);
         });
 
-        $newQty = $existingItem ? min(100, $existingItem->quantity + $quantity) : $quantity;
+        $newQty = $existingItem ? min($maxQty, $existingItem->quantity + $quantity) : $quantity;
 
         // FIX: Konfiguration an Preisberechnung übergeben!
         $unitPrice = $this->resolveItemUnitPrice($product, $newQty, $configuration);
@@ -176,7 +177,8 @@ class CartService
             return;
         }
 
-        $quantity = min(100, $quantity);
+        $maxQty = session()->has('checkout_from_quote_id') ? 10000 : 100;
+        $quantity = min($maxQty, $quantity);
         if ($configuration !== null && $item->product) {
             $configuration = $this->sanitizeConfiguration($item->product, $configuration);
         }
@@ -227,7 +229,8 @@ class CartService
             return;
         }
 
-        $quantity = min(100, $quantity);
+        $maxQty = session()->has('checkout_from_quote_id') ? 10000 : 100;
+        $quantity = min($maxQty, $quantity);
 
         // FIX: Konfiguration an Preisberechnung übergeben!
         $unitPrice = $this->resolveItemUnitPrice($item->product, $quantity, $item->configuration);
@@ -438,6 +441,26 @@ class CartService
             }
         }
 
+        // 5. Optionale Feld-Aufpreise der Schnell-Personalisierung (custom_fields_data) serverseitig über das Produkt verifizieren
+        if ($product->usesCustomFieldsPersonalization() && $configuration && !empty($configuration['custom_fields_data']) && is_array($configuration['custom_fields_data'])) {
+            $defsById = collect($product->getCustomFieldsDefinition())->keyBy('id');
+            foreach ($configuration['custom_fields_data'] as $cfEntry) {
+                if (!is_array($cfEntry) || empty($cfEntry['id'])) {
+                    continue;
+                }
+                $cfDef = $defsById->get((string) $cfEntry['id']);
+                if (!$cfDef) {
+                    continue;
+                }
+                $surcharge = max(0, (int) ($cfDef['surcharge_cents'] ?? 0));
+                $val = trim((string) ($cfEntry['value'] ?? ''));
+                $isNeutral = in_array(mb_strtolower($val), ['', 'kein symbol', 'keine', 'nein', '-'], true);
+                if ($surcharge > 0 && !$isNeutral) {
+                    $price += $surcharge;
+                }
+            }
+        }
+
         return max(0, (int) round($price));
     }
 
@@ -586,6 +609,68 @@ class CartService
             $configuration['addons_summary'] = $canonicalSummary;
         } else {
             unset($configuration['selected_addons'], $configuration['addons_summary']);
+        }
+
+        // Validierung & Kanonisierung der Schnell-Personalisierungs-Eingabefelder (custom_fields_data)
+        if ($product->usesCustomFieldsPersonalization()) {
+            $configuration['personalization_mode'] = 'custom_fields';
+            $defs = $product->getCustomFieldsDefinition();
+            $submittedById = collect(is_array($configuration['custom_fields_data'] ?? null) ? $configuration['custom_fields_data'] : [])
+                ->filter(fn($item) => is_array($item) && !empty($item['id']))
+                ->keyBy('id');
+
+            $canonicalCustomFields = [];
+            $summaryParts = [];
+
+            foreach ($defs as $cfDef) {
+                $cfId = (string) $cfDef['id'];
+                $cfType = (string) ($cfDef['type'] ?? 'text');
+                $submitted = $submittedById->get($cfId);
+                $rawVal = is_array($submitted) ? trim((string) ($submitted['value'] ?? '')) : '';
+
+                if ($cfType === 'font' && !empty($cfDef['options'])) {
+                    $defaultFont = in_array('Arial', $cfDef['options'], true)
+                        ? 'Arial'
+                        : (string) ($cfDef['options'][0] ?? 'Arial');
+                    if ($rawVal === '' || !in_array($rawVal, $cfDef['options'], true)) {
+                        $rawVal = $defaultFont;
+                    }
+                } elseif ($cfType === 'select' && !empty($cfDef['options'])) {
+                    if ($rawVal !== '' && !in_array($rawVal, $cfDef['options'], true)) {
+                        $rawVal = (string) ($cfDef['options'][0] ?? '');
+                    }
+                } elseif ($cfType === 'date') {
+                    if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $rawVal, $dm)) {
+                        $rawVal = "{$dm[3]}.{$dm[2]}.{$dm[1]}";
+                    }
+                } else {
+                    $maxLen = max(1, (int) ($cfDef['max_length'] ?? 50));
+                    if (mb_strlen($rawVal) > $maxLen) {
+                        $rawVal = mb_substr($rawVal, 0, $maxLen);
+                    }
+                }
+
+                $surcharge = max(0, (int) ($cfDef['surcharge_cents'] ?? 0));
+                $isNeutral = in_array(mb_strtolower($rawVal), ['', 'kein symbol', 'keine', 'nein', '-'], true);
+                $effectiveSurcharge = (!$isNeutral && $surcharge > 0) ? $surcharge : 0;
+
+                $canonicalCustomFields[] = [
+                    'id'              => $cfId,
+                    'label'           => (string) $cfDef['label'],
+                    'type'            => (string) ($cfDef['type'] ?? 'text'),
+                    'value'           => $rawVal,
+                    'surcharge_cents' => $effectiveSurcharge,
+                ];
+
+                if ($rawVal !== '') {
+                    $summaryParts[] = $cfDef['label'] . ': ' . $rawVal;
+                }
+            }
+
+            $configuration['custom_fields_data'] = $canonicalCustomFields;
+            $configuration['text'] = implode(' · ', $summaryParts);
+        } else {
+            unset($configuration['custom_fields_data']);
         }
 
         return $configuration;

@@ -144,12 +144,15 @@ trait AiTelefonyFuncs
         }
 
         // Interne ManagementContact-Einträge (Team/Lieferanten ohne Customer-Account) prüfen:
-        // Falls gar kein Customer-Datensatz existiert, nur zulassen wenn explizit interner Kontakt
         if (is_object($contactOrName) && $contactOrName instanceof \App\Models\Management\ManagementContact) {
-            return !$contactOrName->customer_id;
+            if ($contactOrName->customer_id) {
+                $linkedCustomer = \App\Models\Customer\Customer::with('profile')->find($contactOrName->customer_id);
+                return $linkedCustomer ? $linkedCustomer->hasAiDataConsent() : false;
+            }
+            return true;
         }
 
-        return false;
+        return true;
     }
 
     public static function executeTelephonyCallContactDraft(array $args)

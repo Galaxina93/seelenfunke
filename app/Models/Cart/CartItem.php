@@ -77,4 +77,9 @@ use HasFactory, HasUuids;
     {
         return $this->belongsTo(Product::class)->withTrashed();
     }
+
+    public function getTotalPriceAttribute(): int
+    {
+        return (int) $this->unit_price * (int) $this->quantity;
+    }
 }

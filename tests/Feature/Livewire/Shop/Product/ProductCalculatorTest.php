@@ -376,4 +376,89 @@ class ProductCalculatorTest extends TestCase
         // Cleanup
         \Illuminate\Support\Facades\Storage::disk('public')->delete($testImageRelPath);
     }
+
+    #[Test]
+    public function it_supports_filtering_sorting_view_modes_and_pagination_in_sortiment()
+    {
+        Product::query()->update(['status' => 'draft']);
+
+        $categoryA = \App\Models\Product\ProductCategory::create([
+            'name' => 'Kristalle',
+            'slug' => 'kristalle-' . uniqid(),
+            'type' => 'physical',
+        ]);
+
+        // Create 8 active physical products so total > 6 (default perPage = 6)
+        for ($i = 1; $i <= 8; $i++) {
+            $prod = Product::create([
+                'name' => 'Sortiment Artikel ' . $i,
+                'slug' => 'sortiment-artikel-' . $i . '-' . uniqid(),
+                'status' => 'active',
+                'type' => 'physical',
+                'price' => 1000 * $i,
+                'compare_at_price' => $i === 1 ? 2500 : null,
+                'is_personalizable' => $i % 2 === 0,
+            ]);
+
+            if ($i <= 2) {
+                $prod->categories()->attach($categoryA->id);
+            }
+
+            if ($i === 1) {
+                ProductTierPrice::create([
+                    'product_id' => $prod->id,
+                    'qty' => 10,
+                    'percent' => 10,
+                ]);
+            }
+        }
+
+        $component = Livewire::test(Calculator::class)
+            ->set('agb_accepted', true)
+            ->call('startCalculator')
+            ->assertSet('step', 1)
+            ->assertSet('perPage', 6)
+            ->assertSet('viewMode', 'grid');
+
+        // Check pagination (8 total physical products, 6 per page)
+        $catalog = $component->viewData('catalogProducts');
+        $this->assertEquals(8, $catalog->total());
+        $this->assertCount(6, $catalog->items());
+
+        // Switch perPage to 12 -> all 8 visible on page 1
+        $component->call('setPerPage', 12)
+            ->assertSet('perPage', 12);
+        $this->assertCount(8, $component->viewData('catalogProducts')->items());
+
+        // Switch view mode to list and back to grid
+        $component->call('setViewMode', 'list')
+            ->assertSet('viewMode', 'list')
+            ->call('setViewMode', 'grid')
+            ->assertSet('viewMode', 'grid');
+
+        // Filter by search
+        $component->set('search', 'Sortiment Artikel 1');
+        $this->assertEquals(1, $component->viewData('catalogProducts')->total());
+
+        // Reset filters
+        $component->call('resetFilters')
+            ->assertSet('search', '');
+        $this->assertEquals(8, $component->viewData('catalogProducts')->total());
+
+        // Filter by category
+        $component->set('filterCategory', (string) $categoryA->id);
+        $this->assertEquals(2, $component->viewData('catalogProducts')->total());
+
+        // Filter by sale
+        $component->call('resetFilters')
+            ->call('toggleSaleFilter')
+            ->assertSet('filterSale', true);
+        $this->assertEquals(1, $component->viewData('catalogProducts')->total());
+
+        // Filter by tier pricing
+        $component->call('resetFilters')
+            ->call('toggleTierPricingFilter')
+            ->assertSet('filterTierPricing', true);
+        $this->assertEquals(1, $component->viewData('catalogProducts')->total());
+    }
 }

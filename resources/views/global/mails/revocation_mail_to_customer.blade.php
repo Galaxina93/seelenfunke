@@ -174,6 +174,10 @@
 
                     <div class="data-box">
                         <div class="data-row">
+                            <strong>Widerrufserklärung:</strong>
+                            <span>Hiermit widerrufe(n) ich/wir den von mir/uns abgeschlossenen Vertrag über den Kauf der angegebenen Waren.</span>
+                        </div>
+                        <div class="data-row">
                             <strong>Eingangsdatum:</strong>
                             <span>{{ $revocationData['timestamp'] }}</span>
                         </div>
@@ -197,8 +201,8 @@
                         @endif
                         @if(!empty($revocationData['attachments']))
                         <div class="data-row">
-                            <strong>Hochgeladene Nachweise:</strong>
-                            <span>{{ count($revocationData['attachments']) }} Datei(en) angehängt</span>
+                            <strong>Optionale Dateianhänge:</strong>
+                            <span>{{ count($revocationData['attachments']) }} Datei(en) übermittelt</span>
                         </div>
                         @endif
                     </div>

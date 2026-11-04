@@ -30,7 +30,10 @@
         fonts: @js($fonts),
         context: '{{$context}}',
         @php
-            $glbDiskPath = ($product->three_d_active && $product->three_d_model_path)
+            $effectiveMode = $this->effectivePersonalizationMode ?? $this->product->getPersonalizationMode();
+            $isEffectiveCustomFields = !$isDigital && !$isService && ($this->product->isPersonalizable() || $context === 'preview') && $effectiveMode === 'custom_fields';
+            $isEffectiveStudio = !$isDigital && !$isService && ($this->product->isPersonalizable() || $context === 'preview') && $effectiveMode === 'studio';
+            $glbDiskPath = ($isEffectiveStudio && $product->three_d_active && $product->three_d_model_path)
                 ? storage_path('app/public/' . ltrim($product->three_d_model_path, '/'))
                 : null;
             $resolvedModelUrl = ($glbDiskPath && is_file($glbDiskPath))
@@ -38,6 +41,8 @@
                 : '';
         @endphp
         config: {
+            isPersonalizable: {{ ($this->product->isPersonalizable() || $isEffectiveStudio) ? 'true' : 'false' }},
+            personalizationMode: '{{ $effectiveMode }}',
             modelPath: '{{ $resolvedModelUrl }}',
             bgPath: '{{ $this->resolvedBackgroundPath }}',
             fallbackImg: '{{ $this->previewImage }}',
@@ -346,7 +351,7 @@
         </div>
 
         {{-- GESTALTUNGS-LEISTE (direkt im Alpine-Scope des Konfigurators für Produktseite, Warenkorb & Bestell-Bearbeitung) --}}
-        @if($context !== 'preview' && !$isDigital && !$isService && $this->product->isPersonalizable())
+        @if($context !== 'preview' && !$isDigital && !$isService && $this->product->usesStudioConfigurator())
             <div x-show="!isMaximized" class="px-4 sm:px-6 py-2.5 border-b flex flex-wrap justify-between items-center gap-2 shrink-0 {{ $isDark ? 'bg-gray-900/80 border-gray-800' : 'bg-gray-50 border-gray-200' }}">
                 <div class="flex items-center gap-2 sm:gap-2.5 flex-wrap">
                     <span class="text-sm font-medium mr-0.5 {{ $isDark ? 'text-gray-300' : 'text-gray-600' }}">Gestaltung</span>
@@ -424,45 +429,10 @@
                     </div>
                 </div>
             </div>
-        @elseif($context === 'preview' && ($variantName || !empty($selectedAddons)))
-            @php
-                $previewBookedAddons = $this->resolveSelectedAddonsSummary();
-            @endphp
-            <div x-show="!isMaximized" class="px-6 pt-6 pb-2 w-full max-w-[600px] mx-auto shrink-0 z-50 space-y-2.5">
-                @if($variantName)
-                    <div class="border p-3.5 rounded-2xl text-center {{ $isDark ? 'bg-primary/10 border-primary/20' : 'bg-primary/5 border-primary/20' }}">
-                        <span class="text-[9px] font-black uppercase tracking-widest text-primary block mb-0.5">Gewählte Ausführung</span>
-                        <span class="font-bold text-sm {{ $isDark ? 'text-white' : 'text-gray-900' }}">{{ $variantName }}</span>
-                    </div>
-                @endif
-                @if(!empty($previewBookedAddons))
-                    <div class="border p-3.5 rounded-2xl {{ $isDark ? 'bg-amber-500/10 border-amber-500/25' : 'bg-amber-50/80 border-amber-200/80' }}">
-                        <span class="text-[9px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 block mb-2 text-center">🎁 Gebuchte Verpackung &amp; Extras</span>
-                        <div class="flex flex-wrap justify-center gap-2">
-                            @foreach($previewBookedAddons as $pAddon)
-                                @php
-                                    $pAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($pAddon);
-                                @endphp
-                                <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border {{ $isDark ? 'bg-gray-900/90 border-amber-500/30 text-amber-200' : 'bg-white border-amber-200 text-amber-900' }} text-xs font-bold shadow-2xs">
-                                    @if($pAddonImg)
-                                        <img src="{{ $pAddonImg }}" alt="{{ $pAddon['name'] }}" class="w-7 h-7 rounded-lg object-cover border border-amber-300/60 shrink-0">
-                                    @else
-                                        <span>🎁</span>
-                                    @endif
-                                    <span>{{ $pAddon['name'] }}</span>
-                                    @if(($pAddon['price_cents'] ?? 0) > 0)
-                                        <span class="text-primary font-mono">(+{{ number_format($pAddon['price_cents'] / 100, 2, ',', '.') }}&nbsp;€)</span>
-                                    @endif
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                @endif
-            </div>
         @endif
 
-        <div :class="isMaximized ? 'configurator-studio-body' : 'flex-1 custom-scrollbar pb-20 w-full min-w-0'">
-            @if(!$this->product->isPersonalizable())
+        <div :class="isMaximized ? 'configurator-studio-body' : 'flex-1 custom-scrollbar {{ ($context === 'preview' && $isEffectiveCustomFields) ? 'pb-4' : 'pb-20' }} w-full min-w-0'">
+            @if(!$this->product->isPersonalizable() && !$isEffectiveStudio && !$isEffectiveCustomFields)
                 {{-- Standard-Produkt (Nicht Personalisierbar) Layout --}}
                 <div class="p-6 sm:p-12 max-w-3xl mx-auto flex flex-col items-center justify-center text-center space-y-8 relative w-full mt-4">
                     {{-- Glow Background --}}
@@ -482,8 +452,11 @@
                         </p>
                     </div>
                 </div>
+            @elseif($isEffectiveCustomFields)
+                {{-- Schlanke Schnell-Personalisierung über dynamische Eingabefelder (ohne 3D/2D Canvas) --}}
+                @include('livewire.shop.product.product-configurator.partials.custom_fields_form', ['isDark' => $isDark])
             @elseif(!$isDigital && !$isService)
-                {{-- Physisches Produkt Layout --}}
+                {{-- Physisches Produkt Layout (Studio 2D/3D) --}}
                 @include('livewire.shop.product.product-configurator.partials.preview', ['isDark' => $isDark])
                 @include('livewire.shop.product.product-configurator.partials.formluar', ['isDark' => $isDark])
             @elseif($isDigital)

@@ -172,7 +172,7 @@
                                 </div>
                                 <p class="hidden sm:block text-[11px] text-gray-500 font-medium mt-1 uppercase tracking-wider">{{ $item->quantity }}x á {{ number_format($item->unit_price / 100, 2, ',', '.') }} €</p>
 
-                                {{-- Config Hints --}}
+                                {{-- Config Hints (Kompakte Indikator-Badges; Details stehen rechts) --}}
                                 @if(!empty($conf))
                                     <div class="mt-3 flex flex-wrap gap-2">
                                         @if(!empty($conf['variant_name']))
@@ -181,24 +181,10 @@
                                             </span>
                                         @endif
                                         @if(!empty($conf['addons_summary']) && is_array($conf['addons_summary']))
-                                            @foreach($conf['addons_summary'] as $addon)
-                                                @if(!empty($addon['name']))
-                                                    @php
-                                                        $leftAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addon);
-                                                    @endphp
-                                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-sm">
-                                                        @if($leftAddonImg)
-                                                            <img src="{{ $leftAddonImg }}" alt="{{ $addon['name'] }}" class="w-4 h-4 rounded object-cover border border-amber-500/40 shrink-0">
-                                                        @else
-                                                            <span>🎁</span>
-                                                        @endif
-                                                        <span>{{ $addon['name'] }}</span>
-                                                        @if(($addon['price_cents'] ?? 0) > 0)
-                                                            <span>(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }} €)</span>
-                                                        @endif
-                                                    </span>
-                                                @endif
-                                            @endforeach
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-sm">
+                                                <span>🎁</span>
+                                                <span>{{ count($conf['addons_summary']) }} {{ count($conf['addons_summary']) === 1 ? 'Extra' : 'Extras' }}</span>
+                                            </span>
                                         @endif
                                         @if(!empty($conf['is_gift_voucher']))
                                             @if(($conf['delivery_method'] ?? 'email') === 'post')
@@ -234,7 +220,11 @@
                                                 </a>
                                             @endforeach
                                         @endif
-                                        @if(!empty($conf['text']))
+                                        @if(!empty($conf['custom_fields_data']) && is_array($conf['custom_fields_data']))
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 shadow-sm">
+                                                ⚡ Schnell-Gravur ({{ count($conf['custom_fields_data']) }})
+                                            </span>
+                                        @elseif(!empty($conf['text']))
                                             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700 shadow-sm">
                                                 <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                                 Text
@@ -305,14 +295,25 @@
             </div>
         </div>
 
-        {{-- 4. HINTERLEGTE DATEIEN & DOWNLOADS (ZUGEKLAPPT) (Nur für personalisierbare Produkte) --}}
+        {{-- 4. HINTERLEGTE DATEIEN & DOWNLOADS (ZUGEKLAPPT) (Nur für Studio-Produkte, Gutscheine oder wenn Dateien vorliegen) --}}
         @php
-            $isPersonalizable = !isset($previewItem->product)
-                || $previewItem->product->isPersonalizable() !== false
-                || !empty($previewItem->configuration['is_gift_voucher']);
+            $isPreviewCustomFields = $previewItem && (
+                (($previewItem->configuration['personalization_mode'] ?? null) === 'custom_fields')
+                || !empty($previewItem->configuration['custom_fields_data'])
+            );
+            $hasAnyPreviewFiles = $previewItem && (
+                !empty($previewItem->configuration['files'])
+                || !empty($previewItem->configuration['logo_storage_path'])
+                || !empty($previewItem->configuration['snapshot_path'])
+                || !empty($previewItem->configuration['is_gift_voucher'])
+            );
+            $showFilesSection = $previewItem && (
+                $hasAnyPreviewFiles
+                || (!$isPreviewCustomFields && (!isset($previewItem->product) || $previewItem->product->isPersonalizable() !== false))
+            );
         @endphp
 
-        @if($isPersonalizable)
+        @if($showFilesSection)
             <div x-data="{ showFiles: false }" :class="showFiles ? 'overflow-visible' : 'overflow-hidden'" class="bg-white dark:bg-gray-900/50 rounded-[2rem] shadow-sm dark:shadow-inner border border-gray-200 dark:border-gray-800 transition-all duration-300">
             <div @click="showFiles = !showFiles" class="bg-gray-50 dark:bg-gray-950 px-6 py-4 rounded-t-[2rem] border-b border-gray-200 dark:border-gray-800 flex justify-between items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                 <h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-3">
@@ -593,10 +594,10 @@
                 </div>
             </div>
 
-            {{-- xTool Download --}}
+            {{-- xTool Download (Nur für Studio 2D/3D mit Canvas-Koordinaten) --}}
             @php
-                $hasFront = (!empty($previewItem->configuration['texts']) || !empty($previewItem->configuration['logos']));
-                $hasBack = (!empty($previewItem->configuration['texts_back']) || !empty($previewItem->configuration['logos_back']));
+                $hasFront = !$isPreviewCustomFields && (!empty($previewItem->configuration['texts']) || !empty($previewItem->configuration['logos']));
+                $hasBack = !$isPreviewCustomFields && (!empty($previewItem->configuration['texts_back']) || !empty($previewItem->configuration['logos_back']));
             @endphp
 
             @if($hasFront || $hasBack)
@@ -626,24 +627,7 @@
         </div>
         @endif
 
-        {{-- 5. BESONDERE KUNDENWÜNSCHE (NEU) --}}
-        @if(!empty($previewItem->configuration['notes']))
-            <div class="bg-amber-50/50 dark:bg-amber-900/10 rounded-[2rem] shadow-sm dark:shadow-inner border border-amber-200 dark:border-amber-500/20 overflow-hidden mb-6">
-                <div class="bg-amber-100/50 dark:bg-amber-500/10 px-6 py-4 border-b border-amber-200 dark:border-amber-500/20">
-                    <h3 class="text-[10px] font-black text-amber-800 dark:text-amber-400 uppercase tracking-widest flex items-center gap-2 drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
-                        Besondere Kundenwünsche
-                    </h3>
-                </div>
-                <div class="p-6 text-sm text-amber-900/80 dark:text-amber-100/80 leading-relaxed font-medium">
-                    <div class="bg-white dark:bg-amber-950/50 rounded-2xl p-5 border border-amber-200 dark:border-amber-900 shadow-sm dark:shadow-inner italic">
-                        "{!! nl2br(e($previewItem->configuration['notes'])) !!}"
-                    </div>
-                </div>
-            </div>
-        @endif
-
-        {{-- 6. COST SUMMARY --}}
+        {{-- 5. COST SUMMARY (Besondere Kundenwünsche stehen rechts bei der Positions-Vorschau) --}}
         <div>
             <x-shop.cost-summary :model="$model" design="adaptive" />
         </div>

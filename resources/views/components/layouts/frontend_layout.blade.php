@@ -227,8 +227,12 @@
     <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ $cssVersion }}">
 
     <!-- cookieconsent -->
-    <link rel="stylesheet" href="{{ asset('lib/dp_cookieconsent/css/cookieconsent.css') }}" media="print" onload="this.media='all'">
-    <script type="module" src="{{ asset('lib/dp_cookieconsent/js/cookieconsent-config.js') }}" defer></script>
+    @php
+        $ccCssVersion = file_exists(public_path('lib/dp_cookieconsent/css/cookieconsent.css')) ? filemtime(public_path('lib/dp_cookieconsent/css/cookieconsent.css')) : 1;
+        $ccJsVersion = file_exists(public_path('lib/dp_cookieconsent/js/cookieconsent-config.js')) ? filemtime(public_path('lib/dp_cookieconsent/js/cookieconsent-config.js')) : 1;
+    @endphp
+    <link rel="stylesheet" href="{{ asset('lib/dp_cookieconsent/css/cookieconsent.css') }}?v={{ $ccCssVersion }}" media="print" onload="this.media='all'">
+    <script type="module" src="{{ asset('lib/dp_cookieconsent/js/cookieconsent-config.js') }}?v={{ $ccJsVersion }}" defer></script>
 
     {{-- Scripts --}}
     <script src="{{ asset('js/app.js') }}?v={{ $jsVersion }}" defer></script>
@@ -301,6 +305,7 @@
 
 <body class="min-h-screen overflow-x-hidden antialiased">
 
+@include('frontend.partials.page_transition_portal')
 @include('frontend.partials.action_dock')
 
 @php

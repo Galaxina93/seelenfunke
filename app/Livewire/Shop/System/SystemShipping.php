@@ -34,6 +34,10 @@ class SystemShipping extends Component
         if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
+
+        if (LogisticsShippingZone::withTrashed()->exists()) {
+            $this->syncActiveCountriesWithSettings();
+        }
     }
 
     // --- FORM DATA (Zone Edit) ---
@@ -261,7 +265,7 @@ class SystemShipping extends Component
     /**
      * Diese Liste ist jetzt die "Wahrheit" für alle verfügbaren Länder
      */
-    public function getAllCountries()
+    public static function getAllCountries(): array
     {
         return [
             'DE' => 'Deutschland', 'AT' => 'Österreich', 'CH' => 'Schweiz',
@@ -269,7 +273,7 @@ class SystemShipping extends Component
             'EE' => 'Estland', 'FI' => 'Finnland', 'FR' => 'Frankreich',
             'GR' => 'Griechenland', 'IE' => 'Irland', 'IT' => 'Italien',
             'HR' => 'Kroatien', 'LV' => 'Lettland', 'LT' => 'Litauen',
-            'LU' => 'Luxemburg', 'MT' => 'Malta', 'NL' => 'Niederlande',
+            'LU' => 'Luxemburg', 'MT' => 'Malta', 'MC' => 'Monaco', 'NL' => 'Niederlande',
             'PL' => 'Polen', 'PT' => 'Portugal', 'RO' => 'Rumänien',
             'SE' => 'Schweden', 'SK' => 'Slowakei', 'SI' => 'Slowenien',
             'ES' => 'Spanien', 'CZ' => 'Tschechien', 'HU' => 'Ungarn',
