@@ -239,33 +239,49 @@
                                                     @endif
                                                 </div>
 
-                                                @if(!empty($item->configuration['variant_name']) || (!empty($item->configuration['addons_summary']) && is_array($item->configuration['addons_summary'])))
+                                                @if(!empty($item->configuration['variant_name']))
                                                     <div class="mt-3 flex flex-wrap items-center gap-2">
-                                                        @if(!empty($item->configuration['variant_name']))
-                                                            <span class="inline-flex items-center px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest bg-primary/15 text-primary border border-primary/30 shadow-2xs">
-                                                                Ausführung: {{ $item->configuration['variant_name'] }}
-                                                            </span>
-                                                        @endif
-                                                        @if(!empty($item->configuration['addons_summary']) && is_array($item->configuration['addons_summary']))
-                                                            @foreach($item->configuration['addons_summary'] as $addon)
-                                                                @if(!empty($addon['name']))
-                                                                    @php
-                                                                        $custAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addon);
-                                                                    @endphp
-                                                                    <span class="inline-flex items-center gap-2 px-2.5 py-1 rounded-xl text-xs font-bold bg-amber-50 dark:bg-amber-500/15 text-amber-900 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30 shadow-2xs">
-                                                                        @if($custAddonImg)
-                                                                            <img src="{{ $custAddonImg }}" alt="{{ $addon['name'] }}" class="w-6 h-6 rounded-md object-cover border border-amber-300/60 shrink-0">
-                                                                        @else
-                                                                            <span>🎁</span>
-                                                                        @endif
-                                                                        <span>{{ $addon['name'] }}</span>
-                                                                        @if(($addon['price_cents'] ?? 0) > 0)
-                                                                            <span class="text-amber-600 dark:text-amber-400/90 font-mono text-[11px]">(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }}&nbsp;€)</span>
-                                                                        @endif
-                                                                    </span>
-                                                                @endif
-                                                            @endforeach
-                                                        @endif
+                                                        <span class="inline-flex items-center px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest bg-primary/15 text-primary border border-primary/30 shadow-2xs">
+                                                            Ausführung: {{ $item->configuration['variant_name'] }}
+                                                        </span>
+                                                    </div>
+                                                @endif
+
+                                                @if(!empty($item->configuration['addons_summary']) && is_array($item->configuration['addons_summary']))
+                                                    <div class="mt-2.5 flex flex-col gap-1.5">
+                                                        @foreach($item->configuration['addons_summary'] as $addon)
+                                                            @if(!empty($addon['name']))
+                                                                @php
+                                                                    $custAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addon);
+                                                                    $custAddonDesc = \App\Models\Product\Product::resolveAddonDescription($addon, $item->product ?? null);
+                                                                    $custAddonPrice = (($addon['price_cents'] ?? 0) > 0)
+                                                                        ? '+ ' . number_format($addon['price_cents'] / 100, 2, ',', '.') . ' €'
+                                                                        : '';
+                                                                @endphp
+                                                                <button type="button"
+                                                                        @click="$dispatch('open-addon-modal', @js([
+                                                                            'name' => $addon['name'],
+                                                                            'price' => $custAddonPrice,
+                                                                            'image' => $custAddonImg,
+                                                                            'description' => $custAddonDesc,
+                                                                        ]))"
+                                                                        title="Extra-Bild &amp; Details in Großansicht öffnen"
+                                                                        class="group/addon inline-flex items-center gap-2 w-fit text-left text-xs sm:text-[13px] text-gray-700 dark:text-gray-200 hover:text-primary transition-colors cursor-zoom-in">
+                                                                    @if($custAddonImg)
+                                                                        <span class="relative w-6 h-6 rounded-md overflow-hidden border border-gray-200 dark:border-gray-700 group-hover/addon:border-primary/60 shadow-2xs shrink-0 block">
+                                                                            <img src="{{ $custAddonImg }}" alt="{{ $addon['name'] }}" class="w-full h-full object-cover group-hover/addon:scale-110 transition-transform duration-200">
+                                                                        </span>
+                                                                    @endif
+                                                                    <span class="font-medium leading-snug">{{ $addon['name'] }}</span>
+                                                                    @if(($addon['price_cents'] ?? 0) > 0)
+                                                                        <span class="text-primary font-semibold text-xs whitespace-nowrap">(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }}&nbsp;€)</span>
+                                                                    @endif
+                                                                    <svg class="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.75">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                                                    </svg>
+                                                                </button>
+                                                            @endif
+                                                        @endforeach
                                                     </div>
                                                 @endif
 
@@ -320,14 +336,46 @@
                                                 @endphp
 
                                                 @if($selectedOrder->status === 'pending' && $type === 'physical' && $item->product && $item->product->isPersonalizable())
-                                                    <button wire:click="openEdit('{{ $item->id }}')" class="inline-flex items-center gap-3 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all {{ $editItemId == $item->id ? 'bg-cyan-500 text-white shadow-sm dark:shadow-[0_0_15px_rgba(6,182,212,0.4)]' : ($hasPhotoIssue ? 'bg-amber-500 text-gray-950 hover:bg-amber-600 shadow-md ring-2 ring-amber-400/50' : 'bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500 hover:text-white border border-cyan-200 dark:border-cyan-500/30') }}">
-                                                        <span>{{ $editItemId == $item->id ? 'Abbrechen' : ($hasPhotoIssue ? 'Foto jetzt nachbessern' : 'Artikel anpassen') }}</span>
-                                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                                    </button>
+                                                    <div class="relative inline-flex"
+                                                         x-data="{ showEditHint: false }"
+                                                         @mouseenter="showEditHint = true"
+                                                         @mouseleave="showEditHint = false"
+                                                         @click.outside="showEditHint = false">
+                                                        <button wire:click="openEdit('{{ $item->id }}')" class="relative inline-flex items-center gap-3 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all {{ $editItemId == $item->id ? 'bg-cyan-500 text-white shadow-sm dark:shadow-[0_0_15px_rgba(6,182,212,0.4)]' : ($hasPhotoIssue ? 'bg-amber-500 text-gray-950 hover:bg-amber-600 shadow-md ring-2 ring-amber-400/50' : 'bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500 hover:text-white border border-cyan-200 dark:border-cyan-500/30') }}">
+                                                            <span>{{ $editItemId == $item->id ? 'Abbrechen' : ($hasPhotoIssue ? 'Foto jetzt nachbessern' : 'Artikel anpassen') }}</span>
+                                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                        </button>
+
+                                                        @if(!$hasPhotoIssue && $editItemId != $item->id)
+                                                            <span @click.stop="showEditHint = !showEditHint"
+                                                                  title="Wichtiger Hinweis: Solange die Bestellung nicht in Bearbeitung geht, sind Anpassungen möglich."
+                                                                  class="absolute -top-2 -right-2 z-10 flex h-5 w-5 items-center justify-center cursor-help select-none">
+                                                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-35" style="animation-duration: 2.4s;"></span>
+                                                                <span class="relative inline-flex items-center justify-center h-4.5 w-4.5 rounded-full bg-amber-500 text-white text-[10px] font-black leading-none shadow-sm ring-2 ring-white dark:ring-gray-900 animate-pulse">
+                                                                    !
+                                                                </span>
+                                                            </span>
+
+                                                            <div x-show="showEditHint"
+                                                                 x-cloak
+                                                                 x-transition:enter="transition ease-out duration-200"
+                                                                 x-transition:enter-start="opacity-0 translate-y-1"
+                                                                 x-transition:enter-end="opacity-100 translate-y-0"
+                                                                 x-transition:leave="transition ease-in duration-150"
+                                                                 x-transition:leave-start="opacity-100 translate-y-0"
+                                                                 x-transition:leave-end="opacity-0 translate-y-1"
+                                                                 class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2.5 w-64 sm:w-72 p-3 rounded-xl bg-amber-50 dark:bg-gray-800 border border-amber-200 dark:border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs leading-snug font-medium shadow-lg z-30 pointer-events-none text-left">
+                                                                <div class="flex items-start gap-2">
+                                                                    <svg class="w-4 h-4 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                                    <span><strong>Wichtiger Hinweis:</strong> Solange die Bestellung nicht in Bearbeitung geht, sind Anpassungen möglich.</span>
+                                                                </div>
+                                                            </div>
+                                                        @endif
+                                                    </div>
                                                 @endif
                                             </div>
                                             @if($selectedOrder->status === 'pending' && $type === 'physical' && $item->product && $item->product->isPersonalizable())
-                                                <div x-data="{ successMsg: false, showNotice: true }"
+                                                <div x-data="{ successMsg: false }"
                                                      x-on:order-item-updated.window="if($event.detail.itemId == '{{ $item->id }}') { successMsg = true; setTimeout(() => successMsg = false, 5000) }">
 
                                                     {{-- MANUFAKTUR-RÜCKFRAGE HINWEISBOX --}}
@@ -370,20 +418,6 @@
                                                             <p class="text-xs text-emerald-800 dark:text-emerald-300 font-medium">
                                                                 <strong>Danke!</strong> Dein Foto wurde aktualisiert. Unser Manufaktur-Team prüft die neue Datei und setzt die Fertigung fort.
                                                             </p>
-                                                        </div>
-                                                    @endif
-
-                                                    @if(!$hasPhotoIssue)
-                                                        <div x-show="showNotice" x-transition class="mt-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl p-3 flex items-start justify-between gap-3 shadow-sm">
-                                                            <div class="flex items-start gap-3">
-                                                                <svg class="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                                                <p class="text-xs text-amber-700 dark:text-amber-500/90 font-medium">
-                                                                    <strong>Wichtiger Hinweis:</strong> Solange die Bestellung nicht in Bearbeitung geht, sind Anpassungen möglich.
-                                                                </p>
-                                                            </div>
-                                                            <button type="button" @click="showNotice = false" class="text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 p-0.5 rounded cursor-pointer transition-colors" title="Hinweis ausblenden">
-                                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                                            </button>
                                                         </div>
                                                     @endif
 
@@ -968,4 +1002,5 @@
             </div>
         @endif
     </div>
+    <x-shop.addon-preview-modal />
 </div>

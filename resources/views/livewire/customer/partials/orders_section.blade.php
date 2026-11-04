@@ -147,33 +147,48 @@
                                             <p class="text-sm text-gray-400 font-medium">
                                                 {{ $item->quantity }}x à {{ number_format(($item->unit_price / 100), 2, ',', '.') }} €
                                             </p>
-                                            @if(!empty($item->configuration['variant_name']) || (!empty($item->configuration['addons_summary']) && is_array($item->configuration['addons_summary'])))
+                                            @if(!empty($item->configuration['variant_name']))
                                                 <div class="mt-2.5 flex flex-wrap gap-1.5">
-                                                    @if(!empty($item->configuration['variant_name']))
-                                                        <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-primary/15 text-primary border border-primary/30">
-                                                            Ausführung: {{ $item->configuration['variant_name'] }}
-                                                        </span>
-                                                    @endif
-                                                    @if(!empty($item->configuration['addons_summary']) && is_array($item->configuration['addons_summary']))
-                                                        @foreach($item->configuration['addons_summary'] as $addon)
-                                                            @if(!empty($addon['name']))
-                                                                @php
-                                                                    $secAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addon);
-                                                                @endphp
-                                                                <span class="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                                                                    @if($secAddonImg)
-                                                                        <img src="{{ $secAddonImg }}" alt="{{ $addon['name'] }}" class="w-5 h-5 rounded object-cover border border-amber-400/40 shrink-0">
-                                                                    @else
-                                                                        <span>🎁</span>
-                                                                    @endif
-                                                                    <span>{{ $addon['name'] }}</span>
-                                                                    @if(($addon['price_cents'] ?? 0) > 0)
-                                                                        <span class="text-amber-400/90">(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }} €)</span>
-                                                                    @endif
-                                                                </span>
-                                                            @endif
-                                                        @endforeach
-                                                    @endif
+                                                    <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-primary/15 text-primary border border-primary/30">
+                                                        Ausführung: {{ $item->configuration['variant_name'] }}
+                                                    </span>
+                                                </div>
+                                            @endif
+                                            @if(!empty($item->configuration['addons_summary']) && is_array($item->configuration['addons_summary']))
+                                                <div class="mt-2.5 flex flex-col gap-1.5">
+                                                    @foreach($item->configuration['addons_summary'] as $addon)
+                                                        @if(!empty($addon['name']))
+                                                            @php
+                                                                $custSecAddonImg = \App\Models\Product\Product::resolveAddonImageUrl($addon);
+                                                                $custSecAddonDesc = \App\Models\Product\Product::resolveAddonDescription($addon, $item->product ?? null);
+                                                                $custSecAddonPrice = (($addon['price_cents'] ?? 0) > 0)
+                                                                    ? '+ ' . number_format($addon['price_cents'] / 100, 2, ',', '.') . ' €'
+                                                                    : '';
+                                                            @endphp
+                                                            <button type="button"
+                                                                    @click="$dispatch('open-addon-modal', @js([
+                                                                        'name' => $addon['name'],
+                                                                        'price' => $custSecAddonPrice,
+                                                                        'image' => $custSecAddonImg,
+                                                                        'description' => $custSecAddonDesc,
+                                                                    ]))"
+                                                                    title="Extra-Bild &amp; Details in Großansicht öffnen"
+                                                                    class="group/addon inline-flex items-center gap-2 w-fit text-left text-xs text-gray-700 dark:text-gray-200 hover:text-primary transition-colors cursor-zoom-in">
+                                                                @if($custSecAddonImg)
+                                                                    <span class="relative w-6 h-6 rounded-md overflow-hidden border border-gray-200 dark:border-gray-700 group-hover/addon:border-primary/60 shadow-2xs shrink-0 block">
+                                                                        <img src="{{ $custSecAddonImg }}" alt="{{ $addon['name'] }}" class="w-full h-full object-cover group-hover/addon:scale-110 transition-transform duration-200">
+                                                                    </span>
+                                                                @endif
+                                                                <span class="font-medium leading-snug">{{ $addon['name'] }}</span>
+                                                                @if(($addon['price_cents'] ?? 0) > 0)
+                                                                    <span class="text-primary font-semibold whitespace-nowrap">(+{{ number_format($addon['price_cents'] / 100, 2, ',', '.') }} €)</span>
+                                                                @endif
+                                                                <svg class="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.75">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                                                </svg>
+                                                            </button>
+                                                        @endif
+                                                    @endforeach
                                                 </div>
                                             @endif
                                             @if(!empty($item->configuration['custom_fields_data']) && is_array($item->configuration['custom_fields_data']))
@@ -542,4 +557,5 @@
             {{ $orders->links() }}
         </div>
     @endif
+    <x-shop.addon-preview-modal />
 </div>
