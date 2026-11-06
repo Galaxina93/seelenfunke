@@ -213,18 +213,18 @@
                         @elseif($comm->attribution_source === 'coupon')
                             Rabattcode ({{ $comm->voucher_code }})
                         @else
-                            Tracking-Link (/t/{{ $influencer->slug }})
+                            Tracking-Link (/t/{{ $snap['slug'] ?? $influencer?->slug }})
                         @endif
                     </td>
                     <td style="text-align: right;">{{ number_format($comm->order_net_amount_cents / 100, 2, ',', '.') }} €</td>
                     <td style="text-align: right;">
-                        {{ $influencer->commission_type === 'fixed_cents' ? number_format($comm->commission_rate_snapshot / 100, 2, ',', '.') . ' €' : $comm->commission_rate_snapshot . ' %' }}
+                        {{ ($snap['commission_type'] ?? $influencer?->commission_type) === 'fixed_cents' ? number_format($comm->commission_rate_snapshot / 100, 2, ',', '.') . ' €' : $comm->commission_rate_snapshot . ' %' }}
                     </td>
                     <td style="text-align: right; font-weight: bold;">{{ number_format($comm->commission_amount_cents / 100, 2, ',', '.') }} €</td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="5">Pauschale Affiliate-Provisionsabrechnung ({{ $influencer->handle }})</td>
+                    <td colspan="5">Pauschale Affiliate-Provisionsabrechnung ({{ $snap['handle'] ?? $influencer?->handle }})</td>
                     <td style="text-align: right; font-weight: bold;">{{ number_format($payout->net_amount_cents / 100, 2, ',', '.') }} €</td>
                 </tr>
             @endforelse

@@ -109,7 +109,7 @@ class ManagementCalender extends Component
 
     // --- CRUD ---
 
-    public function createEvent($date = null)
+    public function createEvent($date = null, $hour = null)
     {
         $this->resetEditor();
         $targetDate = $date ? Carbon::parse($date) : $this->currentDate->copy();
@@ -117,11 +117,65 @@ class ManagementCalender extends Component
         $this->editStartDate = $targetDate->format('Y-m-d');
         $this->editEndDate = $targetDate->format('Y-m-d');
 
-        $this->editStartTime = Carbon::now()->addHour()->startOfHour()->format('H:i');
-        $this->editEndTime = Carbon::now()->addHour()->startOfHour()->addHour()->format('H:i');
+        if ($hour !== null && $hour !== '' && is_numeric($hour)) {
+            $h = max(0, min(23, (int)$hour));
+            $startDt = $targetDate->copy()->setTime($h, 0, 0);
+            $this->editStartTime = $startDt->format('H:i');
+            $this->editEndTime = $startDt->copy()->addHour()->format('H:i');
+        } else {
+            $this->editStartTime = Carbon::now()->addHour()->startOfHour()->format('H:i');
+            $this->editEndTime = Carbon::now()->addHour()->startOfHour()->addHour()->format('H:i');
+        }
 
         $this->editIsAllDay = false;
         $this->showEditModal = true;
+    }
+
+    public function moveEvent($eventId, $targetDate, $targetHour = null)
+    {
+        if (!$eventId || !$targetDate) return;
+
+        $newDay = Carbon::parse($targetDate)->startOfDay();
+
+        if (is_string($eventId) && str_starts_with($eventId, 'task_')) {
+            $taskId = substr($eventId, 5);
+            $task = \App\Models\Management\ManagementTask::find($taskId);
+            if ($task) {
+                $oldDt = $task->relevant_from ? $task->relevant_from->copy() : $newDay->copy();
+                $newDt = $newDay->copy()->setTimeFrom($oldDt);
+                if ($targetHour !== null && $targetHour !== '' && is_numeric($targetHour)) {
+                    $newDt->setTime(max(0, min(23, (int)$targetHour)), 0, 0);
+                }
+                $task->update(['relevant_from' => $newDt]);
+                session()->flash('calendar_success', 'Aufgabe verschoben.');
+            }
+            return;
+        }
+
+        $event = ManagementCalendarEvent::find($eventId);
+        if (!$event || !$event->start_date) return;
+
+        $oldStart = $event->start_date->copy();
+        $oldEnd = $event->end_date ? $event->end_date->copy() : $oldStart->copy()->addHour();
+        $durationSeconds = max(0, $oldStart->diffInSeconds($oldEnd));
+
+        $newStart = $newDay->copy()->setTimeFrom($oldStart);
+        if ($targetHour !== null && $targetHour !== '' && is_numeric($targetHour)) {
+            $newStart->setTime(max(0, min(23, (int)$targetHour)), $oldStart->minute, 0);
+            $event->is_all_day = false;
+        }
+
+        $newEnd = $event->is_all_day
+            ? $newStart->copy()->addSeconds($durationSeconds)->endOfDay()
+            : $newStart->copy()->addSeconds($durationSeconds);
+
+        $event->update([
+            'start_date' => $newStart,
+            'end_date' => $newEnd,
+            'is_all_day' => $event->is_all_day,
+        ]);
+
+        session()->flash('calendar_success', 'Termin verschoben.');
     }
 
     public function editEvent($id)

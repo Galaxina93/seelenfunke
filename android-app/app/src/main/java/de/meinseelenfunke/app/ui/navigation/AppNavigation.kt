@@ -368,7 +368,7 @@ fun MainTabbedScreen(
                             }
                         },
                         onNavigateToOrganizer = { subTab ->
-                            organizerInitialTab = subTab.coerceIn(0, 4)
+                            organizerInitialTab = subTab.coerceIn(0, 5)
                             organizerNavTrigger++
                             coroutineScope.launch {
                                 val organizerIndex = bottomNavItems.indexOf(Screen.Organizer)

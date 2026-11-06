@@ -1,6 +1,6 @@
 <div wire:poll.15s.visible="checkLiveOrders"
      x-data="{
-        focusMode: @entangle('focusMode'),
+        focusMode: {{ $focusMode ? 'true' : 'false' }},
         dashboardReady: true,
         orderIncomingPulse: false,
         orderIncomingNumber: null
@@ -304,13 +304,13 @@
         };
     </script>
 
-    <div :class="focusMode ? 'space-y-1' : 'space-y-8'">
+    <div :class="focusMode ? 'space-y-1' : 'space-y-8'" class="{{ $focusMode ? 'space-y-1' : 'space-y-8' }}">
 
         @include('livewire.shop.master.master-analytics-partials.header')
 
         @include('livewire.shop.master.master-analytics-partials.master_scores')
 
-        <div x-show="!focusMode" x-cloak x-transition.opacity.duration.200ms class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div x-show="!focusMode" style="{{ $focusMode ? 'display: none;' : '' }}" x-transition.opacity.duration.200ms class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <!-- AKTIV ROUTINE -->
         <div class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 dark:shadow-2xl border border-gray-200/80 dark:border-gray-800 flex flex-col relative overflow-hidden group transition-colors duration-300">
             <div class="absolute top-0 right-0 p-4 opacity-5 dark:opacity-10">

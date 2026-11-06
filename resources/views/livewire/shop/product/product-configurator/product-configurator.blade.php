@@ -16,7 +16,7 @@
 @endphp
 
 <div :class="isMaximized ? 'configurator-studio-root overflow-hidden flex flex-col {{ $isDark ? 'bg-gray-950 text-gray-200' : 'bg-white text-gray-900' }}' : 'relative w-full h-full {{ $isDark ? 'bg-gray-950 text-gray-300' : 'bg-white text-gray-900' }}'"
-     :style="isMaximized ? 'position: fixed !important; top: 0px !important; left: 0px !important; right: 0px !important; bottom: 0px !important; width: 100vw !important; height: 100vh !important; max-width: 100vw !important; max-height: 100vh !important; z-index: 2147483647 !important; margin: 0 !important;' : ''"
+     :style="isMaximized ? 'position: fixed !important; top: 0px !important; left: 0px !important; right: 0px !important; bottom: 0px !important; width: 100vw !important; height: 100dvh !important; max-width: 100vw !important; max-height: 100dvh !important; z-index: 2147483647 !important; margin: 0 !important;' : ''"
      x-data="window.frontendConfiguratorData({
         productId: '{{ $product->id }}',
         wireModels: {
@@ -128,6 +128,7 @@
         html.configurator-fullscreen-active body {
             overflow: hidden !important;
             height: 100vh !important;
+            height: 100dvh !important;
             margin: 0 !important;
             padding: 0 !important;
         }
@@ -165,8 +166,10 @@
             bottom: 0px !important;
             width: 100vw !important;
             height: 100vh !important;
+            height: 100dvh !important;
             max-width: 100vw !important;
             max-height: 100vh !important;
+            max-height: 100dvh !important;
             margin: 0 !important;
             padding: 0 !important;
             z-index: 2147483647 !important;
@@ -188,6 +191,10 @@
         }
 
         @media (min-width: 1024px) {
+            .configurator-studio-scroll-shell {
+                overflow: hidden !important;
+            }
+
             .configurator-studio-body {
                 flex-direction: row;
                 overflow: hidden;
@@ -212,9 +219,50 @@
         }
 
         @media (max-width: 1023px) {
+            /* Auf Mobilgeräten & Tablets scrollt im Vollbild-Modus der gesamte Bereich inkl. Footer als Block-Container,
+               damit der "In den Warenkorb"-Button niemals hinter der Android-Systemleiste verdeckt bleibt */
+            .configurator-studio-scroll-shell {
+                display: block !important;
+                width: 100% !important;
+                height: 100% !important;
+                max-height: 100dvh !important;
+                overflow-y: auto !important;
+                overflow-x: hidden !important;
+                -webkit-overflow-scrolling: touch;
+                overscroll-behavior-y: contain;
+            }
+
+            .configurator-studio-topbar {
+                position: sticky !important;
+                top: 0 !important;
+                z-index: 60 !important;
+            }
+
+            .configurator-studio-body {
+                display: block !important;
+                flex: none !important;
+                min-height: 0 !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+
+            .configurator-studio-preview {
+                width: 100% !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+
             .configurator-studio-form {
                 width: 100% !important;
                 max-width: 100% !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+
+            .configurator-studio-footer {
+                display: block !important;
+                width: 100% !important;
+                padding-bottom: calc(env(safe-area-inset-bottom, 24px) + 6rem) !important;
             }
         }
 
@@ -262,11 +310,11 @@
         }
     </style>
 
-    <div class="h-full flex flex-col flex-1 min-h-0 overflow-hidden">
+    <div :class="isMaximized ? 'configurator-studio-scroll-shell h-full flex flex-col flex-1 min-h-0' : 'h-full flex flex-col flex-1 min-h-0 overflow-hidden'">
 
         {{-- MAXIMIZED STUDIO TOP BAR --}}
         <div x-show="isMaximized" x-cloak
-             class="w-full px-4 sm:px-6 py-3 border-b flex items-center justify-between shrink-0 z-50 backdrop-blur-md {{ $isDark ? 'bg-gray-950/95 border-gray-800 text-white' : 'bg-white/95 border-gray-200 text-gray-900' }}">
+             class="configurator-studio-topbar w-full px-4 sm:px-6 py-3 border-b flex items-center justify-between shrink-0 z-50 backdrop-blur-md {{ $isDark ? 'bg-gray-950/95 border-gray-800 text-white' : 'bg-white/95 border-gray-200 text-gray-900' }}">
             
             {{-- Linke Seite: Badge & Titel --}}
             <div class="flex items-center gap-3 min-w-0">
@@ -431,7 +479,7 @@
             </div>
         @endif
 
-        <div :class="isMaximized ? 'configurator-studio-body' : 'flex-1 custom-scrollbar {{ ($context === 'preview' && $isEffectiveCustomFields) ? 'pb-4' : 'pb-20' }} w-full min-w-0'">
+        <div :class="isMaximized ? 'configurator-studio-body' : 'flex-1 custom-scrollbar {{ ($context === 'preview' && $isEffectiveCustomFields) ? 'pb-4' : 'pb-2 sm:pb-4' }} w-full min-w-0'">
             @if(!$this->product->isPersonalizable() && !$isEffectiveStudio && !$isEffectiveCustomFields)
                 {{-- Standard-Produkt (Nicht Personalisierbar) Layout --}}
                 <div class="p-6 sm:p-12 max-w-3xl mx-auto flex flex-col items-center justify-center text-center space-y-8 relative w-full mt-4">

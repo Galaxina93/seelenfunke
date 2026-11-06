@@ -238,10 +238,34 @@ return new class extends Migration
             $table->integer('weight_grams'); // Gewicht in Gramm
             $table->timestamps();
         });
+
+        // 13. Product Ideas (Produkt-Ideen & Sortiments-Planung vor Live-Schaltung)
+        Schema::create('product_ideas', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->integer('rank')->default(10)->index();
+            $table->boolean('is_top_priority')->default(false)->index();
+            $table->string('title');
+            $table->string('category')->default('echtschmuck')->index(); // echtschmuck, glas_kristall, metall_schiefer, geschenkset, sonstiges
+            $table->string('status')->default('top_idea')->index(); // top_idea, sample_needed, planned, ready, discarded
+            $table->string('material_summary')->nullable();
+            $table->string('supplier_name')->nullable();
+            $table->uuid('product_supplier_id')->nullable()->index();
+            $table->foreign('product_supplier_id')->references('id')->on('product_suppliers')->nullOnDelete();
+            $table->integer('purchase_price_net_cents')->default(0);
+            $table->integer('purchase_price_gross_cents')->default(0);
+            $table->integer('packaging_cost_cents')->default(106); // Standard: 1,06 € netto (Westpack Box)
+            $table->integer('shipping_cost_cents')->default(450); // Standard: 4,50 € netto (DHL Paket versichert)
+            $table->integer('target_price_gross_cents')->default(0);
+            $table->integer('expected_profit_cents')->default(0);
+            $table->json('components_links')->nullable(); // Einzel-Komponenten (z.B. Anhänger + Kette) mit Art.-Nr., Maßen, Einzel-EK & Kauflink
+            $table->text('notes')->nullable(); // Notizen zu Original-Fotos, Influencer-Mustern, Laser-Setup & Preis-Strategie
+            $table->timestamps();
+        });
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('product_ideas');
         Schema::dropIfExists('product_packagings');
         Schema::dropIfExists('product_losses');
         Schema::dropIfExists('product_niche_crawler_runs');

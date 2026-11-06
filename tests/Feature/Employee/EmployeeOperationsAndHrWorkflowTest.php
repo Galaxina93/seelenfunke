@@ -286,10 +286,24 @@ class EmployeeOperationsAndHrWorkflowTest extends TestCase
     #[Test]
     public function tax_advisor_can_download_employee_contract_and_questionnaire_pdfs(): void
     {
+        $admin = $this->createAdmin();
         [, $contract] = $this->createSignedEmployee();
-        app(EmployeeHrService::class)->generateAndStoreContractPdf($contract);
-        app(EmployeeHrService::class)->generateAndStoreQuestionnairePdf($contract);
+        $hrService = app(EmployeeHrService::class);
+        $hrService->generateAndStoreContractPdf($contract);
+        $hrService->generateAndStoreQuestionnairePdf($contract);
         $contract->refresh();
+
+        $year = (int) now()->year;
+        $month = (int) now()->month;
+
+        $hrService->recordTimeEntry($contract, [
+            'work_date' => now()->format('Y-m-d'),
+            'start_time' => '09:00',
+            'end_time' => '13:00',
+        ]);
+
+        $payslip = $hrService->createOrUpdatePayslip($contract, $year, $month);
+        $payslip = $hrService->markPayslipAsPaid($payslip, $admin->id);
 
         $taxAdvisor = Employee::create([
             'first_name' => 'Steuer',
@@ -311,9 +325,252 @@ class EmployeeOperationsAndHrWorkflowTest extends TestCase
         $this->actingAs($taxAdvisor, 'employee')
             ->get(route('employee.tax-advisor.employee-timesheet.pdf', [
                 'contract' => $contract->id,
-                'year' => (int) now()->year,
-                'month' => (int) now()->month,
+                'year' => $year,
+                'month' => $month,
             ]))
             ->assertOk();
+
+        $this->actingAs($taxAdvisor, 'employee')
+            ->get(route('employee.tax-advisor.employee-payslip.pdf', [
+                'payslip' => $payslip->id,
+            ]))
+            ->assertOk();
+
+        // Auch archivierte Mitarbeiter bleiben für den Steuerberater im Personal-Tab und inkl. Lohnabrechnung sichtbar
+        $contract->update(['is_archived' => true]);
+
+        Livewire::actingAs($taxAdvisor, 'employee')
+            ->test(\App\Livewire\Employee\TaxAdvisor\TaxAdvisorDashboard::class)
+            ->set('selectedYear', $year)
+            ->call('selectMonth', $month)
+            ->assertSee($contract->display_name)
+            ->assertSee('Lohnabrechnung PDF')
+            ->assertSee($payslip->payslip_number);
+
+        // Unsigned invitation slots must return 404 for tax advisor PDF routes
+        $unsignedSlot = $hrService->createInvitationSlot([
+            'invitation_label' => 'Unsigned Slot',
+        ]);
+        $this->actingAs($taxAdvisor, 'employee')
+            ->get(route('employee.tax-advisor.employee-contract.pdf', ['contract' => $unsignedSlot->id]))
+            ->assertNotFound();
+    }
+
+    #[Test]
+    public function paid_payslip_and_period_are_gobd_immutable_against_retroactive_manipulation(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $admin = $this->createAdmin();
+        [$employee, $contract] = $this->createSignedEmployee([
+            'hourly_rate_cents' => 1500,
+        ]);
+
+        $service = app(EmployeeHrService::class);
+        $year = (int) now()->year;
+        $month = (int) now()->month;
+
+        $entry = $service->recordTimeEntry($contract, [
+            'work_date' => now()->format('Y-m-d'),
+            'start_time' => '09:00',
+            'end_time' => '13:00',
+            'break_minutes' => 0,
+            'activity_note' => 'Reguläre Schicht',
+        ]);
+
+        $payslip = $service->createOrUpdatePayslip($contract, $year, $month);
+        $paidPayslip = $service->markPayslipAsPaid($payslip, $admin->id);
+        $this->assertSame('paid', $paidPayslip->status);
+        $this->assertSame(6000, $paidPayslip->gross_amount_cents);
+
+        // 1. Nachträgliches Überschreiben einer bereits bezahlten Lohnabrechnung muss GoBD-konform blockiert werden
+        $this->expectException(\InvalidArgumentException::class);
+        $service->createOrUpdatePayslip($contract, $year, $month, ['gross_amount_cents' => 99999]);
+    }
+
+    #[Test]
+    public function locked_paid_period_blocks_retroactive_time_and_leave_entries_and_deletions(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $admin = $this->createAdmin();
+        [$employee, $contract] = $this->createSignedEmployee();
+
+        $service = app(EmployeeHrService::class);
+        $year = (int) now()->year;
+        $month = (int) now()->month;
+
+        $entry = $service->recordTimeEntry($contract, [
+            'work_date' => now()->format('Y-m-d'),
+            'start_time' => '08:00',
+            'end_time' => '12:00',
+        ]);
+
+        $payslip = $service->createOrUpdatePayslip($contract, $year, $month);
+        $service->markPayslipAsPaid($payslip, $admin->id);
+
+        // Nachträglicher Zeiteintrag im bereits abgerechneten Monat muss fehlschlagen
+        try {
+            $service->recordTimeEntry($contract, [
+                'work_date' => now()->format('Y-m-d'),
+                'start_time' => '14:00',
+                'end_time' => '16:00',
+            ]);
+            $this->fail('Nachträglicher Zeiteintrag in bezahltem Monat hätte blockiert werden müssen.');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('GoBD-Sperre', $e->getMessage());
+        }
+
+        // Einstempeln im bereits abgerechneten Monat muss fehlschlagen
+        try {
+            $service->clockIn($contract);
+            $this->fail('Clock-In in bezahltem Monat hätte blockiert werden müssen.');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('GoBD-Sperre', $e->getMessage());
+        }
+
+        // Urlaubseintrag im bereits abgerechneten Monat muss fehlschlagen
+        try {
+            $service->recordLeaveEntries($contract, [
+                'entry_type' => 'vacation',
+                'start_date' => now()->format('Y-m-d'),
+                'end_date' => now()->format('Y-m-d'),
+            ]);
+            $this->fail('Urlaubseintrag in bezahltem Monat hätte blockiert werden müssen.');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('GoBD-Sperre', $e->getMessage());
+        }
+
+        // Selbst wenn Status manuell auf 'recorded' stünde, verhindert GoBD-Sperre das Löschen im Dashboard
+        $entry->update(['status' => 'recorded']);
+        Livewire::actingAs($employee, 'employee')
+            ->test(EmployeeDashboard::class)
+            ->call('deleteTimeEntry', $entry->id);
+
+        $this->assertNotNull($entry->fresh());
+    }
+
+    #[Test]
+    public function time_tracking_prevents_future_dates_overlapping_shifts_forgotten_clockins_and_vacation_quota_overflow(): void
+    {
+        [$employee, $contract] = $this->createSignedEmployee([
+            'vacation_days_per_year' => 2,
+            'vacation_days_taken' => 1,
+        ]);
+        $service = app(EmployeeHrService::class);
+
+        // 1. Zukünftiges Arbeitsdatum wird abgelehnt (§ 17 MiLoG)
+        try {
+            $service->recordTimeEntry($contract, [
+                'work_date' => now()->addDays(2)->format('Y-m-d'),
+                'start_time' => '09:00',
+                'end_time' => '12:00',
+            ]);
+            $this->fail('Zukünftiges Arbeitsdatum hätte abgelehnt werden müssen.');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('zukünftige Tage', $e->getMessage());
+        }
+
+        // 2. Überlappende Schichten am selben Tag werden abgelehnt
+        $service->recordTimeEntry($contract, [
+            'work_date' => now()->format('Y-m-d'),
+            'start_time' => '09:00',
+            'end_time' => '13:00',
+        ]);
+
+        try {
+            $service->recordTimeEntry($contract, [
+                'work_date' => now()->format('Y-m-d'),
+                'start_time' => '11:00',
+                'end_time' => '15:00',
+            ]);
+            $this->fail('Überlappender Zeiteintrag hätte abgelehnt werden müssen.');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('Zeitüberschneidung', $e->getMessage());
+        }
+
+        // 3. Vergessenes Ausstempeln über mehrere Tage wird bei clockOut auf max. 645 Min. Brutto (600 Min. Netto + 45 Min. Pause) gedeckelt
+        $running = EmployeeTimeEntry::create([
+            'contract_id' => $contract->id,
+            'employee_id' => $employee->id,
+            'work_date' => now()->subDays(2)->toDateString(),
+            'started_at' => now()->subHours(48),
+            'entry_type' => 'work',
+            'status' => 'running',
+        ]);
+
+        $clockedOut = $service->clockOut($running);
+        $this->assertSame(600, $clockedOut->net_minutes);
+        $this->assertSame(45, $clockedOut->break_minutes);
+        $this->assertTrue($clockedOut->arbzg_compliant);
+
+        // 4. Urlaubskontingent-Prüfung: Nur noch 1 Tag Resturlaub (2 pro Jahr - 1 genommen) -> 2 Tage anfragen muss fehlschlagen
+        $nextMonday = now()->next(\Carbon\Carbon::MONDAY);
+        $nextTuesday = $nextMonday->copy()->addDay();
+        try {
+            $service->recordLeaveEntries($contract, [
+                'entry_type' => 'vacation',
+                'start_date' => $nextMonday->format('Y-m-d'),
+                'end_date' => $nextTuesday->format('Y-m-d'),
+            ]);
+            $this->fail('Überschreitung des Resturlaubskontingents hätte blockiert werden müssen.');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('Urlaubskontingent', $e->getMessage());
+        }
+    }
+
+    #[Test]
+    public function contract_editing_enforces_milog_and_minijob_caps_and_paused_contract_blocks_operations(): void
+    {
+        Mail::fake();
+        $admin = $this->createAdmin();
+        [$employee, $contract] = $this->createSignedEmployee([
+            'can_access_production' => true,
+            'can_access_inventory' => true,
+        ]);
+
+        // 1. Festgehalt unter Mindestlohn (z.B. 20h/Woche = ~86,67h/Monat * 12,82 € = mind. 1.111,06 €) -> 400 € muss abgelehnt werden
+        Livewire::actingAs($admin, 'admin')
+            ->test(ManagementEmployees::class)
+            ->call('startEditContract', $contract->id)
+            ->set('editEmploymentType', 'part_time')
+            ->set('editCompensationType', 'fixed_salary')
+            ->set('editWeeklyHours', '20,0')
+            ->set('editMonthlyGrossEur', '400,00')
+            ->call('saveEditContract')
+            ->assertHasErrors(['editMonthlyGrossEur']);
+
+        // 2. Minijob mit Festgehalt über 556,00 € muss abgelehnt werden (§ 8 SGB IV)
+        Livewire::actingAs($admin, 'admin')
+            ->test(ManagementEmployees::class)
+            ->call('startEditContract', $contract->id)
+            ->set('editEmploymentType', 'minijob')
+            ->set('editCompensationType', 'fixed_salary')
+            ->set('editWeeklyHours', '10,0')
+            ->set('editMonthlyGrossEur', '650,00')
+            ->call('saveEditContract')
+            ->assertHasErrors(['editMonthlyGrossEur']);
+
+        // 3. Pausierter Vertrag sperrt sofort operative Aktionen (Packtisch / Lager)
+        $order = OrderOrder::create([
+            'order_number' => 'ORD-2026-PAUSE1',
+            'email' => 'kunde@pause.test',
+            'status' => 'pending',
+            'payment_status' => 'paid',
+            'billing_address' => ['first_name' => 'A', 'last_name' => 'B'],
+            'shipping_address' => ['first_name' => 'A', 'last_name' => 'B'],
+            'subtotal_price' => 1990,
+            'tax_amount' => 318,
+            'shipping_price' => 0,
+            'total_price' => 1990,
+        ]);
+
+        $component = Livewire::actingAs($employee, 'employee')
+            ->test(EmployeeDashboard::class);
+
+        $contract->update(['is_active' => false]);
+
+        $component->call('markOrderShipped', $order->id)
+            ->assertForbidden();
+
+        $this->assertSame('pending', $order->fresh()->status);
     }
 }

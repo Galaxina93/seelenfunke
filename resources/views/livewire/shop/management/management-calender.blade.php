@@ -1,14 +1,33 @@
 <div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="flex flex-col h-[calc(100vh-6rem)] bg-white/90 dark:bg-gray-900/80 backdrop-blur-xl rounded-[1.5rem] md:rounded-[2.5rem] dark:shadow-2xl border border-gray-200/80 dark:border-gray-800 overflow-hidden min-h-[750px] md:min-h-[85vh] relative transition-colors duration-300"
      x-data="{
         isMobile: window.innerWidth < 768,
+        draggedEventId: null,
+        dragOverDate: null,
         handleDateClick(date) {
             if (this.isMobile) {
                 $wire.createEvent(date);
             }
         },
-        handleDateDblClick(date) {
+        handleDateDblClick(date, hour = null) {
             if (!this.isMobile) {
-                $wire.createEvent(date);
+                $wire.createEvent(date, hour);
+            }
+        },
+        onEventDragStart(e, eventId) {
+            this.draggedEventId = eventId;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', eventId);
+        },
+        onEventDragEnd() {
+            this.draggedEventId = null;
+            this.dragOverDate = null;
+        },
+        onDayDrop(date, hour = null) {
+            const id = this.draggedEventId;
+            this.draggedEventId = null;
+            this.dragOverDate = null;
+            if (id) {
+                $wire.moveEvent(id, date, hour);
             }
         }
      }"
@@ -148,6 +167,10 @@
                                 @endphp
                                 <div @click="handleDateClick('{{ $day['date']->format('Y-m-d') }}')"
                                      @dblclick="handleDateDblClick('{{ $day['date']->format('Y-m-d') }}')"
+                                     @dragover.prevent="dragOverDate = '{{ $day['date']->format('Y-m-d') }}'"
+                                     @dragleave="if(dragOverDate === '{{ $day['date']->format('Y-m-d') }}') dragOverDate = null"
+                                     @drop.prevent="onDayDrop('{{ $day['date']->format('Y-m-d') }}')"
+                                     :class="dragOverDate === '{{ $day['date']->format('Y-m-d') }}' ? 'ring-2 ring-[var(--theme-color)] bg-[var(--theme-color-10)]' : ''"
                                      style="grid-row: 1 / span {{ $gridRows }}; grid-column: {{ $col }};"
                                      @class([
                                          'min-h-[120px] bg-white dark:bg-gray-900/40 rounded-[1.5rem] p-2 flex flex-col transition-all border relative cursor-pointer select-none group/day',
@@ -206,9 +229,12 @@
                                         }
                                     @endphp
                                     <div wire:click.stop="editEvent('{{ $event->id }}')"
+                                         draggable="true"
+                                         @dragstart="onEventDragStart($event, '{{ $event->id }}')"
+                                         @dragend="onEventDragEnd()"
                                          style="grid-column: {{ $item['start_col'] }} / span {{ $item['span'] }}; grid-row: {{ $item['track'] + 2 }}; margin-top: 2px; margin-bottom: 2px;"
-                                         class="h-6 px-2 py-0.5 {{ $roundClass }} {{ $s['bg'] }} {{ $s['text'] }} text-[9px] font-bold truncate transition-all border border-transparent hover:border-current/30 dark:shadow-lg flex items-center justify-between group/event z-20 select-none"
-                                         title="{{ $event->title }}">
+                                         class="h-6 px-2 py-0.5 {{ $roundClass }} {{ $s['bg'] }} {{ $s['text'] }} text-[9px] font-bold truncate transition-all border border-transparent hover:border-current/30 dark:shadow-lg flex items-center justify-between group/event z-20 select-none cursor-grab active:cursor-grabbing"
+                                         title="{{ $event->title }} (Zum Verschieben ziehen)">
                                         <span class="truncate">
                                             {{ $event->title }}
                                         </span>
@@ -330,7 +356,12 @@
         @elseif($view === 'week' || $view === 'day')
             <div class="max-w-4xl mx-auto py-10 px-4 space-y-10">
                 @foreach($this->calendarGrid as $dayData)
-                    <div class="relative pl-10 md:pl-16 pb-6">
+                    <div class="relative pl-10 md:pl-16 pb-6 rounded-3xl transition-all"
+                         @dblclick="handleDateDblClick('{{ $dayData['date']->format('Y-m-d') }}')"
+                         @dragover.prevent="dragOverDate = '{{ $dayData['date']->format('Y-m-d') }}'"
+                         @dragleave="if(dragOverDate === '{{ $dayData['date']->format('Y-m-d') }}') dragOverDate = null"
+                         @drop.prevent="onDayDrop('{{ $dayData['date']->format('Y-m-d') }}')"
+                         :class="dragOverDate === '{{ $dayData['date']->format('Y-m-d') }}' ? 'ring-2 ring-[var(--theme-color)] bg-[var(--theme-color-5)]' : ''">
                         {{-- Timeline Dot --}}
                         <div @class(['absolute left-0 top-1 w-5 h-5 rounded-full border-4 border-white dark:border-gray-950 z-10 shadow-sm transition-all', 'bg-[var(--theme-color)] ring-4 ring-[var(--theme-color-20)] scale-125 dark:shadow-glow' => $dayData['is_today'], 'bg-gray-400 dark:bg-gray-700' => !$dayData['is_today']])></div>
                         @if(!$loop->last) <div class="absolute left-[9px] top-6 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-800"></div> @endif
@@ -354,7 +385,11 @@
                                     }
                                     $spanType = $event->span_type ?? 'single';
                                 @endphp
-                                <div wire:click="editEvent('{{ $event->id }}')" class="bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 rounded-[2rem] p-5 shadow-sm dark:shadow-lg dark:hover:shadow-2xl hover:border-[var(--theme-color-40)] transition-all cursor-pointer flex items-center justify-between group/card">
+                                <div wire:click="editEvent('{{ $event->id }}')"
+                                     draggable="true"
+                                     @dragstart="onEventDragStart($event, '{{ $event->id }}')"
+                                     @dragend="onEventDragEnd()"
+                                     class="bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 rounded-[2rem] p-5 shadow-sm dark:shadow-lg dark:hover:shadow-2xl hover:border-[var(--theme-color-40)] transition-all cursor-grab active:cursor-grabbing flex items-center justify-between group/card">
                                     <div class="flex items-center gap-5">
                                         <div class="w-12 h-12 rounded-xl flex items-center justify-center {{ $s['bg'] }} {{ $s['text'] }} dark:shadow-inner border border-current/10">
                                             <x-dynamic-component :component="'heroicon-o-' . $s['icon']" class="w-6 h-6" />

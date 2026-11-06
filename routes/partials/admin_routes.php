@@ -21,6 +21,144 @@ Route::middleware(['auth:admin'])->group(function () {
 
     Route::get('/admin/contacts', \App\Livewire\Shop\Management\ManagementContacts::class)->name('admin.contacts');
     Route::get('/admin/employees', \App\Livewire\Shop\Management\ManagementEmployees::class)->name('admin.employees');
+    Route::get('/admin/music', \App\Livewire\Shop\Management\ManagementMusic::class)->name('admin.music');
+
+    Route::get('/admin/music/stream/{id}', function (\Illuminate\Http\Request $request, $id) {
+        // Release session lock immediately so concurrent Livewire / wire:navigate requests never wait on audio streaming
+        if ($request->hasSession()) {
+            $request->session()->save();
+        }
+        if (function_exists('session_write_close')) {
+            @session_write_close();
+        }
+
+        $track = \App\Models\Management\ManagementTrack::findOrFail($id);
+        $fullPath = null;
+        if (!empty($track->file_path)) {
+            $cand = storage_path('app/' . ltrim($track->file_path, '/'));
+            if (file_exists($cand) && filesize($cand) > 10000) {
+                $fullPath = $cand;
+            }
+        }
+        if (!$fullPath && !empty($track->external_id)) {
+            $vid = preg_replace('/[^A-Za-z0-9_-]/', '', $track->external_id);
+            $rel = "leitung/music/tracks/{$vid}.m4a";
+            $cand = storage_path("app/{$rel}");
+            if (file_exists($cand) && filesize($cand) > 10000) {
+                $fullPath = $cand;
+                if ($track->status !== 'cached') {
+                    $track->update(['file_path' => $rel, 'status' => 'cached', 'file_size' => filesize($cand)]);
+                }
+            } else {
+                $matches = glob(storage_path("app/leitung/music/tracks/{$vid}.*"));
+                if (!empty($matches) && filesize($matches[0]) > 10000) {
+                    $fullPath = $matches[0];
+                    if ($track->status !== 'cached') {
+                        $track->update([
+                            'file_path' => 'leitung/music/tracks/' . basename($fullPath),
+                            'status' => 'cached',
+                            'file_size' => filesize($fullPath),
+                        ]);
+                    }
+                } else {
+                    $ytDlp = storage_path('app/bin/yt-dlp');
+                    if (file_exists($ytDlp)) {
+                        $tracksDir = storage_path('app/leitung/music/tracks');
+                        if (!is_dir($tracksDir)) {
+                            @mkdir($tracksDir, 0775, true);
+                        }
+                        $outPattern = storage_path('app/leitung/music/tracks/%(id)s.%(ext)s');
+                        $cmd = escapeshellarg($ytDlp)
+                            . ' --no-playlist -f "140/ba[ext=m4a]/ba" --concurrent-fragments 4 --no-warnings -o '
+                            . escapeshellarg($outPattern) . ' '
+                            . escapeshellarg("https://www.youtube.com/watch?v={$vid}") . ' 2>&1';
+                        @shell_exec($cmd);
+
+                        $matchesAfter = glob(storage_path("app/leitung/music/tracks/{$vid}.*"));
+                        if (!empty($matchesAfter) && filesize($matchesAfter[0]) > 10000) {
+                            $fullPath = $matchesAfter[0];
+                            $track->update([
+                                'file_path' => 'leitung/music/tracks/' . basename($fullPath),
+                                'status' => 'cached',
+                                'file_size' => filesize($fullPath),
+                            ]);
+                        }
+                    }
+                }
+            }
+        }
+        if (!$fullPath || !file_exists($fullPath)) {
+            abort(404);
+        }
+
+        $ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
+        $mime = match ($ext) {
+            'mp3' => 'audio/mpeg',
+            'm4a', 'mp4', 'aac' => 'audio/mp4',
+            'wav' => 'audio/wav',
+            'ogg', 'opus' => 'audio/ogg',
+            'flac' => 'audio/flac',
+            default => 'audio/mp4',
+        };
+
+        $size = filesize($fullPath);
+        $mtime = filemtime($fullPath) ?: time();
+        $etag = '"' . md5($fullPath . '-' . $size . '-' . $mtime) . '"';
+
+        $start = 0;
+        $end = $size - 1;
+        $status = 200;
+        $headers = [
+            'Content-Type' => $mime,
+            'Accept-Ranges' => 'bytes',
+            'Cache-Control' => 'private, max-age=86400',
+            'ETag' => $etag,
+            'Last-Modified' => gmdate('D, d M Y H:i:s', $mtime) . ' GMT',
+            'X-Content-Type-Options' => 'nosniff',
+        ];
+
+        if ($request->headers->has('Range')) {
+            $range = $request->header('Range');
+            if (preg_match('/bytes=(\d+)-(\d*)/i', (string)$range, $matches)) {
+                $start = (int) $matches[1];
+                if ($matches[2] !== '') {
+                    $end = min($size - 1, (int) $matches[2]);
+                }
+                if ($start <= $end && $start < $size) {
+                    $status = 206;
+                    $headers['Content-Range'] = "bytes {$start}-{$end}/{$size}";
+                }
+            }
+        }
+
+        $length = ($end - $start) + 1;
+        $headers['Content-Length'] = $length;
+
+        // Increment play_count at most once per 15s per track (ignores 2-byte Range probes)
+        if ($start === 0 && $length > 16384) {
+            try {
+                if (\Illuminate\Support\Facades\Cache::add('fw_music_play_' . $track->id, 1, 15)) {
+                    \App\Models\Management\ManagementTrack::where('id', $track->id)->increment('play_count');
+                }
+            } catch (\Throwable $e) {}
+        }
+
+        return response()->stream(function () use ($fullPath, $start, $length) {
+            $fp = @fopen($fullPath, 'rb');
+            if ($fp === false) return;
+            if ($start > 0) fseek($fp, $start);
+            $rem = $length;
+            while ($rem > 0 && !feof($fp) && !connection_aborted()) {
+                $chunk = fread($fp, min(262144, $rem));
+                if ($chunk === false || $chunk === '') break;
+                echo $chunk;
+                $rem -= strlen($chunk);
+                if (ob_get_level() > 0) @ob_flush();
+                flush();
+            }
+            fclose($fp);
+        }, $status, $headers);
+    })->name('admin.music.stream');
 
     Route::get('/admin/employees/contract/{contract}/pdf', function (\App\Models\Employee\EmployeeContract $contract) {
         if (empty($contract->contract_pdf_path) || !\Illuminate\Support\Facades\Storage::disk('local')->exists((string) $contract->contract_pdf_path)) {

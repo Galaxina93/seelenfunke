@@ -127,4 +127,10 @@ use HasFactory;
     {
         return in_array($this->trigger_event, ['birthday', 'registered_date']);
     }
+
+    public function isInfluencerSample(): bool
+    {
+        return $this->trigger_event === 'influencer_sample'
+            || str_starts_with(strtoupper((string) $this->code), 'SAMPLE-');
+    }
 }

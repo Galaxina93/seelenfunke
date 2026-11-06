@@ -220,7 +220,6 @@ object ServiceLocator {
         if (currentUrl == null 
             || (currentUrl == "http://10.0.2.2/api/" && !isEmulator())
             || currentUrl.contains("8081")
-            || currentUrl.contains("127.0.0.1")
         ) {
             sharedPreferences.edit().putString(KEY_BASE_URL, defaultUrl).apply()
         }

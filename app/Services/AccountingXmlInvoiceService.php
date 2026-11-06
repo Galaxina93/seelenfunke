@@ -224,7 +224,7 @@ class AccountingXmlInvoiceService
             $tel = $this->addElement($contact, 'ram:TelephoneUniversalCommunication');
             $this->addElement($tel, 'ram:CompleteNumber', $phone);
         }
-        $sellerEmail = shop_setting('owner_email_invoices') ?: shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
+        $sellerEmail = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
         $mailComm = $this->addElement($contact, 'ram:EmailURIUniversalCommunication');
         $this->addElement($mailComm, 'ram:URIID', $sellerEmail);
 

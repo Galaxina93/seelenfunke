@@ -463,9 +463,10 @@ class AccountingFixCosts extends Component
         }
 
         $this->validate([
-            'itemName'   => 'required',
-            'itemAmount' => 'required|numeric',
-            'itemDate'   => 'required|date',
+            'itemName'     => 'required',
+            'itemAmount'   => 'required|numeric',
+            'itemInterval' => 'required|integer|min:1',
+            'itemDate'     => 'required|date',
         ]);
 
         $data = [
@@ -1170,7 +1171,7 @@ class AccountingFixCosts extends Component
         foreach ($groups as $group) {
             $monthlySum = 0;
             foreach ($group->items as $item) {
-                $monthlySum += abs($item->amount) / $item->interval_months;
+                $monthlySum += abs($item->amount) / max(1, (int) $item->interval_months);
             }
             if ($monthlySum > 0) {
                 $chartLabels[] = $group->name;
@@ -1214,7 +1215,7 @@ class AccountingFixCosts extends Component
         foreach ($groups as $group) {
             $monthlySum = 0;
             foreach ($group->items as $item) {
-                $monthlySum += abs($item->amount) / $item->interval_months;
+                $monthlySum += abs($item->amount) / max(1, (int) $item->interval_months);
             }
             if ($monthlySum > 0) {
                 $chartLabels[] = $group->name;

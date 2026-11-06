@@ -368,6 +368,145 @@ Route::get('/funki/shop/order-items/{itemId}/laser-file/{side}', function (\Illu
     return $downloadService->downloadLaserSvg($itemId, $side);
 })->middleware('throttle:30,1');
 
+// --- Secure Private Music Stream (Supports Bearer Token or ?token= Query Param + HTTP 206 Range Requests) ---
+Route::get('/funki/music/stream/{id}', function (\Illuminate\Http\Request $request, $id) {
+    $tokenString = $request->query('token');
+    if (is_string($tokenString) && $tokenString !== '') {
+        $token = \Laravel\Sanctum\PersonalAccessToken::findToken($tokenString);
+        if ($token && (!$token->expires_at || !$token->expires_at->isPast()) && $token->tokenable) {
+            $user = $token->tokenable;
+            $request->setUserResolver(fn() => $user);
+        }
+    }
+
+    $user = $request->user() ?: $request->user('sanctum');
+    if (!$user || !$user instanceof \App\Models\Admin\Admin) {
+        abort(401, 'Unauthorized');
+    }
+
+    $track = \App\Models\Management\ManagementTrack::findOrFail($id);
+
+    $fullPath = null;
+    if (!empty($track->file_path)) {
+        $relPath = ltrim(str_replace('\\', '/', (string) $track->file_path), '/');
+        if (
+            $relPath !== ''
+            && !str_contains($relPath, '..')
+            && !str_contains($relPath, "\0")
+            && str_starts_with($relPath, 'leitung/music/')
+        ) {
+            $cand = storage_path('app/' . $relPath);
+            if (file_exists($cand) && !is_link($cand) && filesize($cand) > 10000) {
+                $fullPath = $cand;
+            }
+        }
+    }
+
+    if (!$fullPath && !empty($track->external_id)) {
+        $vid = preg_replace('/[^A-Za-z0-9_-]/', '', $track->external_id);
+        $rel = "leitung/music/tracks/{$vid}.m4a";
+        $cand = storage_path("app/{$rel}");
+        if (file_exists($cand) && filesize($cand) > 10000) {
+            $fullPath = $cand;
+            if ($track->status !== 'cached') {
+                $track->update(['file_path' => $rel, 'status' => 'cached', 'file_size' => filesize($cand)]);
+            }
+        } else {
+            // Instant on-the-fly download if not yet cached
+            $ytDlp = storage_path('app/bin/yt-dlp');
+            $tracksDir = storage_path('app/leitung/music/tracks');
+            if (!is_dir($tracksDir)) {
+                @mkdir($tracksDir, 0775, true);
+            }
+            $outPattern = storage_path('app/leitung/music/tracks/%(id)s.%(ext)s');
+            $cmd = escapeshellarg($ytDlp)
+                . ' --no-playlist -f "140/ba[ext=m4a]/ba" --concurrent-fragments 4 --no-warnings -o '
+                . escapeshellarg($outPattern) . ' '
+                . escapeshellarg("https://www.youtube.com/watch?v={$vid}") . ' 2>&1';
+            @shell_exec($cmd);
+
+            if (file_exists($cand) && filesize($cand) > 10000) {
+                $fullPath = $cand;
+                $track->update(['file_path' => $rel, 'status' => 'cached', 'file_size' => filesize($cand)]);
+            } else {
+                $matches = glob(storage_path("app/leitung/music/tracks/{$vid}.*"));
+                if (!empty($matches) && filesize($matches[0]) > 10000) {
+                    $fullPath = $matches[0];
+                    $track->update([
+                        'file_path' => 'leitung/music/tracks/' . basename($fullPath),
+                        'status' => 'cached',
+                        'file_size' => filesize($fullPath),
+                    ]);
+                }
+            }
+        }
+    }
+
+    if (!$fullPath || !file_exists($fullPath)) {
+        abort(404, 'Audiospur nicht gefunden.');
+    }
+
+    $ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
+    $mime = match ($ext) {
+        'mp3' => 'audio/mpeg',
+        'm4a', 'mp4', 'aac' => 'audio/mp4',
+        'wav' => 'audio/wav',
+        'ogg', 'opus' => 'audio/ogg',
+        default => 'audio/mp4',
+    };
+
+    $size = filesize($fullPath);
+    $start = 0;
+    $end = $size - 1;
+    $status = 200;
+
+    $headers = [
+        'Content-Type' => $mime,
+        'Accept-Ranges' => 'bytes',
+        'Cache-Control' => 'private, max-age=86400',
+        'X-Content-Type-Options' => 'nosniff',
+    ];
+
+    if ($request->headers->has('Range')) {
+        $range = $request->header('Range');
+        if (preg_match('/bytes=(\d+)-(\d*)/i', (string)$range, $matches)) {
+            $start = (int) $matches[1];
+            if ($matches[2] !== '') {
+                $end = min($size - 1, (int) $matches[2]);
+            }
+            if ($start <= $end && $start < $size) {
+                $status = 206;
+                $headers['Content-Range'] = "bytes {$start}-{$end}/{$size}";
+            }
+        }
+    }
+
+    if ($start === 0) {
+        $track->increment('play_count');
+    }
+
+    $length = ($end - $start) + 1;
+    $headers['Content-Length'] = $length;
+
+    return response()->stream(function () use ($fullPath, $start, $length) {
+        $fp = fopen($fullPath, 'rb');
+        if ($fp === false) return;
+        if ($start > 0) {
+            fseek($fp, $start);
+        }
+        $remaining = $length;
+        while ($remaining > 0 && !feof($fp)) {
+            $chunk = fread($fp, min(65536, $remaining));
+            if ($chunk === false || $chunk === '') break;
+            echo $chunk;
+            $remaining -= strlen($chunk);
+            if (ob_get_level() > 0) @ob_flush();
+            flush();
+        }
+        fclose($fp);
+    }, $status, $headers);
+})->middleware('throttle:240,1');
+
 // --- 2. Geschützte API-Routen (Sanctum) ---
 Route::middleware('auth:sanctum')->group(function () {
 
@@ -403,8 +542,19 @@ Route::middleware('auth:sanctum')->group(function () {
         // Calender & Termine
         require __DIR__ . '/api/calendar.php';
 
+        // Musik & Soundplayer
+        require __DIR__ . '/api/music.php';
+
         // Shop Orders (Bestellungen)
         require __DIR__ . '/api/orders.php';
+
+        // Marketing & Content-Planer Live-Kontext (Shop-Produkte, Margen, Jahreszeiten & Feiertage)
+        Route::get('/funki/marketing/live-context', function (\App\Services\Marketing\HolidayOfferAutopilotService $autopilot) {
+            return response()->json([
+                'success' => true,
+                'data' => $autopilot->buildLiveMarketingPlanContext(),
+            ]);
+        });
 
         // AI Chat
         Route::get('/ai/agents', function() {

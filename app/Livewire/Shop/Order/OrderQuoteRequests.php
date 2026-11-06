@@ -49,6 +49,16 @@ class OrderQuoteRequests extends Component
         }
     }
 
+    public function updatingSearch()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilterStatus()
+    {
+        $this->resetPage();
+    }
+
     public function render()
     {
         if ($this->selectedQuoteId) {
@@ -122,7 +132,7 @@ class OrderQuoteRequests extends Component
      */
     public function convertToOrder($quoteId, $type = 'invoice')
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -306,15 +316,15 @@ class OrderQuoteRequests extends Component
     }
 
     public function markAsRejected($id) {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
-        OrderQuoteRequest::where('id', $id)->update(['status' => 'rejected']);
+        OrderQuoteRequest::where('id', $id)->where('status', '!=', 'converted')->update(['status' => 'rejected']);
         $this->closeDetail();
     }
 
     public function markAsOpen($id) {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
         $quote = OrderQuoteRequest::find($id);
@@ -326,7 +336,7 @@ class OrderQuoteRequests extends Component
 
     public function downloadLaserFile($itemId, $side, \App\Services\Export\FileDownloadService $exportService)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
         return $exportService->downloadLaserSvg($itemId, $side);

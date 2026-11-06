@@ -139,7 +139,7 @@ class ProductSuppliers extends Component
 
         $term = trim($this->search);
         if ($term !== '') {
-            $like = '%' . $term . '%';
+            $like = '%' . addcslashes($term, '%_\\') . '%';
             $query->where(function ($q) use ($like) {
                 $q->where('name', 'like', $like)
                     ->orWhere('company_name', 'like', $like)
@@ -257,7 +257,10 @@ class ProductSuppliers extends Component
 
     public function delete($id)
     {
-        ProductSupplier::findOrFail($id)->delete();
+        $supplier = ProductSupplier::findOrFail($id);
+        \App\Models\Product\Product::where('product_supplier_id', $supplier->id)->update(['product_supplier_id' => null]);
+        \App\Models\Product\ProductPackagingItem::where('product_supplier_id', $supplier->id)->update(['product_supplier_id' => null]);
+        $supplier->delete();
         $this->dispatch('toast', message: 'Lieferant gelöscht.', type: 'info');
         $this->loadSuppliers();
     }

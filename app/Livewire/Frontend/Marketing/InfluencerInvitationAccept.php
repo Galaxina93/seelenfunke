@@ -238,7 +238,17 @@ class InfluencerInvitationAccept extends Component
                 'max:80',
                 Rule::unique('marketing_influencers', 'slug')->ignore($this->influencerId),
             ],
-            'customVoucherCode' => 'nullable|string|max:40',
+            'customVoucherCode' => [
+                'nullable',
+                'string',
+                'max:40',
+                function ($attribute, $value, $fail) {
+                    $clean = strtoupper(preg_replace('/[^A-Za-z0-9\-]/', '', trim((string) $value)));
+                    if ($clean !== '' && app(InfluencerService::class)->isReservedOrCollidingVoucherCode($clean)) {
+                        $fail('Dieser Gutscheincode ist bereits vergeben oder verwendet ein reserviertes System-Präfix.');
+                    }
+                },
+            ],
             'profileUrl' => 'nullable|url|max:255',
         ], [
             'firstName.required' => 'Bitte gib deinen Vornamen ein.',
@@ -273,6 +283,9 @@ class InfluencerInvitationAccept extends Component
 
         $this->validateStepTwo();
 
+        $this->country = strtoupper(trim($this->country));
+        $this->iban = strtoupper(preg_replace('/\s+/', '', trim($this->iban)));
+
         $rules = [
             'street' => 'required|string|max:150',
             'houseNumber' => 'required|string|max:30',
@@ -288,7 +301,7 @@ class InfluencerInvitationAccept extends Component
 
         if ($this->payoutMethod === 'bank_transfer') {
             $rules['accountHolder'] = 'required|string|max:150';
-            $rules['iban'] = 'required|string|min:14|max:34';
+            $rules['iban'] = ['required', 'string', 'min:14', 'max:34', 'regex:/^[A-Z]{2}[0-9]{2}[A-Z0-9]{10,30}$/'];
             $rules['bic'] = 'nullable|string|max:20';
         } elseif ($this->payoutMethod === 'paypal') {
             $rules['paypalEmail'] = 'required|email|max:150';
@@ -302,10 +315,23 @@ class InfluencerInvitationAccept extends Component
             'taxNumber.required' => 'Bitte gib deine Steuernummer oder USt-IdNr. an (§ 14 UStG Pflichtangabe).',
             'accountHolder.required' => 'Bitte Kontoinhaber für SEPA-Auszahlungen angeben.',
             'iban.required' => 'Bitte gib deine IBAN für Provisions-Auszahlungen an.',
+            'iban.regex' => 'Bitte gib eine gültige IBAN im internationalen Format an (z. B. DE89...).',
             'paypalEmail.required' => 'Bitte gib deine PayPal-E-Mail-Adresse an.',
             'selfEmployedConfirmed.accepted' => 'Bitte bestätige deine selbstständige Tätigkeit auf eigene Rechnung.',
             'termsAccepted.accepted' => 'Bitte akzeptiere die Partnerprogramm-Bedingungen.',
         ]);
+
+        if ($this->country === 'DE' && $this->taxStatus === 'reverse_charge') {
+            throw ValidationException::withMessages([
+                'taxStatus' => 'Das Reverse-Charge-Verfahren (§ 13b UStG) gilt nur für im Ausland ansässige Unternehmen.',
+            ]);
+        }
+
+        if ($this->country !== 'DE' && $this->taxStatus === 'standard_tax') {
+            throw ValidationException::withMessages([
+                'taxStatus' => 'Der Ausweis deutscher Umsatzsteuer (19 %) ist nur bei Sitz in Deutschland zulässig. Bitte wähle Reverse-Charge (§ 13b UStG) oder Kleinunternehmer.',
+            ]);
+        }
 
         $influencer = $service->completeSelfRegistration($this->token, $this->verificationCode, [
             'first_name' => $this->firstName,

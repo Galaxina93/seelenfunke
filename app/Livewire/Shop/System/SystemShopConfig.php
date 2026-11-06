@@ -53,9 +53,6 @@ class SystemShopConfig extends Component
         'owner_street',
         'owner_city',
         'owner_email',
-        'owner_email_impressum',
-        'owner_email_invoices',
-        'owner_email_backup',
         'owner_phone',
         'owner_tax_id',
         'owner_ust_id',
@@ -120,10 +117,7 @@ class SystemShopConfig extends Component
         // Owner Info
         'owner_name' => 'Ehemaliger Platzhalter, nur noch intern verwendet.',
         'owner_proprietor' => 'Der Vor- und Nachname der Inhaberin (gesetzlich im Impressum als Vertreter vorgeschrieben).',
-        'owner_email' => 'Kontaktadresse für Kundenanfragen und Systembenachrichtigungen.',
-        'owner_email_impressum' => 'Spezielle E-Mail-Adresse für das Impressum und rechtliche Anfragen.',
-        'owner_email_invoices' => 'E-Mail-Adresse als Absender für automatische Rechnungen und buchhalterische Themen.',
-        'owner_email_backup' => 'An diese E-Mail-Adresse werden System-Benachrichtigungen und Datenbank-Backups gesendet.',
+        'owner_email' => 'Zentrale Kontaktadresse für Kundenanfragen, Impressum, Rechnungen und Systembenachrichtigungen.',
         'owner_tax_id' => 'Deine persönliche Steuernummer beim Finanzamt.',
         'owner_ust_id' => 'Umsatzsteuer-Identifikationsnummer für den EU-weiten Handel.',
         'owner_court' => 'Der Gerichtsstand ist bei Streitigkeiten mit gewerblichen Kunden relevant.',
@@ -289,9 +283,6 @@ class SystemShopConfig extends Component
             'inventory_low_stock_threshold' => 5,
             'skip_shipping_for_digital' => false,
             'send_order_email_to_admin' => true,
-            'owner_email_impressum' => 'impressum@mein-seelenfunke.de',
-            'owner_email_invoices' => 'rechnungen@mein-seelenfunke.de',
-            'owner_email_backup' => 'backup@mein-seelenfunke.de',
             'emergency_keepass_location' => '\\\\nas\\Unterlagen\\Dokumente\\Keepass',
             'emergency_master_password_location' => '',
             'emergency_contact_notary' => '',
@@ -408,9 +399,6 @@ class SystemShopConfig extends Component
                 'settings.company_email' => 'nullable|email',
                 'settings.company_country' => 'nullable|string|size:2',
                 'settings.owner_email' => 'required|email',
-                'settings.owner_email_impressum' => 'nullable|email',
-                'settings.owner_email_invoices' => 'nullable|email',
-                'settings.owner_email_backup' => 'nullable|email',
                 'settings.shipping_cost' => 'required|numeric|min:0',
                 'settings.shipping_free_threshold' => 'required|numeric|min:0',
                 'settings.shipping_cost_voucher' => 'required|numeric|min:0',
@@ -437,10 +425,7 @@ class SystemShopConfig extends Component
                 'settings.reduced_tax_rate' => 'Ermäßigter Steuersatz',
                 'settings.company_email' => 'Öffentliche Firmen-E-Mail',
                 'settings.company_country' => 'Länder-Kürzel',
-                'settings.owner_email' => 'Kontakt-E-Mail (System)',
-                'settings.owner_email_impressum' => 'Impressum E-Mail',
-                'settings.owner_email_invoices' => 'Rechnungen E-Mail',
-                'settings.owner_email_backup' => 'Backup E-Mail',
+                'settings.owner_email' => 'Zentrale Kontakt-E-Mail',
                 'settings.shipping_cost' => 'Standard Versandkosten',
                 'settings.shipping_free_threshold' => 'Versandkostenfrei-Grenze',
                 'settings.shipping_cost_voucher' => 'Versandkosten Post-Gutscheine',
@@ -515,7 +500,7 @@ class SystemShopConfig extends Component
                 \Illuminate\Support\Facades\Config::set('services.stripe.key', $value);
             }
 
-            if ($key === 'owner_email_backup' && !empty($value)) {
+            if ($key === 'owner_email' && !empty($value)) {
                 \Illuminate\Support\Facades\Config::set('backup.notifications.mail.to', $value);
             }
 
@@ -655,7 +640,9 @@ class SystemShopConfig extends Component
 
         $this->save(); // Save current state before generating PDF
         
-        $groups = \App\Models\Accounting\AccountingGroup::with('items')->get();
+        $groups = \App\Models\Accounting\AccountingGroup::with('items')
+            ->where('admin_id', Auth::guard('admin')->id())
+            ->get();
         $date = now()->format('d.m.Y H:i');
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.emergency-plan', [

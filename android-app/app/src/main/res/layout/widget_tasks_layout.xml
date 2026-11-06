@@ -29,37 +29,51 @@
             android:id="@+id/header_title_container"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:layout_toEndOf="@id/btn_tasks_back"
             android:layout_toStartOf="@+id/header_tasks_buttons_container">
 
-            <TextView
-                android:id="@+id/tasks_widget_title"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="SEELENFUNKE"
-                android:textColor="#C5A059"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.1" />
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@mipmap/ic_launcher_round"
+                android:layout_marginEnd="8dp"
+                android:contentDescription="Funkenwerk" />
 
-            <TextView
-                android:id="@+id/tasks_widget_subtitle"
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Aufgaben"
-                android:textColor="#94A3B8"
-                android:textSize="10sp" />
+                android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/tasks_widget_context"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="#C5A059"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:layout_marginTop="2dp"
-                android:visibility="gone" />
+                <TextView
+                    android:id="@+id/tasks_widget_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="FUNKENWERK"
+                    android:textColor="#C5A059"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.08" />
+
+                <TextView
+                    android:id="@+id/tasks_widget_subtitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Aufgaben"
+                    android:textColor="#CBD5E1"
+                    android:textSize="10sp" />
+
+                <TextView
+                    android:id="@+id/tasks_widget_context"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="#C5A059"
+                    android:textSize="11.5sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="1dp"
+                    android:visibility="gone" />
+            </LinearLayout>
         </LinearLayout>
 
         <LinearLayout
@@ -84,7 +98,7 @@
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#1E293B"
+        android:background="#334155"
         android:layout_marginBottom="8dp" />
 
     <!-- Content (ListView / Empty state) -->
@@ -97,8 +111,8 @@
             android:id="@+id/tasks_widget_list"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:divider="#1E293B"
-            android:dividerHeight="1dp"
+            android:divider="@android:color/transparent"
+            android:dividerHeight="4dp"
             android:nestedScrollingEnabled="true" />
 
         <TextView

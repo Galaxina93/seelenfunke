@@ -90,6 +90,8 @@
 
 <body class="min-h-screen font-sans antialiased">
 
+@include('frontend.partials.page_transition_portal')
+
 <main>
     {{-- "container" entfernt und durch "w-full" ersetzt für volle Breite --}}
     <div class="w-full">

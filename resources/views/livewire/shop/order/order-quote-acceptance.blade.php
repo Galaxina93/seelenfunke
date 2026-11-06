@@ -312,8 +312,8 @@
                                     $quoteBonusSparks = \App\Services\Gamification\GameConfig::calculateSparksForCents(max(0, $goodsGross - $discountAmount));
                                 @endphp
                                 @if($quoteBonusSparks > 0)
-                                    <div class="mb-2 flex justify-between items-center gap-3 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200/80 px-2.5 py-1.5 rounded-lg whitespace-nowrap">
-                                        <span class="whitespace-nowrap">✨ Seelenfunken Treue-Bonus (100&nbsp;%):</span>
+                                    <div class="mb-2 flex flex-wrap justify-between items-center gap-2 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200/80 px-2.5 py-1.5 rounded-lg">
+                                        <span class="whitespace-nowrap">✨ Treue-Bonus:</span>
                                         <span class="font-mono font-black whitespace-nowrap shrink-0">+{{ number_format($quoteBonusSparks, 0, ',', '.') }} ✨ Funken</span>
                                     </div>
                                 @endif

@@ -135,8 +135,8 @@ class ProductAnalytics extends Component
         $lossData = [];
         foreach ($lossGrouped->sortKeys() as $gDate => $items) {
             $lossLabels[] = $groupByFormat === 'Y-m' 
-                ? Carbon::createFromFormat('Y-m', $gDate)->locale('de')->shortMonthName . ' ' . substr($gDate, 0, 4)
-                : Carbon::createFromFormat('Y-m-d', $gDate)->format('d.m.y');
+                ? Carbon::createFromFormat('!Y-m', $gDate)->locale('de')->shortMonthName . ' ' . substr($gDate, 0, 4)
+                : Carbon::createFromFormat('!Y-m-d', $gDate)->format('d.m.y');
             $lossData[] = $items->sum('quantity');
         }
         $this->lossData = ['labels' => $lossLabels, 'data' => $lossData];

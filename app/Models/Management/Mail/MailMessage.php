@@ -102,8 +102,11 @@ protected $guarded = [];
         $dom = new \DOMDocument();
         libxml_use_internal_errors(true); // Verhindert PHP Warnings bei unsauberem E-Mail HTML
         
-        // UTF-8 Hack to ensure proper encoding parsing
-        $htmlWrapped = mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8');
+        // Ensure valid UTF-8 and encode non-ASCII characters as numeric entities for DOMDocument
+        if (!mb_check_encoding($html, 'UTF-8')) {
+            $html = mb_convert_encoding($html, 'UTF-8', 'Windows-1252,ISO-8859-1,UTF-8');
+        }
+        $htmlWrapped = mb_encode_numericentity($html, [0x80, 0x10FFFF, 0, ~0], 'UTF-8');
         
         if ($dom->loadHTML($htmlWrapped, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD)) {
             $xpath = new \DOMXPath($dom);

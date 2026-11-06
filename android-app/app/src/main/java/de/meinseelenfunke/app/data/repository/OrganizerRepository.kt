@@ -14,6 +14,50 @@ import okhttp3.RequestBody.Companion.toRequestBody
 
 class OrganizerRepository(private val serviceLocator: ServiceLocator) {
 
+    private fun loadTaskListsFromCache(): List<ManagementTaskList>? {
+        return try {
+            val sharedPrefs = serviceLocator.context.getSharedPreferences("tasks_widget_prefs", android.content.Context.MODE_PRIVATE)
+            val json = sharedPrefs.getString("task_lists_cache", null) ?: return null
+            val type = object : com.google.gson.reflect.TypeToken<List<ManagementTaskList>>() {}.type
+            com.google.gson.Gson().fromJson(json, type)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun loadTasksFromCache(): List<ManagementTask>? {
+        return try {
+            val sharedPrefs = serviceLocator.context.getSharedPreferences("tasks_widget_prefs", android.content.Context.MODE_PRIVATE)
+            val json = sharedPrefs.getString("tasks_cache", null) ?: return null
+            val type = object : com.google.gson.reflect.TypeToken<List<ManagementTask>>() {}.type
+            com.google.gson.Gson().fromJson(json, type)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun loadShoppingItemsFromCache(): List<ManagementShoppingItem>? {
+        return try {
+            val sharedPrefs = serviceLocator.context.getSharedPreferences("shopping_widget_prefs", android.content.Context.MODE_PRIVATE)
+            val json = sharedPrefs.getString("shopping_items_cache", null) ?: return null
+            val type = object : com.google.gson.reflect.TypeToken<List<ManagementShoppingItem>>() {}.type
+            com.google.gson.Gson().fromJson(json, type)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun loadCalendarEventsFromCache(): List<CalendarEvent>? {
+        return try {
+            val sharedPrefs = serviceLocator.context.getSharedPreferences("calendar_widget_prefs", android.content.Context.MODE_PRIVATE)
+            val json = sharedPrefs.getString("calendar_events_cache", null) ?: return null
+            val type = object : com.google.gson.reflect.TypeToken<List<CalendarEvent>>() {}.type
+            com.google.gson.Gson().fromJson(json, type)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     suspend fun getTaskLists(): Result<List<ManagementTaskList>> {
         return try {
             val response = serviceLocator.getOrganizerApi().getTaskLists()
@@ -22,10 +66,10 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
                 triggerTasksWidgetUpdate(serviceLocator.context)
                 Result.success(response.data)
             } else {
-                Result.failure(Exception("Konnte Aufgabenlisten nicht laden."))
+                Result.success(loadTaskListsFromCache() ?: emptyList())
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.success(loadTaskListsFromCache() ?: emptyList())
         }
     }
 
@@ -37,10 +81,10 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
                 triggerTasksWidgetUpdate(serviceLocator.context)
                 Result.success(response.data)
             } else {
-                Result.failure(Exception("Konnte Aufgaben nicht laden."))
+                Result.success(loadTasksFromCache() ?: emptyList())
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.success(loadTasksFromCache() ?: emptyList())
         }
     }
 
@@ -63,10 +107,12 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
         title: String? = null,
         priority: String? = null,
         isCompleted: Boolean? = null,
-        relevantFrom: String? = null
+        relevantFrom: String? = null,
+        aiPlan: String? = null,
+        taskListId: String? = null
     ): Result<ManagementTask> {
         return try {
-            val response = serviceLocator.getOrganizerApi().updateTask(id, title, priority, isCompleted, relevantFrom)
+            val response = serviceLocator.getOrganizerApi().updateTask(id, title, priority, isCompleted, relevantFrom, aiPlan, taskListId)
             if (response.success) {
                 updateCachedTask(response.data)
                 Result.success(response.data)
@@ -455,10 +501,10 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
                 triggerShoppingWidgetUpdate(serviceLocator.context)
                 Result.success(response.data)
             } else {
-                Result.failure(Exception("Konnte Einkaufsliste nicht laden."))
+                Result.success(loadShoppingItemsFromCache() ?: emptyList())
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.success(loadShoppingItemsFromCache() ?: emptyList())
         }
     }
 
@@ -529,13 +575,19 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
                 saveCalendarEventsToCache(events)
                 Result.success(events)
             } else {
-                val err = Exception("Server error response: success = false")
-                de.meinseelenfunke.app.util.AppLogger.error(context, "OrganizerRepo", "getCalendarEvents failed: API success false", err)
-                Result.failure(err)
+                val cached = loadCalendarEventsFromCache()
+                if (cached != null) {
+                    Result.success(cached)
+                } else {
+                    val err = Exception("Server error response: success = false")
+                    de.meinseelenfunke.app.util.AppLogger.error(context, "OrganizerRepo", "getCalendarEvents failed: API success false", err)
+                    Result.failure(err)
+                }
             }
         } catch (e: Exception) {
             de.meinseelenfunke.app.util.AppLogger.error(context, "OrganizerRepo", "getCalendarEvents exception", e)
-            Result.failure(e)
+            val cached = loadCalendarEventsFromCache()
+            if (cached != null) Result.success(cached) else Result.failure(e)
         }
     }
 

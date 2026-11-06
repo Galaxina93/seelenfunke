@@ -1,5 +1,5 @@
 @if($context !== 'preview')
-    <div :class="isMaximized ? 'px-4 py-2.5' : 'p-4'"
+    <div :class="isMaximized ? 'configurator-studio-footer px-4 py-3' : 'p-4 pb-8 sm:pb-4'"
          class="border-t z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] shrink-0 {{ $isDark ? 'bg-gray-950 border-gray-800' : 'bg-white border-gray-200' }}">
         <div :class="isMaximized ? 'max-w-6xl mx-auto space-y-2' : 'max-w-4xl mx-auto space-y-3.5'">
             {{-- VERPACKUNGS-UPGRADES FÜR NICHT-PERSONALISIERBARE PHYSISCHE PRODUKTE SOWIE SCHNELL-PERSONALISIERUNG IM FOOTER (BEI STUDIO LIEGEN SIE IN DER RECHTEN STUDIO-SPALTE) --}}
@@ -226,13 +226,13 @@
                     @endphp
                     @if($configuratorBonusSparks > 0)
                         <div :class="isMaximized ? 'lg:w-auto shrink-0' : 'w-full'"
-                             class="flex items-center justify-between gap-2.5 px-3.5 py-2 rounded-xl border {{ $isDark ? 'bg-amber-500/10 border-[#C5A059]/40 text-[#f5dca0]' : 'bg-amber-50/90 border-amber-200/90 text-amber-900' }} text-xs">
-                            <span class="flex items-center gap-1.5 font-semibold whitespace-nowrap">
-                                <span>✨</span>
-                                <span>Seelenfunken Treue-Bonus (100&nbsp;%):</span>
+                             class="flex items-center justify-between gap-2 px-3 sm:px-3.5 py-2 rounded-xl border {{ $isDark ? 'bg-amber-500/10 border-[#C5A059]/40 text-[#f5dca0]' : 'bg-amber-50/90 border-amber-200/90 text-amber-900' }} text-xs">
+                            <span class="flex items-center gap-1.5 font-semibold min-w-0 truncate">
+                                <span class="shrink-0">✨</span>
+                                <span class="truncate">Treue-Bonus:</span>
                             </span>
-                            <span class="font-mono font-black px-2.5 py-0.5 rounded-full whitespace-nowrap {{ $isDark ? 'bg-[#C5A059]/25 text-[#f5dca0]' : 'bg-amber-200/70 text-amber-950' }}">
-                                +{{ number_format($configuratorBonusSparks, 0, ',', '.') }} ✨ Seelenfunken
+                            <span class="font-mono font-black px-2.5 py-0.5 rounded-full whitespace-nowrap shrink-0 {{ $isDark ? 'bg-[#C5A059]/25 text-[#f5dca0]' : 'bg-amber-200/70 text-amber-950' }}">
+                                +{{ number_format($configuratorBonusSparks, 0, ',', '.') }} ✨ Funken
                             </span>
                         </div>
                     @endif
@@ -266,7 +266,7 @@
                             : (isSaving
                                 ? 'opacity-90 pointer-events-none cursor-wait {{ $isDark ? 'bg-primary text-gray-900' : 'bg-gray-900 text-white' }}'
                                 : '{{ $isDark ? 'bg-primary text-gray-900 hover:bg-primary-dark cursor-pointer active:scale-[0.99]' : 'bg-gray-900 text-white hover:bg-black cursor-pointer active:scale-[0.99]' }}')"
-                        class="flex-1 h-20 sm:h-12 rounded-2xl sm:rounded-xl font-black sm:font-bold text-xl sm:text-base tracking-wide sm:tracking-normal w-full transition-all duration-500 ease-out flex items-center justify-center shadow-2xl sm:shadow-lg hover:shadow-2xl disabled:shadow-none relative overflow-hidden group">
+                        class="w-full sm:flex-1 h-14 sm:h-12 shrink-0 rounded-2xl sm:rounded-xl font-black sm:font-bold text-lg sm:text-base tracking-wide sm:tracking-normal transition-all duration-500 ease-out flex items-center justify-center shadow-xl sm:shadow-lg hover:shadow-2xl disabled:shadow-none relative overflow-hidden group">
                     @if($context !== 'template_admin')
                         <div class="absolute left-0 top-0 bottom-0 bg-black/10 px-4 flex flex-col justify-center items-start border-r border-black/10 min-w-[100px] sm:min-w-[90px] pointer-events-none transition-colors duration-500">
                             <span class="font-serif font-bold leading-none tracking-wide text-lg sm:text-base {{ $qty > 1 ? 'sm:text-sm' : 'sm:text-base' }}">{{ number_format($totalPrice / 100, 2, ',', '.') }} €</span>

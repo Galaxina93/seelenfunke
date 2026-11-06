@@ -37,6 +37,14 @@ class InfluencerDashboard extends Component
     public string $bic = '';
     public string $paypalEmail = '';
 
+    // 100% Gratis PR-Sample & 3D-Konfigurator-Test State
+    public bool $sampleTermsConfirmed = false;
+    public string $samplePostUrl = '';
+    public int $sampleConfiguratorRating = 5;
+    public string $sampleConfiguratorFeedback = '';
+    public ?string $sampleInlineSuccess = null;
+    public ?string $sampleInlineError = null;
+
     public function boot(): void
     {
         $employee = Auth::guard('employee')->user();
@@ -65,6 +73,11 @@ class InfluencerDashboard extends Component
         $this->iban = (string) ($influencer->iban ?? '');
         $this->bic = (string) ($influencer->bic ?? '');
         $this->paypalEmail = (string) ($influencer->paypal_email ?? '');
+
+        $this->sampleTermsConfirmed = $influencer->sample_terms_accepted_at !== null;
+        $this->samplePostUrl = (string) ($influencer->sample_post_url ?? '');
+        $this->sampleConfiguratorRating = (int) ($influencer->sample_configurator_rating ?: 5);
+        $this->sampleConfiguratorFeedback = (string) ($influencer->sample_configurator_feedback ?? '');
     }
 
     protected function getInfluencer(): MarketingInfluencer
@@ -77,6 +90,9 @@ class InfluencerDashboard extends Component
         $influencer = MarketingInfluencer::with([
             'employee.profile',
             'defaultVoucher',
+            'sampleVoucher',
+            'sampleOrder.shipments',
+            'sampleOrder.items',
             'defaultTrackingLink',
             'trackingLinks',
             'commissions',
@@ -141,9 +157,166 @@ class InfluencerDashboard extends Component
         session()->flash('creator_success', "Produkt-Deep-Link (/t/{$link->slug}) für „{$product->name}“ ist bereit zum Kopieren!");
     }
 
+    public function unlockSampleVoucher(InfluencerService $service): void
+    {
+        $this->sampleInlineSuccess = null;
+        $this->sampleInlineError = null;
+        $this->resetValidation(['sampleTermsConfirmed']);
+
+        $influencer = $this->getInfluencer();
+
+        if (!$influencer->is_active || $influencer->is_archived || !$influencer->sample_granted) {
+            $this->sampleInlineError = 'Für dein Creator-Konto ist aktuell kein Gratis-Muster freigeschaltet.';
+            session()->flash('creator_error', $this->sampleInlineError);
+            return;
+        }
+
+        if (!$influencer->hasShippingAddress()) {
+            $this->activeTab = 'settings';
+            $this->sampleInlineError = 'Bitte hinterlege zuerst deine vollständige Anschrift in den Einstellungen, damit wir dir dein Gratis-Muster zusenden können.';
+            session()->flash('creator_error', $this->sampleInlineError);
+            return;
+        }
+
+        if (!$this->sampleTermsConfirmed) {
+            $msg = 'Bitte bestätige die Verlinkungsvereinbarung (Beitrag/Story innerhalb von 14 Tagen nach Erhalt), um dein 100 % Gratis-Muster freizuschalten.';
+            $this->addError('sampleTermsConfirmed', $msg);
+            $this->sampleInlineError = $msg;
+            return;
+        }
+
+        try {
+            $voucher = $service->acceptSampleTermsAndEnsureVoucher($influencer);
+            session([
+                'seelenfunke_sample_influencer_id' => $influencer->id,
+                'seelenfunke_coupon' => $voucher->code,
+            ]);
+
+            $cart = app(\App\Services\CartService::class)->getCart(false);
+            if ($cart) {
+                $cart->update(['coupon_code' => $voucher->code]);
+            }
+
+            $this->sampleInlineSuccess = "Dein 100 % Gratis-Muster ({$voucher->code}) ist freigeschaltet! Wähle jetzt unten in der Produkttabelle dein Wunsch-Unikat über „Muster gestalten“ aus.";
+            session()->flash('creator_success', $this->sampleInlineSuccess);
+        } catch (\Throwable $e) {
+            $this->sampleInlineError = $e->getMessage();
+            session()->flash('creator_error', $e->getMessage());
+        }
+    }
+
+    public function startSampleConfigurator(string $productSlug, InfluencerService $service)
+    {
+        $this->sampleInlineSuccess = null;
+        $this->sampleInlineError = null;
+
+        $influencer = $this->getInfluencer();
+
+        if (!$influencer->canOrderSample()) {
+            $this->sampleInlineError = 'Bitte schalte zuerst dein Gratis-Muster über die Verlinkungsvereinbarung frei.';
+            session()->flash('creator_error', $this->sampleInlineError);
+            return;
+        }
+
+        $product = Product::where('slug', $productSlug)->where('status', 'active')->first();
+        if (!$product || !$product->isPromotableByInfluencer() || !$product->isPhysical()) {
+            $this->sampleInlineError = 'Dieses Produkt ist aktuell nicht als physisches Gratis-Muster verfügbar.';
+            session()->flash('creator_error', $this->sampleInlineError);
+            return;
+        }
+
+        try {
+            $voucher = $service->acceptSampleTermsAndEnsureVoucher($influencer);
+            session([
+                'seelenfunke_sample_influencer_id' => $influencer->id,
+                'seelenfunke_coupon' => $voucher->code,
+            ]);
+
+            $cart = app(\App\Services\CartService::class)->getCart(true);
+            if ($cart) {
+                $cart->update(['coupon_code' => $voucher->code]);
+            }
+
+            return redirect()->route('product.show', $product->slug);
+        } catch (\Throwable $e) {
+            $this->sampleInlineError = $e->getMessage();
+            session()->flash('creator_error', $e->getMessage());
+        }
+    }
+
+    public function saveSampleFeedbackAndPost(InfluencerService $service): void
+    {
+        $this->sampleInlineSuccess = null;
+        $this->sampleInlineError = null;
+        $this->resetValidation(['sampleConfiguratorRating', 'sampleConfiguratorFeedback', 'samplePostUrl']);
+
+        $influencer = $this->getInfluencer();
+
+        $cleanFeedback = trim($this->sampleConfiguratorFeedback);
+        $cleanUrl = trim($this->samplePostUrl);
+
+        if ($cleanUrl !== '' && !preg_match('~^https?://~i', $cleanUrl) && str_contains($cleanUrl, '.')) {
+            $cleanUrl = 'https://' . ltrim($cleanUrl, '/');
+            $this->samplePostUrl = $cleanUrl;
+        }
+
+        if ($this->sampleConfiguratorRating < 1 || $this->sampleConfiguratorRating > 5) {
+            $this->addError('sampleConfiguratorRating', 'Bitte wähle eine Bewertung zwischen 1 und 5 Sternen.');
+            $this->sampleInlineError = 'Bitte wähle eine gültige Sterne-Bewertung (1 bis 5 Sterne).';
+            return;
+        }
+
+        if (mb_strlen($cleanFeedback) > 1000) {
+            $this->addError('sampleConfiguratorFeedback', 'Dein Feedback darf maximal 1.000 Zeichen lang sein.');
+            $this->sampleInlineError = 'Dein 3D-Konfigurator-Feedback ist zu lang (max. 1.000 Zeichen).';
+            return;
+        }
+
+        if ($cleanUrl !== '' && (!filter_var($cleanUrl, FILTER_VALIDATE_URL) || mb_strlen($cleanUrl) > 500)) {
+            $this->addError('samplePostUrl', 'Bitte gib einen gültigen Link ein (z. B. https://instagram.com/... oder https://tiktok.com/...).');
+            $this->sampleInlineError = 'Der eingegebene Verlinkungs-Nachweis ist keine gültige URL. Bitte gib einen vollständigen Link (z. B. https://instagram.com/...) ein.';
+            return;
+        }
+
+        if ($cleanUrl === '' && $cleanFeedback === '') {
+            $service->saveSampleConfiguratorFeedback($influencer, $this->sampleConfiguratorRating, null);
+            $this->addError('samplePostUrl', 'Bitte füge den Link zu deinem Beitrag/Story ein oder schreibe links ein kurzes Konfigurator-Feedback.');
+            $this->sampleInlineError = "Sterne-Bewertung ({$this->sampleConfiguratorRating}/5 ★) vermerkt – für den Abschluss fehlt noch dein Verlinkungs-Nachweis (Link zu Story / Reel / Beitrag) oder ein kurzes Feedback.";
+            return;
+        }
+
+        try {
+            $service->saveSampleConfiguratorFeedback(
+                $influencer,
+                $this->sampleConfiguratorRating,
+                $cleanFeedback
+            );
+
+            if ($cleanUrl !== '') {
+                $service->submitSamplePostProof(
+                    $influencer,
+                    $cleanUrl,
+                    $this->sampleConfiguratorRating,
+                    $cleanFeedback
+                );
+                $this->sampleInlineSuccess = 'Erfolgreich gespeichert! Dein Verlinkungs-Nachweis und dein 3D-Konfigurator-Feedback sind hinterlegt.';
+                session()->flash('creator_success', $this->sampleInlineSuccess);
+            } else {
+                $this->sampleInlineSuccess = "Dein 3D-Konfigurator-Feedback ({$this->sampleConfiguratorRating}/5 ★) wurde gespeichert! Hinweis: Dein Verlinkungs-Nachweis (Link zu Beitrag/Story) steht noch aus.";
+                session()->flash('creator_success', $this->sampleInlineSuccess);
+            }
+        } catch (\Throwable $e) {
+            $this->sampleInlineError = $e->getMessage();
+            session()->flash('creator_error', $e->getMessage());
+        }
+    }
+
     public function savePayoutAndTaxSettings(): void
     {
         $influencer = $this->getInfluencer();
+
+        $this->country = strtoupper(trim($this->country));
+        $this->iban = strtoupper(preg_replace('/\s+/', '', trim($this->iban)));
 
         $rules = [
             'companyName' => 'nullable|string|max:191',
@@ -160,7 +333,7 @@ class InfluencerDashboard extends Component
 
         if ($this->payoutMethod === 'bank_transfer') {
             $rules['accountHolder'] = 'required|string|max:191';
-            $rules['iban'] = ['required', 'string', 'min:15', 'max:34'];
+            $rules['iban'] = ['required', 'string', 'min:14', 'max:34', 'regex:/^[A-Z]{2}[0-9]{2}[A-Z0-9]{10,30}$/'];
             $rules['bic'] = 'nullable|string|max:30';
         } elseif ($this->payoutMethod === 'paypal') {
             $rules['paypalEmail'] = 'required|email|max:191';
@@ -175,8 +348,19 @@ class InfluencerDashboard extends Component
             'selfEmployedConfirmed.accepted' => 'Bitte bestätige, dass du auf eigene Rechnung handelst.',
             'accountHolder.required' => 'Bitte gib den Kontoinhaber an.',
             'iban.required' => 'Bitte gib deine IBAN für die Überweisung an.',
+            'iban.regex' => 'Bitte gib eine gültige IBAN im internationalen Format an (z. B. DE89...).',
             'paypalEmail.required' => 'Bitte gib deine PayPal-E-Mail-Adresse an.',
         ]);
+
+        if ($this->country === 'DE' && $this->taxStatus === 'reverse_charge') {
+            $this->addError('taxStatus', 'Das Reverse-Charge-Verfahren (§ 13b UStG) gilt nur für im Ausland ansässige Unternehmen.');
+            return;
+        }
+
+        if ($this->country !== 'DE' && $this->taxStatus === 'standard_tax') {
+            $this->addError('taxStatus', 'Der Ausweis deutscher Umsatzsteuer (19 %) ist nur bei Sitz in Deutschland zulässig. Bitte wähle Reverse-Charge (§ 13b UStG) oder Kleinunternehmer.');
+            return;
+        }
 
         $profile = $influencer->employee->profile()->firstOrCreate([]);
         $profile->update([

@@ -2,9 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
@@ -16,7 +19,7 @@
         android:allowBackup="false"
         android:fullBackupContent="false"
         android:icon="@mipmap/ic_launcher"
-        android:label="Seelenfunke"
+        android:label="Funkenwerk"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Seelenfunke"
@@ -26,6 +29,11 @@
         <service
             android:name=".services.WakeWordService"
             android:foregroundServiceType="microphone"
+            android:exported="false" />
+
+        <service
+            android:name=".services.MusicPlaybackService"
+            android:foregroundServiceType="mediaPlayback"
             android:exported="false" />
 
         <service
@@ -41,7 +49,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:label="Seelenfunke"
+            android:label="Funkenwerk"
             android:theme="@style/Theme.Seelenfunke"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation|locale|layoutDirection|fontScale|uiMode">
             <intent-filter>
@@ -63,7 +71,7 @@
         <receiver
             android:name=".widget.CalendarAppWidgetProvider"
             android:exported="true"
-            android:label="Seelenfunke Kalender">
+            android:label="Funkenwerk Kalender">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="de.meinseelenfunke.app.widget.ACTION_REFRESH" />
@@ -76,7 +84,7 @@
         <receiver
             android:name=".widget.CalendarMonthWidgetProvider"
             android:exported="true"
-            android:label="Seelenfunke Monatskalender">
+            android:label="Funkenwerk Monatskalender">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="de.meinseelenfunke.app.widget.ACTION_PREV_MONTH" />
@@ -99,7 +107,7 @@
         <receiver
             android:name=".widget.ShoppingListWidgetProvider"
             android:exported="true"
-            android:label="Seelenfunke Einkaufsliste">
+            android:label="Funkenwerk Einkaufsliste">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="de.meinseelenfunke.app.widget.ACTION_SHOPPING_REFRESH" />
@@ -118,7 +126,7 @@
         <receiver
             android:name=".widget.TasksWidgetProvider"
             android:exported="true"
-            android:label="Seelenfunke Aufgaben">
+            android:label="Funkenwerk Aufgaben">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_REFRESH" />
@@ -149,6 +157,24 @@
             android:name=".widget.TasksWidgetService"
             android:permission="android.permission.BIND_REMOTEVIEWS"
             android:exported="false" />
+
+        <receiver
+            android:name=".widget.MusicWidgetProvider"
+            android:exported="true"
+            android:label="Funkenwerk Musik">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_MUSIC_PLAY_PAUSE" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_MUSIC_NEXT" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_MUSIC_PREV" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_MUSIC_SHUFFLE" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_MUSIC_REFRESH" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_MUSIC_SEEK_NEAR_END" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_music_info" />
+        </receiver>
 
         <activity
             android:name=".widget.AddShoppingItemActivity"

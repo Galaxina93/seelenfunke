@@ -71,6 +71,7 @@ class ManagementEMails extends Component
 
     // Compose / Reply
     public $showComposeModal = false;
+    public $editingDraftId = null;
     public $composeTo = '';
     public $composeCc = '';
     public $composeBcc = '';
@@ -137,6 +138,12 @@ class ManagementEMails extends Component
             Artisan::call('crm:fetch-mails');
             session()->flash('success_message', 'Synchronisation abgeschlossen.');
         }
+    }
+
+    public function runAiSort(\App\Services\Management\MailAiSortService $sortService)
+    {
+        $result = $sortService->sortAllMailsAndSubfolders();
+        session()->flash('success_message', str_replace("\n", ' ', $result['message'] ?? 'KI-Sortierung abgeschlossen.'));
     }
 
     public function createTaskFromMail($messageId)
@@ -396,22 +403,27 @@ class ManagementEMails extends Component
     {
         $msg = MailMessage::find($id);
         if ($msg) {
-            // 1. Move to Spam folder (or delete)
-            $msg->update(['folder' => 'Junk']);
+            // 1. Move to Spam folder
+            $msg->update(['folder' => 'Junk', 'is_archived' => false]);
 
-            // 2. Add rule to automatically block this sender in the future
+            // 2. Add rule to automatically block this sender in the future & move existing INBOX mails from this sender
             if ($msg->from_email) {
                 MailRule::firstOrCreate([
                     'mail_account_id' => $msg->mail_account_id,
                     'type' => 'blacklist',
                     'condition_field' => 'from_email',
-                    'condition_value' => $msg->from_email,
+                    'condition_value' => strtolower(trim($msg->from_email)),
                     'action' => 'mark_spam'
                 ]);
+
+                MailMessage::where('mail_account_id', $msg->mail_account_id)
+                    ->whereRaw('LOWER(from_email) = ?', [strtolower(trim($msg->from_email))])
+                    ->where('folder', 'INBOX')
+                    ->update(['folder' => 'Junk', 'is_archived' => false]);
             }
 
             $this->selectedMessageId = null;
-            session()->flash('success_message', 'E-Mail als Spam markiert und Absender dauerhaft blockiert.');
+            session()->flash('success_message', 'E-Mail als Spam markiert und Absender automatisch in den Spam-Ordner geleitet.');
             $this->dispatch('folder-selected');
         }
     }
@@ -420,13 +432,13 @@ class ManagementEMails extends Component
     {
         $msg = MailMessage::find($id);
         if ($msg && $msg->folder === 'Junk') {
-            $msg->update(['folder' => 'INBOX']);
+            $msg->update(['folder' => 'INBOX', 'is_archived' => false]);
 
             // Remove the auto-blacklist rule if it exists
             if ($msg->from_email) {
                 MailRule::where('mail_account_id', $msg->mail_account_id)
                     ->where('type', 'blacklist')
-                    ->where('condition_value', $msg->from_email)
+                    ->whereRaw('LOWER(condition_value) = ?', [strtolower(trim($msg->from_email))])
                     ->delete();
             }
             $this->selectedMessageId = null;
@@ -555,12 +567,26 @@ class ManagementEMails extends Component
         $this->uploadedFiles = [];
         $this->composeCc = '';
         $this->composeBcc = '';
+        $this->editingDraftId = null;
+
+        if (($type === 'draft' || $type === 'reply') && $messageId) {
+            $msg = MailMessage::find($messageId);
+            if ($msg && $msg->folder === 'Drafts') {
+                $this->editingDraftId = $msg->id;
+                $this->composeAccountId = $msg->mail_account_id ?: $this->selectedAccountId;
+                $this->composeTo = (string) $msg->to_email;
+                $this->composeSubject = $msg->subject === '(Kein Betreff)' ? '' : (string) $msg->subject;
+                $this->composeBody = $msg->body_html ?: nl2br(e((string) $msg->body_plain));
+                $this->showComposeModal = true;
+                return;
+            }
+        }
 
         if ($type === 'reply' && $messageId) {
             $msg = MailMessage::find($messageId);
             if ($msg) {
                 $this->composeTo = $msg->from_email;
-                $this->composeSubject = 'Re: ' . $msg->subject;
+                $this->composeSubject = str_starts_with(strtolower((string) $msg->subject), 're:') ? $msg->subject : 'Re: ' . $msg->subject;
                 $safeFromName = e((string) ($msg->from_name ?: $msg->from_email));
                 $receivedFormatted = $msg->received_at ? $msg->received_at->format('d.m.Y H:i') : '';
                 $this->composeBody = "<br><br><hr><p>Am " . $receivedFormatted . " schrieb " . $safeFromName . ":<br><i>" . str_replace("\n", "<br>", e(strip_tags((string) ($msg->body_plain ?? $msg->body_html)))) . "</i></p>" . $signature;
@@ -649,6 +675,52 @@ class ManagementEMails extends Component
 
     public function closeCompose()
     {
+        $to = trim((string) $this->composeTo);
+        $subject = trim((string) $this->composeSubject);
+        $plainBody = trim(strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>'], "\n", (string) $this->composeBody)));
+
+        $accId = $this->composeAccountId ?: $this->selectedAccountId;
+        $account = $accId ? MailAccount::find($accId) : MailAccount::first();
+
+        if ($account && ($to !== '' || $subject !== '' || $plainBody !== '')) {
+            $draft = $this->editingDraftId
+                ? MailMessage::where('id', $this->editingDraftId)->where('folder', 'Drafts')->first()
+                : null;
+
+            $finalSubject = $subject !== '' ? $subject : '(Kein Betreff)';
+            if ($draft) {
+                $draft->update([
+                    'mail_account_id' => $account->id,
+                    'subject' => $finalSubject,
+                    'from_name' => $account->name,
+                    'from_email' => $account->email,
+                    'to_email' => $to,
+                    'body_plain' => $plainBody,
+                    'body_html' => $this->composeBody,
+                    'is_read' => true,
+                    'is_archived' => false,
+                    'received_at' => now(),
+                ]);
+            } else {
+                MailMessage::create([
+                    'mail_account_id' => $account->id,
+                    'message_id' => 'draft-' . uniqid('', true),
+                    'folder' => 'Drafts',
+                    'subject' => $finalSubject,
+                    'from_name' => $account->name,
+                    'from_email' => $account->email,
+                    'to_email' => $to,
+                    'body_plain' => $plainBody,
+                    'body_html' => $this->composeBody,
+                    'is_read' => true,
+                    'is_archived' => false,
+                    'has_attachments' => false,
+                    'received_at' => now(),
+                ]);
+            }
+            session()->flash('success_message', 'E-Mail wurde automatisch als Entwurf gespeichert.');
+        }
+
         foreach ($this->composeAttachments as $att) {
             if (!empty($att['is_uploaded'])) {
                 \Illuminate\Support\Facades\Storage::delete($att['path']);
@@ -658,6 +730,7 @@ class ManagementEMails extends Component
         $this->uploadedFiles = [];
         $this->composeCc = '';
         $this->composeBcc = '';
+        $this->editingDraftId = null;
         $this->showComposeModal = false;
     }
 
@@ -831,10 +904,15 @@ class ManagementEMails extends Component
                 ]);
             }
 
+            if ($this->editingDraftId) {
+                MailMessage::where('id', $this->editingDraftId)->where('folder', 'Drafts')->delete();
+            }
+
             $this->composeAttachments = [];
             $this->uploadedFiles = [];
             $this->composeCc = '';
             $this->composeBcc = '';
+            $this->editingDraftId = null;
             $this->showComposeModal = false;
             session()->flash('success_message', 'E-Mail wurde via SMTP erfolgreich gesendet!');
 
@@ -864,8 +942,9 @@ class ManagementEMails extends Component
 
         foreach ($accounts as $acc) {
             $accFolders = $baseFolders;
-            // Append Custom Folders
-            $customFolders = \App\Models\Management\Mail\MailFolder::where('mail_account_id', $acc->id)->pluck('name')->toArray();
+            // Append Custom Folders (alphabetically sorted)
+            $customFolders = \App\Models\Management\Mail\MailFolder::where('mail_account_id', $acc->id)->orderBy('name')->pluck('name')->toArray();
+            natcasesort($customFolders);
             foreach ($customFolders as $cf) {
                 $accFolders[$cf] = $cf;
             }

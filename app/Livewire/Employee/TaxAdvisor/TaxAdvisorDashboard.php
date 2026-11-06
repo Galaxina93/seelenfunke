@@ -192,6 +192,7 @@ class TaxAdvisorDashboard extends Component
             ->whereYear('invoice_date', $year);
 
         $payoutQuery = MarketingInfluencerPayout::with('influencer.employee.profile')
+            ->where('status', '!=', 'cancelled')
             ->whereYear('created_at', $year);
 
         if ($this->periodMode === 'month') {
@@ -285,6 +286,99 @@ class TaxAdvisorDashboard extends Component
 
             if ($addedCount === 0) {
                 $zip->addFromString('HINWEIS.txt', "Für den gewählten Zeitraum ({$periodLabel}) liegen noch keine abgeschlossenen Rechnungen oder Gutschriften vor.");
+            }
+
+            $zip->close();
+        }
+
+        return response()->download($zipPath, $zipName);
+    }
+
+    /**
+     * 5b. Alle Personal- & Lohnunterlagen (Arbeitsverträge, Personalfragebögen, Stundenzettel & Lohnabrechnungen) als Sammel-ZIP
+     */
+    public function downloadMonthlyHrPackageZip(\App\Services\Employee\EmployeeHrService $hrService)
+    {
+        $month = max(1, min(12, $this->selectedMonth));
+        $year = max(2000, min(2100, $this->selectedYear));
+        $monthStr = str_pad((string) $month, 2, '0', STR_PAD_LEFT);
+        $periodLabel = $this->periodMode === 'month' ? "{$year}_{$monthStr}" : "{$year}_Gesamtjahr";
+
+        $contracts = \Illuminate\Support\Facades\Schema::hasTable('employee_contracts')
+            ? \App\Models\Employee\EmployeeContract::with(['employee.profile', 'payslips' => fn ($q) => $q->where('period_year', $year)])
+                ->whereNotNull('invitation_accepted_at')
+                ->orderBy('is_archived')
+                ->orderByDesc('signed_at')
+                ->get()
+            : collect();
+
+        $exportDir = storage_path('app/buchhaltung/exports');
+        if (!File::exists($exportDir)) {
+            File::makeDirectory($exportDir, 0755, true);
+        }
+
+        $zipName = "Personal_und_Lohn_{$periodLabel}.zip";
+        $zipPath = "{$exportDir}/{$zipName}";
+
+        $zip = new ZipArchive;
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {
+            $addedCount = 0;
+
+            foreach ($contracts as $contract) {
+                $safeNo = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) $contract->contract_number);
+                $empFolder = "Personalakten/{$safeNo}_" . (\Illuminate\Support\Str::slug($contract->display_name) ?: 'Mitarbeiter');
+
+                // 1. Arbeitsvertrag PDF (§ 2 NachwG)
+                if (empty($contract->contract_pdf_path) || !Storage::disk('local')->exists((string) $contract->contract_pdf_path)) {
+                    $hrService->generateAndStoreContractPdf($contract);
+                    $contract->refresh();
+                }
+                $cPath = (string) $contract->contract_pdf_path;
+                if ($cPath !== '' && !str_contains($cPath, '..') && str_starts_with($cPath, 'buchhaltung/contracts/') && Storage::disk('local')->exists($cPath) && !is_link(Storage::disk('local')->path($cPath))) {
+                    $zip->addFile(Storage::disk('local')->path($cPath), "{$empFolder}/Arbeitsvertrag_{$safeNo}.pdf");
+                    $addedCount++;
+                }
+
+                // 2. Personalfragebogen PDF (ELStAM / SV)
+                if (empty($contract->questionnaire_pdf_path) || !Storage::disk('local')->exists((string) $contract->questionnaire_pdf_path)) {
+                    $hrService->generateAndStoreQuestionnairePdf($contract);
+                    $contract->refresh();
+                }
+                $qPath = (string) $contract->questionnaire_pdf_path;
+                if ($qPath !== '' && !str_contains($qPath, '..') && str_starts_with($qPath, 'buchhaltung/contracts/') && Storage::disk('local')->exists($qPath) && !is_link(Storage::disk('local')->path($qPath))) {
+                    $zip->addFile(Storage::disk('local')->path($qPath), "{$empFolder}/Personalbogen_{$safeNo}.pdf");
+                    $addedCount++;
+                }
+
+                // 3. Stundenzettel & Lohnabrechnungen (Monat oder Gesamtjahr)
+                $monthsToExport = $this->periodMode === 'month' ? [$month] : range(1, 12);
+                foreach ($monthsToExport as $m) {
+                    $mStr = str_pad((string) $m, 2, '0', STR_PAD_LEFT);
+                    $tPath = $hrService->generateAndStoreTimesheetPdf($contract, $year, $m);
+                    if ($tPath && !str_contains($tPath, '..') && str_starts_with($tPath, 'buchhaltung/receipts/') && Storage::disk('local')->exists($tPath) && !is_link(Storage::disk('local')->path($tPath))) {
+                        $zip->addFile(Storage::disk('local')->path($tPath), "{$empFolder}/Stundenzettel_{$safeNo}_{$year}_{$mStr}.pdf");
+                        $addedCount++;
+                    }
+
+                    $payslip = $contract->payslips->firstWhere('period_month', $m);
+                    if ($payslip) {
+                        $pPath = (string) $payslip->effective_pdf_path;
+                        if ($pPath === '' || !Storage::disk('local')->exists($pPath)) {
+                            $hrService->generateAndStorePayslipPdf($payslip);
+                            $payslip->refresh();
+                            $pPath = (string) $payslip->effective_pdf_path;
+                        }
+                        if ($pPath !== '' && !str_contains($pPath, '..') && str_starts_with($pPath, 'buchhaltung/receipts/') && Storage::disk('local')->exists($pPath) && !is_link(Storage::disk('local')->path($pPath))) {
+                            $safePayslipNo = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) $payslip->payslip_number);
+                            $zip->addFile(Storage::disk('local')->path($pPath), "{$empFolder}/Lohnabrechnung_{$safePayslipNo}_{$year}_{$mStr}.pdf");
+                            $addedCount++;
+                        }
+                    }
+                }
+            }
+
+            if ($addedCount === 0) {
+                $zip->addFromString('HINWEIS.txt', "Für den gewählten Zeitraum ({$periodLabel}) liegen noch keine unterzeichneten Personalakten vor.");
             }
 
             $zip->close();
@@ -689,6 +783,7 @@ class TaxAdvisorDashboard extends Component
             ->whereNotIn('status', ['cancelled', 'refunded']);
 
         $payoutsQuery = MarketingInfluencerPayout::with('influencer.employee.profile')
+            ->where('status', '!=', 'cancelled')
             ->whereYear('created_at', $this->selectedYear);
 
         if ($this->periodMode === 'month') {
@@ -756,12 +851,25 @@ class TaxAdvisorDashboard extends Component
         })->values();
 
         $employeeContracts = \Illuminate\Support\Facades\Schema::hasTable('employee_contracts')
-            ? \App\Models\Employee\EmployeeContract::with('employee')
-                ->where('is_archived', false)
+            ? \App\Models\Employee\EmployeeContract::with([
+                'employee.profile',
+                'payslips' => fn ($q) => $q->where('period_year', (int) $this->selectedYear),
+            ])
                 ->whereNotNull('invitation_accepted_at')
+                ->orderBy('is_archived')
                 ->orderByDesc('signed_at')
                 ->get()
             : collect();
+
+        if ($employeeContracts->isNotEmpty()) {
+            $hrService = app(\App\Services\Employee\EmployeeHrService::class);
+            foreach ($employeeContracts as $empContract) {
+                $empStats = $hrService->getMonthlyStats($empContract, (int) $this->selectedYear, (int) $this->selectedMonth);
+                $empPayslip = $empContract->payslips->firstWhere('period_month', (int) $this->selectedMonth);
+                $empContract->setAttribute('selected_month_stats', $empStats);
+                $empContract->setAttribute('selected_month_payslip', $empPayslip);
+            }
+        }
 
         return view('livewire.employee.tax-advisor.tax-advisor-dashboard', [
             'employee' => $employee,

@@ -18,6 +18,12 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 108)
+            }
+        }
+
         SoundManager.playSound(R.raw.open_project_brain)
 
         setContent {
@@ -49,6 +55,13 @@ class MainActivity : FragmentActivity() {
         handleIntent(intent)
     }
 
+
+    override fun onStop() {
+        super.onStop()
+        if (de.meinseelenfunke.app.util.MusicPlayerManager.isPlaying.value) {
+            de.meinseelenfunke.app.services.MusicPlaybackService.startOrUpdate(this)
+        }
+    }
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)

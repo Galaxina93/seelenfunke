@@ -206,6 +206,25 @@ class OrderCheckout extends Component
                     $this->country = array_key_exists('DE', $activeCountries) ? 'DE' : array_key_first($activeCountries);
                 }
             }
+        } elseif (Auth::guard('employee')->check()) {
+            // 1b. Daten laden: Eingeloggter Creator / Mitarbeiter (z.B. für 100% Gratis-Muster im Checkout)
+            $emp = Auth::guard('employee')->user();
+            $this->email = $emp->email;
+            $this->first_name = $emp->first_name;
+            $this->last_name = $emp->last_name;
+
+            if ($emp->profile) {
+                $this->address = trim($emp->profile->street . ' ' . $emp->profile->house_number);
+                $this->city = $emp->profile->city;
+                $this->postal_code = $emp->profile->postal;
+
+                $activeCountries = shop_setting('active_countries', ['DE' => 'Deutschland']);
+                if (!empty($emp->profile->country) && array_key_exists($emp->profile->country, $activeCountries)) {
+                    $this->country = $emp->profile->country;
+                } else {
+                    $this->country = array_key_exists('DE', $activeCountries) ? 'DE' : array_key_first($activeCountries);
+                }
+            }
         }
 
         // 2. Daten laden: Aus Angebot (Quote) falls vorhanden (auch ergänzend für eingeloggte B2B-Kunden)

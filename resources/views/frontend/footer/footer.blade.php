@@ -104,28 +104,6 @@
                             </a>
                         </li>
 
-                        {{-- 2. Impressum-Mail (nur anzeigen, wenn abweichend) --}}
-                        @if(shop_setting('owner_email_impressum') && shop_setting('owner_email_impressum') !== shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')))
-                            <li>
-                                <a href="mailto:{{ shop_setting('owner_email_impressum') }}"
-                                   title="Rechtliche Anfragen"
-                                   class="hover:text-amber-800 transition flex items-center gap-2">
-                                    <span aria-hidden="true">⚖️</span> {{ shop_setting('owner_email_impressum') }}
-                                </a>
-                            </li>
-                        @endif
-
-                        {{-- 3. Rechnungs-Mail (nur anzeigen, wenn abweichend) --}}
-                        @if(shop_setting('owner_email_invoices') && shop_setting('owner_email_invoices') !== shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')))
-                            <li>
-                                <a href="mailto:{{ shop_setting('owner_email_invoices') }}"
-                                   title="Buchhaltung & Rechnungen"
-                                   class="hover:text-amber-800 transition flex items-center gap-2">
-                                    <span aria-hidden="true">🧾</span> {{ shop_setting('owner_email_invoices') }}
-                                </a>
-                            </li>
-                        @endif
-
                         <li class="h-px bg-gray-200 w-full my-2" aria-hidden="true"></li>
 
                         <li><a href="/impressum" title="Impressum ansehen" class="hover:text-gray-900 transition text-gray-500">Impressum</a></li>

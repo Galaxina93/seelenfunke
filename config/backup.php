@@ -202,12 +202,12 @@ return [
      */
     'notifications' => [
         'notifications' => [
-            \Spatie\Backup\Notifications\Notifications\BackupHasFailedNotification::class => [],
-            \Spatie\Backup\Notifications\Notifications\UnhealthyBackupWasFoundNotification::class => [],
-            \Spatie\Backup\Notifications\Notifications\CleanupHasFailedNotification::class => [],
-            \Spatie\Backup\Notifications\Notifications\BackupWasSuccessfulNotification::class => [],
-            \Spatie\Backup\Notifications\Notifications\HealthyBackupWasFoundNotification::class => [],
-            \Spatie\Backup\Notifications\Notifications\CleanupWasSuccessfulNotification::class => [],
+            \Spatie\Backup\Notifications\Notifications\BackupHasFailedNotification::class => ['mail'],
+            \Spatie\Backup\Notifications\Notifications\UnhealthyBackupWasFoundNotification::class => ['mail'],
+            \Spatie\Backup\Notifications\Notifications\CleanupHasFailedNotification::class => ['mail'],
+            \Spatie\Backup\Notifications\Notifications\BackupWasSuccessfulNotification::class => ['mail'],
+            \Spatie\Backup\Notifications\Notifications\HealthyBackupWasFoundNotification::class => ['mail'],
+            \Spatie\Backup\Notifications\Notifications\CleanupWasSuccessfulNotification::class => ['mail'],
         ],
 
         /*
@@ -217,8 +217,8 @@ return [
         'notifiable' => \Spatie\Backup\Notifications\Notifiable::class,
 
         'mail' => [
-            // Holt sich die Backup-Mail aus der .env
-            'to' => env('MAIL_FROM_ADDRESS_BACKUP', 'backup@mein-seelenfunke.de'),
+            // Holt sich die Standard-Kontakt-Mail aus der .env
+            'to' => env('MAIL_FROM_ADDRESS', 'kontakt@mein-seelenfunke.de'),
 
             'from' => [
                 // Holt sich die Standard-Kontakt-Mail aus der .env
@@ -262,7 +262,7 @@ return [
      */
     'monitor_backups' => [
         [
-            'name' => env('APP_NAME', 'laravel-backup'),
+            'name' => 'system/' . env('APP_NAME', 'laravel') . '-db-backup',
             'disks' => ['local'],
             'health_checks' => [
                 \Spatie\Backup\Tasks\Monitor\HealthChecks\MaximumAgeInDays::class => 1,

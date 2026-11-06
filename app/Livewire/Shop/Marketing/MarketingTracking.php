@@ -163,7 +163,7 @@ class MarketingTracking extends Component
         $this->validate([
             'trackingName' => 'required|string|max:120',
             'trackingSlug' => ['required', 'string', 'max:100', 'alpha_dash', $uniqueRule],
-            'trackingTargetUrl' => 'required|string|max:2048',
+            'trackingTargetUrl' => ['required', 'string', 'max:2048', 'regex:/^(\/(?!\/)|https?:\/\/)/i'],
         ]);
 
         // Automatische Ableitung von Quelle, Medium & Kanal aus der Bezeichnung (z.B. "WhatsApp" -> source: whatsapp, channel: social)

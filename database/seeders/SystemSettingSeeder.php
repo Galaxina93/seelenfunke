@@ -64,9 +64,6 @@ class SystemSettingSeeder extends Seeder
 
             // E-Mail Routing & Postfächer
             'owner_email'               => 'kontakt@mein-seelenfunke.de',
-            'owner_email_impressum'     => 'impressum@mein-seelenfunke.de',
-            'owner_email_invoices'      => 'rechnungen@mein-seelenfunke.de',
-            'owner_email_backup'        => 'backup@mein-seelenfunke.de',
 
             'owner_phone'               => '+49 (0) 159 019 668 64',
             'owner_tax_id'              => '19/143/11624',
@@ -189,5 +186,9 @@ class SystemSettingSeeder extends Seeder
         if (\App\Models\Delivery\DeliveryTime::where('is_active', true)->count() === 0) {
             \App\Models\Delivery\DeliveryTime::where('name', 'Standard')->update(['is_active' => true]);
         }
+
+        // Veraltete Zusatz-Postfach-Settings entfernen (alles läuft zentral über kontakt@mein-seelenfunke.de)
+        SystemSetting::whereIn('key', ['owner_email_impressum', 'owner_email_invoices', 'owner_email_backup'])->delete();
+        Cache::forget('global_shop_settings');
     }
 }

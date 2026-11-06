@@ -217,11 +217,24 @@ class ManagementContacts extends Component
 
         if ($existingProfile) {
             $existingProfile->update($data);
+            $savedProfile = $existingProfile->fresh();
             $message = 'Kontakt erfolgreich aktualisiert.';
         } else {
-            $profile = ManagementContact::create($data);
-            $this->activeProfileId = $profile->id;
+            $savedProfile = ManagementContact::create($data);
+            $this->activeProfileId = $savedProfile->id;
             $message = 'Neuer Kontakt angelegt.';
+        }
+
+        if ($savedProfile && !$savedProfile->birthday) {
+            ManagementCalendarEvent::where('ics_uid', 'contact_birthday_' . $savedProfile->id)->delete();
+        } elseif ($savedProfile && $savedProfile->birthday && ManagementCalendarEvent::where('ics_uid', 'contact_birthday_' . $savedProfile->id)->exists()) {
+            $bdayThisYear = $savedProfile->birthday->copy()->year(now()->year);
+            ManagementCalendarEvent::where('ics_uid', 'contact_birthday_' . $savedProfile->id)->update([
+                'title' => 'Geburtstag: ' . $savedProfile->full_name,
+                'start_date' => $bdayThisYear->copy()->startOfDay(),
+                'end_date' => $bdayThisYear->copy()->endOfDay(),
+                'description' => 'Automatisch synchronisierter Geburtstag von ' . $savedProfile->full_name . ' (geb. ' . $savedProfile->birthday->format('d.m.Y') . ')',
+            ]);
         }
 
         $this->isEditing = false;

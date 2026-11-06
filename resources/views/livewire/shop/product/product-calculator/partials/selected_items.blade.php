@@ -386,7 +386,7 @@
                     @endphp
                     @if($calcBonusSparks > 0)
                         <div class="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold">
-                            <span>✨ Seelenfunken Treue-Bonus (100&nbsp;%):</span>
+                            <span>✨ Treue-Bonus:</span>
                             <span class="font-mono font-black">+{{ number_format($calcBonusSparks, 0, ',', '.') }} ✨ Funken</span>
                         </div>
                     @endif

@@ -242,8 +242,8 @@
                         </p>
                         @if(($earnedSparks ?? 0) > 0)
                             <div class="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/35 text-amber-900 text-xs font-bold">
-                                <span>✨ Treue-Bonus für diesen Einkauf:</span>
-                                <span class="font-mono font-black">+{{ number_format($earnedSparks, 0, ',', '.') }} Seelenfunken</span>
+                                <span>✨ Treue-Bonus:</span>
+                                <span class="font-mono font-black">+{{ number_format($earnedSparks, 0, ',', '.') }} Funken</span>
                             </div>
                         @endif
                         <div class="mt-3 pt-2.5 border-t border-amber-500/20 flex items-center justify-center gap-1.5 text-[11px] text-gray-600">

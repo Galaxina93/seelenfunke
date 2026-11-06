@@ -1236,6 +1236,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
     <!-- A. FOKUS-MODUS: ANIME.JS CHRONO-CORE & INTERAKTIVE ORBITAL-SZENEN     -->
     <!-- ===================================================================== -->
     <div x-show="focusMode"
+         style="{{ $focusMode ? '' : 'display: none;' }}"
          x-transition.opacity.duration.300ms
          class="relative w-full pt-2 pb-4 select-none overflow-visible">
 
@@ -1804,7 +1805,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
     <!-- ===================================================================== -->
     <!-- B. STANDARD-MODUS („ALLE KACHELN“): EXAKTES 4ER-GRID WIE IM SCREENSHOT -->
     <!-- ===================================================================== -->
-    <div x-show="!focusMode" x-cloak x-transition.opacity.duration.200ms>
+    <div x-show="!focusMode" style="{{ $focusMode ? 'display: none;' : '' }}" x-transition.opacity.duration.200ms>
         <!-- TOP ROW: THE 4 SCORES (4 NEBENEINANDER) -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
 
@@ -3181,7 +3182,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                  x-transition:enter="transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
                  x-transition:enter-start="opacity-0 translate-y-4"
                  x-transition:enter-end="opacity-100 translate-y-0">
-                <div x-show="!focusMode" x-cloak class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
+                <div x-show="!focusMode" style="{{ $focusMode ? 'display: none;' : '' }}" class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">Kapazitäten</h2>
                         <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Aktuelle Speicherauslastung und produzierende Shop-Gewerke.</p>
@@ -3200,7 +3201,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                  x-transition:enter="transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
                  x-transition:enter-start="opacity-0 translate-y-4"
                  x-transition:enter-end="opacity-100 translate-y-0">
-                <div x-show="!focusMode" x-cloak class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
+                <div x-show="!focusMode" style="{{ $focusMode ? 'display: none;' : '' }}" class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">Gewinn-Entwicklung</h2>
                         <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Darstellung der realen Shop-Umsätze gegenüber den Ausgaben, zur Kalkulation des Break-Even.</p>
@@ -3216,7 +3217,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                  x-transition:enter="transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
                  x-transition:enter-start="opacity-0 translate-y-4"
                  x-transition:enter-end="opacity-100 translate-y-0">
-                <div x-show="!focusMode" x-cloak class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
+                <div x-show="!focusMode" style="{{ $focusMode ? 'display: none;' : '' }}" class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">E-Commerce Einblicke</h2>
                         <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Detaillierte Analyse zu Warenkörben, verlassenen Checkouts und Artikel-Statistiken.</p>
@@ -3232,7 +3233,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                  x-transition:enter="transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
                  x-transition:enter-start="opacity-0 translate-y-4"
                  x-transition:enter-end="opacity-100 translate-y-0">
-                <div x-show="!focusMode" x-cloak class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
+                <div x-show="!focusMode" style="{{ $focusMode ? 'display: none;' : '' }}" class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">Traffic & Kunden</h2>
                         <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Web-Traffic, Kundenverhalten und Wachstumsstatistiken für optimale Performance.</p>

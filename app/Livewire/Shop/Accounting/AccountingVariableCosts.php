@@ -58,6 +58,11 @@ class AccountingVariableCosts extends Component
         }
     }
 
+    public function updatingSpecialSearch(): void
+    {
+        $this->resetPage();
+    }
+
     private function getAdminId()
     {
         return Auth::guard('admin')->id();

@@ -18,7 +18,9 @@ data class ManagementTaskList(
     val id: String,
     val name: String,
     val icon: String?,
-    val color: String?
+    val color: String?,
+    val open_count: Int? = null,
+    val completed_count: Int? = null
 )
 
 data class ManagementTask(
@@ -30,6 +32,7 @@ data class ManagementTask(
     val is_completed: Boolean,
     val parent_title: String?,
     val relevant_from: String?,
+    val ai_plan: String? = null,
     val created_at: String? = null,
     val file_paths: List<String>? = null
 )
@@ -108,7 +111,8 @@ interface OrganizerApi {
     @POST("funki/tasks/lists")
     suspend fun addTaskList(
         @Field("name") name: String,
-        @Field("icon") icon: String? = "bookmark"
+        @Field("icon") icon: String? = "bookmark",
+        @Field("color") color: String? = "#818CF8"
     ): TaskListDetailResponse
 
     @FormUrlEncoded
@@ -116,7 +120,8 @@ interface OrganizerApi {
     suspend fun updateTaskList(
         @Path("id") id: String,
         @Field("name") name: String,
-        @Field("icon") icon: String? = null
+        @Field("icon") icon: String? = null,
+        @Field("color") color: String? = null
     ): TaskListDetailResponse
 
     @GET("funki/tasks")
@@ -132,7 +137,9 @@ interface OrganizerApi {
         @Field("title") title: String?,
         @Field("priority") priority: String?,
         @Field("is_completed") isCompleted: Boolean?,
-        @Field("relevant_from") relevantFrom: String?
+        @Field("relevant_from") relevantFrom: String?,
+        @Field("ai_plan") aiPlan: String? = null,
+        @Field("task_list_id") taskListId: String? = null
     ): TaskDetailResponse
 
     @FormUrlEncoded

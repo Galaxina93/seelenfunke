@@ -18,6 +18,41 @@ class ManagementTaskSeeder extends Seeder
         $phases = [
             [
                 'list' => [
+                    'name' => 'Aufgaben',
+                    'icon' => 'home',
+                    'color' => '#818CF8',
+                ],
+                'taks' => [
+                    [
+                        'title' => 'Barmenia Wohngebäude (Nr. 304734394) zum 31.12.2026 kündigen, sobald DEVK-Police da ist',
+                        'priority' => 'hoch',
+                        'ai_plan' => "Vertragsnummer Barmenia: 304734394 (Kunden-Nr. 704555407).\nKündigung zum 31.12.2026 einreichen, sobald die neue DEVK Komfort Police (552,24 €/Jahr) vorliegt.",
+                    ],
+                    ['title' => 'Wohngebäude Versicherung prüfen', 'priority' => 'niedrig'],
+                    ['title' => 'Burger was noch fehlt', 'priority' => 'niedrig'],
+                ],
+            ],
+            [
+                'list' => [
+                    'name' => 'Mein-Seelenfunke Shop',
+                    'icon' => 'shopping-bag',
+                    'color' => '#818CF8',
+                ],
+                'taks' => [
+                    ['title' => 'Echte Produktbilder erstellen', 'priority' => 'hoch'],
+                    ['title' => 'Weitere Produkte raussuchen', 'priority' => 'niedrig'],
+                ],
+            ],
+            [
+                'list' => [
+                    'name' => 'Immobilienportal',
+                    'icon' => 'building-office',
+                    'color' => '#38BDF8',
+                ],
+                'taks' => [],
+            ],
+            [
+                'list' => [
                     'name' => 'PHASE 1 - PRODUKTE',
                     'icon' => 'cube',
                     'color' => '#E53E3E',

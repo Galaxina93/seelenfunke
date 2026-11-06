@@ -122,6 +122,11 @@ class MarketingBlog extends Component
         }
     }
 
+    public function updatingSearch(): void
+    {
+        $this->resetPage();
+    }
+
     public function render()
     {
         $posts = MarketingBlogPost::query()

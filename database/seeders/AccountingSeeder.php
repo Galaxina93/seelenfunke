@@ -643,6 +643,32 @@ class AccountingSeeder extends Seeder
 
         $specialIssues = [
             [
+                'title'          => 'Schaumstoff Meterware Schwarz (Dicke 2cm, 250cm)',
+                'location'       => 'www.schaumstoffonline.de (Schaumstoffonline DE)',
+                'amount'         => -44.38,
+                'date'           => '2026-11-05',
+                'category'       => 'Verpackungen',
+                'tax_rate'       => 19,
+                'invoice_number' => 'SO23591',
+                'note'           => "Quittung / Steuerrechnung: #SO23591 vom 05.11.2026 | Bestellt am: 05.11.2026 (13:55 Uhr) | Status: Ganz bezahlt (44,38 €)\nPosition:\n- 1x Schaumstoff Meterware Schwarz Dicke 2cm, 250cm (Artikelnummer: schaumstoff-meterware-schwarz-2cm-dick-250cm, 19,0% Steuern): 34,43 € brutto (28,93 € netto)\nZwischensumme: 34,43 € brutto | Versand (Standardversand DPD / Hermes): 9,95 € brutto (8,36 € netto) | Gesamt (Netto): 37,29 € | DE MwSt. (19,0%): 7,09 € | Gesamt (Brutto): 44,38 €\nHändler: Schaumstoffonline DE, Steenplaetsstraat 7, 2288 AA Rijswijk, Netherlands, USt-IdNr.: NL858268632B01 (858268632B01), HRB: 70332754, IBAN: NL37KNAB0256916543, E-Mail: mail@schaumstoffonline.de, Web: www.schaumstoffonline.de",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-05_Schaumstoffonline_Schaumstoff-Meterware-Schwarz-2cm-250cm-Rechnung-SO23591.pdf'
+                ]
+            ],
+            [
+                'title'          => 'MUNBYN AirPrint Etikettendrucker Wi-Fi WLAN Labeldrucker 4x6 ITPP941AP (Weiß, 203 DPI Thermodrucker)',
+                'location'       => 'Amazon (MUNBYNUK)',
+                'amount'         => -229.99,
+                'date'           => '2026-11-05',
+                'category'       => 'Arbeitsmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => '303-8737484-6302724',
+                'note'           => "Bestellnummer: 303-8737484-6302724 | Bestellt am: 05.11.2026 (11:04 Uhr) | Zahlungsart: Volksbank eG Braunschweig Wolfsburg ••• 000\nPosition:\n- 1x MUNBYN AirPrint Etikettendrucker Wi-Fi WLAN Labeldrucker 4x6 ITPP941AP Weiß | 203DPI Thermodrucker WLAN, Etiketten Thermal Printer für Versandetiketten, kompatibel mit Shopify, DHL, DPD, FedEx (Verkauf durch: MUNBYNUK): 229,99 € brutto\nZwischensumme / Gesamt vor USt. (Netto): 193,27 € | Verpackung & Versand: 0,00 € | Geschätzte USt. (19%): 36,72 € | Gesamtsumme (Brutto): 229,99 €\nSupport & Herstellerkontakt (MUNBYN):\n- Tel: +1 628 229 3612 (8:00-17:00 Uhr PT)\n- WhatsApp: +86 17817881067 / +86 181 4489 8200 (Werktags - 24 Stunden)\n- E-Mail: support@munbyn.com\nBestellübersicht-Link: https://www.amazon.de/gp/css/summary/print.html?orderID=303-8737484-6302724&ref=ppx_yo2ov_dt_b_invoice",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-05_Amazon-MUNBYNUK_MUNBYN-AirPrint-Etikettendrucker-WiFi-WLAN-ITPP941AP-Order-303-8737484-6302724.pdf'
+                ]
+            ],
+            [
                 'title'          => '20x Schwerlastkarton 600x400x400 mm (069), 20x Schwerlastkarton 600x400x200 mm (165), 140x Bundle-Karton 300x230x150 mm (2633) & 36x Leise abrollendes BOPP-Klebeband braun (128)',
                 'location'       => 'www.karton.eu (IPS Karton.eu GmbH & Co. KG)',
                 'amount'         => -273.27,
@@ -751,15 +777,11 @@ class AccountingSeeder extends Seeder
                 'category'       => 'Beratung & Gründung',
                 'tax_rate'       => 0,
                 'invoice_number' => '302026261747.6',
-                'note'           => "Amtliches Aktenzeichen: 302026261747.6 | Dokumenten Referenznummer (DRN): 2026110121484155WA\nMarkenform: Wortmarke \"Mein Seelenfunke\" (Individualmarke) | Anmeldetag: 01.11.2026\nEingetragene Nizza-Klassen (3 Klassen, 13 Begriffe, Leitklasse 14):\n- Klasse 14 (4 Begriffe): Juwelierwaren, Schmuckwaren; Schlüsselringe und Schlüsselketten sowie Anhänger hierfür; Schmuck- und Uhrenbehältnisse; Edelsteine, Perlen und Edelmetalle sowie Imitationen hiervon\n- Klasse 21 (3 Begriffe): Geschirr, Kochgeschirr und Behälter; Überwiegend aus Keramik sowie Glas oder deren Ersatzstoffen hergestellte Kunstwerke und Verzierungen, einschließlich Skulpturen; Unbearbeitetes und teilweise bearbeitetes Glas, nicht für Bauzwecke\n- Klasse 40 (6 Begriffe): Gravieren; Gravieren mittels Laser u.a.\nGebührentatbestand: Anmeldeverfahren bei elektronischer Anmeldung (§ 32 MarkenG, Gebührennummer: 331000) = 290,00 € (umsatzsteuerfrei, hoheitliche Gebühr)\nBezahlt am: 01.11.2026 um 22:01:27 Uhr per Überweisung von Volksbank BRAWO (Kontoinhaberin: Alina Steinhauer, IBAN: DE85 2699 1066 8583 1960 00, BIC: GENODEF1WOB, Freigabe: SecureGo plus) an Bundeskasse (IBAN: DE84 7000 0000 0070 0010 54, BIC: MARKDEF1700, Verwendungszweck: 302026261747.6 331000)\nBehörde: Deutsches Patent- und Markenamt, Zweibrückenstr. 12, 80297 München, Tel.: 089 / 2195-1000, E-Mail: info@dpma.de",
+                'note'           => "Amtliches Aktenzeichen: 30 2026 261 747.6 (302026261747.6) | Dokumenten Referenznummer (DRN): 2026110121484155WA | Postalische Empfangsbestätigung & Gebührenbescheid vom: 02.11.2026 (Formular b1v2_k467_id791 / M 8643/7.26, Barcode 5350119)\nMarkenform: Wortmarke \"Mein Seelenfunke\" (Individualmarke) | Anmelder: Steinhauer, Alina, 38518 Gifhorn | Anmeldetag: 01.11.2026\nEingetragene Nizza-Klassen (3 Klassen, 13 Begriffe, Leitklasse 14, Weitere Klassen: 21, 40):\n- Klasse 14 (4 Begriffe): Juwelierwaren, Schmuckwaren; Schlüsselringe und Schlüsselketten sowie Anhänger hierfür; Schmuck- und Uhrenbehältnisse; Edelsteine, Perlen und Edelmetalle sowie Imitationen hiervon\n- Klasse 21 (3 Begriffe): Geschirr, Kochgeschirr und Behälter; Überwiegend aus Keramik sowie Glas oder deren Ersatzstoffen hergestellte Kunstwerke und Verzierungen, einschließlich Skulpturen; Unbearbeitetes und teilweise bearbeitetes Glas, nicht für Bauzwecke\n- Klasse 40 (6 Begriffe): Gravieren; Gravieren mittels Laser u.a.\nGebührentatbestand: Anmeldeverfahren einschließlich der Klassengebühr bis zu drei Klassen (§ 32 MarkenG, Geb.-Nr.: 331 000) = 290,00 EUR (umsatzsteuerfrei, hoheitliche Gebühr)\nBezahlt am: 01.11.2026 um 22:01:27 Uhr per Überweisung von Volksbank BRAWO (Kontoinhaberin: Alina Steinhauer, IBAN: DE85 2699 1066 8583 1960 00, BIC: GENODEF1WOB, Freigabe: SecureGo plus) an Bundeskasse, Bundesbankfiliale München, Leopoldstraße 234, 80807 München (IBAN: DE84 7000 0000 0070 0010 54, BIC: MARKDEF1700, Verwendungszweck: 302026261747.6 331000)\nBehörde: Deutsches Patent- und Markenamt, Hausanschrift: Zweibrückenstraße 12, 80331 München (Postanschrift: 80297 München), Tel.: +49 (0)89 2195-4661, Fax: +49 (0)89 2195-2221, Web: https://www.dpma.de",
                 'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-02_DPMA_Empfangsbestaetigung-Gebuehrenbescheid-302026261747-6.pdf',
                     'buchhaltung/receipts/2026/11/2026-11-01_DPMA_Volksbank-Ueberweisungsbestaetigung-290EUR.pdf',
-                    'buchhaltung/receipts/2026/11/2026-11-01_DPMA_Markenanmeldung-Mein-Seelenfunke-Eingangsbestaetigung-302026261747-6.pdf',
-                    'buchhaltung/receipts/2026/11/2026-11-01_DPMA_Gebuehreninformationen-A9411.pdf',
-                    'buchhaltung/receipts/2026/11/2026-11-01_DPMA_Benachrichtigung-DRN-2026110121484155WA.pdf',
-                    'buchhaltung/receipts/2026/11/2026-11-01_DPMA_Zusatzerklaerung-A9520.pdf',
-                    'buchhaltung/receipts/2026/11/2026-11-01_DPMA_Markenanmeldung-Abschlussbestaetigung.png',
-                    'buchhaltung/receipts/2026/11/2026-11-01_DPMA_Markenanmeldung-Zusammenfassung.png'
+                    'buchhaltung/receipts/2026/11/2026-11-01_DPMA_Markenanmeldung-Mein-Seelenfunke-Eingangsbestaetigung-302026261747-6.pdf'
                 ]
             ],
             [

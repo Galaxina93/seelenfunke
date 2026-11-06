@@ -24,6 +24,10 @@ trait handleTwoFactorTrait
     // Frontend
     public function twoFactorVerify()
     {
+        if (property_exists($this, 'isRedirecting')) {
+            $this->isRedirecting = false;
+        }
+
         $this->validate([
             'code' => 'required|string|max:64',
         ]);
@@ -108,18 +112,34 @@ trait handleTwoFactorTrait
 
             if ($guard === 'customer' && $user->needs_password_change) {
                 session(['force_password_change_customer_id' => $user->id]);
-                return redirect(route('customer.password-change-force'));
+                if (property_exists($this, 'isRedirecting')) {
+                    $this->isRedirecting = true;
+                }
+                $this->redirect(route('customer.password-change-force'));
+                return;
             }
 
             if ($guard === 'employee' && method_exists($user, 'isInfluencer') && $user->isInfluencer()) {
-                return redirect(route('employee.influencer.dashboard'));
+                if (property_exists($this, 'isRedirecting')) {
+                    $this->isRedirecting = true;
+                }
+                $this->redirect(route('employee.influencer.dashboard'));
+                return;
             }
 
             if ($guard === 'employee' && method_exists($user, 'isTaxAdvisor') && $user->isTaxAdvisor()) {
-                return redirect(route('employee.tax-advisor.dashboard'));
+                if (property_exists($this, 'isRedirecting')) {
+                    $this->isRedirecting = true;
+                }
+                $this->redirect(route('employee.tax-advisor.dashboard'));
+                return;
             }
 
-            return redirect(route($guard . '.dashboard'));
+            if (property_exists($this, 'isRedirecting')) {
+                $this->isRedirecting = true;
+            }
+            $this->redirect(route($guard . '.dashboard'));
+            return;
         }
 
         \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);

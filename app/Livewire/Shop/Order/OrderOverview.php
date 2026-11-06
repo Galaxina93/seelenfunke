@@ -919,7 +919,7 @@ class OrderOverview extends Component
 
     private function buildBaseQuery()
     {
-        $query = OrderOrder::query()->with(['items.product', 'invoices', 'shipments']);
+        $query = OrderOrder::query()->with(['items.product', 'invoices', 'shipments', 'sampleInfluencer']);
 
         // 1. Suche
         if ($this->search) {

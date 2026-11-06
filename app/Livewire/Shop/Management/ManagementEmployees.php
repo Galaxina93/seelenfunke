@@ -120,10 +120,21 @@ class ManagementEmployees extends Component
     {
         $hourlyCents = $this->parseEurToCents($this->inviteHourlyRateEur);
         $monthlyCents = $this->parseEurToCents($this->inviteMonthlyGrossEur);
-        $weeklyHours = (float) str_replace(',', '.', $this->inviteWeeklyHours);
+        $weeklyHours = max(1.0, min(48.0, (float) str_replace(',', '.', $this->inviteWeeklyHours)));
 
         if ($hourlyCents < 1282 && $this->inviteCompensationType === 'hourly') {
             $this->addError('inviteHourlyRateEur', 'Der Stundenlohn darf den gesetzlichen Mindestlohn (12,82 €) nicht unterschreiten.');
+            return;
+        }
+
+        $minMonthlyGrossCents = (int) round($weeklyHours * 4.3333 * 1282);
+        if ($this->inviteCompensationType === 'fixed_salary' && $monthlyCents < $minMonthlyGrossCents) {
+            $this->addError('inviteMonthlyGrossEur', 'Das Festgehalt unterschreitet bei den gewählten Wochenstunden den gesetzlichen Mindestlohn (§ 1 MiLoG).');
+            return;
+        }
+
+        if ($this->inviteEmploymentType === 'minijob' && $this->inviteCompensationType === 'fixed_salary' && $monthlyCents > EmployeeHrService::MINIJOB_LIMIT_CENTS) {
+            $this->addError('inviteMonthlyGrossEur', 'Bei einem Minijob darf das monatliche Arbeitsentgelt die Geringfügigkeitsgrenze von 556,00 € (§ 8 SGB IV) nicht überschreiten.');
             return;
         }
 
@@ -196,9 +207,34 @@ class ManagementEmployees extends Component
         }
 
         $contract = EmployeeContract::findOrFail($this->editingContractId);
-        $hourlyCents = max(1282, $this->parseEurToCents($this->editHourlyRateEur));
+        $rawHourlyCents = $this->parseEurToCents($this->editHourlyRateEur);
+        if ($rawHourlyCents < 1282 && $this->editCompensationType === 'hourly') {
+            $this->addError('editHourlyRateEur', 'Der Stundenlohn darf den gesetzlichen Mindestlohn (12,82 €) nicht unterschreiten.');
+            return;
+        }
+
+        $hourlyCents = max(1282, $rawHourlyCents);
         $monthlyCents = max(0, $this->parseEurToCents($this->editMonthlyGrossEur));
         $weeklyHours = max(1.0, min(48.0, (float) str_replace(',', '.', $this->editWeeklyHours)));
+        $minMonthlyGrossCents = (int) round($weeklyHours * 4.3333 * 1282);
+
+        if ($this->editCompensationType === 'fixed_salary' && $monthlyCents < $minMonthlyGrossCents) {
+            $this->addError('editMonthlyGrossEur', 'Das Festgehalt unterschreitet bei den gewählten Wochenstunden den gesetzlichen Mindestlohn (§ 1 MiLoG).');
+            return;
+        }
+
+        if ($this->editCompensationType === 'hourly') {
+            $monthlyCents = (int) round($weeklyHours * 4.3333 * $hourlyCents);
+            if ($this->editEmploymentType === 'minijob') {
+                $monthlyCents = min($monthlyCents, EmployeeHrService::MINIJOB_LIMIT_CENTS);
+            }
+        } elseif ($this->editEmploymentType === 'minijob' && $monthlyCents > EmployeeHrService::MINIJOB_LIMIT_CENTS) {
+            $this->addError('editMonthlyGrossEur', 'Bei einem Minijob darf das monatliche Arbeitsentgelt die Geringfügigkeitsgrenze von 556,00 € (§ 8 SGB IV) nicht überschreiten.');
+            return;
+        }
+
+        $vacationDays = max(0, min(60, $this->editVacationDays));
+        $vacationTaken = max(0, min($vacationDays, $this->editVacationTaken));
 
         $contract->update([
             'job_title' => trim($this->editJobTitle) ?: $contract->job_title,
@@ -211,8 +247,8 @@ class ManagementEmployees extends Component
             'hourly_rate_cents' => $hourlyCents,
             'monthly_gross_cents' => $monthlyCents,
             'weekly_hours' => $weeklyHours,
-            'vacation_days_per_year' => max(0, min(60, $this->editVacationDays)),
-            'vacation_days_taken' => max(0, min(60, $this->editVacationTaken)),
+            'vacation_days_per_year' => $vacationDays,
+            'vacation_days_taken' => $vacationTaken,
             'can_access_production' => $this->editCanAccessProduction,
             'can_access_support' => $this->editCanAccessSupport,
             'can_access_inventory' => $this->editCanAccessInventory,
@@ -243,15 +279,23 @@ class ManagementEmployees extends Component
     public function approveLeave(string $entryId, EmployeeHrService $service): void
     {
         $entry = \App\Models\Employee\EmployeeTimeEntry::findOrFail($entryId);
-        $service->approveLeaveEntry($entry);
-        session()->flash('success', 'Eintrag genehmigt.');
+        try {
+            $service->approveLeaveEntry($entry);
+            session()->flash('success', 'Eintrag genehmigt.');
+        } catch (\InvalidArgumentException $e) {
+            session()->flash('error', $e->getMessage());
+        }
     }
 
     public function rejectLeave(string $entryId, EmployeeHrService $service): void
     {
         $entry = \App\Models\Employee\EmployeeTimeEntry::findOrFail($entryId);
-        $service->rejectLeaveEntry($entry);
-        session()->flash('success', 'Eintrag abgelehnt.');
+        try {
+            $service->rejectLeaveEntry($entry);
+            session()->flash('success', 'Eintrag abgelehnt.');
+        } catch (\InvalidArgumentException $e) {
+            session()->flash('error', $e->getMessage());
+        }
     }
 
     public function cancelEditContract(): void
@@ -321,7 +365,13 @@ class ManagementEmployees extends Component
             $overrides['uploaded_external_pdf_path'] = $uploadedPath;
         }
 
-        $payslip = $service->createOrUpdatePayslip($contract, $this->selectedYear, $this->selectedMonth, $overrides);
+        try {
+            $payslip = $service->createOrUpdatePayslip($contract, $this->selectedYear, $this->selectedMonth, $overrides);
+        } catch (\InvalidArgumentException $e) {
+            $this->addError('payrollGrossEur', $e->getMessage());
+            session()->flash('error', $e->getMessage());
+            return;
+        }
 
         $this->externalPayslipUpload = null;
         session()->flash('success', "Lohnabrechnung {$payslip->payslip_number} & Stundenzettel wurden für {$payslip->period_label} bereitgestellt.");

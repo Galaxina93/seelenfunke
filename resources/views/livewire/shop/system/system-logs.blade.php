@@ -10,7 +10,10 @@
             <p class="text-gray-500 dark:text-gray-400 mt-2 text-sm font-medium">Systemübergreifende Fehler-, Ereignis- und Aktivitätenverfolgung.</p>
         </div>
 
-        <div class="flex items-center gap-3 relative z-10">
+        <div class="flex flex-wrap items-center gap-3 relative z-10">
+            <button wire:click="markAllAsDone" class="inline-flex items-center px-6 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/30 shadow-sm">
+                <x-heroicon-o-check-circle class="w-4 h-4 mr-2" /> Alle als erledigt markieren
+            </button>
             <button wire:click="clearFilters" class="inline-flex items-center px-6 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-gray-50 dark:bg-gray-950 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner hover:bg-gray-100 dark:hover:bg-gray-800">
                 <x-heroicon-o-x-mark class="w-4 h-4 mr-2" /> Filter zurücksetzen
             </button>

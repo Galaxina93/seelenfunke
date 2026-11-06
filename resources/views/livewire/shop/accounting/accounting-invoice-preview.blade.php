@@ -59,7 +59,7 @@
                                         ? trim($rawZip . ' ' . $rawCity)
                                         : $rawCity)
                                     : shop_setting('owner_city', '38518 Gifhorn');
-                                $ownerEmail = shop_setting('owner_email_invoices') ?: shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
+                                $ownerEmail = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
                                 $ownerWeb = shop_setting('owner_website', 'www.mein-seelenfunke.de');
                                 $ownerBankName = shop_setting('owner_bank_name', 'Volksbank BraWo');
                                 if ($ownerBankName === 'OWNER_BANK_NAME') {

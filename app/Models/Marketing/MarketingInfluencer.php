@@ -83,6 +83,15 @@ use HasFactory, HasUuids, SoftDeletes;
         'invitation_code_encrypted',
         'invitation_expires_at',
         'invitation_accepted_at',
+        'sample_granted',
+        'sample_voucher_id',
+        'sample_order_id',
+        'sample_terms_accepted_at',
+        'sample_post_url',
+        'sample_posted_at',
+        'sample_post_verified_at',
+        'sample_configurator_rating',
+        'sample_configurator_feedback',
         'is_active',
         'is_archived',
         'internal_notes',
@@ -109,6 +118,11 @@ use HasFactory, HasUuids, SoftDeletes;
         'invitation_code_encrypted' => 'encrypted',
         'invitation_expires_at' => 'datetime',
         'invitation_accepted_at' => 'datetime',
+        'sample_granted' => 'boolean',
+        'sample_terms_accepted_at' => 'datetime',
+        'sample_posted_at' => 'datetime',
+        'sample_post_verified_at' => 'datetime',
+        'sample_configurator_rating' => 'integer',
         'is_active' => 'boolean',
         'is_archived' => 'boolean',
     ];
@@ -121,6 +135,16 @@ use HasFactory, HasUuids, SoftDeletes;
     public function defaultVoucher()
     {
         return $this->belongsTo(MarketingVoucher::class, 'default_voucher_id');
+    }
+
+    public function sampleVoucher()
+    {
+        return $this->belongsTo(MarketingVoucher::class, 'sample_voucher_id');
+    }
+
+    public function sampleOrder()
+    {
+        return $this->belongsTo(\App\Models\Order\OrderOrder::class, 'sample_order_id');
     }
 
     public function defaultTrackingLink()
@@ -169,6 +193,74 @@ use HasFactory, HasUuids, SoftDeletes;
     public function getIsPendingInvitationAttribute(): bool
     {
         return $this->invitation_accepted_at === null && empty($this->employee_id);
+    }
+
+    public function hasShippingAddress(): bool
+    {
+        $profile = $this->employee?->profile;
+        return $profile !== null
+            && !empty(trim((string) $profile->street))
+            && !empty(trim((string) $profile->postal))
+            && !empty(trim((string) $profile->city));
+    }
+
+    public function canOrderSample(): bool
+    {
+        return (bool) $this->sample_granted
+            && $this->sample_terms_accepted_at !== null
+            && empty($this->sample_order_id)
+            && $this->hasShippingAddress();
+    }
+
+    public function getSampleStatusAttribute(): string
+    {
+        if (!$this->sample_granted && empty($this->sample_order_id)) {
+            return 'not_granted';
+        }
+
+        if ($this->sample_post_verified_at !== null) {
+            return 'post_verified';
+        }
+
+        if (!empty(trim((string) $this->sample_post_url))) {
+            return 'post_submitted';
+        }
+
+        if (!empty($this->sample_order_id)) {
+            $order = $this->relationLoaded('sampleOrder') ? $this->sampleOrder : $this->sampleOrder()->first();
+            if ($order && in_array($order->status, ['completed', 'shipped'], true)) {
+                return 'shipped';
+            }
+            return 'in_production';
+        }
+
+        if (!$this->hasShippingAddress()) {
+            return 'awaiting_address';
+        }
+
+        if ($this->sample_terms_accepted_at === null) {
+            return 'awaiting_terms';
+        }
+
+        return 'ready_to_order';
+    }
+
+    public function getSampleDeadlineAttribute(): ?\Carbon\Carbon
+    {
+        if (empty($this->sample_order_id)) {
+            return null;
+        }
+
+        $order = $this->relationLoaded('sampleOrder') ? $this->sampleOrder : $this->sampleOrder()->first();
+        if (!$order) {
+            return null;
+        }
+
+        if (in_array($order->status, ['completed', 'shipped'], true)) {
+            return ($order->updated_at ?? $order->created_at)->copy()->addDays(14);
+        }
+
+        return null;
     }
 
     public function getMaskedIbanAttribute(): ?string

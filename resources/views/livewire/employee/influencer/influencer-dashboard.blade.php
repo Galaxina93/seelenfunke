@@ -1,7 +1,7 @@
 @php
     $formattedTaxRate = rtrim(rtrim(number_format((float) ($defaultTaxRate ?? shop_setting('default_tax_rate', 19.0)), 2, ',', '.'), '0'), ',');
 @endphp
-<div x-data="{ showSettingsModal: @js($activeTab === 'settings' || $errors->any()), subTab: 'orders' }"
+<div x-data="{ showSettingsModal: @js($activeTab === 'settings' || $errors->hasAny(['companyName', 'street', 'houseNumber', 'postal', 'city', 'country', 'taxStatus', 'taxNumber', 'selfEmployedConfirmed', 'payoutMethod', 'accountHolder', 'iban', 'bic', 'paypalEmail'])), subTab: 'orders' }"
      class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6 lg:py-7 animate-fade-in-up font-sans antialiased text-gray-700 dark:text-gray-300">
 
     {{-- Alerts & Profile Completion Banner --}}
@@ -114,7 +114,7 @@
                     Teile deinen Kurzlink oder Code mit deiner Community
                 </h2>
                 <p class="text-gray-600 dark:text-gray-400 text-xs">
-                    Beide Wege sind automatisch mit deinem Creator-Konto verknüpft – egal ob über Link geklickt oder per Rabattcode eingelöst wird.
+                    Beide Wege sind automatisch mit deinem Creator-Konto verknüpft, egal ob über Link geklickt oder per Rabattcode eingelöst wird.
                 </p>
             </div>
 
@@ -347,7 +347,7 @@
                                 @elseif($influencer->tax_status === 'reverse_charge')
                                     EU Reverse-Charge (0 % USt.)
                                 @else
-                                    Kleinunternehmer (§ 19 UStG – 0 % USt.)
+                                    Kleinunternehmer (§ 19 UStG, 0 % USt.)
                                 @endif
                             </span>
                             <span class="text-gray-600 dark:text-gray-400 text-xs font-mono block mt-0.5 truncate">
@@ -459,9 +459,9 @@
                     <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Umsatzsteuer-Status (Shop-MwSt: {{ $formattedTaxRate }} %) *</label>
                     <select wire:model.live="taxStatus"
                             class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl px-3.5 py-2.5 text-xs font-bold text-gray-900 dark:text-white outline-none focus:border-primary">
-                        <option value="small_business">Kleinunternehmer (§ 19 UStG) – 0 % USt.</option>
-                        <option value="standard_tax">Regelbesteuert – zzgl. {{ $formattedTaxRate }} % USt.</option>
-                        <option value="reverse_charge">EU Reverse-Charge – 0 % USt.</option>
+                        <option value="small_business">Kleinunternehmer (§ 19 UStG, 0 % USt.)</option>
+                        <option value="standard_tax">Regelbesteuert (zzgl. {{ $formattedTaxRate }} % USt.)</option>
+                        <option value="reverse_charge">EU Reverse-Charge (0 % USt.)</option>
                     </select>
                 </div>
                 <div>
@@ -649,10 +649,225 @@
 
     </div>
 
+    {{-- 100 % Gratis-Muster (PR-Sample) & 3D-Konfigurator-Test --}}
+    @if($influencer->sample_granted || $influencer->sampleOrder)
+        @php
+            $sampleStatus = $influencer->sample_status;
+            $sampleOrder = $influencer->sampleOrder;
+            $sampleDeadline = $influencer->sample_deadline;
+            $sampleShipment = $sampleOrder?->shipments?->first();
+        @endphp
+        <div class="bg-white dark:bg-gray-900/40 border border-primary/30 rounded-3xl p-5 sm:p-6 shadow-sm mt-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-primary/15 border border-primary/25 flex items-center justify-center text-primary shrink-0">
+                        <x-heroicon-s-gift class="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h3 class="text-base font-serif font-bold text-gray-900 dark:text-white">
+                            Dein 100 % Gratis-Muster (PR-Sample)
+                        </h3>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            Gestalte dein persönliches Manufaktur-Unikat im 3D-Konfigurator (0,00 € inkl. Standardversand) für authentischen Content.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="shrink-0">
+                    @if($sampleStatus === 'post_verified')
+                        <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                            Verlinkung bestätigt ✓
+                        </span>
+                    @elseif($sampleStatus === 'post_submitted')
+                        <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                            Nachweis eingereicht ✓
+                        </span>
+                    @elseif($sampleStatus === 'shipped')
+                        <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-primary/15 text-primary-dark border border-primary/30">
+                            Versendet @if($sampleDeadline) &bull; Frist: {{ $sampleDeadline->format('d.m.Y') }} @endif
+                        </span>
+                    @elseif($sampleStatus === 'in_production')
+                        <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                            In der Manufaktur ({{ $sampleOrder?->order_number }})
+                        </span>
+                    @elseif($sampleStatus === 'ready_to_order')
+                        <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                            Freigeschaltet ✓
+                        </span>
+                    @else
+                        <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-primary/10 text-primary border border-primary/20">
+                            1x Unikat frei (100 %)
+                        </span>
+                    @endif
+                </div>
+            </div>
+
+            @if($sampleInlineSuccess)
+                <div class="mb-4 p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                        <x-heroicon-s-check-circle class="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>{{ $sampleInlineSuccess }}</span>
+                    </div>
+                </div>
+            @endif
+
+            @if($sampleInlineError)
+                <div class="mb-4 p-3.5 rounded-2xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-800 dark:text-red-300 text-xs font-bold flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                        <x-heroicon-s-exclamation-triangle class="w-4 h-4 text-red-600 shrink-0" />
+                        <span>{{ $sampleInlineError }}</span>
+                    </div>
+                </div>
+            @endif
+
+            @if($sampleStatus === 'awaiting_address')
+                <div class="p-4 rounded-2xl bg-gray-50 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <p class="text-xs text-gray-600 dark:text-gray-400">
+                        Bitte hinterlege zuerst deine Lieferadresse in den Einstellungen, damit deine Anschrift im Checkout automatisch vorausgefüllt wird.
+                    </p>
+                    <button type="button" @click="showSettingsModal = true"
+                            class="px-4 py-2 rounded-xl bg-primary hover:bg-primary-dark text-white text-[10px] font-black uppercase tracking-widest transition-colors cursor-pointer shrink-0">
+                        Lieferadresse eintragen
+                    </button>
+                </div>
+            @elseif($sampleStatus === 'awaiting_terms')
+                <div class="p-4 rounded-2xl bg-gray-50 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800 space-y-3">
+                    <label class="flex items-start gap-3 cursor-pointer">
+                        <input type="checkbox" wire:model="sampleTermsConfirmed" class="mt-0.5 rounded border-gray-300 text-primary focus:ring-primary">
+                        <span class="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
+                            <strong>Verlinkungs- & Kooperationsvereinbarung:</strong> Ich verpflichte mich, innerhalb von <strong>14 Tagen nach Erhalt</strong> meines kostenfreien Musters mindestens eine Story, ein Reel oder einen Beitrag mit sichtbarer Verlinkung auf <strong>Mein Seelenfunke</strong> sowie meinem persönlichen Kurzlink oder Rabattcode zu veröffentlichen, den Beitrag gesetzeskonform als <strong>„Werbung“ / „Anzeige“</strong> (§ 5a Abs. 4 UWG) zu kennzeichnen und Mein Seelenfunke das Reposten des Beitrags zu gestatten.
+                        </span>
+                    </label>
+                    @error('sampleTermsConfirmed')
+                        <span class="text-red-500 text-[10px] font-bold block">{{ $message }}</span>
+                    @enderror
+                    <div class="flex justify-end">
+                        <button type="button" wire:click="unlockSampleVoucher"
+                                class="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary-dark text-white text-[10px] font-black uppercase tracking-widest transition-colors shadow-xs cursor-pointer">
+                            100 % Gratis-Muster jetzt freischalten
+                        </button>
+                    </div>
+                </div>
+            @elseif($sampleStatus === 'ready_to_order')
+                <div class="p-4 rounded-2xl bg-amber-500/5 border border-primary/25 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div class="space-y-1">
+                        <span class="text-[10px] font-black uppercase tracking-widest text-primary block">Schritt 2: Unikat im 3D-Konfigurator gestalten</span>
+                        <p class="text-xs text-gray-600 dark:text-gray-400">
+                            Klicke in der Produkttabelle unten bei deinem Wunschprodukt auf <strong>„Muster gestalten“</strong>. Dein persönlicher 100 %-Muster-Code wird automatisch im Warenkorb hinterlegt (1 Unikat + Standardversand = 0,00 €).
+                        </p>
+                    </div>
+                    @if($influencer->sampleVoucher)
+                        <div x-data="{ copiedSample: false }" class="bg-white dark:bg-gray-900 border border-primary/30 rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-3 text-xs shrink-0">
+                            <div>
+                                <span class="text-[9px] font-black uppercase tracking-widest text-gray-400 block">Persönlicher Muster-Code (1x)</span>
+                                <span class="font-mono font-bold text-primary block">{{ $influencer->sampleVoucher->code }}</span>
+                            </div>
+                            <button type="button"
+                                    @click="navigator.clipboard.writeText(@js($influencer->sampleVoucher->code)); copiedSample = true; setTimeout(() => copiedSample = false, 2000)"
+                                    class="px-3 py-1.5 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-[10px] font-black uppercase tracking-widest transition-colors cursor-pointer">
+                                <span x-show="!copiedSample">Kopieren</span>
+                                <span x-show="copiedSample" x-cloak>Kopiert ✓</span>
+                            </button>
+                        </div>
+                    @endif
+                </div>
+            @else
+                {{-- Muster wurde bestellt: Live-Status + 3D-Konfigurator-Feedback + Verlinkungs-Nachweis --}}
+                <div class="space-y-4">
+                    @if($sampleOrder)
+                        <div class="p-3.5 rounded-2xl bg-gray-50 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+                            <div class="flex flex-wrap items-center gap-3">
+                                <span class="font-mono font-bold text-gray-900 dark:text-white">Bestellung {{ $sampleOrder->order_number }}</span>
+                                @if($sampleOrder->items->isNotEmpty())
+                                    <span class="text-gray-500 dark:text-gray-400">&bull; {{ $sampleOrder->items->first()->product_name }}</span>
+                                @endif
+                                @if($sampleShipment && !empty($sampleShipment->tracking_number))
+                                    <span class="font-mono text-primary font-bold">&bull; DHL Sendung: {{ $sampleShipment->tracking_number }}</span>
+                                @endif
+                            </div>
+                            <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400">
+                                Bestellt am {{ $sampleOrder->created_at?->format('d.m.Y') }}
+                            </span>
+                        </div>
+                    @endif
+
+                    <form wire:submit.prevent="saveSampleFeedbackAndPost" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div class="p-4 rounded-2xl bg-gray-50 dark:bg-gray-950/60 border {{ $errors->has('sampleConfiguratorFeedback') || $errors->has('sampleConfiguratorRating') ? 'border-red-400 dark:border-red-500/60' : 'border-gray-200 dark:border-gray-800' }} space-y-2.5">
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-500">3D-Konfigurator-Test & Feedback</label>
+                                    @if(!empty($influencer->sample_configurator_feedback) || !empty($influencer->sample_configurator_rating))
+                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                                            Gespeichert ({{ $influencer->sample_configurator_rating }}/5 ★) ✓
+                                        </span>
+                                    @endif
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    @for($star = 1; $star <= 5; $star++)
+                                        <button type="button" wire:click="$set('sampleConfiguratorRating', {{ $star }})"
+                                                class="cursor-pointer transition-transform hover:scale-110 {{ $sampleConfiguratorRating >= $star ? 'text-primary' : 'text-gray-300 dark:text-gray-700' }}">
+                                            <x-heroicon-s-star class="w-4 h-4" />
+                                        </button>
+                                    @endfor
+                                </div>
+                            </div>
+                            <input type="text" wire:model="sampleConfiguratorFeedback"
+                                   placeholder="Wie lief das Gestalten im 3D-Konfigurator? (optional)"
+                                   class="w-full bg-white dark:bg-gray-900 border {{ $errors->has('sampleConfiguratorFeedback') ? 'border-red-400 dark:border-red-500/60' : 'border-gray-200 dark:border-gray-800' }} rounded-xl px-3 py-2 text-xs font-medium text-gray-900 dark:text-white outline-none focus:border-primary">
+                            @error('sampleConfiguratorRating')
+                                <span class="text-red-500 text-[10px] font-bold block">{{ $message }}</span>
+                            @enderror
+                            @error('sampleConfiguratorFeedback')
+                                <span class="text-red-500 text-[10px] font-bold block">{{ $message }}</span>
+                            @enderror
+                        </div>
+
+                        <div class="p-4 rounded-2xl bg-gray-50 dark:bg-gray-950/60 border {{ $errors->has('samplePostUrl') ? 'border-red-400 dark:border-red-500/60' : 'border-gray-200 dark:border-gray-800' }} space-y-2.5">
+                            <div class="flex items-center justify-between gap-2">
+                                <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500">
+                                    Verlinkungs-Nachweis (Link zu Story / Reel / Beitrag)
+                                </label>
+                                @if($influencer->sample_post_verified_at)
+                                    <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                                        Bestätigt ✓
+                                    </span>
+                                @elseif(!empty($influencer->sample_post_url))
+                                    <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                                        Eingereicht ✓
+                                    </span>
+                                @else
+                                    <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                                        Noch offen
+                                    </span>
+                                @endif
+                            </div>
+                            <div class="flex flex-col sm:flex-row gap-2">
+                                <input type="text" wire:model="samplePostUrl"
+                                       placeholder="https://instagram.com/..."
+                                       class="flex-1 bg-white dark:bg-gray-900 border {{ $errors->has('samplePostUrl') ? 'border-red-400 dark:border-red-500/60' : 'border-gray-200 dark:border-gray-800' }} rounded-xl px-3 py-2 text-xs font-medium text-gray-900 dark:text-white outline-none focus:border-primary">
+                                <button type="submit"
+                                        wire:loading.attr="disabled"
+                                        wire:target="saveSampleFeedbackAndPost"
+                                        class="px-4 py-2 rounded-xl bg-primary hover:bg-primary-dark text-white text-[10px] font-black uppercase tracking-widest transition-colors cursor-pointer shrink-0 disabled:opacity-60">
+                                    <span wire:loading.remove wire:target="saveSampleFeedbackAndPost">Speichern</span>
+                                    <span wire:loading wire:target="saveSampleFeedbackAndPost">Speichert...</span>
+                                </button>
+                            </div>
+                            @error('samplePostUrl')
+                                <span class="text-red-500 text-[10px] font-bold block">{{ $message }}</span>
+                            @enderror
+                        </div>
+                    </form>
+                </div>
+            @endif
+        </div>
+    @endif
+
     {{-- Vollbreiten-Kachel unten: Aktuelle Produkte bewerben (Schlanke Tabellen-Ansicht + Ausklapp-Erklärung) --}}
     @php
         $promotableCollection = collect($promotableProducts ?? []);
         $creatorVoucherCode = $influencer->defaultVoucher?->code ?? ('CODE' . $influencer->follower_discount_percent);
+        $canOrderSampleNow = $influencer->canOrderSample();
     @endphp
     <div x-data="{ showExplanation: false }" class="bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-gray-800 rounded-3xl p-5 sm:p-6 shadow-sm mt-6">
         <div class="flex items-center justify-between gap-4 mb-4">
@@ -678,7 +893,10 @@
                             <th class="py-2.5 pr-4">Produkt</th>
                             <th class="py-2.5 px-4">Kategorie</th>
                             <th class="py-2.5 px-4 text-center">Kann beworben werden mit: Code</th>
-                            <th class="py-2.5 pl-4 text-center">Kann beworben werden mit: Kurzlink</th>
+                            <th class="py-2.5 px-4 text-center">Kann beworben werden mit: Kurzlink</th>
+                            @if($canOrderSampleNow)
+                                <th class="py-2.5 pl-4 text-right">100 % Gratis-Muster</th>
+                            @endif
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100 dark:divide-gray-800/70 text-xs">
@@ -726,7 +944,7 @@
                                 </td>
 
                                 {{-- Kann beworben werden mit: Kurzlink (Ja + Erstell-Icon / Copy-Icon) --}}
-                                <td class="py-3 pl-4 text-center whitespace-nowrap">
+                                <td class="py-3 px-4 text-center whitespace-nowrap">
                                     <div x-data="{ copiedLink: false }" class="inline-flex items-center justify-center gap-1.5">
                                         <span class="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-bold">
                                             Ja
@@ -750,6 +968,16 @@
                                         @endif
                                     </div>
                                 </td>
+
+                                @if($canOrderSampleNow)
+                                    <td class="py-3 pl-4 text-right whitespace-nowrap">
+                                        <button type="button"
+                                                wire:click="startSampleConfigurator('{{ $item['slug'] }}')"
+                                                class="px-3 py-1.5 rounded-xl bg-primary hover:bg-primary-dark text-white text-[10px] font-black uppercase tracking-widest transition-colors shadow-xs cursor-pointer">
+                                            Muster gestalten
+                                        </button>
+                                    </td>
+                                @endif
                             </tr>
                         @endforeach
                     </tbody>

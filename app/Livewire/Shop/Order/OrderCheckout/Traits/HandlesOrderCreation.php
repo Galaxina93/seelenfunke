@@ -172,8 +172,13 @@ trait HandlesOrderCreation
                 }
             }
 
-            // [SICHERHEIT] Persönliche Belohnungsgutscheine (z.B. Gamification Meilensteine) strikt an das verifizierte Kundenkonto UND die Checkout-E-Mail binden
-            if ($coupon instanceof MarketingVoucher && !empty($coupon->recipient_email)) {
+            // [SICHERHEIT] Creator 100% Gratis-Muster (PR-Sample) strikt an das Creator-Konto & die hinterlegte Creator-E-Mail binden
+            if ($coupon instanceof MarketingVoucher && $coupon->isInfluencerSample()) {
+                if (!$cartService->isValidInfluencerSampleRedemption($coupon, (string) $this->email)) {
+                    $this->invalidateCartCoupon($cart, 'Dieser Gratis-Muster-Code ist persönlich an dein Creator-Konto und deine Creator-E-Mail-Adresse gebunden.');
+                }
+            } elseif ($coupon instanceof MarketingVoucher && !empty($coupon->recipient_email)) {
+                // [SICHERHEIT] Persönliche Belohnungsgutscheine (z.B. Gamification Meilensteine) strikt an das verifizierte Kundenkonto UND die Checkout-E-Mail binden
                 $recipientTarget = strtolower(trim($coupon->recipient_email));
                 $isFunkiCoupon = str_starts_with(strtoupper((string) $coupon->code), 'FUNKI-');
                 $ownsFunkiCoupon = $isFunkiCoupon && $authCustomer && (
@@ -246,7 +251,8 @@ trait HandlesOrderCreation
 
             if (!$customer) {
                 $tempPassword = Str::random(32);
-                $wantsAccount = (bool) ($this->create_account || $this->hasDigitalOrIngameItems($cart));
+                $isExistingEmployee = \App\Models\Employee\Employee::where('email', $this->email)->exists();
+                $wantsAccount = !$isExistingEmployee && (bool) ($this->create_account || $this->hasDigitalOrIngameItems($cart));
                 $customer = Customer::create([
                     'email' => $this->email,
                     'first_name' => $this->first_name,
@@ -346,8 +352,17 @@ trait HandlesOrderCreation
             $influencerId = session('seelenfunke_influencer_id') ?: request()->cookie('seelenfunke_influencer_id');
             $trackingLinkId = session('seelenfunke_tracking_link_id') ?: request()->cookie('seelenfunke_tracking_link_id');
             if ($influencerId && \Illuminate\Support\Facades\Schema::hasTable('marketing_influencers')) {
-                $inf = \App\Models\Marketing\MarketingInfluencer::find($influencerId);
-                if ($inf && $inf->is_active && !$inf->is_archived) {
+                $inf = \App\Models\Marketing\MarketingInfluencer::with('employee')->find($influencerId);
+                $loggedInEmpId = \Illuminate\Support\Facades\Auth::guard('employee')->id();
+                $buyerEmailLower = strtolower(trim((string) $this->email));
+                $infEmailLower = strtolower(trim((string) ($inf?->employee?->email ?? '')));
+                $infPaypalLower = strtolower(trim((string) ($inf?->paypal_email ?? '')));
+                $isSelfCheckout = $inf && (
+                    ($loggedInEmpId && (string) $loggedInEmpId === (string) $inf->employee_id)
+                    || ($buyerEmailLower !== '' && ($buyerEmailLower === $infEmailLower || ($infPaypalLower !== '' && $buyerEmailLower === $infPaypalLower)))
+                );
+
+                if ($inf && $inf->is_active && !$inf->is_archived && !$isSelfCheckout) {
                     $affSlug = (string) $inf->slug;
                     if ($trackingLinkId && \Illuminate\Support\Facades\Schema::hasTable('marketing_tracking_links')) {
                         $trk = \App\Models\Marketing\MarketingTrackingLink::where('id', $trackingLinkId)

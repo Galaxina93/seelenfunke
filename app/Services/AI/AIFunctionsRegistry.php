@@ -338,7 +338,7 @@ class AIFunctionsRegistry
                 }
 
                 try {
-                    $email = shop_setting('owner_email_backup') ?: shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
+                    $email = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
                     $body = "Das KI-Werkzeug '{$name}' ist abgestürzt.\n\nFehler-Details:\n" . $e->getMessage() . "\n\n" . ($markdownPath ? "Die neuronale Struktur der fehlerhaften Datei liegt im Anhang bei." : "Die Dateistruktur konnte nicht generiert werden.");
                     $attachments = $markdownPath ? [$markdownPath] : [];
                     $agentName = $agent ? $agent->name : 'System';

@@ -163,7 +163,7 @@
             @endphp
             <tr>
                 <td class="text-right" style="padding-top: 8px; color: {{ $isCancelledMail ? '#dc2626' : '#92400e' }}; font-size: 12px; font-weight: bold; text-align: right;">
-                    {{ !empty($isPdf) ? '' : '✨ ' }}{{ $isCancelledMail ? 'Seelenfunken (Stornierung / Widerruf):' : 'Seelenfunken Treue-Bonus (100%):' }}
+                    {{ !empty($isPdf) ? '' : '✨ ' }}{{ $isCancelledMail ? 'Seelenfunken (Stornierung / Widerruf):' : 'Treue-Bonus:' }}
                 </td>
                 <td class="text-right" style="padding-top: 8px; color: {{ $isCancelledMail ? '#dc2626' : '#92400e' }}; font-size: 12px; font-weight: bold; text-align: right;">
                     {{ $isCancelledMail ? '-' : '+' }}{{ number_format($mailBonusSparks, 0, ',', '.') }} Funken

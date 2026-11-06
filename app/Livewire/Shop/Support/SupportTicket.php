@@ -182,6 +182,7 @@ class SupportTicket extends Component
         }
 
         $this->reset(['replyMessage', 'replyAttachments']);
+        $this->calculateKPIs();
         $this->dispatch('ticket-message-received');
     }
 
@@ -190,6 +191,7 @@ class SupportTicket extends Component
         $ticket = SupportTicketModel::findOrFail($this->activeTicketId);
         $ticket->update(['status' => 'closed']);
         $this->filterStatus = 'closed';
+        $this->calculateKPIs();
         $this->dispatch('notify', ['type' => 'success', 'message' => 'SupportTicket geschlossen.']);
     }
 

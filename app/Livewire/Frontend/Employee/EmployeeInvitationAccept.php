@@ -225,7 +225,7 @@ class EmployeeInvitationAccept extends Component
                 },
             ],
             'password' => 'required|string|min:8|confirmed',
-            'birthDate' => 'required|date',
+            'birthDate' => 'required|date|before_or_equal:' . now()->subYears(15)->format('Y-m-d') . '|after:1920-01-01',
             'street' => 'required|string|max:150',
             'houseNumber' => 'required|string|max:30',
             'postal' => 'required|string|max:20',
@@ -265,12 +265,14 @@ class EmployeeInvitationAccept extends Component
 
         $this->validateStepTwo();
 
+        $this->iban = strtoupper(preg_replace('/\s+/', '', trim($this->iban)));
+
         $this->validate([
             'taxId' => 'required|string|min:8|max:30',
             'taxClass' => 'required|in:I,II,III,IV,V,VI,Pauschal',
             'healthInsuranceName' => 'required|string|max:150',
             'accountHolder' => 'required|string|max:150',
-            'iban' => 'required|string|min:14|max:34',
+            'iban' => ['required', 'string', 'min:14', 'max:34', 'regex:/^[A-Z]{2}[0-9]{2}[A-Z0-9]{10,30}$/'],
             'signatureName' => 'required|string|min:3|max:150',
             'contractAccepted' => 'accepted',
             'truthConfirmed' => 'accepted',
@@ -279,6 +281,7 @@ class EmployeeInvitationAccept extends Component
             'healthInsuranceName.required' => 'Bitte gib deine Krankenkasse an.',
             'accountHolder.required' => 'Bitte gib den Kontoinhaber für die Gehaltsüberweisung an.',
             'iban.required' => 'Bitte gib deine IBAN für die Gehaltsüberweisung an.',
+            'iban.regex' => 'Bitte gib eine gültige IBAN im internationalen Format an (z. B. DE89...).',
             'signatureName.required' => 'Bitte unterschreibe digital mit deinem Vor- und Nachnamen.',
             'contractAccepted.accepted' => 'Bitte bestätige und akzeptiere den Arbeitsvertrag.',
             'truthConfirmed.accepted' => 'Bitte bestätige die Richtigkeit deiner Angaben für das Lohnbüro.',

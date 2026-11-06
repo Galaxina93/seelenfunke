@@ -10,22 +10,22 @@ Das Warenkorb-Tracking dient der Senkung der Kaufabbruchquote. Über eine optisc
 ## Beteiligte Komponenten & Modelle
 
 ### Backend-Livewire-Controller
-* [OrderShoppingCarts](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderShoppingCarts.php)
+* [OrderShoppingCarts](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderShoppingCarts.php)
   * Stellt die Benutzeroberfläche zur Administration aller existierenden Warenkörbe bereit.
   * Verwaltet die Ampel-Grenzwerte und steuert den E-Mail-Mahnprozess.
 
 ### Frontend-Komponenten & Services
-* [Cart](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Cart/Cart.php)
+* [Cart](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Cart/Cart.php)
   * Die Frontend-Livewire-Komponente zur Darstellung des aktuellen Kunden-Warenkorbs.
-* [CartService](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/CartService.php)
+* [CartService](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/CartService.php)
   * Kapselt die Berechnungslogik (Zwischensummen, Steuern, Mengenstaffelrabatte und Versandkosten je nach Zielland).
-* [AbandonedCartReminder](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Mail/AbandonedCartReminder.php)
+* [AbandonedCartReminder](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Mail/AbandonedCartReminder.php)
   * Die Mailable-Klasse für die Erinnerungs-E-Mail.
 
 ### Modelle
-* [Cart](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Cart/Cart.php)
+* [Cart](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Cart/Cart.php)
   * Speichert den Warenkorb-Header: `session_id`, `customer_id` (falls angemeldet), `reminder_email_sent_at` und Zeitstempel.
-* [CartItem](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Cart/CartItem.php)
+* [CartItem](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Cart/CartItem.php)
   * Einzelpositionen mit Produkt-ID und `quantity`.
 
 ---
@@ -58,9 +58,10 @@ Der Administrator hat vollen Zugriff auf den Inhalt fremder Warenkörbe und kann
 
 ---
 
-## Kaufabbruch-Mahnwesen (`sendReminderEmail`)
+## Kaufabbruch-Mahnwesen (`sendReminderEmail`) & Dashboard-To-Do
 
 Befindet sich ein registrierter Kunde im Warenkorb (E-Mail vorhanden):
-1. Der Administrator kann per Knopfdruck eine Erinnerungsmail senden.
-2. Die Mailable-Klasse `AbandonedCartReminder` rendert den aktuellen Warenkorb-Inhalt und generiert einen personalisierten Direktlink zurück zum Checkout.
-3. Bei erfolgreichem Versand wird das Feld `reminder_email_sent_at` auf den aktuellen Zeitstempel gesetzt. Dies verhindert doppelte Anschreiben an denselben Kunden.
+1. **Rechtssicherheit (§ 7 Abs. 2 UWG):** Sowohl der manuelle Versand (`sendReminderEmail`), der Cronjob (`shop:send-abandoned-cart-reminders`) als auch die Dashboard-Aufgabe in [`AnalyticsService::checkAbandonedCarts()`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AnalyticsService.php) prüfen über `$customer->allowsCartReminders()`, ob ein verifiziertes Werbe-Opt-In vorliegt und kein Opt-Out existiert.
+2. **Kein Geister-To-Do bei fehlendem Opt-In:** Warenkörbe von Gästen ohne E-Mail oder Kunden ohne Werbe-Opt-In lösen im Operativen Status (`/admin/dashboard`) keinen Warn-Eintrag aus und werden in `/admin/shopping-carts` mit gelber Ampel und dem Hinweis `Kein Opt-In` dargestellt, sodass die gespeicherten Artikel des Kunden erhalten bleiben.
+3. **Bereinigung leerer Warenkorb-Hüllen:** Leere Warenkörbe (`0 Artikel`) werden in `OrderShoppingCarts` ausgeblendet (`whereHas('items')`) und nach über 1 Stunde Inaktivität automatisch bereinigt.
+4. Bei erfolgreichem Versand wird `reminder_email_sent_at` gesetzt (grüne Ampel), wodurch der Warenkorb sofort aus den offenen To-Dos verschwindet.

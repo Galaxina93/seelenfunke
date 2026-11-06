@@ -95,8 +95,8 @@ class MarketingAnalytics extends Component
         $nlData = [];
         foreach ($nlGrouped->sortKeys() as $gDate => $items) {
             $nlLabels[] = $groupByFormat === 'Y-m' 
-                ? Carbon::createFromFormat('Y-m', $gDate)->locale('de')->shortMonthName . ' ' . substr($gDate, 0, 4)
-                : Carbon::createFromFormat('Y-m-d', $gDate)->format('d.m.y');
+                ? Carbon::createFromFormat('!Y-m', $gDate)->locale('de')->shortMonthName . ' ' . substr($gDate, 0, 4)
+                : Carbon::createFromFormat('!Y-m-d', $gDate)->format('d.m.y');
             $nlData[] = $items->count();
         }
         $this->newsletterData = ['labels' => $nlLabels, 'data' => $nlData];
@@ -108,8 +108,8 @@ class MarketingAnalytics extends Component
         $vcData = [];
         foreach ($vcGrouped->sortKeys() as $gDate => $items) {
             $vcLabels[] = $groupByFormat === 'Y-m' 
-                ? Carbon::createFromFormat('Y-m', $gDate)->locale('de')->shortMonthName . ' ' . substr($gDate, 0, 4)
-                : Carbon::createFromFormat('Y-m-d', $gDate)->format('d.m.y');
+                ? Carbon::createFromFormat('!Y-m', $gDate)->locale('de')->shortMonthName . ' ' . substr($gDate, 0, 4)
+                : Carbon::createFromFormat('!Y-m-d', $gDate)->format('d.m.y');
             $vcData[] = $items->count();
         }
         $this->voucherData = ['labels' => $vcLabels, 'data' => $vcData];
@@ -153,8 +153,8 @@ class MarketingAnalytics extends Component
         $lpData = [];
         foreach ($lpGrouped->sortKeys() as $gDate => $items) {
             $lpLabels[] = $groupByFormat === 'Y-m' 
-                ? Carbon::createFromFormat('Y-m', $gDate)->locale('de')->shortMonthName . ' ' . substr($gDate, 0, 4)
-                : Carbon::createFromFormat('Y-m-d', $gDate)->format('d.m.y');
+                ? Carbon::createFromFormat('!Y-m', $gDate)->locale('de')->shortMonthName . ' ' . substr($gDate, 0, 4)
+                : Carbon::createFromFormat('!Y-m-d', $gDate)->format('d.m.y');
             $lpData[] = $items->count();
         }
         $this->landingPageData = ['labels' => $lpLabels, 'data' => $lpData];

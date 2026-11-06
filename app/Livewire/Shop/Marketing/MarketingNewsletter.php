@@ -50,16 +50,22 @@ class MarketingNewsletter extends Component
 
     public function boot(): void
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Nicht autorisierter Zugriff auf die Newsletter-Verwaltung.');
         }
     }
 
     public function mount(): void
     {
+        $this->boot();
         $offerService = app(\App\Services\Marketing\HolidayOfferAutopilotService::class);
         $this->autopilotOffersEnabled = $offerService->isEnabled();
         $offerService->syncActiveOffers();
+    }
+
+    public function updatingSearch(): void
+    {
+        $this->resetPage();
     }
 
     public function toggleAutopilotOffers(): void

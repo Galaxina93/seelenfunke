@@ -37,6 +37,7 @@ class BackendNavigationService
                             ['id' => 'tasks', 'title' => 'Aufgaben', 'route' => '/admin/tasks', 'icon' => 'check-circle'],
                             ['id' => 'shopping', 'title' => 'Einkaufsliste', 'route' => '/admin/shopping', 'icon' => 'shopping-cart'],
                             ['id' => 'calender', 'title' => 'Kalender', 'route' => '/admin/calender', 'icon' => 'calendar-days'],
+                            ['id' => 'music', 'title' => 'Musik', 'route' => '/admin/music', 'icon' => 'musical-note'],
                         ]
                     ]
                 ]

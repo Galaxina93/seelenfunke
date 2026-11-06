@@ -60,7 +60,24 @@
                     </p>
                 </div>
 
-                <form wire:submit.prevent="login" novalidate class="space-y-5 relative z-10">
+                <form x-data="{ submitting: false }"
+                      x-on:submit.prevent="
+                          if (submitting) return;
+                          submitting = true;
+                          if (window.sfStartPortalLoading) { window.sfStartPortalLoading('login'); }
+                          setTimeout(() => {
+                              $wire.login().then(() => {
+                                  if (!$wire.isRedirecting) {
+                                      submitting = false;
+                                      if (window.sfStopPortalLoading) { window.sfStopPortalLoading(); }
+                                  }
+                              }).catch(() => {
+                                  submitting = false;
+                                  if (window.sfStopPortalLoading) { window.sfStopPortalLoading(); }
+                              });
+                          }, 220);
+                      "
+                      novalidate class="space-y-5 relative z-10">
 
                     {{-- E-Mail --}}
                     <div>
@@ -140,6 +157,7 @@
 
                     <div class="mt-5">
                         <a href="{{ route('auth.google', ['guard' => 'customer']) }}"
+                           data-sf-portal="login"
                            class="w-full flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-xl shadow-sm bg-white text-xs font-bold text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 group">
                             <svg class="w-4 h-4 mr-2.5 group-hover:scale-105 transition-transform duration-200" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
                                 <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
@@ -167,7 +185,24 @@
             {{-- ========================================== --}}
             @if ($activeView === 'twoFactor')
                 <div class="relative z-10">
-                    <form wire:submit.prevent="twoFactorVerify" novalidate class="space-y-6">
+                    <form x-data="{ submitting2fa: false }"
+                          x-on:submit.prevent="
+                              if (submitting2fa) return;
+                              submitting2fa = true;
+                              if (window.sfStartPortalLoading) { window.sfStartPortalLoading('login'); }
+                              setTimeout(() => {
+                                  $wire.twoFactorVerify().then(() => {
+                                      if (!$wire.isRedirecting) {
+                                          submitting2fa = false;
+                                          if (window.sfStopPortalLoading) { window.sfStopPortalLoading(); }
+                                      }
+                                  }).catch(() => {
+                                      submitting2fa = false;
+                                      if (window.sfStopPortalLoading) { window.sfStopPortalLoading(); }
+                                  });
+                              }, 220);
+                          "
+                          novalidate class="space-y-6">
                         <div class="text-center mb-6">
                             <div class="mx-auto flex items-center justify-center h-14 w-14 rounded-2xl bg-amber-50 border border-amber-200 text-amber-700 mb-4 shadow-sm">
                                 <svg class="h-7 w-7 text-amber-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2-2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>

@@ -593,8 +593,8 @@
 
                                     @if($previewSparks > 0)
                                         <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border bg-amber-50/90 border-amber-200/90 text-amber-900 text-[11px]">
-                                            <span class="font-semibold">✨ Seelenfunken Treue-Bonus (100&nbsp;%):</span>
-                                            <span class="font-mono font-black px-2 py-0.5 rounded-full bg-amber-200/70 text-amber-950">+{{ number_format($previewSparks, 0, ',', '.') }} ✨ Seelenfunken</span>
+                                            <span class="font-semibold truncate">✨ Treue-Bonus:</span>
+                                            <span class="font-mono font-black px-2 py-0.5 rounded-full bg-amber-200/70 text-amber-950 whitespace-nowrap shrink-0">+{{ number_format($previewSparks, 0, ',', '.') }} ✨ Funken</span>
                                         </div>
                                     @endif
 

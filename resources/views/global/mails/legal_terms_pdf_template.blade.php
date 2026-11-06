@@ -116,7 +116,7 @@
     $ownerZip      = function_exists('shop_setting') ? shop_setting('company_zip', '38518') : '38518';
     $ownerCityName = function_exists('shop_setting') ? shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) : 'Gifhorn';
     $ownerCity     = trim($ownerZip . ' ' . $ownerCityName);
-    $ownerEmail    = function_exists('shop_setting') ? (shop_setting('owner_email_invoices') ?: shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'))) : 'kontakt@mein-seelenfunke.de';
+    $ownerEmail    = function_exists('shop_setting') ? shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) : 'kontakt@mein-seelenfunke.de';
     $ownerPhone    = function_exists('shop_setting') ? shop_setting('company_phone', shop_setting('owner_phone', '+49 (0) 159 019 668 64')) : '+49 (0) 159 019 668 64';
     $ownerWeb      = function_exists('shop_setting') ? shop_setting('owner_website', 'www.mein-seelenfunke.de') : 'www.mein-seelenfunke.de';
     $ownerBankName = function_exists('shop_setting') ? shop_setting('owner_bank_name', 'Volksbank BraWo') : 'Volksbank BraWo';

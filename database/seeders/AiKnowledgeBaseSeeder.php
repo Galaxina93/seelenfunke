@@ -39,6 +39,7 @@ class AiKnowledgeBaseSeeder extends Seeder
             'Existenzgründung & Arbeitsagentur' => 'Gründungszuschuss § 93 SGB III, Businessplan, Fachkundige Stelle und 150-Tage-Regel.',
             'Finanz-Audit & Leistungsansprüche' => 'Anspruchsvergleiche (ALG 1 vs. KG), Kontostände und Liquiditätsanalysen.',
             'Workspace-Dokumentenkatalog' => 'Master-Inventar aller vertraulichen Dokumente im privaten Workspace.',
+            'Marketing, Social Media & Viral-Strategie' => 'Masterplan für TikTok, Instagram (@meinseelenfunke), Google Ads, Influencer-Marketing, White-Glove-Werkstattvideos, CapCut-Pro-Templates, die 20 Top-Benchmark-Accounts und den 37-Punkte-Röntgenkatalog.',
         ];
 
         $catMap = [];
@@ -61,6 +62,7 @@ class AiKnowledgeBaseSeeder extends Seeder
             'Dr. Christian Schmidt', 'Sozialgericht', 'Eilantrag § 86b', 'Gründungszuschuss',
             'Mein Justizpostfach', 'BundID', 'Businessplan', 'Liquiditätsplan', 'Tragfähigkeitsbescheinigung',
             'Agentur für Arbeit', 'Finanz-Audit', 'Volksbank eG', 'ALG 1', 'Workspace', 'Dokumente', 'Existenzgründung',
+            'Marketing', 'TikTok', 'Instagram', 'Google Ads', 'CapCut', 'White-Glove', 'Influencer', 'Landingpage', 'Funkenwerk',
         ];
         $tagMap = [];
         foreach ($tags as $tagName) {
@@ -3902,6 +3904,141 @@ dennoch Belege einzureichen, kreuzen Sie bitte das nachfolge`
                 . "   - 5x Edelstahl Laserrohling Anhänger Herz mit Collierschlaufe, 14 Karat vergoldet (25 × 22 × 4 mm, Ion-Plating) (Art.-Nr. STA1274, 16,99 € brutto inkl. DHL).\n"
                 . "4. **Print Equipment GmbH & Co. KG (Ottersweier):**\n"
                 . "   - Registrierter B2B-Großhändler (shop.printequipment.de) für Naturschieferplatten, Edelstahl-Flachmänner und Thermobecher.",
+        ];
+
+        $resolvedDossiers[] = [
+            'slug' => 'marketing-masterplan-meinseelenfunke-2026',
+            'title' => 'Masterplan Marketing & Social-Media-Strategie (@meinseelenfunke) – Funkenwerk Integration',
+            'category' => 'Marketing, Social Media & Viral-Strategie',
+            'tags' => ['Marketing', 'TikTok', 'Instagram', 'Google Ads', 'CapCut', 'White-Glove', 'Influencer', 'Landingpage', 'Funkenwerk', 'Produkte', 'Laser'],
+            'content' => "# Masterplan Marketing & Social-Media-Strategie (@meinseelenfunke)\n\n"
+                . "## 1. Architektur-Grundsatz: Funkenwerk statt Portal-Aufblähung\n"
+                . "- Die historischen Web-Module `MarketingGoogleAds` und `MarketingInstagram` im Laravel-Portal werden **nicht** weiter aufgebläht.\n"
+                . "- Die gesamte operative Marketing-Steuerung, die tägliche Content-Empfehlung ('Heute drehen'), die Analyse der 20 Top-Accounts (TikTok & Instagram), der 37-Punkte-Röntgenkatalog und die CapCut-Pro-Drehbücher sind als **Space #8 ('Marketing & Content-Planer')** direkt in der nativen Windows-Desktop-Software **Funkenwerk** integriert.\n"
+                . "- Alle Analysedaten werden **offline-first und tokenarm** in `%LocalAppData%\\Funkenwerk\\MarketingVault\\market_intelligence.json` persistiert.\n\n"
+                . "## 2. Account-Benennung & Profil-Architektur (Instagram & TikTok)\n"
+                . "- **Benutzername (`@handle`):** `@meinseelenfunke` (identisch auf Instagram, TikTok und YouTube Shorts; nutzt den psychologischen Besitz-Effekt durch 'Mein' und spiegelt exakt `mein-seelenfunke.de`).\n"
+                . "- **Name / Anzeigename (strikt max. 30 Zeichen auf TikTok · exakt 26 Zeichen):** `Mein Seelenfunke ✨ Atelier`\n"
+                . "- **TikTok Bio (striktes 80-Zeichen-Limit · exakt 66 Zeichen):**\n"
+                . "  1. `✨ Unikate`\n"
+                . "  2. `🤍 Glas, Schiefer & Metall`\n"
+                . "  3. `🧤 Handveredelt aus Deutschland`\n"
+                . "- **Instagram Bio (150-Zeichen-Limit · inkl. CTA-Zeile):**\n"
+                . "  1. `✨ Unikate`\n"
+                . "  2. `🤍 Glas, Schiefer & Metall`\n"
+                . "  3. `🧤 Handveredelt aus Deutschland`\n"
+                . "  4. `👇 Dein Wunschmotiv live in 3D testen:` + Direktlink auf `/linktree` bzw. Kampagnen-Landingpage (`/l/...`)\n"
+                . "- **Die 3 angepinnten Videos (Pinned Posts):**\n"
+                . "  - **Pin 1 (Emotionaler Bestseller):** Der Seelen Kristall / Das Goldene Seelen-Herz – Kundenstory mit Licht-Reveal im abgedunkelten Raum.\n"
+                . "  - **Pin 2 (Gründerin & Manufaktur-Vertrauen):** Alina Steinhauer in der Werkstatt am xTool F2 Ultra UV – Qualitätsversprechen mit weißen Handschuhen & Westpack-Schmuckschachtel.\n"
+                . "  - **Pin 3 (So einfach geht's):** 15-Sekunden-Walkthrough: Foto im Handy-Konfigurator hochladen -> Live-3D-Vorschau -> Lasergravur -> Versand.\n\n"
+                . "## 3. Die 'White-Glove Atelier' Video-Signatur (Werkstatt + Emotionalität)\n"
+                . "- **Visuelle Marken-DNA:** Dunkle Schiefer-/Leder-Unterlage, warmes goldenes Streiflicht (`#C5A059`), **weiße Juwelier-Baumwollhandschuhe** bei jedem Kontakt mit dem Produkt, schwarze matte **Westpack Frankfurt ECO Schmuckschachteln** mit Mein-Seelenfunke-Logodruck.\n"
+                . "- **Dual-Layer-Audio:**\n"
+                . "  - **Sekunde 0–3 (ASMR-Hook auf 0 dB):** Echtes hochfrequentes Laser-Singen des xTool F2 Ultra UV, Abpinseln, oder das satte Schließen der Westpack-Schachtel.\n"
+                . "  - **Ab Reveal (-10 dB bis -6 dB):** Berührende Piano-/Strings-Musik exakt in dem Moment, in dem das Werkstück im Gegenlicht oder auf dem LED-Sockel aufleuchtet.\n"
+                . "- **Die 3 festen CapCut-Pro-Master-Vorlagen:**\n"
+                . "  1. **Vorlage A – 'Pure Atelier ASMR' (12–16 Sek.):** 0–2s Makro-Laserblitz + On-Screen-Hook -> 2–9s schnelle 1,0s-Cuts (Laser, Pinsel, weiße Handschuhe) -> 9–14s Licht-Reveal + Einlegen in Westpack-Box -> 14–16s Loop-Ende.\n"
+                . "  2. **Vorlage B – 'Die Geschichte hinter Bestellung #...' (24–32 Sek.):** 0–3s Kundenwunsch/Foto zeigen -> 3–14s präzise UV-Lasergravur -> 14–25s emotionaler Reveal im Dunkeln mit Musik -> 25–32s Verpackung mit weißen Handschuhen & CTA.\n"
+                . "  3. **Vorlage C – 'Gründer-Perfektionismus / Persönlich' (30–42 Sek.):** 0–4s Direktansprache in der Werkstatt ('Warum dieses Stück heute nicht verschickt wird...') -> 4–25s Blick durch die Lupe / Qualitätsanspruch zeigen -> 25–42s Neuanfertigung & Vertrauen aufbauen.\n\n"
+                . "## 4. Tägliche Content-Rotationsmatrix (Ohne Nachdenken umsetzen)\n"
+                . "- **Montag (ASMR Fokus):** *Das Goldene Seelen-Herz* – 14k Gold-Edelstahl unter dem xTool F2 Ultra UV + Westpack-Schachtel (14s).\n"
+                . "- **Dienstag (Emotionale Story):** *Der Seelen Kristall* – Haustier-/Familien-Erinnerung im K9-Kristallblock mit Dunkel-zu-Licht-Reveal (28s).\n"
+                . "- **Mittwoch (Persönlich / Gründerin):** Blick hinter die Kulissen der Manufaktur in Gifhorn – Qualitätskontrolle mit weißen Handschuhen (34s).\n"
+                . "- **Donnerstag (ASMR & Gravur-Detail):** *Die Seelen-Pfote* – Tiefengravur Hundemarke, Funkenflug & Makro-Schärfe (15s).\n"
+                . "- **Freitag (Geschenk-Impuls / Wochenende):** *Der Feierabend-Funke* – Personalisiertes Weizenglas auf dem xTool RA3 MagSwap Rotationsmodul (18s).\n"
+                . "- **Samstag (Bestseller-Story):** *Der Seelenanhänger / Seelen-Talisman* – Handschrift eines geliebten Menschen für immer auf Metall verewigt (26s).\n"
+                . "- **Sonntag (Community & Q&A Reveal):** Antwort auf Top-Kundenkommentar mit Live-Test im 3D-Konfigurator + fertigem Werkstück (22s).\n\n"
+                . "## 5. Paid Ads & Budget-Fahrplan (Wo · Wann · Wie lange · Wie viel €)\n"
+                . "### A. Produkt-Kalkulation & Erlaubte Werbekosten pro Verkauf (CPA-Grenze)\n"
+                . "- **Zugpferd #1 – Der Seelen Kristall (69,90 € Brutto | ~6,11 € EK Netto):** Ziel-CPA **8,50 € – 10,50 €** | Absolute Stopp-Grenze: **max. 14,00 € CPA** (bleiben > 33 € Reingewinn pro Stück).\n"
+                . "- **Zugpferd #2 – Das Goldene Seelen-Herz (49,90 € Brutto | ~5,10 € EK Netto):** Ziel-CPA **5,00 € – 7,50 €** | Absolute Stopp-Grenze: **max. 10,00 € CPA** (bleiben > 24 € Reingewinn pro Stück).\n"
+                . "- **29,90 € Produkte (Seelen-Pfote, Seelenanhänger, Feierabend-Funke):** **0,00 € Einzel-Ads!** Dienen als organische Reichweiten-Magneten und Warenkorb-Upsells.\n\n"
+                . "### B. Instagram Reels Ads & TikTok Spark Ads ('Organic-Winner-Regel')\n"
+                . "- **WO schalten:** Immer am PC im **Meta Werbeanzeigenmanager (`business.facebook.com`)** als *Umsatz/Sales*-Kampagne mit *'Bestehenden Beitrag verwenden'* sowie im **TikTok Ads Manager (`ads.tiktok.com`)** als *Spark Ad*. **Niemals** den blauen 'Hervorheben'-Button in der Handy-App nutzen (vermeidet 30 % Apple/Google-Aufschlag).\n"
+                . "- **WANN schalten:** Erst **48 Stunden nach dem organischen Post**, und **nur** wenn das Video organisch **> 35 % 3-Sekunden-Haltequote** und **> 1.000 Views** erreicht hat.\n"
+                . "- **WIE VIEL & WIE LANGE:** Start mit exakt **5,00 € / Tag für 4 Tage (= 20,00 € Test-Budget)** direkt auf `/l/seelen-kristall` bzw. `/l/goldenes-seelen-herz`.\n"
+                . "- **AMPEL-ENTSCHEIDUNG NACH TAG 4 (20 €):**\n"
+                . "  - 🔴 **0 Verkäufe nach 20 €:** Sofort abschalten!\n"
+                . "  - 🟢 **Ab 2 Verkäufen (CPA ≤ 10 €):** Einfach durchlaufen lassen (Gewinner-Anzeigen laufen oft 4–8 Wochen profitabel durch).\n"
+                . "  - 🚀 **CPA unter 7,50 €:** Tagesbudget alle 3 Tage um **+20 %** erhöhen (5 € -> 6 € -> 7,50 € -> 10 €/Tag).\n\n"
+                . "### C. Google Ads (`ads.google.com` – Kaufbereite Suche & Brand-Schutz)\n"
+                . "- **Kampagne 1 (Brand-Schutz · 1,50 €/Tag dauerhaft · ~45 €/Monat):** Keywords `[mein seelenfunke]`, `[meinseelenfunke]` (fängt alle Käufer ab, die abends ein TikTok/Reel gesehen haben und am nächsten Tag googeln; Klickpreis ~0,10 €).\n"
+                . "- **Kampagne 2 (Kaufbereite Suche · 3,50 €/Tag · ~105 €/Monat):** Reine Suchkampagne (ohne Displaynetzwerk/Suchpartner!) auf `[3d glasgravur foto]`, `[3d kristall mit eigenem foto]`, `[handschrift gravur kette]`, `[erinnerungsschmuck mit gravur]`.\n"
+                . "- **Pflicht-Ausschluss-Keywords:** `-gratis -kostenlos -billig -selber machen -vorlage -amazon -temu -dm -rossmann`.\n"
+                . "- **Weihnachts-Stopp:** Am **20.12. um 23:59 Uhr** alle Weihnachts-Geschenke-Ads pausieren.\n\n"
+                . "### D. Influencer 'Tränen-Garantie' (0,00 € Fixgage · 2 Kooperationen/Monat)\n"
+                . "- **Kosten:** **0,00 € Fixhonorar** – reiner Produkt-Versand (unser realer Materialeinsatz + DHL = ca. **10,50 €** pro Influencer).\n"
+                . "- **2-Phasen-System:** *Phase 1:* Wir filmen mit weißen Handschuhen die Fertigung des Überraschungs-Unikats für den Micro-Creator (5k–80k Follower). *Phase 2:* Der Creator filmt seine echte Emotion beim ersten Öffnen der Westpack-Schachtel.\n\n"
+                . "## 6. Die 4x3 Marketing-Routine (1x am Tag · 1x die Woche · 1x im Monat)\n"
+                . "Damit das Marketing ohne Überforderung als festes Uhrwerk läuft, ist in Funkenwerk die **4x3 Creator-Routine** (Content, Community, Zahlen, Markt-Radar) mit automatischem Tages-, Wochen- und Monats-Reset hinterlegt:\n"
+                . "### A. ☀️ 1x AM TAG (Tages-Routine · ca. 15–20 Min.)\n"
+                . "1. **Posten (Content):** 1 Reel / TikTok aus dem 14-Tage-Drehplan veröffentlichen (18:30–20:00 Uhr) + kurz in die Story teilen.\n"
+                . "2. **Kommentare & DMs beantworten (Community):** Direkt nach dem Posten alle neuen Kommentare & Nachrichten herzlich (gerne mit Gegenfrage für den Algorithmus) beantworten.\n"
+                . "3. **Skip-Rate & Views prüfen (Analytics):** 2-Minuten-Blick in das gestrige Video: Wie viele Zuschauer haben die ersten 3 Sekunden überstanden (Ziel: > 65 % Hold-Rate)?\n"
+                . "4. **10 Min. Fokus-Scrolling (Markt-Radar):** 10 Minuten gezielt im Nischen-Feed (Schmuck, Gravur, Geschenke) nach aktuellen Piano-/ASMR-Sounds und Hooks schauen.\n\n"
+                . "### B. 📅 1x DIE WOCHE (Wochen-Routine · 1 fester Block)\n"
+                . "1. **Fester Werkstatt-Drehtag (Batch-Production):** Einmal pro Woche 5–7 Videos am Stück in 60–90 Min. am xTool F2 Ultra UV mit weißen Handschuhen und Westpack-Schachteln vordrehen.\n"
+                . "2. **Live Q&A / Live-Gravur (Community):** 15–20 Min. Instagram/TikTok Live direkt aus der Manufaktur Gifhorn beim Gravieren & Verpacken echter Kundenbestellungen.\n"
+                . "3. **Top 3 Performer identifizieren (Analytics):** Die 3 besten Videos der Woche nach Watchtime & Speicher-Rate küren (Gewinner-Hook wiederholen & als Spark Ad vormerken).\n"
+                . "4. **5 Benchmark-Videos speichern (Markt-Radar):** 5 starke Videos aus der Nische speichern bzw. im Funkenwerk KI-Röntgen auf ihre Erfolgsformel scannen.\n\n"
+                . "### C. 🏆 1x IM MONAT (Monats-Routine · Strategie-Update)\n"
+                . "1. **Content-Säulen Update (Strategie):** Fokus-Produkte und saisonale Anlässe für den neuen Monat festlegen (z. B. Muttertag, Vatertag, Hochzeit, Weihnachten, Haustier-Gedenken).\n"
+                . "2. **Community-Challenge ('Seelen-Geschichte des Monats'):** Follower teilen ihre bewegendste Geschichte in den Kommentaren – 1 Gewinner-Unikat wird kostenlos in einem großen Story-Video gefertigt.\n"
+                . "3. **Volle Content- & Funnel-Analyse (Analytics):** Auswertung aller Videos + Klickrate auf die Landingpages (`/l/...`) und 3D-Konfigurator-Käufe; schwächste 20 % Formate streichen.\n"
+                . "4. **3 neue Video-Formate testen (Innovation):** 3 frische Hook- oder Kamerawinkel-Experimente für den kommenden Monat in den Drehplan aufnehmen.\n\n"
+                . "## 7. Dynamische Shop-Produkt-, Jahreszeiten- & Feiertags-Synchronisation\n"
+                . "- **Live-Schnittstelle (`GET /api/funki/marketing/live-context` via `HolidayOfferAutopilotService::buildLiveMarketingPlanContext()`):**\n"
+                . "  - Funkenwerk lädt beim Öffnen des Marketing-Planers sowie per Klick auf `🔄 Shop-Sync` alle aktiven Produkte aus dem Mein-Seelenfunke Shop (`Product` + `MarketingLandingPage`).\n"
+                . "  - **Automatische Produkt-Aufnahme:** Wird im Shop ein neues Produkt angelegt, berechnet die Engine automatisch dessen reale Direktkosten, Netto-Marge, **Ziel-CPA**, **Max. Stopp-CPA**, Kampagnen-Rolle (`ZUGPFERD` vs. `ORGANISCH`), das passende Werkstatt-Setup (z. B. `xTool RA3 Rotationsmodul` bei Zylindern, `Schwarze Westpack-Box` bei Schmuckmaß, `LED-Leuchtsockel` bei Kristallglas) und fügt für das neue Produkt automatisch ein eigenes 4-Schritte-Drehrezept in den Rotationsplan ein.\n"
+                . "  - **Automatische Jahreszeiten- & Feiertags-Steuerung:** Koppelt sich 1:1 an die 4 Shop-Jahreszeiten (`Frühling`, `Sommer`, `Herbst`, `Winter` aus `ConfiguratorService`) sowie alle 11 Feiertags-Kampagnen aus `HolidayOfferAutopilotService` (`Valentinstag`, `Weltfrauentag`, `Ostern`, `Muttertag`, `Vatertag`, `Sommer-Sale`, `Herbst/Lichter`, `1. Advent`, `Weihnachten`, `Neujahr`, `Winter-Sale`) inklusive Countdown, Manufaktur-Annahmeschluss und 1-Klick-Button `🎄 Saison-Motto` für Hook & Caption.",
+        ];
+
+        $resolvedDossiers[] = [
+            'slug' => 'marketing-top20-accounts-und-37-fragen-analyse',
+            'title' => 'Marktanalyse: Die 20 Top-Accounts (TikTok & Instagram) & der 37-Punkte-Röntgenkatalog',
+            'category' => 'Marketing, Social Media & Viral-Strategie',
+            'tags' => ['Marketing', 'TikTok', 'Instagram', 'Google Ads', 'CapCut', 'White-Glove', 'Influencer', 'Landingpage', 'Funkenwerk'],
+            'content' => "# Marktanalyse: Die 20 Top-Accounts & 37-Punkte-Röntgenkatalog\n\n"
+                . "## 1. Die 20 analysierten Benchmark-Accounts (4 Gewinner-Cluster)\n"
+                . "### Cluster 1: Emotionaler Gravur- & Erinnerungsschmuck (5 Accounts)\n"
+                . "1. **PicturesOnGold (@picturesongold – TikTok/IG):** Marktführer für Foto- & Handschrift-Gravuren auf Medaillons/Herzen. Erfolgsformel: Kunden-Notiz einblenden -> Laser-Gravur in 2x Speed -> Polieren mit Handschuhen (Ø 16s).\n"
+                . "2. **Customodish (@customodish – TikTok/IG):** Spezialist für Foto-Projektionsschmuck & Pfoten-Erinnerungen. Erfolgsformel: Handy-Kamera blickt durch den Stein -> Emotionaler Reveal (Ø 14s).\n"
+                . "3. **MignonAndMignon (@mignonandmignon – IG/TikTok):** Minimalistischer Handschrift-Schmuck. Erfolgsformel: Original-Brief einer Oma neben dem goldenen Herzanhänger (Ø 22s).\n"
+                . "4. **SilverCut (@silvercut_official – IG/TikTok):** Fotogravur-Anhänger & Haustier-Schmuck im DACH-/EU-Raum. Erfolgsformel: Vorher-Foto des Hundes -> Makro-Laser -> Auspacken durch weinenden Kunden (Ø 27s).\n"
+                . "5. **CaitlynMinimalist (@caitlynminimalist – IG/TikTok):** Weltweit führend bei Handschrift- & Erinnerungs-Schmuck. Erfolgsformel: Extrem ruhige Samt-Inszenierung, warme Beleuchtung, 1-Satz-Story-Hook (Ø 15s).\n\n"
+                . "### Cluster 2: 3D-Kristallglas, Acryl & Licht-Magie (5 Accounts)\n"
+                . "6. **ArtPix 3D (@artpix3d – TikTok/IG):** Globaler Benchmark für K9-3D-Kristallblöcke. Erfolgsformel: Raum komplett abdunkeln -> LED-Sockel einschalten -> Kristall erwacht zum Leben (Ø 18s).\n"
+                . "7. **3DCrystal (@3dcrystal – TikTok/IG):** Gründer-geführter Kanal mit Millionen-Views durch Kombination aus Werkstatt-Erklärung, UV-Laser-Innengravur und echten Kundenreaktionen (Ø 31s).\n"
+                . "8. **Masterpiece Laser (@masterpiecelaser – TikTok/IG):** Fokus auf den hypnotischen UV-Laserpunkt im Inneren des Glasblocks mit knackigem Originalton (Ø 13s).\n"
+                . "9. **CrystalClever (@crystalclever – IG/TikTok):** Emotionale Gedenk-Kristalle (Trauer & Haustiere) mit White-Glove-Verpackungsritual in edler Box (Ø 25s).\n"
+                . "10. **LoftyBrick / 3D Glass Atelier (@3dglassatelier – TikTok):** 3D-Vorher-Nachher-Vergleich zwischen 2D-Handyfoto und 360°-Drehung des fertigen K9-Kristalls (Ø 16s).\n\n"
+                . "### Cluster 3: Faser-/UV-Laser, Metall, Glas & Schiefer-ASMR (5 Accounts)\n"
+                . "11. **LaserEngravingASMR (@laserengravingasmr – TikTok):** Reine Audio-Befriedigung durch hochfrequente Laser-Töne auf Metall & Schiefer ohne Musik in den ersten 8 Sekunden (Ø 12s).\n"
+                . "12. **EngraveItStudio (@engraveitstudio – TikTok/IG):** Rotationsgravur auf Gläsern & Thermobechern (analog xTool RA3) mit perfektem Schärfeverlauf (Ø 17s).\n"
+                . "13. **BlackMetalCards (@blackmetalcards – TikTok/IG):** Matte Metallkarten & Talismane mit Gold-/Silber-Abtrag und weißen Handschuhen (Ø 14s).\n"
+                . "14. **SlateCraftLaser (@slatecraftlaser – TikTok/IG):** Naturschiefer-Fotogravuren mit Wasser-/Öl-Versiegelung und dramatischem Kontrast-Reveal (Ø 19s).\n"
+                . "15. **xTool Official Creators (@xtool.official – TikTok/IG):** Best-Practice-Showcases für F2 Ultra UV & RA3 Rotationsgravur auf K9-Kristall, Gold-Anhängern und Glas (Ø 20s).\n\n"
+                . "### Cluster 4: White-Glove Luxury & Packaging-Porn (5 Accounts)\n"
+                . "16. **WhiteGloveAtelier (@whitegloveatelier – TikTok/IG):** Jede Berührung nur mit blütenweißen Baumwollhandschuhen, Lupe, feinem Pinsel und Samtschachtel (Ø 16s).\n"
+                . "17. **LuxuryBoxRitual (@luxuryboxritual – TikTok/IG):** Zeigt, wie allein das langsame Schließen einer schwarzen matten Schmuckschachtel mit Gold-Logo den wahrgenommenen Produktwert verdoppelt (Ø 14s).\n"
+                . "18. **The bespoke Jeweler (@thebespokejeweler – IG/TikTok):** Gründer-Storytelling + Perfektionismus ('Warum ich dieses Stück neu mache') für extremes Markenvertrauen (Ø 36s).\n"
+                . "19. **MemorialCraftStudio (@memorialcraftstudio – IG/TikTok):** Spezialist für einfühlsame Trauer- & Haustier-Unikate mit handgeschriebener Karte im Paket (Ø 29s).\n"
+                . "20. **HeirloomEngravers (@heirloomengravers – IG/TikTok):** Verbindet traditionelle Handwerkskunst mit moderner Laserpräzision und 5-Sterne Google-Trust-Einblendungen (Ø 24s).\n\n"
+                . "## 2. Der 37-Punkte-Röntgenkatalog (7 Kernfragen + 30 Tiefenfragen)\n"
+                . "1. **Videolänge:** ASMR-Clips exakt 11–16 Sek.; emotionale Kunden-Storys 24–32 Sek.; Gründer-Talks 30–42 Sek.\n"
+                . "2. **Inhalt:** 1 Produkt + 1 klares Gefühl pro Video (niemals mehrere Produkte mischen).\n"
+                . "3. **Verwendete Sounds:** Sekunde 0–3 immer 100 % Original-Werkstattton (Laser/Box-Klacken), ab Reveal emotionale Piano-/Strings-Musik.\n"
+                . "4. **Besonderheiten:** Weiße Handschuhe, Abdunkeln beim Licht-Reveal, schwarze matte Westpack-Schachtel.\n"
+                . "5. **Bio-Aufbau:** Zeile 1 Nutzen/Transformation, Zeile 2 Materialien, Zeile 3 Manufaktur Gifhorn + Weiße Handschuhe, Zeile 4 Call-to-Action in den 3D-Konfigurator.\n"
+                . "6. **Eigene Webseite:** Immer direkter Deep-Link ohne Umwege in den mobilen Konfigurator (`/l/...`).\n"
+                . "7. **Google Business Profil:** Vollständig gepflegt mit Manufaktur-Fotos aus Gifhorn, Kurzvideos und aktivem Nachkauf-Bewertungslink.\n"
+                . "8.–12. **Hook-Psychologie (0–3s):** Start im ersten Frame mitten in der Aktion (Laserblitz oder Handschuhe öffnen Box) + emotionaler 1-Satz-On-Screen-Text + nahtloser Loop am Videoende.\n"
+                . "13.–18. **Schnitt & White-Glove-Inszenierung:** Schnitt alle 1,0–1,5 Sek. beim Lasern, 3,5 Sek. Ruhe beim finalen Licht-Reveal; warmes Streiflicht (`#C5A059`); 70 % Makro-Aufnahmen.\n"
+                . "19.–23. **Emotionales Storytelling:** Kunden-Anlass nennen (Hund, Oma-Handschrift, Hochzeit, Feierabend) -> Originalfoto kurz einblenden -> Fertigung -> Gänsehaut-Ergebnis.\n"
+                . "24.–28. **Algorithmus-Trigger:** Offene Frage am Ende für Kommentare, Speichern-Anreiz als Geschenkidee, 4–5 gezielte Kauf-Hashtags (`#meinseelenfunke #3dglasgravur #erinnerungsschmuck #geschenkidee #handgemacht`).\n"
+                . "29.–33. **Profil- & Konfigurator-Funnel:** Maximal 2 Klicks vom Video bis zum Foto-Upload im Shop; Geschenkbox & LED-Sockel als Warenkorb-Booster.\n"
+                . "34.–37. **Paid Ads & Google-Dominanz:** Nur organische Gewinner-Videos als Spark Ads / Reels Ads schalten; Google Search fängt die kaufbereiten Suchanfragen und Brand-Suchen ab.",
         ];
 
         foreach (array_merge($dossiers, $resolvedDossiers) as $d) {

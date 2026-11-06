@@ -72,7 +72,7 @@ class EmployeeDashboard extends Component
     {
         /** @var Employee|null $user */
         $user = Auth::guard('employee')->user();
-        if (!$user || $user->isInfluencer() || $user->isTaxAdvisor()) {
+        if (!$user || !$user->isAccountActive() || $user->isInfluencer() || $user->isTaxAdvisor()) {
             abort(403, 'Zugriff verweigert.');
         }
     }
@@ -81,7 +81,7 @@ class EmployeeDashboard extends Component
     {
         /** @var Employee|null $user */
         $user = Auth::guard('employee')->user();
-        if (!$user || $user->isInfluencer() || $user->isTaxAdvisor()) {
+        if (!$user || !$user->isAccountActive() || $user->isInfluencer() || $user->isTaxAdvisor()) {
             abort(403, 'Zugriff verweigert.');
         }
 
@@ -120,6 +120,8 @@ class EmployeeDashboard extends Component
 
         return EmployeeContract::with('payslips')
             ->where('employee_id', $employee->id)
+            ->where('is_active', true)
+            ->where('is_archived', false)
             ->latest('created_at')
             ->first();
     }
@@ -150,8 +152,12 @@ class EmployeeDashboard extends Component
             return;
         }
 
-        $service->clockIn($contract, $this->manualActivityNote ?: 'Manufaktur & Versand');
-        session()->flash('success', 'Eingestempelt.');
+        try {
+            $service->clockIn($contract, $this->manualActivityNote ?: 'Manufaktur & Versand');
+            session()->flash('success', 'Eingestempelt.');
+        } catch (\InvalidArgumentException $e) {
+            session()->flash('error', $e->getMessage());
+        }
     }
 
     public function clockOut(EmployeeHrService $service): void
@@ -198,14 +204,20 @@ class EmployeeDashboard extends Component
             'manualEndTime' => 'required|string|max:10',
         ]);
 
-        $entry = $service->recordTimeEntry($contract, [
-            'work_date' => $this->manualWorkDate,
-            'start_time' => $this->manualStartTime,
-            'end_time' => $this->manualEndTime,
-            'break_minutes' => $this->manualBreakMinutes,
-            'activity_note' => $this->manualActivityNote,
-            'auto_enforce_arbzg' => true,
-        ]);
+        try {
+            $entry = $service->recordTimeEntry($contract, [
+                'work_date' => $this->manualWorkDate,
+                'start_time' => $this->manualStartTime,
+                'end_time' => $this->manualEndTime,
+                'break_minutes' => $this->manualBreakMinutes,
+                'activity_note' => $this->manualActivityNote,
+                'auto_enforce_arbzg' => true,
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            $this->addError('manualWorkDate', $e->getMessage());
+            session()->flash('error', $e->getMessage());
+            return;
+        }
 
         $this->showManualEntryForm = false;
         $this->manualBreakMinutes = '';
@@ -225,12 +237,18 @@ class EmployeeDashboard extends Component
             'leaveEndDate' => 'nullable|date',
         ]);
 
-        $created = $service->recordLeaveEntries($contract, [
-            'entry_type' => $this->leaveType,
-            'start_date' => $this->leaveStartDate,
-            'end_date' => $this->leaveEndDate ?: $this->leaveStartDate,
-            'activity_note' => $this->leaveNote,
-        ]);
+        try {
+            $created = $service->recordLeaveEntries($contract, [
+                'entry_type' => $this->leaveType,
+                'start_date' => $this->leaveStartDate,
+                'end_date' => $this->leaveEndDate ?: $this->leaveStartDate,
+                'activity_note' => $this->leaveNote,
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            $this->addError('leaveStartDate', $e->getMessage());
+            session()->flash('error', $e->getMessage());
+            return;
+        }
 
         $this->showLeaveForm = false;
         $this->leaveNote = '';
@@ -238,7 +256,7 @@ class EmployeeDashboard extends Component
         session()->flash('success', $count > 0 ? "{$count} Tag(e) eingetragen." : 'Für diesen Zeitraum liegt bereits ein Eintrag vor.');
     }
 
-    public function deleteTimeEntry(string $entryId): void
+    public function deleteTimeEntry(string $entryId, EmployeeHrService $service): void
     {
         $contract = $this->getContract();
         if (!$contract) {
@@ -250,6 +268,10 @@ class EmployeeDashboard extends Component
             ->first();
 
         if ($entry && $entry->status !== 'approved') {
+            if ($entry->work_date && $service->isPeriodLockedByPaidPayslip((string) $contract->id, (int) $entry->work_date->year, (int) $entry->work_date->month)) {
+                session()->flash('error', 'Dieser Abrechnungsmonat wurde bereits endgültig abgerechnet und überwiesen (GoBD-Sperre).');
+                return;
+            }
             $entry->delete();
             session()->flash('success', 'Eintrag gelöscht.');
         }
@@ -265,12 +287,16 @@ class EmployeeDashboard extends Component
         }
 
         $item = OrderOrderItem::findOrFail($itemId);
+        $order = OrderOrder::with('items')->find($item->order_id);
+        if (!$order || in_array($order->status, ['cancelled', 'refunded', 'shipped', 'completed'], true) || in_array($order->payment_status, ['failed', 'refunded', 'cancelled'], true)) {
+            return;
+        }
+
         $item->update([
             'is_completed' => !$item->is_completed,
         ]);
 
-        $order = OrderOrder::with('items')->find($item->order_id);
-        if ($order && $order->status === 'pending' && $item->is_completed) {
+        if ($order->status === 'pending' && $item->is_completed) {
             $order->update(['status' => 'processing']);
         }
     }
@@ -283,7 +309,7 @@ class EmployeeDashboard extends Component
         }
 
         $order = OrderOrder::with(['items.product', 'shipments'])->findOrFail($orderId);
-        if (in_array($order->status, ['cancelled', 'refunded'], true)) {
+        if (in_array($order->status, ['cancelled', 'refunded', 'shipped', 'completed'], true) || in_array($order->payment_status, ['failed', 'refunded', 'cancelled'], true)) {
             return;
         }
 
@@ -357,6 +383,9 @@ class EmployeeDashboard extends Component
         ]);
 
         $ticket = SupportTicket::with('customer')->findOrFail($this->activeTicketId);
+        if ($ticket->status === 'closed') {
+            return;
+        }
 
         SupportTicketMessage::create([
             'support_ticket_id' => $ticket->id,
@@ -415,7 +444,10 @@ class EmployeeDashboard extends Component
         ]);
 
         $saved = DB::transaction(function () {
-            $product = Product::where('id', $this->lossProductId)->lockForUpdate()->firstOrFail();
+            $product = Product::where('id', $this->lossProductId)
+                ->where('type', 'physical')
+                ->lockForUpdate()
+                ->firstOrFail();
 
             if ($product->track_quantity && $product->quantity < $this->lossQuantity) {
                 $this->addError('lossQuantity', 'Nicht genug Bestand vorhanden.');
@@ -426,7 +458,7 @@ class EmployeeDashboard extends Component
 
             ProductLoss::create([
                 'product_id' => $product->id,
-                'product_supplier_id' => null,
+                'product_supplier_id' => $product->supplier_id ?? null,
                 'quantity' => $this->lossQuantity,
                 'cost_value' => $costValue,
                 'reason' => trim($this->lossReason),

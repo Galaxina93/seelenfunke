@@ -559,4 +559,346 @@ class HolidayOfferAutopilotService
             'restored_count' => $restoredCount,
         ];
     }
+
+    /**
+     * Erzeugt den vollständigen dynamischen Marketing-, Produkt-, Saison- & Feiertags-Kontext
+     * für den Funkenwerk Marketing & Content-Planer (inkl. automatischer Adaption neuer Shop-Produkte).
+     */
+    public function buildLiveMarketingPlanContext(?Carbon $now = null): array
+    {
+        $now = ($now ? $now->copy() : Carbon::now())->startOfDay();
+        $year = (int) $now->year;
+
+        $configurator = app(\App\Services\ConfiguratorService::class);
+        $activeTheme = $configurator->getCurrentActiveTheme($now);
+        $seasonKey = $configurator->getActiveSeasonKey($now);
+        $seasonsDef = $configurator->getSeasonsDefinition();
+        $currentSeasonMeta = $seasonsDef[$seasonKey] ?? [
+            'key' => $seasonKey,
+            'name' => ucfirst($seasonKey),
+            'period' => '',
+            'icon' => '✨',
+            'animation_label' => 'Manufaktur',
+        ];
+
+        // 1. Feiertags-Timeline & aktiven / nächsten Anlass berechnen
+        $definitions = $this->getHolidayEventsDefinition();
+        $activeWindow = $this->resolveActiveOfferWindow($now);
+        $upcomingHolidays = [];
+
+        foreach ($definitions as $key => $meta) {
+            $eventDate = $this->getHolidayDate($key, $year);
+            $startDate = $eventDate->copy()->subDays((int) $meta['start_days_before'])->startOfDay();
+            $endDate = $eventDate->copy()->subDays((int) $meta['end_days_before'])->endOfDay();
+
+            if ($endDate->lt($now)) {
+                $eventDate = $this->getHolidayDate($key, $year + 1);
+                $startDate = $eventDate->copy()->subDays((int) $meta['start_days_before'])->startOfDay();
+                $endDate = $eventDate->copy()->subDays((int) $meta['end_days_before'])->endOfDay();
+            }
+
+            $isActiveNow = $now->betweenIncluded($startDate, $endDate);
+            $daysUntilStart = max(0, (int) $now->diffInDays($startDate, false));
+            $daysUntilEvent = max(0, (int) $now->diffInDays($eventDate, false));
+
+            $mottoData = $this->resolveHolidayMarketingMotto($key, $seasonKey);
+
+            $upcomingHolidays[] = [
+                'event_key' => $key,
+                'name' => $meta['name'],
+                'badge_text' => $meta['badge_text'],
+                'discount_percent' => (int) $meta['discount_percent'],
+                'strategy_hint' => $meta['strategy_hint'],
+                'product_slugs' => $meta['product_slugs'] ?? [],
+                'event_date' => $eventDate->format('Y-m-d'),
+                'event_date_formatted' => $eventDate->format('d.m.Y'),
+                'start_date_formatted' => $startDate->format('d.m.Y'),
+                'cutoff_date_formatted' => $endDate->format('d.m.Y'),
+                'window_formatted' => $startDate->format('d.m.') . ' – ' . $endDate->format('d.m.Y'),
+                'is_active_now' => $isActiveNow,
+                'days_until_start' => $daysUntilStart,
+                'days_until_event' => $daysUntilEvent,
+                'motto' => $mottoData['motto'],
+                'hook_prefix' => $mottoData['hook_prefix'],
+                'caption_addon' => $mottoData['caption_addon'],
+                'hashtags' => $mottoData['hashtags'],
+                '_sort_ts' => $isActiveNow ? 0 : $startDate->timestamp,
+            ];
+        }
+
+        usort($upcomingHolidays, fn (array $a, array $b) => $a['_sort_ts'] <=> $b['_sort_ts']);
+        foreach ($upcomingHolidays as &$hItem) {
+            unset($hItem['_sort_ts']);
+        }
+        unset($hItem);
+
+        $primaryHoliday = $upcomingHolidays[0] ?? null;
+        $seasonMotto = $this->resolveSeasonFallbackMotto($seasonKey);
+
+        // Wenn ein Feiertag aktiv ist oder in <= 28 Tagen startet, dominiert dessen Motto den Content-Fokus
+        $useHolidayFocus = $primaryHoliday && ($primaryHoliday['is_active_now'] || $primaryHoliday['days_until_start'] <= 28);
+        $effectiveMotto = $useHolidayFocus ? $primaryHoliday['motto'] : $seasonMotto['motto'];
+        $effectiveHookPrefix = $useHolidayFocus ? $primaryHoliday['hook_prefix'] : $seasonMotto['hook_prefix'];
+        $effectiveCaptionAddon = $useHolidayFocus ? $primaryHoliday['caption_addon'] : $seasonMotto['caption_addon'];
+        $effectiveSeasonalHashtags = $useHolidayFocus ? $primaryHoliday['hashtags'] : $seasonMotto['hashtags'];
+
+        // 2. Alle aktiven Produkte aus dem Shop laden und dynamisch für Marketing & Ads aufbereiten
+        $rawProducts = Product::where('status', 'active')
+            ->whereIn('type', ['physical', 'digital'])
+            ->orderByRaw("CASE WHEN type = 'physical' THEN 0 ELSE 1 END")
+            ->orderBy('price', 'desc')
+            ->get();
+
+        $shopProducts = [];
+        foreach ($rawProducts as $product) {
+            if ($product->type === 'digital' && $product->slug !== 'geschenkgutschein') {
+                continue;
+            }
+
+            $landingPage = \App\Models\Marketing\MarketingLandingPage::syncForProduct($product);
+            $landingSlug = $landingPage ? '/l/' . ltrim((string) $landingPage->slug, '/') : '/produkt/' . $product->slug;
+
+            $settings = is_array($product->configurator_settings) ? $product->configurator_settings : [];
+            $attributes = \App\Models\Marketing\MarketingLandingPage::extractEssentialAttributes($product);
+            $materialLabel = (string) ($attributes['Material'] ?? ($attributes['Art'] ?? 'Manufaktur-Unikat'));
+
+            $supportsWestpack = $product->supportsJewelryGiftBox();
+            $usesRotaryRa3 = (($settings['overlay_type'] ?? '') === 'cylinder');
+            $has3d = (bool) ($product->three_d_active ?? false);
+            $hasBackSide = !empty($settings['has_back_side']);
+
+            $offerCalc = $this->calculateProductOffer($product, 0);
+            $basePriceCents = (int) $offerCalc['base_price_cents'];
+            if ($product->slug === 'geschenkgutschein' && $basePriceCents <= 0) {
+                $basePriceCents = 5000; // 50,00 € Referenzwert für Gutschein-Kalkulation
+            }
+
+            $directCostsCents = (int) $offerCalc['direct_costs_cents'];
+            $paymentFeeCents = (int) $offerCalc['payment_fee_cents'];
+            $netRevenueCents = (int) round($basePriceCents / 1.19);
+            $netProfitBeforeAdsCents = max(0, $netRevenueCents - $directCostsCents - $paymentFeeCents);
+
+            $targetCpaCents = max(400, min((int) round($basePriceCents * 0.22), (int) round($netProfitBeforeAdsCents * 0.50)));
+            $maxCpaCents = max($targetCpaCents + 200, (int) round($netProfitBeforeAdsCents * 0.85));
+            $netProfitAtTargetCpaCents = max(0, $netProfitBeforeAdsCents - $targetCpaCents);
+            $netMarginPercent = $netRevenueCents > 0 ? round(($netProfitAtTargetCpaCents / $netRevenueCents) * 100, 1) : 0.0;
+
+            $isAdZugpferd = ($product->type === 'physical' && $basePriceCents >= 3500 && $netProfitBeforeAdsCents >= 2000);
+
+            // Dynamisches Setup für den Werkstatt-Dreh anhand der realen Produkteigenschaften
+            $setupParts = ['Weiße Handschuhe', $product->name];
+            if ($usesRotaryRa3) {
+                $setupParts[] = 'xTool RA3 Rotationsmodul';
+                $setupParts[] = 'Gegenlicht-Lampe';
+            } else {
+                $setupParts[] = 'xTool F2 Ultra UV';
+            }
+
+            $nameAndMatLower = mb_strtolower($product->name . ' ' . $materialLabel . ' ' . $product->slug);
+            if (str_contains($nameAndMatLower, 'kristall')) {
+                $setupParts[] = 'LED-Leuchtsockel';
+            }
+            if ($supportsWestpack) {
+                $setupParts[] = 'Schwarze Westpack-Box';
+            } elseif ($product->slug === 'geschenkgutschein') {
+                $setupParts[] = 'Schwarzer Edel-Umschlag & Gold-Siegel';
+            }
+
+            $setupString = implode(' · ', array_unique($setupParts));
+
+            // Dynamische Produkt-Hashtags + Saison-Hashtags
+            $slugClean = str_replace(['-', '_'], '', (string) $product->slug);
+            $baseHashtags = "#meinseelenfunke #{$slugClean} #handveredelt #unikat #geschenkidee";
+            if (str_contains($nameAndMatLower, 'hund') || str_contains($nameAndMatLower, 'pfote')) {
+                $baseHashtags = '#meinseelenfunke #seelenpfote #hundemarke #pfotenliebe #hundegeschenk';
+            } elseif (str_contains($nameAndMatLower, 'kristall')) {
+                $baseHashtags = '#meinseelenfunke #seelenkristall #3dglasgravur #erinnerungsstück #personalisiertegeschenke';
+            } elseif (str_contains($nameAndMatLower, 'herz')) {
+                $baseHashtags = '#meinseelenfunke #erinnerungsschmuck #goldenesherz #gravurschmuck #handgemacht';
+            } elseif (str_contains($nameAndMatLower, 'weizen') || $usesRotaryRa3) {
+                $baseHashtags = '#meinseelenfunke #weizenglas #männergeschenk #glasgravur #feierabendfunke';
+            }
+
+            // Empfohlenes Dreh-Format anhand der Produkt-DNA
+            if ($usesRotaryRa3) {
+                $recFormat = '360° Rotationsgravur (RA3) & Gegenlicht-Reveal';
+                $defaultHook = "Wenn sich {$product->name} im Laser um 360° dreht ✨";
+                $defaultClips = "Clip 1: 4s Einspannen ins RA3 Rotationsmodul · Clip 2: 6s 360°-Gravur mit Laser-Sound · Clip 3: 5s Gegenlicht-Reveal mit weißen Handschuhen";
+            } elseif (str_contains($nameAndMatLower, 'kristall')) {
+                $recFormat = 'Licht-Reveal im Dunkeln & Emotionale Story';
+                $defaultHook = "Wenn aus einem Handyfoto ein leuchtendes 3D-Unikat im Kristall wird 🤍✨";
+                $defaultClips = "Clip 1: 4s Dunkler Raum, Einschalten des LED-Sockels unter {$product->name} · Clip 2: 6s UV-Laser im Glas · Clip 3: 6s Nahaufnahme der 3D-Lichtbrechung";
+            } elseif ($supportsWestpack) {
+                $recFormat = 'White-Glove ASMR & Westpack-Box Reveal';
+                $defaultHook = "Wenn eine persönliche Botschaft für die Ewigkeit in {$product->name} gebrannt wird ✨🤍";
+                $defaultClips = "Clip 1: 4s Laser-Makro mit Funkenflug · Clip 2: 5s Abpinseln" . ($hasBackSide ? " & Wenden auf die Rückseite" : "") . " mit weißen Handschuhen · Clip 3: 5s Einlegen in die schwarze Westpack-Box";
+            } else {
+                $recFormat = 'Manufaktur White-Glove ASMR & Detail-Reveal';
+                $defaultHook = "Handveredelt in unserer Manufaktur in Gifhorn: {$product->name} ✨";
+                $defaultClips = "Clip 1: 4s Start beim ersten Laser-Impuls · Clip 2: 5s Detailaufnahme der feinen Gravur · Clip 3: 5s Qualitätsprüfung mit weißen Handschuhen";
+            }
+
+            $isHolidayFocusProduct = $primaryHoliday && in_array($product->slug, $primaryHoliday['product_slugs'] ?? [], true);
+
+            $shopProducts[] = [
+                'id' => (string) $product->id,
+                'slug' => (string) $product->slug,
+                'name' => (string) $product->name,
+                'full_display_name' => $product->name . ' (' . number_format($basePriceCents / 100, 2, ',', '.') . ' €)',
+                'type' => (string) $product->type,
+                'landing_slug' => $landingSlug,
+                'material_label' => $materialLabel,
+                'supports_westpack_box' => $supportsWestpack,
+                'uses_rotary_ra3' => $usesRotaryRa3,
+                'has_3d_configurator' => $has3d,
+                'has_back_side' => $hasBackSide,
+                'base_price_cents' => $basePriceCents,
+                'direct_costs_cents' => $directCostsCents,
+                'payment_fee_cents' => $paymentFeeCents,
+                'net_profit_before_ads_cents' => $netProfitBeforeAdsCents,
+                'target_cpa_cents' => $targetCpaCents,
+                'max_cpa_cents' => $maxCpaCents,
+                'net_profit_at_target_cpa_cents' => $netProfitAtTargetCpaCents,
+                'net_margin_percent' => $netMarginPercent,
+                'is_ad_zugpferd' => $isAdZugpferd,
+                'ad_role' => $isAdZugpferd ? 'ZUGPFERD (Paid Ads & Skalierung)' : 'ORGANISCH & RETARGETING',
+                'is_holiday_focus' => $isHolidayFocusProduct,
+                'setup_items' => $setupString,
+                'hashtags' => trim($baseHashtags . ' ' . $effectiveSeasonalHashtags),
+                'recommended_format' => $recFormat,
+                'default_hook' => $defaultHook,
+                'default_clips' => $defaultClips,
+            ];
+        }
+
+        return [
+            'generated_at' => Carbon::now()->toIso8601String(),
+            'season' => [
+                'key' => $seasonKey,
+                'name' => $currentSeasonMeta['name'] ?? ucfirst($seasonKey),
+                'icon' => $currentSeasonMeta['icon'] ?? '✨',
+                'period' => $currentSeasonMeta['period'] ?? '',
+                'active_theme_label' => $activeTheme['event_name'] ?? ($currentSeasonMeta['name'] ?? 'Manufaktur'),
+                'reason_type' => $activeTheme['reason_type'] ?? 'season',
+                'effective_motto' => $effectiveMotto,
+                'effective_hook_prefix' => $effectiveHookPrefix,
+                'effective_caption_addon' => $effectiveCaptionAddon,
+                'effective_hashtags' => $effectiveSeasonalHashtags,
+            ],
+            'active_holiday' => $activeWindow,
+            'primary_holiday' => $primaryHoliday,
+            'holidays_timeline' => $upcomingHolidays,
+            'products_count' => count($shopProducts),
+            'products' => $shopProducts,
+        ];
+    }
+
+    /**
+     * Liefert für jeden der 11 Shop-Feiertage das passende emotionale Content-Motto, Hook-Präfix & Hashtags.
+     */
+    protected function resolveHolidayMarketingMotto(string $eventKey, string $seasonKey): array
+    {
+        return match ($eventKey) {
+            'valentines' => [
+                'motto' => '💘 Valentinstag: „Schenke keine Blumen, die verwelken. Schenke einen Moment für die Ewigkeit.“',
+                'hook_prefix' => 'Suchst du noch ein Valentinstags-Geschenk, das wirklich Gänsehaut auslöst? 💘✨',
+                'caption_addon' => '💘 Valentinstags-Tipp: Jetzt rechtzeitig dein Unikat sichern, damit es pünktlich zum 14.02. in der schwarzen Geschenkbox bereitliegt!',
+                'hashtags' => '#valentinstagsgeschenk #geschenkfürsie #geschenkfürhn #liebesbeweis',
+            ],
+            'womens_day' => [
+                'motto' => '💐 Weltfrauentag: „Kleine Gesten der Wertschätzung für die wichtigsten Frauen in deinem Leben.“',
+                'hook_prefix' => 'Zum Weltfrauentag am 08.03.: Ein Unikat für eine besondere Frau 💐✨',
+                'caption_addon' => '💐 Zum Weltfrauentag: Zeige deine Wertschätzung mit einer persönlichen Wunschgravur aus unserer Manufaktur.',
+                'hashtags' => '#weltfrauentag #frauentagsgeschenk #wertschätzung #geschenkfürfrauen',
+            ],
+            'easter' => [
+                'motto' => '🐰 Ostern & Frühling: „Persönliche Erinnerungsstücke im Osternest statt nur Schokolade.“',
+                'hook_prefix' => 'Was dieses Jahr ins Osternest kommt, hält ein Leben lang 🐰🌸',
+                'caption_addon' => '🐰 Oster-Manufaktur-Aktion: Gestalte jetzt dein persönliches Ostergeschenk für die Familie!',
+                'hashtags' => '#ostergeschenk #osternest #frühlingsgefühle #familiengeschenk',
+            ],
+            'mothers_day' => [
+                'motto' => '💝 Muttertag: „Für die Frau, die immer für uns da war: Mamas Herzstück in Gold & Kristall.“',
+                'hook_prefix' => 'Wenn Mama beim Auspacken am Muttertag die Tränen kommen 💝🥹',
+                'caption_addon' => '💝 Muttertags-Vorlauf: Sichere dir jetzt rechtzeitig vor Annahmeschluss Mamas ganz persönliches Erinnerungsstück!',
+                'hashtags' => '#muttertagsgeschenk #besterpapa #bestemama #dankemama',
+            ],
+            'fathers_day' => [
+                'motto' => '🍺 Vatertag & Männertag: „Charakterstarke Unikate mit 360°-Gravur für echte Helden.“',
+                'hook_prefix' => 'Das einzige Vatertags-Geschenk, das Papa wirklich jeden Abend stolz nutzt 🍺🔥',
+                'caption_addon' => '🍺 Vatertags-Special: Ob 360°-Weizenglas oder massiver Seelen-Talisman – jetzt im 3D-Konfigurator für Papa gestalten!',
+                'hashtags' => '#vatertagsgeschenk #männergeschenk #besterpapa #bierglasgravur',
+            ],
+            'sale_summer' => [
+                'motto' => '☀️ Sommer- & Hochzeits-Saison: „Goldene Sommer-Momente, Hochzeiten & Gartenfeste veredelt.“',
+                'hook_prefix' => 'Das perfekte Hochzeits- & Sommergeschenk aus unserer Manufaktur ☀️💍',
+                'caption_addon' => '☀️ Sommer- & Hochzeits-Saison: Jedes Stück wird frisch in Gifhorn für deinen besonderen Anlass gefertigt.',
+                'hashtags' => '#hochzeitsgeschenk #sommerfest #personalisiertegeschenke #manufaktur',
+            ],
+            'halloween' => [
+                'motto' => '🕯️ Herbst & Lichterzeit: „Wenn die Tage dunkler werden, bringen wir Erinnerungen im Kristall zum Leuchten.“',
+                'hook_prefix' => 'Wenn es draußen dunkel wird und diese Erinnerung plötzlich aufleuchtet 🕯️✨',
+                'caption_addon' => '🍂 Herbst- & Lichter-Aktion: Bringe deine schönsten Momente in der dunklen Jahreszeit zum Strahlen.',
+                'hashtags' => '#lichterzeit #herbstdeko #erinnerungslicht #gedenkgeschenk',
+            ],
+            'advent_1' => [
+                'motto' => '🕯️ Advents- & Vorweihnachtszeit: „Frühbucher-Ruhe genießen: Weihnachtsgeschenke ohne Dezember-Stress.“',
+                'hook_prefix' => 'Wer jetzt im Advent bestellt, hat an Weihnachten das emotionalste Geschenk unter dem Baum 🕯️🎄',
+                'caption_addon' => '🕯️ Advents-Frühbucher-Tipp: Jetzt entspannt vor dem großen Weihnachts-Ansturm dein Unikat in Gifhorn fertigen lassen!',
+                'hashtags' => '#adventszeit #weihnachtsgeschenke #frühbucher #geschenkevonherzen',
+            ],
+            'christmas' => [
+                'motto' => '🎄 Weihnachten in der Manufaktur: „Geschenke, die unter dem Weihnachtsbaum für echte Freudentränen sorgen.“',
+                'hook_prefix' => 'Das Weihnachtsgeschenk, bei dem unter dem Baum garantiert kein Auge trocken bleibt 🎄🥹',
+                'caption_addon' => '🎄 Weihnachts-Manufaktur Gifhorn: Bitte beachte unseren Bestell-Annahmeschluss für pünktliche Lieferung bis Heiligabend!',
+                'hashtags' => '#weihnachtsgeschenk #geschenkideeweihnachten #freudentränen #heiligabend',
+            ],
+            'new_year' => [
+                'motto' => '🎆 Neujahr & Jahresrückblick: „Dein schönster Moment des Jahres für immer festgehalten.“',
+                'hook_prefix' => 'Welchen Moment aus diesem Jahr möchtest du für immer festhalten? 🎆✨',
+                'caption_addon' => '🎆 Neujahrs-Impuls: Halte deinen wichtigsten Meilenstein oder Glücksmoment für das neue Jahr fest.',
+                'hashtags' => '#neujahr #jahresrückblick #glücksbringer #meilenstein',
+            ],
+            'sale_winter' => [
+                'motto' => '❄️ Winter-Atelier: „Gutschein-Einlösung & edle Seelenwärmer für kalte Wintertage.“',
+                'hook_prefix' => 'Du hast zu Weihnachten einen Gutschein bekommen? So entsteht daraus dein Unikat ❄️🤍',
+                'caption_addon' => '❄️ Winter-Atelier: Löse jetzt deinen Weihnachts-Gutschein ein oder gestalte dein persönliches Winter-Unikat.',
+                'hashtags' => '#winterzeit #gutscheineinlösen #wunschgravur #seelenwärmer',
+            ],
+            default => $this->resolveSeasonFallbackMotto($seasonKey),
+        };
+    }
+
+    /**
+     * Fallback-Motto anhand der 4 Shop-Jahreszeiten ('ostern', 'sommer', 'herbst', 'winter').
+     */
+    protected function resolveSeasonFallbackMotto(string $seasonKey): array
+    {
+        return match ($seasonKey) {
+            'ostern' => [
+                'motto' => '🌸 Frühlings-Saison: „Neuanfang, Taufe, Kommunion & Herzensmenschen feiern.“',
+                'hook_prefix' => 'Ein persönliches Erinnerungsstück für die schönsten Frühlings-Anlässe 🌸✨',
+                'caption_addon' => '🌸 Frühlings-Manufaktur: Perfekt für Geburtstag, Taufe, Hochzeit oder einfach als Liebesbeweis zwischendurch.',
+                'hashtags' => '#frühling #taufgeschenk #geburtstagsgeschenk #lieblingsmensch',
+            ],
+            'sommer' => [
+                'motto' => '☀️ Sommer- & Feierabend-Saison: „Hochzeiten, Jubiläen & gesellige Abende mit Charakter.“',
+                'hook_prefix' => 'Für unvergessliche Sommerabende und besondere Menschen ☀️✨',
+                'caption_addon' => '☀️ Sommer-Atelier Gifhorn: Handveredelt für Hochzeiten, runde Geburtstage und laue Feierabende.',
+                'hashtags' => '#sommergeschenk #hochzeit #feierabend #jubiläumsgeschenk',
+            ],
+            'herbst' => [
+                'motto' => '🍂 Goldener Herbst & Lichterzeit: „Wärme, Geborgenheit & leuchtende Erinnerungen für drinnen.“',
+                'hook_prefix' => 'Wenn es draußen stürmt, zählen die Erinnerungen, die uns von innen wärmen 🍂🕯️',
+                'caption_addon' => '🍂 Herbst- & Lichterzeit: Jetzt schon entspannt an die ersten Geschenke für die Festtage denken!',
+                'hashtags' => '#goldenerherbst #lichterzeit #erinnerungsschmuck #gemütlichkeit',
+            ],
+            default => [
+                'motto' => '❄️ Winter- & Festtags-Saison: „Zeit für tiefe Dankbarkeit und bleibende Erinnerungen.“',
+                'hook_prefix' => 'Manche Erinnerungen verdienen einen Ehrenplatz für die Ewigkeit ❄️✨',
+                'caption_addon' => '❄️ Winter-Manufaktur Gifhorn: Mit weißen Handschuhen gefertigt und bereit zum Verschenken.',
+                'hashtags' => '#winter #geschenkvonherzen #erinnerungsstück #manufaktur',
+            ],
+        };
+    }
 }

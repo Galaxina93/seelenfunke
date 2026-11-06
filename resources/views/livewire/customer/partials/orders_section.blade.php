@@ -284,21 +284,21 @@
                                 $isDetailOrderCancelled = in_array($selectedOrder->status, ['cancelled', 'refunded'], true) || $selectedOrder->payment_status === 'refunded';
                             @endphp
                             @if($detailOrderSparks > 0)
-                                <div class="mt-4 pt-4 border-t border-gray-800/80 flex items-center justify-between text-xs">
+                                <div class="mt-4 pt-4 border-t border-gray-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
                                     @if($isDetailOrderCancelled)
                                         <span class="font-bold text-rose-400 flex items-center gap-1.5">
                                             <span>✨</span>
                                             <span>Seelenfunken (Stornierung / Widerruf):</span>
                                         </span>
-                                        <span class="px-3 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 font-mono font-black text-rose-300">
+                                        <span class="px-3 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 font-mono font-black text-rose-300 whitespace-nowrap">
                                             -{{ number_format($detailOrderSparks, 0, ',', '.') }} ✨ Funken (abgezogen)
                                         </span>
                                     @else
                                         <span class="font-bold text-[#f5dca0] flex items-center gap-1.5">
                                             <span>✨</span>
-                                            <span>Seelenfunken Treue-Bonus (100 %):</span>
+                                            <span>Treue-Bonus:</span>
                                         </span>
-                                        <span class="px-3 py-1 rounded-full bg-amber-500/15 border border-[#C5A059]/40 font-mono font-black text-[#f5dca0]">
+                                        <span class="px-3 py-1 rounded-full bg-amber-500/15 border border-[#C5A059]/40 font-mono font-black text-[#f5dca0] whitespace-nowrap">
                                             +{{ number_format($detailOrderSparks, 0, ',', '.') }} ✨ Funken
                                         </span>
                                     @endif

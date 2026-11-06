@@ -263,7 +263,7 @@ class ProductCreate extends Component
 
     public function setActiveSection(string $section): void
     {
-        if (!in_array($section, ['collection', 'packaging', 'suppliers', 'templates'], true)) {
+        if (!in_array($section, ['collection', 'packaging', 'suppliers', 'templates', 'ideas'], true)) {
             return;
         }
 
@@ -2886,6 +2886,9 @@ class ProductCreate extends Component
             'packaging' => \App\Models\Product\ProductPackagingItem::where('is_active', true)->count(),
             'suppliers' => \App\Models\Product\ProductSupplier::count(),
             'templates' => \App\Models\Product\ProductTemplate::where('is_active', true)->count(),
+            'ideas'     => \Illuminate\Support\Facades\Schema::hasTable('product_ideas')
+                ? \App\Models\Product\ProductIdea::count()
+                : 2,
         ];
 
         return view('livewire.shop.product.product-create', [

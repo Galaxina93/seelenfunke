@@ -23,15 +23,20 @@
 
     @livewireStyles
 
+    @php
+        $forceLightMode = (($guard ?? null) === 'customer')
+            || (!auth()->guard('admin')->check() && auth()->guard('employee')->check() && method_exists(auth()->guard('employee')->user(), 'isInfluencer') && auth()->guard('employee')->user()->isInfluencer());
+    @endphp
     <script>
         // Fallbacks für Alpine-Variablen, die bei Page-Transitions (wire:navigate) kurzzeitig ihre Scopes verlieren können
         window.showAllOperative = false;
         window.tooltip = false;
 
-        // Theme Initialisierung: Standardmäßig Light Mode
+        // Theme Initialisierung: Standardmäßig Light Mode (Kunden & Influencer immer im Light Mode)
         (function() {
+            const forceLight = {{ $forceLightMode ? 'true' : 'false' }};
             try {
-                if (localStorage.theme === 'dark') {
+                if (!forceLight && localStorage.theme === 'dark') {
                     document.documentElement.classList.add('dark');
                     document.documentElement.classList.remove('light');
                 } else {
@@ -45,8 +50,9 @@
         })();
 
         document.addEventListener('livewire:navigated', function() {
+            const forceLight = {{ $forceLightMode ? 'true' : 'false' }};
             try {
-                if (localStorage.theme === 'dark') {
+                if (!forceLight && localStorage.theme === 'dark') {
                     document.documentElement.classList.add('dark');
                     document.documentElement.classList.remove('light');
                 } else {
@@ -121,6 +127,8 @@
 </head>
 <body class="min-h-screen bg-slate-100 dark:bg-gray-950 font-sans text-gray-800 dark:text-gray-300 antialiased relative overflow-x-hidden transition-colors duration-300" x-data="universeLayout()">
 
+@include('frontend.partials.page_transition_portal')
+
 {{-- HINTERGRUND UNIVERSUM --}}
 <canvas id="global-universe-canvas" class="fixed inset-0 z-0 pointer-events-none w-full h-full opacity-0 dark:opacity-100 transition-opacity duration-500" wire:ignore></canvas>
 
@@ -175,11 +183,14 @@
         toastMessage: '',
         initAdminEcho() {
                     @if($adminId)
+                    if (window.__adminEchoBound) return;
                     let attempts = 0;
                     const checkEcho = setInterval(() => {
                         attempts++;
                         if (typeof window.Echo !== 'undefined') {
                             clearInterval(checkEcho);
+                            if (window.__adminEchoBound) return;
+                            window.__adminEchoBound = true;
 
                             // Lauschen auf dem Admin-Channel
                             window.Echo.private('admin.{{$adminId}}').listen('.TicketMessageSent', (e) => {
@@ -279,9 +290,11 @@
         $isExternalEmployee = ($guard === 'employee');
         $dashboardHomeUrl = $guard === 'customer'
             ? url('/dashboard')
-            : ($isInfluencerEmployee
-                ? route('employee.influencer.dashboard')
-                : ($isTaxAdvisorEmployee ? route('employee.tax-advisor.dashboard') : route('employee.dashboard')));
+            : ($guard === 'admin'
+                ? route('admin.dashboard')
+                : ($isInfluencerEmployee
+                    ? route('employee.influencer.dashboard')
+                    : ($isTaxAdvisorEmployee ? route('employee.tax-advisor.dashboard') : route('employee.dashboard'))));
     @endphp
 
     <div x-data="{ open: false }" class="relative z-10 flex-1 flex flex-col">
@@ -396,11 +409,17 @@
                         </div>
 
                         <div class="flex-1 flex justify-end min-w-0">
-                            @livewire('auth.auth-profile-dropdown', ['allowThemeSwitch' => ($guard !== 'customer')])
+                            @livewire('auth.auth-profile-dropdown', ['allowThemeSwitch' => ($guard !== 'customer' && !$isInfluencerEmployee)])
                         </div>
 
                     </div>
                 </div>
+            @endif
+
+            @if($guard !== 'customer' && !$isExternalEmployee)
+                @persist('funkenwerk-music-player')
+                    <x-backend.global-music-player />
+                @endpersist
             @endif
 
             <main class="{{ ($guard !== 'customer' && !$isExternalEmployee) ? 'py-8 flex-1 min-w-0' : 'flex-1 min-w-0' }}">

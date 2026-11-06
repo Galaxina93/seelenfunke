@@ -15,7 +15,19 @@
 
             {{-- Inline Login Form (FIX: div statt form wegen HTML Verschachtelung) --}}
             <div x-show="showLogin" x-collapse class="mt-4 pt-4 border-t border-gray-100" style="display: none;">
-                <div wire:keydown.enter="loginUser">
+                <div x-data="{
+                        triggerCheckoutLogin() {
+                            if (window.sfStartPortalLoading) { window.sfStartPortalLoading('login'); }
+                            setTimeout(() => {
+                                $wire.loginUser().then(() => {
+                                    if (window.sfStopPortalLoading) { window.sfStopPortalLoading(); }
+                                }).catch(() => {
+                                    if (window.sfStopPortalLoading) { window.sfStopPortalLoading(); }
+                                });
+                            }, 220);
+                        }
+                     }"
+                     @keydown.enter.prevent="triggerCheckoutLogin()">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs font-bold text-gray-700 uppercase mb-1">E-Mail</label>
@@ -40,7 +52,7 @@
                     @endif
 
                     <div class="mt-4 flex justify-end">
-                        <button type="button" wire:click="loginUser" class="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-black transition">
+                        <button type="button" @click="triggerCheckoutLogin()" class="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-black transition">
                             <span wire:loading.remove wire:target="loginUser">Anmelden & Daten laden</span>
                             <span wire:loading wire:target="loginUser">Lade...</span>
                         </button>

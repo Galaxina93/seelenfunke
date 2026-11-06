@@ -116,7 +116,7 @@ class OrderAnalytics extends Component
         // Group by Date (Y-m-d)
         $grouped = $fulfilledOrders->groupBy(function($order) {
             return $order->created_at->format('Y-m-d');
-        });
+        })->sortKeys();
 
         $labels = [];
         $avgTimesRaw = [];
@@ -221,7 +221,7 @@ class OrderAnalytics extends Component
         // Group by Date for timeline analysis
         $grouped = $cancelledOrders->groupBy(function($order) {
             return $order->created_at->format('Y-m-d');
-        });
+        })->sortKeys();
 
         $labels = [];
         $moneyRaw = [];
@@ -325,7 +325,7 @@ class OrderAnalytics extends Component
         // Group by Date for timeline
         $grouped = $quotes->groupBy(function($q) {
             return $q->created_at->format('Y-m-d');
-        });
+        })->sortKeys();
 
         $labels = [];
         $data = [];
@@ -351,7 +351,7 @@ class OrderAnalytics extends Component
         $revocations = $query->get();
         $grouped = $revocations->groupBy(function($r) {
             return $r->created_at->format('Y-m-d');
-        });
+        })->sortKeys();
 
         $labels = [];
         $data = [];

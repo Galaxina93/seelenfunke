@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>Funkenwerk</AssemblyName>
+    <RootNamespace>Funkenwerk</RootNamespace>
+    <ApplicationIcon>funkenwerk.ico</ApplicationIcon>
+    <Version>2.1.0</Version>
+    <Product>Funkenwerk</Product>
+    <Company>Mein Seelenfunke</Company>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="funkenwerk.ico" />
+    <Resource Include="funkenwerk.png" />
+    <None Include="FunkenwerkCam64.dll" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="FunkenwerkCam32.dll" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="placeholder.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="funkenwerk_dlc_bridge.py" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

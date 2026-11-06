@@ -96,7 +96,7 @@
     }
 
     /**
-     * @param {'inward'|'outward'} direction
+     * @param {'inward'|'outward'|'hold'} direction
      */
     function runSparksAnimation(direction) {
         if (rafId) cancelAnimationFrame(rafId);
@@ -121,6 +121,7 @@
         const particles = Array.from({ length: count }, (_, i) => {
             const baseAngle = (i / count) * Math.PI * 2 + seededVal(i, 1) * 0.2;
             const outerR = maxSpan * (0.28 + seededVal(i, 2) * 0.36);
+            const holdOuterR = 88 + seededVal(i, 2) * Math.min(220, maxSpan * 0.22);
             const innerR = 4 + seededVal(i, 3) * 14;
             const spinDir = i % 2 === 0 ? 1 : -1;
             const totalTurn = (0.55 + seededVal(i, 4) * 0.45) * spinDir;
@@ -128,10 +129,12 @@
             return {
                 baseAngle: baseAngle,
                 outerR: outerR,
+                holdOuterR: holdOuterR,
                 innerR: innerR,
                 totalTurn: totalTurn,
                 r: 1.7 + seededVal(i, 5) * 2.8,
-                twinklePhase: seededVal(i, 6) * Math.PI * 2
+                twinklePhase: seededVal(i, 6) * Math.PI * 2,
+                cycleOffset: seededVal(i, 7)
             };
         });
 
@@ -146,13 +149,60 @@
         function frame(now) {
             const elapsed = Math.max(0, now - startTime);
             const rawProgress = Math.min(1, elapsed / durationMs);
-            const progress = direction === 'inward' ? easeInOutCubic(rawProgress) : easeOutCubic(rawProgress);
 
             ctx.clearRect(0, 0, w, h);
 
-            // Sanftes Ein-/Ausblenden der Partikel an den Endpunkten (damit beim Seitenwechsel alle im Kern verschmolzen sind)
+            // Wenn 'hold' aktiv ist oder 'inward' die erste Konvergenz abgeschlossen hat (solange die Seite lädt):
+            // Kontinuierlicher, butterweicher Gold-Funken-Strudel in den Kern hinein
+            if (direction === 'hold' || (direction === 'inward' && rawProgress >= 1)) {
+                const holdElapsed = direction === 'hold' ? elapsed : (elapsed - durationMs);
+                for (let i = 0; i < count; i++) {
+                    const p = particles[i];
+                    const cycle = (p.cycleOffset + holdElapsed * 0.00075) % 1;
+                    const cProg = easeInOutCubic(cycle);
+                    const prevCycle = Math.max(0, cycle - 0.045);
+                    const prevProg = easeInOutCubic(prevCycle);
+
+                    const currentR = p.holdOuterR + (p.innerR - p.holdOuterR) * cProg;
+                    const prevR = p.holdOuterR + (p.innerR - p.holdOuterR) * prevProg;
+
+                    const spinContinuous = holdElapsed * 0.0006 * (i % 2 === 0 ? 1 : -1);
+                    const currentAngle = p.baseAngle + spinContinuous + p.totalTurn * cProg;
+                    const prevAngle = p.baseAngle + spinContinuous + p.totalTurn * prevProg;
+
+                    const x = centerX + Math.cos(currentAngle) * currentR;
+                    const y = centerY + Math.sin(currentAngle) * currentR;
+                    const px = centerX + Math.cos(prevAngle) * prevR;
+                    const py = centerY + Math.sin(prevAngle) * prevR;
+
+                    const edgeFade = cycle < 0.22 ? (cycle / 0.22) : (1 - Math.pow(cycle, 2.2));
+                    const twinkle = 0.65 + 0.35 * Math.sin(p.twinklePhase + holdElapsed * 0.006);
+                    const alpha = Math.max(0, Math.min(1, edgeFade * twinkle * 0.9));
+
+                    if (alpha > 0.01) {
+                        ctx.strokeStyle = 'rgba(245, 158, 11, ' + (alpha * 0.42) + ')';
+                        ctx.lineWidth = p.r * 0.95;
+                        ctx.lineCap = 'round';
+                        ctx.beginPath();
+                        ctx.moveTo(px, py);
+                        ctx.lineTo(x, y);
+                        ctx.stroke();
+
+                        ctx.fillStyle = 'rgba(251, 191, 36, ' + alpha + ')';
+                        ctx.beginPath();
+                        ctx.arc(x, y, p.r, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+                rafId = requestAnimationFrame(frame);
+                return;
+            }
+
+            const progress = direction === 'inward' ? easeInOutCubic(rawProgress) : easeOutCubic(rawProgress);
+
+            // Sanftes Ein-/Ausblenden der Partikel an den Endpunkten
             const globalAlpha = direction === 'inward'
-                ? (rawProgress < 0.2 ? rawProgress / 0.2 : (1 - Math.pow(rawProgress, 2.6)))
+                ? (rawProgress < 0.2 ? rawProgress / 0.2 : (1 - Math.pow(rawProgress, 2.6) * 0.35))
                 : (rawProgress < 0.15 ? rawProgress / 0.15 : (1 - Math.pow(rawProgress, 1.8)));
 
             if (globalAlpha > 0.01) {
@@ -194,7 +244,7 @@
                 }
             }
 
-            if (rawProgress < 1) {
+            if (rawProgress < 1 || direction === 'inward') {
                 rafId = requestAnimationFrame(frame);
             } else {
                 ctx.clearRect(0, 0, w, h);
@@ -221,6 +271,27 @@
         rings.style.transform = 'translateZ(0) scale(0.65)';
     }
 
+    function unveilPortalSmoothly() {
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                runSparksAnimation('outward');
+
+                portal.style.pointerEvents = 'none';
+                portal.style.transition = 'opacity 640ms cubic-bezier(0.22, 1, 0.36, 1)';
+                glow.style.transition = 'opacity 580ms ease-out, transform 640ms cubic-bezier(0.22, 1, 0.36, 1)';
+                rings.style.transition = 'opacity 480ms ease-out, transform 620ms cubic-bezier(0.22, 1, 0.36, 1)';
+
+                portal.style.opacity = '0';
+                glow.style.opacity = '0';
+                glow.style.transform = 'translateZ(0) scale(1.45)';
+                rings.style.opacity = '0';
+                rings.style.transform = 'translateZ(0) scale(1.55)';
+
+                setTimeout(hidePortalImmediate, 660);
+            });
+        });
+    }
+
     // 1. INCOMING UNVEIL: Auf der Zielseite steht ab Frame 0 nahtlos der leuchtende Gold-Kern auf der GPU.
     //    Erst wenn der Main-Thread der neuen Seite fertig gebootet hat, blühen die Funken mit 60 FPS nach außen auf!
     try {
@@ -228,7 +299,7 @@
         if (raw) {
             sessionStorage.removeItem(STORAGE_KEY);
             const parsed = JSON.parse(raw);
-            if (parsed && parsed.ts && (Date.now() - parsed.ts) < 8000) {
+            if (parsed && parsed.ts && (Date.now() - parsed.ts) < 12000) {
                 portal.style.transition = 'none';
                 glow.style.transition = 'none';
                 rings.style.transition = 'none';
@@ -240,37 +311,25 @@
                 rings.style.opacity = '1';
                 rings.style.transform = 'translateZ(0) scale(1)';
 
+                // Solange die Zielseite noch DOM & Skripte initialisiert, sanften Funken-Strudel weiterlaufen lassen
+                runSparksAnimation('hold');
+
                 let unveilTriggered = false;
                 const triggerSmoothUnveil = () => {
                     if (unveilTriggered) return;
                     unveilTriggered = true;
-
-                    // Zwei rAF-Ticks abwarten, damit der Browser Layout & Paint der neuen Seite komplett abgeschlossen hat
-                    requestAnimationFrame(() => {
-                        requestAnimationFrame(() => {
-                            runSparksAnimation('outward');
-
-                            portal.style.transition = 'opacity 640ms cubic-bezier(0.22, 1, 0.36, 1)';
-                            glow.style.transition = 'opacity 580ms ease-out, transform 640ms cubic-bezier(0.22, 1, 0.36, 1)';
-                            rings.style.transition = 'opacity 480ms ease-out, transform 620ms cubic-bezier(0.22, 1, 0.36, 1)';
-
-                            portal.style.opacity = '0';
-                            glow.style.opacity = '0';
-                            glow.style.transform = 'translateZ(0) scale(1.45)';
-                            rings.style.opacity = '0';
-                            rings.style.transform = 'translateZ(0) scale(1.55)';
-
-                            setTimeout(hidePortalImmediate, 660);
-                        });
-                    });
+                    unveilPortalSmoothly();
                 };
 
-                // Warte bis das initiale Skript-Setup der neuen Seite durch ist (oder max. 260ms Fallback)
+                // Warte bis DOM + deferred Skripte (Alpine/Livewire) bereit sind (mit Sicherheits-Fallback)
                 if (document.readyState === 'complete') {
-                    setTimeout(triggerSmoothUnveil, 60);
+                    setTimeout(triggerSmoothUnveil, 50);
+                } else if (document.readyState === 'interactive') {
+                    setTimeout(triggerSmoothUnveil, 90);
                 } else {
-                    window.addEventListener('load', () => setTimeout(triggerSmoothUnveil, 50), { once: true });
-                    setTimeout(triggerSmoothUnveil, 280);
+                    window.addEventListener('DOMContentLoaded', () => setTimeout(triggerSmoothUnveil, 80), { once: true });
+                    window.addEventListener('load', () => setTimeout(triggerSmoothUnveil, 40), { once: true });
+                    setTimeout(triggerSmoothUnveil, 750);
                 }
             }
         }
@@ -308,6 +367,18 @@
 
     window.sfRunPortalThen = function(callback, mode) {
         startOutgoingPortal(mode || 'checkout', callback);
+    };
+
+    window.sfStartPortalLoading = function(mode) {
+        startOutgoingPortal(mode || 'login');
+    };
+
+    window.sfStopPortalLoading = function() {
+        try {
+            sessionStorage.removeItem(STORAGE_KEY);
+        } catch (err) {}
+        if (portal.style.display === 'none') return;
+        unveilPortalSmoothly();
     };
 
     // 2. OUTGOING CONVERGE: Beim Klick fliegen die Funken geschmeidig in den Gold-Kern in der Mitte

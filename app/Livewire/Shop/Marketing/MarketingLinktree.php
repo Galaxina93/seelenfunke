@@ -42,7 +42,7 @@ class MarketingLinktree extends Component
 
     protected $rules = [
         'title' => 'required|string|max:255',
-        'url' => 'required|url|max:255',
+        'url' => 'required|url|max:255|regex:/^https?:\/\//i',
         'icon' => 'nullable|string|max:50',
         'type' => 'required|in:standard,secure,highlight',
         'is_active' => 'boolean',
@@ -75,8 +75,8 @@ class MarketingLinktree extends Component
     public function saveSettings()
     {
         $this->validate([
-            'themeColor' => 'required|string|max:20',
-            'profileImage' => 'nullable|image|max:5120', // 5MB
+            'themeColor' => ['required', 'string', 'max:20', 'regex:/^#[0-9a-fA-F]{3,8}$/'],
+            'profileImage' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120', // 5MB
             'bgVideo' => 'nullable|mimetypes:video/mp4,video/webm|max:51200', // 50MB
         ]);
 

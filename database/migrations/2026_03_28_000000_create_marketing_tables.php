@@ -256,6 +256,17 @@ return new class extends Migration
             $table->timestamp('invitation_expires_at')->nullable();
             $table->timestamp('invitation_accepted_at')->nullable();
 
+            // 100% Gratis PR-Sample mit Verlinkungspflicht & 3D-Konfigurator-Test
+            $table->boolean('sample_granted')->default(true)->index();
+            $table->uuid('sample_voucher_id')->nullable()->index();
+            $table->uuid('sample_order_id')->nullable()->index();
+            $table->timestamp('sample_terms_accepted_at')->nullable();
+            $table->string('sample_post_url', 500)->nullable();
+            $table->timestamp('sample_posted_at')->nullable();
+            $table->timestamp('sample_post_verified_at')->nullable();
+            $table->unsignedTinyInteger('sample_configurator_rating')->nullable();
+            $table->text('sample_configurator_feedback')->nullable();
+
             $table->boolean('is_active')->default(true)->index();
             $table->boolean('is_archived')->default(false)->index();
             $table->text('internal_notes')->nullable();

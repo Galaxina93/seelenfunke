@@ -3,11 +3,11 @@
 > [!IMPORTANT]
 > **Vollautomatisch aus dem Quellcode generiert (Living Documentation)**
 > - **Plattform:** Mein-Seelenfunke (E-Commerce, 2D/3D-Konfigurator & Laser-Manufaktur ERP)
-> - **Stand:** 29.10.2026 10:13 Uhr
-> - **Geprüfte Datenmodelle:** `127 / 127` (100 % Blueprint-Abdeckung)
-> - **GoBD-geschützte Beleg-/Finanz-Models (10 Jahre):** `41`
-> - **Art. 15 DSGVO 1-Klick-Kundenexport-Models:** `11`
-> - **KI-Guardrail (Strikte Sperre / Schreibschutz):** `68` Models vor autonomen KI-Schreibzugriffen geschützt
+> - **Stand:** 05.11.2026 19:31 Uhr
+> - **Geprüfte Datenmodelle:** `131 / 131` (100 % Blueprint-Abdeckung)
+> - **GoBD-geschützte Beleg-/Finanz-Models (10 Jahre):** `42`
+> - **Art. 15 DSGVO 1-Klick-Kundenexport-Models:** `12`
+> - **KI-Guardrail (Strikte Sperre / Schreibschutz):** `69` Models vor autonomen KI-Schreibzugriffen geschützt
 
 ---
 
@@ -18,15 +18,15 @@
 | **Buchhaltung & Finanzen** | `9` | `9` | `6` | `1` |
 | **Leitung & Administration** | `2` | `0` | `2` | `0` |
 | **KI & Agenten (Funki)** | `23` | `0` | `9` | `0` |
-| **Warenkorb & Checkout** | `2` | `0` | `2` | `1` |
+| **Warenkorb & Checkout** | `3` | `0` | `3` | `2` |
 | **Kunden & Gamification** | `6` | `1` | `5` | `5` |
 | **Lieferzeiten & Versandstatus** | `3` | `0` | `1` | `0` |
 | **Mitarbeiter & Personal** | `5` | `5` | `5` | `0` |
 | **Logistik & Versandtarife** | `3` | `0` | `0` | `0` |
-| **Management, Planung & Postfach** | `15` | `2` | `4` | `0` |
+| **Management, Planung & Postfach** | `17` | `2` | `4` | `0` |
 | **Marketing, Gutscheine & Partner** | `20` | `10` | `8` | `0` |
 | **Bestellungen & Manufaktur-Fertigung** | `6` | `6` | `6` | `1` |
-| **Produkte, Rohlinge & 2D/3D-Konfigurator** | `12` | `3` | `2` | `1` |
+| **Produkte, Rohlinge & 2D/3D-Konfigurator** | `13` | `4` | `2` | `1` |
 | **Kundensupport & Tickets** | `7` | `4` | `7` | `2` |
 | **System, Sicherheit & Projekt-Gehirn** | `13` | `1` | `6` | `0` |
 | **Analyse & Besucher-Tracking** | `1` | `0` | `0` | `0` |
@@ -90,6 +90,7 @@
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `Cart`<br><small>`carts`</small> | **Kunden-Warenkorb** *(Art. 15 Export)*<br><small>Temporärer oder kundenbezogener Warenkorb vor Abschluss des Bestellvorgangs.</small> | **Personenbezogen (Art. 4 Nr. 1 DSGVO)**<br><small>Art. 6 Abs. 1 lit. b & a DSGVO (Vertragserfüllung / Einwilligung)</small> | `30 Tage Kurzzeitspeicher (Automatisches Pruning)` | `Nur Lesen & Analysieren (Schreibgeschützt für KI)` | DSGVO Art. 15/30 |
 | `CartItem`<br><small>`cart_items`</small> | **Warenkorb-Position & Gravur-Entwurf**<br><small>Einzelposition im Warenkorb inklusive der im 2D/3D-Konfigurator erstellten Personalisierungsdaten.</small> | **Personenbezogen (Art. 4 Nr. 1 DSGVO)**<br><small>Art. 6 Abs. 1 lit. b & a DSGVO (Vertragserfüllung / Einwilligung)</small> | `30 Tage Kurzzeitspeicher (Automatisches Pruning)` | `Nur Lesen & Analysieren (Schreibgeschützt für KI)` | DSGVO Art. 15/30, § 312g BGB |
+| `WishlistItem`<br><small>`wishlist_items`</small> | **Kunden-Wunschlisten-Eintrag** *(Art. 15 Export)*<br><small>Gespeicherter Favoriten-/Merkzettelan-Eintrag eines Besuchers oder registrierten Kunden für ein Manufaktur-Produkt.</small> | **Personenbezogen (Art. 4 Nr. 1 DSGVO)**<br><small>Art. 6 Abs. 1 lit. b & a DSGVO (Vertragserfüllung / Einwilligung)</small> | `30 Tage Kurzzeitspeicher (Automatisches Pruning)` | `Nur Lesen & Analysieren (Schreibgeschützt für KI)` | DSGVO Art. 15/30 |
 
 ### Kunden & Gamification
 
@@ -143,10 +144,12 @@
 | `ManagementDayRoutineLog`<br><small>`management_day_routine_logs`</small> | **Tagesroutine-Erledigungsprotokoll**<br><small>Dokumentiert abgehakte Routineschritte pro Kalendertag.</small> | **Intern (Manufaktur, Kalkulation & Technik)**<br><small>Art. 6 Abs. 1 lit. f DSGVO (Betriebssteuerung & IT-Sicherheit)</small> | `30 Tage Kurzzeitspeicher (Automatisches Pruning)` | `Autonomes Lesen & Schreiben durch KI-Agenten erlaubt` | Intern |
 | `ManagementDayRoutineStep`<br><small>`management_day_routine_steps`</small> | **Tagesroutine-Einzelschritt**<br><small>Einzelne Prüfpunkte (z. B. Laser-Linse reinigen, Bestellungen drucken) einer Tagesroutine.</small> | **Intern (Manufaktur, Kalkulation & Technik)**<br><small>Art. 6 Abs. 1 lit. f DSGVO (Betriebssteuerung & IT-Sicherheit)</small> | `Dauerhafte System- & Katalog-Stammdaten` | `Autonomes Lesen & Schreiben durch KI-Agenten erlaubt` | Intern |
 | `ManagementMission`<br><small>`management_missions`</small> | **Unternehmens-Mission & Strategisches Ziel**<br><small>Langfristige Wachstums-, Qualitäts- und Produktziele der Manufaktur.</small> | **Intern (Manufaktur, Kalkulation & Technik)**<br><small>Art. 6 Abs. 1 lit. f DSGVO (Betriebssteuerung & IT-Sicherheit)</small> | `Dauerhafte System- & Katalog-Stammdaten` | `Autonomes Lesen & Schreiben durch KI-Agenten erlaubt` | Intern |
+| `ManagementPlaylist`<br><small>`management_playlists`</small> | **Management-Musik-Playlist**<br><small>Zentrale Musik-Playlist für Funkenwerk Desktop, Android App und Leitung.</small> | **Intern (Manufaktur, Kalkulation & Technik)**<br><small>Art. 6 Abs. 1 lit. f DSGVO (Betriebssteuerung & IT-Sicherheit)</small> | `Dauerhafte System- & Katalog-Stammdaten` | `Autonomes Lesen & Schreiben durch KI-Agenten erlaubt` | Intern |
 | `ManagementShoppingCategory`<br><small>`management_shopping_categories`</small> | **Einkaufslisten-Kategorie**<br><small>Gruppierung für benötigte Werkstatt-Verbrauchsmaterialien und Rohlinge.</small> | **Intern (Manufaktur, Kalkulation & Technik)**<br><small>Art. 6 Abs. 1 lit. f DSGVO (Betriebssteuerung & IT-Sicherheit)</small> | `Dauerhafte System- & Katalog-Stammdaten` | `Autonomes Lesen & Schreiben durch KI-Agenten erlaubt` | Intern |
 | `ManagementShoppingItem`<br><small>`management_shopping_items`</small> | **Manufaktur-Einkaufslistenposition**<br><small>Kurzfristig nachzubestellende Verbrauchsmaterialien, Verpackungen und Betriebsmittel.</small> | **Intern (Manufaktur, Kalkulation & Technik)**<br><small>Art. 6 Abs. 1 lit. f DSGVO (Betriebssteuerung & IT-Sicherheit)</small> | `30 Tage Kurzzeitspeicher (Automatisches Pruning)` | `Autonomes Lesen & Schreiben durch KI-Agenten erlaubt` | Intern |
 | `ManagementTask`<br><small>`management_tasks`</small> | **Management-Aufgabe (Task)**<br><small>Operative Aufgabenkarte im internen Kanban- und Projektmanagement.</small> | **Intern (Manufaktur, Kalkulation & Technik)**<br><small>Art. 6 Abs. 1 lit. f DSGVO (Betriebssteuerung & IT-Sicherheit)</small> | `3 Jahre Regelverjährung (§ 195 BGB)` | `Autonomes Lesen & Schreiben durch KI-Agenten erlaubt` | Intern |
 | `ManagementTaskList`<br><small>`management_task_lists`</small> | **Management-Aufgabenliste**<br><small>Board-Spalte oder Projektliste zur Strukturierung interner Aufgaben.</small> | **Intern (Manufaktur, Kalkulation & Technik)**<br><small>Art. 6 Abs. 1 lit. f DSGVO (Betriebssteuerung & IT-Sicherheit)</small> | `Dauerhafte System- & Katalog-Stammdaten` | `Autonomes Lesen & Schreiben durch KI-Agenten erlaubt` | Intern |
+| `ManagementTrack`<br><small>`management_tracks`</small> | **Management-Musik-Track**<br><small>Einzelner Musik-Titel innerhalb einer Funkenwerk-Playlist im geschützten Privat-Speicher.</small> | **Intern (Manufaktur, Kalkulation & Technik)**<br><small>Art. 6 Abs. 1 lit. f DSGVO (Betriebssteuerung & IT-Sicherheit)</small> | `Dauerhafte System- & Katalog-Stammdaten` | `Autonomes Lesen & Schreiben durch KI-Agenten erlaubt` | Intern |
 
 ### Marketing, Gutscheine & Partner
 
@@ -196,6 +199,7 @@
 | `ProductNicheCrawlerRun`<br><small>`product_niche_crawler_runs`</small> | **Nischen-Scanner-Suchlauf**<br><small>Ausführungsprotokoll der KI-gestützten Recherche nach neuen gravierbaren Rohlingen.</small> | **Intern (Manufaktur, Kalkulation & Technik)**<br><small>Art. 6 Abs. 1 lit. f DSGVO (Betriebssteuerung & IT-Sicherheit)</small> | `30 Tage Kurzzeitspeicher (Automatisches Pruning)` | `Autonomes Lesen & Schreiben durch KI-Agenten erlaubt` | Google Gemini Multimodal & Live AI |
 | `ProductNicheItem`<br><small>`product_niche_items`</small> | **Nischen-Produktkandidat & Margen-Potenzial**<br><small>Bewertete Produktideen mit geschätztem Stück-EK, Ziel-VK und Laser-Kompatibilität.</small> | **Intern (Manufaktur, Kalkulation & Technik)**<br><small>Art. 6 Abs. 1 lit. f DSGVO (Betriebssteuerung & IT-Sicherheit)</small> | `3 Jahre Regelverjährung (§ 195 BGB)` | `Autonomes Lesen & Schreiben durch KI-Agenten erlaubt` | Google Gemini Multimodal & Live AI |
 | `ProductPackaging`<br><small>`product_packagings`</small> | **Produkt-Verpackungsanteil (LUCID VerpackG)**<br><small>Grammgenaue Aufschlüsselung der Verpackungsmaterialien (Papier, Kunststoff, Verbund, Glas) je Produkt für die LUCID-Jahresmeldung.</small> | **Intern (Manufaktur, Kalkulation & Technik)**<br><small>Art. 6 Abs. 1 lit. f DSGVO (Betriebssteuerung & IT-Sicherheit)</small> | `10 Jahre GoBD (§ 147 AO / § 257 HGB – Sperrung statt Löschung)` | `Lesen & Entwurf vorschlagen (Freigabe durch Admin)` | LUCID VerpackG, GoBD 10J, Zentrale Stelle Verpackungsregister (LUCID) |
+| `ProductPackagingItem`<br><small>`product_packaging_items`</small> | **Verpackungsmaterial-Katalog (Kartonagen, Geschenkboxen & Versandtaschen)**<br><small>Zentraler Stammdatenkatalog für physische Verpackungsmaterialien inkl. Maßen (Post-Tarif-Prüfung), Gebindepreisen, Lieferanten-Nachbestelllinks, LUCID-Materialanteilen und Geschenkbox-Upsells.</small> | **Intern (Manufaktur, Kalkulation & Technik)**<br><small>Art. 6 Abs. 1 lit. f DSGVO (Betriebssteuerung & IT-Sicherheit)</small> | `10 Jahre GoBD (§ 147 AO / § 257 HGB – Sperrung statt Löschung)` | `Lesen & Entwurf vorschlagen (Freigabe durch Admin)` | LUCID VerpackG, GoBD 10J, Zentrale Stelle Verpackungsregister (LUCID) |
 | `ProductReview`<br><small>`product_reviews`</small> | **Verifizierte Produktbewertung** *(Art. 15 Export)*<br><small>Kundenrezensionen und Sterne-Bewertungen zu gefertigten Seelenfunke-Unikaten.</small> | **Personenbezogen (Art. 4 Nr. 1 DSGVO)**<br><small>Art. 6 Abs. 1 lit. b & a DSGVO (Vertragserfüllung / Einwilligung)</small> | `3 Jahre Regelverjährung (§ 195 BGB)` | `Lesen & Entwurf vorschlagen (Freigabe durch Admin)` | DSGVO Art. 15/30 |
 | `ProductSupplier`<br><small>`product_suppliers`</small> | **Rohling-Lieferant & GPSR-Herstellerverzeichnis**<br><small>Lieferanten-Stammdaten, Nachbestell-Links, Lieferzeiten und gesetzliche Produktsicherheits-Kontaktdaten (Art. 19 GPSR).</small> | **Intern (Manufaktur, Kalkulation & Technik)**<br><small>Art. 6 Abs. 1 lit. f DSGVO (Betriebssteuerung & IT-Sicherheit)</small> | `10 Jahre GoBD (§ 147 AO / § 257 HGB – Sperrung statt Löschung)` | `Nur Lesen & Analysieren (Schreibgeschützt für KI)` | GPSR Art. 19, GoBD 10J |
 | `ProductTemplate`<br><small>`product_templates`</small> | **2D/3D-Gravurvorlage (Feiertags- & Anlass-Preset)**<br><small>Vorkonfigurierte Text-, Schrift- und Vektor-Layouts für den 1-Klick-Start im Produktkonfigurator.</small> | **Öffentlich (Shop- & Katalogdaten)**<br><small>Art. 6 Abs. 1 lit. f DSGVO (Berechtigtes Interesse / Öffentliches Angebot)</small> | `Dauerhafte System- & Katalog-Stammdaten` | `Lesen & Entwurf vorschlagen (Freigabe durch Admin)` | EU AI Act Art. 50, xTool / LightBurn 1:1 Laser-Gravur Export (SVG/PDF) |

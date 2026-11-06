@@ -2,14 +2,13 @@
 
 namespace App\Livewire\Shop\Management;
 
-use Livewire\Attributes\Layout;
-
+use App\Livewire\Traits\WithDepartmentTheming;
 use App\Models\Management\ManagementTask as TaskModel;
-use App\Models\Management\ManagementTaskList;
-use Illuminate\Support\Str;
+use App\Models\Management\ManagementTaskList as TaskListModel;
+use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithFileUploads;
-use App\Livewire\Traits\WithDepartmentTheming;
 
 #[Layout('components.layouts.backend_layout')]
 class ManagementTask extends Component
@@ -19,356 +18,616 @@ class ManagementTask extends Component
 
     public string $themingDepartment = 'Leitung';
 
-    public $search = '';
-    public $quickFilter = 'all'; // 'all', 'high_prio', 'due_today', 'with_attachments'
-    public $selectedListId = null;
-    public $showArchive = false;
+    // Smart Lists ('my_day', 'important', 'planned', 'all') or UUID of a ManagementTaskList
+    public ?string $activeListId = null;
 
-    // File Attachments State
-    public $taskFilesUpload;
-    public ?string $uploadingTaskId = null;
+    // Search
+    public string $searchQuery = '';
 
-    // Inline Creation State
-    public $isAddingList = false;
-    public $newList_name = '';
-    public $newList_icon = 'bookmark';
+    // Collapsible "Erledigt" section (Microsoft To Do style)
+    public bool $showCompletedSection = true;
 
-    public $newTask_title = '';
+    // Right-side Detail Inspector Panel (Microsoft To Do style)
+    public ?string $selectedTaskId = null;
+    public string $detailTitle = '';
+    public string $detailAiPlan = '';
+    public ?string $detailRelevantFrom = null;
+    public string $detailPriority = 'niedrig';
+    public ?string $detailTaskListId = null;
+    public string $newSubtaskTitle = '';
 
-    public function boot(): void
+    // List creation & editing
+    public string $newListName = '';
+    public string $newListIcon = 'list-bullet';
+    public string $newListColor = '#818CF8';
+    public bool $showNewListModal = false;
+
+    public ?string $editingListId = null;
+    public string $editingListName = '';
+    public string $editingListColor = '#818CF8';
+
+    // Task creation
+    public string $newTaskTitle = '';
+    public string $newTaskPriority = 'niedrig';
+    public ?string $newTaskRelevantFrom = null;
+
+    // Inline editing (fallback)
+    public ?string $editingTaskId = null;
+    public string $editingTaskTitle = '';
+    public string $editingTaskPriority = 'niedrig';
+    public ?string $editingTaskRelevantFrom = null;
+
+    // Subtasks inline
+    public array $expandedTasks = [];
+    public array $newSubtaskTitles = [];
+
+    // File uploads per task
+    public array $taskUploads = [];
+
+    protected $listeners = ['refreshComponent' => '$refresh'];
+
+    public function mount(): void
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
-            abort(403, 'Zugriff verweigert.');
-        }
-    }
-
-    public function mount()
-    {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
-            abort(403, 'Zugriff verweigert.');
-        }
-
-        // One-time auto-migration of old English priorities
-        TaskModel::where('priority', 'low')->update(['priority' => 'niedrig']);
-        TaskModel::where('priority', 'medium')->update(['priority' => 'mittel']);
-        TaskModel::where('priority', 'high')->update(['priority' => 'hoch']);
-
-        // Headless Artisan calls were removed to preserve test isolation.
-
-        // Wähle standardmäßig die erste Liste, falls vorhanden
-        $firstList = ManagementTaskList::orderBy('created_at', 'asc')->first();
+        $firstList = TaskListModel::where('name', 'Aufgaben')->first()
+            ?? TaskListModel::orderBy('position', 'asc')->orderBy('created_at', 'asc')->first();
         if ($firstList) {
-            $this->selectedListId = $firstList->id;
+            $this->activeListId = $firstList->id;
+        } else {
+            $this->activeListId = 'all';
         }
     }
 
-    public function createList()
+    public function selectList(string $id): void
     {
-        $this->validate(['newList_name' => 'required|min:2|max:30']);
-
-        $list = ManagementTaskList::create([
-            'id' => (string) Str::uuid(),
-            'name' => $this->newList_name,
-            'icon' => $this->newList_icon,
-            'color' => '#C5A059' // Standard Gold
-        ]);
-
-        $this->selectedListId = $list->id;
-        $this->reset(['newList_name', 'isAddingList']);
-        $this->newList_icon = 'bookmark'; // Reset Icon
+        $this->activeListId = $id;
+        $this->cancelEditTask();
     }
 
-    public function cancelCreateList()
+    public function selectTask(?string $id): void
     {
-        $this->isAddingList = false;
-        $this->reset('newList_name');
-    }
-
-    public function createTask()
-    {
-        $this->validate(['newTask_title' => 'required|min:2']);
-
-        if (!$this->selectedListId) {
-            // Fallback: Falls keine Liste existiert, erstelle eine Standardliste
-            $list = ManagementTaskList::create([
-                'id' => (string) Str::uuid(),
-                'name' => 'Allgemein',
-                'icon' => 'inbox'
-            ]);
-            $this->selectedListId = $list->id;
+        if ($this->selectedTaskId === $id) {
+            $this->selectedTaskId = null;
+            return;
         }
-
-        TaskModel::create([
-            'id' => (string) Str::uuid(),
-            'task_list_id' => $this->selectedListId,
-            'title' => $this->newTask_title,
-            'priority' => 'niedrig',
-        ]);
-
-        $this->reset('newTask_title');
+        $this->selectedTaskId = $id;
+        $this->loadSelectedTaskFields();
     }
 
-    public function addSubTask($parentId, $title)
+    public function closeDetailPanel(): void
     {
-        if (empty($title)) return;
-        $parent = TaskModel::find($parentId);
-        if (!$parent) return;
+        $this->selectedTaskId = null;
+    }
 
-        TaskModel::create([
-            'id' => (string) Str::uuid(),
-            'task_list_id' => $parent->task_list_id,
-            'parent_id' => $parent->id,
+    protected function loadSelectedTaskFields(): void
+    {
+        if (!$this->selectedTaskId) {
+            return;
+        }
+        $task = TaskModel::find($this->selectedTaskId);
+        if (!$task) {
+            $this->selectedTaskId = null;
+            return;
+        }
+        $this->detailTitle = (string) $task->title;
+        $this->detailAiPlan = (string) ($task->ai_plan ?? '');
+        $this->detailRelevantFrom = $task->relevant_from ? $task->relevant_from->format('Y-m-d') : null;
+        $this->detailPriority = (string) ($task->priority ?? 'niedrig');
+        $this->detailTaskListId = $task->task_list_id;
+    }
+
+    public function saveDetailPanel(): void
+    {
+        if (!$this->selectedTaskId) {
+            return;
+        }
+        $task = TaskModel::find($this->selectedTaskId);
+        if (!$task) {
+            return;
+        }
+        $title = trim($this->detailTitle);
+        if ($title === '') {
+            return;
+        }
+        $task->update([
             'title' => $title,
-            'priority' => 'niedrig',
+            'ai_plan' => trim($this->detailAiPlan) !== '' ? trim($this->detailAiPlan) : null,
+            'relevant_from' => !empty($this->detailRelevantFrom) ? \Carbon\Carbon::parse($this->detailRelevantFrom)->startOfDay() : null,
+            'priority' => in_array($this->detailPriority, ['niedrig', 'mittel', 'hoch'], true) ? $this->detailPriority : 'niedrig',
+            'task_list_id' => $this->detailTaskListId ?: $task->task_list_id,
         ]);
     }
 
-    public function updateTaskTitle($id, $newTitle)
+    public function updatedDetailTitle(): void
     {
-        if(empty(trim($newTitle))) return;
-
-        $task = TaskModel::find($id);
-        if($task) {
-            $task->update(['title' => $newTitle]);
-        }
+        $this->saveDetailPanel();
     }
 
-    public function updateTaskPriority($id, $priority)
+    public function updatedDetailAiPlan(): void
     {
-        if(empty($priority)) return;
-
-        $task = TaskModel::find($id);
-        if($task && in_array($priority, ['niedrig', 'mittel', 'hoch'])) {
-            $task->update(['priority' => $priority]);
-        }
+        $this->saveDetailPanel();
     }
 
-    public function updateTaskRelevantFrom($id, $dateString)
+    public function updatedDetailRelevantFrom(): void
     {
-        $task = TaskModel::find($id);
-        if ($task) {
-            $task->update([
-                'relevant_from' => empty($dateString) ? null : \Carbon\Carbon::parse($dateString)->startOfDay()
+        $this->saveDetailPanel();
+    }
+
+    public function updatedDetailPriority(): void
+    {
+        $this->saveDetailPanel();
+    }
+
+    public function updatedDetailTaskListId(): void
+    {
+        $this->saveDetailPanel();
+    }
+
+    public function toggleCompletedSection(): void
+    {
+        $this->showCompletedSection = !$this->showCompletedSection;
+    }
+
+    // --- LIST MANAGEMENT ---
+
+    public function createList(): void
+    {
+        $this->validate([
+            'newListName' => 'required|min:2|max:50',
+        ]);
+
+        $maxPos = (int) TaskListModel::max('position');
+
+        $list = TaskListModel::create([
+            'name' => trim($this->newListName),
+            'icon' => $this->newListIcon ?: 'list-bullet',
+            'color' => $this->newListColor ?: '#818CF8',
+            'position' => $maxPos + 1,
+        ]);
+
+        $this->newListName = '';
+        $this->newListIcon = 'list-bullet';
+        $this->newListColor = '#818CF8';
+        $this->showNewListModal = false;
+        $this->activeListId = $list->id;
+    }
+
+    public function startEditList(string $id, string $currentName, ?string $currentColor = null): void
+    {
+        $this->editingListId = $id;
+        $this->editingListName = $currentName;
+        $this->editingListColor = $currentColor ?: '#818CF8';
+    }
+
+    public function updateList(): void
+    {
+        if (!$this->editingListId || empty(trim($this->editingListName))) {
+            $this->cancelEditList();
+            return;
+        }
+
+        $list = TaskListModel::find($this->editingListId);
+        if ($list) {
+            $list->update([
+                'name' => trim($this->editingListName),
+                'color' => $this->editingListColor ?: $list->color,
             ]);
         }
+
+        $this->cancelEditList();
     }
 
-    public function toggleComplete($id)
+    public function cancelEditList(): void
     {
-        $task = TaskModel::find($id);
-        if($task) {
-            $task->update(['is_completed' => !$task->is_completed]);
+        $this->editingListId = null;
+        $this->editingListName = '';
+    }
 
-            if ($task->is_completed) {
-                $this->dispatch('task-completed');
+    public function deleteList(string $id): void
+    {
+        $list = TaskListModel::find($id);
+        if ($list) {
+            $tasks = TaskModel::where('task_list_id', $list->id)->get();
+            foreach ($tasks as $t) {
+                $this->deleteTaskFiles($t);
+                $t->delete();
+            }
+            $list->delete();
+
+            if ($this->activeListId === $id) {
+                $first = TaskListModel::orderBy('position')->first();
+                $this->activeListId = $first ? $first->id : 'all';
             }
         }
     }
 
-    public function promoteToTask($id)
+    // --- TASK MANAGEMENT ---
+
+    public function addTask(): void
     {
-        $task = TaskModel::find($id);
-        if($task) {
-            $task->update(['parent_id' => null]);
+        if (!$this->activeListId) {
+            return;
+        }
+
+        $this->validate([
+            'newTaskTitle' => 'required|min:1|max:255',
+            'newTaskPriority' => 'required|in:niedrig,mittel,hoch',
+            'newTaskRelevantFrom' => 'nullable|date',
+        ]);
+
+        // Resolve target list if user is inside a Smart List
+        if (in_array($this->activeListId, ['my_day', 'important', 'planned', 'all'], true)) {
+            $targetList = TaskListModel::where('name', 'Aufgaben')->first()
+                ?? TaskListModel::orderBy('position', 'asc')->first();
+            if (!$targetList) {
+                $targetList = TaskListModel::create([
+                    'name' => 'Aufgaben',
+                    'icon' => 'home',
+                    'color' => '#818CF8',
+                    'position' => 1,
+                ]);
+            }
+            $targetListId = $targetList->id;
+        } else {
+            $targetListId = $this->activeListId;
+        }
+
+        $priority = $this->newTaskPriority;
+        if ($this->activeListId === 'important' && $priority === 'niedrig') {
+            $priority = 'hoch';
+        }
+
+        $relevantFrom = null;
+        if (!empty($this->newTaskRelevantFrom)) {
+            $relevantFrom = \Carbon\Carbon::parse($this->newTaskRelevantFrom)->startOfDay();
+        } elseif (in_array($this->activeListId, ['my_day', 'planned'], true)) {
+            $relevantFrom = \Carbon\Carbon::today();
+        }
+
+        $maxPos = (int) TaskModel::where('task_list_id', $targetListId)->whereNull('parent_id')->max('position');
+
+        TaskModel::create([
+            'task_list_id' => $targetListId,
+            'parent_id' => null,
+            'title' => trim($this->newTaskTitle),
+            'priority' => $priority,
+            'relevant_from' => $relevantFrom,
+            'is_completed' => false,
+            'position' => $maxPos + 1,
+            'file_paths' => [],
+        ]);
+
+        $this->newTaskTitle = '';
+        $this->newTaskPriority = 'niedrig';
+        $this->newTaskRelevantFrom = null;
+    }
+
+    public function addSubtask(string $parentId): void
+    {
+        $title = $this->newSubtaskTitles[$parentId] ?? $this->newSubtaskTitle ?? '';
+        if (empty(trim($title))) {
+            return;
+        }
+
+        $parent = TaskModel::find($parentId);
+        if (!$parent) {
+            return;
+        }
+
+        $maxPos = (int) TaskModel::where('parent_id', $parentId)->max('position');
+
+        TaskModel::create([
+            'task_list_id' => $parent->task_list_id,
+            'parent_id' => $parent->id,
+            'title' => trim($title),
+            'priority' => 'niedrig',
+            'is_completed' => false,
+            'position' => $maxPos + 1,
+            'file_paths' => [],
+        ]);
+
+        $this->newSubtaskTitles[$parentId] = '';
+        $this->newSubtaskTitle = '';
+
+        if (!in_array($parentId, $this->expandedTasks, true)) {
+            $this->expandedTasks[] = $parentId;
         }
     }
 
-    public function deleteTask($id)
+    public function toggleExpand(string $taskId): void
+    {
+        if (in_array($taskId, $this->expandedTasks, true)) {
+            $this->expandedTasks = array_diff($this->expandedTasks, [$taskId]);
+        } else {
+            $this->expandedTasks[] = $taskId;
+        }
+    }
+
+    public function toggleTask(string $id): void
     {
         $task = TaskModel::find($id);
         if ($task) {
-            if (!empty($task->file_paths)) {
-                foreach ($task->file_paths as $path) {
-                    if (is_string($path) && !str_contains($path, '..') && !str_contains($path, "\0") && str_starts_with($path, 'leitung/')) {
-                        if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
-                            \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
-                        }
-                    }
-                }
+            $newState = !$task->is_completed;
+            $task->update(['is_completed' => $newState]);
+        }
+    }
+
+    public function toggleImportant(string $id): void
+    {
+        $task = TaskModel::find($id);
+        if ($task) {
+            $newPrio = $task->priority === 'hoch' ? 'niedrig' : 'hoch';
+            $task->update(['priority' => $newPrio]);
+            if ($this->selectedTaskId === $id) {
+                $this->detailPriority = $newPrio;
+            }
+        }
+    }
+
+    public function toggleMyDay(string $id): void
+    {
+        $task = TaskModel::find($id);
+        if ($task) {
+            $isToday = $task->relevant_from && $task->relevant_from->isToday();
+            $newDate = $isToday ? null : \Carbon\Carbon::today();
+            $task->update(['relevant_from' => $newDate]);
+            if ($this->selectedTaskId === $id) {
+                $this->detailRelevantFrom = $newDate ? $newDate->format('Y-m-d') : null;
+            }
+        }
+    }
+
+    public function startEditTask(string $id): void
+    {
+        $task = TaskModel::find($id);
+        if ($task) {
+            $this->editingTaskId = $id;
+            $this->editingTaskTitle = $task->title;
+            $this->editingTaskPriority = $task->priority ?? 'niedrig';
+            $this->editingTaskRelevantFrom = $task->relevant_from ? $task->relevant_from->format('Y-m-d') : null;
+        }
+    }
+
+    public function updateTask(): void
+    {
+        if (!$this->editingTaskId || empty(trim($this->editingTaskTitle))) {
+            $this->cancelEditTask();
+            return;
+        }
+
+        $task = TaskModel::find($this->editingTaskId);
+        if ($task) {
+            $task->update([
+                'title' => trim($this->editingTaskTitle),
+                'priority' => $this->editingTaskPriority,
+                'relevant_from' => !empty($this->editingTaskRelevantFrom) ? \Carbon\Carbon::parse($this->editingTaskRelevantFrom)->startOfDay() : null,
+            ]);
+            if ($this->selectedTaskId === $task->id) {
+                $this->loadSelectedTaskFields();
+            }
+        }
+
+        $this->cancelEditTask();
+    }
+
+    public function cancelEditTask(): void
+    {
+        $this->editingTaskId = null;
+        $this->editingTaskTitle = '';
+        $this->editingTaskPriority = 'niedrig';
+        $this->editingTaskRelevantFrom = null;
+    }
+
+    public function deleteTask(string $id): void
+    {
+        $task = TaskModel::find($id);
+        if ($task) {
+            $subtasks = TaskModel::where('parent_id', $task->id)->get();
+            foreach ($subtasks as $sub) {
+                $this->deleteTaskFiles($sub);
+                $sub->delete();
+            }
+            $this->deleteTaskFiles($task);
+            if ($this->selectedTaskId === $task->id) {
+                $this->selectedTaskId = null;
             }
             $task->delete();
         }
     }
 
-    public function updatedTaskFilesUpload()
-    {
-        if ($this->uploadingTaskId && $this->taskFilesUpload) {
-            if (is_array($this->taskFilesUpload)) {
-                $this->validate([
-                    'taskFilesUpload.*' => 'file|max:20480|mimes:pdf,doc,docx,xls,xlsx,csv,ppt,pptx,odt,ods,odp,png,jpg,jpeg,webp,gif,zip,txt',
-                ]);
-            } else {
-                $this->validate([
-                    'taskFilesUpload' => 'file|max:20480|mimes:pdf,doc,docx,xls,xlsx,csv,ppt,pptx,odt,ods,odp,png,jpg,jpeg,webp,gif,zip,txt',
-                ]);
-            }
+    // --- FILE ATTACHMENTS ---
 
-            $task = TaskModel::find($this->uploadingTaskId);
-            if ($task) {
-                $files = is_array($this->taskFilesUpload) ? $this->taskFilesUpload : [$this->taskFilesUpload];
-                $existing = $task->file_paths ?? [];
-                $forbiddenExts = ['php', 'phtml', 'php3', 'php4', 'php5', 'phar', 'sh', 'pl', 'py', 'cgi', 'exe', 'bat', 'cmd', 'js', 'html', 'htm', 'svg'];
-                $forbiddenMimes = ['text/x-php', 'application/x-httpd-php', 'application/x-php', 'text/html', 'image/svg+xml', 'application/x-dosexec', 'application/x-executable', 'application/x-sh'];
-                
-                foreach ($files as $file) {
-                    $ext = strtolower((string) $file->getClientOriginalExtension());
-                    $realPath = $file->getRealPath();
-                    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-                    $detectedMime = $realPath ? finfo_file($finfo, $realPath) : false;
-                    finfo_close($finfo);
-                    if (in_array($ext, $forbiddenExts, true) || !$detectedMime || in_array($detectedMime, $forbiddenMimes, true)) {
-                        $this->addError('taskFilesUpload', 'Dateityp aus Sicherheitsgründen nicht erlaubt.');
-                        $this->reset(['taskFilesUpload', 'uploadingTaskId']);
-                        return;
-                    }
-                    $path = $file->storeAs('leitung/tasks/attachments', Str::uuid()->toString() . '.' . $ext, 'local');
-                    $existing[] = $path;
-                }
-                
-                $task->update(['file_paths' => $existing]);
-                session()->flash('success', 'Datei hochgeladen.');
-            }
-            $this->reset(['taskFilesUpload', 'uploadingTaskId']);
-        }
-    }
-
-    public function deleteTaskFile($taskId, $fileIndex)
+    public function updatedTaskUploads($value, $taskId): void
     {
+        $this->validate([
+            "taskUploads.{$taskId}.*" => 'file|max:20480|mimes:pdf,jpg,jpeg,png,webp,gif,txt,md,csv,doc,docx,xls,xlsx,zip',
+        ]);
+
         $task = TaskModel::find($taskId);
-        if ($task) {
-            $files = $task->file_paths ?? [];
-            if (isset($files[$fileIndex])) {
-                $path = $files[$fileIndex];
-                if (is_string($path) && !str_contains($path, '..') && !str_contains($path, "\0") && str_starts_with($path, 'leitung/')) {
-                    if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
-                        \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
-                    }
-                }
-                unset($files[$fileIndex]);
-                $task->update(['file_paths' => array_values($files)]);
-                session()->flash('success', 'Datei gelöscht.');
-            }
-        }
-    }
-
-    public function updateTaskOrder($orderedIds)
-    {
-        foreach ($orderedIds as $index => $id) {
-            TaskModel::where('id', $id)->update(['position' => $index]);
-        }
-    }
-
-    public function toggleArchiveMode()
-    {
-        $this->showArchive = !$this->showArchive;
-        // Optionally reset selected list if needed, or keep it.
-    }
-
-    public function toggleArchiveTask($id)
-    {
-        $task = TaskModel::find($id);
-        if ($task) {
-            $task->update(['is_archived' => !$task->is_archived]);
-        }
-    }
-
-    public function toggleArchiveList($id)
-    {
-        $list = ManagementTaskList::find($id);
-        if ($list) {
-            $list->update(['is_archived' => !$list->is_archived]);
-        }
-    }
-
-    public function deleteList($id)
-    {
-        $list = ManagementTaskList::find($id);
-        if($list) {
-            $tasks = TaskModel::where('task_list_id', $list->id)->get();
-            foreach ($tasks as $task) {
-                if (!empty($task->file_paths) && is_array($task->file_paths)) {
-                    foreach ($task->file_paths as $path) {
-                        if (is_string($path) && !str_contains($path, '..') && !str_contains($path, "\0") && str_starts_with($path, 'leitung/')) {
-                            if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
-                                \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
-                            }
-                        }
-                    }
-                }
-            }
-            $list->delete();
-            $first = ManagementTaskList::first();
-            $this->selectedListId = $first ? $first->id : null;
-        }
-    }
-
-    public function renameList($id, $newName)
-    {
-        $newName = trim($newName);
-        if (strlen($newName) < 2 || strlen($newName) > 30) {
+        if (!$task) {
             return;
         }
 
-        $list = ManagementTaskList::find($id);
-        if ($list) {
-            $list->update(['name' => $newName]);
+        $files = $this->taskUploads[$taskId] ?? [];
+        if (!is_array($files)) {
+            $files = [$files];
+        }
+
+        $storedPaths = [];
+        foreach ($files as $file) {
+            $path = $file->store('leitung/tasks/attachments', 'local');
+            $storedPaths[] = $path;
+        }
+
+        $existing = $task->file_paths ?? [];
+        $updated = array_merge($existing, $storedPaths);
+
+        $task->update(['file_paths' => $updated]);
+        unset($this->taskUploads[$taskId]);
+    }
+
+    public function removeFile(string $taskId, string $filePath): void
+    {
+        $task = TaskModel::find($taskId);
+        if (!$task) {
+            return;
+        }
+
+        $existing = $task->file_paths ?? [];
+        if (($key = array_search($filePath, $existing, true)) !== false) {
+            unset($existing[$key]);
+
+            $pathStr = (string) $filePath;
+            if ($pathStr !== '' && !str_contains($pathStr, '..') && !str_contains($pathStr, "\0") && str_starts_with(ltrim($pathStr, '/'), 'leitung/tasks/') && Storage::disk('local')->exists($pathStr)) {
+                Storage::disk('local')->delete($pathStr);
+            }
+
+            $task->update(['file_paths' => array_values($existing)]);
         }
     }
 
-    public function updateListOrder($orderedIds)
+    protected function deleteTaskFiles(TaskModel $task): void
     {
-        foreach ($orderedIds as $index => $id) {
-            ManagementTaskList::where('id', $id)->update(['position' => $index]);
+        $files = $task->file_paths ?? [];
+        foreach ($files as $path) {
+            $pathStr = (string) $path;
+            if ($pathStr !== '' && !str_contains($pathStr, '..') && !str_contains($pathStr, "\0") && str_starts_with(ltrim($pathStr, '/'), 'leitung/tasks/') && Storage::disk('local')->exists($pathStr)) {
+                Storage::disk('local')->delete($pathStr);
+            }
         }
+    }
+
+    public function downloadFile(string $filePath)
+    {
+        $pathStr = (string) $filePath;
+        if ($pathStr === '' || str_contains($pathStr, '..') || str_contains($pathStr, "\0") || !str_starts_with(ltrim($pathStr, '/'), 'leitung/tasks/')) {
+            abort(403, 'Unzulässiger Dateipfad.');
+        }
+
+        if (Storage::disk('local')->exists($pathStr)) {
+            return Storage::disk('local')->download($pathStr);
+        }
+
+        session()->flash('error', 'Datei nicht gefunden.');
     }
 
     public function render()
     {
-        $listsFiltered = ManagementTaskList::withCount(['tasks as open_count' => function($q) {
-            $q->where('is_completed', false)->whereNull('parent_id')->where('is_archived', false);
-        }])
-        ->where(function ($q) {
-            if ($this->showArchive) {
-                // In Archive view, show lists that are archived OR contain archived tasks
-                $q->where('is_archived', true)
-                  ->orWhereHas('tasks', function($t) {
-                      $t->where('is_archived', true);
-                  });
-            } else {
-                // Standard view: Show unarchived lists
-                $q->where('is_archived', false);
+        $lists = TaskListModel::withCount([
+            'tasks as open_tasks_count' => function ($query) {
+                $query->where('is_completed', false)->whereNull('parent_id')->where('is_archived', false);
+            },
+            'tasks as completed_tasks_count' => function ($query) {
+                $query->where('is_completed', true)->whereNull('parent_id')->where('is_archived', false);
             }
-        })
-        ->orderBy('position', 'asc')
-        ->orderBy('created_at', 'asc')
-        ->get();
+        ])
+            ->where('is_archived', false)
+            ->orderBy('position', 'asc')
+            ->orderBy('created_at', 'asc')
+            ->get();
 
-        $tasks = collect();
-        if ($this->selectedListId) {
-            $tasks = TaskModel::where('task_list_id', $this->selectedListId)
-                ->whereNull('parent_id')
-                ->where('is_archived', $this->showArchive)
-                ->with(['subtasks' => function($q) {
-                    $q->orderBy('is_completed', 'asc')
-                      ->orderBy('created_at', 'asc');
-                }])
-                ->when($this->search, fn($q) => $q->where('title', 'like', '%'.addcslashes((string) $this->search, '%_\\').'%'))
-                ->when($this->quickFilter === 'high_prio', fn($q) => $q->where('priority', 'hoch'))
-                ->when($this->quickFilter === 'due_today', fn($q) => $q->where(function($sub) {
-                    $sub->whereDate('relevant_from', '<=', now()->toDateString())
-                        ->where('is_completed', false);
-                }))
-                ->when($this->quickFilter === 'with_attachments', fn($q) => $q->whereNotNull('file_paths')->where('file_paths', '!=', '[]'))
-                ->orderBy('is_completed', 'asc')
-                ->orderByRaw("CASE priority WHEN 'hoch' THEN 1 WHEN 'mittel' THEN 2 WHEN 'niedrig' THEN 3 ELSE 4 END")
-                ->orderBy('position', 'asc')
-                ->orderBy('created_at', 'desc')
-                ->get();
+        // Smart list counters
+        $smartCounts = [
+            'my_day' => TaskModel::whereNull('parent_id')
+                ->where('is_completed', false)
+                ->where('is_archived', false)
+                ->whereDate('relevant_from', \Carbon\Carbon::today())
+                ->count(),
+            'important' => TaskModel::whereNull('parent_id')
+                ->where('is_completed', false)
+                ->where('is_archived', false)
+                ->where('priority', 'hoch')
+                ->count(),
+            'planned' => TaskModel::whereNull('parent_id')
+                ->where('is_completed', false)
+                ->where('is_archived', false)
+                ->whereNotNull('relevant_from')
+                ->count(),
+            'all' => TaskModel::whereNull('parent_id')
+                ->where('is_completed', false)
+                ->where('is_archived', false)
+                ->count(),
+        ];
+
+        $activeList = null;
+        $smartMeta = null;
+
+        $query = TaskModel::with(['subtasks', 'list'])
+            ->whereNull('parent_id')
+            ->where('is_archived', false);
+
+        if ($this->searchQuery !== '') {
+            $term = '%' . trim($this->searchQuery) . '%';
+            $query->where(function ($q) use ($term) {
+                $q->where('title', 'like', $term)
+                    ->orWhere('ai_plan', 'like', $term);
+            });
+            $smartMeta = [
+                'name' => 'Suche: "' . $this->searchQuery . '"',
+                'subtitle' => 'Suchergebnisse über alle Listen',
+                'color' => '#818CF8',
+                'icon' => 'magnifying-glass',
+            ];
+        } elseif ($this->activeListId === 'my_day') {
+            $query->whereDate('relevant_from', \Carbon\Carbon::today());
+            $smartMeta = [
+                'name' => 'Mein Tag',
+                'subtitle' => now()->locale('de')->isoFormat('dddd, D. MMMM'),
+                'color' => '#38BDF8',
+                'icon' => 'sun',
+            ];
+        } elseif ($this->activeListId === 'important') {
+            $query->where('priority', 'hoch');
+            $smartMeta = [
+                'name' => 'Wichtig',
+                'subtitle' => 'Mit Stern markierte Fokus-Aufgaben',
+                'color' => '#F472B6',
+                'icon' => 'star',
+            ];
+        } elseif ($this->activeListId === 'planned') {
+            $query->whereNotNull('relevant_from');
+            $smartMeta = [
+                'name' => 'Geplant',
+                'subtitle' => 'Aufgaben mit Fälligkeitsdatum',
+                'color' => '#34D399',
+                'icon' => 'calendar',
+            ];
+        } elseif ($this->activeListId === 'all') {
+            $smartMeta = [
+                'name' => 'Alle Aufgaben',
+                'subtitle' => 'Gesamtübersicht aller Listen',
+                'color' => '#818CF8',
+                'icon' => 'home',
+            ];
+        } else {
+            $activeList = $lists->firstWhere('id', $this->activeListId) ?? $lists->first();
+            if ($activeList) {
+                $this->activeListId = $activeList->id;
+                $query->where('task_list_id', $activeList->id);
+            }
         }
 
+        $allRootTasks = $query
+            ->orderBy('is_completed', 'asc')
+            ->orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
+            ->orderBy('position', 'asc')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $openTasks = $allRootTasks->where('is_completed', false)->values();
+        $completedTasks = $allRootTasks->where('is_completed', true)->values();
+
+        $selectedTask = $this->selectedTaskId
+            ? TaskModel::with(['subtasks', 'list'])->find($this->selectedTaskId)
+            : null;
+
         return view('livewire.shop.management.management-task', [
-            'lists' => $listsFiltered,
-            'tasks' => $tasks
+            'lists' => $lists,
+            'smartCounts' => $smartCounts,
+            'activeList' => $activeList,
+            'smartMeta' => $smartMeta,
+            'openTasks' => $openTasks,
+            'completedTasks' => $completedTasks,
+            'selectedTask' => $selectedTask,
         ]);
     }
 }

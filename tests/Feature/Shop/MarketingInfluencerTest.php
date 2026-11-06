@@ -1164,4 +1164,197 @@ class MarketingInfluencerTest extends TestCase
             ->test(\App\Livewire\Shop\Marketing\MarketingNewsletterSignup::class)
             ->assertStatus(200);
     }
+
+    public function test_unpaid_payout_recalculation_on_order_cancellation_creator_voucher_self_purchase_slug_sync_and_tax_plausibility(): void
+    {
+        Storage::fake('local');
+        $service = app(InfluencerService::class);
+
+        $influencer = $service->createOrUpdateInfluencer([
+            'first_name' => 'Elena',
+            'last_name' => 'Creator',
+            'email' => 'elena.creator@seelenfunke.test',
+            'handle' => '@elena.style',
+            'slug' => 'elena-style',
+            'commission_type' => 'percent',
+            'commission_value' => 15,
+            'follower_discount_percent' => 10,
+            'is_active' => true,
+        ]);
+
+        $influencer->employee->profile()->updateOrCreate(
+            ['employee_id' => $influencer->employee->id],
+            [
+                'street' => 'Alsterweg',
+                'house_number' => '10',
+                'postal' => '20095',
+                'city' => 'Hamburg',
+                'country' => 'DE',
+            ]
+        );
+        $influencer->update([
+            'tax_status' => 'small_business',
+            'tax_number' => '45/678/90123',
+            'self_employed_confirmed' => true,
+            'payout_method' => 'shop_voucher',
+        ]);
+
+        $dummyAddress = [
+            'first_name' => 'Kunde',
+            'last_name' => 'Eins',
+            'street' => 'Testweg 1',
+            'postal_code' => '10115',
+            'city' => 'Berlin',
+            'country' => 'DE',
+        ];
+
+        // 1. Zwei bezahlte Bestellungen (je 100 € Netto -> je 15,00 € Provision = 30,00 € gesamt)
+        $order1 = OrderOrder::create([
+            'order_number' => 'ORD-2026-RACE1',
+            'email' => 'race1@kunde.test',
+            'status' => 'completed',
+            'payment_status' => 'paid',
+            'billing_address' => $dummyAddress,
+            'shipping_address' => $dummyAddress,
+            'subtotal_price' => 11900,
+            'discount_amount' => 0,
+            'tax_amount' => 1900,
+            'shipping_price' => 0,
+            'total_price' => 11900,
+            'utm_campaign_last' => 'aff:elena-style',
+        ]);
+
+        $order2 = OrderOrder::create([
+            'order_number' => 'ORD-2026-RACE2',
+            'email' => 'race2@kunde.test',
+            'status' => 'completed',
+            'payment_status' => 'paid',
+            'billing_address' => $dummyAddress,
+            'shipping_address' => $dummyAddress,
+            'subtotal_price' => 11900,
+            'discount_amount' => 0,
+            'tax_amount' => 1900,
+            'shipping_price' => 0,
+            'total_price' => 11900,
+            'utm_campaign_last' => 'aff:elena-style',
+        ]);
+
+        $comm1 = $service->processOrderCommission($order1);
+        $comm2 = $service->processOrderCommission($order2);
+        $this->assertNotNull($comm1);
+        $this->assertNotNull($comm2);
+        $this->assertEquals(1500, $comm1->commission_amount_cents);
+        $this->assertEquals(1500, $comm2->commission_amount_cents);
+
+        // Creator fordert Auszahlung an (status = 'requested', 30,00 € Netto + 6,00 € Gutschein-Bonus = 36,00 € Brutto)
+        $payout = $service->requestPayout($influencer->fresh(), 'shop_voucher', true);
+        $this->assertEquals('requested', $payout->status);
+        $this->assertEquals(3000, $payout->net_amount_cents);
+        $this->assertEquals(3600, $payout->gross_amount_cents);
+
+        // Kunde 1 widerruft Bestellung 1 VOR Auszahlungsfreigabe durch den Admin!
+        $order1->update(['status' => 'cancelled']);
+        $this->assertEquals('cancelled', $comm1->fresh()->status);
+        $this->assertNull($comm1->fresh()->payout_id);
+
+        // Die offene Auszahlungsanforderung ('requested') wurde automatisch auf 15,00 € Netto (18,00 € inkl. Bonus) reduziert!
+        $payout->refresh();
+        $this->assertEquals(1500, $payout->net_amount_cents);
+        $this->assertEquals(300, $payout->bonus_amount_cents);
+        $this->assertEquals(1800, $payout->gross_amount_cents);
+
+        // Admin zahlt die bereinigte Gutschrift als Shop-Gutschein aus
+        $paidPayout = $service->markPayoutAsPaid($payout);
+        $this->assertEquals('paid', $paidPayout->status);
+        $this->assertNotNull($paidPayout->giftVoucher);
+        $creatorVoucherCode = $paidPayout->giftVoucher->code;
+
+        // 2. Eigenkauf-Schutz bei Einlösung des eigenen Creator-Auszahlungsgutscheins (auch mit fremder Gast-E-Mail!)
+        $selfVoucherOrder = OrderOrder::create([
+            'order_number' => 'ORD-2026-SELFVOUCHER',
+            'email' => 'zweitadresse.elena@privat.test',
+            'status' => 'completed',
+            'payment_status' => 'paid',
+            'billing_address' => $dummyAddress,
+            'shipping_address' => $dummyAddress,
+            'coupon_code' => $creatorVoucherCode,
+            'subtotal_price' => 3570,
+            'discount_amount' => 1800,
+            'tax_amount' => 570,
+            'shipping_price' => 0,
+            'total_price' => 1770,
+            'utm_campaign_last' => 'aff:elena-style',
+        ]);
+
+        $this->assertNull(
+            $service->processOrderCommission($selfVoucherOrder),
+            'Einlösung des eigenen Creator-Auszahlungsgutscheins darf niemals erneut verprovisioniert werden!'
+        );
+
+        // 3. Slug-Synchronisation & 0%-Follower-Rabatt Deaktivierung + Reservierte Präfix-Sperre
+        $this->assertTrue($service->isReservedOrCollidingVoucherCode('REF-12345'));
+        $this->assertTrue($service->isReservedOrCollidingVoucherCode('CREATOR-ABCD'));
+        $this->assertTrue($service->isReservedOrCollidingVoucherCode('DANKE-TEST'));
+        $this->assertTrue($service->isReservedOrCollidingVoucherCode($creatorVoucherCode));
+
+        $updatedInfluencer = $service->createOrUpdateInfluencer([
+            'first_name' => 'Elena',
+            'last_name' => 'Creator',
+            'email' => 'elena.creator@seelenfunke.test',
+            'handle' => '@elena.new',
+            'slug' => 'elena-new',
+            'commission_type' => 'percent',
+            'commission_value' => 15,
+            'follower_discount_percent' => 0,
+            'is_active' => true,
+        ], $influencer->id);
+
+        $this->assertEquals('elena-new', $updatedInfluencer->defaultTrackingLink->slug);
+        $this->assertFalse((bool) $updatedInfluencer->defaultVoucher->is_active);
+
+        // 4. Steuerliche Plausibilitätsprüfung (§ 13b / § 14 UStG) & IBAN-Format im Creator-Dashboard
+        Livewire::actingAs($updatedInfluencer->employee, 'employee')
+            ->test(\App\Livewire\Employee\Influencer\InfluencerDashboard::class)
+            ->set('street', 'Alsterweg')
+            ->set('houseNumber', '10')
+            ->set('postal', '20095')
+            ->set('city', 'Hamburg')
+            ->set('country', 'DE')
+            ->set('taxStatus', 'reverse_charge')
+            ->set('taxNumber', 'DE123456789')
+            ->set('selfEmployedConfirmed', true)
+            ->set('payoutMethod', 'shop_voucher')
+            ->call('savePayoutAndTaxSettings')
+            ->assertHasErrors(['taxStatus']);
+
+        Livewire::actingAs($updatedInfluencer->employee, 'employee')
+            ->test(\App\Livewire\Employee\Influencer\InfluencerDashboard::class)
+            ->set('street', 'Kärntner Straße')
+            ->set('houseNumber', '5')
+            ->set('postal', '1010')
+            ->set('city', 'Wien')
+            ->set('country', 'AT')
+            ->set('taxStatus', 'standard_tax')
+            ->set('taxNumber', 'ATU12345678')
+            ->set('selfEmployedConfirmed', true)
+            ->set('payoutMethod', 'shop_voucher')
+            ->call('savePayoutAndTaxSettings')
+            ->assertHasErrors(['taxStatus']);
+
+        Livewire::actingAs($updatedInfluencer->employee, 'employee')
+            ->test(\App\Livewire\Employee\Influencer\InfluencerDashboard::class)
+            ->set('street', 'Alsterweg')
+            ->set('houseNumber', '10')
+            ->set('postal', '20095')
+            ->set('city', 'Hamburg')
+            ->set('country', 'DE')
+            ->set('taxStatus', 'small_business')
+            ->set('taxNumber', '45/678/90123')
+            ->set('selfEmployedConfirmed', true)
+            ->set('payoutMethod', 'bank_transfer')
+            ->set('accountHolder', 'Elena Creator')
+            ->set('iban', 'UNGUELTIGE-IBAN-123')
+            ->call('savePayoutAndTaxSettings')
+            ->assertHasErrors(['iban']);
+    }
 }

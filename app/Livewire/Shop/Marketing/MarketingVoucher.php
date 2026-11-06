@@ -415,8 +415,9 @@ class MarketingVoucher extends Component
 
         // Initialisiere die letzten 12 Monate
         for ($i = 11; $i >= 0; $i--) {
-            $monthKey = now()->subMonths($i)->format('Y-m'); // "2023-01"
-            $monthLabel = now()->subMonths($i)->translatedFormat('M Y'); // "Jan 2023"
+            $monthCarbon = now()->startOfMonth()->subMonths($i);
+            $monthKey = $monthCarbon->format('Y-m'); // "2023-01"
+            $monthLabel = $monthCarbon->translatedFormat('M Y'); // "Jan 2023"
             $monthlyData[$monthKey] = [
                 'label' => $monthLabel,
                 'coupons' => []

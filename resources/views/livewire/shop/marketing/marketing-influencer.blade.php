@@ -180,6 +180,9 @@
                                                 </div>
                                                 <div class="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
                                                     <span class="font-semibold text-[var(--theme-color)]">{{ $inf->commission_value }}% Prov.</span> &middot; {{ $inf->follower_discount_percent }}% Rabatt
+                                                    @if($inf->sample_granted)
+                                                        &middot; <span class="text-emerald-600 dark:text-emerald-400 font-bold">1x Gratis-Muster</span>
+                                                    @endif
                                                 </div>
                                             @else
                                                 <div class="flex items-center gap-1.5">
@@ -190,8 +193,17 @@
                                                         {{ $inf->handle }}
                                                     </span>
                                                 </div>
-                                                <div class="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 truncate max-w-[220px]">
+                                                <div class="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 truncate max-w-[240px]">
                                                     {{ $inf->employee?->email }} &middot; {{ $inf->commission_value }}% Prov. &middot; {{ $inf->follower_discount_percent }}% Rabatt
+                                                    @if($inf->sample_post_verified_at)
+                                                        &middot; <span class="text-emerald-600 dark:text-emerald-400 font-bold">Muster verlinkt ✓</span>
+                                                    @elseif(!empty($inf->sample_post_url))
+                                                        &middot; <span class="text-[var(--theme-color)] font-bold">Beitrag prüfen</span>
+                                                    @elseif(!empty($inf->sample_order_id))
+                                                        &middot; <span class="text-amber-600 dark:text-amber-400 font-bold">Muster bestellt</span>
+                                                    @elseif($inf->sample_granted)
+                                                        &middot; <span class="text-gray-400">1x Muster frei</span>
+                                                    @endif
                                                 </div>
                                             @endif
                                         </td>
@@ -544,7 +556,8 @@
         {{-- MODAL 1: EINLADUNGSLINK & 6-STELLIGER SICHERHEITSCODE (IM THEME-VAR DESIGN) --}}
         @if($showInviteModal && $generatedInviteUrl)
             @php
-                $readyMessage = "Hallo,\n\nhier ist deine persönliche Creator-Einladung für das Mein Seelenfunke Partnerprogramm ({$inviteCommissionValue}% Provision & {$inviteFollowerDiscount}% Rabattcode für deine Community):\n\nEinladungslink: {$generatedInviteUrl}\nVerifizierungscode: {$generatedInviteCode}";
+                $sampleHint = $inviteSampleGranted ? " inkl. 1x 100 % Gratis-Muster aus unserem 3D-Konfigurator" : "";
+                $readyMessage = "Hallo,\n\nhier ist deine persönliche Creator-Einladung für das Mein Seelenfunke Partnerprogramm ({$inviteCommissionValue}% Provision & {$inviteFollowerDiscount}% Rabattcode für deine Community{$sampleHint}):\n\nEinladungslink: {$generatedInviteUrl}\nVerifizierungscode: {$generatedInviteCode}";
             @endphp
             <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
                 <div class="fixed inset-0 bg-gray-900/60 dark:bg-black/80 backdrop-blur-md" wire:click="closeInviteModal"></div>
@@ -626,6 +639,10 @@
                                            class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 focus:border-[var(--theme-color)] rounded-xl px-3 py-2 text-xs font-mono text-gray-900 dark:text-white outline-none">
                                 </div>
                             </div>
+                            <label class="flex items-center gap-2.5 pt-1 cursor-pointer">
+                                <input type="checkbox" wire:model="inviteSampleGranted" class="rounded border-gray-300 text-[var(--theme-color)] focus:ring-[var(--theme-color)]">
+                                <span class="text-xs font-bold text-gray-800 dark:text-gray-200">1x 100 % Gratis-Muster (PR-Sample inkl. Versand) freischalten</span>
+                            </label>
                             <div class="flex justify-end gap-2 pt-2">
                                 <button type="button" wire:click="updateInviteSlotSettings"
                                         class="px-4 py-2 rounded-xl bg-[var(--theme-color-10)] hover:bg-[var(--theme-color)] border border-[var(--theme-color-30)] text-[var(--theme-color)] hover:text-gray-900 text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer">
@@ -726,6 +743,74 @@
                                 <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1">Cookie-Tage</label>
                                 <input type="number" wire:model="cookieDays" min="1" max="90" class="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 focus:border-[var(--theme-color)] rounded-xl px-3 py-2 text-xs font-mono text-gray-900 dark:text-white outline-none">
                             </div>
+                        </div>
+
+                        <div class="p-4 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 space-y-3">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <label class="flex items-center gap-2.5 cursor-pointer">
+                                    <input type="checkbox" wire:model="sampleGranted" class="rounded border-gray-300 text-[var(--theme-color)] focus:ring-[var(--theme-color)]">
+                                    <span class="text-xs font-bold text-gray-900 dark:text-white">1x 100 % Gratis-Muster (PR-Sample) freigegeben</span>
+                                </label>
+
+                                @if($editingInfluencerId)
+                                    <button type="button" wire:click="grantNewSample('{{ $editingInfluencerId }}')"
+                                            class="px-3 py-1.5 rounded-xl bg-[var(--theme-color-10)] hover:bg-[var(--theme-color)] border border-[var(--theme-color-30)] text-[var(--theme-color)] hover:text-gray-900 text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer">
+                                        Neues 100 % Muster freigeben
+                                    </button>
+                                @endif
+                            </div>
+
+                            @if($editingSampleDetails)
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-gray-200/70 dark:border-gray-800 text-xs">
+                                    <div>
+                                        <span class="text-[10px] font-black uppercase tracking-widest text-gray-400 block">Muster-Status &amp; Code</span>
+                                        <span class="font-mono font-bold text-gray-900 dark:text-white">
+                                            {{ $editingSampleDetails['voucher_code'] ?: 'Noch nicht abgerufen' }}
+                                        </span>
+                                        @if(!empty($editingSampleDetails['order_number']))
+                                            <span class="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">
+                                                Bestellung: {{ $editingSampleDetails['order_number'] }} ({{ $editingSampleDetails['order_status'] }})
+                                            </span>
+                                        @endif
+                                    </div>
+
+                                    <div>
+                                        <span class="text-[10px] font-black uppercase tracking-widest text-gray-400 block">3D-Konfigurator-Feedback</span>
+                                        @if(!empty($editingSampleDetails['configurator_rating']))
+                                            <span class="font-bold text-[var(--theme-color)]">{{ $editingSampleDetails['configurator_rating'] }} / 5 Sterne</span>
+                                            @if(!empty($editingSampleDetails['configurator_feedback']))
+                                                <span class="text-gray-600 dark:text-gray-300 block text-[11px] mt-0.5">{{ $editingSampleDetails['configurator_feedback'] }}</span>
+                                            @endif
+                                        @else
+                                            <span class="text-gray-400 text-[11px]">Noch kein Feedback abgegeben</span>
+                                        @endif
+                                    </div>
+                                </div>
+
+                                @if(!empty($editingSampleDetails['post_url']))
+                                    <div class="pt-2 border-t border-gray-200/70 dark:border-gray-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+                                        <div class="min-w-0">
+                                            <span class="text-[10px] font-black uppercase tracking-widest text-gray-400 block">Eingereichter Verlinkungs-Nachweis</span>
+                                            <a href="{{ str_starts_with($editingSampleDetails['post_url'], 'http') ? $editingSampleDetails['post_url'] : 'https://' . $editingSampleDetails['post_url'] }}"
+                                               target="_blank"
+                                               class="font-mono text-[var(--theme-color)] hover:underline truncate block max-w-md">
+                                                {{ $editingSampleDetails['post_url'] }}
+                                            </a>
+                                        </div>
+
+                                        @if(empty($editingSampleDetails['verified_at']) && $editingInfluencerId)
+                                            <button type="button" wire:click="verifySamplePost('{{ $editingInfluencerId }}')"
+                                                    class="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500 text-emerald-700 dark:text-emerald-300 hover:text-white border border-emerald-500/30 text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shrink-0">
+                                                Verlinkung bestätigen ✓
+                                            </button>
+                                        @else
+                                            <span class="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-black uppercase tracking-widest">
+                                                Bestätigt ({{ $editingSampleDetails['verified_at'] }}) ✓
+                                            </span>
+                                        @endif
+                                    </div>
+                                @endif
+                            @endif
                         </div>
 
                         <div>

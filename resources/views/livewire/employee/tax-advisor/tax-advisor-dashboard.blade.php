@@ -140,6 +140,12 @@
                         class="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-primary text-gray-800 dark:text-gray-200 font-black text-[10px] uppercase tracking-wider transition-colors cursor-pointer shadow-xs">
                     Rechnungen ZIP
                 </button>
+
+                <button type="button" wire:click="downloadMonthlyHrPackageZip"
+                        title="Alle Arbeitsverträge, Personalfragebögen, Stundenzettel & Lohnabrechnungen als ZIP"
+                        class="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-primary text-gray-800 dark:text-gray-200 font-black text-[10px] uppercase tracking-wider transition-colors cursor-pointer shadow-xs">
+                    Personal &amp; Lohn ZIP
+                </button>
             </div>
         </div>
     </div>
@@ -377,23 +383,45 @@
                             @endforeach
 
                             @foreach($filteredPayouts as $payout)
+                                @php
+                                    $pSnap = is_array($payout->recipient_snapshot) ? $payout->recipient_snapshot : [];
+                                    $pTaxStatus = $pSnap['tax_status'] ?? $payout->influencer?->tax_status ?? 'small_business';
+                                    $pTaxLabel = match($pTaxStatus) {
+                                        'regular_vat' => '19 % Regelbesteuert',
+                                        'reverse_charge' => '§ 13b UStG Reverse-Charge',
+                                        default => '§ 19 UStG Kleinunternehmer',
+                                    };
+                                    $pMethodLabel = match($payout->payout_method) {
+                                        'paypal' => 'PayPal',
+                                        'shop_voucher' => 'Shop-Gutschein (+20 %)',
+                                        default => 'SEPA-Überweisung',
+                                    };
+                                @endphp
                                 <tr class="hover:bg-gray-50/70 dark:hover:bg-gray-950/40 transition-colors">
                                     <td class="py-3 pr-4 font-mono font-bold text-gray-900 dark:text-white whitespace-nowrap">
                                         {{ $payout->credit_note_number }}
+                                        <span class="block text-[10px] font-sans font-semibold {{ $payout->status === 'paid' ? 'text-emerald-600' : 'text-amber-600' }}">
+                                            {{ $payout->status === 'paid' ? 'Bezahlt' . ($payout->paid_at ? ' (' . $payout->paid_at->format('d.m.Y') . ')' : '') : 'Angefordert (Offen)' }}
+                                        </span>
                                     </td>
                                     <td class="py-3 px-3 font-mono text-gray-500 whitespace-nowrap">
                                         {{ $payout->created_at?->format('d.m.Y') ?? '—' }}
                                     </td>
                                     <td class="py-3 px-3 whitespace-nowrap">
                                         <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-primary/15 text-primary-dark">Creator-Gutschrift</span>
+                                        <span class="block text-[10px] text-gray-400 mt-0.5">{{ $pTaxLabel }} &bull; {{ $pMethodLabel }}</span>
                                     </td>
                                     <td class="py-3 px-3">
                                         <span class="font-bold text-gray-900 dark:text-white block">
-                                            {{ $payout->influencer?->employee?->profile?->company_name ?: (($payout->influencer?->employee?->first_name ?? '') . ' ' . ($payout->influencer?->employee?->last_name ?? '')) }}
+                                            {{ $pSnap['company_name'] ?? $payout->influencer?->employee?->profile?->company_name ?: (($pSnap['name'] ?? '') ?: (($payout->influencer?->employee?->first_name ?? '') . ' ' . ($payout->influencer?->employee?->last_name ?? ''))) }}
                                         </span>
+                                        @if(!empty($pSnap['tax_number']))
+                                            <span class="text-[10px] text-gray-400 font-mono block">St.-Nr./USt-IdNr.: {{ $pSnap['tax_number'] }}</span>
+                                        @endif
                                     </td>
                                     <td class="py-3 px-3 text-right font-mono font-bold text-gray-900 dark:text-white whitespace-nowrap">
                                         - {{ number_format($payout->gross_amount_cents / 100, 2, ',', '.') }} €
+                                        <span class="block text-[10px] font-normal text-gray-400">Netto: {{ number_format($payout->net_amount_cents / 100, 2, ',', '.') }} €</span>
                                     </td>
                                     <td class="py-3 pl-4 text-right whitespace-nowrap">
                                         <a href="{{ route('employee.tax-advisor.payout.pdf', $payout->id) }}" target="_blank"
@@ -464,36 +492,80 @@
             </div>
         </div>
 
-        {{-- TAB 4: PERSONAL-STAMMBLÄTTER & STUNDENZETTEL --}}
+        {{-- TAB 4: PERSONAL-STAMMBLÄTTER, STUNDENZETTEL & LOHNABRECHNUNGEN --}}
         <div x-show="mainTab === 'hr'" x-cloak>
             <div class="divide-y divide-gray-100 dark:divide-gray-800">
                 @forelse($employeeContracts ?? [] as $empContract)
-                    <div class="py-3 flex flex-wrap items-center justify-between gap-3">
-                        <div class="space-y-0.5">
-                            <div class="text-xs font-bold text-gray-900 dark:text-white">
-                                {{ $empContract->display_name }}
-                                <span class="ml-1.5 px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[10px] font-semibold text-gray-600 dark:text-gray-300">
+                    @php
+                        $mStats = $empContract->selected_month_stats ?? null;
+                        $mPayslip = $empContract->selected_month_payslip ?? null;
+                        $isFixedSalary = ($empContract->compensation_type ?? 'hourly') === 'fixed_salary';
+                        $grossDisplayCents = $mPayslip ? (int) $mPayslip->gross_amount_cents : (int) ($mStats['estimated_gross_cents'] ?? 0);
+                    @endphp
+                    <div class="py-3.5 flex flex-wrap items-center justify-between gap-3">
+                        <div class="space-y-1">
+                            <div class="text-xs font-bold text-gray-900 dark:text-white flex flex-wrap items-center gap-1.5">
+                                <span>{{ $empContract->display_name }}</span>
+                                <span class="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[10px] font-semibold text-gray-600 dark:text-gray-300">
                                     {{ $empContract->employment_type_label }}
                                 </span>
+                                @if($empContract->is_archived)
+                                    <span class="px-2 py-0.5 rounded bg-gray-200 dark:bg-gray-800 text-[10px] font-bold text-gray-500">
+                                        Archiviert / Ausgeschieden
+                                    </span>
+                                @elseif(!$empContract->is_active)
+                                    <span class="px-2 py-0.5 rounded bg-amber-500/15 text-[10px] font-bold text-amber-700 dark:text-amber-400">
+                                        Pausiert
+                                    </span>
+                                @else
+                                    <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
+                                        Aktiv
+                                    </span>
+                                @endif
                             </div>
-                            <div class="text-[11px] text-gray-500">
-                                {{ $empContract->job_title }} • {{ number_format($empContract->hourly_rate_cents / 100, 2, ',', '.') }} €/Std.
+                            <div class="text-[11px] text-gray-500 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                <span>{{ $empContract->job_title }}</span>
+                                <span>&bull;</span>
+                                @if($isFixedSalary)
+                                    <span>Festgehalt: {{ number_format(($empContract->monthly_gross_cents ?? 0) / 100, 2, ',', '.') }} €/Mon.</span>
+                                @else
+                                    <span>{{ number_format(($empContract->hourly_rate_cents ?? 0) / 100, 2, ',', '.') }} €/Std.</span>
+                                @endif
+                                @if($mStats)
+                                    <span>&bull;</span>
+                                    <span class="font-medium text-gray-700 dark:text-gray-300">
+                                        {{ $monthNamesShort[$selectedMonth] }}/{{ $selectedYear }}: {{ $mStats['worked_hours_formatted'] ?? '0:00 Std.' }}
+                                        ({{ number_format($grossDisplayCents / 100, 2, ',', '.') }} € Brutto)
+                                    </span>
+                                @endif
+                                @if($mPayslip)
+                                    <span>&bull;</span>
+                                    <span class="font-bold {{ $mPayslip->status === 'paid' ? 'text-emerald-600' : 'text-amber-600' }}">
+                                        {{ $mPayslip->status === 'paid' ? 'Überwiesen (' . ($mPayslip->paid_at?->format('d.m.Y') ?? 'Bezahlt') . ')' : 'Abrechnung erstellt (Offen)' }}
+                                    </span>
+                                @endif
                             </div>
                         </div>
 
                         <div class="flex flex-wrap items-center gap-1.5">
                             <a href="{{ route('employee.tax-advisor.employee-contract.pdf', ['contract' => $empContract->id]) }}" target="_blank"
-                               class="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[11px] font-bold text-gray-800 dark:text-gray-200">
+                               class="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:border-primary text-[11px] font-bold text-gray-800 dark:text-gray-200">
                                 Vertrag PDF
                             </a>
                             <a href="{{ route('employee.tax-advisor.employee-questionnaire.pdf', ['contract' => $empContract->id]) }}" target="_blank"
-                               class="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[11px] font-bold text-gray-800 dark:text-gray-200">
+                               class="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:border-primary text-[11px] font-bold text-gray-800 dark:text-gray-200">
                                 Personalbogen PDF
                             </a>
                             <a href="{{ route('employee.tax-advisor.employee-timesheet.pdf', ['contract' => $empContract->id, 'year' => $selectedYear, 'month' => $selectedMonth]) }}" target="_blank"
-                               class="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[11px] font-bold text-gray-800 dark:text-gray-200">
+                               class="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:border-primary text-[11px] font-bold text-gray-800 dark:text-gray-200">
                                 Stundenzettel PDF
                             </a>
+                            @if($mPayslip)
+                                <a href="{{ route('employee.tax-advisor.employee-payslip.pdf', ['payslip' => $mPayslip->id]) }}" target="_blank"
+                                   class="px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary border border-primary/25 text-[11px] font-bold text-primary hover:text-white transition-colors">
+                                    Lohnabrechnung PDF{{ !empty($mPayslip->uploaded_external_pdf_path) ? ' (DATEV)' : '' }}
+                                </a>
+                            @endif
                         </div>
                     </div>
                 @empty

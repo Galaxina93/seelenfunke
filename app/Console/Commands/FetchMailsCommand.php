@@ -101,8 +101,13 @@ class FetchMailsCommand extends Command
                             $normalizedMessageId = 'fallback_' . sha1($account->id . '|' . $fromAddress . '|' . $subject . '|' . ($receivedAt ? $receivedAt->toIso8601String() : ''));
                         }
 
-                        // Skip if we already stored it for this account
-                        if ($normalizedMessageId !== '' && MailMessage::where('mail_account_id', $account->id)->where('message_id', $normalizedMessageId)->exists()) {
+                        // Skip if we already stored it for this account or if it was already deleted as Spam / expired Trash
+                        if (
+                            $normalizedMessageId !== '' && (
+                                MailMessage::where('mail_account_id', $account->id)->where('message_id', $normalizedMessageId)->exists()
+                                || \App\Services\Management\MailAiSortService::isMessageIdDeleted($normalizedMessageId)
+                            )
+                        ) {
                             continue;
                         }
 
@@ -113,6 +118,7 @@ class FetchMailsCommand extends Command
                         if ($bodyHtml) {
                             $bodyHtml = self::sanitizeEmailHtml($bodyHtml);
                         }
+                        $bodyText = self::extractCleanPlainText($bodyText, $bodyHtml);
 
                         $toObj = $message->getTo()[0] ?? null;
                         $toEmail = $toObj ? $toObj->mail : $account->email;
@@ -132,21 +138,36 @@ class FetchMailsCommand extends Command
 
                         // Execute Auto-Routing Rules here (Spam/Folders)
                         $targetFolder = 'INBOX';
+                        $cleanFrom = strtolower(trim((string) $fromEmail));
                         $routingRule = \App\Models\Management\Mail\MailRule::where('mail_account_id', $account->id)
                             ->where('condition_field', 'from_email')
-                            ->where('condition_value', $fromEmail)
+                            ->whereRaw('LOWER(condition_value) = ?', [$cleanFrom])
                             ->first();
 
+                        if (!$routingRule && $cleanFrom !== '') {
+                            // Global spam blacklist fallback across accounts
+                            $routingRule = \App\Models\Management\Mail\MailRule::where('condition_field', 'from_email')
+                                ->whereRaw('LOWER(condition_value) = ?', [$cleanFrom])
+                                ->where('action', 'mark_spam')
+                                ->first();
+                        }
+
                         if ($routingRule) {
-                            if ($routingRule->action === 'mark_spam') {
+                            if ($routingRule->action === 'mark_spam' || $routingRule->action === 'Junk') {
                                 $targetFolder = 'Junk';
-                            } elseif ($routingRule->action === 'delete') {
+                            } elseif ($routingRule->action === 'delete' || $routingRule->action === 'Trash') {
                                 $targetFolder = 'Trash';
-                            } elseif ($routingRule->action === 'archive') {
+                            } elseif ($routingRule->action === 'archive' || $routingRule->action === 'Archive') {
                                 $targetFolder = 'Archive';
                             } else {
                                 $cleanFolder = mb_substr(preg_replace('/[\x00-\x1F\x7F\/\\\\]/', '', str_replace('..', '', trim((string) $routingRule->action))), 0, 64);
                                 $targetFolder = $cleanFolder !== '' ? $cleanFolder : 'INBOX';
+                                if (!in_array($targetFolder, ['INBOX', 'Sent', 'Drafts', 'Junk', 'Trash', 'Archive'], true)) {
+                                    \App\Models\Management\Mail\MailFolder::firstOrCreate([
+                                        'mail_account_id' => $account->id,
+                                        'name' => $targetFolder,
+                                    ]);
+                                }
                             }
                         }
 
@@ -231,6 +252,12 @@ class FetchMailsCommand extends Command
             }
         }
 
+        try {
+            app(\App\Services\Management\MailAiSortService::class)->purgeExpiredTrashMessages();
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
         return $failedAccounts > 0 ? self::FAILURE : self::SUCCESS;
     }
 
@@ -253,6 +280,42 @@ class FetchMailsCommand extends Command
         $bodyHtml = preg_replace('/\b(href|src|action|formaction|xlink:href)\s*=\s*(["\']?)\s*(?:javascript|vbscript|data\s*:\s*(?:text\/html|image\/svg\+xml|application\/xhtml\+xml))[^"\'>\s]*/i', '$1=$2#', $bodyHtml);
 
         return $bodyHtml;
+    }
+
+    public static function extractCleanPlainText(?string $plain, ?string $html): ?string
+    {
+        $fromHtml = '';
+        if ($html !== null && trim($html) !== '') {
+            $s = $html;
+            $s = preg_replace('/<(head|style|script|xml|title|noscript|svg)\b[^>]*>.*?<\/\1>/is', '', $s);
+            $s = preg_replace('/<!--.*?-->/s', '', $s);
+            $s = preg_replace('/<([a-z0-9]+)\b[^>]*style\s*=\s*["\'][^"\']*(?:display\s*:\s*none|visibility\s*:\s*hidden|font-size\s*:\s*0(?:px|pt|em|rem|%)?|line-height\s*:\s*0(?:px|pt|em|rem|%)?|max-height\s*:\s*0(?:px)?|mso-hide\s*:\s*all)[^"\']*["\'][^>]*>.*?<\/\1>/is', '', $s);
+            $s = preg_replace('/<br\s*\/?>/i', "\n", $s);
+            $s = preg_replace('/<hr\s*\/?>/i', "\n────────────────────────\n", $s);
+            $s = preg_replace('/<li(?:\s[^>]*)?>/i', "\n  • ", $s);
+            $s = preg_replace('/<\/li>/i', "\n", $s);
+            $s = preg_replace('/<\/?(p|div|tr|h[1-6]|table|blockquote|section|article|header|footer)(?:\s[^>]*)?>/i', "\n\n", $s);
+            $s = preg_replace('/<\/(td|th)>/i', '  ', $s);
+            $s = strip_tags($s);
+            $s = html_entity_decode(html_entity_decode($s, ENT_QUOTES | ENT_HTML5, 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $s = preg_replace('/[\x{200B}-\x{200D}\x{FEFF}\x{00AD}\x{034F}\x{2060}]+/u', '', $s);
+            $s = str_replace("\xC2\xA0", ' ', $s);
+            $lines = array_map(fn($l) => trim(preg_replace('/[ \t]+/', ' ', $l)), explode("\n", str_replace(["\r\n", "\r"], "\n", $s)));
+            $fromHtml = trim(preg_replace('/\n{3,}/', "\n\n", implode("\n", $lines)));
+        }
+
+        $fromPlain = trim((string) $plain);
+        if ($fromPlain !== '') {
+            $fromPlain = preg_replace('/^\s*(?:[.#@a-zA-Z0-9_:,\-\s\[\]\*>+]+\{[^{}]*\}\s*)+/m', '', $fromPlain);
+            $fromPlain = html_entity_decode(html_entity_decode($fromPlain, ENT_QUOTES | ENT_HTML5, 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $fromPlain = trim($fromPlain);
+        }
+
+        if ($fromHtml !== '') {
+            return $fromHtml;
+        }
+
+        return $fromPlain !== '' ? $fromPlain : null;
     }
 
     public static function sanitizeAttachmentFilename(string $filename, ?string $rawExtension = null): string

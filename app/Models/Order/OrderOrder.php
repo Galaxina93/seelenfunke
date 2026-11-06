@@ -227,6 +227,37 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
         return $this->belongsTo(Customer::class, 'customer_id')->withTrashed();
     }
 
+    public function sampleInfluencer()
+    {
+        return $this->hasOne(\App\Models\Marketing\MarketingInfluencer::class, 'sample_order_id')->withTrashed();
+    }
+
+    public function getIsInfluencerOrderAttribute(): bool
+    {
+        $couponCode = strtoupper(trim((string) $this->coupon_code));
+        if ($couponCode !== '' && str_starts_with($couponCode, 'SAMPLE-')) {
+            return true;
+        }
+
+        if ($this->relationLoaded('sampleInfluencer')) {
+            if ($this->sampleInfluencer !== null) {
+                return true;
+            }
+        } elseif ($this->sampleInfluencer()->exists()) {
+            return true;
+        }
+
+        $email = strtolower(trim((string) $this->email));
+        if ($email !== '' && \Illuminate\Support\Facades\Schema::hasTable('employees')) {
+            return \App\Models\Employee\Employee::withTrashed()
+                ->where('role', 'influencer')
+                ->whereRaw('LOWER(email) = ?', [$email])
+                ->exists();
+        }
+
+        return false;
+    }
+
     public function getStatusColorAttribute()
     {
         return match($this->status) {
@@ -558,6 +589,12 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
                             throw new \RuntimeException('Der verwendete Rabattcode ist nicht mehr gültig.');
                         }
                         $mv->increment('used_count');
+
+                        if ($mv->isInfluencerSample() && !empty($mv->influencer_id)) {
+                            $mv->update(['is_active' => false]);
+                            \App\Models\Marketing\MarketingInfluencer::where('id', $mv->influencer_id)
+                                ->update(['sample_order_id' => $order->id]);
+                        }
                     }
                 }
             }
@@ -867,6 +904,12 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
         $mv = \App\Models\Marketing\MarketingVoucher::where('code', $this->coupon_code)->first();
         if ($mv && $mv->used_count > 0) {
             $mv->decrement('used_count');
+            if ($mv->isInfluencerSample() && !empty($mv->influencer_id)) {
+                $mv->update(['is_active' => true]);
+                \App\Models\Marketing\MarketingInfluencer::where('id', $mv->influencer_id)
+                    ->where('sample_order_id', $this->id)
+                    ->update(['sample_order_id' => null]);
+            }
             \Illuminate\Support\Facades\Log::info("Rabattcode-Zähler für {$mv->code} nach Storno von Order {$this->order_number} zurückgesetzt.");
         }
     }

@@ -346,7 +346,7 @@
                     || in_array($model->type ?? '', ['cancellation', 'credit_note'], true)
                 );
             @endphp
-            <div class="pt-3 mt-3 border-t {{ $dividerClass }} flex items-center justify-between gap-2 text-xs">
+            <div class="pt-3 mt-3 border-t {{ $dividerClass }} flex flex-wrap items-center justify-between gap-2 text-xs">
                 @if($isCancelledOrRefundedModel)
                     <span class="flex items-center gap-1.5 font-bold text-rose-600 dark:text-rose-400">
                         <span>✨</span>
@@ -358,7 +358,7 @@
                 @else
                     <span class="flex items-center gap-1.5 font-bold {{ $isDark || $isAdaptive ? 'text-amber-600 dark:text-[#f5dca0]' : 'text-amber-800' }}">
                         <span>✨</span>
-                        <span>Seelenfunken Treue-Bonus (100&nbsp;%):</span>
+                        <span>Treue-Bonus:</span>
                     </span>
                     <span class="px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-[#C5A059]/40 font-mono font-black {{ $isDark || $isAdaptive ? 'text-amber-700 dark:text-[#f5dca0]' : 'text-amber-900' }} whitespace-nowrap">
                         +{{ number_format($data['bonus_sparks'], 0, ',', '.') }} ✨ Funken

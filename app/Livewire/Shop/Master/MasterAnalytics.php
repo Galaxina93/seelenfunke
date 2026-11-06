@@ -404,16 +404,22 @@ class MasterAnalytics extends Component
         }
 
         $this->loadSettings();
-        $this->loadStats($service);
-        $this->systemHealth = [
-            'database' => ['status' => 'checking', 'value' => '...', 'error' => null],
 
-            'stripe' => ['status' => 'checking', 'value' => '...', 'error' => null],
-            'smtp' => ['status' => 'checking', 'value' => '...', 'error' => null],
-            'redis' => ['status' => 'checking', 'value' => '...', 'error' => null],
-            'queue' => ['status' => 'checking', 'value' => '...', 'error' => null, 'pending' => 0, 'failed' => 0],
-            'telephony' => ['status' => 'checking', 'value' => '...', 'error' => null],
-        ];
+        $cachedHealth = Cache::get('master_analytics_system_health_cache');
+        if (is_array($cachedHealth) && !empty($cachedHealth)) {
+            $this->systemHealth = $cachedHealth;
+        } else {
+            $this->systemHealth = [
+                'database' => ['status' => 'checking', 'value' => '...', 'error' => null],
+                'stripe' => ['status' => 'checking', 'value' => '...', 'error' => null],
+                'smtp' => ['status' => 'checking', 'value' => '...', 'error' => null],
+                'redis' => ['status' => 'checking', 'value' => '...', 'error' => null],
+                'queue' => ['status' => 'checking', 'value' => '...', 'error' => null, 'pending' => 0, 'failed' => 0],
+                'telephony' => ['status' => 'checking', 'value' => '...', 'error' => null],
+            ];
+        }
+
+        $this->loadStats($service);
     }
 
     /**
@@ -471,8 +477,13 @@ class MasterAnalytics extends Component
         }
     }
 
-    public function checkSystemHealth()
+    public function checkSystemHealth(bool $force = false)
     {
+        if (!$force && Cache::has('master_analytics_system_health_fresh') && Cache::has('master_analytics_system_health_cache')) {
+            $this->skipRender();
+            return;
+        }
+
         $health = [];
 
         // 1. Datenbank Check
@@ -932,6 +943,8 @@ class MasterAnalytics extends Component
         }
 
         $this->systemHealth = $health;
+        Cache::put('master_analytics_system_health_cache', $health, now()->addMinutes(5));
+        Cache::put('master_analytics_system_health_fresh', true, now()->addSeconds(90));
         $this->loadStats(app(AnalyticsService::class));
     }
 
@@ -1013,6 +1026,7 @@ class MasterAnalytics extends Component
     {
         $this->focusMode = $state;
         $this->saveSettings();
+        $this->skipRender();
     }
 
     public function toggleFocusMode(): void
@@ -1774,7 +1788,7 @@ class MasterAnalytics extends Component
         }
 
         sleep(1);
-        $this->checkSystemHealth();
+        $this->checkSystemHealth(true);
         $this->js('setTimeout(() => window.location.reload(), 2500)');
     }
 
@@ -1792,7 +1806,7 @@ class MasterAnalytics extends Component
         // Schneller Vorab-Check, wenn das gesamte System repariert werden soll
         if (!$service) {
             $this->addRepairLog("Führe rasanten Status-Scan aus...", 'info');
-            $this->checkSystemHealth();
+            $this->checkSystemHealth(true);
         }
 
         $targets = $service ? [$service] : array_keys($this->systemHealth);
@@ -2077,7 +2091,7 @@ class MasterAnalytics extends Component
 
         // Nach einer Sekunde die System-Health neu abfragen
         sleep(1);
-        $this->checkSystemHealth();
+        $this->checkSystemHealth(true);
 
         $this->addRepairLog("Systemstatus wurde aktualisiert. Lade Ansicht neu...", 'success');
 

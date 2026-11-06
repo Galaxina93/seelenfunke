@@ -46,6 +46,9 @@ class OrderShoppingCarts extends Component
             abort(403);
         }
 
+        // Verwaiste leere Warenkorb-Hüllen (0 Artikel, älter als 1h) automatisch bereinigen
+        Cart::doesntHave('items')->where('updated_at', '<', now()->subHour())->delete();
+
         $this->cartYellowLimit = (int) shop_setting('cart_abandoned_yellow_hours', 3);
         $this->cartRedLimit = (int) shop_setting('cart_abandoned_red_hours', 24);
         $this->cartRequireConsent = filter_var(shop_setting('cart_abandoned_require_consent', true), FILTER_VALIDATE_BOOLEAN);
@@ -75,6 +78,7 @@ class OrderShoppingCarts extends Component
         );
 
         Cache::forget('global_shop_settings');
+        unset($this->carts);
         session()->flash('success', 'Warenkorb-Ampeln und Rechtssicherheits-Einstellungen erfolgreich aktualisiert.');
     }
 
@@ -231,14 +235,17 @@ class OrderShoppingCarts extends Component
     public function carts()
     {
         return Cart::with(['customer.profile', 'items.product'])
+            ->whereHas('items')
             ->when($this->search, function ($query) {
                 $escapedSearch = addcslashes((string) $this->search, '%_\\');
-                $query->where('session_id', 'like', '%' . $escapedSearch . '%')
-                    ->orWhereHas('customer', function ($q) use ($escapedSearch) {
-                        $q->where('first_name', 'like', '%' . $escapedSearch . '%')
-                          ->orWhere('last_name', 'like', '%' . $escapedSearch . '%')
-                          ->orWhere('email', 'like', '%' . $escapedSearch . '%');
-                    });
+                $query->where(function ($sub) use ($escapedSearch) {
+                    $sub->where('session_id', 'like', '%' . $escapedSearch . '%')
+                        ->orWhereHas('customer', function ($q) use ($escapedSearch) {
+                            $q->where('first_name', 'like', '%' . $escapedSearch . '%')
+                              ->orWhere('last_name', 'like', '%' . $escapedSearch . '%')
+                              ->orWhere('email', 'like', '%' . $escapedSearch . '%');
+                        });
+                });
             })
             ->orderBy('updated_at', 'desc')
             ->paginate(20);

@@ -21,9 +21,10 @@ class DatabaseSeeder extends Seeder
             AiTarifeSeeder::class,
 
             // Management
+            MailAccountSeeder::class,
             ManagementDayRoutineSeeder::class,
             ManagementContactSeeder::class,
-            // ManagementCalenderSeeder::class,
+            ManagementCalenderSeeder::class,
             ManagementTaskSeeder::class,
             ManagementShoppingListSeeder::class,
 
@@ -34,6 +35,7 @@ class DatabaseSeeder extends Seeder
             ProductCategorySeeder::class,
             ProductAttributeSeeder::class,
             ProductTemplateSeeder::class,
+            ProductIdeaSeeder::class,
 
             // Marketing
             BlogCategorySeeder::class,

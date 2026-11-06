@@ -139,9 +139,9 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                     {{-- 1. Kontakt / Allgemein --}}
-                    <div>
+                    <div class="md:col-span-2">
                         <div class="flex items-center gap-2 mb-1.5 ml-1">
-                            <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500">Kontakt / Allgemein *</label>
+                            <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500">Zentrale E-Mail-Adresse (Kontakt, Impressum, Rechnungen & System) *</label>
                             <div x-data="{show: false}" class="relative inline-block" @click.stop>
                                 <button @mouseenter="show = true" @mouseleave="show = false" type="button" class="text-gray-500 hover:text-[var(--theme-color)] transition-colors">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
@@ -151,51 +151,6 @@
                         </div>
                         <input type="email" wire:model.blur="settings.owner_email" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl px-4 py-3 text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] outline-none shadow-sm dark:shadow-inner transition-all placeholder:text-gray-400 dark:placeholder:text-gray-600">
                         @error('settings.owner_email') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
-                    </div>
-
-                    {{-- 2. Impressum --}}
-                    <div>
-                        <div class="flex items-center gap-2 mb-1.5 ml-1">
-                            <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500">Impressum & Rechtliches</label>
-                            <div x-data="{show: false}" class="relative inline-block" @click.stop>
-                                <button @mouseenter="show = true" @mouseleave="show = false" type="button" class="text-gray-500 hover:text-[var(--theme-color)] transition-colors">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
-                                </button>
-                                <div x-show="show" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-3 bg-gray-900 border border-gray-700 text-gray-300 text-[10px] rounded-xl shadow-2xl z-50 text-center font-medium">{{ $infoTexts['owner_email_impressum'] }}<div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-700"></div></div>
-                            </div>
-                        </div>
-                        <input type="email" wire:model.blur="settings.owner_email_impressum" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl px-4 py-3 text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] outline-none shadow-sm dark:shadow-inner transition-all placeholder:text-gray-400 dark:placeholder:text-gray-600">
-                        @error('settings.owner_email_impressum') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
-                    </div>
-
-                    {{-- 3. Rechnungen --}}
-                    <div>
-                        <div class="flex items-center gap-2 mb-1.5 ml-1">
-                            <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500">Buchhaltung & Rechnungen</label>
-                            <div x-data="{show: false}" class="relative inline-block" @click.stop>
-                                <button @mouseenter="show = true" @mouseleave="show = false" type="button" class="text-gray-500 hover:text-[var(--theme-color)] transition-colors">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
-                                </button>
-                                <div x-show="show" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-3 bg-gray-900 border border-gray-700 text-gray-300 text-[10px] rounded-xl shadow-2xl z-50 text-center font-medium">{{ $infoTexts['owner_email_invoices'] }}<div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-700"></div></div>
-                            </div>
-                        </div>
-                        <input type="email" wire:model.blur="settings.owner_email_invoices" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl px-4 py-3 text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] outline-none shadow-sm dark:shadow-inner transition-all placeholder:text-gray-400 dark:placeholder:text-gray-600">
-                        @error('settings.owner_email_invoices') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
-                    </div>
-
-                    {{-- 4. Backup --}}
-                    <div>
-                        <div class="flex items-center gap-2 mb-1.5 ml-1">
-                            <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500">System & Backups</label>
-                            <div x-data="{show: false}" class="relative inline-block" @click.stop>
-                                <button @mouseenter="show = true" @mouseleave="show = false" type="button" class="text-gray-500 hover:text-[var(--theme-color)] transition-colors">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
-                                </button>
-                                <div x-show="show" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-3 bg-gray-900 border border-gray-700 text-gray-300 text-[10px] rounded-xl shadow-2xl z-50 text-center font-medium">{{ $infoTexts['owner_email_backup'] }}<div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-700"></div></div>
-                            </div>
-                        </div>
-                        <input type="email" wire:model.blur="settings.owner_email_backup" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl px-4 py-3 text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] outline-none shadow-sm dark:shadow-inner transition-all placeholder:text-gray-400 dark:placeholder:text-gray-600">
-                        @error('settings.owner_email_backup') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
                     </div>
                 </div>
             </div>

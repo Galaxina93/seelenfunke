@@ -10,36 +10,58 @@ Route::prefix('funki/tasks')->group(function () {
 
     // --- LISTS ---
     Route::get('/lists', function () {
-        $lists = ManagementTaskList::orderBy('created_at')->get();
+        $lists = ManagementTaskList::withCount([
+            'tasks as open_count' => function ($q) {
+                $q->where('is_completed', false)->whereNull('parent_id')->where('is_archived', false);
+            },
+            'tasks as completed_count' => function ($q) {
+                $q->where('is_completed', true)->whereNull('parent_id')->where('is_archived', false);
+            }
+        ])
+            ->where('is_archived', false)
+            ->orderBy('position', 'asc')
+            ->orderBy('created_at', 'asc')
+            ->get();
         return response()->json(['success' => true, 'data' => $lists]);
     });
 
     Route::post('/lists', function (Request $request) {
         $data = $request->validate([
-            'name' => 'required|string',
-            'icon' => 'nullable|string'
+            'name' => 'required|string|max:100',
+            'icon' => 'nullable|string|max:50',
+            'color' => 'nullable|string|max:20',
         ]);
 
+        $maxPos = (int) ManagementTaskList::max('position');
         $list = ManagementTaskList::create([
-            'id' => Str::uuid(),
+            'id' => (string) Str::uuid(),
             'name' => $data['name'],
-            'icon' => $data['icon'] ?? 'bookmark',
-            'color' => '#C5A059'
+            'icon' => $data['icon'] ?? 'list-bullet',
+            'color' => $data['color'] ?? '#818CF8',
+            'position' => $maxPos + 1,
         ]);
+        $list->open_count = 0;
+        $list->completed_count = 0;
         return response()->json(['success' => true, 'data' => $list]);
     });
 
     Route::put('/lists/{id}', function (Request $request, $id) {
         $list = ManagementTaskList::findOrFail($id);
         $data = $request->validate([
-            'name' => 'required|string',
-            'icon' => 'nullable|string'
+            'name' => 'sometimes|required|string|max:100',
+            'icon' => 'nullable|string|max:50',
+            'color' => 'nullable|string|max:20',
+            'position' => 'nullable|integer',
+            'is_archived' => 'nullable|boolean',
         ]);
 
-        $list->update([
-            'name' => $data['name'],
-            'icon' => $data['icon'] ?? $list->icon
-        ]);
+        $list->update(array_filter([
+            'name' => $data['name'] ?? $list->name,
+            'icon' => array_key_exists('icon', $data) ? ($data['icon'] ?? $list->icon) : $list->icon,
+            'color' => array_key_exists('color', $data) ? ($data['color'] ?? $list->color) : $list->color,
+            'position' => array_key_exists('position', $data) ? $data['position'] : $list->position,
+            'is_archived' => array_key_exists('is_archived', $data) ? $data['is_archived'] : $list->is_archived,
+        ], fn($v) => $v !== null));
         return response()->json(['success' => true, 'data' => $list]);
     });
 
@@ -74,18 +96,46 @@ Route::prefix('funki/tasks')->group(function () {
     Route::post('/lists/{listId}/tasks', function (Request $request, $listId) {
         $data = $request->validate([
             'title' => 'required|string|max:255',
-            'priority' => 'nullable|in:niedrig,mittel,hoch'
+            'priority' => 'nullable|in:niedrig,mittel,hoch',
+            'relevant_from' => 'nullable|date',
+            'ai_plan' => 'nullable|string',
         ]);
 
-        ManagementTaskList::findOrFail($listId);
+        // Support smart list aliases ("my_day", "important", "planned", "all", "default")
+        $targetList = null;
+        if (in_array($listId, ['my_day', 'important', 'planned', 'all', 'default'], true)) {
+            $targetList = ManagementTaskList::where('name', 'Aufgaben')->first()
+                ?? ManagementTaskList::orderBy('position', 'asc')->orderBy('created_at', 'asc')->first();
+            if (!$targetList) {
+                $targetList = ManagementTaskList::create([
+                    'id' => (string) Str::uuid(),
+                    'name' => 'Aufgaben',
+                    'icon' => 'home',
+                    'color' => '#818CF8',
+                    'position' => 1,
+                ]);
+            }
+        } else {
+            $targetList = ManagementTaskList::findOrFail($listId);
+        }
+
+        $priority = $data['priority'] ?? ($listId === 'important' ? 'hoch' : 'niedrig');
+        $relevantFrom = null;
+        if (!empty($data['relevant_from'])) {
+            $relevantFrom = \Carbon\Carbon::parse($data['relevant_from'])->startOfDay();
+        } elseif (in_array($listId, ['my_day', 'planned'], true)) {
+            $relevantFrom = \Carbon\Carbon::today();
+        }
 
         $task = ManagementTask::create([
-            'id' => Str::uuid(),
-            'task_list_id' => $listId,
+            'id' => (string) Str::uuid(),
+            'task_list_id' => $targetList->id,
             'parent_id' => null,
             'title' => $data['title'],
-            'priority' => $data['priority'] ?? 'niedrig',
-            'is_completed' => false
+            'priority' => $priority,
+            'relevant_from' => $relevantFrom,
+            'ai_plan' => $data['ai_plan'] ?? null,
+            'is_completed' => false,
         ]);
 
         return response()->json(['success' => true, 'data' => $task]);
@@ -97,11 +147,18 @@ Route::prefix('funki/tasks')->group(function () {
             'title' => 'sometimes|required|string|max:255',
             'priority' => 'sometimes|in:niedrig,mittel,hoch',
             'is_completed' => 'sometimes|boolean',
-            'relevant_from' => 'nullable|date'
+            'relevant_from' => 'nullable|date',
+            'ai_plan' => 'nullable|string',
+            'task_list_id' => 'sometimes|string|exists:management_task_lists,id',
+            'position' => 'sometimes|integer',
+            'is_archived' => 'sometimes|boolean',
         ]);
         if (array_key_exists('relevant_from', $data) || $request->has('relevant_from')) {
             $relevantVal = $request->input('relevant_from');
             $data['relevant_from'] = empty($relevantVal) ? null : \Carbon\Carbon::parse($relevantVal)->startOfDay();
+        }
+        if ($request->has('ai_plan')) {
+            $data['ai_plan'] = $request->input('ai_plan');
         }
         $task->update($data);
         return response()->json(['success' => true, 'data' => $task]);

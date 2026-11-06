@@ -177,8 +177,15 @@ class EmployeeHrService
             : 'hourly';
 
         $hourlyRateCents = max(1282, (int) ($options['hourly_rate_cents'] ?? 1400)); // Mind. gesetzlicher Mindestlohn
-        $monthlyGrossCents = max(0, (int) ($options['monthly_gross_cents'] ?? 54000));
         $weeklyHours = max(1.0, min(48.0, (float) ($options['weekly_hours'] ?? 9.0)));
+        $minMonthlyGrossCents = (int) round($weeklyHours * 4.3333 * 1282);
+        $monthlyGrossCents = max(0, (int) ($options['monthly_gross_cents'] ?? 54000));
+        if ($compensationType === 'fixed_salary' && $monthlyGrossCents < $minMonthlyGrossCents) {
+            $monthlyGrossCents = $minMonthlyGrossCents;
+        }
+        if ($employmentType === 'minijob' && $monthlyGrossCents > self::MINIJOB_LIMIT_CENTS) {
+            $monthlyGrossCents = self::MINIJOB_LIMIT_CENTS;
+        }
         $vacationDays = max(0, min(60, (int) ($options['vacation_days_per_year'] ?? 20)));
         $isFixedTerm = (bool) ($options['is_fixed_term'] ?? false);
 
@@ -507,13 +514,35 @@ class EmployeeHrService
     }
 
     /**
+     * Prüft, ob ein Abrechnungsmonat bereits durch eine überwiesene Lohnabrechnung (`status === 'paid'`)
+     * nach GoBD (§ 146 Abs. 4 AO) revisionssicher abgeschlossen ist.
+     */
+    public function isPeriodLockedByPaidPayslip(string $contractId, int $year, int $month): bool
+    {
+        return EmployeePayslip::where('contract_id', $contractId)
+            ->where('period_year', $year)
+            ->where('period_month', $month)
+            ->where('status', 'paid')
+            ->exists();
+    }
+
+    /**
      * Erfasst oder aktualisiert einen Arbeitszeiteintrag nach § 17 MiLoG / § 4 ArbZG.
      */
     public function recordTimeEntry(EmployeeContract $contract, array $data): EmployeeTimeEntry
     {
-        $workDate = !empty($data['work_date']) ? Carbon::parse($data['work_date'])->toDateString() : now()->toDateString();
+        $workDateObj = !empty($data['work_date']) ? Carbon::parse($data['work_date'])->startOfDay() : now()->startOfDay();
+        $workDate = $workDateObj->toDateString();
         $rawEntryType = (string) ($data['entry_type'] ?? 'work');
         $entryType = in_array($rawEntryType, ['work', 'vacation', 'sick'], true) ? $rawEntryType : 'work';
+
+        if ($entryType === 'work' && $workDateObj->gt(now()->startOfDay())) {
+            throw new \InvalidArgumentException('Arbeitszeiten können gemäß § 17 MiLoG nicht im Voraus für zukünftige Tage gebucht werden.');
+        }
+
+        if ($this->isPeriodLockedByPaidPayslip((string) $contract->id, (int) $workDateObj->year, (int) $workDateObj->month)) {
+            throw new \InvalidArgumentException('Dieser Abrechnungsmonat wurde bereits endgültig abgerechnet und überwiesen (GoBD-Sperre).');
+        }
 
         $startTimeStr = trim((string) ($data['start_time'] ?? '09:00'));
         $endTimeStr = trim((string) ($data['end_time'] ?? '13:00'));
@@ -525,6 +554,25 @@ class EmployeeHrService
         }
 
         $grossMinutes = max(0, (int) $startedAt->diffInMinutes($endedAt));
+        if ($entryType === 'work' && $grossMinutes > 720) {
+            throw new \InvalidArgumentException('Eine einzelne Schicht darf inkl. Pausen 12 Stunden nicht überschreiten (§ 3 ArbZG).');
+        }
+
+        if ($entryType === 'work') {
+            $hasOverlap = EmployeeTimeEntry::where('contract_id', $contract->id)
+                ->where('entry_type', 'work')
+                ->whereNotIn('status', ['rejected', 'running'])
+                ->whereNotNull('started_at')
+                ->whereNotNull('ended_at')
+                ->where('started_at', '<', $endedAt)
+                ->where('ended_at', '>', $startedAt)
+                ->exists();
+
+            if ($hasOverlap) {
+                throw new \InvalidArgumentException('Zeitüberschneidung: In diesem Zeitraum existiert bereits ein gebuchter Arbeitseintrag.');
+            }
+        }
+
         $requiredBreak = $entryType === 'work' ? $this->calculateRequiredBreakMinutes($grossMinutes) : 0;
 
         $inputBreak = isset($data['break_minutes']) && $data['break_minutes'] !== ''
@@ -556,6 +604,10 @@ class EmployeeHrService
      */
     public function clockIn(EmployeeContract $contract, ?string $activityNote = null): EmployeeTimeEntry
     {
+        if ($this->isPeriodLockedByPaidPayslip((string) $contract->id, (int) now()->year, (int) now()->month)) {
+            throw new \InvalidArgumentException('Dieser Abrechnungsmonat wurde bereits endgültig abgerechnet und überwiesen (GoBD-Sperre).');
+        }
+
         $running = EmployeeTimeEntry::where('contract_id', $contract->id)
             ->where('status', 'running')
             ->first();
@@ -587,6 +639,11 @@ class EmployeeHrService
         $endedAt = now();
         $startedAt = $entry->started_at ?: $endedAt->copy()->subMinutes(60);
         $grossMinutes = max(1, (int) $startedAt->diffInMinutes($endedAt));
+        if ($grossMinutes > 645) {
+            // Schutz gegen vergessenes Ausstempeln über Nacht/Tage (§§ 3, 4 ArbZG: Deckelung auf max. 10h Netto + 45 Min. Pause = 645 Min. Brutto)
+            $endedAt = $startedAt->copy()->addMinutes(645);
+            $grossMinutes = 645;
+        }
         $requiredBreak = $this->calculateRequiredBreakMinutes($grossMinutes);
 
         $breakMinutes = $customBreakMinutes !== null
@@ -632,10 +689,14 @@ class EmployeeHrService
         $note = !empty($data['activity_note']) ? trim((string) $data['activity_note']) : $defaultNote;
         $isSingleDay = $start->isSameDay($end);
 
-        $created = [];
+        $datesToCreate = [];
         $cursor = $start->copy();
 
         while ($cursor->lessThanOrEqualTo($end)) {
+            if ($this->isPeriodLockedByPaidPayslip((string) $contract->id, (int) $cursor->year, (int) $cursor->month)) {
+                throw new \InvalidArgumentException('Dieser Abrechnungsmonat wurde bereits endgültig abgerechnet und überwiesen (GoBD-Sperre).');
+            }
+
             if (!$isSingleDay && $cursor->isWeekend()) {
                 $cursor->addDay();
                 continue;
@@ -648,22 +709,39 @@ class EmployeeHrService
                 ->first();
 
             if (!$existing) {
-                $created[] = EmployeeTimeEntry::create([
-                    'contract_id' => $contract->id,
-                    'employee_id' => $contract->employee_id,
-                    'work_date' => $dateStr,
-                    'started_at' => null,
-                    'ended_at' => null,
-                    'break_minutes' => 0,
-                    'net_minutes' => 0,
-                    'entry_type' => $entryType,
-                    'activity_note' => $note,
-                    'status' => 'pending_approval',
-                    'arbzg_compliant' => true,
-                ]);
+                $datesToCreate[] = $dateStr;
             }
 
             $cursor->addDay();
+        }
+
+        if ($entryType === 'vacation' && count($datesToCreate) > 0 && (int) $contract->vacation_days_per_year > 0) {
+            $pendingVacationCount = EmployeeTimeEntry::where('contract_id', $contract->id)
+                ->where('entry_type', 'vacation')
+                ->where('status', 'pending_approval')
+                ->count();
+            $availableVacationDays = max(0, ((int) $contract->remaining_vacation_days) - $pendingVacationCount);
+
+            if (count($datesToCreate) > $availableVacationDays) {
+                throw new \InvalidArgumentException("Das verbleibende Urlaubskontingent ({$availableVacationDays} Tage verfügbar) reicht für diesen Zeitraum nicht aus.");
+            }
+        }
+
+        $created = [];
+        foreach ($datesToCreate as $dateStr) {
+            $created[] = EmployeeTimeEntry::create([
+                'contract_id' => $contract->id,
+                'employee_id' => $contract->employee_id,
+                'work_date' => $dateStr,
+                'started_at' => null,
+                'ended_at' => null,
+                'break_minutes' => 0,
+                'net_minutes' => 0,
+                'entry_type' => $entryType,
+                'activity_note' => $note,
+                'status' => 'pending_approval',
+                'arbzg_compliant' => true,
+            ]);
         }
 
         return $created;
@@ -678,18 +756,22 @@ class EmployeeHrService
             $locked = EmployeeTimeEntry::where('id', $entry->id)->lockForUpdate()->firstOrFail();
             $wasApproved = $locked->status === 'approved';
 
-            $locked->update([
-                'status' => 'approved',
-            ]);
-
             if (!$wasApproved && $locked->entry_type === 'vacation' && $locked->contract_id) {
                 $contract = EmployeeContract::where('id', $locked->contract_id)->lockForUpdate()->first();
                 if ($contract) {
+                    if ((int) $contract->vacation_days_per_year > 0 && (int) $contract->remaining_vacation_days <= 0) {
+                        throw new \InvalidArgumentException('Das Jahresurlaubskontingent dieses Mitarbeiters ist bereits vollständig ausgeschöpft.');
+                    }
+
                     $contract->update([
                         'vacation_days_taken' => ((int) $contract->vacation_days_taken) + 1,
                     ]);
                 }
             }
+
+            $locked->update([
+                'status' => 'approved',
+            ]);
 
             return $locked->fresh();
         });
@@ -704,6 +786,10 @@ class EmployeeHrService
             $locked = EmployeeTimeEntry::where('id', $entry->id)->lockForUpdate()->first();
             if (!$locked) {
                 return;
+            }
+
+            if ($locked->contract_id && $locked->work_date && $this->isPeriodLockedByPaidPayslip((string) $locked->contract_id, (int) $locked->work_date->year, (int) $locked->work_date->month)) {
+                throw new \InvalidArgumentException('Dieser Abrechnungsmonat wurde bereits endgültig abgerechnet und überwiesen (GoBD-Sperre).');
             }
 
             if ($locked->status === 'approved' && $locked->entry_type === 'vacation' && $locked->contract_id) {
@@ -727,7 +813,7 @@ class EmployeeHrService
         $entries = EmployeeTimeEntry::where('contract_id', $contract->id)
             ->whereYear('work_date', $year)
             ->whereMonth('work_date', $month)
-            ->where('status', '!=', 'running')
+            ->whereNotIn('status', ['running', 'rejected'])
             ->orderByDesc('work_date')
             ->orderByDesc('started_at')
             ->get();
@@ -840,6 +926,10 @@ class EmployeeHrService
                 ->where('period_month', $month)
                 ->lockForUpdate()
                 ->first();
+
+            if ($existing && $existing->status === 'paid') {
+                throw new \InvalidArgumentException('Diese Lohnabrechnung wurde bereits endgültig als überwiesen verbucht und ist GoBD-revisionssicher gesperrt.');
+            }
 
             $employee = $contract->employee;
             $profile = $employee?->profile;
@@ -1054,6 +1144,18 @@ class EmployeeHrService
     public function generateAndStoreTimesheetPdf(EmployeeContract $contract, int $year, int $month, ?EmployeePayslip $payslip = null): ?string
     {
         try {
+            $paidPayslip = ($payslip && $payslip->status === 'paid')
+                ? $payslip
+                : EmployeePayslip::where('contract_id', $contract->id)
+                    ->where('period_year', $year)
+                    ->where('period_month', $month)
+                    ->where('status', 'paid')
+                    ->first();
+
+            if ($paidPayslip && !empty($paidPayslip->timesheet_pdf_path) && Storage::disk('local')->exists((string) $paidPayslip->timesheet_pdf_path)) {
+                return (string) $paidPayslip->timesheet_pdf_path;
+            }
+
             $contract->loadMissing('employee.profile');
             $stats = $this->getMonthlyStats($contract, $year, $month);
 
@@ -1090,6 +1192,10 @@ class EmployeeHrService
     public function generateAndStorePayslipPdf(EmployeePayslip $payslip): ?string
     {
         try {
+            if ($payslip->status === 'paid' && !empty($payslip->pdf_path) && Storage::disk('local')->exists((string) $payslip->pdf_path)) {
+                return (string) $payslip->pdf_path;
+            }
+
             $payslip->loadMissing('contract.employee.profile');
             $contract = $payslip->contract;
 

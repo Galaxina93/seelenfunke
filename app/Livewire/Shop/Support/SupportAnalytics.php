@@ -117,8 +117,8 @@ class SupportAnalytics extends Component
         $volData = [];
         foreach ($volLabelsMap as $gDate => $count) {
             $volLabels[] = $groupByFormat === 'Y-m' 
-                ? Carbon::createFromFormat('Y-m', $gDate)->locale('de')->shortMonthName . ' ' . substr($gDate, 0, 4)
-                : Carbon::createFromFormat('Y-m-d', $gDate)->format('d.m.y');
+                ? Carbon::createFromFormat('!Y-m', $gDate)->locale('de')->shortMonthName . ' ' . substr($gDate, 0, 4)
+                : Carbon::createFromFormat('!Y-m-d', $gDate)->format('d.m.y');
             $volData[] = $count;
         }
         $this->volumeData = ['labels' => $volLabels, 'data' => $volData];

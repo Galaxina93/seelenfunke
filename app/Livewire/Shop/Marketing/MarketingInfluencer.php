@@ -35,6 +35,7 @@ class MarketingInfluencer extends Component
     public string $inviteLabel = '';
     public int $inviteCommissionValue = 15;
     public int $inviteFollowerDiscount = 10;
+    public bool $inviteSampleGranted = true;
 
     // Configuration Modal State (Edit / Configure Influencer)
     public bool $showConfigModal = false;
@@ -55,6 +56,8 @@ class MarketingInfluencer extends Component
     public string $customVoucherCode = '';
     public bool $autoCreateTrackingLink = true;
     public bool $autoCreateVoucher = true;
+    public bool $sampleGranted = true;
+    public ?array $editingSampleDetails = null;
     public bool $isActive = true;
     public string $internalNotes = '';
 
@@ -93,6 +96,7 @@ class MarketingInfluencer extends Component
             'invitation_label' => $this->inviteLabel !== '' ? $this->inviteLabel : null,
             'commission_value' => $this->inviteCommissionValue,
             'follower_discount_percent' => $this->inviteFollowerDiscount,
+            'sample_granted' => $this->inviteSampleGranted,
         ]);
 
         $this->openInviteModal($slot->id);
@@ -109,6 +113,7 @@ class MarketingInfluencer extends Component
         $this->inviteLabel = (string) ($slot->invitation_label ?? '');
         $this->inviteCommissionValue = (int) $slot->commission_value;
         $this->inviteFollowerDiscount = (int) $slot->follower_discount_percent;
+        $this->inviteSampleGranted = (bool) $slot->sample_granted;
         $this->showInviteModal = true;
     }
 
@@ -129,6 +134,7 @@ class MarketingInfluencer extends Component
             'invitation_label' => trim($this->inviteLabel) !== '' ? trim($this->inviteLabel) : $slot->invitation_label,
             'commission_value' => max(1, min(80, (int) $this->inviteCommissionValue)),
             'follower_discount_percent' => max(0, min(50, (int) $this->inviteFollowerDiscount)),
+            'sample_granted' => (bool) $this->inviteSampleGranted,
         ]);
 
         session()->flash('influencer_saved', 'Konditionen der Einladung wurden aktualisiert.');
@@ -162,6 +168,8 @@ class MarketingInfluencer extends Component
         $this->customVoucherCode = '';
         $this->autoCreateTrackingLink = true;
         $this->autoCreateVoucher = true;
+        $this->sampleGranted = true;
+        $this->editingSampleDetails = null;
         $this->isActive = true;
         $this->internalNotes = '';
     }
@@ -169,7 +177,7 @@ class MarketingInfluencer extends Component
     public function editInfluencer(string $id): void
     {
         $this->resetValidation();
-        $inf = MarketingInfluencerModel::with(['employee', 'defaultVoucher'])->findOrFail($id);
+        $inf = MarketingInfluencerModel::with(['employee', 'defaultVoucher', 'sampleVoucher', 'sampleOrder'])->findOrFail($id);
 
         $this->editingInfluencerId = $inf->id;
         $this->firstName = (string) ($inf->employee?->first_name ?? '');
@@ -184,6 +192,19 @@ class MarketingInfluencer extends Component
         $this->followerDiscountPercent = (int) $inf->follower_discount_percent;
         $this->cookieDays = (int) $inf->cookie_days;
         $this->customVoucherCode = (string) ($inf->defaultVoucher?->code ?? '');
+        $this->sampleGranted = (bool) $inf->sample_granted;
+        $this->editingSampleDetails = [
+            'status' => $inf->sample_status,
+            'voucher_code' => $inf->sampleVoucher?->code,
+            'order_number' => $inf->sampleOrder?->order_number,
+            'order_status' => $inf->sampleOrder?->status,
+            'terms_accepted_at' => $inf->sample_terms_accepted_at?->format('d.m.Y H:i'),
+            'post_url' => $inf->sample_post_url,
+            'posted_at' => $inf->sample_posted_at?->format('d.m.Y H:i'),
+            'verified_at' => $inf->sample_post_verified_at?->format('d.m.Y H:i'),
+            'configurator_rating' => $inf->sample_configurator_rating,
+            'configurator_feedback' => $inf->sample_configurator_feedback,
+        ];
         $this->isActive = (bool) $inf->is_active;
         $this->internalNotes = (string) ($inf->internal_notes ?? '');
         $this->showConfigModal = true;
@@ -207,10 +228,12 @@ class MarketingInfluencer extends Component
         }
 
         $existingEmployeeId = null;
+        $existingVoucherId = null;
         $isPendingSlot = false;
         if ($this->editingInfluencerId) {
             $existingInf = MarketingInfluencerModel::find($this->editingInfluencerId);
             $existingEmployeeId = $existingInf?->employee_id;
+            $existingVoucherId = $existingInf?->default_voucher_id;
             $isPendingSlot = $existingInf && $existingInf->is_pending_invitation;
         }
 
@@ -222,6 +245,17 @@ class MarketingInfluencer extends Component
             'commissionValue' => 'required|integer|min:1|max:' . $maxCommission,
             'followerDiscountPercent' => 'required|integer|min:0|max:50',
             'cookieDays' => 'required|integer|min:1|max:90',
+            'customVoucherCode' => [
+                'nullable',
+                'string',
+                'max:40',
+                function ($attribute, $value, $fail) use ($service, $existingVoucherId) {
+                    $clean = strtoupper(preg_replace('/[^A-Za-z0-9\-]/', '', trim((string) $value)));
+                    if ($clean !== '' && $service->isReservedOrCollidingVoucherCode($clean, $existingVoucherId)) {
+                        $fail('Dieser Gutscheincode ist bereits vergeben oder verwendet ein reserviertes System-Präfix.');
+                    }
+                },
+            ],
         ];
 
         if (!$isPendingSlot) {
@@ -268,6 +302,7 @@ class MarketingInfluencer extends Component
             'custom_voucher_code' => $this->customVoucherCode,
             'auto_create_tracking_link' => $this->autoCreateTrackingLink,
             'auto_create_voucher' => $this->autoCreateVoucher,
+            'sample_granted' => $this->sampleGranted,
             'is_active' => $this->isActive,
             'internal_notes' => $this->internalNotes,
         ], $this->editingInfluencerId);
@@ -279,6 +314,30 @@ class MarketingInfluencer extends Component
                 ? 'Influencer-Konfiguration erfolgreich gespeichert!'
                 : 'Influencer erfolgreich angelegt!'
         );
+    }
+
+    public function grantNewSample(string $id, InfluencerService $service): void
+    {
+        $inf = MarketingInfluencerModel::findOrFail($id);
+        $service->grantNewSampleToInfluencer($inf);
+
+        if ($this->showConfigModal && $this->editingInfluencerId === $id) {
+            $this->editInfluencer($id);
+        }
+
+        session()->flash('influencer_saved', 'Neues 100 % Gratis-Muster für diesen Creator freigeschaltet!');
+    }
+
+    public function verifySamplePost(string $id, InfluencerService $service): void
+    {
+        $inf = MarketingInfluencerModel::findOrFail($id);
+        $service->verifySamplePostProof($inf);
+
+        if ($this->showConfigModal && $this->editingInfluencerId === $id) {
+            $this->editInfluencer($id);
+        }
+
+        session()->flash('influencer_saved', 'Verlinkungs-Nachweis als geprüft bestätigt!');
     }
 
     public function regenerateInvitationLink(string $id, InfluencerService $service): void
@@ -418,7 +477,14 @@ class MarketingInfluencer extends Component
     public function confirmPayoutPaid(string $payoutId, InfluencerService $service): void
     {
         $payout = MarketingInfluencerPayout::findOrFail($payoutId);
-        $updated = $service->markPayoutAsPaid($payout, (string) Auth::guard('admin')->id());
+
+        try {
+            $updated = $service->markPayoutAsPaid($payout, (string) Auth::guard('admin')->id());
+        } catch (\InvalidArgumentException $e) {
+            $this->closePayoutModal();
+            session()->flash('influencer_error', $e->getMessage());
+            return;
+        }
 
         if ($this->showPayoutModal && $this->selectedPayoutId === $payoutId) {
             $this->openPayoutModal($updated->id, $service);
@@ -452,6 +518,8 @@ class MarketingInfluencer extends Component
         $query = MarketingInfluencerModel::with([
             'employee.profile',
             'defaultVoucher',
+            'sampleVoucher',
+            'sampleOrder',
             'defaultTrackingLink',
             'trackingLinks',
             'commissions',

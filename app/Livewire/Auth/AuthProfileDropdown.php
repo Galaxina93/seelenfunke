@@ -108,7 +108,8 @@ class AuthProfileDropdown extends Component
             abort(403);
         }
 
-        $this->allowThemeSwitch = $allowThemeSwitch ?? in_array($this->guard, ['admin', 'employee'], true);
+        $isInfluencer = ($this->guard === 'employee' && method_exists($this->user, 'isInfluencer') && $this->user->isInfluencer());
+        $this->allowThemeSwitch = $isInfluencer ? false : ($allowThemeSwitch ?? in_array($this->guard, ['admin', 'employee'], true));
 
         $this->mountUserProfileData();
         $this->country = $this->user->profile->country ?? 'DE';

@@ -142,6 +142,9 @@ class AppServiceProvider extends ServiceProvider
             'ai_tool' => 'App\Models\Ai\AiTool',
             'supplier' => 'App\Models\Product\ProductSupplier',
             'product_supplier' => 'App\Models\Product\ProductSupplier',
+            'product_idea' => 'App\Models\Product\ProductIdea',
+            'product_packaging_item' => 'App\Models\Product\ProductPackagingItem',
+            'product_template' => 'App\Models\Product\ProductTemplate',
             'ai-department' => 'App\Models\Ai\AiDepartment',
 
             'management_mission' => 'App\Models\Management\ManagementMission',
@@ -247,7 +250,7 @@ class AppServiceProvider extends ServiceProvider
                         Config::set('services.stripe.webhook_secret', $settings['stripe_webhook_secret']);
                     }
 
-                    $backupMail = $settings['owner_email_backup'] ?? $settings['owner_email'] ?? $settings['company_email'] ?? null;
+                    $backupMail = $settings['owner_email'] ?? $settings['company_email'] ?? null;
                     if (!empty($backupMail)) {
                         Config::set('backup.notifications.mail.to', $backupMail);
                     }

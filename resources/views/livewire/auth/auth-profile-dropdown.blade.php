@@ -59,7 +59,7 @@
 
     <div class="w-px h-6 lg:h-7 xl:h-8 bg-gray-200 dark:bg-gray-800 mx-0.5 sm:mx-1 shrink-0 snap-start"></div>
 
-    <button wire:click="logout" class="flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 lg:w-14 lg:h-14 xl:w-16 xl:h-16 2xl:w-[4.5rem] 2xl:h-[4.5rem] rounded-xl bg-red-500/5 border border-transparent hover:border-red-500/30 text-gray-500 hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-400 transition-all shadow-none dark:hover:shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:scale-105 group shrink-0 snap-start" @mouseenter="window.spawnSparks ? window.spawnSparks($event) : null">
+    <button type="button" @click.prevent="window.sfRunPortalThen ? window.sfRunPortalThen(() => $wire.logout(), 'logout') : $wire.logout()" class="flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 lg:w-14 lg:h-14 xl:w-16 xl:h-16 2xl:w-[4.5rem] 2xl:h-[4.5rem] rounded-xl bg-red-500/5 border border-transparent hover:border-red-500/30 text-gray-500 hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-400 transition-all shadow-none dark:hover:shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:scale-105 group shrink-0 snap-start" @mouseenter="window.spawnSparks ? window.spawnSparks($event) : null">
         <span class="text-[8px] xl:text-[9px] 2xl:text-[10px] font-black uppercase tracking-widest mb-0.5 xl:mb-1 opacity-70 group-hover:opacity-100 group-hover:text-red-500 dark:group-hover:text-red-400 transition-colors">Logout</span>
         <x-heroicon-s-power class="w-5 h-5 xl:w-6 xl:h-6 group-hover:rotate-12 group-active:scale-90 transition-transform duration-300" />
     </button>

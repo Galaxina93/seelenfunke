@@ -167,6 +167,8 @@
       @notify.window="showNotifyToast($event.detail)"
       class="bg-slate-50 dark:bg-gray-950 text-gray-900 dark:text-white flex flex-col h-screen overflow-hidden selection:bg-primary selection:text-gray-900 font-sans relative transition-colors duration-300">
 
+@include('frontend.partials.page_transition_portal')
+
 {{-- HINTERGRUND UNIVERSUM --}}
 <div x-data="goldDust()" x-init="init()" class="fixed inset-0 z-0 pointer-events-none opacity-40 dark:opacity-60">
     <canvas id="gold-dust-canvas" class="w-full h-full"></canvas>

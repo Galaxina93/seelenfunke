@@ -212,6 +212,22 @@ try {
             }
         }
     }
+    // Ausfallsicherer Fallback für DHL Sendungsstatus & Auto-Zustellung (nur falls noch nicht in system_cronjobs hinterlegt)
+    if ((!isset($dhlDeliveryStatusRegistered) || !$dhlDeliveryStatusRegistered)
+        && (!Schema::hasTable('system_cronjobs') || !SystemCronjob::where('command', 'dhl:check-delivery-status')->exists())) {
+        Schedule::command('dhl:check-delivery-status')
+            ->cron('0 8-20/2 * * *')
+            ->withoutOverlapping()
+            ->runInBackground();
+    }
+
+    // Ausfallsicherer Fallback für Seelenfunken-Geburtstags- & Jahrestags-Bonus (nur falls noch nicht in system_cronjobs hinterlegt)
+    if ((!isset($loyaltySparksRegistered) || !$loyaltySparksRegistered)
+        && (!Schema::hasTable('system_cronjobs') || !SystemCronjob::where('command', 'gamification:award-loyalty-sparks')->exists())) {
+        Schedule::command('gamification:award-loyalty-sparks')
+            ->dailyAt('08:15')
+            ->withoutOverlapping();
+    }
 } catch (\Throwable $e) {
     // Fange DB-Verbindungsfehler oder ähnliche globale Ausnahmen ab
     try {
@@ -241,23 +257,6 @@ try {
 // Stellt sicher, dass das Lebenszeichen immer geschrieben wird, falls in der DB noch kein Job angelegt oder aktiv ist
 if (!isset($heartbeatRegistered) || !$heartbeatRegistered) {
     Schedule::command('system:heartbeat')->everyMinute();
-}
-
-// Ausfallsicherer Fallback für DHL Sendungsstatus & Auto-Zustellung (nur falls noch nicht in system_cronjobs hinterlegt)
-if ((!isset($dhlDeliveryStatusRegistered) || !$dhlDeliveryStatusRegistered)
-    && (!Schema::hasTable('system_cronjobs') || !SystemCronjob::where('command', 'dhl:check-delivery-status')->exists())) {
-    Schedule::command('dhl:check-delivery-status')
-        ->cron('0 8-20/2 * * *')
-        ->withoutOverlapping()
-        ->runInBackground();
-}
-
-// Ausfallsicherer Fallback für Seelenfunken-Geburtstags- & Jahrestags-Bonus (nur falls noch nicht in system_cronjobs hinterlegt)
-if ((!isset($loyaltySparksRegistered) || !$loyaltySparksRegistered)
-    && (!Schema::hasTable('system_cronjobs') || !SystemCronjob::where('command', 'gamification:award-loyalty-sparks')->exists())) {
-    Schedule::command('gamification:award-loyalty-sparks')
-        ->dailyAt('08:15')
-        ->withoutOverlapping();
 }
 
 Artisan::command('workspace:dateitrichter {--all : Verarbeitet alle Dokumente im gesamten Workspace}', function () {

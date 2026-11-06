@@ -113,7 +113,14 @@
 
                 {{-- SPALTE 3: KUNDE --}}
                 <td class="px-6 {{ $hasItems ? 'pt-5 pb-2.5' : 'py-5' }} align-middle">
-                    <div class="font-bold text-gray-900 dark:text-white truncate max-w-[200px]">{{ $order->customer_name }}</div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="font-bold text-gray-900 dark:text-white truncate max-w-[200px]">{{ $order->customer_name }}</span>
+                        @if($order->is_influencer_order)
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] shrink-0">
+                                Influencer
+                            </span>
+                        @endif
+                    </div>
                     <div class="text-[11px] text-gray-500 truncate max-w-[200px]">{{ $order->email }}</div>
                 </td>
 
@@ -323,7 +330,14 @@
 
                     <div class="flex justify-between items-end">
                         <div class="flex-1 min-w-0 pr-4">
-                            <div class="text-sm font-bold text-gray-900 dark:text-white truncate">{{ $order->customer_name }}</div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-sm font-bold text-gray-900 dark:text-white truncate">{{ $order->customer_name }}</span>
+                                @if($order->is_influencer_order)
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] shrink-0">
+                                        Influencer
+                                    </span>
+                                @endif
+                            </div>
                             <div class="text-[10px] font-medium text-gray-500 mt-0.5 mb-2">{{ $order->created_at->format('d.m.Y') }}</div>
 
                             <div class="flex items-center gap-2">

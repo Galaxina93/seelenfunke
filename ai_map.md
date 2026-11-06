@@ -1,361 +1,113 @@
-# Seelenfunke System-Architektur & AI Map
+# Seelenfunke System-Architektur & AI Map (`ai_map.md`)
+> Generiert via `php artisan ai:generate-map` (2026-11-06 01:59)
 
-> Automatisch generiert am 2026-10-29 10:47:49
+## 1. Ökosystem-Pfade & Umgebungen
+- **Hauptportal (`Mein-Seelenfunke`)**: Win-UNC `\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke` | WSL `/home/ubuntuxina/meine-projekte/seelenfunke` (Docker PHP: `mein_php_server`) | Lokal `http://127.0.0.1` (`http://seelenfunke.test`) | Stage `https://stage.mein-seelenfunke.de` | Live `https://mein-seelenfunke.de`
+- **Funkenwerk Windows Desktop Suite (C#/WPF/.NET 8)**: `\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke\funkenwerk` (`MainWindow.xaml.cs`, `CameraStudioEngine.cs`, `SmartHomeEngine.cs`, `MarketingEngine.cs`, `funkenwerk_dlc_bridge.py`) + KI-Face-Swap `C:\Users\konta\Documents\Deep-Live-Cam`
+- **Funkenwerk Android App & Widgets (Kotlin/Compose)**: `\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke\android-app` (Mirror: `C:\Users\konta\AndroidStudioProjects\seelenfunke-android`)
+- **Dokumentation & Belege**: `Abschlussberichte/` (`README.md`, `<Abteilung>/`, `Workflows/`, `Konzepte/`) | Belege: `storage/app/buchhaltung/receipts/` & `contracts/`
 
-Diese Datei dient als Index für die Seelenfunke-Codebase, um KI-Agenten die Orientierung zu erleichtern.
+## 2. Zentrales Routen- & Begriffs-Mapping (`routes/partials/*.php`)
+- **Kommandozentrale / Operativer Status / To-Do Liste**: `/admin/dashboard` -> `Shop\Master\MasterAnalytics` & `Shop\Management\ManagementTask`
+- **Buchhaltung (`Shop\Accounting\*`, Seeder: `AccountingSeeder.php`)**:
+  - Sonderausgaben / Einkäufe: `/admin/financial-variable-costs` -> `AccountingVariableCosts` (`AccountingSpecialIssue`)
+  - Fixkosten / Verträge / Versicherungen: `/admin/financial-fix-costs` -> `AccountingFixCosts` (`AccountingCostItem`, `AccountingGroup`)
+  - Rechnungen / Gutschriften / Bank / Steuer-Export / Analyse: `/admin/financial-invoices` (`AccountingInvoice`, `AccountingCredit`), `/admin/financial-banks` (`AccountingBank`), `/admin/financial-tax-exports` (`AccountingTax`, `TaxAdvisorDashboard`), `/admin/financial-analytics` (`AccountingAnalytics`, `AccountingLiquidity`)
+- **Produkte, Konfigurator, Verpackung & Lieferanten (`Shop\Product\*`, Seeder: `Product*Seeder.php`)**:
+  - Produkte / Varianten / Kalkulator: `/admin/products` -> `ProductCreate`, `ProductShow`, `ProductVariants`, `ProductCalculator`
+  - 2D/3D-Konfigurator: `Shop\Product\ProductConfigurator\ProductConfigurator` (`resources/views/livewire/shop/product/product-configurator/`)
+  - Verpackungs-Kalkulator: `/admin/packaging` (`ProductPackagingConfigurator`) | Lieferanten: `/admin/suppliers` (`ProductSuppliers`)
+  - Crawler / Vorlagen / Kategorien / Attribute / Bewertungen / Bruch: `/admin/product-*` -> `ProductCrawler`, `ProductTemplates`, `ProductCategories`, `ProductAttributes`, `ProductReviews`, `ProductFracture`
+- **Bestellungen & Logistik (`Shop\Order\*`, `Shop\Cart\*`, `Shop\System\*`)**:
+  - Bestellungen & Laser-Produktion: `/admin/orders` (`OrderOverview`) | Checkout & Warenkörbe: `OrderCheckout`, `/admin/carts` (`OrderShoppingCarts`)
+  - Angebote / Widerrufe / Versand (DHL): `/admin/quote-requests` (`OrderQuoteRequests`), `/admin/revocations` (`OrderRevocations`), `/admin/shipping` (`SystemShipping`), `/admin/delivery-display` (`SystemDeliveryDisplay`, `SystemDeliveryTimes`)
+- **Leitung / Management (`Shop\Management\*`)**:
+  - Mail (`/admin/mail` -> `ManagementEMails`), Kalender (`/admin/calendar` -> `ManagementCalender`), Kontakte (`/admin/contacts` -> `ManagementContacts`), Tagesroutine (`/admin/routine` -> `ManagementRoutine`), Einkaufsliste (`ManagementShoppingList`), Aufgaben (`ManagementTask`), Mitarbeiter (`ManagementEmployees`), Musik (`ManagementMusic`)
+- **Marketing & Influencer Portal (`Shop\Marketing\*`)**:
+  - Influencer & Partner-Portal: `/admin/marketing-influencers` -> `MarketingInfluencer` & `Employee\Influencer\InfluencerDashboard` (Rolle `influencer` isoliert)
+  - Gutscheine (`MarketingVoucher`), Blog (`MarketingBlog`), Newsletter (`MarketingNewsletter`), Landingpages (`MarketingLandingPages`), Herzensprojekte (`MarketingHerzensprojekte`), Linktree (`/links` -> `MarketingLinktree`)
+- **KI-Agenten, Support & System (`Shop\Ai\*`, `Shop\Support\*`, `Shop\System\*`)**:
+  - Organigramm (`/admin/organigramm` -> `AiCompanyStructure`), Workspace (`/admin/ai-workspace` -> `AiWorkspace`), Agenten (`AiAgentEditor`), Rollen (`AiRoleManager`), Wissen (`AiKnowledgeBase`)
+  - Support: Tickets (`SupportTicket`), Chats (`SupportChats`), Telefonie (`SupportTelephony`) | System: `/admin/settings` (`SystemShopConfig`), `/admin/users` (`SystemUserManagement`), `SystemLogs`, `SystemBackups`
 
-## 1. Datenbank-Modelle (app/Models)
+## 3. Datenbank-Seeder (`database/seeders/*.php`)
+- **Root**: `AccountingSeeder, AiAgentSeeder, AiCompanyStructureSeeder, AiHealthMedicationSeeder, AiKnowledgeBaseLaserSeeder, AiKnowledgeBaseSeeder, AiTarifeSeeder, BankTransactionTestSeeder, BlogCategorySeeder, DatabaseSeeder, FinancialDataSeeder, GamificationTestSeeder, GamificationUltimatePlayerSeeder, LogisticsShippingSeeder, MailAccountSeeder, ManagementCalenderSeeder, ManagementContactSeeder, ManagementDayRoutineSeeder, ManagementShoppingListSeeder, ManagementTaskSeeder, MarketingBlogSeeder, MarketingLinktreeSeeder, MonthlyVoucherSeeder, NewsletterKampagnenSeeder, OrderShoppingCartSeeder, OrdersTableSeeder, ProductAssetSeeder, ProductAttributeSeeder, ProductCategorySeeder, ProductIdeaSeeder, ProductLandingPageSeeder, ProductPackagingSeeder, ProductReviewSeeder, ProductSeeder, ProductSupplierSeeder, ProductTemplateSeeder, Spaceship3DGlbSeeder, SystemCronjobSeeder, SystemSettingSeeder, TaxRateSeeder, UserSeeder`
 
-- **`Accounting\AccountingBankAccount`** (`app/Models/Accounting/AccountingBankAccount.php`)
-- **`Accounting\AccountingBankTransaction`** (`app/Models/Accounting/AccountingBankTransaction.php`)
-- **`Accounting\AccountingCategorizationRule`** (`app/Models/Accounting/AccountingCategorizationRule.php`)
-- **`Accounting\AccountingCategory`** (`app/Models/Accounting/AccountingCategory.php`)
-- **`Accounting\AccountingCostItem`** (`app/Models/Accounting/AccountingCostItem.php`)
-- **`Accounting\AccountingCostItemHistory`** (`app/Models/Accounting/AccountingCostItemHistory.php`)
-- **`Accounting\AccountingGroup`** (`app/Models/Accounting/AccountingGroup.php`)
-- **`Accounting\AccountingInvoice`** (`app/Models/Accounting/AccountingInvoice.php`)
-- **`Accounting\AccountingSpecialIssue`** (`app/Models/Accounting/AccountingSpecialIssue.php`)
-- **`Admin\Admin`** (`app/Models/Admin/Admin.php`)
-- **`Admin\AdminProfile`** (`app/Models/Admin/AdminProfile.php`)
-- **`Ai\AiAgent`** (`app/Models/Ai/AiAgent.php`)
-- **`Ai\AiAgentSetting`** (`app/Models/Ai/AiAgentSetting.php`)
-- **`Ai\AiArtifact`** (`app/Models/Ai/AiArtifact.php`)
-- **`Ai\AiCall`** (`app/Models/Ai/AiCall.php`)
-- **`Ai\AiChatMemory`** (`app/Models/Ai/AiChatMemory.php`)
-- **`Ai\AiChatSession`** (`app/Models/Ai/AiChatSession.php`)
-- **`Ai\AiContact`** (`app/Models/Ai/AiContact.php`)
-- **`Ai\AiDepartment`** (`app/Models/Ai/AiDepartment.php`)
-- **`Ai\AiHealthMedication`** (`app/Models/Ai/AiHealthMedication.php`)
-- **`Ai\AiHealthProtocol`** (`app/Models/Ai/AiHealthProtocol.php`)
-- **`Ai\AiHealthTreatmentItem`** (`app/Models/Ai/AiHealthTreatmentItem.php`)
-- **`Ai\AiHealthTreatmentPlan`** (`app/Models/Ai/AiHealthTreatmentPlan.php`)
-- **`Ai\AiKnowledgeBase`** (`app/Models/Ai/AiKnowledgeBase.php`)
-- **`Ai\AiKnowledgeBaseCategory`** (`app/Models/Ai/AiKnowledgeBaseCategory.php`)
-- **`Ai\AiKnowledgeBaseTag`** (`app/Models/Ai/AiKnowledgeBaseTag.php`)
-- **`Ai\AiMetric`** (`app/Models/Ai/AiMetric.php`)
-- **`Ai\AiRole`** (`app/Models/Ai/AiRole.php`)
-- **`Ai\AiTool`** (`app/Models/Ai/AiTool.php`)
-- **`Ai\AiToolUsage`** (`app/Models/Ai/AiToolUsage.php`)
-- **`Ai\AiUserWorkspaceSetting`** (`app/Models/Ai/AiUserWorkspaceSetting.php`)
-- **`Ai\AiWidgetConfig`** (`app/Models/Ai/AiWidgetConfig.php`)
-- **`Ai\AiWorkspaceDocument`** (`app/Models/Ai/AiWorkspaceDocument.php`)
-- **`Ai\AiWorkspaceTask`** (`app/Models/Ai/AiWorkspaceTask.php`)
-- **`Cart\Cart`** (`app/Models/Cart/Cart.php`)
-- **`Cart\CartItem`** (`app/Models/Cart/CartItem.php`)
-- **`Customer\Customer`** (`app/Models/Customer/Customer.php`)
-- **`Customer\CustomerGamification`** (`app/Models/Customer/CustomerGamification.php`)
-- **`Customer\CustomerGamificationBugReport`** (`app/Models/Customer/CustomerGamificationBugReport.php`)
-- **`Customer\CustomerGamificationLog`** (`app/Models/Customer/CustomerGamificationLog.php`)
-- **`Customer\CustomerProfile`** (`app/Models/Customer/CustomerProfile.php`)
-- **`Customer\GamificationGalacticPlanet`** (`app/Models/Customer/GamificationGalacticPlanet.php`)
-- **`Delivery\DeliveryFeedback`** (`app/Models/Delivery/DeliveryFeedback.php`)
-- **`Delivery\DeliverySetting`** (`app/Models/Delivery/DeliverySetting.php`)
-- **`Delivery\DeliveryTime`** (`app/Models/Delivery/DeliveryTime.php`)
-- **`Employee\Employee`** (`app/Models/Employee/Employee.php`)
-- **`Employee\EmployeeContract`** (`app/Models/Employee/EmployeeContract.php`)
-- **`Employee\EmployeePayslip`** (`app/Models/Employee/EmployeePayslip.php`)
-- **`Employee\EmployeeProfile`** (`app/Models/Employee/EmployeeProfile.php`)
-- **`Employee\EmployeeTimeEntry`** (`app/Models/Employee/EmployeeTimeEntry.php`)
-- **`Logistics\LogisticsShippingRate`** (`app/Models/Logistics/LogisticsShippingRate.php`)
-- **`Logistics\LogisticsShippingZone`** (`app/Models/Logistics/LogisticsShippingZone.php`)
-- **`Logistics\LogisticsShippingZoneCountry`** (`app/Models/Logistics/LogisticsShippingZoneCountry.php`)
-- **`Management\Mail\MailAccount`** (`app/Models/Management/Mail/MailAccount.php`)
-- **`Management\Mail\MailAttachment`** (`app/Models/Management/Mail/MailAttachment.php`)
-- **`Management\Mail\MailFolder`** (`app/Models/Management/Mail/MailFolder.php`)
-- **`Management\Mail\MailMessage`** (`app/Models/Management/Mail/MailMessage.php`)
-- **`Management\Mail\MailRule`** (`app/Models/Management/Mail/MailRule.php`)
-- **`Management\ManagementCalendarEvent`** (`app/Models/Management/ManagementCalendarEvent.php`)
-- **`Management\ManagementContact`** (`app/Models/Management/ManagementContact.php`)
-- **`Management\ManagementDayRoutine`** (`app/Models/Management/ManagementDayRoutine.php`)
-- **`Management\ManagementDayRoutineLog`** (`app/Models/Management/ManagementDayRoutineLog.php`)
-- **`Management\ManagementDayRoutineStep`** (`app/Models/Management/ManagementDayRoutineStep.php`)
-- **`Management\ManagementMission`** (`app/Models/Management/ManagementMission.php`)
-- **`Management\ManagementShoppingCategory`** (`app/Models/Management/ManagementShoppingCategory.php`)
-- **`Management\ManagementShoppingItem`** (`app/Models/Management/ManagementShoppingItem.php`)
-- **`Management\ManagementTask`** (`app/Models/Management/ManagementTask.php`)
-- **`Management\ManagementTaskList`** (`app/Models/Management/ManagementTaskList.php`)
-- **`Marketing\MarketingBlogCategory`** (`app/Models/Marketing/MarketingBlogCategory.php`)
-- **`Marketing\MarketingBlogPost`** (`app/Models/Marketing/MarketingBlogPost.php`)
-- **`Marketing\MarketingCoupon`** (`app/Models/Marketing/MarketingCoupon.php`)
-- **`Marketing\MarketingGiftVoucher`** (`app/Models/Marketing/MarketingGiftVoucher.php`)
-- **`Marketing\MarketingGiftVoucherLog`** (`app/Models/Marketing/MarketingGiftVoucherLog.php`)
-- **`Marketing\MarketingHerzensprojektAction`** (`app/Models/Marketing/MarketingHerzensprojektAction.php`)
-- **`Marketing\MarketingHerzensprojektTransaction`** (`app/Models/Marketing/MarketingHerzensprojektTransaction.php`)
-- **`Marketing\MarketingInfluencer`** (`app/Models/Marketing/MarketingInfluencer.php`)
-- **`Marketing\MarketingInfluencerCommission`** (`app/Models/Marketing/MarketingInfluencerCommission.php`)
-- **`Marketing\MarketingInfluencerPayout`** (`app/Models/Marketing/MarketingInfluencerPayout.php`)
-- **`Marketing\MarketingLandingPage`** (`app/Models/Marketing/MarketingLandingPage.php`)
-- **`Marketing\MarketingLinktree`** (`app/Models/Marketing/MarketingLinktree.php`)
-- **`Marketing\MarketingLinktreeClick`** (`app/Models/Marketing/MarketingLinktreeClick.php`)
-- **`Marketing\MarketingLinktreeVisit`** (`app/Models/Marketing/MarketingLinktreeVisit.php`)
-- **`Marketing\MarketingNewsletter`** (`app/Models/Marketing/MarketingNewsletter.php`)
-- **`Marketing\MarketingNewsletterSubscriber`** (`app/Models/Marketing/MarketingNewsletterSubscriber.php`)
-- **`Marketing\MarketingReferral`** (`app/Models/Marketing/MarketingReferral.php`)
-- **`Marketing\MarketingTrackingLink`** (`app/Models/Marketing/MarketingTrackingLink.php`)
-- **`Marketing\MarketingTrackingLinkHit`** (`app/Models/Marketing/MarketingTrackingLinkHit.php`)
-- **`Marketing\MarketingVoucher`** (`app/Models/Marketing/MarketingVoucher.php`)
-- **`Order\OrderOrder`** (`app/Models/Order/OrderOrder.php`)
-- **`Order\OrderOrderItem`** (`app/Models/Order/OrderOrderItem.php`)
-- **`Order\OrderQuoteRequest`** (`app/Models/Order/OrderQuoteRequest.php`)
-- **`Order\OrderQuoteRequestItem`** (`app/Models/Order/OrderQuoteRequestItem.php`)
-- **`Order\OrderRevocation`** (`app/Models/Order/OrderRevocation.php`)
-- **`Order\OrderShipment`** (`app/Models/Order/OrderShipment.php`)
-- **`Product\Product`** (`app/Models/Product/Product.php`)
-- **`Product\ProductAnalyticsEvent`** (`app/Models/Product/ProductAnalyticsEvent.php`)
-- **`Product\ProductAttribute`** (`app/Models/Product/ProductAttribute.php`)
-- **`Product\ProductCategory`** (`app/Models/Product/ProductCategory.php`)
-- **`Product\ProductLoss`** (`app/Models/Product/ProductLoss.php`)
-- **`Product\ProductNicheCrawlerRun`** (`app/Models/Product/ProductNicheCrawlerRun.php`)
-- **`Product\ProductNicheItem`** (`app/Models/Product/ProductNicheItem.php`)
-- **`Product\ProductPackaging`** (`app/Models/Product/ProductPackaging.php`)
-- **`Product\ProductReview`** (`app/Models/Product/ProductReview.php`)
-- **`Product\ProductSupplier`** (`app/Models/Product/ProductSupplier.php`)
-- **`Product\ProductTemplate`** (`app/Models/Product/ProductTemplate.php`)
-- **`Product\ProductTierPrice`** (`app/Models/Product/ProductTierPrice.php`)
-- **`Support\SupportContactRequest`** (`app/Models/Support/SupportContactRequest.php`)
-- **`Support\SupportContactRequestMessage`** (`app/Models/Support/SupportContactRequestMessage.php`)
-- **`Support\SupportCustomerChat`** (`app/Models/Support/SupportCustomerChat.php`)
-- **`Support\SupportCustomerChatMessage`** (`app/Models/Support/SupportCustomerChatMessage.php`)
-- **`Support\SupportTicket`** (`app/Models/Support/SupportTicket.php`)
-- **`Support\SupportTicketMessage`** (`app/Models/Support/SupportTicketMessage.php`)
-- **`SupportTelephonyCall`** (`app/Models/SupportTelephonyCall.php`)
-- **`System\SystemAiHostingPlan`** (`app/Models/System/SystemAiHostingPlan.php`)
-- **`System\SystemBlockedIp`** (`app/Models/System/SystemBlockedIp.php`)
-- **`System\SystemCheckConfig`** (`app/Models/System/SystemCheckConfig.php`)
-- **`System\SystemCronjob`** (`app/Models/System/SystemCronjob.php`)
-- **`System\SystemDirectory`** (`app/Models/System/SystemDirectory.php`)
-- **`System\SystemLog`** (`app/Models/System/SystemLog.php`)
-- **`System\SystemLoginAttempt`** (`app/Models/System/SystemLoginAttempt.php`)
-- **`System\SystemNeuralNode`** (`app/Models/System/SystemNeuralNode.php`)
-- **`System\SystemPasswordResetToken`** (`app/Models/System/SystemPasswordResetToken.php`)
-- **`System\SystemSchedulerLog`** (`app/Models/System/SystemSchedulerLog.php`)
-- **`System\SystemSetting`** (`app/Models/System/SystemSetting.php`)
-- **`System\SystemUser`** (`app/Models/System/SystemUser.php`)
-- **`System\SystemUserDevice`** (`app/Models/System/SystemUserDevice.php`)
-- **`Tracking\PageVisit`** (`app/Models/Tracking/PageVisit.php`)
+## 4. Datenbank-Modelle (`app/Models/<Domain>/*.php`)
+- **Accounting**: `AccountingBankAccount, AccountingBankTransaction, AccountingCategorizationRule, AccountingCategory, AccountingCostItem, AccountingCostItemHistory, AccountingGroup, AccountingInvoice, AccountingSpecialIssue`
+- **Admin**: `Admin, AdminProfile`
+- **Ai**: `AiAgent, AiAgentSetting, AiArtifact, AiCall, AiChatMemory, AiChatSession, AiContact, AiDepartment, AiHealthMedication, AiHealthProtocol, AiHealthTreatmentItem, AiHealthTreatmentPlan, AiKnowledgeBase, AiKnowledgeBaseCategory, AiKnowledgeBaseTag, AiMetric, AiRole, AiTool, AiToolUsage, AiUserWorkspaceSetting, AiWidgetConfig, AiWorkspaceDocument, AiWorkspaceTask`
+- **Cart**: `Cart, CartItem, WishlistItem`
+- **Customer**: `Customer, CustomerGamification, CustomerGamificationBugReport, CustomerGamificationLog, CustomerProfile, GamificationGalacticPlanet`
+- **Delivery**: `DeliveryFeedback, DeliverySetting, DeliveryTime`
+- **Employee**: `Employee, EmployeeContract, EmployeePayslip, EmployeeProfile, EmployeeTimeEntry`
+- **Logistics**: `LogisticsShippingRate, LogisticsShippingZone, LogisticsShippingZoneCountry`
+- **Management**: `ManagementCalendarEvent, ManagementContact, ManagementDayRoutine, ManagementDayRoutineLog, ManagementDayRoutineStep, ManagementMission, ManagementPlaylist, ManagementShoppingCategory, ManagementShoppingItem, ManagementTask, ManagementTaskList, ManagementTrack`
+- **Management\Mail**: `MailAccount, MailAttachment, MailFolder, MailMessage, MailRule`
+- **Marketing**: `MarketingBlogCategory, MarketingBlogPost, MarketingCoupon, MarketingGiftVoucher, MarketingGiftVoucherLog, MarketingHerzensprojektAction, MarketingHerzensprojektTransaction, MarketingInfluencer, MarketingInfluencerCommission, MarketingInfluencerPayout, MarketingLandingPage, MarketingLinktree, MarketingLinktreeClick, MarketingLinktreeVisit, MarketingNewsletter, MarketingNewsletterSubscriber, MarketingReferral, MarketingTrackingLink, MarketingTrackingLinkHit, MarketingVoucher`
+- **Order**: `OrderOrder, OrderOrderItem, OrderQuoteRequest, OrderQuoteRequestItem, OrderRevocation, OrderShipment`
+- **Product**: `Product, ProductAnalyticsEvent, ProductAttribute, ProductCategory, ProductIdea, ProductLoss, ProductNicheCrawlerRun, ProductNicheItem, ProductPackaging, ProductPackagingItem, ProductReview, ProductSupplier, ProductTemplate, ProductTierPrice`
+- **Root**: `SupportTelephonyCall`
+- **Support**: `SupportContactRequest, SupportContactRequestMessage, SupportCustomerChat, SupportCustomerChatMessage, SupportTicket, SupportTicketMessage`
+- **System**: `SystemAiHostingPlan, SystemBlockedIp, SystemCheckConfig, SystemCronjob, SystemDirectory, SystemLog, SystemLoginAttempt, SystemNeuralNode, SystemPasswordResetToken, SystemSchedulerLog, SystemSetting, SystemUser, SystemUserDevice`
+- **Tracking**: `PageVisit`
 
-## 2. Livewire Komponenten (app/Livewire)
+## 5. Livewire-Komponenten (`app/Livewire/<Domain>/*.php`)
+- **Auth**: `AuthLogin, AuthLoginDropdown, AuthPasswordReset, AuthProfileDropdown, AuthRegister`
+- **Backend\System**: `SystemNeuralAnalysisIndex`
+- **Customer**: `CustomerDashboardComponent, CustomerForcePasswordChange, CustomerFunkiComponent, CustomerInvoicesComponent, CustomerOrdersComponent, CustomerTicketsComponent`
+- **Customer\Gamification**: `GameGlobalStatsHeader, GameSparkHuntComponent`
+- **Employee**: `EmployeeDashboard`
+- **Employee\Influencer**: `InfluencerDashboard`
+- **Employee\TaxAdvisor**: `TaxAdvisorDashboard`
+- **Frontend**: `ContactForm, GoogleReviews`
+- **Frontend\Emergency**: `EmergencyProtocol`
+- **Frontend\Employee**: `EmployeeInvitationAccept`
+- **Frontend\Marketing**: `InfluencerInvitationAccept, MarketingLinktreePage`
+- **Frontend\Support**: `AiFrontendSupportChat`
+- **Hooks**: `EmployeeRoleIsolationHook`
+- **Landing**: `LandingPageView`
+- **Shop\Accounting**: `AccountingAnalytics, AccountingBank, AccountingCredit, AccountingFixCosts, AccountingInvoice, AccountingInvoicePreview, AccountingLiquidity, AccountingQuickEntry, AccountingTax, AccountingVariableCosts`
+- **Shop\Ai**: `AiAgentEditor, AiAnalytics, AiCompanyStructure, AiKnowledgeBase, AiKnowledgeBaseCategories, AiKnowledgeBaseTags, AiMethod, AiRoleManager, AiWidget, AiWorkspace`
+- **Shop\Ai\PartialsAiWorkspace**: `TabCronjobs`
+- **Shop\Ai\Traits**: `ManagesAiChat, ManagesAiWorkspaceFiles, ManagesHealthData`
+- **Shop\Cart**: `Cart, CartIcon`
+- **Shop\Management**: `ManagementCalender, ManagementContacts, ManagementEMails, ManagementEmployees, ManagementMusic, ManagementRoutine, ManagementShoppingList, ManagementTask`
+- **Shop\Marketing**: `MarketingAnalytics, MarketingBlog, MarketingBlogIndex, MarketingBlogShow, MarketingHerzensprojekte, MarketingInfluencer, MarketingLandingPages, MarketingLinktree, MarketingNewsletter, MarketingNewsletterPage, MarketingNewsletterSignup, MarketingTracking, MarketingVoucher, MarketingVoucherBalanceChecker, MarketingVoucherPurchasePage, MarketingVoucherSlider`
+- **Shop\Master**: `MasterAnalytics, MasterShopCapacity, MasterStorageCapacity`
+- **Shop\Order**: `OrderAnalytics, OrderOverview, OrderQuoteAcceptance, OrderQuoteRequests, OrderRevocationForm, OrderRevocations, OrderShoppingCarts`
+- **Shop\Order\OrderCheckout**: `OrderCheckout, OrderCheckoutSuccess`
+- **Shop\Order\OrderCheckout\Traits**: `HandlesOrderCreation, HandlesStripePayment`
+- **Shop\Product**: `ProductAnalytics, ProductAttributes, ProductCategories, ProductConfiguratorSettings, ProductControlReviews, ProductCrawler, ProductCreate, ProductFracture, ProductFrontendFilterArea, ProductIdeas, ProductPackagingConfigurator, ProductReviews, ProductShow, ProductSuppliers, ProductTax, ProductTemplates, ProductTierPricing, ProductVariants`
+- **Shop\Product\ProductCalculator**: `ProductCalculator`
+- **Shop\Product\ProductConfigurator**: `ProductConfigurator`
+- **Shop\Product\ProductConfigurator\Traits**: `HandlesConfiguratorLogic`
+- **Shop\Support**: `SupportAnalytics, SupportChats, SupportContactFormComponent, SupportTelephony, SupportTicket`
+- **Shop\System**: `SystemBackups, SystemDeliveryDisplay, SystemDeliveryTimes, SystemLogs, SystemShipping, SystemShopConfig, SystemUserManagement`
+- **Shop\Wishlist**: `WishlistIcon, WishlistPage`
+- **Traits**: `WithDepartmentTheming`
 
-- **`Auth\AuthLogin`** (`app/Livewire/Auth/AuthLogin.php`)
-- **`Auth\AuthLoginDropdown`** (`app/Livewire/Auth/AuthLoginDropdown.php`)
-- **`Auth\AuthPasswordReset`** (`app/Livewire/Auth/AuthPasswordReset.php`)
-- **`Auth\AuthProfileDropdown`** (`app/Livewire/Auth/AuthProfileDropdown.php`)
-- **`Auth\AuthRegister`** (`app/Livewire/Auth/AuthRegister.php`)
-- **`Backend\System\SystemNeuralAnalysisIndex`** (`app/Livewire/Backend/System/SystemNeuralAnalysisIndex.php`)
-- **`Customer\CustomerDashboardComponent`** (`app/Livewire/Customer/CustomerDashboardComponent.php`)
-- **`Customer\CustomerForcePasswordChange`** (`app/Livewire/Customer/CustomerForcePasswordChange.php`)
-- **`Customer\CustomerInvoicesComponent`** (`app/Livewire/Customer/CustomerInvoicesComponent.php`)
-- **`Customer\CustomerOrdersComponent`** (`app/Livewire/Customer/CustomerOrdersComponent.php`)
-- **`Customer\CustomerTicketsComponent`** (`app/Livewire/Customer/CustomerTicketsComponent.php`)
-- **`Customer\Gamification\GameGamesComponent`** (`app/Livewire/Customer/Gamification/GameGamesComponent.php`)
-- **`Customer\Gamification\GameGlobalRankingComponent`** (`app/Livewire/Customer/Gamification/GameGlobalRankingComponent.php`)
-- **`Customer\Gamification\GameGlobalStatsHeader`** (`app/Livewire/Customer/Gamification/GameGlobalStatsHeader.php`)
-- **`Customer\Gamification\GameProfileComponent`** (`app/Livewire/Customer/Gamification/GameProfileComponent.php`)
-- **`Customer\Gamification\GameSparkHuntComponent`** (`app/Livewire/Customer/Gamification/GameSparkHuntComponent.php`)
-- **`Employee\EmployeeDashboard`** (`app/Livewire/Employee/EmployeeDashboard.php`)
-- **`Employee\Influencer\InfluencerDashboard`** (`app/Livewire/Employee/Influencer/InfluencerDashboard.php`)
-- **`Employee\TaxAdvisor\TaxAdvisorDashboard`** (`app/Livewire/Employee/TaxAdvisor/TaxAdvisorDashboard.php`)
-- **`Frontend\ContactForm`** (`app/Livewire/Frontend/ContactForm.php`)
-- **`Frontend\Emergency\EmergencyProtocol`** (`app/Livewire/Frontend/Emergency/EmergencyProtocol.php`)
-- **`Frontend\Employee\EmployeeInvitationAccept`** (`app/Livewire/Frontend/Employee/EmployeeInvitationAccept.php`)
-- **`Frontend\GoogleReviews`** (`app/Livewire/Frontend/GoogleReviews.php`)
-- **`Frontend\Marketing\InfluencerInvitationAccept`** (`app/Livewire/Frontend/Marketing/InfluencerInvitationAccept.php`)
-- **`Frontend\Marketing\MarketingLinktreePage`** (`app/Livewire/Frontend/Marketing/MarketingLinktreePage.php`)
-- **`Frontend\Support\AiFrontendSupportChat`** (`app/Livewire/Frontend/Support/AiFrontendSupportChat.php`)
-- **`Hooks\EmployeeRoleIsolationHook`** (`app/Livewire/Hooks/EmployeeRoleIsolationHook.php`)
-- **`Landing\LandingPageView`** (`app/Livewire/Landing/LandingPageView.php`)
-- **`Shop\Accounting\AccountingAnalytics`** (`app/Livewire/Shop/Accounting/AccountingAnalytics.php`)
-- **`Shop\Accounting\AccountingBank`** (`app/Livewire/Shop/Accounting/AccountingBank.php`)
-- **`Shop\Accounting\AccountingCredit`** (`app/Livewire/Shop/Accounting/AccountingCredit.php`)
-- **`Shop\Accounting\AccountingFixCosts`** (`app/Livewire/Shop/Accounting/AccountingFixCosts.php`)
-- **`Shop\Accounting\AccountingInvoice`** (`app/Livewire/Shop/Accounting/AccountingInvoice.php`)
-- **`Shop\Accounting\AccountingInvoicePreview`** (`app/Livewire/Shop/Accounting/AccountingInvoicePreview.php`)
-- **`Shop\Accounting\AccountingLiquidity`** (`app/Livewire/Shop/Accounting/AccountingLiquidity.php`)
-- **`Shop\Accounting\AccountingQuickEntry`** (`app/Livewire/Shop/Accounting/AccountingQuickEntry.php`)
-- **`Shop\Accounting\AccountingTax`** (`app/Livewire/Shop/Accounting/AccountingTax.php`)
-- **`Shop\Accounting\AccountingVariableCosts`** (`app/Livewire/Shop/Accounting/AccountingVariableCosts.php`)
-- **`Shop\Ai\AiAgentEditor`** (`app/Livewire/Shop/Ai/AiAgentEditor.php`)
-- **`Shop\Ai\AiAnalytics`** (`app/Livewire/Shop/Ai/AiAnalytics.php`)
-- **`Shop\Ai\AiCompanyStructure`** (`app/Livewire/Shop/Ai/AiCompanyStructure.php`)
-- **`Shop\Ai\AiKnowledgeBase`** (`app/Livewire/Shop/Ai/AiKnowledgeBase.php`)
-- **`Shop\Ai\AiKnowledgeBaseCategories`** (`app/Livewire/Shop/Ai/AiKnowledgeBaseCategories.php`)
-- **`Shop\Ai\AiKnowledgeBaseTags`** (`app/Livewire/Shop/Ai/AiKnowledgeBaseTags.php`)
-- **`Shop\Ai\AiMethod`** (`app/Livewire/Shop/Ai/AiMethod.php`)
-- **`Shop\Ai\AiRoleManager`** (`app/Livewire/Shop/Ai/AiRoleManager.php`)
-- **`Shop\Ai\AiWidget`** (`app/Livewire/Shop/Ai/AiWidget.php`)
-- **`Shop\Ai\AiWorkspace`** (`app/Livewire/Shop/Ai/AiWorkspace.php`)
-- **`Shop\Ai\PartialsAiWorkspace\TabCronjobs`** (`app/Livewire/Shop/Ai/PartialsAiWorkspace/TabCronjobs.php`)
-- **`Shop\Ai\Traits\ManagesAiChat`** (`app/Livewire/Shop/Ai/Traits/ManagesAiChat.php`)
-- **`Shop\Ai\Traits\ManagesAiWorkspaceFiles`** (`app/Livewire/Shop/Ai/Traits/ManagesAiWorkspaceFiles.php`)
-- **`Shop\Ai\Traits\ManagesHealthData`** (`app/Livewire/Shop/Ai/Traits/ManagesHealthData.php`)
-- **`Shop\Cart\Cart`** (`app/Livewire/Shop/Cart/Cart.php`)
-- **`Shop\Cart\CartIcon`** (`app/Livewire/Shop/Cart/CartIcon.php`)
-- **`Shop\Gamification\AdminGamificationSupport`** (`app/Livewire/Shop/Gamification/AdminGamificationSupport.php`)
-- **`Shop\Management\ManagementCalender`** (`app/Livewire/Shop/Management/ManagementCalender.php`)
-- **`Shop\Management\ManagementContacts`** (`app/Livewire/Shop/Management/ManagementContacts.php`)
-- **`Shop\Management\ManagementEMails`** (`app/Livewire/Shop/Management/ManagementEMails.php`)
-- **`Shop\Management\ManagementEmployees`** (`app/Livewire/Shop/Management/ManagementEmployees.php`)
-- **`Shop\Management\ManagementRoutine`** (`app/Livewire/Shop/Management/ManagementRoutine.php`)
-- **`Shop\Management\ManagementShoppingList`** (`app/Livewire/Shop/Management/ManagementShoppingList.php`)
-- **`Shop\Management\ManagementTask`** (`app/Livewire/Shop/Management/ManagementTask.php`)
-- **`Shop\Marketing\MarketingAnalytics`** (`app/Livewire/Shop/Marketing/MarketingAnalytics.php`)
-- **`Shop\Marketing\MarketingBlog`** (`app/Livewire/Shop/Marketing/MarketingBlog.php`)
-- **`Shop\Marketing\MarketingBlogIndex`** (`app/Livewire/Shop/Marketing/MarketingBlogIndex.php`)
-- **`Shop\Marketing\MarketingBlogShow`** (`app/Livewire/Shop/Marketing/MarketingBlogShow.php`)
-- **`Shop\Marketing\MarketingHerzensprojekte`** (`app/Livewire/Shop/Marketing/MarketingHerzensprojekte.php`)
-- **`Shop\Marketing\MarketingInfluencer`** (`app/Livewire/Shop/Marketing/MarketingInfluencer.php`)
-- **`Shop\Marketing\MarketingLandingPages`** (`app/Livewire/Shop/Marketing/MarketingLandingPages.php`)
-- **`Shop\Marketing\MarketingLinktree`** (`app/Livewire/Shop/Marketing/MarketingLinktree.php`)
-- **`Shop\Marketing\MarketingNewsletter`** (`app/Livewire/Shop/Marketing/MarketingNewsletter.php`)
-- **`Shop\Marketing\MarketingNewsletterPage`** (`app/Livewire/Shop/Marketing/MarketingNewsletterPage.php`)
-- **`Shop\Marketing\MarketingNewsletterSignup`** (`app/Livewire/Shop/Marketing/MarketingNewsletterSignup.php`)
-- **`Shop\Marketing\MarketingTracking`** (`app/Livewire/Shop/Marketing/MarketingTracking.php`)
-- **`Shop\Marketing\MarketingVoucher`** (`app/Livewire/Shop/Marketing/MarketingVoucher.php`)
-- **`Shop\Marketing\MarketingVoucherBalanceChecker`** (`app/Livewire/Shop/Marketing/MarketingVoucherBalanceChecker.php`)
-- **`Shop\Marketing\MarketingVoucherPurchasePage`** (`app/Livewire/Shop/Marketing/MarketingVoucherPurchasePage.php`)
-- **`Shop\Marketing\MarketingVoucherSlider`** (`app/Livewire/Shop/Marketing/MarketingVoucherSlider.php`)
-- **`Shop\Master\MasterAnalytics`** (`app/Livewire/Shop/Master/MasterAnalytics.php`)
-- **`Shop\Master\MasterShopCapacity`** (`app/Livewire/Shop/Master/MasterShopCapacity.php`)
-- **`Shop\Master\MasterStorageCapacity`** (`app/Livewire/Shop/Master/MasterStorageCapacity.php`)
-- **`Shop\Order\OrderAnalytics`** (`app/Livewire/Shop/Order/OrderAnalytics.php`)
-- **`Shop\Order\OrderCheckout\OrderCheckout`** (`app/Livewire/Shop/Order/OrderCheckout/OrderCheckout.php`)
-- **`Shop\Order\OrderCheckout\OrderCheckoutSuccess`** (`app/Livewire/Shop/Order/OrderCheckout/OrderCheckoutSuccess.php`)
-- **`Shop\Order\OrderCheckout\Traits\HandlesOrderCreation`** (`app/Livewire/Shop/Order/OrderCheckout/Traits/HandlesOrderCreation.php`)
-- **`Shop\Order\OrderCheckout\Traits\HandlesStripePayment`** (`app/Livewire/Shop/Order/OrderCheckout/Traits/HandlesStripePayment.php`)
-- **`Shop\Order\OrderOverview`** (`app/Livewire/Shop/Order/OrderOverview.php`)
-- **`Shop\Order\OrderQuoteAcceptance`** (`app/Livewire/Shop/Order/OrderQuoteAcceptance.php`)
-- **`Shop\Order\OrderQuoteRequests`** (`app/Livewire/Shop/Order/OrderQuoteRequests.php`)
-- **`Shop\Order\OrderRevocationForm`** (`app/Livewire/Shop/Order/OrderRevocationForm.php`)
-- **`Shop\Order\OrderRevocations`** (`app/Livewire/Shop/Order/OrderRevocations.php`)
-- **`Shop\Order\OrderShoppingCarts`** (`app/Livewire/Shop/Order/OrderShoppingCarts.php`)
-- **`Shop\Product\ProductAnalytics`** (`app/Livewire/Shop/Product/ProductAnalytics.php`)
-- **`Shop\Product\ProductAttributes`** (`app/Livewire/Shop/Product/ProductAttributes.php`)
-- **`Shop\Product\ProductCalculator\ProductCalculator`** (`app/Livewire/Shop/Product/ProductCalculator/ProductCalculator.php`)
-- **`Shop\Product\ProductCategories`** (`app/Livewire/Shop/Product/ProductCategories.php`)
-- **`Shop\Product\ProductConfigurator\ProductConfigurator`** (`app/Livewire/Shop/Product/ProductConfigurator/ProductConfigurator.php`)
-- **`Shop\Product\ProductConfigurator\Traits\HandlesConfiguratorLogic`** (`app/Livewire/Shop/Product/ProductConfigurator/Traits/HandlesConfiguratorLogic.php`)
-- **`Shop\Product\ProductConfiguratorSettings`** (`app/Livewire/Shop/Product/ProductConfiguratorSettings.php`)
-- **`Shop\Product\ProductControlReviews`** (`app/Livewire/Shop/Product/ProductControlReviews.php`)
-- **`Shop\Product\ProductCrawler`** (`app/Livewire/Shop/Product/ProductCrawler.php`)
-- **`Shop\Product\ProductCreate`** (`app/Livewire/Shop/Product/ProductCreate.php`)
-- **`Shop\Product\ProductFracture`** (`app/Livewire/Shop/Product/ProductFracture.php`)
-- **`Shop\Product\ProductFrontendFilterArea`** (`app/Livewire/Shop/Product/ProductFrontendFilterArea.php`)
-- **`Shop\Product\ProductPackagingConfigurator`** (`app/Livewire/Shop/Product/ProductPackagingConfigurator.php`)
-- **`Shop\Product\ProductReviews`** (`app/Livewire/Shop/Product/ProductReviews.php`)
-- **`Shop\Product\ProductShow`** (`app/Livewire/Shop/Product/ProductShow.php`)
-- **`Shop\Product\ProductSuppliers`** (`app/Livewire/Shop/Product/ProductSuppliers.php`)
-- **`Shop\Product\ProductTax`** (`app/Livewire/Shop/Product/ProductTax.php`)
-- **`Shop\Product\ProductTemplates`** (`app/Livewire/Shop/Product/ProductTemplates.php`)
-- **`Shop\Product\ProductTierPricing`** (`app/Livewire/Shop/Product/ProductTierPricing.php`)
-- **`Shop\Product\ProductVariants`** (`app/Livewire/Shop/Product/ProductVariants.php`)
-- **`Shop\Support\SupportAnalytics`** (`app/Livewire/Shop/Support/SupportAnalytics.php`)
-- **`Shop\Support\SupportChats`** (`app/Livewire/Shop/Support/SupportChats.php`)
-- **`Shop\Support\SupportContactFormComponent`** (`app/Livewire/Shop/Support/SupportContactFormComponent.php`)
-- **`Shop\Support\SupportTelephony`** (`app/Livewire/Shop/Support/SupportTelephony.php`)
-- **`Shop\Support\SupportTicket`** (`app/Livewire/Shop/Support/SupportTicket.php`)
-- **`Shop\System\SystemBackups`** (`app/Livewire/Shop/System/SystemBackups.php`)
-- **`Shop\System\SystemDeliveryDisplay`** (`app/Livewire/Shop/System/SystemDeliveryDisplay.php`)
-- **`Shop\System\SystemDeliveryTimes`** (`app/Livewire/Shop/System/SystemDeliveryTimes.php`)
-- **`Shop\System\SystemLogs`** (`app/Livewire/Shop/System/SystemLogs.php`)
-- **`Shop\System\SystemShipping`** (`app/Livewire/Shop/System/SystemShipping.php`)
-- **`Shop\System\SystemShopConfig`** (`app/Livewire/Shop/System/SystemShopConfig.php`)
-- **`Shop\System\SystemUserManagement`** (`app/Livewire/Shop/System/SystemUserManagement.php`)
-- **`Traits\WithDepartmentTheming`** (`app/Livewire/Traits/WithDepartmentTheming.php`)
+## 6. HTTP-Controller (`app/Http/Controllers/*.php`)
+- **Accounting**: `InvoiceDownloadController`
+- **Api**: `TelegramAgentController, TwilioCallController`
+- **Customer**: `CustomerVerificationController, DigitalProductDownloadController, GiftVoucherDownloadController`
+- **Root**: `AIController, CartReminderUnsubscribeController, Controller, GoogleAuthController, NewsletterController, RevocationFileController, RevocationPdfController, SeoController, StripeWebhookController`
 
-## 3. HTTP Controller (app/Http/Controllers)
-
-- **`AIController`** (`app/Http/Controllers/AIController.php`)
-- **`Accounting\InvoiceDownloadController`** (`app/Http/Controllers/Accounting/InvoiceDownloadController.php`)
-- **`Api\TelegramAgentController`** (`app/Http/Controllers/Api/TelegramAgentController.php`)
-- **`Api\TwilioCallController`** (`app/Http/Controllers/Api/TwilioCallController.php`)
-- **`CartReminderUnsubscribeController`** (`app/Http/Controllers/CartReminderUnsubscribeController.php`)
-- **`Controller`** (`app/Http/Controllers/Controller.php`)
-- **`Customer\CustomerVerificationController`** (`app/Http/Controllers/Customer/CustomerVerificationController.php`)
-- **`Customer\DigitalProductDownloadController`** (`app/Http/Controllers/Customer/DigitalProductDownloadController.php`)
-- **`Customer\GiftVoucherDownloadController`** (`app/Http/Controllers/Customer/GiftVoucherDownloadController.php`)
-- **`GoogleAuthController`** (`app/Http/Controllers/GoogleAuthController.php`)
-- **`NewsletterController`** (`app/Http/Controllers/NewsletterController.php`)
-- **`RevocationFileController`** (`app/Http/Controllers/RevocationFileController.php`)
-- **`RevocationPdfController`** (`app/Http/Controllers/RevocationPdfController.php`)
-- **`SeoController`** (`app/Http/Controllers/SeoController.php`)
-- **`StripeWebhookController`** (`app/Http/Controllers/StripeWebhookController.php`)
-
-## 4. Services & Geschäftslogik (app/Services)
-
-- **`AI\AIFunctionsRegistry`** (`app/Services/AI/AIFunctionsRegistry.php`)
-- **`AI\AiAgentFactory`** (`app/Services/AI/AiAgentFactory.php`)
-- **`AI\AiAgentRouter`** (`app/Services/AI/AiAgentRouter.php`)
-- **`AI\AiAgentService`** (`app/Services/AI/AiAgentService.php`)
-- **`AI\AiAuthHelper`** (`app/Services/AI/AiAuthHelper.php`)
-- **`AI\AiPromptService`** (`app/Services/AI/AiPromptService.php`)
-- **`AI\AiSupportService`** (`app/Services/AI/AiSupportService.php`)
-- **`AI\Contracts\AiProviderInterface`** (`app/Services/AI/Contracts/AiProviderInterface.php`)
-- **`AI\Functions\AiAgentsFuncs`** (`app/Services/AI/Functions/AiAgentsFuncs.php`)
-- **`AI\Functions\AiBrainFuncs`** (`app/Services/AI/Functions/AiBrainFuncs.php`)
-- **`AI\Functions\AiCalendarFuncs`** (`app/Services/AI/Functions/AiCalendarFuncs.php`)
-- **`AI\Functions\AiContactFuncs`** (`app/Services/AI/Functions/AiContactFuncs.php`)
-- **`AI\Functions\AiFinanceFuncs`** (`app/Services/AI/Functions/AiFinanceFuncs.php`)
-- **`AI\Functions\AiHealthFuncs`** (`app/Services/AI/Functions/AiHealthFuncs.php`)
-- **`AI\Functions\AiHolidayPlannerFuncs`** (`app/Services/AI/Functions/AiHolidayPlannerFuncs.php`)
-- **`AI\Functions\AiLaserFuncs`** (`app/Services/AI/Functions/AiLaserFuncs.php`)
-- **`AI\Functions\AiMailFuncs`** (`app/Services/AI/Functions/AiMailFuncs.php`)
-- **`AI\Functions\AiMapControlFuncs`** (`app/Services/AI/Functions/AiMapControlFuncs.php`)
-- **`AI\Functions\AiMapNewsFuncs`** (`app/Services/AI/Functions/AiMapNewsFuncs.php`)
-- **`AI\Functions\AiMarketingBlogFuncs`** (`app/Services/AI/Functions/AiMarketingBlogFuncs.php`)
-- **`AI\Functions\AiMarketingFuncs`** (`app/Services/AI/Functions/AiMarketingFuncs.php`)
-- **`AI\Functions\AiMarketingNewsletterFuncs`** (`app/Services/AI/Functions/AiMarketingNewsletterFuncs.php`)
-- **`AI\Functions\AiMarketingVoucherFuncs`** (`app/Services/AI/Functions/AiMarketingVoucherFuncs.php`)
-- **`AI\Functions\AiMasterFuncs`** (`app/Services/AI/Functions/AiMasterFuncs.php`)
-- **`AI\Functions\AiNewsFuncs`** (`app/Services/AI/Functions/AiNewsFuncs.php`)
-- **`AI\Functions\AiOrderFuncs`** (`app/Services/AI/Functions/AiOrderFuncs.php`)
-- **`AI\Functions\AiPersonaFuncs`** (`app/Services/AI/Functions/AiPersonaFuncs.php`)
-- **`AI\Functions\AiProductFuncs`** (`app/Services/AI/Functions/AiProductFuncs.php`)
-- **`AI\Functions\AiRoutineFuncs`** (`app/Services/AI/Functions/AiRoutineFuncs.php`)
-- **`AI\Functions\AiScoutFuncs`** (`app/Services/AI/Functions/AiScoutFuncs.php`)
-- **`AI\Functions\AiShoppingListFuncs`** (`app/Services/AI/Functions/AiShoppingListFuncs.php`)
-- **`AI\Functions\AiSuppliersFuncs`** (`app/Services/AI/Functions/AiSuppliersFuncs.php`)
-- **`AI\Functions\AiSupportFuncs`** (`app/Services/AI/Functions/AiSupportFuncs.php`)
-- **`AI\Functions\AiSystemFuncs`** (`app/Services/AI/Functions/AiSystemFuncs.php`)
-- **`AI\Functions\AiTaskFuncs`** (`app/Services/AI/Functions/AiTaskFuncs.php`)
-- **`AI\Functions\AiTelefonyFuncs`** (`app/Services/AI/Functions/AiTelefonyFuncs.php`)
-- **`AI\GeminiAgent`** (`app/Services/AI/GeminiAgent.php`)
-- **`AI\GeminiTtsService`** (`app/Services/AI/GeminiTtsService.php`)
-- **`AI\Mails\AiAgentMessageMail`** (`app/Services/AI/Mails/AiAgentMessageMail.php`)
-- **`AI\Mails\AiHolidayPlanMail`** (`app/Services/AI/Mails/AiHolidayPlanMail.php`)
-- **`AI\Mails\AiMapSummaryMail`** (`app/Services/AI/Mails/AiMapSummaryMail.php`)
-- **`AI\ReceiptAiScannerService`** (`app/Services/AI/ReceiptAiScannerService.php`)
-- **`AI\Workspace\DateitrichterService`** (`app/Services/AI/Workspace/DateitrichterService.php`)
-- **`Accounting\ContractDocumentService`** (`app/Services/Accounting/ContractDocumentService.php`)
-- **`AccountingXmlInvoiceService`** (`app/Services/AccountingXmlInvoiceService.php`)
-- **`AnalyticsService`** (`app/Services/AnalyticsService.php`)
-- **`BankApiService`** (`app/Services/BankApiService.php`)
-- **`CartFileCleanupService`** (`app/Services/CartFileCleanupService.php`)
-- **`CartService`** (`app/Services/CartService.php`)
-- **`ConfiguratorService`** (`app/Services/ConfiguratorService.php`)
-- **`DhlService`** (`app/Services/DhlService.php`)
-- **`ElsterEricService`** (`app/Services/ElsterEricService.php`)
-- **`Employee\EmployeeHrService`** (`app/Services/Employee/EmployeeHrService.php`)
-- **`Export\FileDownloadService`** (`app/Services/Export/FileDownloadService.php`)
-- **`FinancialService`** (`app/Services/FinancialService.php`)
-- **`FirebaseService`** (`app/Services/FirebaseService.php`)
-- **`Gamification\GameConfig`** (`app/Services/Gamification/GameConfig.php`)
-- **`Gamification\GamificationService`** (`app/Services/Gamification/GamificationService.php`)
-- **`Gamification\PlayerNameValidator`** (`app/Services/Gamification/PlayerNameValidator.php`)
-- **`GoogleReviewsService`** (`app/Services/GoogleReviewsService.php`)
-- **`HerzensprojektService`** (`app/Services/HerzensprojektService.php`)
-- **`InvoiceService`** (`app/Services/InvoiceService.php`)
-- **`Marketing\HolidayOfferAutopilotService`** (`app/Services/Marketing/HolidayOfferAutopilotService.php`)
-- **`Marketing\InfluencerService`** (`app/Services/Marketing/InfluencerService.php`)
-- **`Navigation\BackendNavigationService`** (`app/Services/Navigation/BackendNavigationService.php`)
-- **`PriceCalcService`** (`app/Services/PriceCalcService.php`)
-- **`ProductConfiguratorService`** (`app/Services/ProductConfiguratorService.php`)
-- **`ProductTrackingService`** (`app/Services/ProductTrackingService.php`)
-- **`ReferralService`** (`app/Services/ReferralService.php`)
-- **`ShippingCalculatorService`** (`app/Services/ShippingCalculatorService.php`)
-- **`StealthCrawlerService`** (`app/Services/StealthCrawlerService.php`)
-- **`Storage\GlbOptimizerService`** (`app/Services/Storage/GlbOptimizerService.php`)
-- **`System\SystemBlueprintService`** (`app/Services/System/SystemBlueprintService.php`)
-- **`System\SystemErrorLogger`** (`app/Services/System/SystemErrorLogger.php`)
-- **`System\SystemSecurityService`** (`app/Services/System/SystemSecurityService.php`)
-- **`Tax\TaxSettingService`** (`app/Services/Tax/TaxSettingService.php`)
+## 7. Services & Geschäftslogik (`app/Services/<Domain>/*.php`)
+- **AI**: `AIFunctionsRegistry, AiAgentFactory, AiAgentRouter, AiAgentService, AiAuthHelper, AiPromptService, AiSupportService, GeminiAgent, GeminiTtsService, ReceiptAiScannerService`
+- **AI\Contracts**: `AiProviderInterface`
+- **AI\Functions**: `AiAgentsFuncs, AiBrainFuncs, AiCalendarFuncs, AiContactFuncs, AiFinanceFuncs, AiHealthFuncs, AiHolidayPlannerFuncs, AiLaserFuncs, AiMailFuncs, AiMapControlFuncs, AiMapNewsFuncs, AiMarketingBlogFuncs, AiMarketingFuncs, AiMarketingNewsletterFuncs, AiMarketingVoucherFuncs, AiMasterFuncs, AiNewsFuncs, AiOrderFuncs, AiPersonaFuncs, AiProductFuncs, AiRoutineFuncs, AiScoutFuncs, AiShoppingListFuncs, AiSuppliersFuncs, AiSupportFuncs, AiSystemFuncs, AiTaskFuncs, AiTelefonyFuncs`
+- **AI\Mails**: `AiAgentMessageMail, AiHolidayPlanMail, AiMapSummaryMail`
+- **AI\Workspace**: `DateitrichterService`
+- **Accounting**: `ContractDocumentService`
+- **Employee**: `EmployeeHrService`
+- **Export**: `FileDownloadService`
+- **Gamification**: `GameConfig, GamificationService, PlayerNameValidator`
+- **Management**: `MailAiSortService`
+- **Marketing**: `HolidayOfferAutopilotService, InfluencerService`
+- **Navigation**: `BackendNavigationService`
+- **Root**: `AccountingEInvoiceParserService, AccountingXmlInvoiceService, AnalyticsService, BankApiService, CartFileCleanupService, CartService, ConfiguratorService, DhlService, ElsterEricService, FinancialService, FirebaseService, GoogleReviewsService, HerzensprojektService, InvoiceService, PriceCalcService, ProductConfiguratorService, ProductTrackingService, ReferralService, ShippingCalculatorService, StealthCrawlerService, WishlistService`
+- **Storage**: `GlbOptimizerService`
+- **System**: `SystemBlueprintService, SystemErrorLogger, SystemSecurityService`
+- **Tax**: `TaxSettingService`
 

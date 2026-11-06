@@ -154,9 +154,14 @@ class AiCompanyStructure extends Component
         $this->assertAdminAccess();
 
         $dept = AiDepartment::findOrFail($id);
-        
+        AiAgent::where('ai_department_id', $dept->id)->update(['ai_department_id' => null]);
+
+        \Illuminate\Support\Facades\Cache::forget(strtolower($dept->name) . '_dept_color');
+        \Illuminate\Support\Facades\Cache::forget(strtolower($dept->name) . '_dept_class');
+        \Illuminate\Support\Facades\Cache::forget(strtolower($dept->name) . '_nav_color');
+
         $dept->delete();
-        
+
         $this->closeEditor();
         $this->dispatch('structure-updated');
     }

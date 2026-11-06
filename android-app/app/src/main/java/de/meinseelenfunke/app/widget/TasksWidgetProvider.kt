@@ -815,7 +815,7 @@ class TasksWidgetProvider : AppWidgetProvider() {
                     "Aufgabe"
                 }
 
-                views.setTextViewText(R.id.tasks_widget_title, "SEELENFUNKE")
+                views.setTextViewText(R.id.tasks_widget_title, "FUNKENWERK")
                 views.setTextViewText(R.id.tasks_widget_subtitle, "Aufgaben")
                 views.setViewVisibility(R.id.tasks_widget_context, View.VISIBLE)
                 views.setTextViewText(R.id.tasks_widget_context, (selectedListName ?: "Aufgaben").uppercase())
@@ -833,7 +833,7 @@ class TasksWidgetProvider : AppWidgetProvider() {
                 views.setOnClickPendingIntent(R.id.btn_tasks_back, pendingBack)
             } else if (isInsideList && selectedListName != null) {
                 views.setViewVisibility(R.id.btn_tasks_back, View.VISIBLE)
-                views.setTextViewText(R.id.tasks_widget_title, "SEELENFUNKE")
+                views.setTextViewText(R.id.tasks_widget_title, "FUNKENWERK")
                 views.setTextViewText(R.id.tasks_widget_subtitle, "Aufgaben")
                 views.setViewVisibility(R.id.tasks_widget_context, View.VISIBLE)
                 views.setTextViewText(R.id.tasks_widget_context, selectedListName.uppercase())
@@ -851,7 +851,7 @@ class TasksWidgetProvider : AppWidgetProvider() {
                 views.setOnClickPendingIntent(R.id.btn_tasks_back, pendingBack)
             } else {
                 views.setViewVisibility(R.id.btn_tasks_back, View.INVISIBLE)
-                views.setTextViewText(R.id.tasks_widget_title, "SEELENFUNKE")
+                views.setTextViewText(R.id.tasks_widget_title, "FUNKENWERK")
                 views.setTextViewText(R.id.tasks_widget_subtitle, "Aufgaben")
                 views.setViewVisibility(R.id.tasks_widget_context, View.GONE)
             }

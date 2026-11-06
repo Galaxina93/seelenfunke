@@ -110,6 +110,16 @@ class AccountingInvoice extends Component
         }
     }
 
+    public function updatingSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilterType(): void
+    {
+        $this->resetPage();
+    }
+
     public function updatedSelectedCustomerId($value)
     {
         if ($value) {
@@ -757,6 +767,9 @@ class AccountingInvoice extends Component
         }
 
         try {
+            $this->validate([
+                'eInvoiceUpload' => 'file|mimes:xml,pdf,txt|max:15360',
+            ]);
             $realPath = $this->eInvoiceUpload->getRealPath();
             $parser = app(AccountingEInvoiceParserService::class);
             $this->parsedEInvoice = $parser->parseFile($realPath);

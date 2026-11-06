@@ -1,4 +1,4 @@
-<div :class="isMaximized ? 'configurator-studio-form p-4 sm:p-6 space-y-6 custom-scrollbar shrink-0' : 'p-6 space-y-8 max-w-2xl mx-auto'"
+<div :class="isMaximized ? 'configurator-studio-form p-4 sm:p-6 space-y-6 custom-scrollbar shrink-0' : 'p-4 sm:p-6 space-y-6 sm:space-y-8 max-w-2xl mx-auto'"
      :style="isMaximized ? 'flex-shrink: 0;' : ''"
      class="{{ $context === 'preview' ? 'opacity-60 grayscale-[0.5] pointer-events-none' : '' }}">
 

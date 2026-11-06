@@ -1762,9 +1762,10 @@
                         const banner = document.getElementById('referral-coupon-banner');
                         if (banner) banner.style.setProperty('display', 'none', 'important');
 
-                        // Trap-Release: Deaktiviert alle Eltern-Stile, die ein containing-block für fixed erzwingen
+                        // Trap-Release: Deaktiviert alle Eltern-Stile OBERHALB der Konfigurator-Wurzel, die ein containing-block für fixed erzwingen
                         this._neutralizedParents = [];
-                        let p = this.$el ? this.$el.parentElement : null;
+                        const rootEl = this.$root || (this.$el && this.$el.closest('[x-data]')) || this.$el;
+                        let p = rootEl ? rootEl.parentElement : null;
                         while (p && p !== document.body && p !== document.documentElement) {
                             const cs = window.getComputedStyle(p);
                             const hasTransform = cs.transform !== 'none' || (cs.animationName && cs.animationName !== 'none');

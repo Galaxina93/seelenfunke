@@ -87,7 +87,9 @@ class CartService
 
                 $coupon = MarketingVoucher::where('code', $pendingCoupon)->where('is_active', true)->first();
                 $personalCouponAllowed = true;
-                if ($coupon && !empty($coupon->recipient_email)) {
+                if ($coupon && $coupon->isInfluencerSample()) {
+                    $personalCouponAllowed = $this->isValidInfluencerSampleRedemption($coupon, $buyerEmail);
+                } elseif ($coupon && !empty($coupon->recipient_email)) {
                     $personalCouponAllowed = $customer
                         && $customer->hasVerifiedEmail()
                         && strtolower(trim((string) $buyerEmail)) === strtolower(trim($coupon->recipient_email));
@@ -691,7 +693,7 @@ class CartService
 
     public function isInfluencerSelfRedemption(MarketingVoucher $coupon, ?string $checkEmail = null): bool
     {
-        if (empty($coupon->influencer_id)) {
+        if (empty($coupon->influencer_id) || $coupon->isInfluencerSample()) {
             return false;
         }
 
@@ -721,6 +723,59 @@ class CartService
         ]);
 
         return !empty(array_intersect($candidateEmails, $infEmails));
+    }
+
+    /**
+     * Prüft, ob ein persönlicher 100% Gratis-Muster-Gutschein (PR-Sample) für den aktuellen Creator gültig und freigeschaltet ist.
+     */
+    public function isValidInfluencerSampleRedemption(MarketingVoucher $coupon, ?string $checkEmail = null): bool
+    {
+        if (!$coupon->isInfluencerSample() || empty($coupon->influencer_id)) {
+            return false;
+        }
+
+        $inf = $coupon->relationLoaded('influencer')
+            ? $coupon->influencer
+            : $coupon->influencer()->with('employee.profile')->first();
+
+        if (
+            !$inf
+            || !$inf->is_active
+            || $inf->is_archived
+            || !$inf->sample_granted
+            || $inf->sample_terms_accepted_at === null
+            || !empty($inf->sample_order_id)
+        ) {
+            return false;
+        }
+
+        $infEmail = strtolower(trim((string) ($inf->employee?->email ?: $coupon->recipient_email)));
+
+        if (Auth::guard('employee')->check() && (string) Auth::guard('employee')->id() === (string) $inf->employee_id) {
+            if ($checkEmail !== null && trim($checkEmail) !== '' && $infEmail !== '') {
+                return strtolower(trim($checkEmail)) === $infEmail;
+            }
+            return true;
+        }
+
+        if ((string) session('seelenfunke_sample_influencer_id') === (string) $inf->id) {
+            if ($checkEmail !== null && trim($checkEmail) !== '' && $infEmail !== '') {
+                return strtolower(trim($checkEmail)) === $infEmail;
+            }
+            return true;
+        }
+
+        $candidateEmails = array_filter([
+            strtolower(trim((string) $checkEmail)),
+            Auth::guard('customer')->check() ? strtolower(trim((string) Auth::guard('customer')->user()?->email)) : '',
+            Auth::guard('employee')->check() ? strtolower(trim((string) Auth::guard('employee')->user()?->email)) : '',
+        ]);
+
+        if ($infEmail !== '' && in_array($infEmail, $candidateEmails, true)) {
+            return true;
+        }
+
+        return false;
     }
 
     public function applyCoupon(string $code): array
@@ -784,6 +839,38 @@ class CartService
 
         if (!$coupon || !$coupon->isValid()) {
             return ['success' => false, 'message' => 'Gutschein ist ungültig oder abgelaufen.'];
+        }
+
+        if ($coupon->isInfluencerSample()) {
+            if (!$this->isValidInfluencerSampleRedemption($coupon, $buyerEmail)) {
+                return [
+                    'success' => false,
+                    'message' => 'Dieser Gratis-Muster-Code ist persönlich an dein Creator-Konto gebunden. Bitte schalte dein Muster zuerst im Creator-Portal frei.'
+                ];
+            }
+
+            $cart = $this->getCart();
+            if ($cart->items->isNotEmpty()) {
+                $hasPhysicalSampleItem = false;
+                foreach ($cart->items as $item) {
+                    $product = $item->product;
+                    if (!$product) continue;
+                    $itemConfig = is_array($item->configuration) ? $item->configuration : null;
+                    if ($product->isPhysical() && !$product->isGiftVoucher($itemConfig)) {
+                        $hasPhysicalSampleItem = true;
+                        break;
+                    }
+                }
+                if (!$hasPhysicalSampleItem) {
+                    return [
+                        'success' => false,
+                        'message' => 'Das Creator Gratis-Muster gilt ausschließlich für physische Manufaktur-Unikate.'
+                    ];
+                }
+            }
+
+            $cart->update(['coupon_code' => $coupon->code]);
+            return ['success' => true, 'message' => '100 % Gratis-Muster (inkl. Standardversand) erfolgreich aktiviert!'];
         }
 
         // [SICHERHEIT] Eigenbestellungs-Sperre für Influencer-Rabattcodes
@@ -1037,7 +1124,9 @@ class CartService
                 // B) Sonst normaler Marketing-Gutschein (Rabattcode)
                 $coupon = MarketingVoucher::where('code', $couponCode)->first();
                 $personalCouponAllowed = true;
-                if ($coupon && !empty($coupon->recipient_email)) {
+                if ($coupon && $coupon->isInfluencerSample()) {
+                    $personalCouponAllowed = $this->isValidInfluencerSampleRedemption($coupon, $activeCustomer?->email);
+                } elseif ($coupon && !empty($coupon->recipient_email)) {
                     $isFunkiCoupon = str_starts_with((string) $coupon->code, 'FUNKI-');
                     $ownsFunkiCoupon = $activeCustomer
                         && $isFunkiCoupon
@@ -1055,29 +1144,52 @@ class CartService
                 }
 
                 if ($coupon && $coupon->isValid() && $personalCouponAllowed) {
-                    // Rabattfähigen Warenwert berechnen (ohne Geschenkgutscheine & ohne bereits im Autopilot-Sale reduzierte Artikel)
-                    $discountableSubtotal = 0;
-                    foreach ($cart->items as $item) {
-                        $product = $item->product;
-                        if (!$product) continue;
-                        if ($product->isDiscountableWithCoupon(is_array($item->configuration) ? $item->configuration : null)) {
-                            $discountableSubtotal += $item->unit_price * $item->quantity;
+                    if ($coupon->isInfluencerSample()) {
+                        $sampleUnitPrice = 0;
+                        foreach ($cart->items as $item) {
+                            $product = $item->product;
+                            if (!$product) continue;
+                            $itemConfig = is_array($item->configuration) ? $item->configuration : null;
+                            if ($product->isPhysical() && !$product->isGiftVoucher($itemConfig)) {
+                                if ((int) $item->unit_price > $sampleUnitPrice) {
+                                    $sampleUnitPrice = (int) $item->unit_price;
+                                }
+                            }
                         }
-                    }
 
-                    if ($discountableSubtotal <= 0) {
-                        $cart->update(['coupon_code' => null]);
-                        $couponCode = null;
-                    } elseif ($coupon->min_order_value && $discountableSubtotal < $coupon->min_order_value) {
-                        // Gutschein bleibt im cart hinterlegt, wird aber nicht vom Preis abgezogen
-                    } else {
-                        if ($coupon->type === 'fixed') {
-                            $discountAmount = $coupon->value;
-                        } elseif ($coupon->type === 'percent') {
-                            $discountAmount = (int) round($discountableSubtotal * ($coupon->value / 100));
+                        if ($sampleUnitPrice <= 0) {
+                            $cart->update(['coupon_code' => null]);
+                            $couponCode = null;
+                        } else {
+                            $discountProducts = min($subtotalGross, $sampleUnitPrice);
+                            $discountShipping = $shippingGross;
+                            $discountAmount = $discountProducts + $discountShipping;
                         }
-                        $discountAmount = min($discountAmount, $discountableSubtotal);
-                        $discountProducts = $discountAmount;
+                    } else {
+                        // Rabattfähigen Warenwert berechnen (ohne Geschenkgutscheine & ohne bereits im Autopilot-Sale reduzierte Artikel)
+                        $discountableSubtotal = 0;
+                        foreach ($cart->items as $item) {
+                            $product = $item->product;
+                            if (!$product) continue;
+                            if ($product->isDiscountableWithCoupon(is_array($item->configuration) ? $item->configuration : null)) {
+                                $discountableSubtotal += $item->unit_price * $item->quantity;
+                            }
+                        }
+
+                        if ($discountableSubtotal <= 0) {
+                            $cart->update(['coupon_code' => null]);
+                            $couponCode = null;
+                        } elseif ($coupon->min_order_value && $discountableSubtotal < $coupon->min_order_value) {
+                            // Gutschein bleibt im cart hinterlegt, wird aber nicht vom Preis abgezogen
+                        } else {
+                            if ($coupon->type === 'fixed') {
+                                $discountAmount = $coupon->value;
+                            } elseif ($coupon->type === 'percent') {
+                                $discountAmount = (int) round($discountableSubtotal * ($coupon->value / 100));
+                            }
+                            $discountAmount = min($discountAmount, $discountableSubtotal);
+                            $discountProducts = $discountAmount;
+                        }
                     }
                 } else {
                     $cart->update(['coupon_code' => null]);

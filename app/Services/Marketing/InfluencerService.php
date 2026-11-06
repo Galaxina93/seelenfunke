@@ -53,6 +53,9 @@ class InfluencerService
         $label = !empty($options['invitation_label'])
             ? trim((string) $options['invitation_label'])
             : ('Creator-Einladung #' . strtoupper(Str::random(4)));
+        $sampleGranted = array_key_exists('sample_granted', $options)
+            ? (bool) $options['sample_granted']
+            : true;
 
         return MarketingInfluencer::create([
             'employee_id' => null,
@@ -64,6 +67,7 @@ class InfluencerService
             'commission_value' => $commissionValue,
             'follower_discount_percent' => $followerDiscount,
             'cookie_days' => $cookieDays,
+            'sample_granted' => $sampleGranted,
             'invitation_token_hash' => hash('sha256', $rawToken),
             'invitation_token_encrypted' => $rawToken,
             'invitation_code_hash' => hash('sha256', $rawCode),
@@ -296,6 +300,41 @@ class InfluencerService
     }
 
     /**
+     * Prüft, ob ein Gutscheincode mit einem reservierten System-Präfix beginnt oder bereits vergeben ist.
+     */
+    public function isReservedOrCollidingVoucherCode(string $code, ?string $ignoreVoucherId = null): bool
+    {
+        $clean = strtoupper(trim($code));
+        if ($clean === '') {
+            return true;
+        }
+
+        foreach (['REF-', 'DANKE-', 'CREATOR-', 'FUNKI-', 'SAMPLE-'] as $prefix) {
+            if (str_starts_with($clean, $prefix)) {
+                return true;
+            }
+        }
+
+        if (Schema::hasTable('marketing_vouchers')) {
+            $query = MarketingVoucher::where('code', $clean);
+            if ($ignoreVoucherId) {
+                $query->where('id', '!=', $ignoreVoucherId);
+            }
+            if ($query->exists()) {
+                return true;
+            }
+        }
+
+        if (Schema::hasTable('marketing_gift_vouchers')) {
+            if (MarketingGiftVoucher::where('code', $clean)->exists()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Stellt sicher, dass der Influencer seinen persönlichen Kurz-Tracking-Link (/t/{slug})
      * und seinen Follower-Rabattcode besitzt.
      */
@@ -327,21 +366,34 @@ class InfluencerService
 
             $influencer->update(['default_tracking_link_id' => $trackingLink->id]);
         } elseif ($influencer->defaultTrackingLink) {
-            $influencer->defaultTrackingLink->update([
+            $linkUpdate = [
+                'name' => 'Creator Bio-Link ' . $handle,
+                'utm_medium' => $channel,
+                'utm_campaign' => $cleanSlug,
                 'is_active' => $isActive,
-            ]);
+            ];
+            if (
+                $cleanSlug !== $influencer->defaultTrackingLink->slug
+                && !MarketingTrackingLink::where('slug', $cleanSlug)->where('id', '!=', $influencer->defaultTrackingLink->id)->exists()
+            ) {
+                $linkUpdate['slug'] = $cleanSlug;
+            }
+            $influencer->defaultTrackingLink->update($linkUpdate);
         }
 
         if ($followerDiscount > 0 && empty($influencer->default_voucher_id) && Schema::hasTable('marketing_vouchers')) {
             $customCode = strtoupper(preg_replace('/[^A-Za-z0-9\-]/', '', (string) ($customVoucherCode ?? '')));
             $basePrefix = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $cleanSlug));
-            if ($basePrefix === '') {
-                $basePrefix = 'CREATOR';
+            if ($basePrefix === '' || in_array($basePrefix, ['REF', 'DANKE', 'CREATOR', 'FUNKI'], true)) {
+                $basePrefix = 'PARTNER';
             }
 
-            $candidateCode = $customCode !== '' ? $customCode : ($basePrefix . $followerDiscount);
-            if (MarketingVoucher::where('code', $candidateCode)->exists()) {
-                $candidateCode = $basePrefix . $followerDiscount . '-' . strtoupper(Str::random(2));
+            $candidateCode = ($customCode !== '' && !$this->isReservedOrCollidingVoucherCode($customCode))
+                ? $customCode
+                : ($basePrefix . $followerDiscount);
+
+            if ($this->isReservedOrCollidingVoucherCode($candidateCode)) {
+                $candidateCode = $basePrefix . $followerDiscount . '-' . strtoupper(Str::random(3));
             }
 
             $voucher = MarketingVoucher::create([
@@ -362,16 +414,21 @@ class InfluencerService
             $influencer->update(['default_voucher_id' => $voucher->id]);
         } elseif ($influencer->defaultVoucher && $followerDiscount > 0) {
             $updateData = [
+                'title' => 'Creator-Rabatt von ' . $handle,
                 'value' => $followerDiscount,
                 'is_active' => $isActive,
             ];
             $cleanCustom = strtoupper(preg_replace('/[^A-Za-z0-9\-]/', '', (string) ($customVoucherCode ?? '')));
             if ($cleanCustom !== '' && $cleanCustom !== $influencer->defaultVoucher->code) {
-                if (!MarketingVoucher::where('code', $cleanCustom)->where('id', '!=', $influencer->defaultVoucher->id)->exists()) {
+                if (!$this->isReservedOrCollidingVoucherCode($cleanCustom, (string) $influencer->defaultVoucher->id)) {
                     $updateData['code'] = $cleanCustom;
                 }
             }
             $influencer->defaultVoucher->update($updateData);
+        } elseif ($influencer->defaultVoucher && $followerDiscount <= 0) {
+            $influencer->defaultVoucher->update([
+                'is_active' => false,
+            ]);
         }
 
         $this->syncInfluencerActiveState($influencer);
@@ -384,6 +441,11 @@ class InfluencerService
     public function syncInfluencerActiveState(MarketingInfluencer $influencer): void
     {
         $effectiveActive = (bool) $influencer->is_active && !(bool) $influencer->is_archived;
+        $voucherActive = $effectiveActive && ((int) $influencer->follower_discount_percent > 0);
+        $sampleVoucherActive = $effectiveActive
+            && (bool) $influencer->sample_granted
+            && $influencer->sample_terms_accepted_at !== null
+            && empty($influencer->sample_order_id);
 
         if (Schema::hasTable('marketing_tracking_links')) {
             MarketingTrackingLink::where('influencer_id', $influencer->id)
@@ -392,7 +454,14 @@ class InfluencerService
 
         if (Schema::hasTable('marketing_vouchers')) {
             MarketingVoucher::where('influencer_id', $influencer->id)
-                ->update(['is_active' => $effectiveActive]);
+                ->where(function ($q) {
+                    $q->whereNull('trigger_event')->orWhere('trigger_event', '!=', 'influencer_sample');
+                })
+                ->update(['is_active' => $voucherActive]);
+
+            MarketingVoucher::where('influencer_id', $influencer->id)
+                ->where('trigger_event', 'influencer_sample')
+                ->update(['is_active' => $sampleVoucherActive]);
         }
     }
 
@@ -412,8 +481,9 @@ class InfluencerService
                 && $influencer->payouts()->exists();
             $hasUsedVouchers = Schema::hasTable('marketing_vouchers')
                 && MarketingVoucher::where('influencer_id', $influencer->id)->where('used_count', '>', 0)->exists();
+            $hasSampleOrder = !empty($influencer->sample_order_id);
 
-            if ($hasCommissions || $hasPayouts || $hasUsedVouchers) {
+            if ($hasCommissions || $hasPayouts || $hasUsedVouchers || $hasSampleOrder) {
                 $influencer->update([
                     'is_active' => false,
                     'is_archived' => true,
@@ -440,6 +510,8 @@ class InfluencerService
             $influencer->update([
                 'default_tracking_link_id' => null,
                 'default_voucher_id' => null,
+                'sample_voucher_id' => null,
+                'sample_order_id' => null,
             ]);
 
             if (Schema::hasTable('marketing_tracking_links')) {
@@ -527,6 +599,7 @@ class InfluencerService
                     'commission_value' => $commissionValue,
                     'follower_discount_percent' => $followerDiscount,
                     'cookie_days' => $cookieDays,
+                    'sample_granted' => array_key_exists('sample_granted', $data) ? (bool) $data['sample_granted'] : $influencer->sample_granted,
                     'is_active' => $isActive,
                     'internal_notes' => $data['internal_notes'] ?? $influencer->internal_notes,
                 ]);
@@ -559,6 +632,7 @@ class InfluencerService
                     'commission_value' => $commissionValue,
                     'follower_discount_percent' => $followerDiscount,
                     'cookie_days' => $cookieDays,
+                    'sample_granted' => array_key_exists('sample_granted', $data) ? (bool) $data['sample_granted'] : true,
                     'invitation_token_hash' => hash('sha256', $rawToken),
                     'invitation_token_encrypted' => $rawToken,
                     'invitation_code_hash' => hash('sha256', $rawCode),
@@ -700,9 +774,16 @@ class InfluencerService
             // WEG A: Zuordnung über eingelösten Gutscheincode (z.B. LARA10)
             if (!empty($order->coupon_code) && Schema::hasTable('marketing_vouchers')) {
                 $cleanCoupon = strtoupper(trim((string) $order->coupon_code));
+                if (str_starts_with($cleanCoupon, 'SAMPLE-')) {
+                    return null;
+                }
                 $voucher = MarketingVoucher::where('code', $cleanCoupon)
                     ->whereNotNull('influencer_id')
                     ->first();
+
+                if ($voucher && $voucher->isInfluencerSample()) {
+                    return null;
+                }
 
                 if ($voucher && $voucher->influencer && $voucher->influencer->is_active && !$voucher->influencer->is_archived) {
                     $couponInfluencer = $voucher->influencer;
@@ -813,12 +894,31 @@ class InfluencerService
 
             // Prüfen, ob $order->coupon_code ein eingelöster Wertgutschein (Zahlungsmittel, kein Aktionsrabatt) ist
             $isGiftVoucherRedemption = false;
+            $isPromotionalOrCreatorGiftVoucher = false;
             if (!empty($order->coupon_code) && Schema::hasTable('marketing_gift_vouchers')) {
                 $cleanOrderCoupon = strtoupper(trim((string) $order->coupon_code));
-                $isGiftVoucherRedemption = MarketingGiftVoucher::where('code', $cleanOrderCoupon)->exists();
+                $redeemedGiftVoucher = MarketingGiftVoucher::where('code', $cleanOrderCoupon)->first();
+                if ($redeemedGiftVoucher) {
+                    $isGiftVoucherRedemption = true;
+                    if (Schema::hasTable('marketing_influencer_payouts')) {
+                        $ownPayoutVoucher = MarketingInfluencerPayout::where('gift_voucher_id', $redeemedGiftVoucher->id)
+                            ->where('influencer_id', $finalInfluencer->id)
+                            ->exists();
+                        if ($ownPayoutVoucher) {
+                            Log::warning("Influencer-Provision abgelehnt (Einlösung des eigenen Creator-Auszahlungsgutscheins {$cleanOrderCoupon}): Order {$order->order_number}.");
+                            return null;
+                        }
+                    }
+                    if (
+                        empty($redeemedGiftVoucher->order_id)
+                        && (str_starts_with($cleanOrderCoupon, 'CREATOR-') || str_starts_with($cleanOrderCoupon, 'DANKE-'))
+                    ) {
+                        $isPromotionalOrCreatorGiftVoucher = true;
+                    }
+                }
             }
 
-            $promotionalDiscountCents = $isGiftVoucherRedemption ? 0 : (int) $order->discount_amount;
+            $promotionalDiscountCents = ($isGiftVoucherRedemption && !$isPromotionalOrCreatorGiftVoucher) ? 0 : (int) $order->discount_amount;
 
             $grossMerchandiseCents = ($order->items->isNotEmpty() && $eligibleItemsGrossCents === 0)
                 ? 0
@@ -890,6 +990,8 @@ class InfluencerService
 
     /**
      * Storniert eine vorgemerkte oder freigegebene Provision automatisch bei Bestell-Storno oder Widerruf.
+     * Falls die Provision bereits in einer noch offenen Auszahlungsanforderung ('requested') gebündelt war,
+     * wird sie daraus gelöst und die Anforderung neu berechnet bzw. bei 0 € entfernt.
      */
     public function reverseOrderCommission(OrderOrder $order, string $reason = 'Stornierung/Widerruf'): bool
     {
@@ -897,22 +999,77 @@ class InfluencerService
             return false;
         }
 
-        $commission = MarketingInfluencerCommission::where('order_id', $order->id)
-            ->whereIn('status', ['pending', 'approved'])
-            ->whereNull('payout_id')
-            ->first();
+        return DB::transaction(function () use ($order, $reason) {
+            $commission = MarketingInfluencerCommission::with('payout')
+                ->where('order_id', $order->id)
+                ->whereIn('status', ['pending', 'approved'])
+                ->lockForUpdate()
+                ->first();
 
-        if (!$commission) {
-            return false;
+            if (!$commission) {
+                return false;
+            }
+
+            if ($commission->payout_id !== null && $commission->payout && $commission->payout->status === 'paid') {
+                return false;
+            }
+
+            $affectedPayout = $commission->payout;
+
+            $commission->update([
+                'payout_id' => null,
+                'status' => 'cancelled',
+                'cancelled_at' => now(),
+                'cancellation_reason' => mb_substr($reason, 0, 250),
+            ]);
+
+            if ($affectedPayout && $affectedPayout->status !== 'paid') {
+                $this->recalculateOrCancelUnpaidPayout($affectedPayout);
+            }
+
+            return true;
+        });
+    }
+
+    /**
+     * Berechnet eine noch nicht ausgezahlte Gutschrift ('requested') nach Storno einer Einzelbestellung neu
+     * oder entfernt sie rückstandsfrei, falls keine freigegebenen Provisionen mehr enthalten sind.
+     */
+    protected function recalculateOrCancelUnpaidPayout(MarketingInfluencerPayout $payout): void
+    {
+        $remainingCommissions = MarketingInfluencerCommission::where('payout_id', $payout->id)
+            ->where('status', 'approved')
+            ->get();
+
+        $netCents = (int) $remainingCommissions->sum('commission_amount_cents');
+        if ($netCents <= 0) {
+            if (!empty($payout->pdf_path) && Storage::disk('local')->exists((string) $payout->pdf_path)) {
+                Storage::disk('local')->delete((string) $payout->pdf_path);
+            }
+            $payout->delete();
+            return;
         }
 
-        $commission->update([
-            'status' => 'cancelled',
-            'cancelled_at' => now(),
-            'cancellation_reason' => mb_substr($reason, 0, 250),
+        $bonusCents = 0;
+        $taxRate = (float) $payout->tax_rate;
+        $taxCents = 0;
+
+        if ($payout->payout_method === 'shop_voucher') {
+            $bonusCents = (int) round($netCents * 0.20);
+            $grossCents = $netCents + $bonusCents;
+        } else {
+            $taxCents = $taxRate > 0 ? (int) round($netCents * ($taxRate / 100)) : 0;
+            $grossCents = $netCents + $taxCents;
+        }
+
+        $payout->update([
+            'net_amount_cents' => $netCents,
+            'tax_amount_cents' => $taxCents,
+            'bonus_amount_cents' => $bonusCents,
+            'gross_amount_cents' => $grossCents,
         ]);
 
-        return true;
+        $this->generateAndStoreCreditNotePdf($payout->fresh(['influencer.employee.profile', 'commissions', 'giftVoucher']));
     }
 
     /**
@@ -948,6 +1105,10 @@ class InfluencerService
     {
         $influencer->loadMissing('employee.profile');
 
+        if ($influencer->is_archived || ($enforceMinimum && !$influencer->is_active)) {
+            throw new InvalidArgumentException('Für ein pausiertes oder archiviertes Creator-Konto können keine Auszahlungen angefordert werden.');
+        }
+
         $method = in_array($chosenMethod, ['bank_transfer', 'paypal', 'shop_voucher'], true)
             ? $chosenMethod
             : $influencer->payout_method;
@@ -957,11 +1118,24 @@ class InfluencerService
         }
 
         return DB::transaction(function () use ($influencer, $method, $enforceMinimum) {
-            $commissions = MarketingInfluencerCommission::where('influencer_id', $influencer->id)
+            $commissions = MarketingInfluencerCommission::with('order')
+                ->where('influencer_id', $influencer->id)
                 ->where('status', 'approved')
                 ->whereNull('payout_id')
                 ->lockForUpdate()
-                ->get();
+                ->get()
+                ->filter(function (MarketingInfluencerCommission $comm) {
+                    if ($comm->order && (in_array($comm->order->status, ['cancelled', 'refunded'], true) || $comm->order->payment_status === 'refunded')) {
+                        $comm->update([
+                            'status' => 'cancelled',
+                            'cancelled_at' => now(),
+                            'cancellation_reason' => 'Bestellung vor Auszahlung storniert/erstattet',
+                        ]);
+                        return false;
+                    }
+                    return true;
+                })
+                ->values();
 
             $netCents = (int) $commissions->sum('commission_amount_cents');
             if ($netCents <= 0) {
@@ -996,6 +1170,8 @@ class InfluencerService
                 'full_name' => trim(($influencer->employee?->first_name ?? '') . ' ' . ($influencer->employee?->last_name ?? '')),
                 'email' => $influencer->employee?->email,
                 'handle' => $influencer->handle,
+                'slug' => $influencer->slug,
+                'commission_type' => $influencer->commission_type,
                 'company_name' => $profile?->company_name,
                 'street' => $profile?->street,
                 'house_number' => $profile?->house_number,
@@ -1042,10 +1218,33 @@ class InfluencerService
     public function markPayoutAsPaid(MarketingInfluencerPayout $payout, ?string $adminId = null): MarketingInfluencerPayout
     {
         return DB::transaction(function () use ($payout, $adminId) {
-            $payout->loadMissing(['influencer.employee.profile', 'commissions']);
+            $payout = MarketingInfluencerPayout::with(['influencer.employee.profile', 'commissions.order'])
+                ->lockForUpdate()
+                ->findOrFail($payout->id);
 
             if ($payout->status === 'paid') {
                 return $payout;
+            }
+
+            $hadCancelledOrder = false;
+            foreach ($payout->commissions as $comm) {
+                if ($comm->status === 'cancelled' || ($comm->order && (in_array($comm->order->status, ['cancelled', 'refunded'], true) || $comm->order->payment_status === 'refunded'))) {
+                    $comm->update([
+                        'payout_id' => null,
+                        'status' => 'cancelled',
+                        'cancelled_at' => $comm->cancelled_at ?: now(),
+                        'cancellation_reason' => $comm->cancellation_reason ?: 'Bestellung vor Auszahlung storniert/erstattet',
+                    ]);
+                    $hadCancelledOrder = true;
+                }
+            }
+
+            if ($hadCancelledOrder) {
+                $this->recalculateOrCancelUnpaidPayout($payout);
+                $payout = MarketingInfluencerPayout::with(['influencer.employee.profile', 'commissions'])->find($payout->id);
+                if (!$payout || (int) $payout->net_amount_cents <= 0) {
+                    throw new InvalidArgumentException('Alle enthaltenen Bestellungen dieser Auszahlung wurden inzwischen storniert.');
+                }
             }
 
             $effectiveAdminId = $adminId ?: (auth('admin')->id() ?: Admin::value('id'));
@@ -1399,5 +1598,171 @@ class InfluencerService
             'utm_campaign' => $candidateSlug,
             'is_active' => (bool) $influencer->is_active && !(bool) $influencer->is_archived,
         ]);
+    }
+
+    /**
+     * Schaltet das 100% Gratis-Muster (PR-Sample) für den Creator frei, speichert den Zeitstempel
+     * der Verlinkungs- & Kooperationsvereinbarung und stellt den persönlichen Einmal-Code (SAMPLE-...) bereit.
+     */
+    public function acceptSampleTermsAndEnsureVoucher(MarketingInfluencer $influencer): MarketingVoucher
+    {
+        if (!$influencer->sample_granted) {
+            throw new InvalidArgumentException('Für dieses Creator-Konto ist aktuell kein Gratis-Muster freigegeben.');
+        }
+
+        if (!$influencer->hasShippingAddress()) {
+            throw new InvalidArgumentException('Bitte hinterlege zuerst deine vollständige Lieferadresse in den Einstellungen.');
+        }
+
+        return DB::transaction(function () use ($influencer) {
+            $influencer->loadMissing(['employee', 'sampleVoucher']);
+
+            if ($influencer->sample_terms_accepted_at === null) {
+                $influencer->sample_terms_accepted_at = now();
+            }
+
+            $voucher = $influencer->sampleVoucher;
+            $baseSlug = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) ($influencer->slug ?: ($influencer->handle ?: 'CREATOR'))));
+            $baseSlug = substr($baseSlug ?: 'CREATOR', 0, 10);
+
+            if (!$voucher) {
+                $candidateCode = 'SAMPLE-' . $baseSlug . '-' . strtoupper(Str::random(4));
+                while (MarketingVoucher::where('code', $candidateCode)->exists()) {
+                    $candidateCode = 'SAMPLE-' . $baseSlug . '-' . strtoupper(Str::random(4));
+                }
+
+                $voucher = MarketingVoucher::create([
+                    'influencer_id' => $influencer->id,
+                    'title' => '100 % Gratis-Muster (PR-Sample) ' . ($influencer->handle ?: $baseSlug),
+                    'code' => $candidateCode,
+                    'recipient_email' => strtolower(trim((string) ($influencer->employee?->email ?? ''))),
+                    'type' => 'percent',
+                    'value' => 100,
+                    'used_count' => 0,
+                    'usage_limit' => 1,
+                    'min_order_value' => 0,
+                    'mode' => 'manual',
+                    'trigger_event' => 'influencer_sample',
+                    'is_active' => empty($influencer->sample_order_id),
+                    'valid_from' => now()->subDay(),
+                    'valid_until' => now()->addMonths(6),
+                ]);
+
+                $influencer->sample_voucher_id = $voucher->id;
+            } else {
+                if (empty($influencer->sample_order_id)) {
+                    $voucher->update([
+                        'recipient_email' => strtolower(trim((string) ($influencer->employee?->email ?? ''))),
+                        'type' => 'percent',
+                        'value' => 100,
+                        'usage_limit' => max(1, (int) $voucher->usage_limit),
+                        'is_active' => true,
+                        'valid_until' => now()->addMonths(6),
+                    ]);
+                }
+            }
+
+            $influencer->save();
+
+            return $voucher->fresh();
+        });
+    }
+
+    /**
+     * Ermöglicht dem Admin im Influencer-Hub, einem Creator ein neues 100% Gratis-Muster freizuschalten
+     * (z.B. für den Launch eines neuen Manufaktur-Produkts oder zum Zurücksetzen eines bestehenden Musters).
+     */
+    public function grantNewSampleToInfluencer(MarketingInfluencer $influencer): MarketingInfluencer
+    {
+        return DB::transaction(function () use ($influencer) {
+            $influencer->loadMissing(['employee', 'sampleVoucher']);
+
+            $influencer->update([
+                'sample_granted' => true,
+                'sample_order_id' => null,
+                'sample_post_url' => null,
+                'sample_posted_at' => null,
+                'sample_post_verified_at' => null,
+            ]);
+
+            if ($influencer->sampleVoucher) {
+                $influencer->sampleVoucher->update([
+                    'used_count' => 0,
+                    'usage_limit' => 1,
+                    'is_active' => $influencer->sample_terms_accepted_at !== null && (bool) $influencer->is_active && !(bool) $influencer->is_archived,
+                    'valid_from' => now()->subDay(),
+                    'valid_until' => now()->addMonths(6),
+                ]);
+            }
+
+            return $influencer->fresh(['employee.profile', 'sampleVoucher', 'sampleOrder']);
+        });
+    }
+
+    /**
+     * Speichert das 3D-Konfigurator-Testfeedback des Creators zum Gratis-Muster.
+     */
+    public function saveSampleConfiguratorFeedback(MarketingInfluencer $influencer, int $rating, ?string $feedback = null): MarketingInfluencer
+    {
+        $cleanRating = max(1, min(5, $rating));
+        $cleanFeedback = $feedback !== null ? trim($feedback) : null;
+
+        $influencer->update([
+            'sample_configurator_rating' => $cleanRating,
+            'sample_configurator_feedback' => $cleanFeedback !== '' ? $cleanFeedback : null,
+        ]);
+
+        return $influencer->fresh();
+    }
+
+    /**
+     * Speichert den Verlinkungs-Nachweis (Story/Reel/Beitrags-Link oder Hinweis) des Creators.
+     */
+    public function submitSamplePostProof(MarketingInfluencer $influencer, string $postUrl, ?int $rating = null, ?string $feedback = null): MarketingInfluencer
+    {
+        $cleanUrl = trim($postUrl);
+        if ($cleanUrl === '') {
+            throw new InvalidArgumentException('Bitte gib den Link zu deinem Beitrag oder deiner Story an.');
+        }
+
+        $update = [
+            'sample_post_url' => mb_substr($cleanUrl, 0, 500),
+            'sample_posted_at' => now(),
+        ];
+
+        if ($rating !== null && $rating >= 1 && $rating <= 5) {
+            $update['sample_configurator_rating'] = $rating;
+        }
+        if ($feedback !== null && trim($feedback) !== '') {
+            $update['sample_configurator_feedback'] = trim($feedback);
+        }
+
+        $influencer->update($update);
+
+        if (class_exists(SystemLog::class)) {
+            SystemLog::create([
+                'type' => 'system',
+                'action_id' => 'influencer:sample_post_submitted',
+                'title' => 'Creator-Verlinkungsnachweis eingereicht',
+                'message' => "Creator {$influencer->handle} hat den Verlinkungs-Nachweis für das Gratis-Muster eingereicht: {$cleanUrl}",
+                'status' => 'success',
+                'started_at' => now(),
+                'finished_at' => now(),
+            ]);
+        }
+
+        return $influencer->fresh(['sampleOrder', 'sampleVoucher']);
+    }
+
+    /**
+     * Markiert den Verlinkungs-Nachweis eines Creators durch den Admin als geprüft & erledigt.
+     */
+    public function verifySamplePostProof(MarketingInfluencer $influencer): MarketingInfluencer
+    {
+        $influencer->update([
+            'sample_post_verified_at' => now(),
+        ]);
+
+        return $influencer->fresh(['sampleOrder', 'sampleVoucher']);
     }
 }

@@ -119,12 +119,12 @@ class SystemBackups extends Component
 
     public function runTestBackup()
     {
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
         try {
-            $backupMail = shop_setting('owner_email_backup', shop_setting('owner_email', shop_setting('company_email', 'backup@mein-seelenfunke.de')));
+            $backupMail = shop_setting('owner_email', shop_setting('company_email', 'kontakt@mein-seelenfunke.de'));
             if (!empty($backupMail)) {
                 \Illuminate\Support\Facades\Config::set('backup.notifications.mail.to', $backupMail);
             }

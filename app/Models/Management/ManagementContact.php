@@ -85,4 +85,17 @@ use HasFactory, HasUuids;
     {
         return trim("{$this->first_name} {$this->last_name}");
     }
+
+    protected static function booted(): void
+    {
+        static::deleting(function (ManagementContact $contact) {
+            if (!empty($contact->avatar_path) && !str_contains((string) $contact->avatar_path, '..') && \Illuminate\Support\Facades\Storage::disk('public')->exists($contact->avatar_path)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($contact->avatar_path);
+            }
+
+            if ($contact->id) {
+                ManagementCalendarEvent::where('ics_uid', 'contact_birthday_' . $contact->id)->delete();
+            }
+        });
+    }
 }

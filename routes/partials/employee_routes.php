@@ -76,6 +76,9 @@ Route::middleware(['auth:employee'])->group(function () {
 
         // Eigener Monats-Stundenzettel PDF (§ 17 MiLoG)
         Route::get('/employee/timesheet/{year}/{month}/pdf', function (int $year, int $month) {
+            if ($year < 2000 || $year > 2100 || $month < 1 || $month > 12) {
+                abort(404);
+            }
             $employee = auth('employee')->user();
             $contract = $employee?->employmentContract;
             if (!$contract || (string) $contract->employee_id !== (string) $employee->id) {
@@ -223,6 +226,9 @@ Route::middleware(['auth:employee'])->group(function () {
 
         // Steuerberater: Mitarbeiter-Arbeitsvertrag PDF
         Route::get('/employee/tax-advisor/employee-contract/{contract}/pdf', function (\App\Models\Employee\EmployeeContract $contract) {
+            if ($contract->invitation_accepted_at === null) {
+                abort(404);
+            }
             if (empty($contract->contract_pdf_path) || !Storage::disk('local')->exists((string) $contract->contract_pdf_path)) {
                 app(\App\Services\Employee\EmployeeHrService::class)->generateAndStoreContractPdf($contract);
                 $contract->refresh();
@@ -245,6 +251,9 @@ Route::middleware(['auth:employee'])->group(function () {
 
         // Steuerberater: Mitarbeiter-Personalfragebogen (ELStAM / DEÜV) PDF
         Route::get('/employee/tax-advisor/employee-questionnaire/{contract}/pdf', function (\App\Models\Employee\EmployeeContract $contract) {
+            if ($contract->invitation_accepted_at === null) {
+                abort(404);
+            }
             if (empty($contract->questionnaire_pdf_path) || !Storage::disk('local')->exists((string) $contract->questionnaire_pdf_path)) {
                 app(\App\Services\Employee\EmployeeHrService::class)->generateAndStoreQuestionnairePdf($contract);
                 $contract->refresh();
@@ -267,6 +276,9 @@ Route::middleware(['auth:employee'])->group(function () {
 
         // Steuerberater: Mitarbeiter-Stundenzettel PDF
         Route::get('/employee/tax-advisor/employee-timesheet/{contract}/{year}/{month}/pdf', function (\App\Models\Employee\EmployeeContract $contract, int $year, int $month) {
+            if ($contract->invitation_accepted_at === null || $year < 2000 || $year > 2100 || $month < 1 || $month > 12) {
+                abort(404);
+            }
             $path = app(\App\Services\Employee\EmployeeHrService::class)->generateAndStoreTimesheetPdf($contract, $year, $month);
             if (!$path || str_contains($path, '..') || str_contains($path, "\0") || !str_starts_with($path, 'buchhaltung/receipts/') || !Storage::disk('local')->exists($path)) {
                 abort(404);
@@ -282,6 +294,33 @@ Route::middleware(['auth:employee'])->group(function () {
                 'X-Content-Type-Options' => 'nosniff',
             ]);
         })->name('employee.tax-advisor.employee-timesheet.pdf')->middleware('throttle:30,1');
+
+        // Steuerberater: Mitarbeiter-Lohnabrechnung PDF (§ 108 GewO / DATEV-Lohnzettel)
+        Route::get('/employee/tax-advisor/employee-payslip/{payslip}/pdf', function (\App\Models\Employee\EmployeePayslip $payslip) {
+            $employee = auth('employee')->user();
+            if (!$employee || !$employee->isTaxAdvisor()) {
+                abort(403, 'Zugriff verweigert.');
+            }
+            $path = (string) $payslip->effective_pdf_path;
+            if ($path === '' || !Storage::disk('local')->exists($path)) {
+                app(\App\Services\Employee\EmployeeHrService::class)->generateAndStorePayslipPdf($payslip);
+                $payslip->refresh();
+                $path = (string) $payslip->effective_pdf_path;
+            }
+            if ($path === '' || str_contains($path, '..') || str_contains($path, "\0") || !str_starts_with($path, 'buchhaltung/receipts/') || !Storage::disk('local')->exists($path)) {
+                abort(404);
+            }
+            $fullPath = Storage::disk('local')->path($path);
+            if (is_link($fullPath)) {
+                abort(403);
+            }
+            $cleanName = 'Lohnabrechnung_' . preg_replace('/[^A-Za-z0-9_\-]/', '_', (string) $payslip->payslip_number) . '.pdf';
+            return response()->file($fullPath, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="' . $cleanName . '"',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
+        })->name('employee.tax-advisor.employee-payslip.pdf')->middleware('throttle:30,1');
     });
 
 });

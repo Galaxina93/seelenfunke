@@ -44,6 +44,21 @@ class SupportChats extends Component
         }
     }
 
+    public function updatingSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingStatusFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingRatingFilter(): void
+    {
+        $this->resetPage();
+    }
+
     public function render()
     {
         $query = SupportCustomerChat::with(['messages']);

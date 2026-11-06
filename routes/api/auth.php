@@ -105,8 +105,8 @@ Route::post('/login', function (Request $request) {
 
             \App\Services\System\SystemSecurityService::recordLoginAttempt($credentials['email'], $request->ip(), true, 'api');
 
-            // Optional: Alte Tokens aufräumen
-            $user->tokens()->delete();
+            // Nur alte Mobile-App-Tokens desselben Typs ersetzen (Funkenwerk-PC Desktop-Tokens bleiben dauerhaft bestehen!)
+            $user->tokens()->where('name', 'FunkiApp-' . $guard)->delete();
 
             // Token erstellen
             $token = $user->createToken('FunkiApp-' . $guard)->plainTextToken;

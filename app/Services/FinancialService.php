@@ -1131,6 +1131,114 @@ class FinancialService
                     $zip->addFile($file->getPathname(), 'Belege/' . $file->getFilename());
                 }
             }
+
+            // 5. AUSGANGSRECHNUNGEN & STORNOS DES MONATS
+            $monthInt = (int) $monthStr;
+            $yearInt = (int) $yearStr;
+            $periodInvoices = \App\Models\Accounting\AccountingInvoice::where('status', '!=', 'draft')
+                ->whereYear('invoice_date', $yearInt)
+                ->whereMonth('invoice_date', $monthInt)
+                ->get();
+
+            foreach ($periodInvoices as $inv) {
+                $safeInvNo = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) $inv->invoice_number);
+                $invPrefix = match ($inv->type) {
+                    'cancellation' => 'Storno_',
+                    'credit_note' => 'Gutschrift_',
+                    default => 'Rechnung_',
+                };
+                $archivedPdfPath = ltrim(str_replace('\\', '/', (string) $inv->pdf_storage_path), '/');
+                if (
+                    $inv->has_archived_pdf
+                    && $archivedPdfPath !== ''
+                    && !str_contains($archivedPdfPath, '..')
+                    && !is_link(Storage::disk('local')->path($archivedPdfPath))
+                ) {
+                    $zip->addFile(Storage::disk('local')->path($archivedPdfPath), "Ausgangsrechnungen/{$invPrefix}{$safeInvNo}.pdf");
+                    $copyCount++;
+                }
+            }
+
+            // 6. CREATOR-GUTSCHRIFTEN (§ 14 UStG) DES MONATS
+            if (\Illuminate\Support\Facades\Schema::hasTable('marketing_influencer_payouts')) {
+                $periodPayouts = \App\Models\Marketing\MarketingInfluencerPayout::with('influencer.employee.profile')
+                    ->where('status', '!=', 'cancelled')
+                    ->whereYear('created_at', $yearInt)
+                    ->whereMonth('created_at', $monthInt)
+                    ->get();
+
+                $infService = app(\App\Services\Marketing\InfluencerService::class);
+                foreach ($periodPayouts as $payout) {
+                    if (empty($payout->pdf_path) || !Storage::disk('local')->exists((string) $payout->pdf_path)) {
+                        try {
+                            $infService->generateCreditNotePdf($payout);
+                            $payout->refresh();
+                        } catch (\Throwable $e) {
+                            continue;
+                        }
+                    }
+                    $pPath = (string) $payout->pdf_path;
+                    if ($pPath !== '' && !str_contains($pPath, '..') && str_starts_with($pPath, 'buchhaltung/receipts/') && Storage::disk('local')->exists($pPath) && !is_link(Storage::disk('local')->path($pPath))) {
+                        $safeCreditNo = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) $payout->credit_note_number);
+                        $zip->addFile(Storage::disk('local')->path($pPath), "Creator_Gutschriften/Gutschrift_{$safeCreditNo}.pdf");
+                        $copyCount++;
+                    }
+                }
+            }
+
+            // 7. PERSONALAKTEN, STUNDENZETTEL & LOHNABRECHNUNGEN DES MONATS
+            if (\Illuminate\Support\Facades\Schema::hasTable('employee_contracts')) {
+                $hrContracts = \App\Models\Employee\EmployeeContract::with(['employee.profile', 'payslips' => fn ($q) => $q->where('period_year', $yearInt)->where('period_month', $monthInt)])
+                    ->whereNotNull('invitation_accepted_at')
+                    ->get();
+
+                $hrService = app(\App\Services\Employee\EmployeeHrService::class);
+                foreach ($hrContracts as $contract) {
+                    $safeContractNo = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) $contract->contract_number);
+
+                    if (empty($contract->contract_pdf_path) || !Storage::disk('local')->exists((string) $contract->contract_pdf_path)) {
+                        $hrService->generateAndStoreContractPdf($contract);
+                        $contract->refresh();
+                    }
+                    $cPath = (string) $contract->contract_pdf_path;
+                    if ($cPath !== '' && !str_contains($cPath, '..') && str_starts_with($cPath, 'buchhaltung/contracts/') && Storage::disk('local')->exists($cPath) && !is_link(Storage::disk('local')->path($cPath))) {
+                        $zip->addFile(Storage::disk('local')->path($cPath), "Personal_und_Lohn/Arbeitsvertrag_{$safeContractNo}.pdf");
+                        $copyCount++;
+                    }
+
+                    if (empty($contract->questionnaire_pdf_path) || !Storage::disk('local')->exists((string) $contract->questionnaire_pdf_path)) {
+                        $hrService->generateAndStoreQuestionnairePdf($contract);
+                        $contract->refresh();
+                    }
+                    $qPath = (string) $contract->questionnaire_pdf_path;
+                    if ($qPath !== '' && !str_contains($qPath, '..') && str_starts_with($qPath, 'buchhaltung/contracts/') && Storage::disk('local')->exists($qPath) && !is_link(Storage::disk('local')->path($qPath))) {
+                        $zip->addFile(Storage::disk('local')->path($qPath), "Personal_und_Lohn/Personalbogen_{$safeContractNo}.pdf");
+                        $copyCount++;
+                    }
+
+                    $tPath = $hrService->generateAndStoreTimesheetPdf($contract, $yearInt, $monthInt);
+                    if ($tPath && !str_contains($tPath, '..') && str_starts_with($tPath, 'buchhaltung/receipts/') && Storage::disk('local')->exists($tPath) && !is_link(Storage::disk('local')->path($tPath))) {
+                        $zip->addFile(Storage::disk('local')->path($tPath), "Personal_und_Lohn/Stundenzettel_{$safeContractNo}_{$yearStr}_{$monthStr}.pdf");
+                        $copyCount++;
+                    }
+
+                    $payslip = $contract->payslips->first();
+                    if ($payslip) {
+                        $payPath = (string) $payslip->effective_pdf_path;
+                        if ($payPath === '' || !Storage::disk('local')->exists($payPath)) {
+                            $hrService->generateAndStorePayslipPdf($payslip);
+                            $payslip->refresh();
+                            $payPath = (string) $payslip->effective_pdf_path;
+                        }
+                        if ($payPath !== '' && !str_contains($payPath, '..') && str_starts_with($payPath, 'buchhaltung/receipts/') && Storage::disk('local')->exists($payPath) && !is_link(Storage::disk('local')->path($payPath))) {
+                            $safePayslipNo = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) $payslip->payslip_number);
+                            $zip->addFile(Storage::disk('local')->path($payPath), "Personal_und_Lohn/Lohnabrechnung_{$safePayslipNo}.pdf");
+                            $copyCount++;
+                        }
+                    }
+                }
+            }
+
             $zip->close();
         }
 

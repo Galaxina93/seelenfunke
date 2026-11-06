@@ -53,6 +53,64 @@ class SystemLogs extends Component
         $this->resetPage();
     }
 
+    public function markAllAsDone()
+    {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+
+        $query = SystemLog::whereIn('status', ['error', 'warning']);
+
+        if ($this->search) {
+            $escapedSearch = addcslashes((string) $this->search, '%_\\');
+            $query->where(function ($q) use ($escapedSearch) {
+                $q->where('message', 'like', '%' . $escapedSearch . '%')
+                  ->orWhere('title', 'like', '%' . $escapedSearch . '%')
+                  ->orWhere('action_id', 'like', '%' . $escapedSearch . '%')
+                  ->orWhere('type', 'like', '%' . $escapedSearch . '%')
+                  ->orWhere('payload', 'like', '%' . $escapedSearch . '%');
+            });
+        }
+
+        if ($this->statusFilter && in_array($this->statusFilter, ['error', 'warning'], true)) {
+            $query->where('status', $this->statusFilter);
+        }
+
+        if ($this->typeFilter) {
+            $query->where('type', $this->typeFilter);
+        }
+
+        if ($this->agentFilter) {
+            if ($this->agentFilter === 'system') {
+                $query->whereNull('ai_agent_id');
+            } else {
+                $query->where('ai_agent_id', $this->agentFilter);
+            }
+        }
+
+        if ($this->domainFilter) {
+            $query->where('action_id', 'like', addcslashes((string) $this->domainFilter, '%_\\') . '%');
+        }
+
+        $ids = $query->pluck('id');
+
+        if ($ids->isNotEmpty()) {
+            SystemLog::whereIn('id', $ids)->update(['status' => 'success']);
+
+            SystemLog::whereIn('id', $ids)
+                ->where(function ($q) {
+                    $q->whereNull('title')->orWhere('title', '');
+                })
+                ->update(['title' => '[GELÖST]']);
+
+            SystemLog::whereIn('id', $ids)
+                ->whereNotNull('title')
+                ->where('title', '!=', '')
+                ->where('title', 'not like', '[GELÖST]%')
+                ->update(['title' => \Illuminate\Support\Facades\DB::raw("CONCAT('[GELÖST] ', title)")]);
+        }
+    }
+
     public function toggleStatus($logId)
     {
         if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {

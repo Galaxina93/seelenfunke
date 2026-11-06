@@ -1,0 +1,20 @@
+# Prüfprotokoll – Kunden-, Mitarbeiter-, Influencer- & Steuerberater-Portale
+
+Kunden-Portal -> Unterseiten ([Dashboard](http://127.0.0.1/customer/dashboard), [Profil](http://127.0.0.1/customer/profile), [Bestellungen](http://127.0.0.1/orders), [Rechnungen](http://127.0.0.1/invoices), [Support](http://127.0.0.1/support), [Funki & Prämien](http://127.0.0.1/funki)) -> Alle Dateien & Guard-Isolationen geprüft / 100% Grün (Geprüft am: 04.11.2026)
+Mitarbeiter-Portal -> Unterseiten ([Mitarbeiter-Cockpit](http://127.0.0.1/employee/dashboard), [Onboarding](http://127.0.0.1/mitarbeiter/einladung/test-token)) -> Alle Dateien & E2E-Tests geprüft / 100% Grün (Geprüft am: 04.11.2026)
+Influencer-Portal -> Unterseiten ([Creator-Cockpit](http://127.0.0.1/employee/influencer/dashboard), [Onboarding](http://127.0.0.1/partner/einladung/test-token)) -> Alle Dateien & E2E-Tests geprüft / 100% Grün (Geprüft am: 04.11.2026)
+Steuerberater-Portal -> Unterseite ([Steuerberater-Cockpit](http://127.0.0.1/employee/tax-advisor/dashboard)) -> Alle Dateien & E2E-Tests geprüft / 100% Grün (Geprüft am: 04.11.2026)
+
+---
+
+## Physischer Chrome- & E2E-Prüfbericht
+
+| Wo (Bereich / Route) | Welcher Link / Button / Funktion | Ergebnis | Wann |
+| :--- | :--- | :--- | :--- |
+| **Angebots-Annahme** (`http://127.0.0.1/angebot/{token}/annehmen`) | **Gutscheincode-Einlösung (`ReferralService::isReferralCode`), `Deine Funken`-Modal-Zentrierung, `✨ Seelenfunken Treue-Bonus`-Badge & Übergangsanimation zur Kasse** | **GEFIXT & 100% GRÜN** – Fehlende Methode `ReferralService::isReferralCode()` ergänzt, Modal-Zentrierung (`@teleport('body')`), Umbruch-Fix (`whitespace-nowrap`) und 1,2s Übergangsanimation zur Kasse eingebaut. | 04.11.2026, 14:15 Uhr |
+| **Creator-Onboarding** (`http://127.0.0.1/partner/einladung/test-token`) | **Token-Validierung, Fehlerseite `Einladungslink abgelaufen oder bereits genutzt` & Button `ZUM LOGIN`** | **100% GRÜN** – In Chrome aufgerufen; zeigt saubere Statusmeldung ohne Exception und verlinkt auf `/login`. | 04.11.2026, 15:27 Uhr |
+| **Mitarbeiter-Onboarding** (`http://127.0.0.1/mitarbeiter/einladung/test-token`) | **Token-Validierung & Fehlerseite `Link abgelaufen oder bereits eingelöst`** | **100% GRÜN** – In Chrome aufgerufen; saubere Behandlung ungültiger/abgelaufener Tokens. | 04.11.2026, 15:27 Uhr |
+| **Kunden-Portal** (`/customer/dashboard`, `/orders`, `/invoices`, `/support`, `/funki`) | **Guard-Schutz (`auth:customer`), IDOR-Schutz (`#[Locked]` auf `$selectedOrderId`, `$activeTicketId`, `$customerId`), ZIP-Rechnungsdownload & Seelenfunken-Treueprogramm** | **100% GRÜN** – Unautorisierte Aufrufe werden strikt abgewiesen; alle 5 Livewire-Komponenten und Policies geprüft. | 04.11.2026, 15:26 Uhr |
+| **Mitarbeiter-Cockpit** (`/employee/dashboard`, `/employee/contract/pdf`, `/employee/questionnaire/pdf`, `/employee/timesheet/{y}/{m}/pdf`, `/employee/payslip/{id}/pdf`) | **Guard- & Rollen-Isolation (`employee_role:internal`), Packtisch, Support-Tickets, Lager/Bruch, § 17 MiLoG Zeiterfassung & PDF-Downloads** | **100% GRÜN** – Durch 47 automatisierte Feature-Tests (152 Assertions) und Code-Audit vollständig verifiziert. | 04.11.2026, 14:40 Uhr |
+| **Influencer-Cockpit** (`/employee/influencer/dashboard`, `/employee/influencer/contract/pdf`, `/employee/influencer/settlement/{id}/pdf`) | **Guard- & Rollen-Isolation (`employee_role:influencer`), § 14 UStG Gutschriften-Abruf, § 19 UStG Kleinunternehmer-Steuerlogik & Klick-Statistiken** | **100% GRÜN** – Durch automatisierte Feature-Tests und Code-Audit vollständig verifiziert. | 04.11.2026, 14:40 Uhr |
+| **Steuerberater-Cockpit** (`/employee/tax-advisor/dashboard`, `/employee/tax-advisor/export/*`) | **Guard- & Rollen-Isolation (`employee_role:tax_advisor`), 11 Dokumenten-Sektionen, DATEV-CSV-Export, Komplett-ZIP-Archiv (inkl. EN 16931 XRechnung/ZUGFeRD XMLs, Stundenzetteln, Arbeitsverträgen, Personalbögen & Creator-Verträgen)** | **100% GRÜN** – Alle Einzel-Downloads und das Komplett-ZIP-Archiv vollständig verifiziert. | 04.11.2026, 14:45 Uhr |

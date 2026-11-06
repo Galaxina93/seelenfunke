@@ -10,10 +10,10 @@ Ziel dieses Moduls ist es, Administratoren und Entwicklern eine zentrale Diagnos
 ## Beteiligte Komponenten & Klassen
 
 ### Datenbank-Modelle
-- [SystemLog](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/System/SystemLog.php): Das zentrale Modell für Log-Einträge. Speichert den ausführenden KI-Agenten (`ai_agent_id`), Log-Typ, die Action-ID zur Gruppierung nach Domänen, einen Titel, Detailnachrichten, Status (`success`, `error`, `running`), JSON-Payloads sowie Start- und Endzeitpunkte.
+- [SystemLog](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/System/SystemLog.php): Das zentrale Modell für Log-Einträge. Speichert den ausführenden KI-Agenten (`ai_agent_id`), Log-Typ, die Action-ID zur Gruppierung nach Domänen, einen Titel, Detailnachrichten, Status (`success`, `error`, `running`), JSON-Payloads sowie Start- und Endzeitpunkte.
 
 ### Livewire-Controller
-- [SystemLogs](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/System/SystemLogs.php): Der Controller für das administrative Log-Cockpit. Bietet Such- und Filtersysteme (nach Status, Log-Typ, Agent, Domain) und Funktionen zum Löschen von Einträgen oder zum manuellen Umschalten des Lösungsstatus (`toggleStatus`).
+- [SystemLogs](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/System/SystemLogs.php): Der Controller für das administrative Log-Cockpit. Bietet Such- und Filtersysteme (nach Status, Log-Typ, Agent, Domain) und Funktionen zum Löschen von Einträgen, zum manuellen Umschalten des Lösungsstatus (`toggleStatus`) sowie zum gesammelten Abschließen offener Fehler/Warnungen (`markAllAsDone`).
 
 ---
 
@@ -60,5 +60,5 @@ SELECT COUNT(*) FROM system_logs as l2 WHERE l2.message = system_logs.message AN
 ```
 Dadurch sieht der Administrator sofort, ob ein bestimmter API-Fehler (z. B. Verbindungsabbruch zu Shopify oder Twilio) ein isolierter Einzelfall ist oder periodisch auftritt.
 
-### 4. Interaktive Fehlerauflösung
-Über die Methode `toggleStatus($logId)` können Fehler im Livewire-Dashboard als `success` (gelöst) markiert werden. Das System ändert den Status und fügt dem Titel das Präfix `[GELÖST] ` hinzu, um gelöste Systemtickets von ungelösten Fehlern visuell abzugrenzen.
+### 4. Interaktive Fehlerauflösung & Sammelaktion
+Über die Methode `toggleStatus($logId)` können einzelne Fehler und Warnungen im Livewire-Dashboard als `success` (gelöst) markiert werden. Zusätzlich steht im Header neben „Filter zurücksetzen“ der Button **„Alle als erledigt markieren“** (`markAllAsDone()`) bereit, der sämtliche offenen Fehler- und Warnungs-Einträge (`status` in `['error', 'warning']`, unter Berücksichtigung aktiver Such-/Domänen-/Typ-/Agenten-Filter) in einem Schritt auf `success` setzt und den Titel mit `[GELÖST]` kennzeichnet.

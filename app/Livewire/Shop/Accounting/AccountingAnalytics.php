@@ -97,7 +97,7 @@ class AccountingAnalytics extends Component
     private function updateDateRange()
     {
         if ($this->chartFilter === 'last_12_months') {
-            $this->dateFrom = Carbon::now()->subMonths(11)->startOfMonth()->format('Y-m-d');
+            $this->dateFrom = Carbon::now()->startOfMonth()->subMonths(11)->format('Y-m-d');
             $this->dateTo = Carbon::now()->endOfMonth()->format('Y-m-d');
         } elseif ($this->chartFilter === 'this_year') {
             $this->dateFrom = Carbon::now()->startOfYear()->format('Y-m-d');
@@ -135,7 +135,7 @@ class AccountingAnalytics extends Component
         $invLabels = [];
         $invData = [];
         foreach ($invGrouped->sortKeys() as $gDate => $items) {
-            $invLabels[] = Carbon::createFromFormat('Y-m', $gDate)->locale('de')->shortMonthName . ' ' . substr($gDate, 0, 4);
+            $invLabels[] = Carbon::createFromFormat('!Y-m', $gDate)->locale('de')->shortMonthName . ' ' . substr($gDate, 0, 4);
             $invData[] = $items->sum(function($i) {
                 $sign = in_array($i->type, ['cancellation', 'credit_note'], true) ? -1 : 1;
                 $gross = $sign * abs((int) $i->total);
@@ -157,7 +157,7 @@ class AccountingAnalytics extends Component
         $issLabels = [];
         $issData = [];
         foreach ($issGrouped->sortKeys() as $gDate => $items) {
-            $issLabels[] = Carbon::createFromFormat('Y-m', $gDate)->locale('de')->shortMonthName . ' ' . substr($gDate, 0, 4);
+            $issLabels[] = Carbon::createFromFormat('!Y-m', $gDate)->locale('de')->shortMonthName . ' ' . substr($gDate, 0, 4);
             $issData[] = $items->sum(function($i) use ($isSmallBusiness) {
                 $amount = $i->amount;
                 if ($this->isNet && !$isSmallBusiness && isset($i->tax_rate) && $i->tax_rate > 0) {

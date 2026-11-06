@@ -42,4 +42,13 @@ trait WithDepartmentTheming
             default => '#c5a059'
         };
     }
+
+    public function getThemeColorRgbProperty(): string
+    {
+        $hex = ltrim((string) $this->themeColorHex, '#');
+        if (strlen($hex) === 6) {
+            return hexdec(substr($hex, 0, 2)) . ', ' . hexdec(substr($hex, 2, 2)) . ', ' . hexdec(substr($hex, 4, 2));
+        }
+        return '197, 160, 89';
+    }
 }

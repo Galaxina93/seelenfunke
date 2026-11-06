@@ -128,15 +128,23 @@
                                         $potentialRevenue += ($item->unit_price * $item->quantity);
                                         $itemCount += $item->quantity;
                                     }
+
+                                    $canRemindCustomer = $cart->customer
+                                        && !empty($cart->customer->email)
+                                        && $cart->customer->allowsCartReminders();
                                     
-                                    // Traffic light color based on age
+                                    // Traffic light color based on age & legal contactability
                                     $hours = $cart->updated_at->diffInHours(now());
                                     $statusColor = 'bg-gray-500'; // Default gray (active/new)
                                     if ($cart->reminder_email_sent_at) {
                                         $statusColor = 'bg-emerald-500';
                                     } else {
-                                        if ($hours >= $this->cartRedLimit) $statusColor = 'bg-red-500';
-                                        elseif ($hours >= $this->cartYellowLimit) $statusColor = 'bg-yellow-500';
+                                        if ($hours >= $this->cartRedLimit) {
+                                            // Rot ("Mail anstehend") nur, wenn auch rechtssicher eine Mail versendet werden darf
+                                            $statusColor = $canRemindCustomer ? 'bg-red-500' : 'bg-yellow-500';
+                                        } elseif ($hours >= $this->cartYellowLimit) {
+                                            $statusColor = 'bg-yellow-500';
+                                        }
                                     }
                                 @endphp
                                 <tr wire:click="viewDetails('{{ $cart->id }}')" class="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer group transition-colors">
@@ -170,7 +178,7 @@
                                     </td>
                                     <td class="px-6 py-4">
                                         <div class="text-sm text-gray-700 dark:text-gray-300">{{ $cart->updated_at->format('d.m.Y H:i') }}</div>
-                                        <div class="text-[10px] text-gray-500 uppercase tracking-widest">vor {{ $cart->updated_at->diffForHumans() }}</div>
+                                        <div class="text-[10px] text-gray-500 uppercase tracking-widest">{{ $cart->updated_at->diffForHumans() }}</div>
                                     </td>
                                     <td class="px-6 py-4 text-center" x-data x-on:click.stop>
                                         @if($cart->customer && $cart->customer->profile?->cart_reminder_unsubscribed_at)
@@ -187,22 +195,25 @@
                                                     <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                                                     Gesendet
                                                 </div>
-                                                <button wire:click.stop="sendReminderEmail('{{ $cart->id }}')" wire:confirm="Erneut Mail senden an {{ $cart->customer->email ?? 'unbekannt' }}?" class="text-[9px] text-gray-500 hover:text-blue-300 transition-colors uppercase tracking-widest border-b border-transparent hover:border-blue-300">
-                                                    Erneut senden
-                                                </button>
+                                                @if($canRemindCustomer)
+                                                    <button wire:click.stop="sendReminderEmail('{{ $cart->id }}')" wire:confirm="Erneut Mail senden an {{ $cart->customer->email ?? 'unbekannt' }}?" class="text-[9px] text-gray-500 hover:text-blue-300 transition-colors uppercase tracking-widest border-b border-transparent hover:border-blue-300">
+                                                        Erneut senden
+                                                    </button>
+                                                @endif
                                             </div>
                                         @else
                                             @if($cart->customer && $cart->customer->email)
-                                                @php
-                                                    $confirmMsg = $cart->customer->hasMarketingConsent()
-                                                        ? "Erinnerungsmail an {$cart->customer->email} senden?"
-                                                        : "⚠️ RECHTLICHER HINWEIS (§ 7 UWG):\nFür diesen Kunden liegt KEIN verifiziertes Werbe-Opt-In vor.\nEin manueller Versand kann abmahnfähig sein.\n\nMöchtest du die Erinnerung dennoch auf eigenes Risiko manuell absenden?";
-                                                @endphp
-                                                <button wire:click.stop="sendReminderEmail('{{ $cart->id }}')" 
-                                                        wire:confirm="{{ $confirmMsg }}"
-                                                        class="opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] hover:bg-[var(--theme-color-20)] px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1 mx-auto shadow-xl shadow-[var(--theme-color-10)]">
-                                                    Senden
-                                                </button>
+                                                @if($canRemindCustomer)
+                                                    <button wire:click.stop="sendReminderEmail('{{ $cart->id }}')" 
+                                                            wire:confirm="Erinnerungsmail an {{ $cart->customer->email }} senden?"
+                                                            class="opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] hover:bg-[var(--theme-color-20)] px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1 mx-auto shadow-xl shadow-[var(--theme-color-10)]">
+                                                        Senden
+                                                    </button>
+                                                @else
+                                                    <div class="flex flex-col items-center justify-center gap-0.5" title="Kein verifiziertes Werbe-Opt-In vorhanden (§ 7 Abs. 2 UWG)">
+                                                        <span class="text-[9px] text-amber-600 dark:text-amber-400 font-bold uppercase tracking-widest">Kein Opt-In</span>
+                                                    </div>
+                                                @endif
                                             @else
                                                 <span class="text-xs text-gray-600 block text-center" title="Gast ohne E-Mail">-</span>
                                             @endif
@@ -266,14 +277,13 @@
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
                                 Versand gesperrt (Opt-Out)
                             </div>
+                        @elseif(!$detailCart->customer->allowsCartReminders())
+                            <div class="flex items-center gap-2 px-4 py-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-xl text-xs font-bold" title="Kein verifiziertes Werbe-Opt-In vorhanden (§ 7 Abs. 2 UWG)">
+                                Kein Werbe-Opt-In
+                            </div>
                         @else
-                            @php
-                                $detailConfirmText = $detailCart->customer->hasMarketingConsent()
-                                    ? "Möchtest du diese Erinnerungs E-Mail an {$detailCart->customer->email} versenden?"
-                                    : "⚠️ RECHTLICHER HINWEIS (§ 7 UWG):\nFür diesen Kunden liegt KEIN verifiziertes Werbe-Opt-In vor.\nEin manueller Versand kann abmahnfähig sein.\n\nMöchtest du die Erinnerung dennoch auf eigenes Risiko manuell absenden?";
-                            @endphp
                             <button wire:click="sendReminderEmail('{{ $detailCart->id }}')" 
-                                    wire:confirm="{{ $detailConfirmText }}"
+                                    wire:confirm="Möchtest du diese Erinnerungs E-Mail an {{ $detailCart->customer->email }} versenden?"
                                     class="flex items-center gap-2 px-4 py-2 {{ $detailCart->reminder_email_sent_at ? 'bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20' : 'bg-[var(--theme-color-10)] text-[var(--theme-color)] hover:bg-[var(--theme-color-20)] border-[var(--theme-color-30)]' }} border rounded-xl text-sm font-bold transition-colors">
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                                 {{ $detailCart->reminder_email_sent_at ? 'Mail erneut senden' : 'Erinnerung Senden' }}

@@ -181,7 +181,7 @@ class AiAgentEditor extends Component
 
     public function toggleSkill($toolId)
     {
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -360,7 +360,7 @@ class AiAgentEditor extends Component
 
     public function autoSaveModelOrVoice()
     {
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -451,7 +451,7 @@ class AiAgentEditor extends Component
 
     public function save()
     {
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -563,7 +563,7 @@ class AiAgentEditor extends Component
 
     public function deleteProfilePicture()
     {
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 

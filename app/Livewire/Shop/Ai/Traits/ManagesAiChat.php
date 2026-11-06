@@ -1324,12 +1324,14 @@ trait ManagesAiChat
         }
         $task = \App\Models\Ai\AiWorkspaceTask::find($taskId);
         if ($task && $task->status === 'awaiting_approval') {
-            $settings = \App\Models\Ai\AiUserWorkspaceSetting::first();
-            if ($settings) {
-                $settings->update(['auto_approve_execution_plan' => true]);
-            } else {
-                \App\Models\Ai\AiUserWorkspaceSetting::create(['auto_approve_execution_plan' => true]);
+            $userId = AiAuthHelper::getUserId();
+            if ($userId) {
+                \App\Models\Ai\AiUserWorkspaceSetting::updateOrCreate(
+                    ['user_id' => $userId],
+                    ['auto_approve_execution_plan' => true]
+                );
             }
+            $this->autoApprovePlan = true;
 
             $task->update(['status' => 'processing']);
             \Illuminate\Support\Facades\Bus::dispatch(new \App\Jobs\ProcessAiWorkspaceTask($task));

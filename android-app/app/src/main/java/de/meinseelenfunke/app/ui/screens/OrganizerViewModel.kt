@@ -141,19 +141,21 @@ class OrganizerViewModel : ViewModel() {
         title: String? = null,
         priority: String? = null,
         isCompleted: Boolean? = null,
-        relevantFrom: String? = null
+        relevantFrom: String? = null,
+        aiPlan: String? = null,
+        taskListId: String? = null
     ) {
         viewModelScope.launch {
-            repository.updateTask(id, title, priority, isCompleted, relevantFrom).onSuccess {
+            repository.updateTask(id, title, priority, isCompleted, relevantFrom, aiPlan, taskListId).onSuccess {
                 loadAllOrganizerData(showLoading = false)
             }
         }
     }
 
-    fun addTask(listId: String, title: String) {
+    fun addTask(listId: String, title: String, priority: String = "niedrig") {
         if (title.isBlank()) return
         viewModelScope.launch {
-            repository.addTask(listId, title).onSuccess {
+            repository.addTask(listId, title, priority).onSuccess {
                 loadAllOrganizerData(showLoading = false)
             }
         }

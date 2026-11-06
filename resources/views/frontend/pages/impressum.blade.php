@@ -33,8 +33,8 @@
                                 $impCityLine = shop_setting('company_city')
                                     ? trim(shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city'))
                                     : shop_setting('owner_city', '38518 Gifhorn');
-                                $impEmail = shop_setting('owner_email_impressum', shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')));
-                                $supportEmail = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
+                                $impEmail = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
+                                $supportEmail = $impEmail;
                             @endphp
                             <p class="font-bold text-lg text-gray-900 mb-2">{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</p>
                             <p>

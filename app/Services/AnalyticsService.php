@@ -146,16 +146,30 @@ class AnalyticsService
     private function checkAbandonedCarts(): ?array
     {
         if (!class_exists(\App\Models\Cart\Cart::class)) return null;
-        $totalCarts = \App\Models\Cart\Cart::count();
+        $totalCarts = \App\Models\Cart\Cart::whereHas('items')->count();
         $redLimit = (int) shop_setting('cart_abandoned_red_hours', 24);
 
-        $abandonedCarts = \App\Models\Cart\Cart::where('updated_at', '<', now()->subHours($redLimit))
+        $abandonedCarts = \App\Models\Cart\Cart::with('customer.profile')
+            ->where('updated_at', '<', now()->subHours($redLimit))
+            ->whereNull('reminder_email_sent_at')
             ->whereNotNull('customer_id')
             ->whereHas('items')
+            ->get()
+            ->filter(function ($cart) {
+                return $cart->customer
+                    && !empty($cart->customer->email)
+                    && $cart->customer->allowsCartReminders();
+            })
             ->count();
 
         $status = $abandonedCarts > 0 ? 'warning' : 'success';
-        $msg = $abandonedCarts > 0 ? $abandonedCarts . ' Körbe unberührt' : 'Alles aktuell';
+        if ($abandonedCarts === 1) {
+            $msg = '1 Korb unberührt';
+        } elseif ($abandonedCarts > 1) {
+            $msg = $abandonedCarts . ' Körbe unberührt';
+        } else {
+            $msg = 'Alles aktuell';
+        }
         if ($totalCarts === 0) { $msg = 'Keine aktiven Körbe'; $status = 'success'; }
 
         return [
@@ -476,7 +490,15 @@ class AnalyticsService
         $openCommCount = (clone $openCommQuery)->count();
         $openCommCents = (int) (clone $openCommQuery)->sum('commission_amount_cents');
 
-        $totalOpenItems = $requestedCount + $openCommCount;
+        $pendingSamplePostsCount = 0;
+        if (\Illuminate\Support\Facades\Schema::hasColumn('marketing_influencers', 'sample_post_url')) {
+            $pendingSamplePostsCount = \App\Models\Marketing\MarketingInfluencer::whereNotNull('sample_post_url')
+                ->where('sample_post_url', '!=', '')
+                ->whereNull('sample_post_verified_at')
+                ->count();
+        }
+
+        $totalOpenItems = $requestedCount + $openCommCount + $pendingSamplePostsCount;
 
         if ($requestedCount > 0) {
             $status = 'warning';
@@ -484,9 +506,16 @@ class AnalyticsService
             if ($openCommCents > 0) {
                 $msg .= ' • ' . number_format($openCommCents / 100, 2, ',', '.') . ' € in Prüfung/Freigegeben';
             }
-        } elseif ($openCommCount > 0) {
+        } elseif ($openCommCount > 0 || $pendingSamplePostsCount > 0) {
             $status = 'todo';
-            $msg = $openCommCount . ' Provision(en) (' . number_format($openCommCents / 100, 2, ',', '.') . ' €) offen';
+            $parts = [];
+            if ($openCommCount > 0) {
+                $parts[] = $openCommCount . ' Provision(en) (' . number_format($openCommCents / 100, 2, ',', '.') . ' €) offen';
+            }
+            if ($pendingSamplePostsCount > 0) {
+                $parts[] = $pendingSamplePostsCount . ' Muster-Verlinkung(en) prüfen';
+            }
+            $msg = implode(' • ', $parts);
         } else {
             $status = 'success';
             $msg = 'Keine offenen Provisionen';
@@ -1024,8 +1053,11 @@ class AnalyticsService
         $qualityScore = $this->calculateShopQualityScore($margin, $revenueGrowth, $totalProfitPeriod, $totalRevenuePeriod, $breakEvenValue * ($durationInDays / 30.42));
 
         // Vorberechnung für Health Score & Return Array
-        $pendingInvoicesCount = AccountingInvoice::where('status', 'open')->whereBetween('created_at', [$start, $end])->count();
-        $pendingInvoicesSum = AccountingInvoice::where('status', 'open')->whereBetween('created_at', [$start, $end])->sum('total') / 100;
+        $pendingInvoicesBase = AccountingInvoice::where('status', 'open')
+            ->whereNotIn('type', ['credit_note', 'cancellation'])
+            ->whereBetween('created_at', [$start, $end]);
+        $pendingInvoicesCount = (clone $pendingInvoicesBase)->count();
+        $pendingInvoicesSum = (clone $pendingInvoicesBase)->sum('total') / 100;
 
         // ==========================================
         // SHOP HEALTH SCORE (0 - 100)
@@ -1155,7 +1187,9 @@ class AnalyticsService
             'active_users_today' => collect($lastLogins)->whereBetween('last_seen', [Carbon::today(), Carbon::now()])->count(),
             'new_registrations_week' => Customer::whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count() + Admin::whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count() + Employee::whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count(),
             'failed_logins' => SystemLoginAttempt::where('success', false)->count(),
-            'active_sessions' => DB::table('sessions')->count(),
+            'active_sessions' => \Illuminate\Support\Facades\Schema::hasTable('sessions')
+                ? DB::table('sessions')->where('last_activity', '>=', now()->subMinutes(15)->timestamp)->count()
+                : 0,
             'never_logged_in' => collect($lastLogins)->whereNull('last_seen')->count(),
             'inactive_30_days' => collect($lastLogins)->filter(fn($u) => $u['last_seen'] && Carbon::parse($u['last_seen'])->lt(now()->subDays(30)))->count(),
 

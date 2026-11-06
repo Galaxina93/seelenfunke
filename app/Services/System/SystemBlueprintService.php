@@ -570,7 +570,7 @@ class SystemBlueprintService
         try {
             $recipient = 'kontakt@mein-seelenfunke.de';
             if (function_exists('shop_setting')) {
-                $recipient = shop_setting('owner_email_backup') ?: shop_setting('company_email') ?: shop_setting('owner_email') ?: $recipient;
+                $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: $recipient;
             }
 
             Mail::to($recipient)->send(

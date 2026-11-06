@@ -121,19 +121,35 @@ class TasksWidgetViewsFactory(
             emptyList()
         }
 
+        val todayIso = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+
         if (selectedListId == null) {
-            // Lists Overview mode
+            // Lists Overview mode (Microsoft To Do style: Smart Lists + Custom Lists)
             val isAddingList = sharedPrefs.getBoolean("widget_tasks_adding_list_$appWidgetId", false)
             val tempName = sharedPrefs.getString("widget_tasks_adding_list_name_$appWidgetId", "") ?: ""
 
+            val rootOpen = allTasks.filter { it.parent_id == null && !it.is_completed }
+            val myDayCount = rootOpen.count { it.relevant_from?.take(10) == todayIso }
+            val importantCount = rootOpen.count { it.priority.equals("hoch", ignoreCase = true) }
+            val plannedCount = rootOpen.count { !it.relevant_from.isNullOrBlank() }
+            val allCount = rootOpen.size
+
+            val smartItems = listOf(
+                TasksWidgetItem.TaskList(ManagementTaskList("smart_my_day", "Mein Tag", "sun", "#38BDF8"), myDayCount),
+                TasksWidgetItem.TaskList(ManagementTaskList("smart_important", "Wichtig", "star", "#F472B6"), importantCount),
+                TasksWidgetItem.TaskList(ManagementTaskList("smart_planned", "Geplant", "calendar", "#34D399"), plannedCount),
+                TasksWidgetItem.TaskList(ManagementTaskList("smart_all", "Alle Aufgaben", "home", "#818CF8"), allCount)
+            )
+
             val listItems = allLists.map { list ->
-                val openCount = allTasks.count { it.task_list_id == list.id && !it.is_completed }
+                val openCount = rootOpen.count { it.task_list_id == list.id }
                 TasksWidgetItem.TaskList(list, openCount)
             }
             val flattened = mutableListOf<TasksWidgetItem>()
             if (isAddingList) {
                 flattened.add(TasksWidgetItem.AddListControls(tempName))
             }
+            flattened.addAll(smartItems)
             flattened.addAll(listItems)
             flattened.add(TasksWidgetItem.AddNewListDummy())
             itemsList = flattened
@@ -171,9 +187,16 @@ class TasksWidgetViewsFactory(
             val tempPrio = sharedPrefs.getString("widget_tasks_adding_task_prio_$appWidgetId", "niedrig") ?: "niedrig"
             val tempDate = sharedPrefs.getString("widget_tasks_adding_task_date_$appWidgetId", null)
 
-            val filteredTasks = allTasks.filter { it.task_list_id == selectedListId }
-            val rootTasks = filteredTasks.filter { it.parent_id == null }
-            val subtasks = filteredTasks.filter { it.parent_id != null }
+            val allRootTasks = allTasks.filter { it.parent_id == null }
+            val subtasks = allTasks.filter { it.parent_id != null }
+
+            val rootTasks = when (selectedListId) {
+                "smart_my_day" -> allRootTasks.filter { it.relevant_from?.take(10) == todayIso }
+                "smart_important" -> allRootTasks.filter { it.priority.equals("hoch", ignoreCase = true) }
+                "smart_planned" -> allRootTasks.filter { !it.relevant_from.isNullOrBlank() }
+                "smart_all" -> allRootTasks
+                else -> allRootTasks.filter { it.task_list_id == selectedListId }
+            }
 
             // Sort root tasks: incomplete first, then by priority (hoch, mittel, niedrig), then by title
             val sortedRootTasks = rootTasks.sortedWith(
@@ -192,10 +215,13 @@ class TasksWidgetViewsFactory(
             if (isAddingTask) {
                 flattened.add(TasksWidgetItem.AddTaskControls(tempTitle, tempPrio, tempDate))
             }
-            for (rootTask in sortedRootTasks) {
+
+            val openRoots = sortedRootTasks.filter { !it.is_completed }
+            val completedRoots = sortedRootTasks.filter { it.is_completed }
+
+            for (rootTask in openRoots) {
                 flattened.add(TasksWidgetItem.ParentTask(rootTask))
 
-                // Find all subtasks belonging to this root task and sort them
                 val children = subtasks.filter { it.parent_id == rootTask.id }
                     .sortedWith(
                         compareBy<ManagementTask> { it.is_completed }
@@ -206,7 +232,15 @@ class TasksWidgetViewsFactory(
                     flattened.add(TasksWidgetItem.Subtask(child))
                 }
             }
-            flattened.add(TasksWidgetItem.AddNewTaskDummy(selectedListId))
+
+            val targetListForAdd = if (selectedListId.startsWith("smart_")) "default" else selectedListId
+            flattened.add(TasksWidgetItem.AddNewTaskDummy(targetListForAdd))
+
+            // Show up to 15 recent completed tasks at the bottom
+            for (rootTask in completedRoots.take(15)) {
+                flattened.add(TasksWidgetItem.ParentTask(rootTask))
+            }
+
             itemsList = flattened
         }
     }
@@ -223,9 +257,12 @@ class TasksWidgetViewsFactory(
         return when (item) {
             is TasksWidgetItem.TaskList -> {
                 val views = RemoteViews(context.packageName, R.layout.widget_tasks_list_item)
+                val isSmart = item.list.id.startsWith("smart_")
                 views.setTextViewText(R.id.list_name, item.list.name)
-                views.setViewVisibility(R.id.btn_delete_list, View.VISIBLE)
-                views.setViewVisibility(R.id.btn_rename_list, View.VISIBLE)
+                views.setTextColor(R.id.list_name, 0xFFF8FAFC.toInt())
+                views.setTextViewText(R.id.list_open_count, if (item.openCount > 0) item.openCount.toString() else "")
+                views.setViewVisibility(R.id.btn_delete_list, if (isSmart) View.GONE else View.VISIBLE)
+                views.setViewVisibility(R.id.btn_rename_list, if (isSmart) View.GONE else View.VISIBLE)
                 views.setImageViewResource(R.id.list_icon, getIconDrawableRes(item.list.icon))
 
                 // Click action to open list
@@ -237,27 +274,28 @@ class TasksWidgetViewsFactory(
                 }
                 views.setOnClickFillInIntent(R.id.widget_tasks_list_item_root, fillInIntent)
 
-                // Click action to rename list
-                val renameIntent = Intent().apply {
-                    action = TasksWidgetProvider.ACTION_RENAME_LIST
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    putExtra("list_id", item.list.id)
-                }
-                views.setOnClickFillInIntent(R.id.btn_rename_list, renameIntent)
+                if (!isSmart) {
+                    val renameIntent = Intent().apply {
+                        action = TasksWidgetProvider.ACTION_RENAME_LIST
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        putExtra("list_id", item.list.id)
+                    }
+                    views.setOnClickFillInIntent(R.id.btn_rename_list, renameIntent)
 
-                // Click action to delete list
-                val deleteIntent = Intent().apply {
-                    action = TasksWidgetProvider.ACTION_DELETE_LIST
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    putExtra("list_id", item.list.id)
+                    val deleteIntent = Intent().apply {
+                        action = TasksWidgetProvider.ACTION_DELETE_LIST
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        putExtra("list_id", item.list.id)
+                    }
+                    views.setOnClickFillInIntent(R.id.btn_delete_list, deleteIntent)
                 }
-                views.setOnClickFillInIntent(R.id.btn_delete_list, deleteIntent)
                 views
             }
             is TasksWidgetItem.AddNewListDummy -> {
                 val views = RemoteViews(context.packageName, R.layout.widget_tasks_list_item)
                 views.setTextViewText(R.id.list_name, item.text)
                 views.setTextColor(R.id.list_name, 0xFFC5A059.toInt()) // Gold
+                views.setTextViewText(R.id.list_open_count, "")
                 views.setViewVisibility(R.id.btn_delete_list, View.GONE)
                 views.setViewVisibility(R.id.btn_rename_list, View.GONE)
                 views.setImageViewResource(R.id.list_icon, android.R.drawable.ic_input_add)

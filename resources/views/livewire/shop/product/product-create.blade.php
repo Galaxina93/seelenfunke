@@ -34,6 +34,14 @@
                     <span class="truncate">Gravur-Vorlagen</span>
                     <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black shrink-0 {{ $activeSection === 'templates' ? 'bg-black/15 text-white dark:text-gray-900' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400' }}">{{ $suiteCounts['templates'] ?? 0 }}</span>
                 </button>
+
+                <button type="button"
+                        wire:click="setActiveSection('ideas')"
+                        class="px-3 sm:px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center sm:justify-start gap-2 cursor-pointer {{ $activeSection === 'ideas' ? 'bg-[var(--theme-color)] text-white dark:text-gray-900 shadow-xs' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800/60' }}">
+                    <x-heroicon-o-light-bulb class="w-4 h-4 shrink-0" />
+                    <span class="truncate">Produkt-Ideen</span>
+                    <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black shrink-0 {{ $activeSection === 'ideas' ? 'bg-black/15 text-white dark:text-gray-900' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400' }}">{{ $suiteCounts['ideas'] ?? 0 }}</span>
+                </button>
             </div>
         </div>
 
@@ -49,6 +57,8 @@
                 :initialTemplateId="$templatePreselectId"
                 :startCreate="$templateStartCreate"
                 wire:key="suite-templates-{{ $templateEmbedVersion }}" />
+        @elseif($activeSection === 'ideas')
+            <livewire:shop.product.product-ideas wire:key="suite-ideas" />
         @endif
     @elseif($viewMode === 'edit')
         @include('livewire.shop.product.partials._edit')

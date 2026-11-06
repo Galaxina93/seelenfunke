@@ -15,7 +15,7 @@
         $wrappedMessageLines = array_slice(explode("\n", $wrapped), 0, 3);
     }
 @endphp
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+{!! '<' . '?xml version="1.0" encoding="UTF-8" standalone="no"?' . '>' !!}
 <svg xmlns="http://www.w3.org/2000/svg"
      width="86mm"
      height="54mm"
@@ -42,61 +42,66 @@
             <rect x="4.4" y="4.4" width="77.2" height="45.2" rx="1.2" ry="1.2" stroke-width="0.15" />
 
             <!-- Eck-Ornamente (Oben Links, Oben Rechts, Unten Links, Unten Rechts) -->
-            <path d="M 3.2 8.2 L 8.2 8.2 M 8.2 3.2 L 8.2 8.2" stroke-width="0.25" />
-            <path d="M 82.8 8.2 L 77.8 8.2 M 77.8 3.2 L 77.8 8.2" stroke-width="0.25" />
-            <path d="M 3.2 45.8 L 8.2 45.8 M 8.2 50.8 L 8.2 45.8" stroke-width="0.25" />
-            <path d="M 82.8 45.8 L 77.8 45.8 M 77.8 50.8 L 77.8 45.8" stroke-width="0.25" />
+            <path d="M 3.2 7.2 L 7.2 7.2 M 7.2 3.2 L 7.2 7.2" stroke-width="0.22" />
+            <path d="M 82.8 7.2 L 78.8 7.2 M 78.8 3.2 L 78.8 7.2" stroke-width="0.22" />
+            <path d="M 3.2 46.8 L 7.2 46.8 M 7.2 50.8 L 7.2 46.8" stroke-width="0.22" />
+            <path d="M 82.8 46.8 L 78.8 46.8 M 78.8 50.8 L 78.8 46.8" stroke-width="0.22" />
         </g>
 
         <!-- HEADER: Marke (Links) & Gutscheinwert (Rechts) -->
-        <text x="7.5" y="9.8" font-family="Georgia, 'Times New Roman', serif" font-size="2.2" font-weight="bold" letter-spacing="0.6">
+        <text x="8.5" y="10.2" font-family="Georgia, 'Times New Roman', serif" font-size="1.95" font-weight="bold" letter-spacing="0.45">
             MEIN SEELENFUNKE
         </text>
-        <text x="7.5" y="13.2" font-family="Georgia, 'Times New Roman', serif" font-size="3.1" font-weight="bold" letter-spacing="0.4">
+        <text x="8.5" y="13.5" font-family="Georgia, 'Times New Roman', serif" font-size="2.75" font-weight="bold" letter-spacing="0.3">
             GESCHENKGUTSCHEIN
         </text>
 
         <!-- Gutscheinwert oben rechts -->
-        <text x="78.5" y="12.8" text-anchor="end" font-family="Georgia, 'Times New Roman', serif" font-size="6.2" font-weight="bold">
+        <text x="77.5" y="13.2" text-anchor="end" font-family="Georgia, 'Times New Roman', serif" font-size="5.2" font-weight="bold">
             {{ $amountFormatted }}
         </text>
 
         <!-- Horizontale Trennlinie unter Header -->
-        <line x1="7.5" y1="15.4" x2="78.5" y2="15.4" stroke="#000000" stroke-width="0.18" />
+        <line x1="8.5" y1="15.6" x2="77.5" y2="15.6" stroke="#000000" stroke-width="0.18" />
 
         <!-- EMPFÄNGER -->
-        <text x="7.5" y="19.2" font-family="Arial, Helvetica, sans-serif" font-size="1.9" font-weight="bold" letter-spacing="0.3">
+        <text x="8.5" y="19.5" font-family="Arial, Helvetica, sans-serif" font-size="1.85" font-weight="bold" letter-spacing="0.25">
             FÜR:
         </text>
-        <text x="15.0" y="19.3" font-family="Georgia, 'Times New Roman', serif" font-size="3.4" font-weight="bold">
+        <text x="15.8" y="19.6" font-family="Georgia, 'Times New Roman', serif" font-size="3.2" font-weight="bold">
             {{ $recipientName !== '' ? $recipientName : 'Dich' }}
         </text>
 
         <!-- PERSÖNLICHE WIDMUNG (Optional, bis zu 3 Zeilen) -->
         @if(count($wrappedMessageLines) > 0)
             @foreach($wrappedMessageLines as $idx => $line)
-                <text x="7.5" y="{{ 24.0 + ($idx * 3.3) }}" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="2.55">
+                <text x="8.5" y="{{ 23.8 + ($idx * 3.1) }}" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="2.4">
                     {{ $line }}
                 </text>
             @endforeach
         @else
-            <text x="7.5" y="26.5" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="2.5">
+            <text x="8.5" y="25.8" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="2.4">
                 „Ein kleiner Funke für einen ganz besonderen Moment.“
             </text>
         @endif
 
-        <!-- GUTSCHEINCODE BOX (Unten prominent & gestochen scharf lesbar) -->
-        <rect x="7.5" y="34.8" width="71.0" height="7.8" rx="1.2" ry="1.2" fill="none" stroke="#000000" stroke-width="0.25" />
-        <text x="10.2" y="39.8" font-family="Arial, Helvetica, sans-serif" font-size="2.0" font-weight="bold" letter-spacing="0.3">
-            CODE:
+        <!-- GUTSCHEINCODE (Ohne Rahmen: Label "CODE" mittig darüber, Code mittig darunter) -->
+        <text x="43.0" y="34.8" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="1.75" font-weight="bold" letter-spacing="0.5">
+            CODE
         </text>
-        <text x="45.0" y="40.1" text-anchor="middle" font-family="'Courier New', Courier, monospace" font-size="3.9" font-weight="bold" letter-spacing="0.5">
+        <text x="43.0" y="38.8" text-anchor="middle" font-family="'Courier New', Courier, monospace" font-size="3.5" font-weight="bold" letter-spacing="0.35">
             {{ $voucher->code }}
         </text>
 
-        <!-- FOOTER -->
-        <text x="43.0" y="46.8" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="1.75" letter-spacing="0.15">
-            Einlösbar auf {{ $website }} • {{ $validUntilText }} • Restguthaben bleibt erhalten
+        <!-- Dezente Trennlinie über dem Footer -->
+        <line x1="10.0" y1="41.4" x2="76.0" y2="41.4" stroke="#000000" stroke-width="0.14" />
+
+        <!-- FOOTER (Zweizeilig & mittig, damit links/rechts reichlich Abstand zu den Ecken bleibt) -->
+        <text x="43.0" y="44.4" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="1.55" font-weight="bold" letter-spacing="0.1">
+            Einlösbar auf {{ $website }}
+        </text>
+        <text x="43.0" y="47.0" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="1.35" letter-spacing="0.08">
+            {{ $validUntilText }} • Restguthaben bleibt erhalten
         </text>
     </g>
 </svg>

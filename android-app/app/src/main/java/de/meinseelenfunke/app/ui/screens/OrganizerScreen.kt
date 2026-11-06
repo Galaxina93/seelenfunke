@@ -177,8 +177,8 @@ fun OrganizerScreen(
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
     val pagerState = rememberPagerState(
-        initialPage = initialTab.coerceIn(0, 4),
-        pageCount = { 5 }
+        initialPage = initialTab.coerceIn(0, 5),
+        pageCount = { 6 }
     )
     var isFirstLoad by remember { mutableStateOf(true) }
 
@@ -189,7 +189,7 @@ fun OrganizerScreen(
     }
 
     LaunchedEffect(initialTab, navTrigger) {
-        val target = initialTab.coerceIn(0, 4)
+        val target = initialTab.coerceIn(0, 5)
         if (pagerState.currentPage != target) {
             pagerState.scrollToPage(target)
         }
@@ -201,7 +201,7 @@ fun OrganizerScreen(
             viewModel.loadAllOrganizerData(showLoading = false)
         }
     }
-    val tabTitles = listOf("Aufgaben", "Kalender", "Routine", "Einkauf", "E-Mail")
+    val tabTitles = listOf("Aufgaben", "Kalender", "Routine", "Einkauf", "E-Mail", "Musik")
 
     Box(
         modifier = Modifier
@@ -295,126 +295,115 @@ fun OrganizerScreen(
                 }
             }
 
-            // Tab body
-            when (uiState) {
-                is OrganizerUiState.Loading -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Gold)
-                    }
-                }
-                is OrganizerUiState.Success -> {
-                    HorizontalPager(
-                        state = pagerState,
-                        modifier = Modifier.weight(1f)
-                    ) { page ->
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp)
-                        ) {
-                            when (page) {
-                                0 -> Column(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .verticalScroll(rememberScrollState())
-                                ) {
-                                    TasksTabContent(
-                                        taskLists = taskLists,
-                                        tasks = tasks,
-                                        onAddTask = { listId, title -> viewModel.addTask(listId, title) },
-                                        onToggleTask = { viewModel.toggleTask(it) },
-                                        onDeleteTask = { viewModel.deleteTask(it) },
-                                        onAddSubtask = { parentId, title -> viewModel.addSubtask(parentId, title) },
-                                        onDeleteTaskList = { viewModel.deleteTaskList(it) },
-                                        onAddTaskList = { name -> viewModel.addTaskList(name) },
-                                        onUpdateTaskList = { id, name -> viewModel.updateTaskList(id, name) },
-                                        onUpdateTask = { id, title, priority, completed, relFrom -> viewModel.updateTask(id, title, priority, completed, relFrom) },
-                                        onUploadTaskFile = { id, bytes, name, mime -> viewModel.uploadTaskFile(id, bytes, name, mime) },
-                                        onDeleteTaskFile = { id, path -> viewModel.deleteTaskFile(id, path) }
-                                    )
-                                    Spacer(modifier = Modifier.height(80.dp))
-                                }
-                                1 -> CalendarTabContent(
-                                     events = calendarEvents,
-                                     onAddEvent = { title, start, end, isAllDay, category, desc, recurrence, reminderMinutes, priority, sendEmail ->
-                                         viewModel.addCalendarEvent(title, start, end, isAllDay, category, desc, recurrence, reminderMinutes, priority, sendEmail)
-                                     },
-                                     onUpdateEvent = { id, title, start, end, isAllDay, category, desc, recurrence, reminderMinutes, priority ->
-                                         viewModel.updateCalendarEvent(id, title, start, end, isAllDay, category, desc, recurrence, reminderMinutes, priority)
-                                     },
-                                     onDeleteEvent = { viewModel.deleteCalendarEvent(it) },
-                                     onImportIcs = { uri ->
-                                         viewModel.importCalendarEventsFromIcs(
-                                             context = context,
-                                             uri = uri,
-                                             onSuccess = {
-                                                 android.widget.Toast.makeText(context, "Kalender erfolgreich importiert!", android.widget.Toast.LENGTH_SHORT).show()
-                                             },
-                                             onFailure = { error ->
-                                                 android.widget.Toast.makeText(context, "Import fehlgeschlagen: ${error.localizedMessage}", android.widget.Toast.LENGTH_LONG).show()
-                                             }
-                                         )
-                                    },
-                                    onExportIcs = {
-                                         viewModel.exportCalendarEventsToIcs(
-                                             context = context,
-                                             onSuccess = { uri ->
-                                                 val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                                     type = "text/calendar"
-                                                     putExtra(android.content.Intent.EXTRA_STREAM, uri)
-                                                     addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                 }
-                                                 context.startActivity(android.content.Intent.createChooser(intent, "Kalender exportieren"))
-                                             },
-                                             onFailure = { error ->
-                                                 android.widget.Toast.makeText(context, "Export fehlgeschlagen: ${error.localizedMessage}", android.widget.Toast.LENGTH_LONG).show()
-                                             }
-                                         )
-                                    }
-                                )
-                                2 -> Column(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .verticalScroll(rememberScrollState())
-                                ) {
-                                    RoutinesTabContent(
-                                        routines = routines,
-                                        onCreateRoutine = { title, msg, dur, start, icon -> viewModel.createRoutine(title, msg, dur, start, icon) },
-                                        onUpdateRoutine = { id, title, msg, dur, start, icon, active -> viewModel.updateRoutine(id, title, msg, dur, start, icon, active) },
-                                        onDeleteRoutine = { viewModel.deleteRoutine(it) },
-                                        onAddStep = { id, title, dur -> viewModel.addRoutineStep(id, title, dur) },
-                                        onDeleteStep = { viewModel.deleteRoutineStep(it) }
-                                    )
-                                    Spacer(modifier = Modifier.height(80.dp))
-                                }
-                                3 -> Column(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .verticalScroll(rememberScrollState())
-                                ) {
-                                    ShoppingTabContent(
-                                        items = shoppingItems,
-                                        onAddItem = { name, qty -> viewModel.addShoppingItem(name, qty) },
-                                        onToggleItem = { viewModel.toggleShoppingItem(it) },
-                                        onDeleteItem = { viewModel.deleteShoppingItem(it) },
-                                        onUpdateQuantity = { id, qty -> viewModel.updateShoppingItemQuantity(id, qty) }
-                                    )
-                                    Spacer(modifier = Modifier.height(80.dp))
-                                }
-                                4 -> EmailTabContent(
-                                    viewModel = emailViewModel
-                                )
-                            }
+            // Tab body (always render HorizontalPager so Musik & cached tabs work immediately offline)
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.weight(1f)
+            ) { page ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    if (uiState is OrganizerUiState.Loading && page in 0..3) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = Gold)
                         }
-                    }
-                }
-                is OrganizerUiState.Error -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
-                            text = (uiState as OrganizerUiState.Error).message,
-                            color = Color.Red,
-                            textAlign = TextAlign.Center
-                        )
+                    } else {
+                        when (page) {
+                            0 -> Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                TasksTabContent(
+                                    taskLists = taskLists,
+                                    tasks = tasks,
+                                    onAddTask = { listId, title -> viewModel.addTask(listId, title) },
+                                    onToggleTask = { viewModel.toggleTask(it) },
+                                    onDeleteTask = { viewModel.deleteTask(it) },
+                                    onAddSubtask = { parentId, title -> viewModel.addSubtask(parentId, title) },
+                                    onDeleteTaskList = { viewModel.deleteTaskList(it) },
+                                    onAddTaskList = { name -> viewModel.addTaskList(name) },
+                                    onUpdateTaskList = { id, name -> viewModel.updateTaskList(id, name) },
+                                    onUpdateTask = { id, title, priority, completed, relFrom, aiPlan -> viewModel.updateTask(id, title, priority, completed, relFrom, aiPlan) },
+                                    onUploadTaskFile = { id, bytes, name, mime -> viewModel.uploadTaskFile(id, bytes, name, mime) },
+                                    onDeleteTaskFile = { id, path -> viewModel.deleteTaskFile(id, path) }
+                                )
+                                Spacer(modifier = Modifier.height(80.dp))
+                            }
+                            1 -> CalendarTabContent(
+                                 events = calendarEvents,
+                                 onAddEvent = { title, start, end, isAllDay, category, desc, recurrence, reminderMinutes, priority, sendEmail ->
+                                     viewModel.addCalendarEvent(title, start, end, isAllDay, category, desc, recurrence, reminderMinutes, priority, sendEmail)
+                                 },
+                                 onUpdateEvent = { id, title, start, end, isAllDay, category, desc, recurrence, reminderMinutes, priority ->
+                                     viewModel.updateCalendarEvent(id, title, start, end, isAllDay, category, desc, recurrence, reminderMinutes, priority)
+                                 },
+                                 onDeleteEvent = { viewModel.deleteCalendarEvent(it) },
+                                 onImportIcs = { uri ->
+                                     viewModel.importCalendarEventsFromIcs(
+                                         context = context,
+                                         uri = uri,
+                                         onSuccess = {
+                                             android.widget.Toast.makeText(context, "Kalender erfolgreich importiert!", android.widget.Toast.LENGTH_SHORT).show()
+                                         },
+                                         onFailure = { error ->
+                                             android.widget.Toast.makeText(context, "Import fehlgeschlagen: ${error.localizedMessage}", android.widget.Toast.LENGTH_LONG).show()
+                                         }
+                                     )
+                                },
+                                onExportIcs = {
+                                     viewModel.exportCalendarEventsToIcs(
+                                         context = context,
+                                         onSuccess = { uri ->
+                                             val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                                 type = "text/calendar"
+                                                 putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                                 addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                             }
+                                             context.startActivity(android.content.Intent.createChooser(intent, "Kalender exportieren"))
+                                         },
+                                         onFailure = { error ->
+                                             android.widget.Toast.makeText(context, "Export fehlgeschlagen: ${error.localizedMessage}", android.widget.Toast.LENGTH_LONG).show()
+                                         }
+                                     )
+                                }
+                            )
+                            2 -> Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                RoutinesTabContent(
+                                    routines = routines,
+                                    onCreateRoutine = { title, msg, dur, start, icon -> viewModel.createRoutine(title, msg, dur, start, icon) },
+                                    onUpdateRoutine = { id, title, msg, dur, start, icon, active -> viewModel.updateRoutine(id, title, msg, dur, start, icon, active) },
+                                    onDeleteRoutine = { viewModel.deleteRoutine(it) },
+                                    onAddStep = { id, title, dur -> viewModel.addRoutineStep(id, title, dur) },
+                                    onDeleteStep = { viewModel.deleteRoutineStep(it) }
+                                )
+                                Spacer(modifier = Modifier.height(80.dp))
+                            }
+                            3 -> Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                ShoppingTabContent(
+                                    items = shoppingItems,
+                                    onAddItem = { name, qty -> viewModel.addShoppingItem(name, qty) },
+                                    onToggleItem = { viewModel.toggleShoppingItem(it) },
+                                    onDeleteItem = { viewModel.deleteShoppingItem(it) },
+                                    onUpdateQuantity = { id, qty -> viewModel.updateShoppingItemQuantity(id, qty) }
+                                )
+                                Spacer(modifier = Modifier.height(80.dp))
+                            }
+                            4 -> EmailTabContent(
+                                viewModel = emailViewModel
+                            )
+                            5 -> MusicTabContent()
+                        }
                     }
                 }
             }
@@ -422,7 +411,7 @@ fun OrganizerScreen(
     }
 }
 
-// --- TASKS TAB ---
+// --- TASKS TAB (MICROSOFT TO DO DESIGN & LOGIC) ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TasksTabContent(
@@ -435,216 +424,372 @@ fun TasksTabContent(
     onDeleteTaskList: (String) -> Unit,
     onAddTaskList: (String) -> Unit,
     onUpdateTaskList: (String, String) -> Unit,
-    onUpdateTask: (String, String?, String?, Boolean?, String?) -> Unit,
+    onUpdateTask: (String, String?, String?, Boolean?, String?, String?) -> Unit,
     onUploadTaskFile: (String, ByteArray, String, String) -> Unit,
     onDeleteTaskFile: (String, String) -> Unit
 ) {
     var selectedListId by remember { mutableStateOf<String?>(null) }
-    val selectedList = taskLists.find { it.id == selectedListId }
+    var searchQuery by remember { mutableStateOf("") }
+    var showSearchBar by remember { mutableStateOf(false) }
+    var showCompletedSection by remember { mutableStateOf(true) }
+
     var listToDelete by remember { mutableStateOf<ManagementTaskList?>(null) }
     var listToRename by remember { mutableStateOf<ManagementTaskList?>(null) }
     var renameListName by remember { mutableStateOf("") }
 
-    if (selectedList == null) {
-        // List-first view: show all task lists
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(
-                text = "MEINE LISTEN",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Gold,
-                letterSpacing = 1.sp,
-                modifier = Modifier.padding(bottom = 4.dp)
+    val todayIso = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) }
+    val rootTasks = remember(tasks) { tasks.filter { it.parent_id == null } }
+
+    fun isTaskMyDay(task: ManagementTask): Boolean {
+        val rf = task.relevant_from ?: return false
+        return rf.take(10) == todayIso
+    }
+
+    if (selectedListId == null) {
+        // ==================== MICROSOFT TO DO HOME OVERVIEW ====================
+        val myDayCount = rootTasks.count { !it.is_completed && isTaskMyDay(it) }
+        val importantCount = rootTasks.count { !it.is_completed && it.priority.equals("hoch", ignoreCase = true) }
+        val plannedCount = rootTasks.count { !it.is_completed && !it.relevant_from.isNullOrBlank() }
+        val allCount = rootTasks.count { !it.is_completed }
+
+        var isAddingList by remember { mutableStateOf(false) }
+        var newListName by remember { mutableStateOf("") }
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Aufgaben durchsuchen...", fontSize = 13.sp, color = AppTheme.colors.textMuted) },
+                singleLine = true,
+                trailingIcon = {
+                    if (searchQuery.isNotBlank()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Suche leeren",
+                                tint = AppTheme.colors.textMuted
+                            )
+                        }
+                    }
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = AppTheme.colors.primaryGold,
+                    unfocusedBorderColor = AppTheme.colors.inputBorder,
+                    focusedTextColor = AppTheme.colors.textPrimary,
+                    unfocusedTextColor = AppTheme.colors.textPrimary,
+                    focusedContainerColor = AppTheme.colors.cardBackground,
+                    unfocusedContainerColor = AppTheme.colors.cardBackground
+                ),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
             )
 
-            // New Task List input inline
-            var isAddingList by remember { mutableStateOf(false) }
-            var newListName by remember { mutableStateOf("") }
+            if (searchQuery.isNotBlank()) {
+                val matched = rootTasks.filter {
+                    it.title.contains(searchQuery, ignoreCase = true) ||
+                        (it.ai_plan?.contains(searchQuery, ignoreCase = true) == true)
+                }
+                Text(
+                    text = "SUCHERGEBNISSE (${matched.size})",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AppTheme.colors.primaryGold,
+                    modifier = Modifier.padding(vertical = 6.dp)
+                )
+                matched.forEach { task ->
+                    TaskRow(
+                        task = task,
+                        allTasks = tasks,
+                        listColor = AppTheme.colors.primaryGold,
+                        onToggleTask = onToggleTask,
+                        onDeleteTask = onDeleteTask,
+                        onAddSubtask = onAddSubtask,
+                        onUpdateTask = onUpdateTask,
+                        onUploadTaskFile = onUploadTaskFile,
+                        onDeleteTaskFile = onDeleteTaskFile
+                    )
+                }
+            } else {
+                // --- SMART LISTS (Mein Tag, Wichtig, Geplant, Aufgaben) ---
+                val smartRows = listOf(
+                    Triple("my_day", "Mein Tag", Color(0xFF0EA5E9)) to Pair(Icons.Default.WbSunny, myDayCount),
+                    Triple("important", "Wichtig", Color(0xFFEC4899)) to Pair(Icons.Default.Star, importantCount),
+                    Triple("planned", "Geplant", Color(0xFF10B981)) to Pair(Icons.Default.CalendarToday, plannedCount),
+                    Triple("all", "Alle Aufgaben", Color(0xFF6366F1)) to Pair(Icons.Default.Home, allCount)
+                )
 
-            if (isAddingList) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
-                    border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                smartRows.forEach { (meta, iconAndCount) ->
+                    val (smartId, label, tintColor) = meta
+                    val (iconVec, count) = iconAndCount
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { selectedListId = smartId }
+                            .padding(horizontal = 8.dp, vertical = 13.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        OutlinedTextField(
-                            value = newListName,
-                            onValueChange = { newListName = it },
-                            label = { Text("Name der Liste...") },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Gold,
-                                unfocusedBorderColor = AppTheme.colors.inputBorder,
-                                focusedTextColor = AppTheme.colors.textPrimary,
-                                unfocusedTextColor = AppTheme.colors.textPrimary,
-                                focusedContainerColor = AppTheme.colors.inputBackground,
-                                unfocusedContainerColor = AppTheme.colors.inputBackground,
-                                focusedLabelColor = Gold,
-                                unfocusedLabelColor = AppTheme.colors.textMuted
-                            ),
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = iconVec,
+                                contentDescription = label,
+                                tint = tintColor,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(
+                                text = label,
+                                fontSize = 15.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = AppTheme.colors.textPrimary
+                            )
+                        }
+                        if (count > 0) {
+                            Text(
+                                text = count.toString(),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = AppTheme.colors.textMuted
+                            )
+                        }
+                    }
+                }
+
+                // Divider between Smart Lists and Custom Lists (exact Microsoft To Do layout)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                        .height(1.dp)
+                        .background(AppTheme.colors.cardBorder)
+                )
+
+                // --- CUSTOM LISTS ---
+                taskLists.forEach { list ->
+                    val listColor = parseHexColor(list.color, Color(0xFF6366F1))
+                    val activeCount = rootTasks.count { it.task_list_id == list.id && !it.is_completed }
+                    val listIcon = if (list.name.equals("Aufgaben", ignoreCase = true)) {
+                        Icons.Default.Home
+                    } else {
+                        Icons.Default.List
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { selectedListId = list.id }
+                            .padding(horizontal = 8.dp, vertical = 13.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
                         ) {
-                            TextButton(onClick = {
-                                isAddingList = false
-                                newListName = ""
-                            }) {
-                                Text("Abbrechen", color = AppTheme.colors.textMuted)
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Button(
-                                onClick = {
-                                    if (newListName.isNotBlank()) {
-                                        onAddTaskList(newListName)
-                                        newListName = ""
-                                        isAddingList = false
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack),
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Text("Erstellen")
+                            Icon(
+                                imageVector = listIcon,
+                                contentDescription = null,
+                                tint = listColor,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(
+                                text = list.name,
+                                fontSize = 15.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = AppTheme.colors.textPrimary,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (activeCount > 0) {
+                                Text(
+                                    text = activeCount.toString(),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = AppTheme.colors.textMuted,
+                                    modifier = Modifier.padding(horizontal = 6.dp)
+                                )
                             }
                         }
                     }
                 }
-            } else {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { isAddingList = true },
-                    colors = CardDefaults.cardColors(containerColor = AppTheme.colors.glassSurface),
-                    border = BorderStroke(1.dp, AppTheme.colors.glassBorder),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // --- BOTTOM "+ Neue Liste" BAR ---
+                if (isAddingList) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+                        border = BorderStroke(1.dp, AppTheme.colors.primaryGold.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = newListName,
+                                onValueChange = { newListName = it },
+                                label = { Text("Neue Liste") },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = AppTheme.colors.primaryGold,
+                                    unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                    focusedTextColor = AppTheme.colors.textPrimary,
+                                    unfocusedTextColor = AppTheme.colors.textPrimary,
+                                    focusedContainerColor = AppTheme.colors.inputBackground,
+                                    unfocusedContainerColor = AppTheme.colors.inputBackground,
+                                    focusedLabelColor = AppTheme.colors.primaryGold,
+                                    unfocusedLabelColor = AppTheme.colors.textMuted
+                                ),
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                TextButton(onClick = {
+                                    isAddingList = false
+                                    newListName = ""
+                                }) {
+                                    Text("Abbrechen", color = AppTheme.colors.textMuted)
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        if (newListName.isNotBlank()) {
+                                            onAddTaskList(newListName.trim())
+                                            newListName = ""
+                                            isAddingList = false
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = AppTheme.colors.primaryGold,
+                                        contentColor = Color(0xFF121316)
+                                    ),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("Erstellen", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                } else {
                     Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { isAddingList = true }
+                            .padding(horizontal = 8.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
-                            contentDescription = null,
-                            tint = Gold,
-                            modifier = Modifier.size(18.dp)
+                            contentDescription = "Neue Liste",
+                            tint = AppTheme.colors.textSecondary,
+                            modifier = Modifier.size(22.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(16.dp))
                         Text(
-                            text = "Neue Liste erstellen",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Gold
+                            text = "Neue Liste",
+                            fontSize = 15.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = AppTheme.colors.textSecondary
                         )
                     }
                 }
             }
+        }
+    } else {
+        // ==================== MICROSOFT TO DO LIST DETAIL VIEW ====================
+        val isSmartList = selectedListId in listOf("my_day", "important", "planned", "all")
+        val selectedList = taskLists.find { it.id == selectedListId }
 
-            Spacer(modifier = Modifier.height(4.dp))
+        val listTitle = when (selectedListId) {
+            "my_day" -> "Mein Tag"
+            "important" -> "Wichtig"
+            "planned" -> "Geplant"
+            "all" -> "Alle Aufgaben"
+            else -> selectedList?.name ?: "Aufgaben"
+        }
 
-            if (taskLists.isEmpty()) {
-                Text(
-                    "Keine Aufgabenlisten vorhanden.",
-                    color = AppTheme.colors.textMuted,
-                    fontSize = 14.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(top = 32.dp)
-                )
-            } else {
-                taskLists.forEach { list ->
-                    val listColor = parseHexColor(list.color)
-                    val activeCount = tasks.count { it.task_list_id == list.id && !it.is_completed && it.parent_id == null }
+        val listColor = when (selectedListId) {
+            "my_day" -> Color(0xFF0EA5E9)
+            "important" -> Color(0xFFEC4899)
+            "planned" -> Color(0xFF10B981)
+            "all" -> Color(0xFF6366F1)
+            else -> parseHexColor(selectedList?.color, Color(0xFF6366F1))
+        }
 
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                android.util.Log.d("TasksTabContent", "Clicked card: ${list.id}")
-                                selectedListId = list.id
-                            },
-                        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
-                        border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(listColor.copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = mapIconStringToVector(list.icon),
-                                        contentDescription = null,
-                                        tint = listColor,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column {
-                                    Text(
-                                        text = list.name,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = AppTheme.colors.textPrimary
-                                    )
-                                    Text(
-                                        text = if (activeCount == 1) "1 offene Aufgabe" else "$activeCount offene Aufgaben",
-                                        fontSize = 12.sp,
-                                        color = AppTheme.colors.textMuted
-                                    )
-                                }
-                            }
+        val filteredRootTasks = remember(rootTasks, selectedListId) {
+            when (selectedListId) {
+                "my_day" -> rootTasks.filter { isTaskMyDay(it) }
+                "important" -> rootTasks.filter { it.priority.equals("hoch", ignoreCase = true) }
+                "planned" -> rootTasks.filter { !it.relevant_from.isNullOrBlank() }
+                "all" -> rootTasks
+                else -> rootTasks.filter { it.task_list_id == selectedListId }
+            }
+        }
 
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(
-                                    onClick = {
-                                        listToRename = list
-                                        renameListName = list.name
-                                    },
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Edit,
-                                        contentDescription = "Liste umbenennen",
-                                        tint = Gold.copy(alpha = 0.7f),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(4.dp))
-                                IconButton(
-                                    onClick = { listToDelete = list },
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = "Liste löschen",
-                                        tint = Color.Red.copy(alpha = 0.7f),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(4.dp))
+        val openTasks = remember(filteredRootTasks) {
+            filteredRootTasks
+                .filter { !it.is_completed }
+                .sortedByDescending { it.priority.equals("hoch", ignoreCase = true) }
+        }
+        val completedTasks = remember(filteredRootTasks) {
+            filteredRootTasks.filter { it.is_completed }
+        }
+
+        var newTaskTitle by remember { mutableStateOf("") }
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Top Bar (Back arrow + List options)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                IconButton(onClick = { selectedListId = null }) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Zurück",
+                        tint = listColor
+                    )
+                }
+
+                if (!isSmartList && selectedList != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = {
+                            listToRename = selectedList
+                            renameListName = selectedList.name
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Liste umbenennen",
+                                tint = listColor.copy(alpha = 0.85f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        if (taskLists.size > 1) {
+                            IconButton(onClick = { listToDelete = selectedList }) {
                                 Icon(
-                                    imageVector = Icons.Default.KeyboardArrowRight,
-                                    contentDescription = "Öffnen",
-                                    tint = AppTheme.colors.textMuted,
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Liste löschen",
+                                    tint = Color(0xFFF87171).copy(alpha = 0.8f),
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -652,195 +797,85 @@ fun TasksTabContent(
                     }
                 }
             }
-        }
 
-        if (listToDelete != null) {
-            AlertDialog(
-                onDismissRequest = { listToDelete = null },
-                title = { Text(text = "Liste löschen", color = AppTheme.colors.textPrimary, fontWeight = FontWeight.Bold) },
-                text = { Text(text = "Wirklich löschen?", color = AppTheme.colors.textSecondary) },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            listToDelete?.let { onDeleteTaskList(it.id) }
-                            listToDelete = null
-                        }
-                    ) {
-                        Text("Ja, löschen", color = Color.Red, fontWeight = FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { listToDelete = null }) {
-                        Text("Abbrechen", color = AppTheme.colors.textMuted)
-                    }
-                },
-                containerColor = AppTheme.colors.cardBackground,
-                titleContentColor = AppTheme.colors.textPrimary,
-                textContentColor = AppTheme.colors.textSecondary
+            // Large Colored Microsoft To Do Title (like "Mein-Seelenfunke Shop" in screenshot)
+            Text(
+                text = listTitle,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = listColor,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
             )
-        }
 
-        if (listToRename != null) {
-            AlertDialog(
-                onDismissRequest = { listToRename = null },
-                title = { Text(text = "Liste umbenennen", color = AppTheme.colors.textPrimary, fontWeight = FontWeight.Bold) },
-                text = {
-                    OutlinedTextField(
-                        value = renameListName,
-                        onValueChange = { renameListName = it },
-                        label = { Text("Name der Liste...") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Gold,
-                            unfocusedBorderColor = AppTheme.colors.inputBorder,
-                            focusedTextColor = AppTheme.colors.textPrimary,
-                            unfocusedTextColor = AppTheme.colors.textPrimary,
-                            focusedContainerColor = AppTheme.colors.inputBackground,
-                            unfocusedContainerColor = AppTheme.colors.inputBackground,
-                            focusedLabelColor = Gold,
-                            unfocusedLabelColor = AppTheme.colors.textMuted
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            listToRename?.let { list ->
-                                if (renameListName.isNotBlank()) {
-                                    onUpdateTaskList(list.id, renameListName)
-                                }
-                            }
-                            listToRename = null
-                        }
-                    ) {
-                        Text("Speichern", color = Gold, fontWeight = FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { listToRename = null }) {
-                        Text("Abbrechen", color = AppTheme.colors.textMuted)
-                    }
-                },
-                containerColor = AppTheme.colors.cardBackground,
-                titleContentColor = AppTheme.colors.textPrimary,
-                textContentColor = AppTheme.colors.textSecondary
-            )
-        }
-    } else {
-        // Task list detail view (full width)
-        val listColor = parseHexColor(selectedList.color)
-        var newTaskTitle by remember { mutableStateOf("") }
-
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            // Header with Back Button
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                IconButton(onClick = { selectedListId = null }) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "Zurück zur Listenübersicht",
-                        tint = Gold
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(listColor.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = mapIconStringToVector(selectedList.icon),
-                        contentDescription = null,
-                        tint = listColor,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = selectedList.name,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = AppTheme.colors.textPrimary,
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(onClick = {
-                    listToRename = selectedList
-                    renameListName = selectedList.name
-                }) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Liste umbenennen",
-                        tint = Gold.copy(alpha = 0.7f),
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-
-            // Create New Task Input Form
+            // Quick "+ Aufgabe hinzufügen" Input Row
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 4.dp),
                 colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
                 border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(10.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        tint = listColor,
+                        modifier = Modifier.size(22.dp)
+                    )
                     OutlinedTextField(
                         value = newTaskTitle,
                         onValueChange = { newTaskTitle = it },
-                        label = { Text("Neue Aufgabe...") },
+                        placeholder = { Text("Aufgabe hinzufügen", color = AppTheme.colors.textMuted, fontSize = 14.sp) },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = listColor,
-                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
                             focusedTextColor = AppTheme.colors.textPrimary,
                             unfocusedTextColor = AppTheme.colors.textPrimary,
-                            focusedContainerColor = AppTheme.colors.inputBackground,
-                            unfocusedContainerColor = AppTheme.colors.inputBackground,
-                            focusedLabelColor = listColor,
-                            unfocusedLabelColor = AppTheme.colors.textMuted
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent
                         ),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
                     )
-
-                    Button(
-                        onClick = {
-                            onAddTask(selectedList.id, newTaskTitle)
-                            newTaskTitle = ""
-                        },
-                        enabled = newTaskTitle.isNotBlank(),
-                        colors = ButtonDefaults.buttonColors(containerColor = listColor, contentColor = SpaceBlack),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.height(56.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.Add, contentDescription = "Hinzufügen")
+                    if (newTaskTitle.isNotBlank()) {
+                        Button(
+                            onClick = {
+                                val targetId = selectedListId ?: "default"
+                                onAddTask(targetId, newTaskTitle.trim())
+                                newTaskTitle = ""
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = listColor,
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text("OK", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
                     }
                 }
             }
 
-            // List of top-level tasks (parent_id == null)
-            val listTasks = tasks.filter { it.task_list_id == selectedList.id && it.parent_id == null }
-
-            if (listTasks.isEmpty()) {
+            // --- OPEN TASKS ---
+            if (openTasks.isEmpty() && completedTasks.isEmpty()) {
                 Text(
-                    "Keine Aufgaben in dieser Liste.",
+                    text = "Keine Aufgaben in dieser Liste.",
                     color = AppTheme.colors.textMuted,
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 32.dp)
+                        .padding(top = 36.dp)
                 )
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    listTasks.forEach { task ->
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    openTasks.forEach { task ->
                         TaskRow(
                             task = task,
                             allTasks = tasks,
@@ -855,7 +890,134 @@ fun TasksTabContent(
                     }
                 }
             }
+
+            // --- COLLAPSIBLE "⌄ Erledigt X" SECTION (Exact Microsoft To Do layout) ---
+            if (completedTasks.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { showCompletedSection = !showCompletedSection }
+                        .padding(horizontal = 6.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (showCompletedSection) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = listColor,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Erledigt",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = listColor
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = completedTasks.size.toString(),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = listColor.copy(alpha = 0.85f)
+                    )
+                }
+
+                AnimatedVisibility(visible = showCompletedSection) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        completedTasks.forEach { task ->
+                            TaskRow(
+                                task = task,
+                                allTasks = tasks,
+                                listColor = listColor,
+                                onToggleTask = onToggleTask,
+                                onDeleteTask = onDeleteTask,
+                                onAddSubtask = onAddSubtask,
+                                onUpdateTask = onUpdateTask,
+                                onUploadTaskFile = onUploadTaskFile,
+                                onDeleteTaskFile = onDeleteTaskFile
+                            )
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    if (listToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { listToDelete = null },
+            title = { Text(text = "Liste löschen", color = AppTheme.colors.textPrimary, fontWeight = FontWeight.Bold) },
+            text = { Text(text = "Möchtest du '${listToDelete?.name}' samt aller Aufgaben wirklich löschen?", color = AppTheme.colors.textSecondary) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        listToDelete?.let {
+                            onDeleteTaskList(it.id)
+                            if (selectedListId == it.id) selectedListId = null
+                        }
+                        listToDelete = null
+                    }
+                ) {
+                    Text("Ja, löschen", color = Color.Red, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { listToDelete = null }) {
+                    Text("Abbrechen", color = AppTheme.colors.textMuted)
+                }
+            },
+            containerColor = AppTheme.colors.cardBackground,
+            titleContentColor = AppTheme.colors.textPrimary,
+            textContentColor = AppTheme.colors.textSecondary
+        )
+    }
+
+    if (listToRename != null) {
+        AlertDialog(
+            onDismissRequest = { listToRename = null },
+            title = { Text(text = "Liste umbenennen", color = AppTheme.colors.textPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = renameListName,
+                    onValueChange = { renameListName = it },
+                    label = { Text("Name der Liste...") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Gold,
+                        unfocusedBorderColor = AppTheme.colors.inputBorder,
+                        focusedTextColor = AppTheme.colors.textPrimary,
+                        unfocusedTextColor = AppTheme.colors.textPrimary,
+                        focusedContainerColor = AppTheme.colors.inputBackground,
+                        unfocusedContainerColor = AppTheme.colors.inputBackground,
+                        focusedLabelColor = Gold,
+                        unfocusedLabelColor = AppTheme.colors.textMuted
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        listToRename?.let { list ->
+                            if (renameListName.isNotBlank()) {
+                                onUpdateTaskList(list.id, renameListName.trim())
+                            }
+                        }
+                        listToRename = null
+                    }
+                ) {
+                    Text("Speichern", color = Gold, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { listToRename = null }) {
+                    Text("Abbrechen", color = AppTheme.colors.textMuted)
+                }
+            },
+            containerColor = AppTheme.colors.cardBackground,
+            titleContentColor = AppTheme.colors.textPrimary,
+            textContentColor = AppTheme.colors.textSecondary
+        )
     }
 }
 
@@ -867,7 +1029,7 @@ fun TaskRow(
     onToggleTask: (String) -> Unit,
     onDeleteTask: (String) -> Unit,
     onAddSubtask: (String, String) -> Unit,
-    onUpdateTask: (String, String?, String?, Boolean?, String?) -> Unit,
+    onUpdateTask: (String, String?, String?, Boolean?, String?, String?) -> Unit,
     onUploadTaskFile: (String, ByteArray, String, String) -> Unit,
     onDeleteTaskFile: (String, String) -> Unit
 ) {
@@ -876,25 +1038,30 @@ fun TaskRow(
     var newSubtaskTitle by remember { mutableStateOf("") }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var subtaskDeleteConfirmId by remember { mutableStateOf<String?>(null) }
+
     val subtasks = allTasks.filter { it.parent_id == task.id }
     val completedSubtasksCount = subtasks.count { it.is_completed }
+    val isImportant = task.priority.equals("hoch", ignoreCase = true)
+    val todayIso = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) }
+    val isMyDay = task.relevant_from?.take(10) == todayIso
 
-    var isEditingTitle by remember { mutableStateOf(false) }
-    var editedTitle by remember { mutableStateOf(task.title) }
-
-    LaunchedEffect(task.title) {
-        editedTitle = task.title
-    }
+    var editedTitle by remember(task.title) { mutableStateOf(task.title) }
+    var editedNote by remember(task.ai_plan) { mutableStateOf(task.ai_plan ?: "") }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { isExpanded = !isExpanded },
-        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
-        border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
-        shape = RoundedCornerShape(12.dp)
+        colors = CardDefaults.cardColors(
+            containerColor = if (task.is_completed) AppTheme.colors.cardBackground.copy(alpha = 0.7f) else AppTheme.colors.cardBackground
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (isExpanded) listColor.copy(alpha = 0.6f) else AppTheme.colors.cardBorder
+        ),
+        shape = RoundedCornerShape(10.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -904,69 +1071,50 @@ fun TaskRow(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Checkbox(
-                        checked = task.is_completed,
-                        onCheckedChange = { onToggleTask(task.id) },
-                        colors = CheckboxDefaults.colors(
-                            checkedColor = listColor,
-                            checkmarkColor = SpaceBlack,
-                            uncheckedColor = AppTheme.colors.textMuted
-                        )
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    if (isEditingTitle) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            OutlinedTextField(
-                                value = editedTitle,
-                                onValueChange = { editedTitle = it },
-                                modifier = Modifier.weight(1f),
-                                textStyle = TextStyle(color = AppTheme.colors.textPrimary, fontSize = 14.sp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = listColor,
-                                    unfocusedBorderColor = AppTheme.colors.inputBorder,
-                                    focusedTextColor = AppTheme.colors.textPrimary,
-                                    unfocusedTextColor = AppTheme.colors.textPrimary,
-                                    focusedContainerColor = AppTheme.colors.inputBackground,
-                                    unfocusedContainerColor = AppTheme.colors.inputBackground
-                                ),
-                                singleLine = true
+                    // --- ROUND MICROSOFT TO DO CHECKBOX ---
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(RoundedCornerShape(11.dp))
+                            .background(if (task.is_completed) listColor else Color.Transparent)
+                            .border(
+                                width = 2.dp,
+                                color = if (task.is_completed) listColor else AppTheme.colors.textMuted,
+                                shape = RoundedCornerShape(11.dp)
                             )
-                            IconButton(onClick = {
-                                if (editedTitle.isNotBlank()) {
-                                    onUpdateTask(task.id, editedTitle, null, null, null)
-                                    isEditingTitle = false
-                                }
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = "Speichern",
-                                    tint = listColor,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            IconButton(onClick = {
-                                editedTitle = task.title
-                                isEditingTitle = false
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Abbrechen",
-                                    tint = AppTheme.colors.textMuted,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    } else {
-                        Column(modifier = Modifier.weight(1f)) {
-                            LinkableText(
-                                text = task.title,
-                                baseColor = if (task.is_completed) AppTheme.colors.textMuted else AppTheme.colors.textPrimary,
-                                textDecoration = if (task.is_completed) TextDecoration.LineThrough else TextDecoration.None,
+                            .clickable { onToggleTask(task.id) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (task.is_completed) {
+                            Text(
+                                text = "✓",
+                                color = Color.White,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
                             )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = task.title,
+                            color = if (task.is_completed) AppTheme.colors.textMuted else AppTheme.colors.textPrimary,
+                            textDecoration = if (task.is_completed) TextDecoration.LineThrough else TextDecoration.None,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Normal,
+                            lineHeight = 20.sp
+                        )
+
+                        // Subtitle metadata (like Microsoft To Do: ✓ 2 von 2 · Mein Tag · Notiz)
+                        val metaItems = mutableListOf<String>()
+                        if (subtasks.isNotEmpty()) {
+                            metaItems.add("✓ $completedSubtasksCount von ${subtasks.size}")
+                        }
+                        if (isMyDay) {
+                            metaItems.add("☀ Mein Tag")
+                        } else {
                             val localDateStr = de.meinseelenfunke.app.util.DateUtils.parseUtcToLocalDateString(task.relevant_from)
                             if (!localDateStr.isNullOrBlank()) {
                                 val displayDate = try {
@@ -975,135 +1123,93 @@ fun TaskRow(
                                 } catch (e: Exception) {
                                     localDateStr
                                 }
-                                Text(
-                                    text = "Relevant ab: $displayDate",
-                                    fontSize = 11.sp,
-                                    color = Gold,
-                                    modifier = Modifier.padding(top = 2.dp)
-                                )
+                                metaItems.add("📅 $displayDate")
                             }
-                            if (subtasks.isNotEmpty()) {
-                                Text(
-                                    text = "$completedSubtasksCount von ${subtasks.size} Teilschritten",
-                                    fontSize = 11.sp,
-                                    color = AppTheme.colors.textMuted,
-                                    modifier = Modifier.padding(top = 2.dp)
-                                )
-                            }
+                        }
+                        if (!task.ai_plan.isNullOrBlank()) {
+                            metaItems.add("📝 Notiz")
+                        }
+                        if (!task.file_paths.isNullOrEmpty()) {
+                            metaItems.add("📎 ${task.file_paths.size}")
+                        }
+
+                        if (metaItems.isNotEmpty()) {
+                            Text(
+                                text = metaItems.joinToString("  ·  "),
+                                fontSize = 12.sp,
+                                color = AppTheme.colors.textMuted,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
                         }
                     }
                 }
 
-                if (!isEditingTitle) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                            contentDescription = null,
-                            tint = listColor,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        IconButton(onClick = {
-                            val currentCal = Calendar.getInstance()
-                            val localDateStr = de.meinseelenfunke.app.util.DateUtils.parseUtcToLocalDateString(task.relevant_from)
-                            if (!localDateStr.isNullOrBlank()) {
-                                try {
-                                    val parts = localDateStr.split("-")
-                                    if (parts.size == 3) {
-                                        currentCal.set(Calendar.YEAR, parts[0].toInt())
-                                        currentCal.set(Calendar.MONTH, parts[1].toInt() - 1)
-                                        currentCal.set(Calendar.DAY_OF_MONTH, parts[2].toInt())
-                                    }
-                                } catch (e: Exception) {}
-                            }
-                            val datePickerDialog = android.app.DatePickerDialog(
-                                context,
-                                { _, year, month, dayOfMonth ->
-                                    val selectedDateStr = String.format(Locale.US, "%04d-%02d-%02d 00:00:00", year, month + 1, dayOfMonth)
-                                    onUpdateTask(task.id, null, null, null, selectedDateStr)
-                                },
-                                currentCal.get(Calendar.YEAR),
-                                currentCal.get(Calendar.MONTH),
-                                currentCal.get(Calendar.DAY_OF_MONTH)
-                            )
-                            datePickerDialog.setButton(android.app.DatePickerDialog.BUTTON_NEUTRAL, "Datum löschen") { _, _ ->
-                                onUpdateTask(task.id, null, null, null, "")
-                            }
-                            datePickerDialog.show()
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.CalendarToday,
-                                contentDescription = "Startdatum festlegen",
-                                tint = if (task.relevant_from.isNullOrBlank()) AppTheme.colors.textMuted else Gold,
-                                modifier = Modifier.size(18.dp)
-                            )
+                // --- STAR TOGGLE ON THE RIGHT (Exact Microsoft To Do layout) ---
+                Text(
+                    text = if (isImportant) "★" else "☆",
+                    color = if (isImportant) listColor else AppTheme.colors.textMuted,
+                    fontSize = 20.sp,
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .clickable {
+                            val nextPrio = if (isImportant) "niedrig" else "hoch"
+                            onUpdateTask(task.id, null, nextPrio, null, null, null)
                         }
-                        IconButton(onClick = {
-                            isEditingTitle = true
-                            editedTitle = task.title
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Aufgabe bearbeiten",
-                                tint = AppTheme.colors.textMuted,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        IconButton(onClick = { showDeleteConfirm = true }) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Aufgabe löschen",
-                                tint = Color.Red.copy(alpha = 0.7f),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                }
+                )
             }
 
+            // --- EXPANDED TASK DETAIL INSPECTOR ---
             AnimatedVisibility(visible = isExpanded) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 12.dp, start = 12.dp)
+                        .padding(top = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // Sub-steps list
-                    if (subtasks.isNotEmpty()) {
-                        Text(
-                            text = "TEILSCHRITTE",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = listColor,
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(AppTheme.colors.cardBorder)
+                    )
 
+                    // 1. Subtasks / Steps ("Schritte")
+                    if (subtasks.isNotEmpty()) {
                         subtasks.forEach { subtask ->
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 2.dp)
+                                    .padding(vertical = 3.dp)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Checkbox(
-                                        checked = subtask.is_completed,
-                                        onCheckedChange = { onToggleTask(subtask.id) },
-                                        colors = CheckboxDefaults.colors(
-                                            checkedColor = listColor,
-                                            checkmarkColor = SpaceBlack,
-                                            uncheckedColor = AppTheme.colors.textMuted
-                                        ),
-                                        modifier = Modifier.scale(0.85f)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    LinkableText(
+                                    Box(
+                                        modifier = Modifier
+                                            .size(18.dp)
+                                            .clip(RoundedCornerShape(9.dp))
+                                            .background(if (subtask.is_completed) listColor else Color.Transparent)
+                                            .border(
+                                                width = 1.5.dp,
+                                                color = if (subtask.is_completed) listColor else AppTheme.colors.textMuted,
+                                                shape = RoundedCornerShape(9.dp)
+                                            )
+                                            .clickable { onToggleTask(subtask.id) },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (subtask.is_completed) {
+                                            Text("✓", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
                                         text = subtask.title,
-                                        baseColor = if (subtask.is_completed) AppTheme.colors.textMuted else AppTheme.colors.textPrimary,
+                                        color = if (subtask.is_completed) AppTheme.colors.textMuted else AppTheme.colors.textPrimary,
                                         textDecoration = if (subtask.is_completed) TextDecoration.LineThrough else TextDecoration.None,
-                                        fontSize = 13.sp
+                                        fontSize = 13.5.sp
                                     )
                                 }
 
@@ -1112,18 +1218,17 @@ fun TaskRow(
                                     modifier = Modifier.size(24.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = "Teilschritt löschen",
-                                        tint = Color.Red.copy(alpha = 0.6f),
-                                        modifier = Modifier.size(14.dp)
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Schritt löschen",
+                                        tint = AppTheme.colors.textMuted,
+                                        modifier = Modifier.size(15.dp)
                                     )
                                 }
                             }
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
                     }
 
-                    // Add new sub-step input
+                    // Add Step Input
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1132,54 +1237,141 @@ fun TaskRow(
                         OutlinedTextField(
                             value = newSubtaskTitle,
                             onValueChange = { newSubtaskTitle = it },
-                            label = { Text("Neuer Teilschritt...", fontSize = 11.sp) },
+                            placeholder = {
+                                Text(
+                                    text = if (subtasks.isEmpty()) "+ Schritt hinzufügen" else "+ Nächster Schritt",
+                                    fontSize = 12.5.sp,
+                                    color = listColor
+                                )
+                            },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = listColor,
                                 unfocusedBorderColor = AppTheme.colors.inputBorder,
                                 focusedTextColor = AppTheme.colors.textPrimary,
                                 unfocusedTextColor = AppTheme.colors.textPrimary,
                                 focusedContainerColor = AppTheme.colors.inputBackground,
-                                unfocusedContainerColor = AppTheme.colors.inputBackground,
-                                focusedLabelColor = listColor,
-                                unfocusedLabelColor = AppTheme.colors.textMuted
+                                unfocusedContainerColor = AppTheme.colors.inputBackground
                             ),
                             modifier = Modifier.weight(1f),
                             singleLine = true
                         )
 
-                        IconButton(
-                            onClick = {
-                                onAddSubtask(task.id, newSubtaskTitle)
-                                newSubtaskTitle = ""
-                            },
-                            enabled = newSubtaskTitle.isNotBlank(),
-                            modifier = Modifier
-                                .size(48.dp)
-                                .background(
-                                    if (newSubtaskTitle.isNotBlank()) listColor else AppTheme.colors.glassSurface,
-                                    shape = RoundedCornerShape(8.dp)
-                                )
-                                .border(1.dp, if (newSubtaskTitle.isNotBlank()) Color.Transparent else AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = "Teilschritt hinzufügen",
-                                tint = if (newSubtaskTitle.isNotBlank()) SpaceBlack else AppTheme.colors.textMuted,
-                                modifier = Modifier.size(20.dp)
-                            )
+                        if (newSubtaskTitle.isNotBlank()) {
+                            Button(
+                                onClick = {
+                                    onAddSubtask(task.id, newSubtaskTitle.trim())
+                                    newSubtaskTitle = ""
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = listColor, contentColor = Color.White),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("+", fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
 
-                    // Attachments Section
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "DATEIEN",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = listColor,
-                        modifier = Modifier.padding(bottom = 6.dp)
+                    // 2. Quick Actions Row: "Mein Tag" + "Fälligkeitsdatum"
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            onClick = {
+                                val nextDate = if (isMyDay) "" else "$todayIso 00:00:00"
+                                onUpdateTask(task.id, null, null, null, nextDate, null)
+                            },
+                            color = if (isMyDay) Color(0xFF0EA5E9).copy(alpha = 0.15f) else AppTheme.colors.inputBackground,
+                            border = BorderStroke(1.dp, if (isMyDay) Color(0xFF0EA5E9) else AppTheme.colors.inputBorder),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = if (isMyDay) "☀ In Mein Tag" else "☀ Zu Mein Tag",
+                                    color = if (isMyDay) Color(0xFF0EA5E9) else AppTheme.colors.textSecondary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+
+                        Surface(
+                            onClick = {
+                                val currentCal = Calendar.getInstance()
+                                val datePickerDialog = android.app.DatePickerDialog(
+                                    context,
+                                    { _, year, month, dayOfMonth ->
+                                        val selectedDateStr = String.format(Locale.US, "%04d-%02d-%02d 00:00:00", year, month + 1, dayOfMonth)
+                                        onUpdateTask(task.id, null, null, null, selectedDateStr, null)
+                                    },
+                                    currentCal.get(Calendar.YEAR),
+                                    currentCal.get(Calendar.MONTH),
+                                    currentCal.get(Calendar.DAY_OF_MONTH)
+                                )
+                                datePickerDialog.setButton(android.app.DatePickerDialog.BUTTON_NEUTRAL, "Löschen") { _, _ ->
+                                    onUpdateTask(task.id, null, null, null, "", null)
+                                }
+                                datePickerDialog.show()
+                            },
+                            color = AppTheme.colors.inputBackground,
+                            border = BorderStroke(1.dp, AppTheme.colors.inputBorder),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = "📅 Fälligkeit",
+                                    color = AppTheme.colors.textSecondary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+
+                    // 3. Title & Note Editor
+                    OutlinedTextField(
+                        value = editedTitle,
+                        onValueChange = { editedTitle = it },
+                        label = { Text("Titel", fontSize = 11.sp) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = listColor,
+                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                            focusedTextColor = AppTheme.colors.textPrimary,
+                            unfocusedTextColor = AppTheme.colors.textPrimary,
+                            focusedContainerColor = AppTheme.colors.inputBackground,
+                            unfocusedContainerColor = AppTheme.colors.inputBackground
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
                     )
 
+                    OutlinedTextField(
+                        value = editedNote,
+                        onValueChange = { editedNote = it },
+                        label = { Text("Notiz hinzufügen", fontSize = 11.sp) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = listColor,
+                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                            focusedTextColor = AppTheme.colors.textPrimary,
+                            unfocusedTextColor = AppTheme.colors.textPrimary,
+                            focusedContainerColor = AppTheme.colors.inputBackground,
+                            unfocusedContainerColor = AppTheme.colors.inputBackground
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2,
+                        maxLines = 5
+                    )
+
+                    // 4. File Attachments
                     var isUploading by remember { mutableStateOf(false) }
                     val scope = rememberCoroutineScope()
 
@@ -1209,75 +1401,34 @@ fun TaskRow(
 
                     if (!task.file_paths.isNullOrEmpty()) {
                         Column(
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             task.file_paths.forEach { path ->
                                 val fileName = path.substringAfterLast('/')
-                                val ext = fileName.substringAfterLast('.', "").lowercase()
-                                val icon = when (ext) {
-                                    "pdf" -> Icons.Default.Description
-                                    "doc", "docx", "odt", "rtf", "txt" -> Icons.Default.Feed
-                                    "xls", "xlsx", "ods", "csv" -> Icons.Default.GridOn
-                                    "png", "jpg", "jpeg", "gif", "webp", "svg" -> Icons.Default.Image
-                                    "zip", "rar", "7z", "tar", "gz" -> Icons.Default.FolderOpen
-                                    else -> Icons.Default.FilePresent
-                                }
-                                val iconColor = when (ext) {
-                                    "pdf" -> Color(0xFFEF4444) // Red
-                                    "doc", "docx", "odt", "rtf", "txt" -> Color(0xFF3B82F6) // Blue
-                                    "xls", "xlsx", "ods", "csv" -> Color(0xFF10B981) // Emerald/Green
-                                    "png", "jpg", "jpeg", "gif", "webp", "svg" -> Color(0xFFA855F7) // Purple
-                                    "zip", "rar", "7z", "tar", "gz" -> Gold
-                                    else -> AppTheme.colors.textMuted
-                                }
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .background(AppTheme.colors.glassSurface, RoundedCornerShape(8.dp))
-                                        .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
+                                        .background(AppTheme.colors.inputBackground, RoundedCornerShape(8.dp))
                                         .padding(horizontal = 10.dp, vertical = 6.dp)
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.weight(1f).clickable {
-                                            val token = ServiceLocator.getAuthToken() ?: ""
-                                            val baseUrl = ServiceLocator.getBaseUrl()
-                                            val url = "${baseUrl}funki/financials/receipt?path=${Uri.encode(path)}&token=${Uri.encode(token)}"
-                                            try {
-                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                                context.startActivity(intent)
-                                            } catch (e: Exception) {
-                                                e.printStackTrace()
-                                            }
-                                        }
-                                    ) {
-                                        Icon(
-                                            imageVector = icon,
-                                            contentDescription = null,
-                                            tint = iconColor,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = fileName,
-                                            color = AppTheme.colors.textPrimary,
-                                            fontSize = 12.sp,
-                                            maxLines = 1,
-                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                        )
-                                    }
-
+                                    Text(
+                                        text = "📎 $fileName",
+                                        color = AppTheme.colors.textSecondary,
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                        modifier = Modifier.weight(1f)
+                                    )
                                     IconButton(
                                         onClick = { onDeleteTaskFile(task.id, path) },
-                                        modifier = Modifier.size(24.dp)
+                                        modifier = Modifier.size(22.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Close,
                                             contentDescription = "Datei löschen",
-                                            tint = Color.Red.copy(alpha = 0.7f),
+                                            tint = Color(0xFFF87171),
                                             modifier = Modifier.size(14.dp)
                                         )
                                     }
@@ -1286,34 +1437,40 @@ fun TaskRow(
                         }
                     }
 
-                    // Attach button
+                    // Bottom Action Bar inside Task Inspector (Datei, Speichern, Löschen)
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Button(
-                            onClick = { filePickerLauncher.launch("*/*") },
-                            colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.glassSurface, contentColor = Gold),
-                            border = BorderStroke(1.dp, Gold.copy(alpha = 0.3f)),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.height(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.PushPin,
-                                contentDescription = null,
-                                tint = Gold,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Datei anheften", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            TextButton(onClick = { filePickerLauncher.launch("*/*") }) {
+                                Text("📎 Datei", color = AppTheme.colors.textSecondary, fontSize = 12.sp)
+                            }
+                            TextButton(onClick = { showDeleteConfirm = true }) {
+                                Text("🗑 Löschen", color = Color(0xFFF87171), fontSize = 12.sp)
+                            }
                         }
 
-                        if (isUploading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                color = Gold,
-                                strokeWidth = 1.5.dp
-                            )
+                        Button(
+                            onClick = {
+                                onUpdateTask(
+                                    task.id,
+                                    editedTitle.trim().ifBlank { task.title },
+                                    null,
+                                    null,
+                                    null,
+                                    editedNote.trim()
+                                )
+                                isExpanded = false
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = listColor,
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Speichern", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -1350,8 +1507,8 @@ fun TaskRow(
     if (subtaskDeleteConfirmId != null) {
         AlertDialog(
             onDismissRequest = { subtaskDeleteConfirmId = null },
-            title = { Text(text = "Unteraufgabe löschen", color = AppTheme.colors.textPrimary, fontWeight = FontWeight.Bold) },
-            text = { Text(text = "Möchtest du diese Unteraufgabe wirklich löschen?", color = AppTheme.colors.textSecondary) },
+            title = { Text(text = "Schritt löschen", color = AppTheme.colors.textPrimary, fontWeight = FontWeight.Bold) },
+            text = { Text(text = "Möchtest du diesen Schritt wirklich löschen?", color = AppTheme.colors.textSecondary) },
             confirmButton = {
                 TextButton(
                     onClick = {

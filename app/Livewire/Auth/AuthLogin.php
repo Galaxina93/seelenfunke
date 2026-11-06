@@ -39,6 +39,8 @@ class AuthLogin extends Component
 
     public string $activeView = 'login';
 
+    public bool $isRedirecting = false;
+
     public function mount()
     {
         if (session()->has('2fa_user_id') && session()->has('guard')) {
@@ -63,6 +65,8 @@ class AuthLogin extends Component
 
     public function login()
     {
+        $this->isRedirecting = false;
+
         if (SystemBlockedIp::isBlocked(request()->ip())) {
             throw ValidationException::withMessages([
                 'email' => 'Deine IP-Adresse wurde aufgrund verdächtiger Aktivitäten gesperrt.',
@@ -171,20 +175,24 @@ class AuthLogin extends Component
 
             if ($this->guard === 'customer' && $loggedInUser->needs_password_change) {
                 session(['force_password_change_customer_id' => $loggedInUser->id]);
+                $this->isRedirecting = true;
                 $this->redirect(route('customer.password-change-force'));
                 return;
             }
 
             if ($this->guard === 'employee' && method_exists($loggedInUser, 'isInfluencer') && $loggedInUser->isInfluencer()) {
+                $this->isRedirecting = true;
                 $this->redirect(route('employee.influencer.dashboard'));
                 return;
             }
 
             if ($this->guard === 'employee' && method_exists($loggedInUser, 'isTaxAdvisor') && $loggedInUser->isTaxAdvisor()) {
+                $this->isRedirecting = true;
                 $this->redirect(route('employee.tax-advisor.dashboard'));
                 return;
             }
 
+            $this->isRedirecting = true;
             $this->redirect(route($this->guard . '.dashboard'));
             return;
         }

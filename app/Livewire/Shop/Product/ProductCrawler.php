@@ -25,8 +25,11 @@ class ProductCrawler extends Component
 
     // History Properties (V2)
     public $savedRuns = [];
+    #[\Livewire\Attributes\Locked]
     public $selectedRunId = null;
+    #[\Livewire\Attributes\Locked]
     public $historicalRunData = null;
+    #[\Livewire\Attributes\Locked]
     public $historicalTop3Data = null;
 
 
@@ -133,6 +136,16 @@ class ProductCrawler extends Component
     protected $updatesQueryString = ['search', 'filterPlatform', 'filterMinScore'];
 
     public function updatingSearch()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilterPlatform()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilterMinScore()
     {
         $this->resetPage();
     }

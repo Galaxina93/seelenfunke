@@ -15,7 +15,7 @@ Das Dashboard vereint zwei Hauptaufgabenbereiche:
 ## 2. Technische System-Architektur
 
 ### 2.1 Livewire-Komponente
-- **Klasse:** [`MasterAnalytics`](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Master/MasterAnalytics.php)
+- **Klasse:** [`MasterAnalytics`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Master/MasterAnalytics.php)
 - **Layout:** `components.layouts.backend_layout` (Themen-basiertes Design `WithDepartmentTheming` mit Standard-Department `Architektur`).
 
 ### 2.2 Datenbank-Modelle
@@ -110,3 +110,19 @@ sequenceDiagram
     Ext-->>LW: HTTP Status & Latenzen
     LW->>User: Rendert Interface & Rendert Charts
 ```
+
+---
+
+## 8. Butterweicher Login-Portal-Übergang & Flash-Free Fokus-Modus
+
+Um beim Login und beim Initial-Render des Admin-Dashboards (`/admin/dashboard`) ein 100 % flüssiges Nutzererlebnis ohne Flackern zu gewährleisten, greifen zwei Mechanismen ineinander:
+
+1. **Durchgehende Login-Übergangsanimation (`page_transition_portal.blade.php`):**
+   - Das Seelenfunke-Portal-Overlay ist in alle Haupt-Layouts (`app`, `guest`, `backend_layout`, `customer_layout`) eingebunden.
+   - Beim Absenden des Logins (`AuthLogin`, 2FA-Bestätigung, Google OAuth oder Inline-Checkout-Login) startet sofort `window.sfStartPortalLoading('login')` mit einem kontinuierlichen goldenen Funken-Wirbel (`'hold'`-Phase), der aktiv bleibt, solange die Server-Authentifizierung und der Redirect laufen.
+   - Erst wenn das Ziel-Dashboard vollständig geladen ist (`DOMContentLoaded` / `load` + Render-Frames), entfaltet sich das Portal sanft nach außen (`runSparksAnimation('outward')` + 640 ms Fade-Out).
+2. **Eliminierung des Fokus-Modus-Aufblitzens (SSR-Deckungsgleichheit):**
+   - Sowohl der Fokus-Modus (`x-show="focusMode"`) als auch die Kachel-Ansicht (`x-show="!focusMode"`) erhalten bereits serverseitig in Blade exakt zu `$focusMode` passende `@if(!$focusMode) x-cloak style="display: none;" @endif` bzw. `@if($focusMode) x-cloak style="display: none;" @endif`-Attribute sowie initiale CSS-Klassen.
+   - Alpine initialisiert `focusMode: @js((bool) $focusMode)` direkt als primitiven Boolean ohne asynchrone `@entangle`-Hydration-Verzögerung; das Speichern erfolgt im Hintergrund via `$wire.saveFocusMode(focusMode)` mit `$this->skipRender()`.
+   - Der System-Health-Status wird in `mount()` vorab aus dem Cache (`master_analytics_system_health_cache`) geladen und in `checkSystemHealth()` für 90 Sekunden via `$this->skipRender()` gedrosselt, sodass kein verzögerter Livewire-Voll-DOM-Morph kurz nach dem Login stattfindet.
+

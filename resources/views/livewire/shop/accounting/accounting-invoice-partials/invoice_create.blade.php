@@ -416,7 +416,7 @@
                         <p class="text-[10px] leading-relaxed uppercase tracking-widest font-medium">
                             <strong class="text-gray-600">{{ shop_setting('company_name', shop_setting('owner_name')) }}</strong> | Inh. {{ shop_setting('owner_proprietor') }}<br>
                             {{ shop_setting('company_street') ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', '')) : shop_setting('owner_street') }}, {{ shop_setting('company_city') ? trim(shop_setting('company_zip', '') . ' ' . shop_setting('company_city')) : shop_setting('owner_city') }}<br>
-                            <span class="lowercase tracking-normal">{{ shop_setting('owner_email_invoices') ?: shop_setting('company_email', shop_setting('owner_email')) }}</span> | {{ str_replace(['http://', 'https://'], '', shop_setting('owner_website')) }}
+                            <span class="lowercase tracking-normal">{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}</span> | {{ str_replace(['http://', 'https://'], '', shop_setting('owner_website')) }}
                         </p>
                     </div>
                 </div>
