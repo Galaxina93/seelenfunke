@@ -75,8 +75,11 @@ Route::prefix('funki/emails')->group(function () {
                 $qc = clone $query;
                 $qt = clone $query;
                 if ($key === 'Archive') {
-                    $count = $qc->where(fn($q) => $q->where('folder', 'Archive')->orWhere('is_archived', true))->where('is_read', false)->count();
+                    $count = 0;
                     $tot = $qt->where(fn($q) => $q->where('folder', 'Archive')->orWhere('is_archived', true))->count();
+                } elseif ($key === 'Sent' || $key === 'Trash') {
+                    $count = 0;
+                    $tot = $qt->where('folder', $key)->where('is_archived', false)->count();
                 } else {
                     $count = $qc->where('folder', $key)->where('is_archived', false)->where('is_read', false)->count();
                     $tot = $qt->where('folder', $key)->where('is_archived', false)->count();
@@ -272,14 +275,21 @@ Route::prefix('funki/emails')->group(function () {
         $messages = $query->paginate(150);
         foreach ($messages->items() as $m) {
             $dirty = false;
-            if (is_string($m->subject) && (str_contains($m->subject, '??') || str_contains($m->subject, '=?'))) {
+            if (is_string($m->subject) && (str_contains($m->subject, '?') || str_contains($m->subject, '=?'))) {
                 $fixed = \App\Console\Commands\FetchMailsCommand::repairCorruptedSubjectIcons($m->subject);
                 if ($fixed !== $m->subject) {
                     $m->subject = $fixed;
                     $dirty = true;
                 }
             }
-            if (is_string($m->body_plain) && preg_match('/(?:<!DOCTYPE|<html\b|<head\b|<style\b|@import\s+url|font-family\s*:|text-decoration\s*:|#outlook)/i', $m->body_plain)) {
+            if (is_string($m->from_name) && (str_contains($m->from_name, '??') || str_contains($m->from_name, '=?'))) {
+                $fixedFrom = \App\Console\Commands\FetchMailsCommand::repairCorruptedGermanText(\App\Console\Commands\FetchMailsCommand::decodeMimeHeaderSafe($m->from_name));
+                if ($fixedFrom !== $m->from_name) {
+                    $m->from_name = $fixedFrom;
+                    $dirty = true;
+                }
+            }
+            if (is_string($m->body_plain) && (str_contains($m->body_plain, '??') || str_contains($m->body_plain, '( http') || preg_match('/(?:<!DOCTYPE|<html\b|<head\b|<style\b|@import\s+url|font-family\s*:|text-decoration\s*:|#outlook)/i', $m->body_plain))) {
                 $cleanBody = \App\Console\Commands\FetchMailsCommand::extractCleanPlainText($m->body_plain, $m->body_html);
                 if ($cleanBody !== null && $cleanBody !== $m->body_plain) {
                     $m->body_plain = $cleanBody;
@@ -298,14 +308,21 @@ Route::prefix('funki/emails')->group(function () {
     Route::get('/messages/{id}', function ($id) {
         $msg = MailMessage::with('attachments')->findOrFail($id);
         $dirty = false;
-        if (is_string($msg->subject) && (str_contains($msg->subject, '??') || str_contains($msg->subject, '=?'))) {
+        if (is_string($msg->subject) && (str_contains($msg->subject, '?') || str_contains($msg->subject, '=?'))) {
             $fixed = \App\Console\Commands\FetchMailsCommand::repairCorruptedSubjectIcons($msg->subject);
             if ($fixed !== $msg->subject) {
                 $msg->subject = $fixed;
                 $dirty = true;
             }
         }
-        if (is_string($msg->body_plain) && preg_match('/(?:<!DOCTYPE|<html\b|<head\b|<style\b|@import\s+url|font-family\s*:|text-decoration\s*:|#outlook)/i', $msg->body_plain)) {
+        if (is_string($msg->from_name) && (str_contains($msg->from_name, '??') || str_contains($msg->from_name, '=?'))) {
+            $fixedFrom = \App\Console\Commands\FetchMailsCommand::repairCorruptedGermanText(\App\Console\Commands\FetchMailsCommand::decodeMimeHeaderSafe($msg->from_name));
+            if ($fixedFrom !== $msg->from_name) {
+                $msg->from_name = $fixedFrom;
+                $dirty = true;
+            }
+        }
+        if (is_string($msg->body_plain) && (str_contains($msg->body_plain, '??') || str_contains($msg->body_plain, '( http') || preg_match('/(?:<!DOCTYPE|<html\b|<head\b|<style\b|@import\s+url|font-family\s*:|text-decoration\s*:|#outlook)/i', $msg->body_plain))) {
             $cleanBody = \App\Console\Commands\FetchMailsCommand::extractCleanPlainText($msg->body_plain, $msg->body_html);
             if ($cleanBody !== null && $cleanBody !== $msg->body_plain) {
                 $msg->body_plain = $cleanBody;
@@ -700,26 +717,13 @@ Route::prefix('funki/emails')->group(function () {
                         'action' => 'mark_spam',
                     ]
                 );
-                $spamMsgs = MailMessage::where('mail_account_id', $msg->mail_account_id)
+                MailMessage::where('mail_account_id', $msg->mail_account_id)
                     ->whereRaw('LOWER(from_email) = ?', [$cleanEmail])
-                    ->get();
-                $idsToRemember = [];
-                foreach ($spamMsgs as $sm) {
-                    if (!empty($sm->message_id)) {
-                        $idsToRemember[] = (string) $sm->message_id;
-                    }
-                    $sm->delete();
-                }
-                if (!empty($idsToRemember)) {
-                    \App\Services\Management\MailAiSortService::rememberDeletedMessageIds($idsToRemember);
-                }
+                    ->update(['folder' => 'Junk', 'is_archived' => false]);
             } else {
-                if (!empty($msg->message_id)) {
-                    \App\Services\Management\MailAiSortService::rememberDeletedMessageIds([(string) $msg->message_id]);
-                }
-                $msg->delete();
+                $msg->update(['folder' => 'Junk', 'is_archived' => false]);
             }
-            return response()->json(['success' => true, 'spam_deleted' => true]);
+            return response()->json(['success' => true, 'spam_deleted' => false]);
         }
 
         if (!in_array($folder, ['INBOX', 'Sent', 'Drafts', 'Junk', 'Trash', 'Archive', 'Processed'], true)) {
@@ -729,7 +733,7 @@ Route::prefix('funki/emails')->group(function () {
             ]);
         }
 
-        if ($folder === 'Archive') {
+        if ($folder === 'Archive' || $folder === 'Trash') {
             $msg->update(['folder' => 'Archive', 'is_archived' => true, 'is_read' => true]);
         } else {
             $msg->update(['folder' => $folder, 'is_archived' => false]);
@@ -787,18 +791,11 @@ Route::prefix('funki/emails')->group(function () {
         return response()->json(['success' => true]);
     });
 
-    // 7. Delete (Trash)
+    // 7. Archive instead of Delete (Zero Email Deletion Policy)
     Route::delete('/messages/{id}', function ($id) {
         $msg = MailMessage::findOrFail($id);
-        if ($msg->folder === 'Trash') {
-            if (!empty($msg->message_id)) {
-                \App\Services\Management\MailAiSortService::rememberDeletedMessageIds([(string) $msg->message_id]);
-            }
-            $msg->delete();
-        } else {
-            $msg->update(['folder' => 'Trash', 'is_archived' => false]);
-        }
-        return response()->json(['success' => true]);
+        $msg->update(['folder' => 'Archive', 'is_archived' => true, 'is_read' => true]);
+        return response()->json(['success' => true, 'archived' => true]);
     });
 
     // 8. Create or Update Account

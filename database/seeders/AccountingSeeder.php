@@ -643,6 +643,32 @@ class AccountingSeeder extends Seeder
 
         $specialIssues = [
             [
+                'title'          => '2x Acryl-Visitenkartenhalter (3-lagig, transparent, für bis zu 180 Visitenkarten)',
+                'location'       => 'Temu (Whaleco Technology Limited)',
+                'amount'         => -11.01,
+                'date'           => '2026-11-09',
+                'category'       => 'Arbeitsmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => 'PO-076-13211202478710774',
+                'note'           => "Bestellnummer: PO-076-13211202478710774 | Bestellzeit / Bezahlt am: 09.11.2026 | Zahlungsart: PayPal (a***e@t-online.de) | Zustellung durch: 20.11.2026\nPosition:\n- 2x Kann 180 Visitenkarten aufnehmen, 3-lagiger transparenter Acryl-Visitenkartenhalter, Schreibtisch-Visitenkartenhalter, geeignet zur Präsentation von Visitenkarten-Aufbewahrungsständern in Büros Unternehmen (Variante: Klares Acryl, Verkauft von Temu / Whaleco Technology Limited): je 4,01 € = 8,02 €\nArtikel gesamt: 8,02 € | Versand: 2,99 € | Gesamt (Netto): 9,25 € | Enthält Umsatzsteuer (19 %): 1,76 € | Gesamtsumme (Brutto): 11,01 €",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-09_Temu_2x-Acryl-Visitenkartenhalter-3-lagig-Transparent-Order-PO-076-13211202478710774.pdf'
+                ]
+            ],
+            [
+                'title'          => 'PULUZ Fotobox 12"x12"x12" (30x30x30 cm) mit dimmbarer LED-Beleuchtung (120 LEDs, 6 Fotohintergründe, PU5032G)',
+                'location'       => 'Amazon (Shen zhen Pang Niu Ke Ji You Xian Gong Si)',
+                'amount'         => -29.74,
+                'date'           => '2026-11-07',
+                'category'       => 'Arbeitsmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => '303-6340191-0088306 (Lieferscheinnr. TCHrJ25zD)',
+                'note'           => "Bestellnummer: 303-6340191-0088306 | Bestelldatum: 07.11.2026 | Kaufbeleg vom: 08.11.2026 | Lieferscheinnr.: TCHrJ25zD\nPosition:\n- 1x PULUZ Fotobox 12\"X12\"X12 mit Dimmbare Weiße Beleuchtung 120 LEDs Lichtbox | 6 Fotohintergründe, 5500-5800K, Faltbares Falten Fotostudio Set für Schmuck, kleine Produkte, Kosmetik Produktfotografie (Elektronik, ASIN: B08D6MWBP8, Modell: PU5032G, EAN: 6311361939002, Verkauft von: Shen zhen Pang Niu Ke Ji You Xian Gong Si)\nUnser Preis (Netto): 24,99 € | MwSt. (19 %): 4,75 € | Gesamt (Brutto): 29,74 €\nHinweis: Amazon-Kaufbeleg / Lieferschein (Vermerk auf Beleg: \"Dies ist keine Umsatzsteuer-Rechnung\").\nProdukt-Link: https://www.amazon.de/dp/B08D6MWBP8",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-07_Amazon_PULUZ-Fotobox-12x12x12-LED-Lichtbox-PU5032G-Order-303-6340191-0088306.pdf'
+                ]
+            ],
+            [
                 'title'          => 'Schaumstoff Meterware Schwarz (Dicke 2cm, 250cm)',
                 'location'       => 'www.schaumstoffonline.de (Schaumstoffonline DE)',
                 'amount'         => -44.38,

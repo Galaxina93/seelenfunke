@@ -250,7 +250,21 @@ Route::prefix('funki/music')->group(function () {
 
     // 8. Toggle Favorite Track (100% Sync across Windows, Android & Web Portal)
     Route::match(['put', 'post'], '/tracks/{id}/favorite', function (Request $request, $id) {
-        $track = ManagementTrack::findOrFail($id);
+        $track = ManagementTrack::find($id);
+        if (!$track && $request->filled('external_id')) {
+            $track = ManagementTrack::where('external_id', (string) $request->input('external_id'))->first();
+        }
+        if (!$track && $request->filled('title')) {
+            $q = ManagementTrack::whereRaw('LOWER(title) = ?', [ mb_strtolower(trim((string) $request->input('title'))) ]);
+            if ($request->filled('artist')) {
+                $q->whereRaw('LOWER(artist) = ?', [ mb_strtolower(trim((string) $request->input('artist'))) ]);
+            }
+            $track = $q->first();
+        }
+        if (!$track) {
+            return response()->json(['success' => false, 'error' => 'Track not found'], 404);
+        }
+
         $newFav = $request->has('is_favorite')
             ? filter_var($request->input('is_favorite'), FILTER_VALIDATE_BOOLEAN)
             : !$track->is_favorite;
@@ -260,11 +274,10 @@ Route::prefix('funki/music')->group(function () {
         // Synchronize identical track rows across all playlists (by external_id or title+artist)
         if (!empty($track->external_id)) {
             ManagementTrack::where('external_id', $track->external_id)->update(['is_favorite' => $newFav]);
-        } else {
-            ManagementTrack::where('title', $track->title)
-                ->where('artist', $track->artist)
-                ->update(['is_favorite' => $newFav]);
         }
+        ManagementTrack::whereRaw('LOWER(title) = ?', [ mb_strtolower((string) $track->title) ])
+            ->whereRaw('LOWER(COALESCE(artist, "")) = ?', [ mb_strtolower((string) ($track->artist ?? '')) ])
+            ->update(['is_favorite' => $newFav]);
 
         // Persist favorite status in playlists_catalog.json & funkenwerk/playlists_cache.json
         foreach ([storage_path('app/leitung/music/playlists_catalog.json'), base_path('funkenwerk/playlists_cache.json')] as $jsonFile) {
@@ -289,7 +302,7 @@ Route::prefix('funki/music')->group(function () {
             }
         }
 
-        return response()->json(['success' => true, 'data' => $track->fresh()]);
+        return response()->json(['success' => true, 'is_favorite' => $newFav, 'data' => $track->fresh()]);
     });
 
     // 9. Reorder Tracks (Drag & Drop)

@@ -1,0 +1,351 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_master_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background_shape"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <!-- Top Icon-Tab Bar + Quick Actions -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <!-- Tab 0: Tasks (Checklist Icon + Open Badge) -->
+        <LinearLayout
+            android:id="@+id/tab_master_tasks"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:background="@drawable/widget_tab_active_shape"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingStart="9dp"
+            android:paddingEnd="9dp">
+
+            <ImageView
+                android:id="@+id/tab_master_tasks_icon"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:contentDescription="Aufgaben"
+                android:src="@drawable/ic_widget_tasks_check"
+                android:tint="#C5A059" />
+
+            <TextView
+                android:id="@+id/tab_master_tasks_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:text="0"
+                android:textColor="#C5A059"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Tab 1: Calendar (Calendar Icon + Today Badge) -->
+        <LinearLayout
+            android:id="@+id/tab_master_calendar"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginStart="5dp"
+            android:background="@drawable/widget_tab_inactive_shape"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingStart="9dp"
+            android:paddingEnd="9dp">
+
+            <ImageView
+                android:id="@+id/tab_master_calendar_icon"
+                android:layout_width="15dp"
+                android:layout_height="15dp"
+                android:contentDescription="Kalender"
+                android:src="@drawable/ic_widget_calendar"
+                android:tint="#94A3B8" />
+
+            <TextView
+                android:id="@+id/tab_master_calendar_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:text="0"
+                android:textColor="#94A3B8"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Tab 2: Shopping (Cart Icon + Needed Badge) -->
+        <LinearLayout
+            android:id="@+id/tab_master_shopping"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginStart="5dp"
+            android:background="@drawable/widget_tab_inactive_shape"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingStart="9dp"
+            android:paddingEnd="9dp">
+
+            <ImageView
+                android:id="@+id/tab_master_shopping_icon"
+                android:layout_width="15dp"
+                android:layout_height="15dp"
+                android:contentDescription="Einkaufsliste"
+                android:src="@drawable/ic_widget_shopping_cart"
+                android:tint="#94A3B8" />
+
+            <TextView
+                android:id="@+id/tab_master_shopping_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:text="0"
+                android:textColor="#94A3B8"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Tab 3: Music (Notes Icon) -->
+        <LinearLayout
+            android:id="@+id/tab_master_music"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginStart="5dp"
+            android:background="@drawable/widget_tab_inactive_shape"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingStart="9dp"
+            android:paddingEnd="9dp">
+
+            <ImageView
+                android:id="@+id/tab_master_music_icon"
+                android:layout_width="15dp"
+                android:layout_height="15dp"
+                android:contentDescription="Musik"
+                android:src="@drawable/ic_widget_music_note"
+                android:tint="#94A3B8" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <!-- Receipt Scanner & Quick Entry Button (Beleg erfassen & Schnelleintrag) -->
+        <ImageView
+            android:id="@+id/btn_master_receipt"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/widget_button_gold_shape"
+            android:contentDescription="Beleg erfassen und Schnelleintrag"
+            android:padding="7dp"
+            android:src="@drawable/ic_widget_receipt_camera" />
+
+        <!-- Context-Sensitive '+' Button -->
+        <ImageView
+            android:id="@+id/btn_master_add"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="5dp"
+            android:background="@drawable/widget_button_gold_shape"
+            android:contentDescription="Neu hinzufügen"
+            android:padding="7dp"
+            android:src="@drawable/ic_widget_add" />
+
+        <!-- Global Refresh Button -->
+        <ImageView
+            android:id="@+id/btn_master_refresh"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="5dp"
+            android:background="@drawable/widget_item_card_shape"
+            android:contentDescription="Aktualisieren"
+            android:padding="7dp"
+            android:src="@drawable/ic_widget_refresh" />
+    </LinearLayout>
+
+    <!-- Subheader Context Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="7dp"
+        android:layout_marginBottom="6dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/master_subheader_back_btn"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/widget_button_gold_shape"
+            android:contentDescription="Zurück zu allen Listen"
+            android:padding="4dp"
+            android:src="@drawable/ic_widget_chevron_left"
+            android:tint="#C5A059"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/master_subheader_click_area"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/master_subheader_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:letterSpacing="0.06"
+                android:maxLines="1"
+                android:text="AUFGABEN"
+                android:textColor="#C5A059"
+                android:textSize="11.5sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/master_subheader_subtitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="Listen-Übersicht"
+                android:textColor="#94A3B8"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/master_subheader_open_app_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/widget_badge_shape"
+            android:paddingStart="8dp"
+            android:paddingTop="2dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="2dp"
+            android:text="App ↗"
+            android:textColor="#C5A059"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Thin Divider -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginBottom="6dp"
+        android:background="#24324A" />
+
+    <!-- Dynamic List Content -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <ListView
+            android:id="@+id/master_widget_list"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:divider="@android:color/transparent"
+            android:dividerHeight="6dp"
+            android:scrollbars="none" />
+
+        <TextView
+            android:id="@+id/master_widget_empty_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:padding="16dp"
+            android:text="Keine Einträge vorhanden"
+            android:textColor="#94A3B8"
+            android:textSize="12.5sp"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <!-- Persistent Bottom Mini-Player Bar -->
+    <LinearLayout
+        android:id="@+id/master_mini_player_bar"
+        android:layout_width="match_parent"
+        android:layout_height="38dp"
+        android:layout_marginTop="6dp"
+        android:background="@drawable/widget_mini_player_shape"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="10dp"
+        android:paddingEnd="6dp">
+
+        <LinearLayout
+            android:id="@+id/master_mini_player_click_area"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:contentDescription="Musik"
+                android:src="@drawable/ic_widget_music_note"
+                android:tint="#C5A059" />
+
+            <TextView
+                android:id="@+id/master_mini_player_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="7dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="Funkenwerk Soundplayer bereit"
+                android:textColor="#F8FAFC"
+                android:textSize="11.5sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/btn_master_music_shuffle"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:contentDescription="Zufallswiedergabe"
+            android:padding="6dp"
+            android:src="@drawable/ic_music_shuffle_gold"
+            android:tint="#99C5A059" />
+
+        <TextView
+            android:id="@+id/btn_master_music_prev"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:gravity="center"
+            android:text="⏮&#xFE0E;"
+            android:textColor="#E2E8F0"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/btn_master_music_play_pause"
+            android:layout_width="32dp"
+            android:layout_height="26dp"
+            android:layout_marginStart="2dp"
+            android:layout_marginEnd="2dp"
+            android:background="@drawable/widget_button_gold_shape"
+            android:gravity="center"
+            android:text="▶&#xFE0E;"
+            android:textColor="#C5A059"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btn_master_music_next"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:gravity="center"
+            android:text="⏭&#xFE0E;"
+            android:textColor="#E2E8F0"
+            android:textSize="13sp" />
+    </LinearLayout>
+</LinearLayout>

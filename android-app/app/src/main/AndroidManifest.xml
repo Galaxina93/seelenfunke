@@ -92,7 +92,7 @@
                 <action android:name="de.meinseelenfunke.app.widget.ACTION_RESET_MONTH" />
                 <action android:name="de.meinseelenfunke.app.widget.ACTION_SELECT_DAY" />
                 <action android:name="de.meinseelenfunke.app.widget.ACTION_SHOW_MONTH" />
-
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_MONTH_REFRESH" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -110,8 +110,10 @@
             android:label="Funkenwerk Einkaufsliste">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_SHOPPING_ITEM_CLICK" />
                 <action android:name="de.meinseelenfunke.app.widget.ACTION_SHOPPING_REFRESH" />
                 <action android:name="de.meinseelenfunke.app.widget.ACTION_SHOPPING_TOGGLE" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_SHOPPING_DELETE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -129,6 +131,7 @@
             android:label="Funkenwerk Aufgaben">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_ITEM_CLICK" />
                 <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_REFRESH" />
                 <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_SELECT_LIST" />
                 <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_BACK" />
@@ -146,6 +149,7 @@
                 <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_DELETE_TASK" />
                 <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_ADD_LIST_CLICK" />
                 <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_ADD_TASK_CLICK" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_RENAME_LIST" />
                 <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_NONE" />
             </intent-filter>
             <meta-data
@@ -176,9 +180,49 @@
                 android:resource="@xml/widget_music_info" />
         </receiver>
 
+        <receiver
+            android:name=".widget.MasterWidgetProvider"
+            android:exported="true"
+            android:label="Funkenwerk Master-Hub">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_MASTER_SWITCH_TAB" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_MASTER_SELECT_LIST" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_MASTER_BACK_LISTS" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_MASTER_REFRESH" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_MASTER_PLAY_TRACK" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_MUSIC_PLAY_PAUSE" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_MUSIC_NEXT" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_MUSIC_PREV" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_MUSIC_SHUFFLE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_master_info" />
+        </receiver>
+
+        <service
+            android:name=".widget.MasterWidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
+
+        <activity
+            android:name=".widget.QuickEntryWidgetActivity"
+            android:theme="@style/Theme.TransparentDialog"
+            android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true" />
+
         <activity
             android:name=".widget.AddShoppingItemActivity"
             android:theme="@style/Theme.TransparentDialog"
+            android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true" />
+
+        <activity
+            android:name=".widget.TasksWidgetActionActivity"
+            android:theme="@style/Theme.WidgetTrampoline"
             android:exported="false"
             android:taskAffinity=""
             android:excludeFromRecents="true" />

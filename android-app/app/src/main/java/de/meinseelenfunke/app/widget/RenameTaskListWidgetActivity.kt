@@ -150,9 +150,10 @@ class RenameTaskListWidgetActivity : ComponentActivity() {
                         ServiceLocator.organizerRepository.getTaskLists()
 
                         // Update the active list name if this list is currently selected in any widget
+                        val appContext = context.applicationContext
                         val sharedPrefs = getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
-                        val appWidgetIds = AppWidgetManager.getInstance(context)
-                            .getAppWidgetIds(ComponentName(context, TasksWidgetProvider::class.java))
+                        val appWidgetIds = AppWidgetManager.getInstance(appContext)
+                            .getAppWidgetIds(ComponentName(appContext, TasksWidgetProvider::class.java))
                         val edit = sharedPrefs.edit()
                         for (id in appWidgetIds) {
                             val selectedListId = sharedPrefs.getString("widget_tasks_selected_list_id_$id", null)
@@ -162,7 +163,7 @@ class RenameTaskListWidgetActivity : ComponentActivity() {
                         }
                         edit.apply()
 
-                        ServiceLocator.organizerRepository.triggerTasksWidgetUpdate(context)
+                        ServiceLocator.organizerRepository.triggerTasksWidgetUpdate(appContext)
 
                         isSaving = false
                         Toast.makeText(context, "Liste umbenannt.", Toast.LENGTH_SHORT).show()

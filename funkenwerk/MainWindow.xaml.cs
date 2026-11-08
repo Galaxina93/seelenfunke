@@ -148,6 +148,13 @@ namespace Funkenwerk
             };
 
             PreviewKeyDown += MainWindow_PreviewKeyDown;
+            MouseLeave += (s, e) =>
+            {
+                if (_isMusicVenomFocusActive && VenomExitFocusBtn != null)
+                {
+                    VenomExitFocusBtn.Visibility = Visibility.Collapsed;
+                }
+            };
 
             _apiHealthTimer.Interval = TimeSpan.FromSeconds(20);
             _apiHealthTimer.Tick += async (s, e) =>
@@ -235,7 +242,7 @@ namespace Funkenwerk
 
         private void CaptureOriginalDarkBrushes(DependencyObject parent, HashSet<DependencyObject>? visited = null)
         {
-            if (parent == null || parent == AuthLoginOverlayGrid) return;
+            if (parent == null || parent == AuthLoginOverlayGrid || parent == MusicVenomFocusOverlay) return;
             visited ??= new HashSet<DependencyObject>();
             if (!visited.Add(parent)) return;
 
@@ -1998,7 +2005,8 @@ namespace Funkenwerk
                 };
 
                 var hg = new Grid();
-                hg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
+                hg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
+                hg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
                 hg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 hg.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
@@ -2013,6 +2021,28 @@ namespace Funkenwerk
                 Grid.SetColumn(chevron, 0);
                 hg.Children.Add(chevron);
 
+                var mailIconCanvas = new Canvas { Width = 24, Height = 24 };
+                mailIconCanvas.Children.Add(new System.Windows.Shapes.Path
+                {
+                    Data = Geometry.Parse("M3,5 L21,5 C22.1,5 23,5.9 23,7 L23,19 C23,20.1 22.1,21 21,21 L3,21 C1.9,21 1,20.1 1,19 L1,7 C1,5.9 1.9,5 3,5 Z M2.5,6.8 L12,13.5 L21.5,6.8"),
+                    Stroke = BrushFromHex("#C5A059"),
+                    StrokeThickness = 2.2,
+                    StrokeStartLineCap = PenLineCap.Round,
+                    StrokeEndLineCap = PenLineCap.Round,
+                    StrokeLineJoin = PenLineJoin.Round
+                });
+                var mailIconBox = new Viewbox
+                {
+                    Width = 13,
+                    Height = 13,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Margin = new Thickness(0, 1, 4, 0),
+                    Child = mailIconCanvas
+                };
+                Grid.SetColumn(mailIconBox, 1);
+                hg.Children.Add(mailIconBox);
+
                 var emailTxt = new TextBlock
                 {
                     Text = acc.Email,
@@ -2022,7 +2052,7 @@ namespace Funkenwerk
                     VerticalAlignment = VerticalAlignment.Center,
                     TextTrimming = TextTrimming.CharacterEllipsis
                 };
-                Grid.SetColumn(emailTxt, 1);
+                Grid.SetColumn(emailTxt, 2);
                 hg.Children.Add(emailTxt);
 
                 if (acc.TotalUnread > 0)
@@ -2044,7 +2074,7 @@ namespace Funkenwerk
                             FontWeight = FontWeights.Bold
                         }
                     };
-                    Grid.SetColumn(badge, 2);
+                    Grid.SetColumn(badge, 3);
                     hg.Children.Add(badge);
                 }
 
@@ -2199,20 +2229,6 @@ namespace Funkenwerk
                                 Foreground = BrushFromHex("#C5A059"),
                                 FontSize = 11,
                                 FontWeight = FontWeights.Bold,
-                                VerticalAlignment = VerticalAlignment.Center,
-                                Margin = new Thickness(6, 0, 0, 0)
-                            };
-                            Grid.SetColumn(fCount, 2);
-                            fg.Children.Add(fCount);
-                        }
-                        else if (totalCount > 0 && folderKey != "Trash")
-                        {
-                            var fCount = new TextBlock
-                            {
-                                Text = totalCount.ToString(),
-                                Foreground = BrushFromHex("#6B7280"),
-                                FontSize = 10.5,
-                                FontWeight = FontWeights.Medium,
                                 VerticalAlignment = VerticalAlignment.Center,
                                 Margin = new Thickness(6, 0, 0, 0)
                             };
@@ -2720,20 +2736,154 @@ namespace Funkenwerk
                 });
             }
 
-            // Repair 4-byte UTF-8 emojis corrupted into "????" by legacy PHP mb_decode_mimeheader
-            if (s.Contains("???", StringComparison.Ordinal))
+            s = RepairCorruptedGermanText(s);
+
+            // Repair 4-byte UTF-8 emojis corrupted into "????" or "?" by legacy PHP mb_decode_mimeheader
+            if (s.Contains('?'))
             {
-                s = Regex.Replace(s, @"^\?{3,4}\s*\[NEUE BESTELLUNG\]", "💰 [NEUE BESTELLUNG]");
-                s = Regex.Replace(s, @"^\?{3,4}\s*\[ANGEBOT ANGENOMMEN\]", "✅ [ANGEBOT ANGENOMMEN]");
-                s = Regex.Replace(s, @"^\?{3,4}\s*Deine Bestellung\b", "📦 Deine Bestellung");
-                s = Regex.Replace(s, @"^\?{3,4}\s*Deine Rechnung\b", "🧾 Deine Rechnung");
-                s = Regex.Replace(s, @"^\?{3,4}\s*Dein Mein-Seelenfunke Gutschein\b", "🎁 Dein Mein-Seelenfunke Gutschein");
-                s = Regex.Replace(s, @"^\?{3,4}\s*Dein exklusives Angebot\b", "✨ Dein exklusives Angebot");
-                s = Regex.Replace(s, @"^\?{3,4}\s*Gute Nachrichten!\s*Deine Bestellung\b", "🚚 Gute Nachrichten! Deine Bestellung");
-                s = Regex.Replace(s, @"^\?{3,4}\s*Vergiss deine Unikate nicht\b", "🛒 Vergiss deine Unikate nicht");
-                s = Regex.Replace(s, @"^\?{3,8}\s*Wie gefällt dir dein Unikat\b", "📸✨ Wie gefällt dir dein Unikat");
+                s = Regex.Replace(s, @"^(\[EXPRESS\]\s+)?\?{1,4}\s*\[NEUE BESTELLUNG\]", "$1💰 [NEUE BESTELLUNG]");
+                s = Regex.Replace(s, @"^\?{1,4}\s*\[ANGEBOT ANGENOMMEN\]", "✅ [ANGEBOT ANGENOMMEN]");
+                s = Regex.Replace(s, @"^\?{1,4}\s*Deine Bestellung\b", "📦 Deine Bestellung");
+                s = Regex.Replace(s, @"^\?{1,4}\s*Deine Rechnung\b", "🧾 Deine Rechnung");
+                s = Regex.Replace(s, @"^\?{1,4}\s*Dein Mein-Seelenfunke Gutschein\b", "🎁 Dein Mein-Seelenfunke Gutschein");
+                s = Regex.Replace(s, @"^\?{1,4}\s*Dein exklusives Angebot\b", "✨ Dein exklusives Angebot");
+                s = Regex.Replace(s, @"^\?{1,4}\s*Gute Nachrichten!\s*Deine Bestellung\b", "🚚 Gute Nachrichten! Deine Bestellung");
+                s = Regex.Replace(s, @"^\?{1,4}\s*Vergiss deine Unikate nicht\b", "🛒 Vergiss deine Unikate nicht");
+                s = Regex.Replace(s, @"^\?{1,8}\s*Wie gefällt dir dein Unikat\b", "📸✨ Wie gefällt dir dein Unikat");
+                s = Regex.Replace(s, @"^\?{2,8}\s+", "");
+                s = Regex.Replace(s, @"\s+\?{2,8}$", "");
             }
 
+            return s.Trim();
+        }
+
+        private static readonly (string Corrupted, string Fixed)[] _germanUmlautRepairs = new (string, string)[]
+        {
+            // 4-question-mark double umlaut + eszett combinations (üß / öß / äß)
+            ("Gr????en", "Größen"), ("gr????en", "größen"),
+            ("Gr????e", "Grüße"), ("gr????e", "grüße"),
+            ("Begr????", "Begrüß"), ("begr????", "begrüß"),
+            ("gr????er", "größer"), ("Gr????er", "Größer"),
+            ("gr????te", "größte"), ("Gr????te", "Größte"),
+            ("gem????", "gemäß"), ("Gem????", "Gemäß"),
+            ("m????ig", "mäßig"), ("M????ig", "Mäßig"),
+
+            // ö / Ö
+            ("n??tig", "nötig"), ("N??tig", "Nötig"),
+            ("m??glich", "möglich"), ("M??glich", "Möglich"),
+            ("m??cht", "möcht"), ("M??cht", "Möcht"),
+            ("k??nn", "könn"), ("K??nn", "Könn"),
+            ("l??sch", "lösch"), ("L??sch", "Lösch"),
+            ("L??sung", "Lösung"), ("l??sung", "lösung"),
+            ("aufgel??st", "aufgelöst"), ("eingel??st", "eingelöst"), ("gel??st", "gelöst"),
+            ("pers??nlich", "persönlich"), ("Pers??nlich", "Persönlich"),
+            ("sch??n", "schön"), ("Sch??n", "Schön"),
+            ("h??ch", "höch"), ("H??ch", "Höch"),
+            ("erh??h", "erhöh"), ("Erh??h", "Erhöh"), ("H??he", "Höhe"),
+            ("geh??r", "gehör"), ("Geh??r", "Gehör"), ("Zubeh??r", "Zubehör"), ("Beh??rde", "Behörde"), ("h??ren", "hören"), ("h??rt", "hört"),
+            ("Passw??rter", "Passwörter"), ("W??rter", "Wörter"), ("w??rtlich", "wörtlich"),
+            ("ge??ffnet", "geöffnet"), ("er??ffn", "eröffn"), ("Er??ffn", "Eröffn"), ("ver??ffent", "veröffent"), ("Ver??ffent", "Veröffent"),
+            ("??ffnen", "öffnen"), ("??ffnet", "öffnet"), ("??ffnung", "Öffnung"), ("??ffentlich", "öffentlich"),
+            ("??sterreich", "Österreich"), ("??kolog", "ökolog"), ("??konom", "ökonom"),
+            ("st??r", "stör"), ("St??r", "Stör"),
+            ("f??rder", "förder"), ("F??rder", "Förder"),
+            ("v??llig", "völlig"), ("V??llig", "Völlig"),
+            ("gew??hn", "gewöhn"), ("Gew??hn", "Gewöhn"),
+            ("zw??lf", "zwölf"), ("Zw??lf", "Zwölf"),
+            ("pl??tzlich", "plötzlich"), ("Pl??tzlich", "Plötzlich"),
+            ("verz??ger", "verzöger"), ("Verz??ger", "Verzöger"),
+
+            // ü / Ü
+            ("f??r", "für"), ("F??r", "Für"),
+            ("pr??f", "prüf"), ("Pr??f", "Prüf"),
+            ("zur??ck", "zurück"), ("Zur??ck", "Zurück"),
+            ("R??ck", "Rück"), ("r??ck", "rück"),
+            ("Gl??ck", "Glück"), ("gl??ck", "glück"),
+            ("St??ck", "Stück"), ("st??ck", "stück"),
+            ("w??nsch", "wünsch"), ("W??nsch", "Wünsch"),
+            ("nat??rlich", "natürlich"), ("Nat??rlich", "Natürlich"),
+            ("k??rz", "kürz"), ("K??rz", "Kürz"),
+            ("k??nftig", "künftig"), ("K??nftig", "Künftig"),
+            ("g??ltig", "gültig"), ("G??ltig", "Gültig"),
+            ("g??nstig", "günstig"), ("G??nstig", "Günstig"),
+            ("f??nf", "fünf"), ("F??nf", "Fünf"),
+            ("f??hr", "führ"), ("F??hr", "Führ"),
+            ("Geb??hr", "Gebühr"), ("geb??hr", "gebühr"),
+            ("f??ll", "füll"), ("F??ll", "Füll"),
+            ("f??hl", "fühl"), ("F??hl", "Fühl"), ("Gef??hl", "Gefühl"),
+            ("verf??g", "verfüg"), ("Verf??g", "Verfüg"), ("hinzuf??g", "hinzufüg"), ("beigef??g", "beigefüg"), ("f??gen", "fügen"), ("f??gt", "fügt"),
+            ("m??ss", "müss"), ("M??ss", "Müss"),
+            ("d??rf", "dürf"), ("D??rf", "Dürf"), ("Bed??rf", "Bedürf"),
+            ("w??rd", "würd"), ("W??rd", "Würd"),
+            ("K??nst", "Künst"), ("k??nst", "künst"),
+            ("K??ndig", "Kündig"), ("k??ndig", "kündig"),
+            ("Schl??ssel", "Schlüssel"), ("schl??ssel", "schlüssel"),
+            ("gesch??tzt", "geschützt"), ("sch??tzen", "schützen"), ("Sch??tz", "Schütz"), ("unterst??tz", "unterstütz"), ("Unterst??tz", "Unterstütz"),
+            ("Gr??nd", "Gründ"), ("gr??nd", "gründ"),
+            ("p??nktlich", "pünktlich"), ("P??nktlich", "Pünktlich"),
+            ("urspr??nglich", "ursprünglich"), ("Urspr??nglich", "Ursprünglich"),
+            ("ausdr??cklich", "ausdrücklich"), ("Ausdr??cklich", "Ausdrücklich"),
+            ("bez??glich", "bezüglich"), ("Bez??glich", "Bezüglich"),
+            ("z??gig", "zügig"), ("Z??gig", "Zügig"),
+            ("fr??h", "früh"), ("Fr??h", "Früh"),
+            ("bem??h", "bemüh"), ("Bem??h", "Bemüh"), ("M??he", "Mühe"),
+            ("T??r", "Tür"), ("B??ro", "Büro"), ("M??ll", "Müll"), ("H??lle", "Hülle"), ("F??lle", "Fülle"),
+            ("dar??ber", "darüber"), ("wor??ber", "worüber"), ("gegen??ber", "gegenüber"), ("vor??ber", "vorüber"),
+            ("??berpr??f", "überprüf"), ("??bersicht", "Übersicht"), ("??berweis", "Überweis"), ("??bermitt", "übermitt"), ("??bernahm", "Übernahm"), ("??berneh", "überneh"),
+            (" ??ber ", " über "), (" ??ber", " über"), ("??ber ", "Über "),
+
+            // ä / Ä
+            ("Best??tig", "Bestätig"), ("best??tig", "bestätig"),
+            ("Empf??ng", "Empfäng"), ("empf??ng", "empfäng"),
+            ("Anh??ng", "Anhäng"), ("anh??ng", "anhäng"), ("unabh??ng", "unabhäng"), ("abh??ng", "abhäng"),
+            ("Entit??t", "Entität"), ("Qualit??t", "Qualität"), ("Kapazit??t", "Kapazität"), ("Priorit??t", "Priorität"), ("Aktivit??t", "Aktivität"), ("Identit??t", "Identität"), ("Liquidit??t", "Liquidität"), ("Rarit??t", "Rarität"), ("Spezialit??t", "Spezialität"),
+            ("zus??tzlich", "zusätzlich"), ("Zus??tzlich", "Zusätzlich"),
+            ("s??mtlich", "sämtlich"), ("S??mtlich", "Sämtlich"),
+            ("tats??chlich", "tatsächlich"), ("Tats??chlich", "Tatsächlich"), ("haupts??chlich", "hauptsächlich"),
+            ("vollst??ndig", "vollständig"), ("Vollst??ndig", "Vollständig"), ("selbstst??ndig", "selbstständig"), ("zust??ndig", "zuständig"), ("Zust??ndig", "Zuständig"), ("st??ndig", "ständig"), ("Verst??nd", "Verständ"), ("verst??nd", "verständ"), ("Umst??nd", "Umständ"),
+            ("ge??ndert", "geändert"), ("ver??nder", "veränder"), ("Ver??nder", "Veränder"), ("??nderung", "Änderung"), ("??ndern", "ändern"), ("??ndert", "ändert"),
+            ("n??chst", "nächst"), ("N??chst", "Nächst"),
+            ("sp??t", "spät"), ("Sp??t", "Spät"),
+            ("w??hrend", "während"), ("W??hrend", "Während"), ("w??hl", "wähl"), ("W??hl", "Wähl"), ("erw??hn", "erwähn"), ("Erw??hn", "Erwähn"), ("gew??hr", "gewähr"), ("Gew??hr", "Gewähr"), ("W??hrung", "Währung"), ("bew??hr", "bewähr"),
+            ("K??ufer", "Käufer"), ("k??ufer", "käufer"), ("Eink??uf", "Einkäuf"), ("L??uf", "Läuf"), ("l??uf", "läuf"), ("h??ufig", "häufig"), ("H??ufig", "Häufig"),
+            ("t??glich", "täglich"), ("T??glich", "Täglich"), ("nachtr??glich", "nachträglich"), ("ertr??glich", "erträglich"), ("Vertr??g", "Verträg"), ("vertr??g", "verträg"), ("Betr??g", "Beträg"), ("betr??gt", "beträgt"), ("Antr??g", "Anträg"), ("Auftr??g", "Aufträg"), ("Beitr??g", "Beiträg"), ("Eintr??g", "Einträg"),
+            ("f??hig", "fähig"), ("F??hig", "Fähig"), ("auff??llig", "auffällig"), ("zuf??llig", "zufällig"), ("sorgf??ltig", "sorgfältig"), ("vielf??ltig", "vielfältig"), ("f??lsch", "fälsch"),
+            ("z??hl", "zähl"), ("Z??hl", "Zähl"),
+            ("kl??r", "klär"), ("Kl??r", "Klär"),
+            ("l??ng", "läng"), ("L??ng", "Läng"), ("zug??ng", "zugäng"), ("Zug??ng", "Zugäng"), ("vorg??ng", "vorgäng"), ("Vorg??ng", "Vorgäng"),
+            ("M??ngel", "Mängel"), ("m??ngel", "mängel"),
+            ("einsch??tz", "einschätz"), ("Einsch??tz", "Einschätz"), ("sch??tzungs", "schätzungs"),
+            ("gef??llt", "gefällt"), ("enth??lt", "enthält"), ("erh??lt", "erhält"), ("h??lt", "hält"), ("f??llt", "fällt"),
+            ("w??re", "wäre"), ("W??re", "Wäre"), ("W??rme", "Wärme"), ("w??rm", "wärm"),
+            ("st??rk", "stärk"), ("St??rk", "Stärk"), ("M??rz", "März"), ("Gep??ck", "Gepäck"), ("Geb??ude", "Gebäude"), ("geb??ude", "gebäude"), ("Ger??t", "Gerät"), ("ger??t", "gerät"), ("Gespr??ch", "Gespräch"), ("Gesch??ft", "Geschäft"), ("gesch??ft", "geschäft"), ("Pr??sent", "Präsent"), ("pr??sent", "präsent"), ("regul??r", "regulär"), ("tempor??r", "temporär"), ("popul??r", "populär"), ("Atmosph??re", "Atmosphäre"), ("Tr??ger", "Träger"), ("L??nder", "Länder"), ("H??ndler", "Händler"), ("B??nder", "Bänder"), ("R??nder", "Ränder"), ("Sch??den", "Schäden"), ("Pl??tze", "Plätze"), ("S??tze", "Sätze"), ("s??tze", "sätze"),
+
+            // ß
+            ("Gr??e", "Grüße"), ("gr??e", "grüße"),
+            ("Stra??e", "Straße"), ("stra??e", "straße"),
+            ("Gro??", "Groß"), ("gro??", "groß"),
+            ("Au??er", "Außer"), ("au??er", "außer"),
+            ("Wei??", "Weiß"), ("wei??", "weiß"),
+            ("Hei??", "Heiß"), ("hei??", "heiß"),
+            ("Schlie??", "Schließ"), ("schlie??", "schließ"), ("anschl??", "anschließ"),
+            ("Fu??", "Fuß"), ("Ma??", "Maß"), ("ma??", "maß"), ("Spa??", "Spaß")
+        };
+
+        private static string RepairCorruptedGermanText(string? raw)
+        {
+            if (string.IsNullOrEmpty(raw) || !raw.Contains("??", StringComparison.Ordinal))
+                return raw ?? "";
+
+            string s = raw;
+            // 3-byte en-dash / em-dash between spaces (" ??? " -> " – ")
+            s = Regex.Replace(s, @"(?<=\s)\?{3}(?=\s)", "–");
+
+            foreach (var (corrupted, fixedVal) in _germanUmlautRepairs)
+            {
+                if (s.Contains(corrupted, StringComparison.Ordinal))
+                {
+                    s = s.Replace(corrupted, fixedVal, StringComparison.Ordinal);
+                }
+            }
             return s;
         }
 
@@ -2745,13 +2895,13 @@ namespace Funkenwerk
                 MailAccountId = m.TryGetProperty("mail_account_id", out var ma) ? ma.GetInt32() : _selectedAccountId,
                 Folder = m.TryGetProperty("folder", out var fp) && fp.ValueKind == JsonValueKind.String ? fp.GetString() ?? "INBOX" : "INBOX",
                 Subject = RepairCorruptedMailSubject(m.TryGetProperty("subject", out var sp) && sp.ValueKind == JsonValueKind.String ? sp.GetString() : "(Kein Betreff)"),
-                FromName = m.TryGetProperty("from_name", out var fn) && fn.ValueKind == JsonValueKind.String ? fn.GetString() ?? "" : "",
+                FromName = RepairCorruptedGermanText(m.TryGetProperty("from_name", out var fn) && fn.ValueKind == JsonValueKind.String ? fn.GetString() ?? "" : ""),
                 FromEmail = m.TryGetProperty("from_email", out var fe) && fe.ValueKind == JsonValueKind.String ? fe.GetString() ?? "" : "",
                 ToEmail = m.TryGetProperty("to_email", out var te) && te.ValueKind == JsonValueKind.String ? te.GetString() ?? "" : "",
                 CcEmail = m.TryGetProperty("cc_email", out var cce) && cce.ValueKind == JsonValueKind.String ? cce.GetString() ?? "" : "",
                 BccEmail = m.TryGetProperty("bcc_email", out var bcce) && bcce.ValueKind == JsonValueKind.String ? bcce.GetString() ?? "" : "",
-                BodyPlain = m.TryGetProperty("body_plain", out var bp) && bp.ValueKind == JsonValueKind.String ? bp.GetString() ?? "" : "",
-                BodyHtml = m.TryGetProperty("body_html", out var bh) && bh.ValueKind == JsonValueKind.String ? bh.GetString() ?? "" : "",
+                BodyPlain = RepairCorruptedGermanText(m.TryGetProperty("body_plain", out var bp) && bp.ValueKind == JsonValueKind.String ? bp.GetString() ?? "" : ""),
+                BodyHtml = RepairCorruptedGermanText(m.TryGetProperty("body_html", out var bh) && bh.ValueKind == JsonValueKind.String ? bh.GetString() ?? "" : ""),
                 Category = m.TryGetProperty("category", out var cat) && cat.ValueKind == JsonValueKind.String ? cat.GetString() ?? "" : "",
                 Priority = m.TryGetProperty("priority", out var prio) && prio.ValueKind == JsonValueKind.String ? prio.GetString() ?? "" : "",
                 AiStatus = m.TryGetProperty("ai_status", out var ais) && ais.ValueKind == JsonValueKind.String ? ais.GetString() ?? "" : "",
@@ -3142,11 +3292,13 @@ namespace Funkenwerk
 
                 stack.Children.Add(topGrid);
 
-                // Subject Row
+                // Subject Row (Second sentence / title in the email card: Blue when unread!)
                 var subjTxt = new TextBlock
                 {
                     Text = (msg.HasAttachments ? "📎 " : "") + msg.Subject,
-                    Foreground = isImportant ? BrushFromHex("#F9FAFB") : (msg.IsRead ? BrushFromHex("#9CA3AF") : BrushFromHex("#F3F4F6")),
+                    Foreground = !msg.IsRead
+                        ? new SolidColorBrush((Color)ColorConverter.ConvertFromString(_isDarkMode ? "#60A5FA" : "#2563EB"))
+                        : (isImportant ? BrushFromHex("#F9FAFB") : BrushFromHex("#9CA3AF")),
                     FontWeight = (isImportant || !msg.IsRead) ? FontWeights.Bold : FontWeights.Normal,
                     FontSize = 12.5,
                     TextTrimming = TextTrimming.CharacterEllipsis,
@@ -3473,17 +3625,13 @@ namespace Funkenwerk
 
             // 6. Submenu: Abonnieren (Automatische Regel)
             var miRuleSub = new MenuItem { Header = "⚡  Regel (Abo) für Absender setzen" };
-            var ruleSpamItem = new MenuItem { Header = "🛡 Immer als Spam blockieren & löschen" };
+            var ruleSpamItem = new MenuItem { Header = "🛡 Immer als Spam markieren" };
             ruleSpamItem.Click += async (s, e) => await MoveMailToFolderAsync(msg.Id, "Junk");
             miRuleSub.Items.Add(ruleSpamItem);
 
             var ruleArchiveItem = new MenuItem { Header = "📦 Immer automatisch ins Archiv" };
             ruleArchiveItem.Click += async (s, e) => await CreateSenderRoutingRuleAsync(msg.Id, "Archive", "Archiv");
             miRuleSub.Items.Add(ruleArchiveItem);
-
-            var ruleTrashItem = new MenuItem { Header = "🗑 Immer in Papierkorb" };
-            ruleTrashItem.Click += async (s, e) => await CreateSenderRoutingRuleAsync(msg.Id, "Trash", "Papierkorb");
-            miRuleSub.Items.Add(ruleTrashItem);
 
             if (acc != null)
             {
@@ -3501,15 +3649,15 @@ namespace Funkenwerk
 
             cm.Items.Add(new Separator());
 
-            // 7. Spam (Regel + Löschen)
-            var miSpam = new MenuItem { Header = "🛡  Spam (Abo-Regel setzen & sofort löschen)" };
+            // 7. Spam (Regel + In Spam verschieben)
+            var miSpam = new MenuItem { Header = "🛡  Als Spam markieren (Regel setzen)" };
             miSpam.Click += async (s, e) => await MoveMailToFolderAsync(msg.Id, "Junk");
             cm.Items.Add(miSpam);
 
-            // 8. Papierkorb / Endgültig löschen
-            var miDel = new MenuItem { Header = msg.Folder == "Trash" ? "🗑  Endgültig aus Papierkorb löschen" : "🗑  In Papierkorb verschieben" };
-            miDel.Click += async (s, e) => await DeleteMailByIdAsync(msg.Id);
-            cm.Items.Add(miDel);
+            // 8. Archivieren (Keine E-Mails werden gelöscht)
+            var miArch = new MenuItem { Header = "📦  Ins Archiv verschieben" };
+            miArch.Click += async (s, e) => await MoveMailToFolderAsync(msg.Id, "Archive");
+            cm.Items.Add(miArch);
 
             return cm;
         }
@@ -3821,7 +3969,7 @@ namespace Funkenwerk
             ReaderDateTxt.Text = FormatFullDate(_selectedMail.ReceivedAtRaw);
             ReaderDateTxt.Foreground = BrushFromHex("#9CA3AF");
 
-            SpamActionBtnTxt.Text = _selectedMail.Folder == "Junk" ? "✅ Kein Spam" : "🛡 Spam (Regel + Löschen)";
+            SpamActionBtnTxt.Text = _selectedMail.Folder == "Junk" ? "✅ Kein Spam" : "🛡 Spam";
             EditDraftActionBtn.Visibility = _selectedMail.Folder == "Drafts" ? Visibility.Visible : Visibility.Collapsed;
 
             bool isImportant = _selectedMail.Priority == "high";
@@ -4213,57 +4361,8 @@ namespace Funkenwerk
 
         private async Task DeleteMailByIdAsync(int mailId)
         {
-            var visibleBefore = GetVisibleMailMessages();
-            int oldIdx = visibleBefore.FindIndex(m => m.Id == mailId);
-            MailMessageDto? nextMail = null;
-            bool wasSelected = _selectedMail != null && _selectedMail.Id == mailId;
-            if (wasSelected && oldIdx >= 0 && visibleBefore.Count > 1)
-            {
-                int nextIdx = (oldIdx + 1 < visibleBefore.Count) ? (oldIdx + 1) : (oldIdx - 1);
-                nextMail = visibleBefore[nextIdx];
-            }
-
-            // Optimistic 0ms UI removal & automatic selection of the next email in list
-            _pendingDeletedMailIds.Add(mailId);
-            _mailMessages.RemoveAll(m => m.Id == mailId);
-            PlaySoundActionPop();
-
-            if (wasSelected)
-            {
-                if (nextMail != null)
-                {
-                    _selectedMail = nextMail;
-                    RenderFunnelFilterPills();
-                    RenderMailMessagesList();
-                    _ = SelectAndReadMailAsync(nextMail.Id);
-                }
-                else
-                {
-                    _selectedMail = null;
-                    RenderFunnelFilterPills();
-                    RenderMailMessagesList();
-                    RenderActiveMailReader();
-                }
-            }
-            else
-            {
-                RenderFunnelFilterPills();
-                RenderMailMessagesList();
-            }
-
-            try
-            {
-                var res = await _http.DeleteAsync($"{_apiBaseUrl}/funki/emails/messages/{mailId}");
-                if (res.IsSuccessStatusCode)
-                {
-                    await LoadMailAccountsAsync();
-                }
-            }
-            catch { }
-            finally
-            {
-                _pendingDeletedMailIds.Remove(mailId);
-            }
+            // Zero Email Deletion Policy: always archive instead of deleting
+            await MoveMailToFolderAsync(mailId, "Archive");
         }
 
         private async void CreateTaskFromMail_Click(object sender, RoutedEventArgs e)
@@ -8813,9 +8912,38 @@ namespace Funkenwerk
             return new();
         }
 
+        private const string FAV_SYNC_PLAYLIST_NAME = "__FUNKENWERK_FAV_SYNC__";
+        private long _lastFavSyncTimestamp = 0;
+
+        private static (long Timestamp, HashSet<string> Prefixes) ParseFavSyncDescription(string? desc)
+        {
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (string.IsNullOrWhiteSpace(desc) || !desc.StartsWith("fav_sync:v1:", StringComparison.OrdinalIgnoreCase))
+            {
+                return (0, set);
+            }
+
+            var parts = desc.Split(':');
+            long ts = 0;
+            if (parts.Length >= 3) long.TryParse(parts[2], out ts);
+            if (parts.Length >= 4 && !string.IsNullOrWhiteSpace(parts[3]))
+            {
+                foreach (var p in parts[3].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    set.Add(p);
+                }
+            }
+            return (ts, set);
+        }
+
         private void ApplyLoadedMusicPlaylists(List<MusicPlaylistDto> playlists)
         {
-            _musicPlaylists = playlists;
+            var syncPl = playlists.FirstOrDefault(p => string.Equals(p.Name, FAV_SYNC_PLAYLIST_NAME, StringComparison.OrdinalIgnoreCase));
+            var visiblePlaylists = playlists
+                .Where(p => !string.Equals(p.Name, FAV_SYNC_PLAYLIST_NAME, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            _musicPlaylists = visiblePlaylists;
             _allMusicTracks.Clear();
             foreach (var pl in _musicPlaylists)
             {
@@ -8827,9 +8955,23 @@ namespace Funkenwerk
                 }
             }
 
+            if (syncPl != null && !string.IsNullOrWhiteSpace(syncPl.Description))
+            {
+                var (ts, prefixes) = ParseFavSyncDescription(syncPl.Description);
+                if (ts > 0 && ts >= _lastFavSyncTimestamp)
+                {
+                    _lastFavSyncTimestamp = ts;
+                    foreach (var tr in _allMusicTracks)
+                    {
+                        string pfx = tr.Id.Length >= 8 ? tr.Id.Substring(0, 8) : tr.Id;
+                        tr.IsFavorite = prefixes.Contains(pfx) || prefixes.Contains(tr.Id);
+                    }
+                }
+            }
+
             if (_currentPlayingTrack != null)
             {
-                var updatedCur = _allMusicTracks.FirstOrDefault(t => t.Id == _currentPlayingTrack.Id);
+                var updatedCur = _allMusicTracks.FirstOrDefault(t => string.Equals(t.Id, _currentPlayingTrack.Id, StringComparison.OrdinalIgnoreCase));
                 if (updatedCur != null)
                 {
                     _currentPlayingTrack.IsFavorite = updatedCur.IsFavorite;
@@ -8844,8 +8986,32 @@ namespace Funkenwerk
                 _activeMusicPlaylistId = favPl.Id;
             }
 
+            UpdateNowPlayingFavoriteButtonUI();
             RenderMusicAll();
             UpdateMusicCacheStatusLabel();
+        }
+
+        private async Task<List<MusicPlaylistDto>> FetchPlaylistsFromEndpointAsync(string baseUrl, string? overrideToken = null)
+        {
+            try
+            {
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(4));
+                using var req = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl.TrimEnd('/')}/funki/music/playlists");
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                string tok = !string.IsNullOrWhiteSpace(overrideToken) ? overrideToken : _apiToken;
+                if (!string.IsNullOrWhiteSpace(tok))
+                {
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tok);
+                }
+                var res = await _http.SendAsync(req, cts.Token);
+                if (!res.IsSuccessStatusCode) return new();
+                var json = await res.Content.ReadAsStringAsync();
+                return ParseMusicPlaylistsJson(json);
+            }
+            catch
+            {
+                return new();
+            }
         }
 
         private async Task LoadMusicPlaylistsAsync()
@@ -8858,19 +9024,101 @@ namespace Funkenwerk
 
             try
             {
-                var res = await _http.GetAsync($"{_apiBaseUrl}/funki/music/playlists");
-                if (!res.IsSuccessStatusCode) return;
-                var json = await res.Content.ReadAsStringAsync();
-
-                var remotePlaylists = ParseMusicPlaylistsJson(json);
-                int remoteTrackCount = remotePlaylists.Sum(p => p.Tracks?.Count ?? 0);
-
-                // Only overwrite local cache if remote server actually has tracks (prevents empty Stage/Live DB from wiping offline music)
-                if (remotePlaylists.Count > 0 && (remoteTrackCount > 0 || _allMusicTracks.Count == 0))
+                var primaryPlaylists = await FetchPlaylistsFromEndpointAsync(_apiBaseUrl);
+                List<MusicPlaylistDto> localDockerPlaylists = new();
+                if (!_apiBaseUrl.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase) &&
+                    !_apiBaseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase))
                 {
-                    ApplyLoadedMusicPlaylists(remotePlaylists);
-                    SaveMusicPlaylistsToLocalCache();
+                    string localTok = !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenLocal) ? _layoutSettings.ApiTokenLocal : DEFAULT_LOCAL_TOKEN;
+                    localDockerPlaylists = await FetchPlaylistsFromEndpointAsync("http://127.0.0.1/api", localTok);
                 }
+
+                // Choose the richest track catalog available
+                var catalogPlaylists = primaryPlaylists.Where(p => !string.Equals(p.Name, FAV_SYNC_PLAYLIST_NAME, StringComparison.OrdinalIgnoreCase)).ToList();
+                int primaryTrackCount = catalogPlaylists.Sum(p => p.Tracks?.Count ?? 0);
+
+                var localVisiblePlaylists = localDockerPlaylists.Where(p => !string.Equals(p.Name, FAV_SYNC_PLAYLIST_NAME, StringComparison.OrdinalIgnoreCase)).ToList();
+                int localTrackCount = localVisiblePlaylists.Sum(p => p.Tracks?.Count ?? 0);
+
+                if (primaryTrackCount == 0 && localTrackCount > 0)
+                {
+                    catalogPlaylists = localVisiblePlaylists;
+                    primaryTrackCount = localTrackCount;
+                }
+
+                // Check for favorite sync marker on primary or local endpoint
+                var syncPlPrimary = primaryPlaylists.FirstOrDefault(p => string.Equals(p.Name, FAV_SYNC_PLAYLIST_NAME, StringComparison.OrdinalIgnoreCase));
+                var syncPlLocal = localDockerPlaylists.FirstOrDefault(p => string.Equals(p.Name, FAV_SYNC_PLAYLIST_NAME, StringComparison.OrdinalIgnoreCase));
+
+                var (tsPrimary, pfxPrimary) = ParseFavSyncDescription(syncPlPrimary?.Description);
+                var (tsLocal, pfxLocal) = ParseFavSyncDescription(syncPlLocal?.Description);
+
+                long bestSyncTs = Math.Max(tsPrimary, tsLocal);
+                HashSet<string> bestSyncPrefixes = tsPrimary >= tsLocal ? pfxPrimary : pfxLocal;
+
+                // Also collect any track marked IsFavorite in primary or local DB
+                var dbFavIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var pl in primaryPlaylists.Concat(localDockerPlaylists))
+                {
+                    if (pl.Tracks == null) continue;
+                    foreach (var tr in pl.Tracks)
+                    {
+                        if (tr.IsFavorite)
+                        {
+                            dbFavIds.Add(tr.Id);
+                            if (tr.Id.Length >= 8) dbFavIds.Add(tr.Id.Substring(0, 8));
+                        }
+                    }
+                }
+
+                bool hadLocalFavs = _allMusicTracks.Any(t => t.IsFavorite);
+                var existingLocalFavIds = _allMusicTracks.Where(t => t.IsFavorite).Select(t => t.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                if (catalogPlaylists.Count > 0 && (primaryTrackCount > 0 || _allMusicTracks.Count == 0))
+                {
+                    ApplyLoadedMusicPlaylists(catalogPlaylists);
+                }
+
+                if (bestSyncTs > 0 && bestSyncTs >= _lastFavSyncTimestamp)
+                {
+                    _lastFavSyncTimestamp = bestSyncTs;
+                    foreach (var tr in _allMusicTracks)
+                    {
+                        string pfx = tr.Id.Length >= 8 ? tr.Id.Substring(0, 8) : tr.Id;
+                        tr.IsFavorite = bestSyncPrefixes.Contains(pfx) || bestSyncPrefixes.Contains(tr.Id);
+                    }
+                }
+                else if (dbFavIds.Count > 0)
+                {
+                    foreach (var tr in _allMusicTracks)
+                    {
+                        string pfx = tr.Id.Length >= 8 ? tr.Id.Substring(0, 8) : tr.Id;
+                        tr.IsFavorite = dbFavIds.Contains(tr.Id) || dbFavIds.Contains(pfx);
+                    }
+                }
+                else if (hadLocalFavs)
+                {
+                    // Preserve local favorites and push them to servers so Android receives them immediately
+                    foreach (var tr in _allMusicTracks)
+                    {
+                        if (existingLocalFavIds.Contains(tr.Id)) tr.IsFavorite = true;
+                    }
+                    var firstFav = _allMusicTracks.FirstOrDefault(t => t.IsFavorite);
+                    if (firstFav != null)
+                    {
+                        _ = SyncMusicFavoritesToServersAsync(firstFav, true);
+                    }
+                }
+
+                if (_currentPlayingTrack != null)
+                {
+                    var updatedCur = _allMusicTracks.FirstOrDefault(t => string.Equals(t.Id, _currentPlayingTrack.Id, StringComparison.OrdinalIgnoreCase));
+                    if (updatedCur != null) _currentPlayingTrack.IsFavorite = updatedCur.IsFavorite;
+                }
+
+                UpdateNowPlayingFavoriteButtonUI();
+                RenderMusicAll();
+                SaveMusicPlaylistsToLocalCache();
             }
             catch { }
         }
@@ -9209,6 +9457,8 @@ namespace Funkenwerk
             MusicRepeatBtn.Opacity = _isMusicRepeat ? 1.0 : 0.65;
             MusicRepeatBtn.Background = _isMusicRepeat ? BrushFromHex("#26231F") : Brushes.Transparent;
             MusicRepeatBtn.BorderBrush = _isMusicRepeat ? BrushFromHex("#C5A059") : Brushes.Transparent;
+
+            UpdateNowPlayingFavoriteButtonUI();
         }
 
         private void UpdateMiniPlayerVisibility()
@@ -9684,6 +9934,41 @@ namespace Funkenwerk
             }
         }
 
+        private async void MusicNowPlayingFav_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentPlayingTrack == null)
+            {
+                var first = GetFilteredMusicTracks().FirstOrDefault();
+                if (first != null)
+                {
+                    await ToggleTrackFavoriteAsync(first);
+                }
+                return;
+            }
+            await ToggleTrackFavoriteAsync(_currentPlayingTrack);
+        }
+
+        private void UpdateNowPlayingFavoriteButtonUI()
+        {
+            bool isFav = _currentPlayingTrack?.IsFavorite == true;
+            var favColor = new SolidColorBrush((Color)ColorConverter.ConvertFromString(isFav ? "#C5A059" : (_isDarkMode ? "#9CA3AF" : "#64748B")));
+            var favBorder = new SolidColorBrush((Color)ColorConverter.ConvertFromString(isFav ? "#C5A059" : (_isDarkMode ? "#382D18" : "#CBD5E1")));
+
+            if (MusicNowPlayingFavBtn != null)
+            {
+                MusicNowPlayingFavBtn.Content = isFav ? "♥" : "♡";
+                MusicNowPlayingFavBtn.Foreground = favColor;
+                MusicNowPlayingFavBtn.BorderBrush = favBorder;
+            }
+
+            if (MiniPlayerFavBtn != null)
+            {
+                MiniPlayerFavBtn.Content = isFav ? "♥" : "♡";
+                MiniPlayerFavBtn.Foreground = favColor;
+                MiniPlayerFavBtn.BorderBrush = favBorder;
+            }
+        }
+
         private async Task ToggleTrackFavoriteAsync(MusicTrackDto track)
         {
             bool newFav = !track.IsFavorite;
@@ -9700,21 +9985,555 @@ namespace Funkenwerk
                     t.IsFavorite = newFav;
                 }
             }
-            if (_currentPlayingTrack != null && string.Equals(_currentPlayingTrack.Id, track.Id, StringComparison.OrdinalIgnoreCase))
+            if (_currentPlayingTrack != null)
             {
-                _currentPlayingTrack.IsFavorite = newFav;
+                bool sameCur = string.Equals(_currentPlayingTrack.Id, track.Id, StringComparison.OrdinalIgnoreCase) ||
+                               (string.Equals(_currentPlayingTrack.Title, track.Title, StringComparison.OrdinalIgnoreCase) &&
+                                string.Equals(_currentPlayingTrack.Artist ?? "", track.Artist ?? "", StringComparison.OrdinalIgnoreCase));
+                if (sameCur)
+                {
+                    _currentPlayingTrack.IsFavorite = newFav;
+                }
             }
 
+            _lastFavSyncTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             PlaySoundActionPop();
+            UpdateNowPlayingFavoriteButtonUI();
             SaveMusicPlaylistsToLocalCache();
             RenderMusicAll();
 
+            await SyncMusicFavoritesToServersAsync(track, newFav);
+        }
+
+        private async Task SyncMusicFavoritesToServersAsync(MusicTrackDto changedTrack, bool newFav)
+        {
+            long ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            _lastFavSyncTimestamp = ts;
+
+            var favPrefixes = _allMusicTracks
+                .Where(t => t.IsFavorite && !string.IsNullOrWhiteSpace(t.Id))
+                .Select(t => t.Id.Length >= 8 ? t.Id.Substring(0, 8) : t.Id)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            string syncDesc = $"fav_sync:v1:{ts}:{string.Join(",", favPrefixes)}";
+
+            var endpoints = new List<(string Url, string Token)>
+            {
+                (_apiBaseUrl.TrimEnd('/'), _apiToken)
+            };
+
+            if (!_apiBaseUrl.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase) &&
+                !_apiBaseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+            {
+                string localTok = !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenLocal) ? _layoutSettings.ApiTokenLocal : DEFAULT_LOCAL_TOKEN;
+                endpoints.Add(("http://127.0.0.1/api", localTok));
+            }
+            if (!_apiBaseUrl.Contains("stage.mein-seelenfunke.de", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenStage))
+            {
+                endpoints.Add(("https://stage.mein-seelenfunke.de/api", _layoutSettings.ApiTokenStage));
+            }
+
+            string favPayload = JsonSerializer.Serialize(new
+            {
+                is_favorite = newFav,
+                external_id = changedTrack.ExternalId ?? "",
+                title = changedTrack.Title,
+                artist = changedTrack.Artist ?? ""
+            });
+
+            foreach (var (baseUrl, token) in endpoints)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+                        using var req = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/funki/music/tracks/{changedTrack.Id}/favorite")
+                        {
+                            Content = new StringContent(favPayload, Encoding.UTF8, "application/json")
+                        };
+                        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                        if (!string.IsNullOrWhiteSpace(token))
+                        {
+                            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                        }
+                        await _http.SendAsync(req, cts.Token);
+                    }
+                    catch { }
+
+                    await UpsertFavSyncPlaylistOnServerAsync(baseUrl, token, syncDesc);
+                });
+            }
+        }
+
+        private async Task UpsertFavSyncPlaylistOnServerAsync(string baseUrl, string token, string syncDesc)
+        {
             try
             {
-                var payload = JsonSerializer.Serialize(new { is_favorite = newFav });
-                await _http.PostAsync($"{_apiBaseUrl}/funki/music/tracks/{track.Id}/favorite", new StringContent(payload, Encoding.UTF8, "application/json"));
+                var remoteList = await FetchPlaylistsFromEndpointAsync(baseUrl, token);
+                var existing = remoteList.FirstOrDefault(p => string.Equals(p.Name, FAV_SYNC_PLAYLIST_NAME, StringComparison.OrdinalIgnoreCase));
+
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+                if (existing != null && !string.IsNullOrWhiteSpace(existing.Id))
+                {
+                    string putBody = JsonSerializer.Serialize(new
+                    {
+                        name = FAV_SYNC_PLAYLIST_NAME,
+                        description = syncDesc
+                    });
+                    using var putReq = new HttpRequestMessage(HttpMethod.Put, $"{baseUrl}/funki/music/playlists/{existing.Id}")
+                    {
+                        Content = new StringContent(putBody, Encoding.UTF8, "application/json")
+                    };
+                    putReq.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                    if (!string.IsNullOrWhiteSpace(token))
+                    {
+                        putReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                    }
+                    await _http.SendAsync(putReq, cts.Token);
+                }
+                else
+                {
+                    string postBody = JsonSerializer.Serialize(new
+                    {
+                        name = FAV_SYNC_PLAYLIST_NAME,
+                        description = syncDesc
+                    });
+                    using var postReq = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/funki/music/playlists")
+                    {
+                        Content = new StringContent(postBody, Encoding.UTF8, "application/json")
+                    };
+                    postReq.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                    if (!string.IsNullOrWhiteSpace(token))
+                    {
+                        postReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                    }
+                    await _http.SendAsync(postReq, cts.Token);
+                }
             }
             catch { }
+        }
+
+        // =========================================================================
+        // ITEM 5: MUSIC "FOKUS MODUS" — FULL-WINDOW RED/BLACK VENOM SYMBIOTE WALLPAPER
+        // =========================================================================
+        private bool _isMusicVenomFocusActive = false;
+        private System.Windows.Threading.DispatcherTimer? _venomFocusTimer = null;
+        private double _venomPhase = 0.0;
+        private double _venomSmoothedBass = 0.0;
+        private double _venomSmoothedMid = 0.0;
+        private double _venomSmoothedHigh = 0.0;
+
+        private async void EnterMusicVenomFocusMode_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundActionPop();
+
+            // Automatically start playing music if nothing is playing yet so the Venom symbiote reacts immediately
+            if (!_isMusicPlaying)
+            {
+                if (_currentPlayingTrack == null)
+                {
+                    var filtered = GetFilteredMusicTracks();
+                    if (filtered.Count > 0)
+                    {
+                        _currentMusicQueue = filtered;
+                        await PlayMusicTrackAsync(filtered[0]);
+                    }
+                }
+                else
+                {
+                    _mediaPlayer.Play();
+                    _isMusicPlaying = true;
+                    UpdateMusicPlaybackButtonsUI();
+                    RenderMusicAll();
+                    UpdateSpacesBadges();
+                }
+            }
+
+            _isMusicVenomFocusActive = true;
+            if (MusicVenomFocusOverlay != null)
+            {
+                MusicVenomFocusOverlay.Visibility = Visibility.Visible;
+            }
+            if (VenomExitFocusBtn != null)
+            {
+                VenomExitFocusBtn.Visibility = IsMouseOver ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            if (_venomFocusTimer == null)
+            {
+                _venomFocusTimer = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(16) // ~60 FPS smooth wallpaper animation
+                };
+                _venomFocusTimer.Tick += (s, args) => RenderVenomFocusFrame();
+            }
+            _venomFocusTimer.Start();
+            RenderVenomFocusFrame();
+        }
+
+        private void ExitMusicVenomFocusMode_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundNav();
+            _isMusicVenomFocusActive = false;
+            _venomFocusTimer?.Stop();
+            if (VenomFocusCanvas != null)
+            {
+                VenomFocusCanvas.Children.Clear();
+            }
+            if (MusicVenomFocusOverlay != null)
+            {
+                MusicVenomFocusOverlay.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void MusicVenomFocusOverlay_MouseEnter(object sender, MouseEventArgs e)
+        {
+            if (_isMusicVenomFocusActive && VenomExitFocusBtn != null)
+            {
+                VenomExitFocusBtn.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void MusicVenomFocusOverlay_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (_isMusicVenomFocusActive && VenomExitFocusBtn != null && VenomExitFocusBtn.Visibility != Visibility.Visible)
+            {
+                VenomExitFocusBtn.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void MusicVenomFocusOverlay_MouseLeave(object sender, MouseEventArgs e)
+        {
+            if (VenomExitFocusBtn != null)
+            {
+                VenomExitFocusBtn.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void MusicVenomFocusOverlay_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount == 2)
+            {
+                ExitMusicVenomFocusMode_Click(sender, new RoutedEventArgs());
+            }
+        }
+
+        private void RenderVenomFocusFrame()
+        {
+            if (!_isMusicVenomFocusActive || VenomFocusCanvas == null) return;
+
+            double w = VenomFocusCanvas.ActualWidth > 10 ? VenomFocusCanvas.ActualWidth : ActualWidth;
+            double h = VenomFocusCanvas.ActualHeight > 10 ? VenomFocusCanvas.ActualHeight : ActualHeight;
+            if (w <= 10 || h <= 10) return;
+
+            double cx = w * 0.5;
+            double cy = h * 0.5;
+            double minDim = Math.Min(w, h);
+
+            // Compute musical energy envelope from active playback position & track rhythm
+            double audioTime = _isMusicPlaying ? _mediaPlayer.Position.TotalSeconds : _venomPhase * 0.45;
+            double speed = _isMusicPlaying ? 0.048 : 0.016;
+            _venomPhase += speed;
+
+            double rawBass = 0.18;
+            double rawMid = 0.14;
+            double rawHigh = 0.10;
+
+            if (_isMusicPlaying)
+            {
+                // Estimate track BPM cadence from title/artist hash so each song has a distinct rhythmic signature
+                int trackSeed = (_currentPlayingTrack?.Id ?? "venom").GetHashCode();
+                double bpm = 88.0 + Math.Abs(trackSeed % 38); // 88 - 125 BPM
+                double beatOmega = (bpm / 60.0) * Math.PI * 2.0;
+
+                double beatSin = Math.Max(0.0, Math.Sin(audioTime * beatOmega));
+                double subKick = Math.Pow(beatSin, 4.0);
+                double offBeat = Math.Pow(Math.Max(0.0, Math.Sin(audioTime * beatOmega * 0.5 + 1.1)), 3.0);
+                double synthSurge = 0.5 + 0.5 * Math.Sin(audioTime * 2.3 + Math.Cos(audioTime * 1.1) * 1.6);
+                double hiHat = Math.Abs(Math.Sin(audioTime * beatOmega * 2.0) * Math.Cos(audioTime * 13.7));
+
+                rawBass = Math.Clamp(0.22 + subKick * 0.65 + offBeat * 0.25, 0.0, 1.0);
+                rawMid = Math.Clamp(0.20 + synthSurge * 0.55 + subKick * 0.25, 0.0, 1.0);
+                rawHigh = Math.Clamp(0.15 + hiHat * 0.65 + synthSurge * 0.20, 0.0, 1.0);
+            }
+            else
+            {
+                rawBass = 0.16 + 0.08 * Math.Sin(_venomPhase * 1.4);
+                rawMid = 0.14 + 0.06 * Math.Cos(_venomPhase * 1.9);
+                rawHigh = 0.08 + 0.04 * Math.Sin(_venomPhase * 2.7);
+            }
+
+            _venomSmoothedBass = _venomSmoothedBass * 0.72 + rawBass * 0.28;
+            _venomSmoothedMid = _venomSmoothedMid * 0.76 + rawMid * 0.24;
+            _venomSmoothedHigh = _venomSmoothedHigh * 0.70 + rawHigh * 0.30;
+
+            VenomFocusCanvas.Children.Clear();
+
+            // 1. Deep Abyssal Crimson Core & Atmospheric Blood-Red Pulse
+            double coreGlowDiameter = minDim * (0.68 + _venomSmoothedBass * 0.42);
+            var abyssGlow = new Ellipse
+            {
+                Width = coreGlowDiameter,
+                Height = coreGlowDiameter,
+                IsHitTestVisible = false,
+                Fill = new RadialGradientBrush
+                {
+                    GradientOrigin = new Point(0.5, 0.5),
+                    Center = new Point(0.5, 0.5),
+                    RadiusX = 0.5,
+                    RadiusY = 0.5,
+                    GradientStops = new GradientStopCollection
+                    {
+                        new GradientStop(Color.FromArgb((byte)(110 + (int)(_venomSmoothedBass * 105)), 220, 20, 42), 0.0),
+                        new GradientStop(Color.FromArgb((byte)(65 + (int)(_venomSmoothedMid * 70)), 125, 10, 24), 0.42),
+                        new GradientStop(Color.FromArgb(0, 0, 0, 0), 1.0)
+                    }
+                }
+            };
+            Canvas.SetLeft(abyssGlow, cx - coreGlowDiameter * 0.5);
+            Canvas.SetTop(abyssGlow, cy - coreGlowDiameter * 0.5);
+            VenomFocusCanvas.Children.Add(abyssGlow);
+
+            // 2. Creeping Perimeter Symbiote Tendrils (Growing from all 4 window edges)
+            int edgeTendrilCount = 28;
+            var edgeCrimsonBrush = new SolidColorBrush(Color.FromArgb((byte)(115 + (int)(_venomSmoothedBass * 95)), 185, 16, 36));
+            var edgeDarkVeinBrush = new SolidColorBrush(Color.FromArgb(235, 14, 2, 5));
+
+            for (int i = 0; i < edgeTendrilCount; i++)
+            {
+                double tNorm = (double)i / edgeTendrilCount;
+                double perimeterAngle = tNorm * Math.PI * 2.0;
+                double cosA = Math.Cos(perimeterAngle);
+                double sinA = Math.Sin(perimeterAngle);
+
+                // Project onto window rectangle border
+                double scaleX = Math.Abs(cosA) > 0.0001 ? (w * 0.52) / Math.Abs(cosA) : double.MaxValue;
+                double scaleY = Math.Abs(sinA) > 0.0001 ? (h * 0.52) / Math.Abs(sinA) : double.MaxValue;
+                double borderDist = Math.Min(scaleX, scaleY);
+
+                Point startPt = new Point(cx + cosA * borderDist, cy + sinA * borderDist);
+                double reach = minDim * (0.14 + 0.12 * Math.Sin(_venomPhase * 1.9 + i * 1.37) + _venomSmoothedBass * 0.16);
+                double sway1 = Math.Sin(_venomPhase * 2.8 + i * 0.9) * 48.0 * (0.5 + _venomSmoothedMid);
+                double sway2 = Math.Cos(_venomPhase * 3.4 - i * 1.2) * 36.0 * (0.5 + _venomSmoothedHigh);
+
+                double perpX = -sinA;
+                double perpY = cosA;
+
+                Point ctrl1 = new Point(
+                    startPt.X - cosA * (reach * 0.35) + perpX * sway1,
+                    startPt.Y - sinA * (reach * 0.35) + perpY * sway1);
+                Point ctrl2 = new Point(
+                    startPt.X - cosA * (reach * 0.72) + perpX * sway2,
+                    startPt.Y - sinA * (reach * 0.72) + perpY * sway2);
+                Point tipPt = new Point(
+                    startPt.X - cosA * reach + perpX * (sway1 * 0.45),
+                    startPt.Y - sinA * reach + perpY * (sway1 * 0.45));
+
+                var fig = new PathFigure { StartPoint = startPt, IsClosed = false };
+                fig.Segments.Add(new BezierSegment(ctrl1, ctrl2, tipPt, true));
+                var geom = new PathGeometry(new[] { fig });
+
+                // Outer crimson symbiote sheath
+                VenomFocusCanvas.Children.Add(new System.Windows.Shapes.Path
+                {
+                    Data = geom,
+                    Stroke = edgeCrimsonBrush,
+                    StrokeThickness = 4.2 + (i % 3) * 1.6 + _venomSmoothedBass * 3.5,
+                    StrokeStartLineCap = PenLineCap.Round,
+                    StrokeEndLineCap = PenLineCap.Triangle,
+                    IsHitTestVisible = false
+                });
+
+                // Inner glossy obsidian core
+                VenomFocusCanvas.Children.Add(new System.Windows.Shapes.Path
+                {
+                    Data = geom,
+                    Stroke = edgeDarkVeinBrush,
+                    StrokeThickness = 2.2 + (i % 2) * 1.1,
+                    StrokeStartLineCap = PenLineCap.Round,
+                    StrokeEndLineCap = PenLineCap.Triangle,
+                    IsHitTestVisible = false
+                });
+            }
+
+            // 3. 36 Writhing Central Venom Symbiote Tentacles with Forked Tips & Crimson Veins
+            int tentacleCount = 36;
+            double baseCoreRadius = minDim * (0.11 + _venomSmoothedBass * 0.055);
+
+            for (int i = 0; i < tentacleCount; i++)
+            {
+                double baseAngle = (i * Math.PI * 2.0 / tentacleCount) + Math.Sin(_venomPhase * 0.55 + i * 0.3) * 0.12;
+                double bandEnergy = (i % 3 == 0) ? _venomSmoothedBass : ((i % 3 == 1) ? _venomSmoothedMid : _venomSmoothedHigh);
+
+                double harmonicWave = Math.Sin(_venomPhase * 3.1 + i * 1.73) * 0.5 +
+                                      Math.Cos(_venomPhase * 4.7 - i * 0.89) * 0.5;
+
+                double length = minDim * (0.18 + Math.Abs(harmonicWave) * 0.19 + bandEnergy * 0.24);
+                double whipAngle1 = baseAngle + Math.Sin(_venomPhase * 3.6 + i * 0.77) * (0.22 + _venomSmoothedMid * 0.20);
+                double whipAngle2 = baseAngle - Math.Cos(_venomPhase * 4.4 - i * 1.15) * (0.28 + _venomSmoothedHigh * 0.24);
+                double tipAngle = baseAngle + Math.Sin(_venomPhase * 5.2 + i * 1.42) * (0.18 + bandEnergy * 0.22);
+
+                Point p0 = new Point(
+                    cx + Math.Cos(baseAngle) * (baseCoreRadius * 0.65),
+                    cy + Math.Sin(baseAngle) * (baseCoreRadius * 0.65));
+                Point p1 = new Point(
+                    cx + Math.Cos(whipAngle1) * (baseCoreRadius + length * 0.36),
+                    cy + Math.Sin(whipAngle1) * (baseCoreRadius + length * 0.36));
+                Point p2 = new Point(
+                    cx + Math.Cos(whipAngle2) * (baseCoreRadius + length * 0.72),
+                    cy + Math.Sin(whipAngle2) * (baseCoreRadius + length * 0.72));
+                Point pTip = new Point(
+                    cx + Math.Cos(tipAngle) * (baseCoreRadius + length),
+                    cy + Math.Sin(tipAngle) * (baseCoreRadius + length));
+
+                var fig = new PathFigure { StartPoint = p0, IsClosed = false };
+                fig.Segments.Add(new BezierSegment(p1, p2, pTip, true));
+
+                // Add razor-sharp symbiote forked secondary filament on every 2nd tentacle
+                if (i % 2 == 0)
+                {
+                    double forkAngle = tipAngle + (i % 4 == 0 ? 0.16 : -0.16);
+                    Point pFork = new Point(
+                        p2.X + Math.Cos(forkAngle) * (length * 0.34),
+                        p2.Y + Math.Sin(forkAngle) * (length * 0.34));
+                    var forkFig = new PathFigure { StartPoint = p2, IsClosed = false };
+                    forkFig.Segments.Add(new QuadraticBezierSegment(
+                        new Point((p2.X + pFork.X) * 0.5, (p2.Y + pFork.Y) * 0.5),
+                        pFork, true));
+                    var forkGeom = new PathGeometry(new[] { fig, forkFig });
+
+                    byte redAlpha = (byte)Math.Clamp(150 + (int)(bandEnergy * 105), 90, 255);
+                    var crimsonStroke = new LinearGradientBrush(
+                        Color.FromArgb(255, 18, 2, 5),
+                        Color.FromArgb(redAlpha, 245, 24, 52),
+                        new Point(0, 0),
+                        new Point(1, 1));
+
+                    VenomFocusCanvas.Children.Add(new System.Windows.Shapes.Path
+                    {
+                        Data = forkGeom,
+                        Stroke = crimsonStroke,
+                        StrokeThickness = 3.2 + bandEnergy * 4.5,
+                        StrokeStartLineCap = PenLineCap.Round,
+                        StrokeEndLineCap = PenLineCap.Triangle,
+                        IsHitTestVisible = false
+                    });
+                }
+                else
+                {
+                    var geom = new PathGeometry(new[] { fig });
+                    VenomFocusCanvas.Children.Add(new System.Windows.Shapes.Path
+                    {
+                        Data = geom,
+                        Stroke = new SolidColorBrush(Color.FromArgb(240, 8, 1, 3)),
+                        StrokeThickness = 5.5 + bandEnergy * 5.0,
+                        StrokeStartLineCap = PenLineCap.Round,
+                        StrokeEndLineCap = PenLineCap.Triangle,
+                        IsHitTestVisible = false
+                    });
+
+                    VenomFocusCanvas.Children.Add(new System.Windows.Shapes.Path
+                    {
+                        Data = geom,
+                        Stroke = new SolidColorBrush(Color.FromArgb((byte)(130 + (int)(bandEnergy * 115)), 220, 22, 46)),
+                        StrokeThickness = 1.6 + bandEnergy * 1.8,
+                        StrokeStartLineCap = PenLineCap.Round,
+                        StrokeEndLineCap = PenLineCap.Triangle,
+                        IsHitTestVisible = false
+                    });
+                }
+            }
+
+            // 4. 3 Concentric Morphing Liquid-Symbiote Ferrofluid Membranes
+            for (int layer = 2; layer >= 0; layer--)
+            {
+                int nodes = 28;
+                double layerBaseR = baseCoreRadius * (1.0 + layer * 0.44);
+                var pts = new Point[nodes];
+
+                for (int n = 0; n < nodes; n++)
+                {
+                    double a = (n * Math.PI * 2.0) / nodes;
+                    double r = layerBaseR + (minDim * 0.045 * (1.0 + _venomSmoothedBass * 1.5) * doubleSpike(a, layer));
+                    pts[n] = new Point(cx + Math.Cos(a) * r, cy + Math.Sin(a) * r);
+                }
+
+                var polyFig = new PathFigure
+                {
+                    StartPoint = new Point((pts[nodes - 1].X + pts[0].X) * 0.5, (pts[nodes - 1].Y + pts[0].Y) * 0.5),
+                    IsClosed = true,
+                    IsFilled = true
+                };
+
+                for (int n = 0; n < nodes; n++)
+                {
+                    Point next = pts[(n + 1) % nodes];
+                    Point mid = new Point((pts[n].X + next.X) * 0.5, (pts[n].Y + next.Y) * 0.5);
+                    polyFig.Segments.Add(new QuadraticBezierSegment(pts[n], mid, true));
+                }
+
+                var blobGeom = new PathGeometry(new[] { polyFig });
+                Color fillCol = layer switch
+                {
+                    2 => Color.FromArgb(145, 28, 3, 8),
+                    1 => Color.FromArgb(215, 10, 1, 3),
+                    _ => Color.FromArgb(250, 3, 0, 1)
+                };
+                Color rimCol = layer switch
+                {
+                    2 => Color.FromArgb((byte)(120 + (int)(_venomSmoothedMid * 100)), 185, 18, 38),
+                    1 => Color.FromArgb((byte)(170 + (int)(_venomSmoothedBass * 85)), 239, 35, 60),
+                    _ => Color.FromArgb((byte)(200 + (int)(_venomSmoothedHigh * 55)), 255, 48, 79)
+                };
+
+                VenomFocusCanvas.Children.Add(new System.Windows.Shapes.Path
+                {
+                    Data = blobGeom,
+                    Fill = new SolidColorBrush(fillCol),
+                    Stroke = new SolidColorBrush(rimCol),
+                    StrokeThickness = layer == 0 ? (2.4 + _venomSmoothedBass * 2.2) : (1.5 + _venomSmoothedMid * 1.4),
+                    IsHitTestVisible = false
+                });
+            }
+
+            // 5. Floating Audio-Reactive Crimson Symbiote Bio-Spores
+            int sporeCount = 44;
+            for (int s = 0; s < sporeCount; s++)
+            {
+                double seedA = (s * 137.508) * (Math.PI / 180.0) + _venomPhase * (0.12 + (s % 5) * 0.04);
+                double orbitCycle = ((_venomPhase * (0.28 + (s % 7) * 0.05) + s * 0.19) % 1.0);
+                double dist = baseCoreRadius * 0.8 + orbitCycle * (minDim * 0.54);
+
+                double sx = cx + Math.Cos(seedA) * dist + Math.Sin(_venomPhase * 2.2 + s) * 18.0;
+                double sy = cy + Math.Sin(seedA) * dist + Math.Cos(_venomPhase * 2.0 + s) * 18.0;
+
+                double sz = (2.2 + (s % 4) * 1.4) * (0.8 + _venomSmoothedBass * 0.9);
+                byte alpha = (byte)Math.Clamp((int)((1.0 - orbitCycle) * (155 + _venomSmoothedHigh * 95)), 20, 245);
+
+                var spore = new Ellipse
+                {
+                    Width = sz,
+                    Height = sz,
+                    Fill = new SolidColorBrush(s % 3 == 0
+                        ? Color.FromArgb(alpha, 255, 56, 88)
+                        : Color.FromArgb(alpha, 195, 16, 36)),
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(spore, sx - sz * 0.5);
+                Canvas.SetTop(spore, sy - sz * 0.5);
+                VenomFocusCanvas.Children.Add(spore);
+            }
+        }
+
+        private double doubleSpike(double angle, int layer)
+        {
+            return Math.Sin(angle * (5 + layer * 2) + _venomPhase * (2.8 + layer * 0.6)) * 0.45
+                 + Math.Cos(angle * (9 - layer) - _venomPhase * (3.9 - layer * 0.4)) * 0.35
+                 + Math.Sin(angle * 14.0 + _venomPhase * 5.4) * (0.20 + _venomSmoothedHigh * 0.35);
         }
 
         private async void MusicCacheAllOffline_Click(object sender, RoutedEventArgs e)
@@ -10170,45 +10989,22 @@ namespace Funkenwerk
 
         private static string FormatCleanEmailBody(string? plain, string? html)
         {
-            string raw;
-            bool plainIsCleanAndStructured = !string.IsNullOrWhiteSpace(plain)
-                && (plain.Length <= 200 || plain.Contains('\n'))
-                && !plain.Contains("Mein KontoAlina", StringComparison.Ordinal)
-                && !plain.StartsWith("#outlook", StringComparison.OrdinalIgnoreCase);
+            string raw = "";
 
-            if (plainIsCleanAndStructured)
-            {
-                raw = CleanPlainTextFallback(plain);
-            }
-            else if (!string.IsNullOrWhiteSpace(html))
+            // Prefer HTML body when available so newsletter plain-text URL dumps (Brevo/Sendinblue) and broken table rows are rendered cleanly like Thunderbird
+            if (!string.IsNullOrWhiteSpace(html))
             {
                 raw = StripHtml(html);
             }
-            else
+
+            if (string.IsNullOrWhiteSpace(raw) && !string.IsNullOrWhiteSpace(plain))
             {
                 raw = CleanPlainTextFallback(plain);
             }
 
             if (string.IsNullOrWhiteSpace(raw)) return "(Kein Textinhalt in dieser E-Mail)";
 
-            // Normalize line endings and remove zero-width / invisible email tracking spacers
-            raw = raw.Replace("\r\n", "\n").Replace("\r", "\n");
-            raw = Regex.Replace(raw, @"[\u200B-\u200D\uFEFF\u00AD\u034F\u2060]+", "");
-            raw = raw.Replace("&zwnj;", "").Replace("&nbsp;", " ");
-
-            // Shorten overly long tracking URLs in angle brackets <https://...>
-            raw = Regex.Replace(raw, @"<(https?://[^>]{65,})>", m =>
-            {
-                if (Uri.TryCreate(m.Groups[1].Value, UriKind.Absolute, out var u))
-                    return $"[{u.Host}]";
-                return "";
-            });
-
-            // Clean up trailing whitespace per line and collapse excessive blank lines
-            var lines = raw.Split('\n').Select(l => Regex.Replace(l, @"[ \t]+", " ").Trim());
-            string cleaned = string.Join("\n", lines);
-            cleaned = Regex.Replace(cleaned, @"\n{3,}", "\n\n").Trim();
-            return cleaned;
+            return CleanEmailTextArtifacts(raw);
         }
 
         private static string CleanPlainTextFallback(string? plain)
@@ -10223,7 +11019,7 @@ namespace Funkenwerk
             {
                 s = System.Net.WebUtility.HtmlDecode(System.Net.WebUtility.HtmlDecode(s));
             }
-            return s.Trim();
+            return CleanEmailTextArtifacts(s);
         }
 
         private static string StripHtml(string? html)
@@ -10235,50 +11031,139 @@ namespace Funkenwerk
             s = Regex.Replace(s, @"<(head|style|script|xml|title|noscript|svg)\b[^>]*>.*?</\1>", "", RegexOptions.Singleline | RegexOptions.IgnoreCase);
             s = Regex.Replace(s, @"<!--.*?-->", "", RegexOptions.Singleline);
 
-            // 2. Strip hidden mobile spans (non-backtracking)
-            if (s.Contains("font-size", StringComparison.OrdinalIgnoreCase) || s.Contains("display", StringComparison.OrdinalIgnoreCase))
-            {
-                s = Regex.Replace(s, @"<span\b[^>]*font-size\s*:\s*0[^>]*>.*?</span>", "", RegexOptions.Singleline | RegexOptions.IgnoreCase);
-            }
+            // 2. Strip hidden mobile preheaders / spans
+            s = Regex.Replace(s, @"<([a-z0-9]+)\b[^>]*style\s*=\s*[""'][^""']*(?:display\s*:\s*none|visibility\s*:\s*hidden|font-size\s*:\s*0(?:px|pt|em|rem|%)?|line-height\s*:\s*0(?:px|pt|em|rem|%)?|max-height\s*:\s*0(?:px)?|mso-hide\s*:\s*all)[^""']*[""'][^>]*>.*?</\1>", "", RegexOptions.Singleline | RegexOptions.IgnoreCase);
 
-            // 3. Convert structural HTML tags into readable line & paragraph breaks
+            // 3. CRITICAL: Collapse all raw HTML source-code newlines & tabs into spaces first (HTML whitespace rule!)
+            s = Regex.Replace(s, @"[\r\n\t]+", " ");
+
+            // 4. CRITICAL: Format multi-column data table rows (<tr>...</tr> without nested <table) onto single horizontal lines
+            s = Regex.Replace(s, @"<tr\b[^>]*>((?:(?!<table\b).)*?)</tr>", m =>
+            {
+                string rowInner = m.Groups[1].Value;
+                var cellMatches = Regex.Matches(rowInner, @"<(?:td|th)\b[^>]*>(.*?)</(?:td|th)>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+                if (cellMatches.Count < 2)
+                    return m.Value;
+
+                var cells = new List<string>();
+                foreach (Match cm in cellMatches)
+                {
+                    string c = cm.Groups[1].Value;
+                    c = Regex.Replace(c, @"<br\s*/?>", " · ", RegexOptions.IgnoreCase);
+                    c = Regex.Replace(c, @"</(?:p|div|li|h[1-6])>", " · ", RegexOptions.IgnoreCase);
+                    c = Regex.Replace(c, @"<[^>]+>", "");
+                    if (c.IndexOf('&') >= 0)
+                    {
+                        c = System.Net.WebUtility.HtmlDecode(System.Net.WebUtility.HtmlDecode(c));
+                    }
+                    c = Regex.Replace(c, @"[\u200B-\u200D\uFEFF\u00AD\u034F\u2060]+", "");
+                    c = c.Replace("\u00A0", " ");
+                    c = Regex.Replace(c, @"\s+", " ");
+                    c = Regex.Replace(c, @"(?:\s*·\s*)+", " · ").Trim(' ', '\t', '·');
+                    if (!string.IsNullOrWhiteSpace(c))
+                    {
+                        cells.Add(c);
+                    }
+                }
+
+                if (cells.Count == 0) return "";
+                var sbRow = new StringBuilder(cells[0]);
+                for (int i = 1; i < cells.Count; i++)
+                {
+                    string prev = sbRow.ToString();
+                    string sep = prev.EndsWith(":", StringComparison.Ordinal) ? " " : "  ·  ";
+                    sbRow.Append(sep).Append(cells[i]);
+                }
+                return "\n" + sbRow.ToString() + "\n";
+            }, RegexOptions.Singleline | RegexOptions.IgnoreCase);
+
+            // 5. Convert structural HTML tags into readable line & paragraph breaks
             s = Regex.Replace(s, @"<br\s*/?>", "\n", RegexOptions.IgnoreCase);
             s = Regex.Replace(s, @"<hr\s*/?>", "\n────────────────────────\n", RegexOptions.IgnoreCase);
             s = Regex.Replace(s, @"<li(?:\s[^>]*)?>", "\n  • ", RegexOptions.IgnoreCase);
             s = Regex.Replace(s, @"</li>", "\n", RegexOptions.IgnoreCase);
-
-            // Both opening and closing block tags ensure adjacent paragraphs/rows never merge into Fließtext
-            s = Regex.Replace(s, @"</(td|th)>\s*<(td|th)(?:\s[^>]*)?>", "  ·  ", RegexOptions.IgnoreCase);
             s = Regex.Replace(s, @"</?(p|div|tr|h[1-6]|table|blockquote|section|article|header|footer)(?:\s[^>]*)?>", "\n\n", RegexOptions.IgnoreCase);
             s = Regex.Replace(s, @"</(td|th)>", "  ", RegexOptions.IgnoreCase);
 
-            // 4. Strip remaining inline tags
+            // 6. Strip remaining inline tags
             s = Regex.Replace(s, @"<[^>]+>", "");
 
-            // 5. Decode HTML entities twice to handle double-encoded entities like &amp;auml;
+            // 7. Decode HTML entities twice to handle double-encoded entities like &amp;auml;
             if (s.IndexOf('&') >= 0)
             {
                 s = System.Net.WebUtility.HtmlDecode(System.Net.WebUtility.HtmlDecode(s));
             }
-            s = Regex.Replace(s, @"[\u200B-\u200D\uFEFF\u00AD\u034F\u2060]+", "");
-            s = s.Replace("\u00A0", " ");
 
-            var lines = s.Replace("\r\n", "\n").Replace("\r", "\n")
-                .Split('\n')
-                .Select(l => Regex.Replace(l, @"[ \t]+", " ").Trim());
-            string joined = string.Join("\n", lines);
-            return Regex.Replace(joined, @"\n{3,}", "\n\n").Trim();
+            return CleanEmailTextArtifacts(s);
+        }
+
+        private static string CleanEmailTextArtifacts(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return "";
+            string s = text.Replace("\r\n", "\n").Replace("\r", "\n");
+            s = Regex.Replace(s, @"[\u200B-\u200D\uFEFF\u00AD\u034F\u2060]+", "");
+            s = s.Replace("&zwnj;", "").Replace("&nbsp;", " ").Replace("\u00A0", " ");
+
+            // Strip inline parenthesized tracking/login URLs right after text: e.g. "im mStudio einloggen ( https://... )."
+            s = Regex.Replace(s, @"[ \t]*\(\s*https?://[^\s)]+\s*\)", "", RegexOptions.IgnoreCase);
+
+            // Shorten overly long tracking URLs in angle brackets <https://...>
+            s = Regex.Replace(s, @"<(https?://[^>]{65,})>", m =>
+            {
+                if (Uri.TryCreate(m.Groups[1].Value, UriKind.Absolute, out var u))
+                    return $"[{u.Host}]";
+                return "";
+            });
+
+            // Strip markdown bold *Heading* markers
+            s = Regex.Replace(s, @"(?<!\w)\*([^*\n]{2,120})\*(?!\w)", "$1");
+
+            var rawLines = s.Split('\n');
+            var cleanLines = new List<string>(rawLines.Length);
+            foreach (var rawLine in rawLines)
+            {
+                string line = Regex.Replace(rawLine, @"[ \t]+", " ").Trim();
+
+                // Skip pure tracking/social link lines like "( https://... )" or "[https://...]"
+                if (Regex.IsMatch(line, @"^[\(\[<]?\s*https?://\S+\s*[\)\]>]?$", RegexOptions.IgnoreCase))
+                    continue;
+
+                // Skip newsletter header boilerplate lines ("Im Browser anzeigen", "mittwald-Logo", etc.)
+                if (Regex.IsMatch(line, @"^(?:Im Browser anzeigen|Webversion|Online-Version|Newsletter im Browser|[\w\-]+-Logo)$", RegexOptions.IgnoreCase))
+                    continue;
+
+                // Skip ASCII dashed separator lines "---..."
+                if (Regex.IsMatch(line, @"^[-=_]{5,}$"))
+                    continue;
+
+                // Clean empty markdown bullet placeholders "* -"
+                if (line == "* -" || line == "• -" || line == "*")
+                    continue;
+
+                if (line.StartsWith("* ", StringComparison.Ordinal))
+                    line = "• " + line.Substring(2);
+
+                // Clean leading/trailing orphaned middots
+                line = line.Trim(' ', '\t', '·');
+                cleanLines.Add(line);
+            }
+
+            string joined = string.Join("\n", cleanLines);
+            joined = Regex.Replace(joined, @"\n{3,}", "\n\n").Trim();
+            return RepairCorruptedGermanText(joined);
         }
 
         private static string GetPlainSnippet(MailMessageDto m)
         {
             if (m.CachedSnippet != null) return m.CachedSnippet;
 
-            string src = !string.IsNullOrWhiteSpace(m.BodyPlain)
-                ? (m.BodyPlain.Length > 320 ? m.BodyPlain.Substring(0, 320) : m.BodyPlain)
-                : FormatCleanEmailBody(m.BodyPlain, m.BodyHtml);
+            if (string.IsNullOrEmpty(m.CachedCleanBody))
+            {
+                m.CachedCleanBody = FormatCleanEmailBody(m.BodyPlain, m.BodyHtml);
+            }
+            string src = m.CachedCleanBody;
 
-            if (src == "(Kein Textinhalt in dieser E-Mail)")
+            if (string.IsNullOrWhiteSpace(src) || src == "(Kein Textinhalt in dieser E-Mail)")
             {
                 m.CachedSnippet = "";
                 return "";
@@ -10347,6 +11232,13 @@ namespace Funkenwerk
 
         private async void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (_isMusicVenomFocusActive && e.Key == Key.Escape)
+            {
+                e.Handled = true;
+                ExitMusicVenomFocusMode_Click(this, new RoutedEventArgs());
+                return;
+            }
+
             // 1. E-Mail Keyboard Shortcuts: ENTF (Delete -> Papierkorb) & Arrow Up/Down (step through emails instead of scrollbar)
             if (_activeSpace == "mail" && MailViewGrid != null && MailViewGrid.Visibility == Visibility.Visible)
             {

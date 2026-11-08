@@ -85,35 +85,21 @@ class MailAiSortService
     }
 
     /**
-     * Automatically permanently deletes Trash ("Papierkorb") emails older than 30 days.
+     * Never deletes emails: moves any Trash ("Papierkorb") emails safely into Archive ("Archiv").
      */
     public function purgeExpiredTrashMessages(): int
     {
-        $cutoff = now()->subDays(30);
-        $expired = MailMessage::where('folder', 'Trash')
-            ->where(function ($q) use ($cutoff) {
-                $q->where('received_at', '<', $cutoff)
-                  ->orWhere(function ($q2) use ($cutoff) {
-                      $q2->whereNull('received_at')->where('updated_at', '<', $cutoff);
-                  });
-            })
-            ->get();
-
-        $deletedCount = 0;
-        $idsToRemember = [];
-        foreach ($expired as $msg) {
-            if (!empty($msg->message_id)) {
-                $idsToRemember[] = (string) $msg->message_id;
-            }
-            $msg->delete();
-            $deletedCount++;
+        $trashed = MailMessage::where('folder', 'Trash')->get();
+        $archivedCount = 0;
+        foreach ($trashed as $msg) {
+            $msg->update([
+                'folder' => 'Archive',
+                'is_archived' => true,
+            ]);
+            $archivedCount++;
         }
 
-        if (!empty($idsToRemember)) {
-            self::rememberDeletedMessageIds($idsToRemember);
-        }
-
-        return $deletedCount;
+        return $archivedCount;
     }
 
     public function sortAllMailsAndSubfolders(): array
@@ -140,26 +126,8 @@ class MailAiSortService
             $ltl->delete();
         }
 
-        // Step 2: Deduplicate messages per account
+        // Step 2: Load all accounts (zero email deletion policy — never delete messages)
         $allAccounts = MailAccount::all()->keyBy('id');
-        foreach ($allAccounts as $acc) {
-            $msgs = MailMessage::where('mail_account_id', $acc->id)->orderBy('id', 'asc')->get();
-            $seenExact = [];
-            foreach ($msgs as $m) {
-                $normFrom = strtolower(trim((string) $m->from_email));
-                $normSubj = preg_replace('/\s+/u', ' ', trim((string) $m->subject));
-                $normBody = md5(preg_replace('/\s+/u', ' ', trim(strip_tags((string) ($m->body_plain ?: $m->body_html)))));
-                $dayStr = $m->received_at ? $m->received_at->format('Y-m-d') : '';
-
-                $key = "{$normFrom}|{$normSubj}|{$normBody}|{$dayStr}";
-                if (isset($seenExact[$key])) {
-                    $m->delete();
-                    $dedupedCount++;
-                } else {
-                    $seenExact[$key] = $m->id;
-                }
-            }
-        }
 
         // Step 3: Dissolve all legacy AI subfolders in MailFolder
         MailFolder::whereIn('name', self::LEGACY_AI_FOLDERS)->delete();
@@ -172,7 +140,8 @@ class MailAiSortService
         foreach ($allMessages as $msg) {
             $from = strtolower(trim((string) $msg->from_email));
             $fromName = strtolower(trim((string) $msg->from_name));
-            $subj = preg_replace('/\s+/u', ' ', trim((string) $msg->subject));
+            $subj = \App\Console\Commands\FetchMailsCommand::repairCorruptedSubjectIcons((string) $msg->subject);
+            $subj = preg_replace('/\s+/u', ' ', trim($subj));
             $subjLower = mb_strtolower($subj);
             $bodyPlain = strip_tags((string) ($msg->body_plain ?: $msg->body_html));
             $bodyLower = mb_strtolower($bodyPlain);
@@ -193,11 +162,6 @@ class MailAiSortService
 
             $existingTags = is_array($msg->tags) ? $msg->tags : [];
             $isAlreadyResolved = !empty($existingTags['resolved']);
-
-            // Keep manually deleted messages in Trash (only rescue previous AI-trashed 'Unwichtig' messages into Archive)
-            if ($msg->folder === 'Trash' && ($from === 'alina.stone@t-online.de' || ($existingTags['importance'] ?? '') !== 'Unwichtig')) {
-                continue;
-            }
 
             [$importance, $category, $actionHint] = $this->classifyFunnelMessage(
                 $msg,

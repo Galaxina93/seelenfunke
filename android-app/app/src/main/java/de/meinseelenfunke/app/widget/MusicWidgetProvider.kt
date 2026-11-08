@@ -66,6 +66,7 @@ class MusicWidgetProvider : AppWidgetProvider() {
             for (id in appWidgetIds) {
                 updateAppWidget(context, appWidgetManager, id)
             }
+            MasterWidgetProvider.updateAllWidgets(context)
         }
 
         fun updateAppWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {

@@ -15,6 +15,7 @@ import com.google.gson.reflect.TypeToken
 import de.meinseelenfunke.app.MainActivity
 import de.meinseelenfunke.app.R
 import de.meinseelenfunke.app.data.api.CalendarEvent
+import de.meinseelenfunke.app.di.ServiceLocator
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlinx.coroutines.CoroutineScope
@@ -27,26 +28,32 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
         for (appWidgetId in appWidgetIds) {
             updateAppWidget(context, appWidgetManager, appWidgetId)
         }
+        triggerBackgroundSync(context)
         super.onUpdate(context, appWidgetManager, appWidgetIds)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        var offset = sharedPrefs.getInt(KEY_MONTH_OFFSET, 0)
+        val appContext = context.applicationContext
+        val sharedPrefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val offset = sharedPrefs.getInt(KEY_MONTH_OFFSET, 0)
 
         when (intent.action) {
             ACTION_PREV_MONTH -> {
                 sharedPrefs.edit().putInt(KEY_MONTH_OFFSET, offset - 1).apply()
-                triggerUpdate(context)
+                triggerUpdate(appContext)
             }
             ACTION_NEXT_MONTH -> {
                 sharedPrefs.edit().putInt(KEY_MONTH_OFFSET, offset + 1).apply()
-                triggerUpdate(context)
+                triggerUpdate(appContext)
             }
             ACTION_RESET_MONTH -> {
-                sharedPrefs.edit().putInt(KEY_MONTH_OFFSET, 0).apply()
-                triggerUpdate(context)
+                val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                sharedPrefs.edit()
+                    .putInt(KEY_MONTH_OFFSET, 0)
+                    .putString(KEY_SELECTED_DAY, todayStr)
+                    .apply()
+                triggerUpdate(appContext)
             }
             ACTION_SELECT_DAY -> {
                 val selectedDay = intent.getStringExtra("selected_date")
@@ -55,28 +62,47 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
                         .putString(KEY_VIEW_MODE, "month")
                         .putString(KEY_SELECTED_DAY, selectedDay)
                         .apply()
-                    triggerUpdate(context)
+                    triggerUpdate(appContext)
                 }
             }
             ACTION_SHOW_MONTH -> {
                 sharedPrefs.edit()
                     .putString(KEY_VIEW_MODE, "month")
                     .apply()
-                triggerUpdate(context)
+                triggerUpdate(appContext)
             }
-
+            ACTION_REFRESH -> {
+                triggerUpdate(appContext)
+                triggerBackgroundSync(appContext)
+            }
             AppWidgetManager.ACTION_APPWIDGET_UPDATE -> {
-                triggerUpdate(context)
+                triggerUpdate(appContext)
+            }
+        }
+    }
+
+    private fun triggerBackgroundSync(context: Context) {
+        val appContext = context.applicationContext
+        val pendingResult = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                ServiceLocator.organizerRepository.getCalendarEvents()
+                ServiceLocator.organizerRepository.triggerCalendarWidgetUpdate(appContext)
+            } catch (e: Exception) {
+                Log.e("CalendarMonthWidget", "Background sync failed", e)
+            } finally {
+                pendingResult.finish()
             }
         }
     }
 
     private fun triggerUpdate(context: Context) {
-        val appWidgetManager = AppWidgetManager.getInstance(context)
-        val componentName = ComponentName(context, CalendarMonthWidgetProvider::class.java)
+        val appContext = context.applicationContext
+        val appWidgetManager = AppWidgetManager.getInstance(appContext)
+        val componentName = ComponentName(appContext, CalendarMonthWidgetProvider::class.java)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
         for (appWidgetId in appWidgetIds) {
-            updateAppWidget(context, appWidgetManager, appWidgetId)
+            updateAppWidget(appContext, appWidgetManager, appWidgetId)
         }
     }
 
@@ -86,6 +112,7 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
         const val ACTION_RESET_MONTH = "de.meinseelenfunke.app.widget.ACTION_RESET_MONTH"
         const val ACTION_SELECT_DAY = "de.meinseelenfunke.app.widget.ACTION_SELECT_DAY"
         const val ACTION_SHOW_MONTH = "de.meinseelenfunke.app.widget.ACTION_SHOW_MONTH"
+        const val ACTION_REFRESH = "de.meinseelenfunke.app.widget.ACTION_MONTH_REFRESH"
 
         private const val PREFS_NAME = "calendar_widget_prefs"
         private const val KEY_MONTH_OFFSET = "calendar_month_offset"
@@ -100,17 +127,17 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
 
         private fun parseEventDate(dateStr: String): Date? {
             if (dateStr.isBlank()) return null
-            try {
+            return try {
                 if (dateStr.contains("T")) {
-                    return try {
+                    try {
                         val odt = java.time.OffsetDateTime.parse(dateStr)
                         Date(odt.toInstant().toEpochMilli())
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
                         try {
                             val ldt = java.time.LocalDateTime.parse(dateStr)
                             val zdt = ldt.atZone(java.time.ZoneId.systemDefault())
                             Date(zdt.toInstant().toEpochMilli())
-                        } catch (e2: Exception) {
+                        } catch (_: Exception) {
                             val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply {
                                 timeZone = TimeZone.getTimeZone("UTC")
                             }
@@ -118,10 +145,10 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
                         }
                     }
                 } else {
-                    return SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(dateStr)
+                    SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(dateStr)
                 }
-            } catch (e: Exception) {
-                return null
+            } catch (_: Exception) {
+                null
             }
         }
 
@@ -135,9 +162,6 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
                 val startD = parseEventDate(event.start) ?: return@filter false
                 val endD = if (!event.end.isNullOrBlank()) parseEventDate(event.end) else startD
                 if (endD == null) return@filter false
-
-                val startCal = Calendar.getInstance().apply { time = startD }
-                val endCal = Calendar.getInstance().apply { time = endD }
 
                 val checkCal = Calendar.getInstance().apply {
                     set(year, month, day, 12, 0, 0)
@@ -180,7 +204,7 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
 
         private fun getCategoryColor(category: String?): Int {
             return when (category?.lowercase(Locale.ROOT)) {
-                "restmuell" -> 0xFFF3F4F6.toInt()
+                "restmuell" -> 0xFF94A3B8.toInt()
                 "altpapier" -> 0xFF60A5FA.toInt()
                 "biomuell" -> 0xFFF59E0B.toInt()
                 "gelber_sack" -> 0xFFFBBF24.toInt()
@@ -195,22 +219,22 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
                 "travel" -> 0xFFFBBF24.toInt()
                 "project" -> 0xFFC5A059.toInt()
                 "customer" -> 0xFF10B981.toInt()
-                else -> 0xFF9CA3AF.toInt()
+                else -> 0xFFC5A059.toInt()
             }
         }
 
         fun updateAppWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
-            val views = RemoteViews(context.packageName, R.layout.widget_month_layout)
+            val appContext = context.applicationContext
+            val views = RemoteViews(appContext.packageName, R.layout.widget_month_layout)
 
-            // Read SharedPreferences values
-            val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val sharedPrefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val offset = sharedPrefs.getInt(KEY_MONTH_OFFSET, 0)
             val json = sharedPrefs.getString(CACHE_KEY, null)
             val eventsList: List<CalendarEvent> = if (json != null) {
                 try {
                     val type = object : TypeToken<List<CalendarEvent>>() {}.type
                     Gson().fromJson(json, type)
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     emptyList()
                 }
             } else {
@@ -219,61 +243,99 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
 
             val selectedDayStr = sharedPrefs.getString(KEY_SELECTED_DAY, "") ?: ""
 
-            // Calculate display date
             val cal = Calendar.getInstance()
             cal.add(Calendar.MONTH, offset)
             val displayMonth = cal.get(Calendar.MONTH)
             val displayYear = cal.get(Calendar.YEAR)
 
-            // Set Header Text
             views.setTextViewText(R.id.txt_month_title, "${monthNames[displayMonth]} $displayYear")
 
-            // Bind Header Click (Reset to current month)
-            val resetIntent = Intent(context, CalendarMonthWidgetProvider::class.java).apply {
+            // Bind Logo Click -> Open App in Calendar Tab
+            val openAppIntent = Intent(appContext, MainActivity::class.java).apply {
+                putExtra("open_tab", 2)
+                putExtra("open_subtab", 1)
+                data = Uri.parse("funkenwerk://calendar_month/open_app/$appWidgetId")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val pendingOpenApp = PendingIntent.getActivity(
+                appContext,
+                appWidgetId * 100 + 100,
+                openAppIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.month_widget_logo, pendingOpenApp)
+
+            // Bind Header Title Click -> Reset to current month & today
+            val resetIntent = Intent(appContext, CalendarMonthWidgetProvider::class.java).apply {
                 action = ACTION_RESET_MONTH
+                data = Uri.parse("funkenwerk://calendar_month/reset/$appWidgetId")
             }
             val pendingReset = PendingIntent.getBroadcast(
-                context, appWidgetId * 10 + 101, resetIntent,
+                appContext,
+                appWidgetId * 100 + 101,
+                resetIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             views.setOnClickPendingIntent(R.id.txt_month_title, pendingReset)
 
             // Bind Navigation Chevrons
-            val prevIntent = Intent(context, CalendarMonthWidgetProvider::class.java).apply {
+            val prevIntent = Intent(appContext, CalendarMonthWidgetProvider::class.java).apply {
                 action = ACTION_PREV_MONTH
+                data = Uri.parse("funkenwerk://calendar_month/prev/$appWidgetId")
             }
             val pendingPrev = PendingIntent.getBroadcast(
-                context, appWidgetId * 10 + 102, prevIntent,
+                appContext,
+                appWidgetId * 100 + 102,
+                prevIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             views.setOnClickPendingIntent(R.id.btn_prev_month, pendingPrev)
 
-            val nextIntent = Intent(context, CalendarMonthWidgetProvider::class.java).apply {
+            val nextIntent = Intent(appContext, CalendarMonthWidgetProvider::class.java).apply {
                 action = ACTION_NEXT_MONTH
+                data = Uri.parse("funkenwerk://calendar_month/next/$appWidgetId")
             }
             val pendingNext = PendingIntent.getBroadcast(
-                context, appWidgetId * 10 + 103, nextIntent,
+                appContext,
+                appWidgetId * 100 + 103,
+                nextIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             views.setOnClickPendingIntent(R.id.btn_next_month, pendingNext)
 
-            // Bind Add Event Click ("+" button opens app directly to create event)
+            // Bind Refresh Button
+            val refreshIntent = Intent(appContext, CalendarMonthWidgetProvider::class.java).apply {
+                action = ACTION_REFRESH
+                data = Uri.parse("funkenwerk://calendar_month/refresh/$appWidgetId")
+            }
+            val pendingRefresh = PendingIntent.getBroadcast(
+                appContext,
+                appWidgetId * 100 + 105,
+                refreshIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.btn_month_refresh, pendingRefresh)
+
+            // Bind Add Event Click ("+" button opens app directly to create event on selected date)
             val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
             val targetDateStr = if (selectedDayStr.isNotEmpty()) selectedDayStr else todayStr
-            val addEventIntent = Intent(context, MainActivity::class.java).apply {
+            val addEventIntent = Intent(appContext, MainActivity::class.java).apply {
                 putExtra("open_tab", 2)
                 putExtra("open_subtab", 1)
                 putExtra("create_event", true)
                 putExtra("selected_date", targetDateStr)
+                data = Uri.parse("funkenwerk://calendar_month/add_event/$appWidgetId/$targetDateStr")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
             val pendingAddEvent = PendingIntent.getActivity(
-                context, appWidgetId * 10 + 104, addEventIntent,
+                appContext,
+                appWidgetId * 100 + 104,
+                addEventIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             views.setOnClickPendingIntent(R.id.btn_add_event, pendingAddEvent)
 
-            // 1. Render Month Grid
-            // Calculate grid dates (Monday-start)
+            // 1. Render Month Grid (Monday-start)
             val gridCal = Calendar.getInstance().apply {
                 set(Calendar.YEAR, displayYear)
                 set(Calendar.MONTH, displayMonth)
@@ -295,10 +357,9 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
             val today = Calendar.getInstance()
             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
 
-            // Selected date parsing
             val displayDate = try {
                 if (selectedDayStr.isNotEmpty()) sdf.parse(selectedDayStr) else Date()
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 Date()
             }
 
@@ -306,7 +367,6 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
                 if (displayDate != null) time = displayDate
             }
 
-            // Bind cells
             for (row in 0 until 6) {
                 for (col in 0 until 7) {
                     val cellDate = gridCal.time
@@ -323,32 +383,28 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
                             cellMonth == selectedCal.get(Calendar.MONTH) &&
                             cellDay == selectedCal.get(Calendar.DAY_OF_MONTH))
 
-                    // Find View IDs
-                    val cellId = context.resources.getIdentifier("cell_${row}_${col}", "id", context.packageName)
-                    val textId = context.resources.getIdentifier("cell_text_${row}_${col}", "id", context.packageName)
-                    val dotId = context.resources.getIdentifier("cell_dot_${row}_${col}", "id", context.packageName)
+                    val cellId = appContext.resources.getIdentifier("cell_${row}_${col}", "id", appContext.packageName)
+                    val textId = appContext.resources.getIdentifier("cell_text_${row}_${col}", "id", appContext.packageName)
+                    val dotId = appContext.resources.getIdentifier("cell_dot_${row}_${col}", "id", appContext.packageName)
 
                     if (cellId != 0 && textId != 0 && dotId != 0) {
-                        // Set text
                         views.setTextViewText(textId, cellDay.toString())
 
-                        // Set Today / Selection Highlight / Month Text Color
                         if (isToday) {
                             views.setInt(textId, "setBackgroundResource", R.drawable.today_circle)
-                            views.setTextColor(textId, 0xFF020617.toInt()) // Black text on Gold background
+                            views.setTextColor(textId, 0xFF020617.toInt())
                         } else if (isSelected) {
                             views.setInt(textId, "setBackgroundResource", R.drawable.selected_circle)
-                            views.setTextColor(textId, 0xFF020617.toInt()) // Black text on White background
+                            views.setTextColor(textId, 0xFF020617.toInt())
                         } else {
-                            views.setInt(textId, "setBackgroundResource", 0) // Clear background
+                            views.setInt(textId, "setBackgroundResource", 0)
                             if (isCurrentMonth) {
-                                views.setTextColor(textId, 0xFFF8FAFC.toInt()) // Bright white
+                                views.setTextColor(textId, 0xFFF8FAFC.toInt())
                             } else {
-                                views.setTextColor(textId, 0xFF64748B.toInt()) // Dimmed slate
+                                views.setTextColor(textId, 0xFF475569.toInt())
                             }
                         }
 
-                        // Check for events to show dot
                         val dayEvents = getEventsForDay(cellDate, eventsList)
                         if (dayEvents.isNotEmpty()) {
                             views.setViewVisibility(dotId, View.VISIBLE)
@@ -356,21 +412,22 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
                             views.setViewVisibility(dotId, View.INVISIBLE)
                         }
 
-                        // Attach Day Click Intent
                         val dateString = sdf.format(cellDate)
-                        val cellClickIntent = Intent(context, CalendarMonthWidgetProvider::class.java).apply {
+                        val cellClickIntent = Intent(appContext, CalendarMonthWidgetProvider::class.java).apply {
                             action = ACTION_SELECT_DAY
                             putExtra("selected_date", dateString)
+                            data = Uri.parse("funkenwerk://calendar_month/day/$appWidgetId/$dateString")
                         }
                         val cellRequestCode = appWidgetId * 10000 + row * 100 + col + 5000
                         val pendingCellClick = PendingIntent.getBroadcast(
-                            context, cellRequestCode, cellClickIntent,
+                            appContext,
+                            cellRequestCode,
+                            cellClickIntent,
                             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                         )
                         views.setOnClickPendingIntent(cellId, pendingCellClick)
                     }
 
-                    // Move to next day
                     gridCal.add(Calendar.DAY_OF_MONTH, 1)
                 }
             }
@@ -379,15 +436,19 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
             val displayTitleStr = displayDate?.let {
                 SimpleDateFormat("d. MMMM yyyy", Locale.GERMANY).format(it)
             } ?: ""
-            views.setTextViewText(R.id.txt_day_title, "Termine am $displayTitleStr")
-
             val dayEvents = displayDate?.let { getEventsForDay(it, eventsList) } ?: emptyList()
+            views.setTextViewText(
+                R.id.txt_day_title,
+                if (dayEvents.isNotEmpty()) "TERMINE AM ${displayTitleStr.uppercase(Locale.GERMANY)} (${dayEvents.size})"
+                else "TERMINE AM ${displayTitleStr.uppercase(Locale.GERMANY)}"
+            )
+
             val maxRows = 4
             for (i in 0 until maxRows) {
-                val rowId = context.resources.getIdentifier("widget_event_row_$i", "id", context.packageName)
-                val colorId = context.resources.getIdentifier("widget_event_color_$i", "id", context.packageName)
-                val titleId = context.resources.getIdentifier("widget_event_title_$i", "id", context.packageName)
-                val timeId = context.resources.getIdentifier("widget_event_time_$i", "id", context.packageName)
+                val rowId = appContext.resources.getIdentifier("widget_event_row_$i", "id", appContext.packageName)
+                val colorId = appContext.resources.getIdentifier("widget_event_color_$i", "id", appContext.packageName)
+                val titleId = appContext.resources.getIdentifier("widget_event_title_$i", "id", appContext.packageName)
+                val timeId = appContext.resources.getIdentifier("widget_event_time_$i", "id", appContext.packageName)
 
                 if (rowId != 0) {
                     if (i < dayEvents.size) {
@@ -404,14 +465,17 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
                             views.setInt(colorId, "setBackgroundColor", getCategoryColor(event.category))
                         }
 
-                        // Tapping a specific event row opens the app to that selected date
-                        val rowClickIntent = Intent(context, MainActivity::class.java).apply {
+                        val rowClickIntent = Intent(appContext, MainActivity::class.java).apply {
                             putExtra("open_tab", 2)
                             putExtra("open_subtab", 1)
                             putExtra("selected_date", targetDateStr)
+                            data = Uri.parse("funkenwerk://calendar_month/event/$appWidgetId/$i/$targetDateStr")
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                         }
                         val pendingRowClick = PendingIntent.getActivity(
-                            context, appWidgetId * 10000 + i + 200, rowClickIntent,
+                            appContext,
+                            appWidgetId * 10000 + i + 200,
+                            rowClickIntent,
                             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                         )
                         views.setOnClickPendingIntent(rowId, pendingRowClick)

@@ -1,6 +1,21 @@
 <div class="w-full"
-     @scroll-to-config.window="document.getElementById('configurator-start')?.scrollIntoView({ behavior: 'smooth', block: 'start' })"
-     @scroll-to-config-stage.window="setTimeout(() => { const el = document.getElementById('configurator-workspace-box') || document.getElementById('configurator-start'); if (el) { const y = el.getBoundingClientRect().top + window.pageYOffset - 76; window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' }); } }, 60)">
+     x-data="{
+        scrollToConfigStage() {
+            const doScroll = () => {
+                const el = document.getElementById('configurator-workspace-box') || document.getElementById('configurator-start');
+                if (el) {
+                    const navEl = document.getElementById('navbar');
+                    const navOffset = navEl ? (navEl.offsetHeight + 12) : 84;
+                    const y = el.getBoundingClientRect().top + window.scrollY - navOffset;
+                    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+                }
+            };
+            setTimeout(doScroll, 40);
+            setTimeout(doScroll, 220);
+        }
+     }"
+     @scroll-to-config.window="scrollToConfigStage()"
+     @scroll-to-config-stage.window="scrollToConfigStage()">
 
     <div id="configurator-start" class="lg:sticky lg:top-24 w-full scroll-mt-24">
         <div class="flex items-start justify-between gap-4 mb-4">
@@ -302,7 +317,7 @@
                     <div class="flex-1 px-3 py-4 sm:p-6 bg-gray-50/50">
                         <div class="flex items-center justify-between mb-4 sm:mb-6">
                             <h2 class="text-xl font-serif font-bold text-gray-900">Design Vorlagen</h2>
-                            <button type="button" x-on:click="$wire.$set('showTemplatesList', false); $wire.$set('showTemplateSelection', true)" class="text-xs font-bold text-gray-500 hover:text-gray-900 flex items-center gap-1">
+                            <button type="button" x-on:click="$wire.$set('showTemplatesList', false); $wire.$set('showTemplateSelection', true); scrollToConfigStage()" class="text-xs font-bold text-gray-500 hover:text-gray-900 flex items-center gap-1 cursor-pointer">
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
                                 Zurück
                             </button>
@@ -324,7 +339,7 @@
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             @foreach($productTemplates as $tpl)
-                                <div wire:click="selectTemplate('{{ $tpl['id'] }}')" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg hover:border-[var(--theme-color)] transition-all cursor-pointer group">
+                                <div wire:click="selectTemplate('{{ $tpl['id'] }}')" @click="scrollToConfigStage()" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg hover:border-[var(--theme-color)] transition-all cursor-pointer group">
                                     <div class="aspect-square w-full bg-gray-100 relative overflow-hidden flex items-center justify-center">
                                         @if(!empty($tpl['preview_image']))
                                             <img src="{{ \App\Models\Product\ProductTemplate::resolveImageUrl($tpl['preview_image']) }}"

@@ -821,13 +821,13 @@
                                         <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
                                         <TextBlock Text="👤 Kontakt speichern" FontSize="12" FontWeight="SemiBold"/>
                                     </Button>
-                                    <Button x:Name="SpamActionBtn" Click="SpamMail_Click" Background="#2A1E17" Foreground="#F59E0B" BorderThickness="0" Padding="10,6" Margin="0,0,6,0" Cursor="Hand" ToolTip="Absender dauerhaft auf Spam-Abo-Regel setzen &amp; Spam löschen">
+                                    <Button x:Name="SpamActionBtn" Click="SpamMail_Click" Background="#2A1E17" Foreground="#F59E0B" BorderThickness="0" Padding="10,6" Margin="0,0,6,0" Cursor="Hand" ToolTip="Absender auf Spam-Regel setzen &amp; in Spam verschieben (keine Löschung)">
                                         <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
-                                        <TextBlock x:Name="SpamActionBtnTxt" Text="🛡 Spam (Regel + Löschen)" FontSize="12" FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="SpamActionBtnTxt" Text="🛡 Spam" FontSize="12" FontWeight="SemiBold"/>
                                     </Button>
-                                    <Button Click="DeleteMail_Click" Background="#2D161B" Foreground="#F87171" BorderThickness="0" Padding="10,6" Cursor="Hand">
+                                    <Button Click="DeleteMail_Click" Visibility="Collapsed" Background="#2D161B" Foreground="#F87171" BorderThickness="0" Padding="10,6" Cursor="Hand">
                                         <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
-                                        <TextBlock Text="🗑 Papierkorb" FontSize="12" FontWeight="SemiBold"/>
+                                        <TextBlock Text="📦 Archivieren" FontSize="12" FontWeight="SemiBold"/>
                                     </Button>
                                 </WrapPanel>
                             </Border>
@@ -1704,9 +1704,19 @@
                                 </Grid>
                             </Border>
 
-                            <!-- Track Title & Artist -->
-                            <TextBlock x:Name="MusicNowTitleTxt" Text="Kein Song ausgewählt" Foreground="#F9FAFB" FontSize="18" FontWeight="Bold" TextWrapping="Wrap" MaxHeight="52" TextTrimming="CharacterEllipsis"/>
-                            <TextBlock x:Name="MusicNowArtistTxt" Text="Wähle links einen Titel aus" Foreground="#C5A059" FontSize="13.5" FontWeight="SemiBold" Margin="0,4,0,18" TextTrimming="CharacterEllipsis"/>
+                            <!-- Track Title, Artist & Favorite Heart -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock x:Name="MusicNowTitleTxt" Text="Kein Song ausgewählt" Foreground="#F9FAFB" FontSize="18" FontWeight="Bold" TextWrapping="Wrap" MaxHeight="52" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock x:Name="MusicNowArtistTxt" Text="Wähle links einen Titel aus" Foreground="#C5A059" FontSize="13.5" FontWeight="SemiBold" Margin="0,4,0,18" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                                <Button x:Name="MusicNowPlayingFavBtn" Grid.Column="1" Click="MusicNowPlayingFav_Click" ToolTip="Als Lieblingssong markieren (synchronisiert mit Handy App)"
+                                        Background="Transparent" Foreground="#6B7280" BorderThickness="0" Padding="8,4" Margin="8,0,0,12" Cursor="Hand" FontSize="20" VerticalAlignment="Top" Content="♡"/>
+                            </Grid>
 
                             <!-- Progress Scrubber -->
                             <Slider x:Name="MusicSeekSlider" Minimum="0" Maximum="100" Value="0" Cursor="Hand"
@@ -1788,8 +1798,17 @@
                             </Border>
 
                             <!-- Offline Pre-Cache All Button -->
-                            <Button x:Name="MusicCacheAllBtn" Click="MusicCacheAllOffline_Click" Background="#1E222D" Foreground="#C5A059" BorderThickness="0" Padding="12,10" Cursor="Hand" FontSize="12" FontWeight="Bold" Content="⚡ Alle Playlist-Songs lokal auf PC cachen (Offline)">
+                            <Button x:Name="MusicCacheAllBtn" Click="MusicCacheAllOffline_Click" Background="#1E222D" Foreground="#C5A059" BorderThickness="0" Padding="12,10" Margin="0,0,0,10" Cursor="Hand" FontSize="12" FontWeight="Bold" Content="⚡ Alle Playlist-Songs lokal auf PC cachen (Offline)">
                                 <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="10"/></Style></Button.Resources>
+                            </Button>
+
+                            <!-- Venom Audio-Reactive Focus Mode Wallpaper Button -->
+                            <Button x:Name="MusicEnterFocusModeBtn" Click="EnterMusicVenomFocusMode_Click" Background="#1F090D" Foreground="#EF4444" BorderBrush="#7F1D1D" BorderThickness="1" Padding="12,11" Cursor="Hand" FontSize="12.5" FontWeight="Bold" ToolTip="Ganzes Fenster in audio-reaktive Rot-Schwarz Venom Animation verwandeln">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="10"/></Style></Button.Resources>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Ellipse Width="8" Height="8" Fill="#EF4444" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Fokus Modus" VerticalAlignment="Center"/>
+                                </StackPanel>
                             </Button>
                         </StackPanel>
                     </DockPanel>
@@ -4864,15 +4883,19 @@
                     <Border Width="34" Height="34" CornerRadius="9" Background="#26231F" Margin="0,0,10,0" Cursor="Hand" MouseLeftButtonUp="MiniPlayerOpenMusic_Click">
                         <TextBlock Text="🎵" Foreground="#C5A059" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
-                    <StackPanel VerticalAlignment="Center" Width="195" Margin="0,0,10,0" Cursor="Hand" MouseLeftButtonUp="MiniPlayerOpenMusic_Click">
+                    <StackPanel VerticalAlignment="Center" Width="175" Margin="0,0,8,0" Cursor="Hand" MouseLeftButtonUp="MiniPlayerOpenMusic_Click">
                         <TextBlock x:Name="MiniPlayerTitleTxt" Text="Songtitel" Foreground="#F9FAFB" FontSize="12.5" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
                         <TextBlock x:Name="MiniPlayerArtistTxt" Text="Künstler" Foreground="#C5A059" FontSize="11" TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
+                    <Button x:Name="MiniPlayerFavBtn" Click="MusicNowPlayingFav_Click" ToolTip="Als Lieblingssong markieren" Background="Transparent" Foreground="#6B7280" BorderThickness="0" Padding="5,4" Cursor="Hand" FontSize="15" Content="♡"/>
                     <Button Click="MusicPrev_Click" Background="Transparent" Foreground="#D1D5DB" BorderThickness="0" Padding="6,4" Cursor="Hand" FontSize="13" Content="⏮"/>
                     <Button x:Name="MiniPlayerPlayBtn" Click="MusicPlayPause_Click" Background="#C5A059" Foreground="#111827" BorderThickness="0" Width="32" Height="32" Margin="4,0" Cursor="Hand" FontSize="13" FontWeight="Bold" Content="▶">
                         <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="16"/></Style></Button.Resources>
                     </Button>
                     <Button Click="MusicNext_Click" Background="Transparent" Foreground="#D1D5DB" BorderThickness="0" Padding="6,4" Cursor="Hand" FontSize="13" Content="⏭"/>
+                    <Button Click="EnterMusicVenomFocusMode_Click" ToolTip="Fokus Modus (Venom Animation)" Background="#1F090D" Foreground="#EF4444" BorderBrush="#7F1D1D" BorderThickness="1" Padding="7,4" Margin="4,0,0,0" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="Fokus">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                    </Button>
                 </StackPanel>
             </Border>
 
@@ -5797,6 +5820,28 @@
                     </TextBlock>
                 </StackPanel>
             </Grid>
+        </Grid>
+
+        <!-- ========================================================================= -->
+        <!-- FULL-WINDOW MUSIC FOCUS MODE: RED & BLACK VENOM WALLPAPER ANIMATION       -->
+        <!-- ========================================================================= -->
+        <Grid x:Name="MusicVenomFocusOverlay" Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Grid.ColumnSpan="2"
+              Panel.ZIndex="9950" Visibility="Collapsed" Background="#000000" ClipToBounds="True"
+              MouseEnter="MusicVenomFocusOverlay_MouseEnter"
+              MouseMove="MusicVenomFocusOverlay_MouseMove"
+              MouseLeave="MusicVenomFocusOverlay_MouseLeave"
+              MouseLeftButtonDown="MusicVenomFocusOverlay_MouseLeftButtonDown">
+            <Canvas x:Name="VenomFocusCanvas" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="False"/>
+
+            <!-- Bottom-Right "Fokus beenden" Button (Only visible when mouse is inside the window) -->
+            <Button x:Name="VenomExitFocusBtn" Click="ExitMusicVenomFocusMode_Click"
+                    HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,26,22"
+                    Background="#4D0A0204" Foreground="#CCF9FAFB" BorderBrush="#55EF4444" BorderThickness="1"
+                    Padding="16,9" Cursor="Hand" FontSize="12.5" FontWeight="SemiBold" Opacity="0.62"
+                    Visibility="Collapsed">
+                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="10"/></Style></Button.Resources>
+                <TextBlock Text="Fokus beenden"/>
+            </Button>
         </Grid>
     </Grid>
 </Window>

@@ -231,6 +231,36 @@ class EditTaskWidgetActivity : ComponentActivity() {
                         subtasks = subtasks.map {
                             if (it.id == updatedSubtask.id) updatedSubtask else it
                         }
+                        ServiceLocator.organizerRepository.getTasks()
+                    }
+            }
+        }
+
+        // Delete subtask helper
+        fun handleDeleteSubtask(subtask: ManagementTask) {
+            coroutineScope.launch {
+                ServiceLocator.organizerRepository.deleteTask(subtask.id)
+                    .onSuccess {
+                        subtasks = subtasks.filter { it.id != subtask.id }
+                        ServiceLocator.organizerRepository.getTasks()
+                    }
+            }
+        }
+
+        // Delete main task helper
+        fun handleDeleteTask() {
+            isSaving = true
+            coroutineScope.launch {
+                ServiceLocator.organizerRepository.deleteTask(task.id)
+                    .onSuccess {
+                        ServiceLocator.organizerRepository.getTasks()
+                        isSaving = false
+                        Toast.makeText(context, "Aufgabe gelöscht.", Toast.LENGTH_SHORT).show()
+                        onDismiss()
+                    }
+                    .onFailure { error ->
+                        isSaving = false
+                        errorMessage = error.localizedMessage ?: "Fehler beim Löschen"
                     }
             }
         }
@@ -245,6 +275,7 @@ class EditTaskWidgetActivity : ComponentActivity() {
                         subtasks = subtasks + newSubtask
                         newSubtaskTitle = ""
                         isAddingSubtask = false
+                        ServiceLocator.organizerRepository.getTasks()
                     }
                     .onFailure { error ->
                         Toast.makeText(context, "Fehler beim Hinzufügen des Unter-Schritts.", Toast.LENGTH_SHORT).show()
@@ -266,6 +297,7 @@ class EditTaskWidgetActivity : ComponentActivity() {
                     priority = priority,
                     relevantFrom = formattedRelevantFrom
                 ).onSuccess {
+                    ServiceLocator.organizerRepository.getTasks()
                     isSaving = false
                     Toast.makeText(context, "Aufgabe aktualisiert.", Toast.LENGTH_SHORT).show()
                     onDismiss()
@@ -301,14 +333,31 @@ class EditTaskWidgetActivity : ComponentActivity() {
                         .padding(20.dp)
                         .verticalScroll(rememberScrollState())
                 ) {
-                    Text(
-                        text = "AUFGABE BEARBEITEN",
-                        color = Gold,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.1.sp,
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "AUFGABE BEARBEITEN",
+                            color = Gold,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.1.sp
+                        )
+                        IconButton(
+                            onClick = { handleDeleteTask() },
+                            enabled = !isSaving,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Aufgabe löschen",
+                                tint = Rose500,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -463,6 +512,18 @@ class EditTaskWidgetActivity : ComponentActivity() {
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f)
                                 )
+
+                                IconButton(
+                                    onClick = { handleDeleteSubtask(sub) },
+                                    modifier = Modifier.size(22.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Unter-Schritt löschen",
+                                        tint = Rose500.copy(alpha = 0.75f),
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                }
                             }
                         }
                     }

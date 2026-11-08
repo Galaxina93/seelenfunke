@@ -141,6 +141,7 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
         return try {
             val response = serviceLocator.getOrganizerApi().deleteTask(id)
             if (response.success) {
+                deleteCachedTask(id)
                 Result.success(Unit)
             } else {
                 Result.failure(Exception("Konnte Aufgabe nicht löschen."))
@@ -416,15 +417,17 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
     }
 
     fun triggerShoppingWidgetUpdate(context: Context) {
-        val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
-        val componentName = android.content.ComponentName(context, de.meinseelenfunke.app.widget.ShoppingListWidgetProvider::class.java)
+        val appContext = context.applicationContext
+        val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(appContext)
+        val componentName = android.content.ComponentName(appContext, de.meinseelenfunke.app.widget.ShoppingListWidgetProvider::class.java)
         val ids = appWidgetManager.getAppWidgetIds(componentName)
         if (ids.isNotEmpty()) {
             for (id in ids) {
-                de.meinseelenfunke.app.widget.ShoppingListWidgetProvider.updateAppWidget(context, appWidgetManager, id)
+                de.meinseelenfunke.app.widget.ShoppingListWidgetProvider.updateAppWidget(appContext, appWidgetManager, id)
             }
             appWidgetManager.notifyAppWidgetViewDataChanged(ids, de.meinseelenfunke.app.R.id.shopping_widget_list)
         }
+        de.meinseelenfunke.app.widget.MasterWidgetProvider.updateAllWidgets(appContext)
     }
 
     fun saveTaskListsToCache(lists: List<ManagementTaskList>) {
@@ -526,16 +529,35 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
         }
     }
 
+    private fun deleteCachedTask(id: String) {
+        try {
+            val context = serviceLocator.context
+            val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", android.content.Context.MODE_PRIVATE)
+            val json = sharedPrefs.getString("tasks_cache", null)
+            if (json != null) {
+                val type = object : com.google.gson.reflect.TypeToken<List<ManagementTask>>() {}.type
+                val items: List<ManagementTask> = com.google.gson.Gson().fromJson(json, type)
+                val updatedList = items.filter { it.id != id && it.parent_id != id }
+                saveTasksToCache(updatedList)
+                triggerTasksWidgetUpdate(context)
+            }
+        } catch (e: Exception) {
+            de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "deleteCachedTask error", e)
+        }
+    }
+
     fun triggerTasksWidgetUpdate(context: Context) {
-        val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
-        val componentName = android.content.ComponentName(context, de.meinseelenfunke.app.widget.TasksWidgetProvider::class.java)
+        val appContext = context.applicationContext
+        val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(appContext)
+        val componentName = android.content.ComponentName(appContext, de.meinseelenfunke.app.widget.TasksWidgetProvider::class.java)
         val ids = appWidgetManager.getAppWidgetIds(componentName)
         if (ids.isNotEmpty()) {
             for (id in ids) {
-                de.meinseelenfunke.app.widget.TasksWidgetProvider.updateAppWidget(context, appWidgetManager, id)
+                de.meinseelenfunke.app.widget.TasksWidgetProvider.updateAppWidget(appContext, appWidgetManager, id)
             }
             appWidgetManager.notifyAppWidgetViewDataChanged(ids, de.meinseelenfunke.app.R.id.tasks_widget_list)
         }
+        de.meinseelenfunke.app.widget.MasterWidgetProvider.updateAllWidgets(appContext)
     }
 
     suspend fun getShoppingItems(): Result<List<ManagementShoppingItem>> {
@@ -648,32 +670,35 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             val json = com.google.gson.Gson().toJson(events)
             sharedPrefs.edit().putString("calendar_events_cache", json).apply()
 
-            // Trigger Widget Update
-            val widgetIntent = android.content.Intent(context, de.meinseelenfunke.app.widget.CalendarAppWidgetProvider::class.java).apply {
-                action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
-            }
-            val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
-            val componentName = android.content.ComponentName(context, de.meinseelenfunke.app.widget.CalendarAppWidgetProvider::class.java)
-            val ids = appWidgetManager.getAppWidgetIds(componentName)
-            if (ids.isNotEmpty()) {
-                widgetIntent.putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
-                context.sendBroadcast(widgetIntent)
-                appWidgetManager.notifyAppWidgetViewDataChanged(ids, de.meinseelenfunke.app.R.id.widget_list)
-            }
-
-            // Trigger Month Widget Update
-            val monthWidgetIntent = android.content.Intent(context, de.meinseelenfunke.app.widget.CalendarMonthWidgetProvider::class.java).apply {
-                action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
-            }
-            val monthComponentName = android.content.ComponentName(context, de.meinseelenfunke.app.widget.CalendarMonthWidgetProvider::class.java)
-            val monthIds = appWidgetManager.getAppWidgetIds(monthComponentName)
-            if (monthIds.isNotEmpty()) {
-                monthWidgetIntent.putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, monthIds)
-                context.sendBroadcast(monthWidgetIntent)
-            }
+            triggerCalendarWidgetUpdate(context)
         } catch (e: Exception) {
             android.util.Log.e("OrganizerRepository", "Failed to cache calendar events", e)
         }
+    }
+
+    fun triggerCalendarWidgetUpdate(context: Context) {
+        val appContext = context.applicationContext
+        val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(appContext)
+
+        // Update Agenda List Calendar Widget
+        val componentName = android.content.ComponentName(appContext, de.meinseelenfunke.app.widget.CalendarAppWidgetProvider::class.java)
+        val ids = appWidgetManager.getAppWidgetIds(componentName)
+        if (ids.isNotEmpty()) {
+            for (id in ids) {
+                de.meinseelenfunke.app.widget.CalendarAppWidgetProvider.updateAppWidget(appContext, appWidgetManager, id)
+            }
+            appWidgetManager.notifyAppWidgetViewDataChanged(ids, de.meinseelenfunke.app.R.id.widget_list)
+        }
+
+        // Update Month Grid Calendar Widget
+        val monthComponentName = android.content.ComponentName(appContext, de.meinseelenfunke.app.widget.CalendarMonthWidgetProvider::class.java)
+        val monthIds = appWidgetManager.getAppWidgetIds(monthComponentName)
+        if (monthIds.isNotEmpty()) {
+            for (id in monthIds) {
+                de.meinseelenfunke.app.widget.CalendarMonthWidgetProvider.updateAppWidget(appContext, appWidgetManager, id)
+            }
+        }
+        de.meinseelenfunke.app.widget.MasterWidgetProvider.updateAllWidgets(appContext)
     }
 
     suspend fun addCalendarEvent(

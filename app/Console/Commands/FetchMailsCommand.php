@@ -92,7 +92,7 @@ class FetchMailsCommand extends Command
                         $fromEmail = $fromObj ? $fromObj->mail : 'unknown';
                         // Decode MIME strings for names without corrupting already-decoded UTF-8 / Emojis
                         $rawFromName = $fromObj ? (string) $fromObj->personal : '';
-                        $fromName = self::decodeMimeHeaderSafe($rawFromName);
+                        $fromName = self::repairCorruptedGermanText(self::decodeMimeHeaderSafe($rawFromName));
 
                         // Decode MIME encoded subjects without corrupting 4-byte UTF-8 emojis (mb_decode_mimeheader turns raw UTF-8 emojis into "????")
                         $rawSubject = (string) $message->getSubject();
@@ -106,16 +106,13 @@ class FetchMailsCommand extends Command
                             $normalizedMessageId = 'fallback_' . sha1($account->id . '|' . $fromAddress . '|' . $subject . '|' . ($receivedAt ? $receivedAt->toIso8601String() : ''));
                         }
 
-                        // Skip if we already stored it for this account or if it was already deleted as Spam / expired Trash
+                        // Skip if we already stored it for this account
                         if ($normalizedMessageId !== '') {
-                            if (\App\Services\Management\MailAiSortService::isMessageIdDeleted($normalizedMessageId)) {
-                                continue;
-                            }
                             $existingMsg = MailMessage::where('mail_account_id', $account->id)
                                 ->where('message_id', $normalizedMessageId)
                                 ->first();
                             if ($existingMsg) {
-                                if ($decodedSubject !== '' && $existingMsg->subject !== $decodedSubject && str_contains((string) $existingMsg->subject, '???')) {
+                                if ($decodedSubject !== '' && $existingMsg->subject !== $decodedSubject && str_contains((string) $existingMsg->subject, '??')) {
                                     $existingMsg->update(['subject' => $decodedSubject]);
                                 }
                                 continue;
@@ -127,9 +124,9 @@ class FetchMailsCommand extends Command
 
                         // Sanitize HTML body to strip out tracking pixels and XSS payloads
                         if ($bodyHtml) {
-                            $bodyHtml = self::sanitizeEmailHtml($bodyHtml);
+                            $bodyHtml = self::repairCorruptedGermanText(self::sanitizeEmailHtml($bodyHtml));
                         }
-                        $bodyText = self::extractCleanPlainText($bodyText, $bodyHtml);
+                        $bodyText = self::repairCorruptedGermanText(self::extractCleanPlainText($bodyText, $bodyHtml));
 
                         $toObj = $message->getTo()[0] ?? null;
                         $toEmail = $toObj ? $toObj->mail : $account->email;
@@ -147,7 +144,7 @@ class FetchMailsCommand extends Command
                         }
                         $ccEmail = !empty($ccEmails) ? implode(', ', array_unique($ccEmails)) : null;
 
-                        // Execute Auto-Routing Rules here (Spam/Folders)
+                        // Execute Auto-Routing Rules here (Spam/Folders - never delete, max Archive/Junk)
                         $targetFolder = 'INBOX';
                         $cleanFrom = strtolower(trim((string) $fromEmail));
                         $routingRule = \App\Models\Management\Mail\MailRule::where('mail_account_id', $account->id)
@@ -166,9 +163,7 @@ class FetchMailsCommand extends Command
                         if ($routingRule) {
                             if ($routingRule->action === 'mark_spam' || $routingRule->action === 'Junk') {
                                 $targetFolder = 'Junk';
-                            } elseif ($routingRule->action === 'delete' || $routingRule->action === 'Trash') {
-                                $targetFolder = 'Trash';
-                            } elseif ($routingRule->action === 'archive' || $routingRule->action === 'Archive') {
+                            } elseif ($routingRule->action === 'delete' || $routingRule->action === 'Trash' || $routingRule->action === 'archive' || $routingRule->action === 'Archive') {
                                 $targetFolder = 'Archive';
                             } else {
                                 $cleanFolder = mb_substr(preg_replace('/[\x00-\x1F\x7F\/\\\\]/', '', str_replace('..', '', trim((string) $routingRule->action))), 0, 64);
@@ -194,7 +189,7 @@ class FetchMailsCommand extends Command
                             'body_plain' => $bodyText,
                             'body_html' => $bodyHtml,
                             'is_read' => false,
-                            'is_archived' => false,
+                            'is_archived' => $targetFolder === 'Archive',
                             'has_attachments' => $message->hasAttachments(),
                             'received_at' => $receivedAt ?? now()
                         ]);
@@ -301,6 +296,41 @@ class FetchMailsCommand extends Command
             $s = preg_replace('/<(head|style|script|xml|title|noscript|svg)\b[^>]*>.*?<\/\1>/is', '', $s);
             $s = preg_replace('/<!--.*?-->/s', '', $s);
             $s = preg_replace('/<([a-z0-9]+)\b[^>]*style\s*=\s*["\'][^"\']*(?:display\s*:\s*none|visibility\s*:\s*hidden|font-size\s*:\s*0(?:px|pt|em|rem|%)?|line-height\s*:\s*0(?:px|pt|em|rem|%)?|max-height\s*:\s*0(?:px)?|mso-hide\s*:\s*all)[^"\']*["\'][^>]*>.*?<\/\1>/is', '', $s);
+
+            // 1. Collapse all raw HTML source-code newlines & tabs into spaces first (HTML whitespace rule!)
+            $s = preg_replace('/[\r\n\t]+/', ' ', $s);
+
+            // 2. Format multi-column data table rows (<tr>...</tr> without nested <table) on single horizontal lines
+            $s = preg_replace_callback('/<tr\b[^>]*>((?:(?!<table\b).)*?)<\/tr>/is', function (array $m): string {
+                $rowInner = $m[1];
+                if (!preg_match_all('/<(?:td|th)\b[^>]*>(.*?)<\/(?:td|th)>/is', $rowInner, $cellMatches) || count($cellMatches[1]) < 2) {
+                    return $m[0];
+                }
+                $cells = [];
+                foreach ($cellMatches[1] as $rawCell) {
+                    $c = preg_replace('/<br\s*\/?>/i', ' · ', $rawCell);
+                    $c = preg_replace('/<\/(?:p|div|li|h[1-6])>/i', ' · ', $c);
+                    $c = strip_tags($c);
+                    $c = html_entity_decode(html_entity_decode($c, ENT_QUOTES | ENT_HTML5, 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                    $c = preg_replace('/[\x{200B}-\x{200D}\x{FEFF}\x{00AD}\x{034F}\x{2060}]+/u', '', $c);
+                    $c = str_replace("\xC2\xA0", ' ', $c);
+                    $c = preg_replace('/(?:\s*·\s*)+/u', ' · ', preg_replace('/\s+/', ' ', $c)) ?? $c;
+                    $c = preg_replace('/^(?:[\s·]+)|(?:[\s·]+)$/u', '', $c) ?? trim($c);
+                    if ($c !== '') {
+                        $cells[] = $c;
+                    }
+                }
+                if (empty($cells)) {
+                    return '';
+                }
+                $line = $cells[0];
+                for ($i = 1; $i < count($cells); $i++) {
+                    $sep = str_ends_with($line, ':') ? ' ' : '  ·  ';
+                    $line .= $sep . $cells[$i];
+                }
+                return "\n" . $line . "\n";
+            }, $s) ?? $s;
+
             $s = preg_replace('/<br\s*\/?>/i', "\n", $s);
             $s = preg_replace('/<hr\s*\/?>/i', "\n────────────────────────\n", $s);
             $s = preg_replace('/<li(?:\s[^>]*)?>/i', "\n  • ", $s);
@@ -311,8 +341,7 @@ class FetchMailsCommand extends Command
             $s = html_entity_decode(html_entity_decode($s, ENT_QUOTES | ENT_HTML5, 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
             $s = preg_replace('/[\x{200B}-\x{200D}\x{FEFF}\x{00AD}\x{034F}\x{2060}]+/u', '', $s);
             $s = str_replace("\xC2\xA0", ' ', $s);
-            $lines = array_map(fn($l) => trim(preg_replace('/[ \t]+/', ' ', $l)), explode("\n", str_replace(["\r\n", "\r"], "\n", $s)));
-            $fromHtml = trim(preg_replace('/\n{3,}/', "\n\n", implode("\n", $lines)));
+            $fromHtml = self::cleanPlainTextArtifacts($s);
         }
 
         $fromPlain = trim((string) $plain);
@@ -325,7 +354,7 @@ class FetchMailsCommand extends Command
             $fromPlain = preg_replace('/@import\s+url\([^)]*\)\s*;?/i', '', $fromPlain);
             $fromPlain = preg_replace('/^\s*(?:[.#@a-zA-Z0-9_:,\-\s\[\]\*>+]+\{[^{}]*\}\s*)+/m', '', $fromPlain);
             $fromPlain = html_entity_decode(html_entity_decode($fromPlain, ENT_QUOTES | ENT_HTML5, 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            $fromPlain = trim($fromPlain);
+            $fromPlain = self::cleanPlainTextArtifacts($fromPlain);
         }
 
         if ($fromHtml !== '') {
@@ -333,6 +362,50 @@ class FetchMailsCommand extends Command
         }
 
         return $fromPlain !== '' ? $fromPlain : null;
+    }
+
+    public static function cleanPlainTextArtifacts(?string $text): string
+    {
+        if ($text === null || trim($text) === '') {
+            return '';
+        }
+        $s = str_replace(["\r\n", "\r"], "\n", $text);
+        // Strip inline parenthesized tracking/login URLs right after text: e.g. "im mStudio einloggen ( https://... )."
+        $s = preg_replace('/[ \t]*\(\s*https?:\/\/[^\s)]+\s*\)/i', '', $s) ?? $s;
+        // Strip markdown bold *Heading* markers
+        $s = preg_replace('/(?<!\w)\*([^*\n]{2,120})\*(?!\w)/u', '$1', $s) ?? $s;
+
+        $rawLines = explode("\n", $s);
+        $cleanLines = [];
+        foreach ($rawLines as $rawLine) {
+            $line = trim(preg_replace('/[ \t]+/', ' ', $rawLine));
+            // Skip pure tracking/social link lines like "( https://... )" or "[https://...]"
+            if (preg_match('/^[\(\[<]?\s*https?:\/\/\S+\s*[\)\]>]?$/i', $line)) {
+                continue;
+            }
+            // Skip newsletter header boilerplate lines ("Im Browser anzeigen", "mittwald-Logo", etc.)
+            if (preg_match('/^(?:Im Browser anzeigen|Webversion|Online-Version|Newsletter im Browser|[\w\-]+-Logo)$/iu', $line)) {
+                continue;
+            }
+            // Skip ASCII dashed separator lines "---..."
+            if (preg_match('/^[-=_]{5,}$/', $line)) {
+                continue;
+            }
+            // Clean empty markdown bullet placeholders "* -"
+            if ($line === '* -' || $line === '• -' || $line === '*') {
+                continue;
+            }
+            if (str_starts_with($line, '* ')) {
+                $line = '• ' . substr($line, 2);
+            }
+            // Clean leading/trailing orphaned middots safely in UTF-8
+            $line = preg_replace('/^(?:[\s·]+)|(?:[\s·]+)$/u', '', $line) ?? trim($line);
+            $cleanLines[] = $line;
+        }
+
+        $joined = implode("\n", $cleanLines);
+        $joined = preg_replace('/\n{3,}/', "\n\n", $joined) ?? $joined;
+        return trim(self::repairCorruptedGermanText($joined));
     }
 
     public static function sanitizeAttachmentFilename(string $filename, ?string $rawExtension = null): string
@@ -413,36 +486,171 @@ class FetchMailsCommand extends Command
     }
 
     /**
-     * Repairs subjects where 3-byte or 4-byte UTF-8 emojis were previously turned into "???" or "????" by mb_decode_mimeheader().
+     * Repairs subjects where 2/3/4-byte UTF-8 umlauts, dashes, or emojis were previously turned into "??", "???" or "????" by mb_decode_mimeheader().
      */
     public static function repairCorruptedSubjectIcons(?string $subject): string
     {
         $s = self::decodeMimeHeaderSafe($subject);
-        if ($s === '' || !str_contains($s, '??')) {
+        if ($s === '') {
+            return '';
+        }
+        $s = self::repairCorruptedGermanText($s);
+        if (!str_contains($s, '?')) {
             return $s;
         }
 
-        $s = preg_replace('/^(\[EXPRESS\]\s+)?\?{3,4}\s*(\[NEUE BESTELLUNG\])/u', '$1💰 $2', $s) ?? $s;
-        $s = preg_replace('/^\?{3,4}\s*(\[ANGEBOT ANGENOMMEN\])/u', '✅ $1', $s) ?? $s;
-        $s = preg_replace('/^\?{3,4}\s*(Deine Bestellung\b)/u', '📦 $1', $s) ?? $s;
-        $s = preg_replace('/^\?{3,4}\s*(Deine Rechnung\b)/u', '🧾 $1', $s) ?? $s;
-        $s = preg_replace('/^\?{3,4}\s*(Juhu!\s*Ein Freund hat)/u', '🎁 $1', $s) ?? $s;
-        $s = preg_replace('/^\?{3,4}\s*(Dein Mein-Seelenfunke Gutschein\b)/u', '🎁 $1', $s) ?? $s;
-        $s = preg_replace('/^\?{3,4}\s*(Dein Geschenkgutschein von\b)/u', '✨ $1', $s) ?? $s;
-        $s = preg_replace('/^\?{3,4}\s*(Dein exklusives Angebot\b)/u', '✨ $1', $s) ?? $s;
-        $s = preg_replace('/^\?{3,4}\s*(Ein besonderer Seelenfunke\b)/u', '✨ $1', $s) ?? $s;
-        $s = preg_replace('/^\?{3,4}\s*(Gute Nachrichten!\s*Deine Bestellung\b)/u', '🚚 $1', $s) ?? $s;
-        $s = preg_replace('/^\?{3,4}\s*(Vergiss deine Unikate nicht\b)/u', '🛒 $1', $s) ?? $s;
-        $s = preg_replace('/^\?{3,8}\s*(Wie gefällt dir dein Unikat\b)/u', '📸✨ $1', $s) ?? $s;
-        $s = preg_replace('/^\?{3,4}\s*(Ihr persönliches Angebot von\b)/u', '🧾 $1', $s) ?? $s;
-        $s = preg_replace('/^\?{3,4}\s*((\[EXPRESS\]\s+)?Neue Anfrage:)/u', '🧾 $1', $s) ?? $s;
-        $s = preg_replace('/(Du hast da etwas vergessen!)\s*\?{3,4}$/u', '$1 🛒', $s) ?? $s;
-        $s = preg_replace('/(wurde versendet!)\s*\?{3,4}$/u', '$1 🚚', $s) ?? $s;
-        $s = preg_replace('/(Wichtige Rückfrage zu deinem Foto[^\?]+)\s*\?{6,8}$/u', '$1 📸✨', $s) ?? $s;
+        $s = preg_replace('/^(\[EXPRESS\]\s+)?\?{1,4}\s*(\[NEUE BESTELLUNG\])/u', '$1💰 $2', $s) ?? $s;
+        $s = preg_replace('/^\?{1,4}\s*(\[ANGEBOT ANGENOMMEN\])/u', '✅ $1', $s) ?? $s;
+        $s = preg_replace('/^\?{1,4}\s*(Deine Bestellung\b)/u', '📦 $1', $s) ?? $s;
+        $s = preg_replace('/^\?{1,4}\s*(Deine Rechnung\b)/u', '🧾 $1', $s) ?? $s;
+        $s = preg_replace('/^\?{1,4}\s*(Juhu!\s*Ein Freund hat)/u', '🎁 $1', $s) ?? $s;
+        $s = preg_replace('/^\?{1,4}\s*(Dein Mein-Seelenfunke Gutschein\b)/u', '🎁 $1', $s) ?? $s;
+        $s = preg_replace('/^\?{1,4}\s*(Dein Geschenkgutschein von\b)/u', '✨ $1', $s) ?? $s;
+        $s = preg_replace('/^\?{1,4}\s*(Dein exklusives Angebot\b)/u', '✨ $1', $s) ?? $s;
+        $s = preg_replace('/^\?{1,4}\s*(Ein besonderer Seelenfunke\b)/u', '✨ $1', $s) ?? $s;
+        $s = preg_replace('/^\?{1,4}\s*(Gute Nachrichten!\s*Deine Bestellung\b)/u', '🚚 $1', $s) ?? $s;
+        $s = preg_replace('/^\?{1,4}\s*(Vergiss deine Unikate nicht\b)/u', '🛒 $1', $s) ?? $s;
+        $s = preg_replace('/^\?{1,8}\s*(Wie gefällt dir dein Unikat\b)/u', '📸✨ $1', $s) ?? $s;
+        $s = preg_replace('/^\?{1,4}\s*(Ihr persönliches Angebot von\b)/u', '🧾 $1', $s) ?? $s;
+        $s = preg_replace('/^\?{1,4}\s*((\[EXPRESS\]\s+)?Neue Anfrage:)/u', '🧾 $1', $s) ?? $s;
+        $s = preg_replace('/(Du hast da etwas vergessen!)\s*\?{2,4}$/u', '$1 🛒', $s) ?? $s;
+        $s = preg_replace('/(wurde versendet!)\s*\?{2,4}$/u', '$1 🚚', $s) ?? $s;
+        $s = preg_replace('/(Wichtige Rückfrage zu deinem Foto[^\?]+)\s*\?{4,8}$/u', '$1 📸✨', $s) ?? $s;
         // Strip any remaining leading/trailing ??? or ???? emoji corruption artifacts
-        $s = preg_replace('/^\?{3,8}\s+/u', '', $s) ?? $s;
-        $s = preg_replace('/\s+\?{3,8}$/u', '', $s) ?? $s;
+        $s = preg_replace('/^\?{2,8}\s+/u', '', $s) ?? $s;
+        $s = preg_replace('/\s+\?{2,8}$/u', '', $s) ?? $s;
 
         return trim($s);
+    }
+
+    /**
+     * Repairs German words where 2-byte UTF-8 umlauts (ä, ö, ü, ß) or 3-byte dashes (–) were turned into "??" / "???".
+     */
+    public static function repairCorruptedGermanText(?string $text): string
+    {
+        if ($text === null || $text === '' || !str_contains($text, '??')) {
+            return (string) $text;
+        }
+
+        $s = $text;
+
+        // 1. 3-byte en-dash / em-dash between spaces (" ??? " -> " – ")
+        $s = preg_replace('/(?<=\s)\?{3}(?=\s)/u', '–', $s) ?? $s;
+
+        // 2. 4-question-mark double umlaut + eszett combinations (üß / öß / äß)
+        $fourMap = [
+            'Gr????en' => 'Größen', 'gr????en' => 'größen',
+            'Gr????e'  => 'Grüße',  'gr????e'  => 'grüße',
+            'Begr????' => 'Begrüß', 'begr????' => 'begrüß',
+            'gr????er' => 'größer', 'Gr????er' => 'Größer',
+            'gr????te' => 'größte', 'Gr????te' => 'Größte',
+            'gem????'  => 'gemäß',  'Gem????'  => 'Gemäß',
+            'm????ig'  => 'mäßig',  'M????ig'  => 'Mäßig',
+        ];
+        $s = strtr($s, $fourMap);
+
+        // 3. Exact German stem & word replacements for "??" -> ä / ö / ü / ß / Ä / Ö / Ü
+        $twoMap = [
+            // ö / Ö
+            'n??tig' => 'nötig', 'N??tig' => 'Nötig',
+            'm??glich' => 'möglich', 'M??glich' => 'Möglich',
+            'm??cht' => 'möcht', 'M??cht' => 'Möcht',
+            'k??nn' => 'könn', 'K??nn' => 'Könn',
+            'l??sch' => 'lösch', 'L??sch' => 'Lösch',
+            'L??sung' => 'Lösung', 'l??sung' => 'lösung',
+            'aufgel??st' => 'aufgelöst', 'eingel??st' => 'eingelöst', 'gel??st' => 'gelöst',
+            'pers??nlich' => 'persönlich', 'Pers??nlich' => 'Persönlich',
+            'sch??n' => 'schön', 'Sch??n' => 'Schön',
+            'h??ch' => 'höch', 'H??ch' => 'Höch',
+            'erh??h' => 'erhöh', 'Erh??h' => 'Erhöh', 'H??he' => 'Höhe',
+            'geh??r' => 'gehör', 'Geh??r' => 'Gehör', 'Zubeh??r' => 'Zubehör', 'Beh??rde' => 'Behörde', 'h??ren' => 'hören', 'h??rt' => 'hört',
+            'Passw??rter' => 'Passwörter', 'W??rter' => 'Wörter', 'w??rtlich' => 'wörtlich',
+            'ge??ffnet' => 'geöffnet', 'er??ffn' => 'eröffn', 'Er??ffn' => 'Eröffn', 'ver??ffent' => 'veröffent', 'Ver??ffent' => 'Veröffent',
+            '??ffnen' => 'öffnen', '??ffnet' => 'öffnet', '??ffnung' => 'Öffnung', '??ffentlich' => 'öffentlich',
+            '??sterreich' => 'Österreich', '??kolog' => 'ökolog', '??konom' => 'ökonom',
+            'st??r' => 'stör', 'St??r' => 'Stör',
+            'f??rder' => 'förder', 'F??rder' => 'Förder',
+            'v??llig' => 'völlig', 'V??llig' => 'Völlig',
+            'gew??hn' => 'gewöhn', 'Gew??hn' => 'Gewöhn',
+            'zw??lf' => 'zwölf', 'Zw??lf' => 'Zwölf',
+            'pl??tzlich' => 'plötzlich', 'Pl??tzlich' => 'Plötzlich',
+            'verz??ger' => 'verzöger', 'Verz??ger' => 'Verzöger',
+
+            // ü / Ü
+            'f??r' => 'für', 'F??r' => 'Für',
+            'pr??f' => 'prüf', 'Pr??f' => 'Prüf',
+            'zur??ck' => 'zurück', 'Zur??ck' => 'Zurück',
+            'R??ck' => 'Rück', 'r??ck' => 'rück',
+            'Gl??ck' => 'Glück', 'gl??ck' => 'glück',
+            'St??ck' => 'Stück', 'st??ck' => 'stück',
+            'w??nsch' => 'wünsch', 'W??nsch' => 'Wünsch',
+            'nat??rlich' => 'natürlich', 'Nat??rlich' => 'Natürlich',
+            'k??rz' => 'kürz', 'K??rz' => 'Kürz',
+            'k??nftig' => 'künftig', 'K??nftig' => 'Künftig',
+            'g??ltig' => 'gültig', 'G??ltig' => 'Gültig',
+            'g??nstig' => 'günstig', 'G??nstig' => 'Günstig',
+            'f??nf' => 'fünf', 'F??nf' => 'Fünf',
+            'f??hr' => 'führ', 'F??hr' => 'Führ',
+            'Geb??hr' => 'Gebühr', 'geb??hr' => 'gebühr',
+            'f??ll' => 'füll', 'F??ll' => 'Füll',
+            'f??hl' => 'fühl', 'F??hl' => 'Fühl', 'Gef??hl' => 'Gefühl',
+            'verf??g' => 'verfüg', 'Verf??g' => 'Verfüg', 'hinzuf??g' => 'hinzufüg', 'beigef??g' => 'beigefüg', 'f??gen' => 'fügen', 'f??gt' => 'fügt',
+            'm??ss' => 'müss', 'M??ss' => 'Müss',
+            'd??rf' => 'dürf', 'D??rf' => 'Dürf', 'Bed??rf' => 'Bedürf',
+            'w??rd' => 'würd', 'W??rd' => 'Würd',
+            'K??nst' => 'Künst', 'k??nst' => 'künst',
+            'K??ndig' => 'Kündig', 'k??ndig' => 'kündig',
+            'Schl??ssel' => 'Schlüssel', 'schl??ssel' => 'schlüssel',
+            'gesch??tzt' => 'geschützt', 'sch??tzen' => 'schützen', 'Sch??tz' => 'Schütz', 'unterst??tz' => 'unterstütz', 'Unterst??tz' => 'Unterstütz',
+            'Gr??nd' => 'Gründ', 'gr??nd' => 'gründ',
+            'p??nktlich' => 'pünktlich', 'P??nktlich' => 'Pünktlich',
+            'urspr??nglich' => 'ursprünglich', 'Urspr??nglich' => 'Ursprünglich',
+            'ausdr??cklich' => 'ausdrücklich', 'Ausdr??cklich' => 'Ausdrücklich',
+            'bez??glich' => 'bezüglich', 'Bez??glich' => 'Bezüglich',
+            'z??gig' => 'zügig', 'Z??gig' => 'Zügig',
+            'fr??h' => 'früh', 'Fr??h' => 'Früh',
+            'bem??h' => 'bemüh', 'Bem??h' => 'Bemüh', 'M??he' => 'Mühe',
+            'T??r' => 'Tür', 'B??ro' => 'Büro', 'M??ll' => 'Müll', 'H??lle' => 'Hülle', 'F??lle' => 'Fülle',
+            'dar??ber' => 'darüber', 'wor??ber' => 'worüber', 'gegen??ber' => 'gegenüber', 'vor??ber' => 'vorüber',
+            '??berpr??f' => 'überprüf', '??bersicht' => 'Übersicht', '??berweis' => 'Überweis', '??bermitt' => 'übermitt', '??bernahm' => 'Übernahm', '??berneh' => 'überneh',
+            ' ??ber ' => ' über ', ' ??ber' => ' über', '??ber ' => 'Über ',
+
+            // ä / Ä
+            'Best??tig' => 'Bestätig', 'best??tig' => 'bestätig',
+            'Empf??ng' => 'Empfäng', 'empf??ng' => 'empfäng',
+            'Anh??ng' => 'Anhäng', 'anh??ng' => 'anhäng', 'unabh??ng' => 'unabhäng', 'abh??ng' => 'abhäng',
+            'Entit??t' => 'Entität', 'Qualit??t' => 'Qualität', 'Kapazit??t' => 'Kapazität', 'Priorit??t' => 'Priorität', 'Aktivit??t' => 'Aktivität', 'Identit??t' => 'Identität', 'Liquidit??t' => 'Liquidität', 'Rarit??t' => 'Rarität', 'Spezialit??t' => 'Spezialität',
+            'zus??tzlich' => 'zusätzlich', 'Zus??tzlich' => 'Zusätzlich',
+            's??mtlich' => 'sämtlich', 'S??mtlich' => 'Sämtlich',
+            'tats??chlich' => 'tatsächlich', 'Tats??chlich' => 'Tatsächlich', 'haupts??chlich' => 'hauptsächlich',
+            'vollst??ndig' => 'vollständig', 'Vollst??ndig' => 'Vollständig', 'selbstst??ndig' => 'selbstständig', 'zust??ndig' => 'zuständig', 'Zust??ndig' => 'Zuständig', 'st??ndig' => 'ständig', 'Verst??nd' => 'Verständ', 'verst??nd' => 'verständ', 'Umst??nd' => 'Umständ',
+            'ge??ndert' => 'geändert', 'ver??nder' => 'veränder', 'Ver??nder' => 'Veränder', '??nderung' => 'Änderung', '??ndern' => 'ändern', '??ndert' => 'ändert',
+            'n??chst' => 'nächst', 'N??chst' => 'Nächst',
+            'sp??t' => 'spät', 'Sp??t' => 'Spät',
+            'w??hrend' => 'während', 'W??hrend' => 'Während', 'w??hl' => 'wähl', 'W??hl' => 'Wähl', 'erw??hn' => 'erwähn', 'Erw??hn' => 'Erwähn', 'gew??hr' => 'gewähr', 'Gew??hr' => 'Gewähr', 'W??hrung' => 'Währung', 'bew??hr' => 'bewähr',
+            'K??ufer' => 'Käufer', 'k??ufer' => 'käufer', 'Eink??uf' => 'Einkäuf', 'L??uf' => 'Läuf', 'l??uf' => 'läuf', 'h??ufig' => 'häufig', 'H??ufig' => 'Häufig',
+            't??glich' => 'täglich', 'T??glich' => 'Täglich', 'nachtr??glich' => 'nachträglich', 'ertr??glich' => 'erträglich', 'Vertr??g' => 'Verträg', 'vertr??g' => 'verträg', 'Betr??g' => 'Beträg', 'betr??gt' => 'beträgt', 'Antr??g' => 'Anträg', 'Auftr??g' => 'Aufträg', 'Beitr??g' => 'Beiträg', 'Eintr??g' => 'Einträg',
+            'f??hig' => 'fähig', 'F??hig' => 'Fähig', 'auff??llig' => 'auffällig', 'zuf??llig' => 'zufällig', 'sorgf??ltig' => 'sorgfältig', 'vielf??ltig' => 'vielfältig', 'f??lsch' => 'fälsch',
+            'z??hl' => 'zähl', 'Z??hl' => 'Zähl',
+            'kl??r' => 'klär', 'Kl??r' => 'Klär',
+            'l??ng' => 'läng', 'L??ng' => 'Läng', 'zug??ng' => 'zugäng', 'Zug??ng' => 'Zugäng', 'vorg??ng' => 'vorgäng', 'Vorg??ng' => 'Vorgäng',
+            'M??ngel' => 'Mängel', 'm??ngel' => 'mängel',
+            'einsch??tz' => 'einschätz', 'Einsch??tz' => 'Einschätz', 'sch??tzungs' => 'schätzungs',
+            'gef??llt' => 'gefällt', 'enth??lt' => 'enthält', 'erh??lt' => 'erhält', 'h??lt' => 'hält', 'f??llt' => 'fällt',
+            'w??re' => 'wäre', 'W??re' => 'Wäre', 'W??rme' => 'Wärme', 'w??rm' => 'wärm',
+            'st??rk' => 'stärk', 'St??rk' => 'Stärk', 'M??rz' => 'März', 'Gep??ck' => 'Gepäck', 'Geb??ude' => 'Gebäude', 'geb??ude' => 'gebäude', 'Ger??t' => 'Gerät', 'ger??t' => 'gerät', 'Gespr??ch' => 'Gespräch', 'Gesch??ft' => 'Geschäft', 'gesch??ft' => 'geschäft', 'Pr??sent' => 'Präsent', 'pr??sent' => 'präsent', 'regul??r' => 'regulär', 'tempor??r' => 'temporär', 'popul??r' => 'populär', 'Atmosph??re' => 'Atmosphäre', 'Tr??ger' => 'Träger', 'L??nder' => 'Länder', 'H??ndler' => 'Händler', 'B??nder' => 'Bänder', 'R??nder' => 'Ränder', 'Sch??den' => 'Schäden', 'Pl??tze' => 'Plätze', 'S??tze' => 'Sätze', 's??tze' => 'sätze',
+
+            // ß
+            'Gr??e' => 'Grüße', 'gr??e' => 'grüße',
+            'Stra??e' => 'Straße', 'stra??e' => 'straße',
+            'Gro??' => 'Groß', 'gro??' => 'groß',
+            'Au??er' => 'Außer', 'au??er' => 'außer',
+            'Wei??' => 'Weiß', 'wei??' => 'weiß',
+            'Hei??' => 'Heiß', 'hei??' => 'heiß',
+            'Schlie??' => 'Schließ', 'schlie??' => 'schließ', 'anschl??' => 'anschließ',
+            'Fu??' => 'Fuß', 'Ma??' => 'Maß', 'ma??' => 'maß', 'Spa??' => 'Spaß',
+        ];
+
+        return strtr($s, $twoMap);
     }
 }

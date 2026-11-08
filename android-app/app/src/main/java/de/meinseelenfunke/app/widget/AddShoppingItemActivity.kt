@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -32,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -61,25 +64,23 @@ class AddShoppingItemActivity : ComponentActivity() {
 
         setContent {
             AddShoppingItemScreen(
-                onDismiss = { finish() },
-                onAdd = { itemName ->
-                    // Done inside the screen coroutine scope to allow toast/loading
-                }
+                onDismiss = { finish() }
             )
         }
     }
 
     @Composable
-    fun AddShoppingItemScreen(onDismiss: () -> Unit, onAdd: (String) -> Unit) {
+    fun AddShoppingItemScreen(onDismiss: () -> Unit) {
         var itemName by remember { mutableStateOf("") }
+        var quantity by remember { mutableIntStateOf(1) }
         var isLoading by remember { mutableStateOf(false) }
         var errorMessage by remember { mutableStateOf<String?>(null) }
-        
+
         val coroutineScope = rememberCoroutineScope()
         val focusRequester = remember { FocusRequester() }
 
-        // Request keyboard focus immediately on load
         LaunchedEffect(Unit) {
+            kotlinx.coroutines.delay(120)
             focusRequester.requestFocus()
         }
 
@@ -88,31 +89,38 @@ class AddShoppingItemActivity : ComponentActivity() {
             isLoading = true
             errorMessage = null
             coroutineScope.launch {
-                ServiceLocator.organizerRepository.addShoppingItem(itemName.trim())
-                    .onSuccess {
-                        isLoading = false
-                        Toast.makeText(this@AddShoppingItemActivity, "Artikel hinzugefügt: ${it.name}", Toast.LENGTH_SHORT).show()
-                        onDismiss()
-                    }
-                    .onFailure { error ->
-                        isLoading = false
-                        errorMessage = error.localizedMessage ?: "Verbindungsfehler"
-                    }
+                ServiceLocator.organizerRepository.addShoppingItem(
+                    name = itemName.trim(),
+                    categoryId = null,
+                    quantity = quantity
+                ).onSuccess {
+                    ServiceLocator.organizerRepository.getShoppingItems()
+                    isLoading = false
+                    Toast.makeText(
+                        applicationContext,
+                        "Hinzugefügt: ${it.name} (${quantity}x)",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    onDismiss()
+                }.onFailure { error ->
+                    isLoading = false
+                    errorMessage = error.localizedMessage ?: "Verbindungsfehler"
+                }
             }
         }
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0x99030712)) // Dark translucent overlay
+                .background(Color(0x99030712))
                 .clickable { if (!isLoading) onDismiss() },
             contentAlignment = Alignment.Center
         ) {
             Card(
                 modifier = Modifier
-                    .width(320.dp)
+                    .width(330.dp)
                     .padding(16.dp)
-                    .clickable {}, // Consume clicks on card
+                    .clickable {},
                 shape = RoundedCornerShape(16.dp),
                 border = BorderStroke(1.5.dp, Gold),
                 colors = CardDefaults.cardColors(
@@ -125,9 +133,9 @@ class AddShoppingItemActivity : ComponentActivity() {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "NEUER ARTIKEL",
+                        text = "NEUER EINKAUFSARTIKEL",
                         color = Gold,
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.1.sp
                     )
@@ -137,7 +145,7 @@ class AddShoppingItemActivity : ComponentActivity() {
                     OutlinedTextField(
                         value = itemName,
                         onValueChange = { itemName = it },
-                        placeholder = { Text("z.B. Milch, Äpfel...") },
+                        placeholder = { Text("z.B. Hafermilch, Versandband...") },
                         singleLine = true,
                         enabled = !isLoading,
                         keyboardOptions = KeyboardOptions(
@@ -159,6 +167,60 @@ class AddShoppingItemActivity : ComponentActivity() {
                         ),
                         shape = RoundedCornerShape(12.dp)
                     )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Quantity Selector Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Menge",
+                            color = Slate400,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(Color(0x1AFFFFFF), RoundedCornerShape(8.dp))
+                                    .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(8.dp))
+                                    .clickable(enabled = !isLoading && quantity > 1) {
+                                        if (quantity > 1) quantity--
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("−", color = Slate50, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Text(
+                                text = "${quantity}x",
+                                color = Gold,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(Color(0x22C5A059), RoundedCornerShape(8.dp))
+                                    .border(1.dp, Gold, RoundedCornerShape(8.dp))
+                                    .clickable(enabled = !isLoading) {
+                                        quantity++
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("+", color = Gold, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
 
                     errorMessage?.let { msg ->
                         Spacer(modifier = Modifier.height(8.dp))

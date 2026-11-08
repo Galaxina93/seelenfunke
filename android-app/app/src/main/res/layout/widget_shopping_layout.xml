@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/shopping_widget_root"
+    android:id="@+id/widget_shopping_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@drawable/widget_background_shape"
-    android:padding="12dp">
+    android:padding="14dp">
 
     <!-- Header Row -->
     <RelativeLayout
@@ -13,17 +13,20 @@
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp">
 
+        <!-- Left Side: Logo + Title & Live Count Subtitle (Clicks open App Shopping Tab) -->
         <LinearLayout
+            android:id="@+id/shopping_widget_header_click"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
             android:layout_alignParentStart="true"
-            android:layout_toStartOf="@+id/header_buttons_container">
+            android:layout_toStartOf="@+id/shopping_widget_header_actions"
+            android:layout_centerVertical="true"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
             <ImageView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
                 android:src="@mipmap/ic_launcher_round"
                 android:layout_marginEnd="8dp"
                 android:contentDescription="Funkenwerk" />
@@ -34,79 +37,91 @@
                 android:orientation="vertical">
 
                 <TextView
+                    android:id="@+id/shopping_widget_title"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="FUNKENWERK"
+                    android:text="EINKAUFSLISTE"
                     android:textColor="#C5A059"
-                    android:textSize="13sp"
+                    android:textSize="12sp"
                     android:textStyle="bold"
-                    android:letterSpacing="0.08" />
+                    android:letterSpacing="0.08"
+                    android:singleLine="true"
+                    android:ellipsize="end" />
 
                 <TextView
+                    android:id="@+id/shopping_widget_subtitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Einkaufsliste"
-                    android:textColor="#CBD5E1"
-                    android:textSize="10sp" />
+                    android:text="Einkäufe im Blick"
+                    android:textColor="#94A3B8"
+                    android:textSize="10sp"
+                    android:singleLine="true"
+                    android:ellipsize="end" />
             </LinearLayout>
         </LinearLayout>
 
+        <!-- Right Side: Refresh & + Add Buttons -->
         <LinearLayout
-            android:id="@+id/header_buttons_container"
+            android:id="@+id/shopping_widget_header_actions"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
             android:layout_alignParentEnd="true"
-            android:layout_centerVertical="true">
+            android:layout_centerVertical="true"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
             <ImageButton
                 android:id="@+id/btn_shopping_refresh"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:padding="5dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_widget_refresh"
+                android:tint="#94A3B8"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:src="@android:drawable/ic_menu_rotate"
                 android:contentDescription="Aktualisieren" />
 
             <ImageButton
                 android:id="@+id/btn_shopping_add"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:layout_marginStart="8dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:src="@android:drawable/ic_input_add"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginStart="6dp"
+                android:padding="5dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_widget_add"
+                android:tint="#C5A059"
+                android:background="@drawable/widget_button_gold_shape"
                 android:contentDescription="Artikel hinzufügen" />
         </LinearLayout>
     </RelativeLayout>
 
-    <!-- Divider Line -->
+    <!-- Thin Divider -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#334155"
+        android:background="#26334A"
         android:layout_marginBottom="8dp" />
 
-    <!-- Content (ListView / Empty state) -->
-    <FrameLayout
+    <!-- Shopping Items List -->
+    <ListView
+        android:id="@+id/shopping_widget_list"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1">
+        android:layout_weight="1"
+        android:divider="@android:color/transparent"
+        android:dividerHeight="6dp"
+        android:scrollbars="none" />
 
-        <ListView
-            android:id="@+id/shopping_widget_list"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:divider="@android:color/transparent"
-            android:dividerHeight="4dp"
-            android:nestedScrollingEnabled="true" />
+    <!-- Empty View -->
+    <TextView
+        android:id="@+id/shopping_widget_empty_view"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:text="Einkaufsliste ist leer"
+        android:textColor="#64748B"
+        android:textSize="13sp"
+        android:visibility="gone" />
 
-        <TextView
-            android:id="@+id/shopping_widget_empty_view"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:text="Einkaufsliste ist leer."
-            android:textColor="#64748B"
-            android:textSize="12sp"
-            android:gravity="center"
-            android:visibility="gone" />
-    </FrameLayout>
 </LinearLayout>

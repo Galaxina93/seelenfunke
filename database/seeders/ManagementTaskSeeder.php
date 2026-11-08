@@ -315,7 +315,7 @@ class ManagementTaskSeeder extends Seeder
                         ],
                     ],
                     [
-                        'title' => 'Sobald USt-IdNr. (DE...) vorliegt: Westpack Geschenkpapier Nr. 0751 - Wendbar (1x 30 cm × 100 m, Art.-Nr. 03307510300, 67,90 € netto) per Reverse-Charge bestellen -> https://www.westpack.com/eur_eu_ger/wrapping-paper-n-0751-reversible-03307510200.html',
+                        'title' => 'Sobald USt-IdNr. (DE...) vorliegt: Westpack Geschenkpapier Nr. 0751 - Wendbar (1x 30 cm × 100 m, Art.-Nr. 03307510300, 67,90 € netto) per Reverse-Charge bestellen -> https://www.westpack.com/eur_eu_ger/wrapping-paper-n-0751-reversible-03307510300.html',
                         'priority' => 'hoch',
                         'ai_plan' => 'WICHTIG: Erst bestellen, sobald die deutsche USt-IdNr. vorliegt! Westpack sitzt in Dänemark und berechnet ohne USt-IdNr. 25 % dänische MwSt. (16,98 €), die das deutsche Finanzamt NICHT über die reguläre Umsatzsteuervoranmeldung erstattet. Mit gültiger USt-IdNr. greift Reverse-Charge (0,00 € MwSt., nur 67,90 € netto). Die 30 cm Rolle deckt im 50 cm Untertischabroller sowohl kleine Schmuckboxen (quer abreißen) als auch große Kristall-Boxen ab.',
                     ],
@@ -350,6 +350,17 @@ class ManagementTaskSeeder extends Seeder
                     ['title' => 'Web Socket Einrichten (Env Files beachten Pusher Variablen, REVERB und BROADCAST_CONNECTION)', 'priority' => 'hoch'],
                     ['title' => 'DB Seeder die nicht gebraucht werden deaktivieren', 'priority' => 'mittel'],
                     ['title' => 'DHL API Keys auf Live anpassen', 'priority' => 'hoch'],
+                    [
+                        'title' => 'Nach Livegang: FYRST-Geschäftskonto in Stripe hinterlegen & Live-Auszahlungen aktivieren -> https://dashboard.stripe.com/acct_1Sttm3GnukHKxpOe/test/settings/money-management',
+                        'priority' => 'hoch',
+                        'ai_plan' => "Link (Test-Ansicht): https://dashboard.stripe.com/acct_1Sttm3GnukHKxpOe/test/settings/money-management\nLink (Live-Ansicht): https://dashboard.stripe.com/acct_1Sttm3GnukHKxpOe/settings/money-management\n\nZu hinterlegende FYRST-Geschäftskontodaten für Auszahlungen (Payouts):\n- Kontoinhaberin: Alina Steinhauer (Mein-Seelenfunke)\n- Bank: FYRST / Deutsche Bank AG\n- IBAN: DE76 2507 0370 0079 8629 00\n- BIC: DEUTDE2HP24\n- Währung: EUR\n\nWichtig beim Livegang: Oben rechts im Stripe-Dashboard den Testmodus deaktivieren, das Bankkonto im Live-Profil hinterlegen und anschließend die Live-API-Keys (pk_live_... / sk_live_... / whsec_...) in der produktiven .env eintragen.",
+                        'subtasks' => [
+                            'Im Stripe-Dashboard (https://dashboard.stripe.com/acct_1Sttm3GnukHKxpOe/test/settings/money-management) in den Live-Modus wechseln',
+                            'FYRST-Geschäftskonto hinterlegen (IBAN: DE76 2507 0370 0079 8629 00 | BIC: DEUTDE2HP24 | Inhaberin: Alina Steinhauer)',
+                            'Neue Steuernummer & USt-IdNr. (DE...) in den Stripe-Unternehmensdaten hinterlegen',
+                            'Stripe Live-API-Keys (STRIPE_KEY, STRIPE_SECRET, STRIPE_WEBHOOK_SECRET) in der Live-.env hinterlegen',
+                        ],
+                    ],
                     ['title' => 'GOOGLE_PLACES_API_KEY in der Google Cloud Console auf den Live Server anpassen (Domain-Einschränkungen einrichten)', 'priority' => 'hoch'],
                     ['title' => 'Google Bewertungen implementieren - TEMPORÄRER TEST-MODUS', 'priority' => 'mittel'],
                     ['title' => 'Die Archivrechnungen entfernen für einen cleanen start', 'priority' => 'hoch'],
@@ -365,7 +376,11 @@ class ManagementTaskSeeder extends Seeder
                     [
                         'title' => 'Fragebogen zur steuerlichen Erfassung (ELSTER) ausfüllen -> Betriebliche Steuernummer & USt-IdNr. beantragen',
                         'priority' => 'hoch',
-                        'ai_plan' => "Gewerbeanmeldung bei Stadt Gifhorn liegt vor.\nFinanzamt Gifhorn kontaktiert uns bzw. Fragebogen zur steuerlichen Erfassung via ELSTER online einreichen.\nBeantragung: Betriebliche Steuernummer & USt-IdNr.",
+                        'is_completed' => true,
+                        'ai_plan' => "ERLEDIGT & ÜBERMITTELT am Freitag, 06.11.2026 um 15:35:38 Uhr an das Finanzamt Gifhorn (Transferticket: ep3104hvg8fm3b1m4zrwrd3djc6ieugc, ELSTER-ID: 2169193168 -B41).\nBeantragt: Neue betriebliche Steuernummer & USt-IdNr. (Regelbesteuerung mit Vorsteuerabzug, Istversteuerung).\nHinterlegte Bankverbindung: FYRST / Deutsche Bank AG (IBAN DE76 2507 0370 0079 8629 00, BIC DEUTDE2HP24).",
+                        'file_paths' => [
+                            'leitung/tasks/attachments/2026-11-06_Finanzamt-Gifhorn_ELSTER-Steuerliche-Erfassung-Versandbestaetigung.pdf',
+                        ],
                     ],
                     [
                         'title' => 'Eröffnungsbilanz & Stammdaten mit Steuerberater abstimmen',

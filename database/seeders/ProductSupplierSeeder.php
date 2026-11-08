@@ -298,6 +298,10 @@ class ProductSupplierSeeder extends Seeder
                         'url' => 'https://www.westpack.com/eur_eu_ger/frankfurt-eco-jewellery-box-for-pendant-bangle-30286060102.html'
                     ],
                     [
+                        'title' => 'Geschenkpapier Nr. 0751 – Wendbar Schwarz/Gold 30 cm × 100 m (Art. 03307510300)',
+                        'url' => 'https://www.westpack.com/eur_eu_ger/wrapping-paper-n-0751-reversible-03307510300.html'
+                    ],
+                    [
                         'title' => 'Bestellung Order #29000069521 (96 Stk. mit Logo)',
                         'url' => 'https://www.westpack.com/eur_eu_ger/sales/order/print/order_id/485928/'
                     ],

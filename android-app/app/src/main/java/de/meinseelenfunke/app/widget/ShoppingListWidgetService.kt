@@ -2,9 +2,8 @@ package de.meinseelenfunke.app.widget
 
 import android.content.Context
 import android.content.Intent
-import android.text.SpannableString
-import android.text.Spanned
-import android.text.style.StrikethroughSpan
+import android.graphics.Color
+import android.graphics.Paint
 import android.view.View
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
@@ -23,22 +22,28 @@ class ShoppingListWidgetService : RemoteViewsService() {
 class ShoppingListWidgetViewsFactory(private val context: Context) : RemoteViewsService.RemoteViewsFactory {
     private var itemsList: List<ManagementShoppingItem> = emptyList()
 
-    override fun onCreate() {}
+    override fun onCreate() {
+        loadFromPrefs()
+    }
 
     override fun onDataSetChanged() {
+        loadFromPrefs()
+    }
+
+    private fun loadFromPrefs() {
         val sharedPrefs = context.getSharedPreferences("shopping_widget_prefs", Context.MODE_PRIVATE)
         val json = sharedPrefs.getString("shopping_items_cache", null)
         if (json != null) {
             try {
                 val type = object : TypeToken<List<ManagementShoppingItem>>() {}.type
                 val allItems: List<ManagementShoppingItem> = Gson().fromJson(json, type)
-                
+
                 // Sort: "needed" items first, then "stocked" items
                 itemsList = allItems.sortedWith(
                     compareBy<ManagementShoppingItem> { if (it.status == "needed") 0 else 1 }
                         .thenBy { it.name.lowercase(Locale.ROOT) }
                 )
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 itemsList = emptyList()
             }
         } else {
@@ -52,55 +57,64 @@ class ShoppingListWidgetViewsFactory(private val context: Context) : RemoteViews
 
     override fun getCount(): Int = itemsList.size
 
-    override fun getViewAt(position: Int): RemoteViews {
+    override fun getViewAt(position: Int): RemoteViews? {
+        if (position < 0 || position >= itemsList.size) return null
         val views = RemoteViews(context.packageName, R.layout.widget_shopping_item_layout)
         val item = itemsList[position]
 
         val isStocked = item.status == "stocked"
 
-        // Set Checkbox icon
+        // Checkbox & Text styling
+        views.setTextViewText(R.id.item_name, item.name)
         if (isStocked) {
             views.setImageViewResource(R.id.item_checkbox, R.drawable.ic_checkbox_checked)
+            views.setTextColor(R.id.item_name, Color.parseColor("#64748B"))
+            views.setInt(
+                R.id.item_name,
+                "setPaintFlags",
+                Paint.STRIKE_THRU_TEXT_FLAG or Paint.ANTI_ALIAS_FLAG
+            )
         } else {
             views.setImageViewResource(R.id.item_checkbox, R.drawable.ic_checkbox_unchecked)
+            views.setTextColor(R.id.item_name, Color.parseColor("#F8FAFC"))
+            views.setInt(R.id.item_name, "setPaintFlags", Paint.ANTI_ALIAS_FLAG)
         }
 
-        val displayName = if (item.quantity > 1) "${item.name} (${item.quantity}x)" else item.name
-
-        // Set Item Name (with strikethrough if stocked)
-        if (isStocked) {
-            val spannable = SpannableString(displayName)
-            spannable.setSpan(StrikethroughSpan(), 0, displayName.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            views.setTextViewText(R.id.item_name, spannable)
-            views.setTextColor(R.id.item_name, 0xFF94A3B8.toInt()) // Dimmed Slate400
+        // Quantity badge
+        if (item.quantity > 1) {
+            views.setViewVisibility(R.id.item_quantity_badge, View.VISIBLE)
+            views.setTextViewText(R.id.item_quantity_badge, "${item.quantity}x")
         } else {
-            views.setTextViewText(R.id.item_name, displayName)
-            views.setTextColor(R.id.item_name, 0xFFF8FAFC.toInt()) // Bright White
+            views.setViewVisibility(R.id.item_quantity_badge, View.GONE)
         }
 
-        // Set Category Color Bar
+        // Category Color Bar
         val categoryColor = when (item.category?.name?.lowercase(Locale.ROOT)) {
-            "gemüse", "obst", "frisch" -> 0xFF34D399.toInt() // emerald-400
-            "haushalt" -> 0xFFEC4899.toInt() // pink-500
-            "drogerie" -> 0xFFA855F7.toInt() // purple-500
-            "getränke" -> 0xFF3B82F6.toInt() // blue-500
-            "backen", "süßwaren" -> 0xFFF59E0B.toInt() // amber-500
-            null -> 0x00000000.toInt() // transparent if uncategorized
-            else -> 0xFFC5A059.toInt() // gold default
+            "gemüse", "obst", "frisch" -> 0xFF34D399.toInt()
+            "haushalt" -> 0xFFEC4899.toInt()
+            "drogerie" -> 0xFFA855F7.toInt()
+            "getränke" -> 0xFF3B82F6.toInt()
+            "backen", "süßwaren" -> 0xFFF59E0B.toInt()
+            null -> if (isStocked) 0xFF334155.toInt() else 0xFFC5A059.toInt()
+            else -> 0xFFC5A059.toInt()
         }
-        
-        if (categoryColor == 0) {
-            views.setViewVisibility(R.id.item_category_bar, View.INVISIBLE)
-        } else {
-            views.setViewVisibility(R.id.item_category_bar, View.VISIBLE)
-            views.setInt(R.id.item_category_bar, "setBackgroundColor", categoryColor)
-        }
+        views.setViewVisibility(R.id.item_category_bar, View.VISIBLE)
+        views.setInt(R.id.item_category_bar, "setBackgroundColor", categoryColor)
 
-        // Attach item ID for the toggle action template
-        val fillInIntent = Intent().apply {
+        // Toggle fill-in intent on row / toggle area
+        val toggleFillIn = Intent().apply {
+            putExtra(ShoppingListWidgetProvider.EXTRA_CLICK_ACTION, ShoppingListWidgetProvider.ACTION_TOGGLE_ITEM)
             putExtra("item_id", item.id)
         }
-        views.setOnClickFillInIntent(R.id.widget_shopping_item_root, fillInIntent)
+        views.setOnClickFillInIntent(R.id.item_toggle_area, toggleFillIn)
+        views.setOnClickFillInIntent(R.id.widget_shopping_item_root, toggleFillIn)
+
+        // Delete fill-in intent on trash icon
+        val deleteFillIn = Intent().apply {
+            putExtra(ShoppingListWidgetProvider.EXTRA_CLICK_ACTION, ShoppingListWidgetProvider.ACTION_DELETE_ITEM)
+            putExtra("item_id", item.id)
+        }
+        views.setOnClickFillInIntent(R.id.item_delete_button, deleteFillIn)
 
         return views
     }
@@ -109,7 +123,10 @@ class ShoppingListWidgetViewsFactory(private val context: Context) : RemoteViews
 
     override fun getViewTypeCount(): Int = 1
 
-    override fun getItemId(position: Int): Long = position.toLong()
+    override fun getItemId(position: Int): Long {
+        if (position < 0 || position >= itemsList.size) return position.toLong()
+        return itemsList[position].id.hashCode().toLong()
+    }
 
     override fun hasStableIds(): Boolean = true
 }

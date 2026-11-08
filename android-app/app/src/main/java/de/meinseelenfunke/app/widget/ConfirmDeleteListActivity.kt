@@ -91,8 +91,9 @@ class ConfirmDeleteListActivity : ComponentActivity() {
                         repository.getTaskLists()
 
                         // Remove selected list from widget preferences
-                        val appWidgetIds = AppWidgetManager.getInstance(this@ConfirmDeleteListActivity)
-                            .getAppWidgetIds(ComponentName(this@ConfirmDeleteListActivity, TasksWidgetProvider::class.java))
+                        val appContext = applicationContext
+                        val appWidgetIds = AppWidgetManager.getInstance(appContext)
+                            .getAppWidgetIds(ComponentName(appContext, TasksWidgetProvider::class.java))
                         val edit = sharedPrefs.edit()
                         for (id in appWidgetIds) {
                             val selectedListId = sharedPrefs.getString("widget_tasks_selected_list_id_$id", null)
@@ -104,7 +105,7 @@ class ConfirmDeleteListActivity : ComponentActivity() {
                         }
                         edit.apply()
 
-                        repository.triggerTasksWidgetUpdate(this@ConfirmDeleteListActivity)
+                        repository.triggerTasksWidgetUpdate(appContext)
                         Toast.makeText(this@ConfirmDeleteListActivity, "Liste gelöscht.", Toast.LENGTH_SHORT).show()
                         finish()
                     }

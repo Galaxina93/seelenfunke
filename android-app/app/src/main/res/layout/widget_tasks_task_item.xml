@@ -1,181 +1,96 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_tasks_item_root"
+    android:id="@+id/task_item_container"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:background="@drawable/widget_item_card_shape"
-    android:padding="10dp"
-    android:layout_marginTop="2dp"
-    android:layout_marginBottom="2dp"
-    android:layout_marginStart="2dp"
-    android:layout_marginEnd="2dp"
+    android:paddingVertical="8dp"
+    android:paddingStart="6dp"
+    android:paddingEnd="6dp"
     android:gravity="center_vertical">
 
-    <!-- Checkbox Clickable Container -->
+    <!-- Checkbox Touch Area -->
     <FrameLayout
         android:id="@+id/task_checkbox_container"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:padding="4dp"
-        android:layout_marginEnd="8dp">
+        android:layout_width="34dp"
+        android:layout_height="34dp"
+        android:padding="6dp">
 
         <ImageView
-            android:id="@+id/task_checkbox"
-            android:layout_width="20dp"
-            android:layout_height="20dp"
+            android:id="@+id/task_checkbox_image"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
             android:src="@drawable/ic_checkbox_unchecked"
-            android:contentDescription="Erledigen" />
+            android:scaleType="fitCenter"
+            android:contentDescription="Status umschalten" />
     </FrameLayout>
 
-    <!-- Normal Task Details Container -->
+    <!-- Task Title & Metadata Area -->
     <LinearLayout
-        android:id="@+id/normal_task_details_container"
+        android:id="@+id/task_content_container"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:orientation="vertical"
-        android:layout_gravity="center_vertical">
+        android:paddingStart="4dp"
+        android:paddingEnd="6dp">
 
         <TextView
             android:id="@+id/task_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:text="Aufgabe"
             android:textColor="#F8FAFC"
-            android:textSize="13sp"
+            android:textSize="13.5sp"
             android:textStyle="bold"
-            android:autoLink="web"
-            android:textColorLink="#C5A059"
-            android:textColorHighlight="#33C5A059"
-            android:maxLines="6" />
+            android:maxLines="2"
+            android:ellipsize="end" />
 
         <TextView
             android:id="@+id/task_meta"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="#94A3B8"
-            android:textSize="10sp"
             android:layout_marginTop="2dp"
-            android:singleLine="true"
-            android:ellipsize="end" />
+            android:text=""
+            android:textColor="#94A3B8"
+            android:textSize="11sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:visibility="gone" />
     </LinearLayout>
 
-    <!-- Inline Edit Title Container -->
-    <LinearLayout
-        android:id="@+id/inline_edit_title_container"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:visibility="gone">
-
-        <TextView
-            android:id="@+id/task_title_edit_button"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="start|center_vertical"
-            android:text="[Tippen zum Schreiben]"
-            android:textSize="12sp"
-            android:textColor="#F8FAFC"
-            android:padding="8dp"
-            android:background="#0F172A" />
+    <!-- Priority Dot Touch Area -->
+    <FrameLayout
+        android:id="@+id/task_priority_container"
+        android:layout_width="28dp"
+        android:layout_height="32dp">
 
         <ImageView
-            android:id="@+id/btn_save_inline_title"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:src="@drawable/ic_check"
-            android:layout_marginStart="6dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Speichern"
-            android:padding="4dp" />
+            android:id="@+id/task_priority_dot"
+            android:layout_width="9dp"
+            android:layout_height="9dp"
+            android:layout_gravity="center"
+            android:src="@drawable/selected_circle"
+            android:tint="#3B82F6"
+            android:contentDescription="Priorität ändern" />
+    </FrameLayout>
 
-        <ImageView
-            android:id="@+id/btn_cancel_inline_title"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:src="@drawable/ic_close"
-            android:layout_marginStart="4dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Abbrechen"
-            android:padding="4dp" />
-    </LinearLayout>
-
-    <!-- Inline Edit Date Container -->
-    <LinearLayout
-        android:id="@+id/inline_edit_date_container"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:visibility="gone">
-
-        <TextView
-            android:id="@+id/task_date_edit_button"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="start|center_vertical"
-            android:text="Kein Datum"
-            android:textSize="12sp"
-            android:textColor="#C5A059"
-            android:padding="8dp"
-            android:background="#0F172A" />
-
-        <ImageView
-            android:id="@+id/btn_save_inline_date"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:src="@drawable/ic_check"
-            android:layout_marginStart="6dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Speichern"
-            android:padding="4dp" />
-
-        <ImageView
-            android:id="@+id/btn_cancel_inline_date"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:src="@drawable/ic_close"
-            android:layout_marginStart="4dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Abbrechen"
-            android:padding="4dp" />
-    </LinearLayout>
-
-    <!-- Gear/Settings Button Container for editing -->
+    <!-- Edit Task Button -->
     <FrameLayout
         android:id="@+id/task_edit_button_container"
-        android:layout_width="36dp"
-        android:layout_height="36dp"
-        android:layout_marginStart="4dp"
-        android:layout_gravity="center_vertical">
+        android:layout_width="30dp"
+        android:layout_height="32dp"
+        android:padding="6dp">
 
         <ImageView
             android:id="@+id/task_edit_button"
-            android:layout_width="20dp"
-            android:layout_height="20dp"
-            android:layout_gravity="center"
-            android:src="@drawable/ic_settings"
-            android:contentDescription="Bearbeiten" />
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:src="@drawable/ic_widget_edit"
+            android:tint="#94A3B8"
+            android:scaleType="fitCenter"
+            android:contentDescription="Aufgabe bearbeiten" />
     </FrameLayout>
 
-    <!-- Priority indicator container for larger touch target -->
-    <FrameLayout
-        android:id="@+id/task_priority_container"
-        android:layout_width="36dp"
-        android:layout_height="36dp"
-        android:layout_marginStart="4dp"
-        android:layout_gravity="center_vertical">
-
-        <FrameLayout
-            android:id="@+id/task_priority_bar"
-            android:layout_width="4dp"
-            android:layout_height="24dp"
-            android:layout_gravity="center"
-            android:background="#64748B" />
-    </FrameLayout>
 </LinearLayout>

@@ -69,6 +69,11 @@ data class MusicImportProgress(
 object MusicPlayerManager {
     private const val TAG = "MusicPlayerManager"
     private const val FALLBACK_TOKEN = "1|CTIWGm2Ryb0d60ixSJPME2J6uSUkR1tm6Ga6DEfBd86476e9"
+    private const val FAV_SYNC_PLAYLIST_NAME = "__FUNKENWERK_FAV_SYNC__"
+
+    @Volatile
+    private var lastFavSyncTimestamp: Long = 0L
+    private var favPollJob: Job? = null
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val httpClient = OkHttpClient.Builder()
@@ -311,17 +316,32 @@ object MusicPlayerManager {
         return merged
     }
 
+    private fun parseFavSyncDescription(desc: String?): Pair<Long, Set<String>> {
+        if (desc.isNullOrBlank() || !desc.startsWith("fav_sync:v1:", ignoreCase = true)) {
+            return 0L to emptySet()
+        }
+        val parts = desc.split(":")
+        val ts = parts.getOrNull(2)?.toLongOrNull() ?: 0L
+        val prefixes = parts.getOrNull(3)
+            ?.split(",")
+            ?.map { it.trim().lowercase() }
+            ?.filter { it.isNotEmpty() }
+            ?.toSet() ?: emptySet()
+        return ts to prefixes
+    }
+
     private fun applyPlaylistsToState(appCtx: Context, playlistsToApply: List<MusicPlaylistDto>) {
-        if (playlistsToApply.isEmpty()) return
-        _playlists.value = playlistsToApply
-        val flat = playlistsToApply.flatMap { it.tracks }
+        val visible = playlistsToApply.filter { !it.name.equals(FAV_SYNC_PLAYLIST_NAME, ignoreCase = true) }
+        if (visible.isEmpty()) return
+        _playlists.value = visible
+        val flat = visible.flatMap { it.tracks }
         _allTracks.value = flat
 
         val curActiveId = _activePlaylistId.value
-        val activeExists = curActiveId == "all" || curActiveId == "favorites" || playlistsToApply.any { it.id == curActiveId }
+        val activeExists = curActiveId == "all" || curActiveId == "favorites" || visible.any { it.id == curActiveId }
         if (curActiveId == "all" || !activeExists) {
-            val favPl = playlistsToApply.firstOrNull { it.name.contains("Lieblingssongs", ignoreCase = true) }
-                ?: playlistsToApply.first()
+            val favPl = visible.firstOrNull { it.name.contains("Lieblingssongs", ignoreCase = true) }
+                ?: visible.first()
             _activePlaylistId.value = favPl.id
         }
 
@@ -338,6 +358,19 @@ object MusicPlayerManager {
             }
         }
         MusicWidgetProvider.updateAllWidgets(appCtx)
+        ensurePeriodicFavSyncStarted(appCtx)
+    }
+
+    private fun ensurePeriodicFavSyncStarted(appCtx: Context) {
+        if (favPollJob?.isActive == true) return
+        favPollJob = scope.launch {
+            while (isActive) {
+                delay(14_000)
+                try {
+                    fetchPlaylists(appCtx)
+                } catch (_: Exception) { }
+            }
+        }
     }
 
     private fun autoSyncUncachedTracksInBackground(context: Context) {
@@ -427,6 +460,7 @@ object MusicPlayerManager {
         val primary = try { ServiceLocator.getBaseUrl().trimEnd('/') } catch (_: Exception) { "http://192.168.188.119/api" }
         val list = mutableListOf(primary)
         if (primary != "http://192.168.188.119/api") list.add("http://192.168.188.119/api")
+        if (primary != "https://stage.mein-seelenfunke.de/api") list.add("https://stage.mein-seelenfunke.de/api")
         if (primary != "http://127.0.0.1/api") list.add("http://127.0.0.1/api")
         return list.distinct()
     }
@@ -470,13 +504,23 @@ object MusicPlayerManager {
                     }
                 }
 
-                // 2. Smart network sync: never overwrite local music with an empty Stage/Live server response
-                val remotePlaylists = withContext(Dispatchers.IO) {
+                // 2. Smart network sync across both Local LAN & Stage servers (syncing both tracks & Favorites/Likes)
+                data class RemoteFetchResult(
+                    val bestTracksPlaylists: List<MusicPlaylistDto>,
+                    val bestFavSyncTs: Long,
+                    val bestFavSyncPrefixes: Set<String>,
+                    val dbFavoriteIds: Set<String>
+                )
+
+                val remoteData = withContext(Dispatchers.IO) {
                     var bestList: List<MusicPlaylistDto> = emptyList()
+                    var bestFavTs = 0L
+                    var bestFavPrefixes: Set<String> = emptySet()
+                    val dbFavs = mutableSetOf<String>()
+
                     for (baseUrl in getCandidateBaseUrls()) {
-                        if (bestList.isNotEmpty()) break
                         for (token in getCandidateTokens()) {
-                            if (bestList.isNotEmpty()) break
+                            var gotResponseForUrl = false
                             try {
                                 val req = Request.Builder()
                                     .url("$baseUrl/funki/music/playlists")
@@ -488,31 +532,68 @@ object MusicPlayerManager {
                                     if (res.isSuccessful) {
                                         val s = res.body?.string()
                                         if (!s.isNullOrBlank() && s.trimStart().startsWith("{")) {
+                                            gotResponseForUrl = true
                                             val candidate = parsePlaylistsJson(s)
-                                            // Only accept if the server actually has tracks in its music library!
-                                            if (candidate.sumOf { it.tracks.size } > 0) {
-                                                bestList = candidate
+                                            val syncPl = candidate.firstOrNull { it.name.equals(FAV_SYNC_PLAYLIST_NAME, ignoreCase = true) }
+                                            if (syncPl != null) {
+                                                val (ts, pfx) = parseFavSyncDescription(syncPl.description)
+                                                if (ts > bestFavTs) {
+                                                    bestFavTs = ts
+                                                    bestFavPrefixes = pfx
+                                                }
+                                            }
+                                            val visible = candidate.filter { !it.name.equals(FAV_SYNC_PLAYLIST_NAME, ignoreCase = true) }
+                                            for (pl in visible) {
+                                                for (tr in pl.tracks) {
+                                                    if (tr.isFavorite) {
+                                                        dbFavs.add(tr.id.lowercase())
+                                                        if (tr.id.length >= 8) dbFavs.add(tr.id.substring(0, 8).lowercase())
+                                                    }
+                                                }
+                                            }
+                                            if (bestList.isEmpty() && visible.sumOf { it.tracks.size } > 0) {
+                                                bestList = visible
                                             }
                                         }
                                     }
                                 }
                             } catch (_: Exception) { }
+                            if (gotResponseForUrl) break
                         }
                     }
-                    bestList
+                    RemoteFetchResult(bestList, bestFavTs, bestFavPrefixes, dbFavs)
                 }
 
-                val finalPlaylists = if (remotePlaylists.isNotEmpty()) {
-                    val merged = mergePlaylists(remotePlaylists, localCached)
-                    withContext(Dispatchers.IO) {
-                        savePlaylistsToLocalCache(appCtx, merged)
-                    }
-                    merged
+                var finalPlaylists = if (remoteData.bestTracksPlaylists.isNotEmpty()) {
+                    mergePlaylists(remoteData.bestTracksPlaylists, localCached)
                 } else {
                     localCached
                 }
 
+                // Apply synchronized favorites from Windows Funkenwerk / Server
+                if (remoteData.bestFavSyncTs > 0L && remoteData.bestFavSyncTs >= lastFavSyncTimestamp) {
+                    lastFavSyncTimestamp = remoteData.bestFavSyncTs
+                    finalPlaylists = finalPlaylists.map { pl ->
+                        pl.copy(tracks = pl.tracks.map { tr ->
+                            val pfx = if (tr.id.length >= 8) tr.id.substring(0, 8).lowercase() else tr.id.lowercase()
+                            val fav = pfx in remoteData.bestFavSyncPrefixes || tr.id.lowercase() in remoteData.bestFavSyncPrefixes
+                            tr.copy(isFavorite = fav)
+                        })
+                    }
+                } else if (remoteData.dbFavoriteIds.isNotEmpty()) {
+                    finalPlaylists = finalPlaylists.map { pl ->
+                        pl.copy(tracks = pl.tracks.map { tr ->
+                            val pfx = if (tr.id.length >= 8) tr.id.substring(0, 8).lowercase() else tr.id.lowercase()
+                            val fav = pfx in remoteData.dbFavoriteIds || tr.id.lowercase() in remoteData.dbFavoriteIds
+                            tr.copy(isFavorite = fav)
+                        })
+                    }
+                }
+
                 if (finalPlaylists.isNotEmpty()) {
+                    withContext(Dispatchers.IO) {
+                        savePlaylistsToLocalCache(appCtx, finalPlaylists)
+                    }
                     applyPlaylistsToState(appCtx, finalPlaylists)
                     autoSyncUncachedTracksInBackground(appCtx)
                 }
@@ -901,10 +982,13 @@ object MusicPlayerManager {
     fun toggleFavorite(context: Context, track: MusicTrackDto) {
         val appCtx = context.applicationContext
         val newFav = !track.isFavorite
+        val ts = System.currentTimeMillis() / 1000L
+        lastFavSyncTimestamp = ts
+
         // Optimistic local update + local persistence so favorites work offline & on Stage/Live
         val updatedPlaylists = _playlists.value.map { pl ->
             pl.copy(tracks = pl.tracks.map { tr ->
-                val isSame = tr.id == track.id ||
+                val isSame = tr.id.equals(track.id, ignoreCase = true) ||
                     (tr.title.equals(track.title, ignoreCase = true) && tr.artist.equals(track.artist, ignoreCase = true))
                 if (isSame) tr.copy(isFavorite = newFav) else tr
             })
@@ -916,11 +1000,25 @@ object MusicPlayerManager {
             }
         }
 
-        scope.launch {
+        val favPrefixes = _allTracks.value
+            .filter { it.isFavorite && it.id.isNotBlank() }
+            .map { if (it.id.length >= 8) it.id.substring(0, 8).lowercase() else it.id.lowercase() }
+            .distinct()
+            .sorted()
+            .joinToString(",")
+        val syncDesc = "fav_sync:v1:$ts:$favPrefixes"
+
+        scope.launch(Dispatchers.IO) {
             try {
-                val bodyStr = JSONObject().apply { put("is_favorite", newFav) }.toString()
+                val bodyStr = JSONObject().apply {
+                    put("is_favorite", newFav)
+                    put("title", track.title)
+                    put("artist", track.artist)
+                }.toString()
+
                 for (baseUrl in getCandidateBaseUrls()) {
                     for (token in getCandidateTokens()) {
+                        var serverReachable = false
                         try {
                             val req = Request.Builder()
                                 .url("$baseUrl/funki/music/tracks/${track.id}/favorite")
@@ -928,17 +1026,62 @@ object MusicPlayerManager {
                                 .header("Accept", "application/json")
                                 .post(bodyStr.toRequestBody("application/json".toMediaType()))
                                 .build()
-                            val ok = withContext(Dispatchers.IO) {
-                                fastMetaClient.newCall(req).execute().use { it.isSuccessful }
-                            }
-                            if (ok) {
-                                return@launch
+                            fastMetaClient.newCall(req).execute().use { res ->
+                                if (res.code != 401 && res.code != 403) {
+                                    serverReachable = true
+                                }
                             }
                         } catch (_: Exception) { }
+
+                        try {
+                            upsertFavSyncPlaylistOnServer(baseUrl, token, syncDesc)
+                            serverReachable = true
+                        } catch (_: Exception) { }
+
+                        if (serverReachable) break
                     }
                 }
             } catch (_: Exception) { }
         }
+    }
+
+    private fun upsertFavSyncPlaylistOnServer(baseUrl: String, token: String, syncDesc: String) {
+        val listReq = Request.Builder()
+            .url("$baseUrl/funki/music/playlists")
+            .header("Authorization", "Bearer $token")
+            .header("Accept", "application/json")
+            .get()
+            .build()
+        var existingId: String? = null
+        fastMetaClient.newCall(listReq).execute().use { res ->
+            if (!res.isSuccessful) return
+            val s = res.body?.string() ?: return
+            if (!s.trimStart().startsWith("{")) return
+            val parsed = parsePlaylistsJson(s)
+            existingId = parsed.firstOrNull { it.name.equals(FAV_SYNC_PLAYLIST_NAME, ignoreCase = true) }?.id
+        }
+
+        val payload = JSONObject().apply {
+            put("name", FAV_SYNC_PLAYLIST_NAME)
+            put("description", syncDesc)
+        }.toString().toRequestBody("application/json".toMediaType())
+
+        val writeReq = if (!existingId.isNullOrBlank()) {
+            Request.Builder()
+                .url("$baseUrl/funki/music/playlists/$existingId")
+                .header("Authorization", "Bearer $token")
+                .header("Accept", "application/json")
+                .put(payload)
+                .build()
+        } else {
+            Request.Builder()
+                .url("$baseUrl/funki/music/playlists")
+                .header("Authorization", "Bearer $token")
+                .header("Accept", "application/json")
+                .post(payload)
+                .build()
+        }
+        fastMetaClient.newCall(writeReq).execute().close()
     }
 
     fun createPlaylist(context: Context, name: String, onDone: (Boolean) -> Unit) {
