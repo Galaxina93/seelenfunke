@@ -48,8 +48,31 @@ class SystemSetting extends Model implements HasSystemBlueprint
         );
     }
 
-// Explizite Angabe der Tabelle mit Bindestrich - korrigiert
+    // Explizite Angabe der Tabelle mit Bindestrich - korrigiert
     protected $table = 'shop_settings';
 
     protected $fillable = ['key', 'value'];
+
+    /**
+     * Liest einen Schlüssel-Wert-Eintrag aus shop_settings (oder delegiert Array-Spalten an Eloquent Builder::get).
+     */
+    public static function get(string|array $key = ['*'], mixed $default = null): mixed
+    {
+        if (is_array($key)) {
+            return static::query()->get($key);
+        }
+
+        return static::query()->where('key', $key)->value('value') ?? $default;
+    }
+
+    /**
+     * Speichert oder aktualisiert einen Schlüssel-Wert-Eintrag in shop_settings.
+     */
+    public static function set(string $key, mixed $value): self
+    {
+        return static::query()->updateOrCreate(
+            ['key' => $key],
+            ['value' => $value]
+        );
+    }
 }

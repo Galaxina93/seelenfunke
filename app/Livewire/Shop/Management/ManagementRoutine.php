@@ -114,7 +114,10 @@ class ManagementRoutine extends Component
 
         // Ensure a last_synced_at timestamp is persisted when triggered from the portal button
         $pkg['last_synced_at'] = Carbon::now()->toIso8601String();
-        SystemSetting::set('funki_alarm_sync_package', json_encode($pkg, JSON_UNESCAPED_UNICODE));
+        SystemSetting::updateOrCreate(
+            ['key' => 'funki_alarm_sync_package'],
+            ['value' => json_encode($pkg, JSON_UNESCAPED_UNICODE)]
+        );
 
         $wakeTimeToday = $pkg['wake_up_logs'][$todayStr]['actual_wake_time'] ?? $activeTime;
         $this->syncFeedbackMessage = 'Wecker-Paket synchronisiert (' . Carbon::now()->format('H:i') . ' Uhr · Taktung auf ' . $wakeTimeToday . ' Uhr ausgerichtet).';
@@ -142,7 +145,7 @@ class ManagementRoutine extends Component
             'wake_up_logs' => [],
         ];
 
-        $raw = SystemSetting::get('funki_alarm_sync_package');
+        $raw = SystemSetting::where('key', 'funki_alarm_sync_package')->value('value');
         $decoded = is_string($raw) ? json_decode($raw, true) : null;
 
         return is_array($decoded) ? array_merge($default, $decoded) : $default;

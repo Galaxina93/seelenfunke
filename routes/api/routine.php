@@ -76,7 +76,7 @@ Route::prefix('funki/routine')->group(function () {
     };
 
     Route::get('/alarm-sync', function () use ($defaultAlarmPackage) {
-        $raw = SystemSetting::get('funki_alarm_sync_package');
+        $raw = SystemSetting::where('key', 'funki_alarm_sync_package')->value('value');
         $decoded = is_string($raw) ? json_decode($raw, true) : null;
         $pkg = is_array($decoded) ? array_merge($defaultAlarmPackage(), $decoded) : $defaultAlarmPackage();
 
@@ -87,7 +87,7 @@ Route::prefix('funki/routine')->group(function () {
     });
 
     Route::post('/alarm-sync', function (Request $request) use ($defaultAlarmPackage) {
-        $raw = SystemSetting::get('funki_alarm_sync_package');
+        $raw = SystemSetting::where('key', 'funki_alarm_sync_package')->value('value');
         $existing = is_string($raw) ? json_decode($raw, true) : null;
         $pkg = is_array($existing) ? array_merge($defaultAlarmPackage(), $existing) : $defaultAlarmPackage();
 
@@ -177,7 +177,10 @@ Route::prefix('funki/routine')->group(function () {
         }
         $pkg['last_synced_at'] = Carbon::now()->toIso8601String();
 
-        SystemSetting::set('funki_alarm_sync_package', json_encode($pkg, JSON_UNESCAPED_UNICODE));
+        SystemSetting::updateOrCreate(
+            ['key' => 'funki_alarm_sync_package'],
+            ['value' => json_encode($pkg, JSON_UNESCAPED_UNICODE)]
+        );
 
         return response()->json([
             'success' => true,
