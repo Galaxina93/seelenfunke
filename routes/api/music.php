@@ -248,11 +248,48 @@ Route::prefix('funki/music')->group(function () {
         return response()->json(['success' => true, 'data' => $track]);
     });
 
-    // 8. Toggle Favorite Track
-    Route::match(['put', 'post'], '/tracks/{id}/favorite', function ($id) {
+    // 8. Toggle Favorite Track (100% Sync across Windows, Android & Web Portal)
+    Route::match(['put', 'post'], '/tracks/{id}/favorite', function (Request $request, $id) {
         $track = ManagementTrack::findOrFail($id);
-        $track->update(['is_favorite' => !$track->is_favorite]);
-        return response()->json(['success' => true, 'data' => $track]);
+        $newFav = $request->has('is_favorite')
+            ? filter_var($request->input('is_favorite'), FILTER_VALIDATE_BOOLEAN)
+            : !$track->is_favorite;
+
+        $track->update(['is_favorite' => $newFav]);
+
+        // Synchronize identical track rows across all playlists (by external_id or title+artist)
+        if (!empty($track->external_id)) {
+            ManagementTrack::where('external_id', $track->external_id)->update(['is_favorite' => $newFav]);
+        } else {
+            ManagementTrack::where('title', $track->title)
+                ->where('artist', $track->artist)
+                ->update(['is_favorite' => $newFav]);
+        }
+
+        // Persist favorite status in playlists_catalog.json & funkenwerk/playlists_cache.json
+        foreach ([storage_path('app/leitung/music/playlists_catalog.json'), base_path('funkenwerk/playlists_cache.json')] as $jsonFile) {
+            if (file_exists($jsonFile) && is_writable($jsonFile)) {
+                $decoded = json_decode((string) @file_get_contents($jsonFile), true);
+                if (is_array($decoded) && isset($decoded['data']) && is_array($decoded['data'])) {
+                    foreach ($decoded['data'] as &$pl) {
+                        if (!isset($pl['tracks']) || !is_array($pl['tracks'])) continue;
+                        foreach ($pl['tracks'] as &$tr) {
+                            $sameId = ($tr['id'] ?? '') === $track->id;
+                            $sameExt = !empty($track->external_id) && ($tr['external_id'] ?? '') === $track->external_id;
+                            $sameName = strcasecmp((string) ($tr['title'] ?? ''), (string) $track->title) === 0
+                                && strcasecmp((string) ($tr['artist'] ?? ''), (string) $track->artist) === 0;
+                            if ($sameId || $sameExt || $sameName) {
+                                $tr['is_favorite'] = $newFav;
+                            }
+                        }
+                    }
+                    unset($pl, $tr);
+                    @file_put_contents($jsonFile, json_encode($decoded, JSON_UNESCAPED_UNICODE));
+                }
+            }
+        }
+
+        return response()->json(['success' => true, 'data' => $track->fresh()]);
     });
 
     // 9. Reorder Tracks (Drag & Drop)

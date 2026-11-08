@@ -10,6 +10,44 @@ class MailAccountSeeder extends Seeder
 {
     public function run(): void
     {
+        // Falls nach einem migrate:fresh noch keine E-Mails in der Datenbank liegen,
+        // automatisch Postfächer (inkl. verschlüsselter Passwörter & UUIDs), Ordner, Regeln,
+        // Nachrichten und Anhänge aus dem lokalen System-Backup wiederherstellen.
+        if (\App\Models\Management\Mail\MailMessage::count() === 0) {
+            $backupFiles = glob(storage_path('app/system/Mein-Seelenfunke-db-backup/*.zip')) ?: [];
+            rsort($backupFiles);
+            foreach ($backupFiles as $zipPath) {
+                $zip = new \ZipArchive();
+                if ($zip->open($zipPath) === true) {
+                    $sql = (string) $zip->getFromIndex(0);
+                    $zip->close();
+                    if (str_contains($sql, 'INSERT INTO `mail_messages`')) {
+                        $pdo = \Illuminate\Support\Facades\DB::connection()->getPdo();
+                        $pdo->exec('SET NAMES utf8mb4');
+                        $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
+                        foreach (['mail_accounts', 'mail_folders', 'mail_rules', 'mail_messages', 'mail_attachments'] as $tbl) {
+                            $startMarker = "/*!40000 ALTER TABLE `{$tbl}` DISABLE KEYS */;";
+                            $endMarker = "/*!40000 ALTER TABLE `{$tbl}` ENABLE KEYS */;";
+                            $posStart = strpos($sql, $startMarker);
+                            if ($posStart !== false) {
+                                $posStart += strlen($startMarker);
+                                $posEnd = strpos($sql, $endMarker, $posStart);
+                                if ($posEnd !== false) {
+                                    $stmt = trim(substr($sql, $posStart, $posEnd - $posStart));
+                                    if ($stmt !== '') {
+                                        $pdo->exec('TRUNCATE TABLE `' . $tbl . '`');
+                                        $pdo->exec($stmt);
+                                    }
+                                }
+                            }
+                        }
+                        $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
+                        break;
+                    }
+                }
+            }
+        }
+
         $accounts = [
             [
                 'name' => 'kontakt@mein-seelenfunke.de',
@@ -66,24 +104,34 @@ class MailAccountSeeder extends Seeder
         ];
 
         foreach ($accounts as $accData) {
+            $existingAcc = MailAccount::where('email', $accData['email'])->first();
+            $fallbackPassword = $accData['email'] === 'kontakt@mein-seelenfunke.de'
+                ? (string) env('MAIL_PASSWORD', '')
+                : '';
+
+            $updatePayload = [
+                'name' => $accData['name'],
+                'imap_host' => $accData['imap_host'],
+                'imap_port' => $accData['imap_port'],
+                'imap_encryption' => $accData['imap_encryption'],
+                'imap_username' => $accData['email'],
+                'smtp_host' => $accData['smtp_host'],
+                'smtp_port' => $accData['smtp_port'],
+                'smtp_encryption' => $accData['smtp_encryption'],
+                'smtp_username' => $accData['email'],
+                'is_default' => $accData['is_default'],
+                'is_commercial' => $accData['is_commercial'],
+                'status' => 'connected',
+                'last_sync_at' => now(),
+            ];
+
+            if (!$existingAcc || trim((string) $existingAcc->password) === '') {
+                $updatePayload['password'] = $fallbackPassword;
+            }
+
             $acc = MailAccount::updateOrCreate(
                 ['email' => $accData['email']],
-                [
-                    'name' => $accData['name'],
-                    'password' => '',
-                    'imap_host' => $accData['imap_host'],
-                    'imap_port' => $accData['imap_port'],
-                    'imap_encryption' => $accData['imap_encryption'],
-                    'imap_username' => $accData['email'],
-                    'smtp_host' => $accData['smtp_host'],
-                    'smtp_port' => $accData['smtp_port'],
-                    'smtp_encryption' => $accData['smtp_encryption'],
-                    'smtp_username' => $accData['email'],
-                    'is_default' => $accData['is_default'],
-                    'is_commercial' => $accData['is_commercial'],
-                    'status' => 'connected',
-                    'last_sync_at' => now(),
-                ]
+                $updatePayload
             );
 
             foreach ($accData['folders'] as $fName) {

@@ -24,8 +24,8 @@ class ConfiguratorService
             $previewImagePath = $packages[$pkgKey]['preview_image_path'];
         }
 
-        $fallbackDark = !in_array($pkgKey, ['seelen-talisman', 'goldenes-seelen-herz'], true) && (($configSettings['material_type'] ?? '') === 'metal' || in_array($pkgKey, ['seelen-anhaenger', 'seelen-pfote-hundemarke'], true));
-        $fallbackTrans = ($configSettings['area_shape'] ?? '') === 'custom' || in_array($pkgKey, ['seelen-anhaenger', 'seelen-talisman', 'seelen-pfote-hundemarke', 'goldenes-seelen-herz'], true);
+        $fallbackDark = !in_array($pkgKey, ['seelen-talisman', 'goldenes-seelen-herz', 'echtgold-seelen-herz'], true) && (($configSettings['material_type'] ?? '') === 'metal' || in_array($pkgKey, ['seelen-anhaenger', 'seelen-pfote-hundemarke'], true));
+        $fallbackTrans = ($configSettings['area_shape'] ?? '') === 'custom' || in_array($pkgKey, ['seelen-anhaenger', 'seelen-talisman', 'seelen-pfote-hundemarke', 'goldenes-seelen-herz', 'echtgold-seelen-herz'], true);
 
         if (!$previewImagePath) {
             return [
@@ -296,6 +296,17 @@ class ConfiguratorService
                 'preview_image_path'      => 'produkte/products/goldenes-seelen-herz/overlay.png',
                 'three_d_background_path' => 'produkte/products/goldenes-seelen-herz/header_bg.png',
                 'three_d_model_path'      => 'produkte/products/goldenes-seelen-herz/goldenes_seelen_herz_3d.glb',
+                'default_background_theme'=> 'standard',
+                'material_type'           => 'metal',
+                'area_shape'              => 'custom',
+            ],
+            'echtgold-seelen-herz' => [
+                'key'                     => 'echtgold-seelen-herz',
+                'name'                    => 'Echtgold Seelen-Herz Paket (585er Gold-Herz & 333er Goldkette)',
+                'description'             => 'Transparenter 2D 585er Echtgold-Herz Cutout + 3D Atelier-Bühne',
+                'preview_image_path'      => 'produkte/products/echtgold-seelen-herz/overlay.png',
+                'three_d_background_path' => 'produkte/products/echtgold-seelen-herz/header_bg.png',
+                'three_d_model_path'      => 'produkte/products/echtgold-seelen-herz/echtgold_seelen_herz_3d.glb',
                 'default_background_theme'=> 'standard',
                 'material_type'           => 'metal',
                 'area_shape'              => 'custom',

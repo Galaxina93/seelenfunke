@@ -260,5 +260,86 @@ Route::group(['middleware' => [function ($request, $next) {
             ], 500);
         }
     });
+
+    // --- FUNKENWERK NETZWERK-LABELDRUCKER (MUNBYN ITPP941AP) QUEUE API ---
+    Route::middleware('throttle:120,1')->group(function () {
+        Route::get('/printer/jobs', function (Request $request, \App\Services\System\FunkenwerkPrintService $printService) {
+            $includePdf = $request->boolean('include_pdf', true);
+            return response()->json([
+                'success' => true,
+                'data' => $printService->getQueueState($includePdf),
+            ])->withHeaders([
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
+        });
+
+        Route::post('/printer/jobs/test', function (Request $request, \App\Services\System\FunkenwerkPrintService $printService) {
+            $data = $request->validate([
+                'printer_ip' => 'nullable|string|max:45',
+            ]);
+            $ip = \App\Services\System\FunkenwerkPrintService::sanitizePrivateLanIp($data['printer_ip'] ?? '192.168.188.149');
+            $job = $printService->enqueueTestLabel($ip);
+            return response()->json([
+                'success' => true,
+                'message' => 'Test-Label in die Funkenwerk-Druckwarteschlange eingereiht.',
+                'job' => $job,
+            ])->withHeaders(['Cache-Control' => 'no-store, private']);
+        });
+
+        Route::post('/printer/jobs/clear', function (Request $request, \App\Services\System\FunkenwerkPrintService $printService) {
+            $printService->clearQueue($request->boolean('include_pending', false));
+            return response()->json([
+                'success' => true,
+                'message' => 'Druck-Historie bereinigt.',
+            ])->withHeaders(['Cache-Control' => 'no-store, private']);
+        });
+
+        Route::post('/printer/jobs/{jobId}/ack', function (Request $request, string $jobId, \App\Services\System\FunkenwerkPrintService $printService) {
+            $data = $request->validate([
+                'status' => 'required|string|in:completed,failed,printing',
+                'error_message' => 'nullable|string|max:500',
+                'printer_ip' => 'nullable|string|max:45',
+            ]);
+
+            $job = $printService->acknowledgeJob(
+                $jobId,
+                $data['status'],
+                $data['error_message'] ?? null,
+                $data['printer_ip'] ?? null
+            );
+
+            return response()->json([
+                'success' => $job !== null,
+                'job' => $job,
+            ], $job !== null ? 200 : 404)->withHeaders(['Cache-Control' => 'no-store, private']);
+        })->whereUuid('jobId');
+
+        Route::post('/printer/jobs/{jobId}/requeue', function (string $jobId, \App\Services\System\FunkenwerkPrintService $printService) {
+            $job = $printService->requeueJob($jobId);
+            return response()->json([
+                'success' => $job !== null,
+                'job' => $job,
+            ], $job !== null ? 200 : 404)->withHeaders(['Cache-Control' => 'no-store, private']);
+        })->whereUuid('jobId');
+
+        Route::post('/shop/orders/{id}/print-label', function (string $id, \App\Services\System\FunkenwerkPrintService $printService) {
+            try {
+                $order = OrderOrder::with(['items.product', 'shipments'])->findOrFail($id);
+                $jobs = $printService->enqueueOrderLabel($order);
+                return response()->json([
+                    'success' => true,
+                    'message' => count($jobs) . ' Etikett(en) an Funkenwerk übergeben.',
+                    'jobs' => $jobs,
+                ])->withHeaders(['Cache-Control' => 'no-store, private']);
+            } catch (\RuntimeException $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 422)->withHeaders(['Cache-Control' => 'no-store, private']);
+            }
+        })->whereUuid('id');
+    });
 });
+
 

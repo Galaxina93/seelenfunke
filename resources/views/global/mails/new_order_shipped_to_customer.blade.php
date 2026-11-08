@@ -54,6 +54,13 @@
         Alle Details zu dieser Bestellung sowie deine Rechnung findest du jederzeit im Kundenportal unter <strong>Bestellungen</strong>.
     </div>
 
+    @if(!empty($data['has_digital_documents']))
+        <div style="margin-top: 15px; padding: 15px 18px; background-color: #faf8f5; border: 1px solid #e7e2d8; border-left: 4px solid #C5A059; border-radius: 6px; font-size: 13px; color: #44403c; line-height: 1.55;">
+            <strong style="color: #1c1917;">📄 Digitale Dokumente zu deiner Bestellung:</strong><br>
+            Zu deiner Bestellung gehören digitale Begleitdokumente. Du findest diese jederzeit in deinem <a href="{{ url('/orders') }}" style="color: #9a6f1a; font-weight: bold; text-decoration: underline;">Kundenportal</a> in der Bestellansicht unter <strong>Dokumente</strong>.
+        </div>
+    @endif
+
     {{-- FOOTER --}}
     @include('global.mails.partials.mail_footer')
 

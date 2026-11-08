@@ -75,3 +75,10 @@ Anhand der erreichten Effektivitäts-Quote bewertet Funki den aktuellen Status v
 7. **`routine_update`:** Bearbeitet Titel, Startzeit, Dauer, Kategorie, Wochentage, Aktiv-Status oder Unterschritte einer bestehenden Routine.
 8. **`routine_delete`:** Löscht eine Routine samt Unterschritten und Historie.
 9. **`routine_manage_steps`:** Fügt Unterschritte einer bestehenden Routine gezielt hinzu (`add`), ändert sie (`update`) oder entfernt sie (`delete`).
+
+---
+
+## 6. Funkenwerk Android Wecker-Paket-Sync & Dynamische Aufsteh-Taktung
+* **API-Schnittstelle ([`routes/api/routine.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/api/routine.php)):** Über `GET /api/funki/routine/alarm-sync` und `POST /api/funki/routine/alarm-sync` synchronisiert die Funkenwerk Android App ihre aktiven Wecker, Timer-Presets, Smart-Home-Steckdosen und die real geloggten Aufstehzeiten (`wake_up_logs`) in das `SystemSetting`-Paket `'funki_alarm_sync_package'`.
+* **Dynamische Zeitverschiebung ([`ManagementRoutine.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Management/ManagementRoutine.php) & [`management-routine.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/management/management-routine.blade.php)):** In `/admin/routine` zeigt die Wecker-Taktungs-Leiste den aktiven Wecker, den Aufsteh-Durchschnitt (`Ø Aufstehen`) sowie den Umschalter **„Dynamisch aktiv / Statisch“** und den **„Wecker-Sync“**-Button. Bei aktiver dynamischer Taktung verschieben sich alle Startzeiten der Tagesroutine-Schritte automatisch passend zur tatsächlichen Weck-/Aufstehzeit des jeweiligen Tages (Detailbericht: [`Android_Wecker_SmartHome_und_Routine_Sync.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Android/Android_Wecker_SmartHome_und_Routine_Sync.md)).
+

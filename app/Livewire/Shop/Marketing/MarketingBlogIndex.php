@@ -72,7 +72,7 @@ class MarketingBlogIndex extends Component
         if (!empty($this->categorySlug)) {
             $activeCat = $categories->firstWhere('slug', $this->categorySlug);
             if ($activeCat) {
-                $blogTitle = "{$activeCat->name} – Magazin & Ratgeber | {$companyName}";
+                $blogTitle = "{$activeCat->name} | Magazin & Ratgeber | {$companyName}";
                 $blogMetaDesc = "Alle Beiträge, Ratgeber und Hintergrundberichte in der Kategorie {$activeCat->name} aus der Manufaktur {$companyName} in {$city}.";
                 $canonicalUrl = route('marketing/marketing/blog', ['kategorie' => $activeCat->slug]);
             }

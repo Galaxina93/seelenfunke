@@ -328,6 +328,10 @@ Route::get('/digital-product/{item}/download', [\App\Http\Controllers\Customer\D
     ->middleware('throttle:30,1')
     ->name('digital-product.download');
 
+Route::get('/customer-document/{customer}/{doc}/download', [\App\Http\Controllers\Customer\DigitalProductDownloadController::class, 'downloadCustomerDocument'])
+    ->middleware('throttle:30,1')
+    ->name('customer-document.download');
+
 // --- 8. Legacy Snapshot URL Fallback Route (Leitet alte Pfade auf GoBD/System-Pfad um) ---
 Route::get('/storage/snapshots/{path}', function ($path) {
     $rawPath = (string) $path;

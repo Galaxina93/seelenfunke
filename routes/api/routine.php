@@ -5,10 +5,185 @@ use Illuminate\Support\Facades\Route;
 use App\Models\Management\ManagementDayRoutine;
 use App\Models\Management\ManagementDayRoutineStep;
 use App\Models\Management\ManagementDayRoutineLog;
+use App\Models\System\SystemSetting;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 
 Route::prefix('funki/routine')->group(function () {
+
+    // 0. Get & Sync Funkenwerk Android Alarm / Timer / Wake-Up Package
+    $defaultAlarmPackage = function (): array {
+        return [
+            'last_synced_at' => null,
+            'device_name' => 'Funkenwerk Android',
+            'active_alarm_time' => '08:30',
+            'active_alarm_label' => 'Jeden Tag',
+            'alarms' => [
+                [
+                    'id' => 'alarm_0645',
+                    'hour' => 6,
+                    'minute' => 45,
+                    'label' => 'Frühschicht / Manufaktur',
+                    'schedule_text' => 'Jeden Tag',
+                    'days_of_week' => [1, 2, 3, 4, 5, 6, 7],
+                    'is_enabled' => false,
+                    'smart_plug_ips' => ['192.168.188.109'],
+                    'trigger_plug_on_ring' => true,
+                    'ai_briefing_enabled' => true,
+                    'sync_with_routine' => true,
+                ],
+                [
+                    'id' => 'alarm_0830',
+                    'hour' => 8,
+                    'minute' => 30,
+                    'label' => 'Seelenfunke Fokus-Start',
+                    'schedule_text' => 'Jeden Tag',
+                    'days_of_week' => [1, 2, 3, 4, 5, 6, 7],
+                    'is_enabled' => true,
+                    'smart_plug_ips' => ['192.168.188.109', '192.168.188.106'],
+                    'trigger_plug_on_ring' => true,
+                    'ai_briefing_enabled' => true,
+                    'sync_with_routine' => true,
+                ],
+                [
+                    'id' => 'alarm_1300',
+                    'hour' => 13,
+                    'minute' => 0,
+                    'label' => 'Mittags-Check / Express',
+                    'schedule_text' => 'Nicht geplant',
+                    'days_of_week' => [],
+                    'is_enabled' => false,
+                    'smart_plug_ips' => [],
+                    'trigger_plug_on_ring' => false,
+                    'ai_briefing_enabled' => false,
+                    'sync_with_routine' => false,
+                ],
+            ],
+            'timers' => [
+                ['id' => 'timer_5', 'label' => 'Timer: 5 Min.', 'duration_seconds' => 300],
+                ['id' => 'timer_10', 'label' => 'Timer: 10 Min.', 'duration_seconds' => 600],
+                ['id' => 'timer_15', 'label' => 'Timer: 15 Min.', 'duration_seconds' => 900],
+                ['id' => 'timer_20', 'label' => 'Timer: 20 Min.', 'duration_seconds' => 1200],
+                ['id' => 'timer_30', 'label' => 'Timer: 30 Min.', 'duration_seconds' => 1800],
+            ],
+            'smart_plugs' => [
+                ['name' => 'Tapo P100 (Test-Steckdose)', 'ip' => '192.168.188.109', 'room' => 'Heimnetz'],
+                ['name' => 'Smart Plug #2', 'ip' => '192.168.188.106', 'room' => 'Heimnetz'],
+                ['name' => 'Smart Plug #3', 'ip' => '192.168.188.123', 'room' => 'Heimnetz'],
+            ],
+            'wake_up_logs' => [],
+        ];
+    };
+
+    Route::get('/alarm-sync', function () use ($defaultAlarmPackage) {
+        $raw = SystemSetting::get('funki_alarm_sync_package');
+        $decoded = is_string($raw) ? json_decode($raw, true) : null;
+        $pkg = is_array($decoded) ? array_merge($defaultAlarmPackage(), $decoded) : $defaultAlarmPackage();
+
+        return response()->json([
+            'success' => true,
+            'data' => $pkg,
+        ]);
+    });
+
+    Route::post('/alarm-sync', function (Request $request) use ($defaultAlarmPackage) {
+        $raw = SystemSetting::get('funki_alarm_sync_package');
+        $existing = is_string($raw) ? json_decode($raw, true) : null;
+        $pkg = is_array($existing) ? array_merge($defaultAlarmPackage(), $existing) : $defaultAlarmPackage();
+
+        $alarmsInput = $request->input('alarms');
+        if (is_string($alarmsInput)) {
+            $alarmsInput = json_decode($alarmsInput, true);
+        } elseif ($request->filled('alarms_json')) {
+            $alarmsInput = json_decode((string) $request->input('alarms_json'), true);
+        }
+        if (is_array($alarmsInput)) {
+            $pkg['alarms'] = array_values($alarmsInput);
+        }
+
+        $timersInput = $request->input('timers');
+        if (is_string($timersInput)) {
+            $timersInput = json_decode($timersInput, true);
+        } elseif ($request->filled('timers_json')) {
+            $timersInput = json_decode((string) $request->input('timers_json'), true);
+        }
+        if (is_array($timersInput)) {
+            $pkg['timers'] = array_values($timersInput);
+        }
+
+        $plugsInput = $request->input('smart_plugs');
+        if (is_string($plugsInput)) {
+            $plugsInput = json_decode($plugsInput, true);
+        } elseif ($request->filled('smart_plugs_json')) {
+            $plugsInput = json_decode((string) $request->input('smart_plugs_json'), true);
+        }
+        if (is_array($plugsInput)) {
+            $pkg['smart_plugs'] = array_values($plugsInput);
+        }
+
+        $logsInput = $request->input('wake_up_logs');
+        if (is_string($logsInput)) {
+            $logsInput = json_decode($logsInput, true);
+        } elseif ($request->filled('wake_up_logs_json')) {
+            $logsInput = json_decode((string) $request->input('wake_up_logs_json'), true);
+        }
+        $existingLogs = is_array($pkg['wake_up_logs'] ?? null) ? $pkg['wake_up_logs'] : [];
+        if (is_array($logsInput)) {
+            foreach ($logsInput as $key => $entry) {
+                if (is_array($entry) && !empty($entry['date'])) {
+                    $existingLogs[$entry['date']] = $entry;
+                } elseif (is_string($key) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $key) && is_array($entry)) {
+                    $existingLogs[$key] = array_merge(['date' => $key], $entry);
+                }
+            }
+        }
+
+        // Optional direct single wake-up log push from Android alarm dismiss/ring
+        if ($request->filled('wake_up_date') && $request->filled('actual_wake_time')) {
+            $wDate = (string) $request->input('wake_up_date');
+            $existingLogs[$wDate] = [
+                'date' => $wDate,
+                'scheduled_time' => (string) $request->input('scheduled_time', $pkg['active_alarm_time'] ?? '08:30'),
+                'actual_wake_time' => (string) $request->input('actual_wake_time'),
+                'snooze_minutes' => (int) $request->input('snooze_minutes', 0),
+                'plugs_triggered' => (bool) $request->input('plugs_triggered', false),
+                'ai_briefing_spoken' => (bool) $request->input('ai_briefing_spoken', false),
+                'synced_at' => Carbon::now()->toIso8601String(),
+            ];
+        }
+
+        ksort($existingLogs);
+        if (count($existingLogs) > 120) {
+            $existingLogs = array_slice($existingLogs, -120, null, true);
+        }
+        $pkg['wake_up_logs'] = $existingLogs;
+
+        // Recompute active alarm time from enabled routine-synced alarms
+        $enabledAlarms = collect($pkg['alarms'] ?? [])
+            ->filter(fn($a) => !empty($a['is_enabled']) && ($a['sync_with_routine'] ?? true))
+            ->sortBy(fn($a) => sprintf('%02d:%02d', (int) ($a['hour'] ?? 0), (int) ($a['minute'] ?? 0)))
+            ->values();
+
+        if ($request->filled('active_alarm_time')) {
+            $pkg['active_alarm_time'] = substr((string) $request->input('active_alarm_time'), 0, 5);
+        } elseif ($enabledAlarms->isNotEmpty()) {
+            $first = $enabledAlarms->first();
+            $pkg['active_alarm_time'] = sprintf('%02d:%02d', (int) ($first['hour'] ?? 8), (int) ($first['minute'] ?? 30));
+            $pkg['active_alarm_label'] = (string) ($first['schedule_text'] ?? $first['label'] ?? 'Jeden Tag');
+        }
+
+        if ($request->filled('device_name')) {
+            $pkg['device_name'] = (string) $request->input('device_name');
+        }
+        $pkg['last_synced_at'] = Carbon::now()->toIso8601String();
+
+        SystemSetting::set('funki_alarm_sync_package', json_encode($pkg, JSON_UNESCAPED_UNICODE));
+
+        return response()->json([
+            'success' => true,
+            'data' => $pkg,
+        ]);
+    });
 
     // 1. Get all routines with steps and today's log status
     Route::get('/', function (Request $request) {

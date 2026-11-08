@@ -105,7 +105,7 @@
         }
 
         // Kugelsichere Abfrage für den roten Punkt
-        $hasUnreadTickets = \App\Models\Support\SupportTicketMessage::where('sender_type', 'admin')
+        $hasUnreadTickets = \App\Models\Support\SupportTicketMessage::where('sender_type', '!=', 'customer')
             ->where('is_read_by_customer', false)
             ->whereIn('support_ticket_id', \App\Models\Support\SupportTicket::where('customer_id', $customerId)->pluck('id'))
             ->exists();
@@ -164,6 +164,7 @@
       }"
       x-init="initGlobalEcho()"
       @clear-ticket-badge.window="hasUnreadSupport = false"
+      @ticket-badge-update.window="hasUnreadSupport = ($event.detail && $event.detail.hasUnread !== undefined) ? Boolean($event.detail.hasUnread) : true"
       @notify.window="showNotifyToast($event.detail)"
       class="bg-slate-50 dark:bg-gray-950 text-gray-900 dark:text-white flex flex-col h-screen overflow-hidden selection:bg-primary selection:text-gray-900 font-sans relative transition-colors duration-300">
 

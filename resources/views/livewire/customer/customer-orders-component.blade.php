@@ -612,13 +612,16 @@
                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                                 Dokumente
                             </h3>
-                            @if($selectedOrder->invoices->isEmpty())
-                                <div class="text-center py-8 bg-gray-50 dark:bg-gray-950 rounded-2xl border border-gray-200 dark:border-gray-800">
-                                    <svg class="mx-auto h-10 w-10 text-gray-400 dark:text-gray-700 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest">Rechnung wird erstellt</p>
-                                </div>
-                            @else
-                                <div class="space-y-4">
+                            @php
+                                $downloadsUnlocked = $selectedOrder->payment_status === 'paid' && !in_array($selectedOrder->status, ['cancelled', 'refunded'], true);
+                            @endphp
+                            <div class="space-y-4">
+                                @if($selectedOrder->invoices->isEmpty())
+                                    <div class="text-center py-6 bg-gray-50 dark:bg-gray-950 rounded-2xl border border-gray-200 dark:border-gray-800">
+                                        <svg class="mx-auto h-8 w-8 text-gray-400 dark:text-gray-700 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest">Rechnung wird erstellt</p>
+                                    </div>
+                                @else
                                     @foreach($selectedOrder->invoices as $invoice)
                                         <div class="group flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 {{ $invoice->isCreditNote() ? 'border-red-300 dark:border-red-500/30 bg-red-50 dark:bg-red-500/5 hover:bg-red-100 dark:hover:bg-red-500/10' : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-primary/50' }}">
                                             <div class="flex-1 flex items-center gap-4 min-w-0">
@@ -637,10 +640,7 @@
                                             </a>
                                         </div>
                                     @endforeach
- 
-                                    @php
-                                        $downloadsUnlocked = $selectedOrder->payment_status === 'paid' && !in_array($selectedOrder->status, ['cancelled', 'refunded'], true);
-                                    @endphp
+                                @endif
 
                                     {{-- Digitale Downloads als Dokumente --}}
                                     @foreach($selectedOrder->items as $item)
@@ -668,6 +668,61 @@
                                             @endif
                                         </div>
                                         @endif
+                                    @endforeach
+
+                                    {{-- Digitale Begleitdokumente (z. B. Echtheitszertifikat, Pflegehinweise) --}}
+                                    @foreach($selectedOrder->items as $item)
+                                        @foreach($item->resolveDigitalDocuments() as $doc)
+                                            <div class="group flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-primary/50">
+                                                <div class="flex-1 flex items-center gap-4 min-w-0">
+                                                    <div class="text-primary shrink-0">
+                                                        <svg class="w-8 h-8 opacity-90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                    </div>
+                                                    <div class="min-w-0">
+                                                        <p class="text-sm font-bold tracking-wider text-gray-900 dark:text-white group-hover:text-primary transition-colors truncate" title="{{ $doc['title'] }}">
+                                                            {{ $doc['title'] }}
+                                                        </p>
+                                                        <p class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mt-1 truncate">
+                                                            {{ $item->product_name }} ({{ strtoupper($doc['extension'] ?? 'PDF') }})
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                @if($downloadsUnlocked)
+                                                    <a href="{{ route('digital-product.download', ['item' => $item->id, 'doc' => $doc['id']]) }}" target="_blank" class="w-10 h-10 rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:text-primary group-hover:border-primary transition-all shadow-sm shrink-0" title="Dokument herunterladen">
+                                                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                                    </a>
+                                                @else
+                                                    <span class="px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-[9px] font-bold uppercase tracking-wider shrink-0">
+                                                        {{ in_array($selectedOrder->status, ['cancelled', 'refunded'], true) ? 'Gesperrt' : 'Nach Zahlung' }}
+                                                    </span>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    @endforeach
+
+                                    {{-- Individuell durch das Atelier bereitgestellte Kundendokumente --}}
+                                    @php
+                                        $adminCustomerDocs = $selectedOrder->customer ? $selectedOrder->customer->getAdminUploadedDocuments((string) $selectedOrder->id) : [];
+                                    @endphp
+                                    @foreach($adminCustomerDocs as $cDoc)
+                                        <div class="group flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/60">
+                                            <div class="flex-1 flex items-center gap-4 min-w-0">
+                                                <div class="text-primary shrink-0">
+                                                    <svg class="w-8 h-8 opacity-90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                </div>
+                                                <div class="min-w-0">
+                                                    <p class="text-sm font-bold tracking-wider text-gray-900 dark:text-white group-hover:text-primary transition-colors truncate" title="{{ $cDoc['title'] }}">
+                                                        {{ $cDoc['title'] }}
+                                                    </p>
+                                                    <p class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mt-1 truncate">
+                                                        Atelier-Dokument ({{ strtoupper($cDoc['extension'] ?? 'PDF') }})
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <a href="{{ route('customer-document.download', ['customer' => $selectedOrder->customer_id, 'doc' => $cDoc['id']]) }}" target="_blank" class="w-10 h-10 rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:text-primary group-hover:border-primary transition-all shadow-sm shrink-0" title="Dokument herunterladen">
+                                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                            </a>
+                                        </div>
                                     @endforeach
 
                                     {{-- Geschenkgutscheine (PDF) als Dokumente --}}
@@ -746,8 +801,7 @@
                                             </a>
                                         </div>
                                     @endforeach
-                                </div>
-                            @endif
+                            </div>
                         </div>
 
                         <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 rounded-[2.5rem] p-6 sm:p-8">
@@ -788,6 +842,38 @@
             {{-- LISTEN ANSICHT (Übersicht aller Bestellungen) --}}
             {{-- ========================================== --}}
             <div class="space-y-8 w-full">
+                @php
+                    $currentCust = auth()->guard('customer')->user();
+                    $generalAdminDocs = $currentCust ? collect($currentCust->getAdminUploadedDocuments())->filter(fn($d) => empty($d['order_id']) || $orders->isEmpty())->values()->all() : [];
+                @endphp
+                @if(!empty($generalAdminDocs))
+                    <div class="bg-white dark:bg-gray-900 rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8">
+                        <h3 class="text-xs font-black text-gray-500 dark:text-gray-400 mb-4 uppercase tracking-[0.3em] flex items-center gap-3">
+                            <svg class="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                            Hinterlegte Dokumente
+                        </h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            @foreach($generalAdminDocs as $gDoc)
+                                <div class="group flex items-center justify-between p-4 rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 hover:border-primary/50 transition-all">
+                                    <div class="flex items-center gap-3 min-w-0 pr-3">
+                                        <div class="text-primary shrink-0">
+                                            <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                        </div>
+                                        <div class="min-w-0">
+                                            <p class="text-sm font-bold text-gray-900 dark:text-white truncate">{{ $gDoc['title'] }}</p>
+                                            <p class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mt-0.5 truncate">
+                                                {{ strtoupper($gDoc['extension'] ?? 'PDF') }}{{ !empty($gDoc['uploaded_at']) ? ' • ' . \Carbon\Carbon::parse($gDoc['uploaded_at'])->format('d.m.Y') : '' }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <a href="{{ route('customer-document.download', ['customer' => $currentCust->id, 'doc' => $gDoc['id']]) }}" target="_blank" class="w-10 h-10 rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:text-primary group-hover:border-primary transition-all shadow-sm shrink-0" title="Herunterladen">
+                                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                    </a>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
                 @forelse($orders as $o)
                     <div class="bg-white dark:bg-gray-900 rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden hover:border-primary/50 transition-all duration-500 group" wire:key="order-list-{{ $o->id }}">
                         <div class="px-6 sm:px-8 py-6 bg-gray-50/80 dark:bg-gray-800/40 border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-6">

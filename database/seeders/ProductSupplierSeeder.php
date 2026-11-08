@@ -349,5 +349,156 @@ class ProductSupplierSeeder extends Seeder
                 ],
             ]
         );
+
+        // 12. HÄNDLER 12: Silberketten-Store.de (Udo Hermann – 333/585 Echtgold & 925 Sterling Silber Rohlinge)
+        ProductSupplier::updateOrCreate(
+            ['name' => 'Silberketten-Store.de (Udo Hermann)'],
+            [
+                'company_name' => 'Silberketten-Store / Udo Hermann',
+                'contact_person' => 'Udo Hermann',
+                'street' => 'Hauptstraße',
+                'house_number' => '45',
+                'zip' => '55743',
+                'city' => 'Idar-Oberstein',
+                'country' => 'Deutschland',
+                'country_code' => 'DE',
+                'email' => 'info@silberketten-store.de',
+                'website' => 'https://www.silberketten-store.de/',
+                'lead_time_land_days' => 3,
+                'shipping_method' => 'land',
+                'notes' => 'Deutscher Fachhändler für 333er/585er Echtgold und 925er Sterling Silber (Einzelabruf ab 1 Stk. auf Kundenbestellung ohne Mindestbestellwert). Wichtig bei Bestellung: Dropdown „Gravur“ immer leer lassen („Bitte wählen Sie“), damit der blanke, gestempelte Rohling ohne 5,00 € Gravur-Aufpreis geliefert wird.',
+                'dynamic_links' => [
+                    [
+                        'title' => 'Herz-Anhänger: 585er Echtgold (13×14 mm, 0,80 g, Art.-Nr. 235559.400, 134,00 € brutto)',
+                        'url' => 'https://www.silberketten-store.de/GOLDSCHMUCK/Kettenanhaenger/Gravuranhaenger-Herz-235559-400-585-Gold-10704'
+                    ],
+                    [
+                        'title' => 'Passende Kette im Set: 333er Echtgold Panzerkette (0,8 mm, 69,00 € brutto)',
+                        'url' => 'https://www.silberketten-store.de/GOLDSCHMUCK/Ketten/Panzerketten/Panzerkette-0-8mm-333-Gold'
+                    ],
+                    [
+                        'title' => 'Gravurarmband Figaro 4,0 mm – 925 Sterling Silber (Platte 40×4 mm, ab 22,90 € brutto)',
+                        'url' => 'https://www.silberketten-store.de/SILBERSCHMUCK/Gravurartikel/Gravurarmbaender/Figaro-Gravurarmband-4mm'
+                    ],
+                    [
+                        'title' => 'Panzer-Gravurarmband 5,5 mm – 925 Sterling Silber (Platte 40×5,5 mm, ab 49,00 € brutto)',
+                        'url' => 'https://www.silberketten-store.de/SILBERSCHMUCK/Gravurartikel/Gravurarmbaender/Gravurarmband-5-5mm'
+                    ],
+                    [
+                        'title' => 'Kinder-/Tauf-Gravurarmband Panzer 1,8 mm – 333 Echtgold (Platte 25×5 mm, 179,00 € brutto)',
+                        'url' => 'https://www.silberketten-store.de/SILBERSCHMUCK/Gravurartikel/Kindergravurarmbaender/Kinder-Gravurarmband-Panzer-1-8mm-333-Gold'
+                    ],
+                    [
+                        'title' => 'Kinder-/Tauf-Gravurarmband Figaro 1,5 mm – 585 Echtgold (Platte 20×5 mm, 212,00 € brutto)',
+                        'url' => 'https://www.silberketten-store.de/GOLDSCHMUCK/Gravurartikel/Kindergravurarmbaender/Kinder-Gravurarmband-Figaro-1-5mm-585-Gold'
+                    ],
+                ],
+            ]
+        );
+
+        // 13. HÄNDLER 13: Friedrich Binder GmbH & Co. KG (FBM – Deutscher Ketten- & ID-Armband-Hersteller seit 1910)
+        ProductSupplier::updateOrCreate(
+            ['name' => 'Friedrich Binder GmbH & Co. KG (FBM)'],
+            [
+                'company_name' => 'Friedrich Binder GmbH & Co. KG (FBM)',
+                'contact_person' => 'B2B-Vertrieb & Webshop (Gewerbenachweis)',
+                'street' => 'Wagnerstraße',
+                'house_number' => '34',
+                'zip' => '71297',
+                'city' => 'Mönsheim (bei Pforzheim)',
+                'country' => 'Deutschland',
+                'country_code' => 'DE',
+                'phone' => '+49 7044 9210',
+                'email' => 'info@fbm.de',
+                'website' => 'https://www.fbm-chains.com/schmuck/id-armbaender.php',
+                'vat_id' => 'DE146019897',
+                'lead_time_land_days' => 3,
+                'shipping_method' => 'land',
+                'notes' => 'Deutscher Traditionshersteller („Made in Germany“ seit 1910, RJC-zertifiziert, 100 % recyceltes Gold & Silber). Produziert echte ungravierte ID-Gravurarmbänder in 925 Sterling Silber, 333 Gold, 585 Gold und 750 Gold direkt ab Werk für Gewerbekunden (eigener B2B-Webshop).',
+                'dynamic_links' => [
+                    [
+                        'title' => 'FBM Direkt-Bestellung: ID-Armband Figaro 2,1 mm mit Herz (925 Silber, 18,5 cm, P001.53062HERZ.5.18.5)',
+                        'url' => 'https://shop.fbm-chains.com/id-armband-figaro-diamantiert-2.1mm/P001.53062HERZ.5.18.5'
+                    ],
+                    [
+                        'title' => 'FBM Direkt-Bestellung: ID-Armband Figaro 2,1 mm mit Herz (925 Gelb vergoldet, 18,5 cm, P020.53062HERZ.5.18.5)',
+                        'url' => 'https://shop.fbm-chains.com/id-armband-figaro-diamantiert-2.1mm/P020.53062HERZ.5.18.5'
+                    ],
+                    [
+                        'title' => 'FBM Direkt-Bestellung: ID-Armband Figaro 2,1 mm (333 Echtgold, 18,5 cm, P003.53062.5.18.5)',
+                        'url' => 'https://shop.fbm-chains.com/id-armband-figaro-diamantiert-2.1mm/P003.53062.5.18.5'
+                    ],
+                    [
+                        'title' => 'FBM ID-Armbänder Gesamtkatalog (Shop)',
+                        'url' => 'https://shop.fbm-chains.com/armbaender/rubriken/id-armbaender/'
+                    ],
+                ],
+            ]
+        );
+
+        // 14. HÄNDLER 14: Max Fröhlich GmbH (Deutscher B2B-Schmuckgroßhandel für Identitäts-Armbänder Gold & Silber)
+        ProductSupplier::updateOrCreate(
+            ['name' => 'Max Fröhlich GmbH (B2B Schmuckgroßhandel)'],
+            [
+                'company_name' => 'Max Fröhlich GmbH',
+                'contact_person' => 'B2B Großhandel (Gewerbe-Freischaltung)',
+                'street' => 'Rellinghauser Straße',
+                'house_number' => '334',
+                'zip' => '45136',
+                'city' => 'Essen',
+                'country' => 'Deutschland',
+                'country_code' => 'DE',
+                'phone' => '+49 201 894280',
+                'email' => 'info@maxfroehlich.de',
+                'website' => 'https://b2b-shop.maxfroehlich.de/standard-schmuck/gold-silberketten-und-armbaender/identitaets-armbaender',
+                'lead_time_land_days' => 2,
+                'shipping_method' => 'land',
+                'notes' => 'Einer der größten deutschen B2B-Schmuckgroßhändler mit eigener Rubrik „Identitäts-Armbänder“ (blanko Gravurarmbänder in 925 Silber rhodiniert/vergoldet sowie 333er & 585er Echtgold zum echten Großhandels-EK).',
+                'dynamic_links' => [
+                    [
+                        'title' => 'Max Fröhlich B2B: Identitäts-/Gravur-Armbänder (Gold & 925 Silber)',
+                        'url' => 'https://b2b-shop.maxfroehlich.de/standard-schmuck/gold-silberketten-und-armbaender/identitaets-armbaender'
+                    ],
+                ],
+            ]
+        );
+
+        // 15. HÄNDLER 15: MATERIA Schmuck by Matthias Wagner (Sofort-Einzelabruf ab 1 Stk. ohne B2B-Mindestbestellwert)
+        ProductSupplier::updateOrCreate(
+            ['name' => 'MATERIA Schmuck (Matthias Wagner)'],
+            [
+                'company_name' => 'Matthias Wagner (MATERIA Schmuck)',
+                'contact_person' => 'Matthias Wagner',
+                'street' => 'Rudolf-Breitscheid-Straße',
+                'house_number' => '19',
+                'zip' => '07586',
+                'city' => 'Bad Köstritz',
+                'country' => 'Deutschland',
+                'country_code' => 'DE',
+                'email' => 'info@materia-schmuck.de',
+                'website' => 'https://www.materia-schmuck.de/',
+                'lead_time_land_days' => 2,
+                'shipping_method' => 'land',
+                'notes' => 'Deutscher Fachhändler für sehr massive, rhodinierte (anlaufgeschützte) 925 Sterling Silber Panzer-Gravurarmbänder („Made in Germany“). Jedes Armband ist direkt ab 1 Stück in der Variante „Ohne Gravur“ als Blanko-Rohling zum Lasern bestellbar. Zusätzlich Kleckow B2B Pforzheim (https://kleckow.de/schmuck-b2b-shop/) und OROVIVO (https://www.orovivo.de/de_DE/c/armbaender/armbandart/armbaender-mit-gravur/) als weitere Bezugsquellen.',
+                'dynamic_links' => [
+                    [
+                        'title' => 'MATERIA 925 Silber Panzer-Gravurarmband (rhodiniert, 19–23 cm, Variante „Ohne Gravur“, 121,95 € brutto)',
+                        'url' => 'https://www.materia-schmuck.de/gravur-armband-herren-panzer-kette/a-10553/'
+                    ],
+                    [
+                        'title' => 'MATERIA Ultra-Massiv 44g Herren-Gravurarmband 925 Silber (Platte 40×9×2 mm, „Ohne Gravur“, 269,95 € brutto)',
+                        'url' => 'https://www.materia-schmuck.de/gravur-armband-maenner-silber-925/a-11492/'
+                    ],
+                    [
+                        'title' => 'Kleckow GmbH Pforzheim – B2B Echtschmuck-Großhandel (Same-Day-Versand bis 12 Uhr)',
+                        'url' => 'https://kleckow.de/schmuck-b2b-shop/'
+                    ],
+                    [
+                        'title' => 'OROVIVO – 375er/585er Echtgold & 925er Silber Gravurarmbänder (blanko bestellbar)',
+                        'url' => 'https://www.orovivo.de/de_DE/c/armbaender/armbandart/armbaender-mit-gravur/'
+                    ],
+                ],
+            ]
+        );
     }
 }

@@ -99,6 +99,99 @@ namespace Funkenwerk
         public bool IsSnapshot { get; set; }
     }
 
+    public class LabelPrinterConfig
+    {
+        public string Name { get; set; } = "MUNBYN ITPP941AP";
+        public string IpAddress { get; set; } = "192.168.188.149";
+        public string Hostname { get; set; } = "ITPP941AP.fritz.box";
+        public string MacAddress { get; set; } = "F0:23:AE:7D:51:35";
+        public string SerialNumber { get; set; } = "941AP261000423";
+        public string Firmware { get; set; } = "1.2.4";
+        public int IppPort { get; set; } = 631;
+        public int RawPort { get; set; } = 9100;
+        public bool AutoPrintShopJobs { get; set; } = true;
+        public string PreferredProtocol { get; set; } = "IPP"; // "IPP" (:631 image/jpeg) or "TSPL" (:9100 raw bitmap)
+
+        [System.Text.Json.Serialization.JsonIgnore]
+        public bool IsOnline { get; set; } = false;
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string StatusNote { get; set; } = "Prüfe WLAN-Status (192.168.188.149)...";
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string LastJobSummary { get; set; } = "Wartet auf Shop-Druckaufträge";
+        [System.Text.Json.Serialization.JsonIgnore]
+        public int PrintedSessionCount { get; set; } = 0;
+    }
+
+    public class FunkenwerkPrintAddressDto
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("name")]
+        public string Name { get; set; } = "";
+        [System.Text.Json.Serialization.JsonPropertyName("company")]
+        public string Company { get; set; } = "";
+        [System.Text.Json.Serialization.JsonPropertyName("street")]
+        public string Street { get; set; } = "";
+        [System.Text.Json.Serialization.JsonPropertyName("postal_code")]
+        public string PostalCode { get; set; } = "";
+        [System.Text.Json.Serialization.JsonPropertyName("city")]
+        public string City { get; set; } = "";
+        [System.Text.Json.Serialization.JsonPropertyName("country")]
+        public string Country { get; set; } = "DE";
+    }
+
+    public class FunkenwerkPrintItemDto
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("qty")]
+        public int Qty { get; set; } = 1;
+        [System.Text.Json.Serialization.JsonPropertyName("name")]
+        public string Name { get; set; } = "";
+        [System.Text.Json.Serialization.JsonPropertyName("sku")]
+        public string Sku { get; set; } = "";
+    }
+
+    public class FunkenwerkPrintJobDto
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("id")]
+        public string Id { get; set; } = "";
+        [System.Text.Json.Serialization.JsonPropertyName("type")]
+        public string Type { get; set; } = "order_label";
+        [System.Text.Json.Serialization.JsonPropertyName("status")]
+        public string Status { get; set; } = "pending";
+        [System.Text.Json.Serialization.JsonPropertyName("printer_ip")]
+        public string PrinterIp { get; set; } = "192.168.188.149";
+        [System.Text.Json.Serialization.JsonPropertyName("order_id")]
+        public string? OrderId { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("order_number")]
+        public string OrderNumber { get; set; } = "";
+        [System.Text.Json.Serialization.JsonPropertyName("shipment_id")]
+        public string? ShipmentId { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("tracking_number")]
+        public string TrackingNumber { get; set; } = "";
+        [System.Text.Json.Serialization.JsonPropertyName("package_index")]
+        public int PackageIndex { get; set; } = 1;
+        [System.Text.Json.Serialization.JsonPropertyName("package_total")]
+        public int PackageTotal { get; set; } = 1;
+        [System.Text.Json.Serialization.JsonPropertyName("weight_kg")]
+        public double WeightKg { get; set; } = 0.5;
+        [System.Text.Json.Serialization.JsonPropertyName("is_express")]
+        public bool IsExpress { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("sender")]
+        public FunkenwerkPrintAddressDto Sender { get; set; } = new();
+        [System.Text.Json.Serialization.JsonPropertyName("recipient")]
+        public FunkenwerkPrintAddressDto Recipient { get; set; } = new();
+        [System.Text.Json.Serialization.JsonPropertyName("items")]
+        public List<FunkenwerkPrintItemDto> Items { get; set; } = new();
+        [System.Text.Json.Serialization.JsonPropertyName("has_pdf")]
+        public bool HasPdf { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("pdf_base64")]
+        public string? PdfBase64 { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("created_at")]
+        public string CreatedAt { get; set; } = "";
+        [System.Text.Json.Serialization.JsonPropertyName("printed_at")]
+        public string? PrintedAt { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("error_message")]
+        public string? ErrorMessage { get; set; }
+    }
+
     public class SmartHomePersistedData
     {
         public int GridLayoutCount { get; set; } = 4; // 1, 4, 6, 8
@@ -107,6 +200,7 @@ namespace Funkenwerk
         public string TapoLocalPassword { get; set; } = "";
         public List<SmartCameraConfig> Cameras { get; set; } = new();
         public List<SmartPlugConfig> Plugs { get; set; } = new();
+        public LabelPrinterConfig LabelPrinter { get; set; } = new();
     }
 
     // =========================================================================
@@ -487,7 +581,79 @@ namespace Funkenwerk
             Check("Subprocess CLI Sanitizer & Malware Attachment Shield", cliSafe && attachSafe,
                 $"CliMetaCharsStripped={cliSafe}, ExecutableAttachmentBlocked={attachSafe}");
 
+            // 7. Verify Print-Bridge PDF Magic-Bytes, Port Whitelist & IPP Header Sanitizer
+            byte[] validPdfProbe = Encoding.ASCII.GetBytes("%PDF-1.7\n" + new string('A', 80));
+            byte[] fakePdfProbe = Encoding.ASCII.GetBytes("MZ\x90\x00" + new string('A', 80));
+            bool pdfGuardOk = IsValidPdfPayload(validPdfProbe) && !IsValidPdfPayload(fakePdfProbe);
+            bool portGuardOk = IsSafePrinterPort(631) && IsSafePrinterPort(9100) && !IsSafePrinterPort(22) && !IsSafePrinterPort(445) && !IsSafePrinterPort(3389);
+            string ippClean = SanitizeIppString("Seelenfunke-#ORD-1\r\n\0Injected");
+            bool ippSafe = !ippClean.Contains('\r') && !ippClean.Contains('\n') && !ippClean.Contains('\0');
+            Check("Print-Bridge PDF Magic-Byte, Port Whitelist & IPP Shield", pdfGuardOk && portGuardOk && ippSafe,
+                $"PdfMagicVerified={pdfGuardOk}, DangerousPortsBlocked={portGuardOk}, IppHeaderSanitized={ippSafe}");
+
             return (allOk, sb.ToString());
+        }
+
+        public static bool IsValidPdfPayload(byte[]? pdfBytes)
+        {
+            if (pdfBytes == null || pdfBytes.Length < 64 || pdfBytes.Length > 10 * 1024 * 1024)
+                return false;
+            // Verify strict "%PDF-" magic header (0x25, 0x50, 0x44, 0x46, 0x2D)
+            return pdfBytes[0] == 0x25 &&
+                   pdfBytes[1] == 0x50 &&
+                   pdfBytes[2] == 0x44 &&
+                   pdfBytes[3] == 0x46 &&
+                   pdfBytes[4] == 0x2D;
+        }
+
+        public static bool IsSafePrinterPort(int port)
+        {
+            // Strictly allow AirPrint/IPP (631) or RAW Thermal JetDirect ports (9100..9109)
+            return port == 631 || (port >= 9100 && port <= 9109);
+        }
+
+        public static string SanitizeIppString(string? raw, int maxLen = 64)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return "Seelenfunke-Label";
+            var sb = new StringBuilder(Math.Min(raw.Length, maxLen));
+            foreach (char c in raw)
+            {
+                if (c < 0x20 || c > 0x7E) continue;
+                sb.Append(c);
+                if (sb.Length >= maxLen) break;
+            }
+            return sb.Length > 0 ? sb.ToString() : "Seelenfunke-Label";
+        }
+
+        public static void SecureZeroDeleteFile(string? filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath)) return;
+            try
+            {
+                if (File.Exists(filePath))
+                {
+                    var fi = new FileInfo(filePath);
+                    long len = Math.Min(fi.Length, 16L * 1024L * 1024L);
+                    if (len > 0)
+                    {
+                        byte[] zeros = new byte[(int)Math.Min(len, 65536)];
+                        using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Write, FileShare.None);
+                        long remaining = len;
+                        while (remaining > 0)
+                        {
+                            int toWrite = (int)Math.Min(remaining, zeros.Length);
+                            fs.Write(zeros, 0, toWrite);
+                            remaining -= toWrite;
+                        }
+                        fs.Flush(true);
+                    }
+                    File.Delete(filePath);
+                }
+            }
+            catch
+            {
+                try { if (File.Exists(filePath)) File.Delete(filePath); } catch { }
+            }
         }
 
         public static bool IsSafePrivateLanHost(string? hostOrIp)
@@ -1915,6 +2081,771 @@ namespace Funkenwerk
                 offset += a.Length;
             }
             return res;
+        }
+    }
+
+    // =========================================================================
+    // 5. MUNBYN ITPP941AP WLAN-LABELDRUCKER ENGINE (IPP :631 & RAW TSPL :9100)
+    // =========================================================================
+    public static class MunbynLabelPrinterEngine
+    {
+        // 4x6 inch at 203 DPI = 812 x 1218 pixels (100x150 mm)
+        public const int LabelWidthPx = 812;
+        public const int LabelHeightPx = 1218;
+
+        private static HttpClient CreateLanPrinterHttpClient(TimeSpan timeout)
+        {
+            var handler = new SocketsHttpHandler
+            {
+                AllowAutoRedirect = false,
+                UseCookies = false,
+                MaxResponseHeadersLength = 32,
+                ConnectTimeout = TimeSpan.FromSeconds(3.0)
+            };
+            return new HttpClient(handler)
+            {
+                Timeout = timeout,
+                MaxResponseContentBufferSize = 1024L * 1024L // 1 MB IPP response cap
+            };
+        }
+
+        public static async Task<(bool IsOnline, string StatusText, string Serial, string Firmware)> ProbePrinterAsync(string ip, int ippPort = 631, int rawPort = 9100)
+        {
+            if (string.IsNullOrWhiteSpace(ip) || !FunkenwerkSecurityVault.IsSafePrivateLanHost(ip))
+                return (false, "Ungültige lokale IP-Adresse", "", "");
+
+            int safeIppPort = FunkenwerkSecurityVault.IsSafePrinterPort(ippPort) ? ippPort : 631;
+            int safeRawPort = FunkenwerkSecurityVault.IsSafePrinterPort(rawPort) ? rawPort : 9100;
+
+            try
+            {
+                byte[] reqBody = BuildIppGetAttributesRequest(ip, safeIppPort);
+                using var http = CreateLanPrinterHttpClient(TimeSpan.FromSeconds(2.5));
+                using var content = new ByteArrayContent(reqBody);
+                content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/ipp");
+
+                var resp = await http.PostAsync($"http://{ip}:{safeIppPort}/ipp/print", content);
+                if (resp.IsSuccessStatusCode)
+                {
+                    byte[] bytes = await resp.Content.ReadAsByteArrayAsync();
+                    string ascii = Encoding.ASCII.GetString(bytes);
+                    bool isReady = ascii.Contains("Ready", StringComparison.OrdinalIgnoreCase) || ascii.Contains("printerReadyToPrint", StringComparison.OrdinalIgnoreCase);
+                    string stateMsg = isReady ? "Bereit (AirPrint/IPP :631 & RAW :9100 aktiv)" : "Online · Im WLAN verbunden";
+                    return (true, stateMsg, "941AP261000423", "1.2.4");
+                }
+            }
+            catch { }
+
+            // Fallback check on Port 9100 (RAW Thermal Socket)
+            try
+            {
+                using var tcp = new TcpClient();
+                var connectTask = tcp.ConnectAsync(ip, safeRawPort);
+                if (await Task.WhenAny(connectTask, Task.Delay(1500)) == connectTask && tcp.Connected)
+                {
+                    return (true, "Bereit (RAW Socket :9100 aktiv)", "941AP261000423", "1.2.4");
+                }
+            }
+            catch { }
+
+            return (false, $"Offline ({ip} nicht erreichbar)", "", "");
+        }
+
+        public static async Task<(bool Success, string Message)> IdentifyPrinterAsync(string ip, int ippPort = 631)
+        {
+            if (string.IsNullOrWhiteSpace(ip) || !FunkenwerkSecurityVault.IsSafePrivateLanHost(ip))
+                return (false, "Ungültige lokale Drucker-IP.");
+
+            int safeIppPort = FunkenwerkSecurityVault.IsSafePrinterPort(ippPort) ? ippPort : 631;
+
+            try
+            {
+                using var ms = new MemoryStream();
+                using var bw = new BinaryWriter(ms);
+                // IPP 2.0, Operation 0x003C (Identify-Printer), RequestId 1, Operation-Attributes-Tag 0x01
+                bw.Write(new byte[] { 2, 0, 0x00, 0x3C, 0, 0, 0, 1, 0x01 });
+                WriteIppAttribute(bw, 0x47, "attributes-charset", "utf-8");
+                WriteIppAttribute(bw, 0x48, "attributes-natural-language", "en-us");
+                WriteIppAttribute(bw, 0x45, "printer-uri", $"ipp://{ip}/ipp/print");
+                WriteIppAttribute(bw, 0x42, "requesting-user-name", "Funkenwerk");
+                WriteIppAttribute(bw, 0x44, "identify-actions", "sound");
+                bw.Write((byte)0x03); // end-of-attributes-tag
+
+                using var http = CreateLanPrinterHttpClient(TimeSpan.FromSeconds(3.5));
+                using var content = new ByteArrayContent(ms.ToArray());
+                content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/ipp");
+                var resp = await http.PostAsync($"http://{ip}:{safeIppPort}/ipp/print", content);
+                if (resp.IsSuccessStatusCode)
+                {
+                    return (true, $"Signal an MUNBYN ITPP941AP ({ip}) gesendet.");
+                }
+                return (false, $"IPP-Antwort: HTTP {(int)resp.StatusCode}");
+            }
+            catch (Exception ex)
+            {
+                return (false, "Signal fehlgeschlagen: " + ex.Message);
+            }
+        }
+
+        public static async Task<(BitmapSource? Bitmap, byte[]? JpegBytes, string RenderSource)> RenderJobBitmapAsync(FunkenwerkPrintJobDto job, Action<string>? log = null)
+        {
+            BitmapSource? renderedBitmap = null;
+            byte[]? jpegBytes = null;
+            string renderSource = "Natives Seelenfunke-Label";
+
+            if (!string.IsNullOrWhiteSpace(job.PdfBase64))
+            {
+                log?.Invoke($"[PDF] Dekodiere & prüfe DHL-PDF für Auftrag #{job.OrderNumber} ({job.PdfBase64.Length} Base64-Zeichen)...");
+                byte[]? pngBytes = await ConvertPdfBase64ToPngAsync(job.PdfBase64, log);
+                if (pngBytes != null && pngBytes.Length > 0)
+                {
+                    try
+                    {
+                        await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                        {
+                            using var ms = new MemoryStream(pngBytes);
+                            var decoder = new PngBitmapDecoder(ms, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+                            BitmapSource pdfFrame = decoder.Frames[0];
+
+                            int w = LabelWidthPx;  // 812
+                            int h = LabelHeightPx; // 1218
+                            var dv = new System.Windows.Media.DrawingVisual();
+                            using (var dc = dv.RenderOpen())
+                            {
+                                // Reinweißer 812x1218 Hintergrund + Proportionale Skalierung des DHL-Labels
+                                dc.DrawRectangle(System.Windows.Media.Brushes.White, null, new System.Windows.Rect(0, 0, w, h));
+                                double scale = Math.Min((double)w / pdfFrame.PixelWidth, (double)h / pdfFrame.PixelHeight);
+                                double drawW = pdfFrame.PixelWidth * scale;
+                                double drawH = pdfFrame.PixelHeight * scale;
+                                double offsetX = (w - drawW) / 2.0;
+                                double offsetY = (h - drawH) / 2.0;
+                                dc.DrawImage(pdfFrame, new System.Windows.Rect(offsetX, offsetY, drawW, drawH));
+                            }
+
+                            var rtb = new RenderTargetBitmap(w, h, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+                            rtb.Render(dv);
+                            rtb.Freeze();
+                            renderedBitmap = rtb;
+                            jpegBytes = EncodeBitmapToJpeg(rtb, 95);
+                            renderSource = $"Original DHL-PDF ({pdfFrame.PixelWidth}×{pdfFrame.PixelHeight} -> 812×1218 RGB 24-Bit)";
+                        });
+                        log?.Invoke($"[Canvas] {renderSource} erfolgreich erzeugt ({(jpegBytes?.Length ?? 0) / 1024.0:0.1} KB JPEG).");
+                    }
+                    finally
+                    {
+                        CryptographicOperations.ZeroMemory(pngBytes);
+                    }
+                }
+                else
+                {
+                    log?.Invoke("[WARN] DHL-PDF konnte nicht gerendert werden – nutze natives Seelenfunke-Versandlabel als Fallback.");
+                }
+            }
+
+            if (renderedBitmap == null || jpegBytes == null || jpegBytes.Length == 0)
+            {
+                await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    renderedBitmap = RenderOrderLabelBitmap(job);
+                    jpegBytes = EncodeBitmapToJpeg(renderedBitmap, 95);
+                });
+                log?.Invoke($"[Canvas] Natives 4×6\" Seelenfunke-Label (812×1218 px, {(jpegBytes?.Length ?? 0) / 1024.0:0.1} KB JPEG) gerendert.");
+            }
+
+            return (renderedBitmap, jpegBytes, renderSource);
+        }
+
+        public static async Task<(bool Success, string Message, BitmapSource? RenderedBitmap)> PrintJobAsync(LabelPrinterConfig printerCfg, FunkenwerkPrintJobDto job, Action<string>? log = null)
+        {
+            string ip = !string.IsNullOrWhiteSpace(printerCfg.IpAddress) ? printerCfg.IpAddress.Trim() : "192.168.188.149";
+            if (!FunkenwerkSecurityVault.IsSafePrivateLanHost(ip))
+                return (false, $"Sicherheits-Blockade: Ungültige lokale Drucker-IP ({ip}). Nur private RFC1918-Heimnetz-IPs erlaubt.", null);
+
+            int safeIppPort = FunkenwerkSecurityVault.IsSafePrinterPort(printerCfg.IppPort) ? printerCfg.IppPort : 631;
+            int safeRawPort = FunkenwerkSecurityVault.IsSafePrinterPort(printerCfg.RawPort) ? printerCfg.RawPort : 9100;
+
+            var sw = Stopwatch.StartNew();
+            try
+            {
+                log?.Invoke($"[Start] Starte Druckauftrag #{job.OrderNumber} (Tracking: {job.TrackingNumber}) an MUNBYN ({ip})...");
+
+                var (renderedBitmap, jpegBytes, renderSource) = await RenderJobBitmapAsync(job, log);
+
+                if (jpegBytes == null || jpegBytes.Length == 0 || renderedBitmap == null)
+                {
+                    log?.Invoke("[Fehler] Label-Grafik (812×1218) ist leer.");
+                    return (false, "Label-Grafik konnte nicht gerendert werden.", null);
+                }
+
+                string rawTitle = !string.IsNullOrWhiteSpace(job.OrderNumber)
+                    ? $"Seelenfunke-{job.OrderNumber}"
+                    : "Seelenfunke-Label";
+                string jobTitle = FunkenwerkSecurityVault.SanitizeIppString(rawTitle, 64);
+
+                // Primär über AirPrint/IPP (:631 image/jpeg 24-Bit 812x1218) senden, Fallback auf RAW TSPL (:9100)
+                if (!string.Equals(printerCfg.PreferredProtocol, "TSPL", StringComparison.OrdinalIgnoreCase))
+                {
+                    var (ippOk, ippMsg) = await SendIppJpegPrintJobAsync(ip, safeIppPort, jpegBytes, jobTitle, log);
+                    if (ippOk)
+                    {
+                        sw.Stop();
+                        log?.Invoke($"[Erfolg] {ippMsg} (Gesamtdauer: {sw.ElapsedMilliseconds} ms)");
+                        return (true, ippMsg, renderedBitmap);
+                    }
+                    log?.Invoke($"[IPP-Warnung] IPP (:631) meldete: {ippMsg} – wechsle automatisch auf RAW TSPL (:9100)...");
+                }
+
+                // Fallback / TSPL Direkt-Modus über Port 9100 mit striktem 8s Timeout
+                byte[] tsplPayload = await System.Windows.Application.Current.Dispatcher.InvokeAsync(() => BuildTsplBitmapCommand(renderedBitmap));
+                log?.Invoke($"[RAW :9100] Sende {tsplPayload.Length / 1024.0:0.1} KB 1-Bit TSPL-Bitmap an {ip}:{safeRawPort}...");
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8.0));
+                using var tcp = new TcpClient();
+                await tcp.ConnectAsync(ip, safeRawPort, cts.Token);
+                using var stream = tcp.GetStream();
+                await stream.WriteAsync(tsplPayload.AsMemory(0, tsplPayload.Length), cts.Token);
+                await stream.FlushAsync(cts.Token);
+                sw.Stop();
+                string rawSuccess = $"Label '{jobTitle}' via RAW TSPL (:9100) an {ip} gedruckt ({sw.ElapsedMilliseconds} ms).";
+                log?.Invoke($"[Erfolg] {rawSuccess}");
+                return (true, rawSuccess, renderedBitmap);
+            }
+            catch (Exception ex)
+            {
+                log?.Invoke($"[Exception] Druckfehler: {ex.Message}");
+                return (false, "Druckfehler: " + ex.Message, null);
+            }
+        }
+
+        private static async Task<(bool Success, string Message)> SendIppJpegPrintJobAsync(string ip, int ippPort, byte[] jpegBytes, string jobName, Action<string>? log = null)
+        {
+            if (!FunkenwerkSecurityVault.IsSafePrivateLanHost(ip) || !FunkenwerkSecurityVault.IsSafePrinterPort(ippPort))
+                return (false, "Ungültiges IPP-Ziel (LAN/Port-Firewall).");
+
+            try
+            {
+                string safeJobName = FunkenwerkSecurityVault.SanitizeIppString(jobName, 64);
+
+                byte[] BuildPrintJobPacket()
+                {
+                    using var ms = new MemoryStream();
+                    using var bw = new BinaryWriter(ms);
+
+                    // IPP 2.0, Operation 0x0002 (Print-Job), RequestId 1
+                    bw.Write(new byte[] { 2, 0, 0x00, 0x02, 0, 0, 0, 1 });
+
+                    // Operation Attributes (0x01)
+                    bw.Write((byte)0x01);
+                    WriteIppAttribute(bw, 0x47, "attributes-charset", "utf-8");
+                    WriteIppAttribute(bw, 0x48, "attributes-natural-language", "en");
+                    WriteIppAttribute(bw, 0x45, "printer-uri", $"ipp://{ip}/ipp/print");
+                    WriteIppAttribute(bw, 0x42, "requesting-user-name", "Funkenwerk");
+                    WriteIppAttribute(bw, 0x42, "job-name", safeJobName);
+                    WriteIppAttribute(bw, 0x49, "document-format", "image/jpeg");
+
+                    // Job Attributes (0x02)
+                    bw.Write((byte)0x02);
+                    WriteIppAttribute(bw, 0x44, "media", "na_index-4x6_4x6in");
+                    WriteIppAttribute(bw, 0x44, "print-color-mode", "monochrome");
+                    WriteIppAttribute(bw, 0x44, "print-scaling", "fit");
+
+                    // End of Attributes (0x03) + Document Payload
+                    bw.Write((byte)0x03);
+                    bw.Write(jpegBytes);
+                    return ms.ToArray();
+                }
+
+                byte[] payload = BuildPrintJobPacket();
+                log?.Invoke($"[IPP :631] POST http://{ip}:{ippPort}/ipp/print ({payload.Length / 1024.0:0.1} KB, Format: image/jpeg 812×1218)...");
+
+                using var http = CreateLanPrinterHttpClient(TimeSpan.FromSeconds(12));
+
+                for (int attempt = 1; attempt <= 2; attempt++)
+                {
+                    using var content = new ByteArrayContent(payload);
+                    content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/ipp");
+
+                    var resp = await http.PostAsync($"http://{ip}:{ippPort}/ipp/print", content);
+                    byte[] respBytes = await resp.Content.ReadAsByteArrayAsync();
+                    if (resp.IsSuccessStatusCode && respBytes.Length >= 4)
+                    {
+                        int statusCode = (respBytes[2] << 8) | respBytes[3];
+                        if (statusCode <= 0x0002) // successful-ok / successful-ok-ignored-or-substituted-attributes
+                        {
+                            int jobId = ExtractIppJobId(respBytes);
+                            log?.Invoke($"[IPP :631] Antwort: HTTP {(int)resp.StatusCode} · IPP-Status 0x{statusCode:X4} (Job #{jobId})");
+
+                            // MUNBYN MDK-tiny_ws behält den 1-Slot-Spooler nach dem physischen Drucken auf job-state=5 (spool-area-full).
+                            // Nach 3,5 Sekunden (sobald das Label ausgeworfen wurde) geben wir den Slot automatisch für den nächsten Druck frei.
+                            await Task.Delay(3500);
+                            await ReleaseIppSpoolSlotAsync(http, ip, ippPort, jobId, log);
+
+                            return (true, $"Label '{safeJobName}' erfolgreich über WLAN ({ip}:631) gedruckt.");
+                        }
+
+                        if (statusCode == 0x0507 && attempt == 1) // server-error-busy (vorheriger Slot hängt noch)
+                        {
+                            log?.Invoke("[IPP :631] Spool-Slot belegt (0x0507) – gebe hängenden Slot frei und wiederhole...");
+                            await ReleaseIppSpoolSlotAsync(http, ip, ippPort, 0, log);
+                            await Task.Delay(900);
+                            continue;
+                        }
+
+                        log?.Invoke($"[IPP :631] Ablehnung: IPP-Status 0x{statusCode:X4}");
+                        return (false, $"IPP Status-Code: 0x{statusCode:X4}");
+                    }
+                    log?.Invoke($"[IPP :631] HTTP-Fehler: {(int)resp.StatusCode}");
+                    return (false, $"HTTP {(int)resp.StatusCode}");
+                }
+
+                return (false, "IPP Spooler belegt.");
+            }
+            catch (Exception ex)
+            {
+                log?.Invoke($"[IPP :631] Netzwerkfehler: {ex.Message}");
+                return (false, ex.Message);
+            }
+        }
+
+        private static int ExtractIppJobId(byte[] data)
+        {
+            try
+            {
+                int pos = 8;
+                while (pos < data.Length)
+                {
+                    byte tag = data[pos++];
+                    if (tag == 0x03) break;
+                    if (tag == 0x01 || tag == 0x02 || tag == 0x04 || tag == 0x05) continue;
+                    if (pos + 2 > data.Length) break;
+                    int nlen = (data[pos] << 8) | data[pos + 1];
+                    pos += 2;
+                    if (pos + nlen + 2 > data.Length) break;
+                    string name = Encoding.ASCII.GetString(data, pos, nlen);
+                    pos += nlen;
+                    int vlen = (data[pos] << 8) | data[pos + 1];
+                    pos += 2;
+                    if (pos + vlen > data.Length) break;
+                    if (tag == 0x21 && vlen == 4 && string.Equals(name, "job-id", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return (data[pos] << 24) | (data[pos + 1] << 16) | (data[pos + 2] << 8) | data[pos + 3];
+                    }
+                    pos += vlen;
+                }
+            }
+            catch { }
+            return 0;
+        }
+
+        private static async Task ReleaseIppSpoolSlotAsync(HttpClient http, string ip, int ippPort, int knownJobId, Action<string>? log = null)
+        {
+            try
+            {
+                var jobIds = new List<int>();
+                if (knownJobId > 0) jobIds.Add(knownJobId);
+
+                // Zusätzlich aktive Jobs via Get-Jobs (0x000A) abfragen
+                using (var msJobs = new MemoryStream())
+                using (var bwJobs = new BinaryWriter(msJobs))
+                {
+                    bwJobs.Write(new byte[] { 2, 0, 0x00, 0x0A, 0, 0, 0, 10, 0x01 });
+                    WriteIppAttribute(bwJobs, 0x47, "attributes-charset", "utf-8");
+                    WriteIppAttribute(bwJobs, 0x48, "attributes-natural-language", "en");
+                    WriteIppAttribute(bwJobs, 0x45, "printer-uri", $"ipp://{ip}:{ippPort}/ipp/print");
+                    bwJobs.Write((byte)0x03);
+
+                    using var cJobs = new ByteArrayContent(msJobs.ToArray());
+                    cJobs.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/ipp");
+                    var rJobs = await http.PostAsync($"http://{ip}:{ippPort}/ipp/print", cJobs);
+                    if (rJobs.IsSuccessStatusCode)
+                    {
+                        int activeId = ExtractIppJobId(await rJobs.Content.ReadAsByteArrayAsync());
+                        if (activeId > 0 && !jobIds.Contains(activeId))
+                            jobIds.Add(activeId);
+                    }
+                }
+
+                foreach (int jid in jobIds)
+                {
+                    using var msCancel = new MemoryStream();
+                    using var bwCancel = new BinaryWriter(msCancel);
+                    bwCancel.Write(new byte[] { 2, 0, 0x00, 0x08, 0, 0, 0, 11, 0x01 });
+                    WriteIppAttribute(bwCancel, 0x47, "attributes-charset", "utf-8");
+                    WriteIppAttribute(bwCancel, 0x48, "attributes-natural-language", "en");
+                    WriteIppAttribute(bwCancel, 0x45, "printer-uri", $"ipp://{ip}:{ippPort}/ipp/print");
+                    bwCancel.Write((byte)0x21); // integer tag
+                    byte[] nb = Encoding.ASCII.GetBytes("job-id");
+                    bwCancel.Write((byte)((nb.Length >> 8) & 0xFF));
+                    bwCancel.Write((byte)(nb.Length & 0xFF));
+                    bwCancel.Write(nb);
+                    bwCancel.Write((byte)0);
+                    bwCancel.Write((byte)4);
+                    bwCancel.Write((byte)((jid >> 24) & 0xFF));
+                    bwCancel.Write((byte)((jid >> 16) & 0xFF));
+                    bwCancel.Write((byte)((jid >> 8) & 0xFF));
+                    bwCancel.Write((byte)(jid & 0xFF));
+                    bwCancel.Write((byte)0x03);
+
+                    using var cCancel = new ByteArrayContent(msCancel.ToArray());
+                    cCancel.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/ipp");
+                    await http.PostAsync($"http://{ip}:{ippPort}/ipp/print", cCancel);
+                    log?.Invoke($"[IPP :631] Spool-Slot für Job #{jid} für Folgedrucke freigegeben.");
+                }
+            }
+            catch { }
+        }
+
+        private static string? ResolveVerifiedPythonExe()
+        {
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+
+            foreach (string ver in new[] { "Python312", "Python313", "Python311", "Python310" })
+            {
+                string c1 = Path.Combine(localAppData, "Programs", "Python", ver, "python.exe");
+                if (File.Exists(c1)) return c1;
+
+                string c2 = Path.Combine(progFiles, ver, "python.exe");
+                if (File.Exists(c2)) return c2;
+            }
+            return null;
+        }
+
+        private static async Task<byte[]?> ConvertPdfBase64ToPngAsync(string pdfBase64, Action<string>? log = null)
+        {
+            if (string.IsNullOrWhiteSpace(pdfBase64) || pdfBase64.Length > 14_000_000)
+            {
+                log?.Invoke("[Security] PDF-Payload abgelehnt (leer oder überschreitet 10 MB Limit).");
+                return null;
+            }
+
+            string? pyExe = ResolveVerifiedPythonExe();
+            if (string.IsNullOrEmpty(pyExe))
+            {
+                log?.Invoke("[PyMuPDF Warnung] Keine verifizierte lokale Python-Installation gefunden.");
+                return null;
+            }
+
+            string tempPdf = Path.Combine(Path.GetTempPath(), $"sf_label_{Guid.NewGuid():N}.pdf");
+            string tempPng = Path.Combine(Path.GetTempPath(), $"sf_label_{Guid.NewGuid():N}.png");
+            byte[]? pdfBytes = null;
+            try
+            {
+                pdfBytes = Convert.FromBase64String(pdfBase64);
+                if (!FunkenwerkSecurityVault.IsValidPdfPayload(pdfBytes))
+                {
+                    log?.Invoke("[Security] Ungültiger PDF-Header (kein '%PDF-' Magic-Byte) – Ausführung blockiert.");
+                    return null;
+                }
+
+                await File.WriteAllBytesAsync(tempPdf, pdfBytes);
+
+                // Isoliertes PyMuPDF-Rendering mit Pixel-Bomb-Schutz (max 2500 px Kantenlänge)
+                string pyScript =
+                    "import sys\n" +
+                    "try:\n" +
+                    "    import pymupdf as fitz\n" +
+                    "except ImportError:\n" +
+                    "    import fitz\n" +
+                    "doc = fitz.open(sys.argv[1])\n" +
+                    "if len(doc) < 1:\n" +
+                    "    sys.exit(2)\n" +
+                    "page = doc[0]\n" +
+                    "rect = page.rect\n" +
+                    "max_pt = max(rect.width, rect.height, 1.0)\n" +
+                    "target_dpi = min(250, int(2400.0 * 72.0 / max_pt))\n" +
+                    "target_dpi = max(120, target_dpi)\n" +
+                    "pix = page.get_pixmap(dpi=target_dpi, colorspace=fitz.csRGB, alpha=False)\n" +
+                    "pix.save(sys.argv[2])\n" +
+                    "doc.close()\n" +
+                    "print(f'OK:{pix.width}x{pix.height}@{target_dpi}dpi')\n";
+
+                var psi = new ProcessStartInfo
+                {
+                    FileName = pyExe,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardError = true,
+                    RedirectStandardOutput = true
+                };
+                // -E ignoriert unsichere PYTHON* Umgebungsvariablen (PYTHONPATH / PYTHONSTARTUP)
+                psi.ArgumentList.Add("-E");
+                psi.ArgumentList.Add("-c");
+                psi.ArgumentList.Add(pyScript);
+                psi.ArgumentList.Add(tempPdf);
+                psi.ArgumentList.Add(tempPng);
+
+                using var proc = Process.Start(psi);
+                if (proc != null)
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(12.0));
+                    Task<string> stdOutTask = proc.StandardOutput.ReadToEndAsync();
+                    Task<string> stdErrTask = proc.StandardError.ReadToEndAsync();
+                    try
+                    {
+                        await proc.WaitForExitAsync(cts.Token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        try { proc.Kill(entireProcessTree: true); } catch { }
+                        log?.Invoke("[Security] PyMuPDF-Subprozess nach 12s Timeout beendet.");
+                        return null;
+                    }
+
+                    string stdOut = await stdOutTask;
+                    string stdErr = await stdErrTask;
+                    if (!string.IsNullOrWhiteSpace(stdErr))
+                    {
+                        log?.Invoke($"[PyMuPDF Warnung] {stdErr.Trim()}");
+                    }
+                    if (File.Exists(tempPng))
+                    {
+                        byte[] png = await File.ReadAllBytesAsync(tempPng);
+                        log?.Invoke($"[PyMuPDF] PDF ({pdfBytes.Length} B) -> PNG ({png.Length / 1024.0:0.1} KB, {stdOut.Trim()})");
+                        return png;
+                    }
+                    log?.Invoke($"[PyMuPDF Fehler] Keine PNG-Ausgabe erzeugt (ExitCode {proc.ExitCode}).");
+                }
+            }
+            catch (Exception ex)
+            {
+                log?.Invoke($"[PyMuPDF Exception] {ex.Message}");
+            }
+            finally
+            {
+                if (pdfBytes != null) CryptographicOperations.ZeroMemory(pdfBytes);
+                FunkenwerkSecurityVault.SecureZeroDeleteFile(tempPdf);
+                FunkenwerkSecurityVault.SecureZeroDeleteFile(tempPng);
+            }
+            return null;
+        }
+
+        public static BitmapSource RenderOrderLabelBitmap(FunkenwerkPrintJobDto job)
+        {
+            int w = LabelWidthPx;
+            int h = LabelHeightPx;
+            var dv = new System.Windows.Media.DrawingVisual();
+            using (var dc = dv.RenderOpen())
+            {
+                var black = System.Windows.Media.Brushes.Black;
+                var white = System.Windows.Media.Brushes.White;
+                var penThick = new System.Windows.Media.Pen(black, 4);
+                var penMed = new System.Windows.Media.Pen(black, 2.5);
+                var penThin = new System.Windows.Media.Pen(black, 1.5);
+                var typefaceBold = new System.Windows.Media.Typeface(new System.Windows.Media.FontFamily("Segoe UI"), System.Windows.FontStyles.Normal, System.Windows.FontWeights.Black, System.Windows.FontStretches.Normal);
+                var typefaceSemi = new System.Windows.Media.Typeface(new System.Windows.Media.FontFamily("Segoe UI"), System.Windows.FontStyles.Normal, System.Windows.FontWeights.Bold, System.Windows.FontStretches.Normal);
+                var typefaceReg = new System.Windows.Media.Typeface(new System.Windows.Media.FontFamily("Segoe UI"), System.Windows.FontStyles.Normal, System.Windows.FontWeights.Medium, System.Windows.FontStretches.Normal);
+                var typefaceMono = new System.Windows.Media.Typeface(new System.Windows.Media.FontFamily("Consolas"), System.Windows.FontStyles.Normal, System.Windows.FontWeights.Bold, System.Windows.FontStretches.Normal);
+
+                // White background + Outer Frame
+                dc.DrawRectangle(white, null, new System.Windows.Rect(0, 0, w, h));
+                dc.DrawRectangle(null, penThick, new System.Windows.Rect(22, 22, w - 44, h - 44));
+
+                // 1. TOP HEADER BAR (Brand + Express/Package Info)
+                dc.DrawRectangle(black, null, new System.Windows.Rect(22, 22, w - 44, 110));
+                DrawText(dc, "MEIN SEELENFUNKE", typefaceBold, 34, white, 48, 40);
+                DrawText(dc, "MANUFAKTUR GIFHORN · HANDVEREDELT IN DEUTSCHLAND", typefaceSemi, 15, white, 48, 86);
+
+                string pkgBadge = job.IsExpress ? "EXPRESS" : $"PAKET {job.PackageIndex}/{Math.Max(1, job.PackageTotal)}";
+                dc.DrawRoundedRectangle(white, null, new System.Windows.Rect(w - 235, 44, 190, 64), 10, 10);
+                DrawText(dc, pkgBadge, typefaceBold, 24, black, w - 215, 60);
+
+                // 2. SENDER LINE (Absender)
+                string senderLine = $"ABS: {job.Sender.Name} · {job.Sender.Street} · {job.Sender.PostalCode} {job.Sender.City}";
+                DrawText(dc, senderLine, typefaceSemi, 17, black, 48, 150);
+                dc.DrawLine(penMed, new System.Windows.Point(22, 188), new System.Windows.Point(w - 22, 188));
+
+                // 3. RECIPIENT BLOCK (Empfänger - Groß & DHL-konform lesbar)
+                DrawText(dc, "EMPFÄNGER / LIEFERADRESSE:", typefaceSemi, 16, black, 48, 206);
+                double ry = 242;
+                DrawText(dc, string.IsNullOrWhiteSpace(job.Recipient.Name) ? "Kunde" : job.Recipient.Name, typefaceBold, 38, black, 48, ry, w - 96);
+                ry += 52;
+                if (!string.IsNullOrWhiteSpace(job.Recipient.Company))
+                {
+                    DrawText(dc, job.Recipient.Company, typefaceSemi, 28, black, 48, ry, w - 96);
+                    ry += 40;
+                }
+                DrawText(dc, job.Recipient.Street, typefaceSemi, 34, black, 48, ry, w - 96);
+                ry += 52;
+
+                // Highlighted Postal Code + City Box
+                dc.DrawRoundedRectangle(null, penThick, new System.Windows.Rect(44, ry, w - 88, 92), 10, 10);
+                DrawText(dc, $"{job.Recipient.PostalCode}  {job.Recipient.City}".Trim(), typefaceBold, 44, black, 64, ry + 18, w - 128);
+                ry += 108;
+
+                string countryName = job.Recipient.Country == "DE" ? "DEUTSCHLAND (GERMANY)" : job.Recipient.Country;
+                DrawText(dc, countryName, typefaceBold, 24, black, 48, ry);
+
+                dc.DrawLine(penThick, new System.Windows.Point(22, 560), new System.Windows.Point(w - 22, 560));
+
+                // 4. ORDER METADATA & BARCODE BLOCK
+                DrawText(dc, $"BESTELLUNG: #{job.OrderNumber}", typefaceBold, 30, black, 48, 580);
+                DrawText(dc, $"GEWICHT: {job.WeightKg:0.00} kg   |   DATUM: {DateTime.Now:dd.MM.yyyy HH:mm}", typefaceSemi, 20, black, 48, 624);
+
+                string codeVal = !string.IsNullOrWhiteSpace(job.TrackingNumber) ? job.TrackingNumber : job.OrderNumber;
+                DrawSimulatedBarcode(dc, codeVal, 48, 668, w - 96, 130);
+                DrawText(dc, $"SENDUNGS-/AUFTRAGSNR: {codeVal}", typefaceMono, 21, black, 48, 810);
+
+                dc.DrawLine(penMed, new System.Windows.Point(22, 852), new System.Windows.Point(w - 22, 852));
+
+                // 5. PACKLISTE / BESTELLPOSITIONEN FÜR PACKTISCH
+                DrawText(dc, "PACKLISTE / ENTHALTENE POSITIONEN:", typefaceBold, 19, black, 48, 870);
+                double iy = 906;
+                int shown = 0;
+                foreach (var item in job.Items)
+                {
+                    if (shown >= 6)
+                    {
+                        DrawText(dc, $"+ {job.Items.Count - shown} weitere Position(en)...", typefaceSemi, 18, black, 48, iy);
+                        break;
+                    }
+                    string line = $"[ ]  {item.Qty}x  {item.Name}" + (!string.IsNullOrWhiteSpace(item.Sku) ? $" ({item.Sku})" : "");
+                    DrawText(dc, line, typefaceSemi, 20, black, 48, iy, w - 96);
+                    iy += 34;
+                    shown++;
+                }
+                if (job.Items.Count == 0)
+                {
+                    DrawText(dc, "[ ]  1x  Manufaktur-Bestellung (siehe Lieferschein)", typefaceSemi, 20, black, 48, iy);
+                }
+
+                // Bottom Footer
+                dc.DrawLine(penThin, new System.Windows.Point(22, h - 78), new System.Windows.Point(w - 22, h - 78));
+                DrawText(dc, "FUNKENWERK PRINT-BRIDGE · MUNBYN ITPP941AP (203 DPI) · MEIN-SEELENFUNKE.DE", typefaceSemi, 15, black, 48, h - 58);
+            }
+
+            var rtb = new RenderTargetBitmap(w, h, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+            rtb.Render(dv);
+            rtb.Freeze();
+            return rtb;
+        }
+
+        private static void DrawText(System.Windows.Media.DrawingContext dc, string text, System.Windows.Media.Typeface typeface, double size, System.Windows.Media.Brush brush, double x, double y, double maxWidth = 0)
+        {
+            var ft = new System.Windows.Media.FormattedText(
+                text ?? "",
+                CultureInfo.GetCultureInfo("de-DE"),
+                System.Windows.FlowDirection.LeftToRight,
+                typeface,
+                size,
+                brush,
+                1.0);
+            if (maxWidth > 0)
+            {
+                ft.MaxTextWidth = maxWidth;
+                ft.MaxLineCount = 1;
+                ft.Trimming = System.Windows.TextTrimming.CharacterEllipsis;
+            }
+            dc.DrawText(ft, new System.Windows.Point(x, y));
+        }
+
+        private static void DrawSimulatedBarcode(System.Windows.Media.DrawingContext dc, string value, double x, double y, double width, double height)
+        {
+            string clean = string.IsNullOrWhiteSpace(value) ? "SF2026" : value.Trim();
+            // Deterministic high-contrast bar pattern from string bytes + start/stop guard bars
+            var bits = new List<bool> { true, true, false, true, false, true, true, false };
+            foreach (char c in clean)
+            {
+                int v = c;
+                bits.Add(true);
+                bits.Add((v & 1) != 0);
+                bits.Add(false);
+                bits.Add((v & 2) != 0);
+                bits.Add(true);
+                bits.Add((v & 4) == 0);
+                bits.Add(false);
+                bits.Add((v & 8) != 0);
+                bits.Add((v & 16) != 0);
+                bits.Add(false);
+            }
+            bits.AddRange(new[] { true, true, false, true, false, true, true });
+
+            double moduleW = width / bits.Count;
+            var black = System.Windows.Media.Brushes.Black;
+            for (int i = 0; i < bits.Count; i++)
+            {
+                if (bits[i])
+                {
+                    dc.DrawRectangle(black, null, new System.Windows.Rect(x + i * moduleW, y, Math.Max(1.5, moduleW + 0.3), height));
+                }
+            }
+        }
+
+        private static byte[] EncodeBitmapToJpeg(BitmapSource bmp, int quality = 95)
+        {
+            using var ms = new MemoryStream();
+            var encoder = new JpegBitmapEncoder { QualityLevel = quality };
+            encoder.Frames.Add(BitmapFrame.Create(bmp));
+            encoder.Save(ms);
+            return ms.ToArray();
+        }
+
+        private static byte[] BuildTsplBitmapCommand(BitmapSource src)
+        {
+            // Scale to 800 x 1200 (100mm x 150mm at 8 dots/mm = 203 DPI)
+            int targetW = 800;
+            int targetH = 1200;
+            var scaled = new TransformedBitmap(src, new System.Windows.Media.ScaleTransform((double)targetW / src.PixelWidth, (double)targetH / src.PixelHeight));
+            var gray = new FormatConvertedBitmap(scaled, System.Windows.Media.PixelFormats.Bgra32, null, 0);
+
+            int stride = targetW * 4;
+            byte[] pixels = new byte[stride * targetH];
+            gray.CopyPixels(pixels, stride, 0);
+
+            int widthBytes = targetW / 8; // 100 bytes per row
+            byte[] rawMono = new byte[widthBytes * targetH];
+            // In TSPL BITMAP mode 0 (overwrite): 0 = black (burn dot), 1 = white
+            for (int i = 0; i < rawMono.Length; i++) rawMono[i] = 0xFF;
+
+            for (int y = 0; y < targetH; y++)
+            {
+                int rowOffset = y * stride;
+                int outRowOffset = y * widthBytes;
+                for (int x = 0; x < targetW; x++)
+                {
+                    int pxIdx = rowOffset + x * 4;
+                    byte b = pixels[pxIdx];
+                    byte g = pixels[pxIdx + 1];
+                    byte r = pixels[pxIdx + 2];
+                    int lum = (r * 299 + g * 587 + b * 114) / 1000;
+                    if (lum < 160) // Black pixel -> clear bit to 0
+                    {
+                        rawMono[outRowOffset + (x >> 3)] &= (byte)~(0x80 >> (x & 7));
+                    }
+                }
+            }
+
+            using var ms = new MemoryStream();
+            byte[] header = Encoding.ASCII.GetBytes($"SIZE 100 mm,150 mm\r\nGAP 2 mm,0 mm\r\nDIRECTION 1\r\nCLS\r\nBITMAP 0,0,{widthBytes},{targetH},0,");
+            byte[] footer = Encoding.ASCII.GetBytes("\r\nPRINT 1,1\r\n");
+            ms.Write(header, 0, header.Length);
+            ms.Write(rawMono, 0, rawMono.Length);
+            ms.Write(footer, 0, footer.Length);
+            return ms.ToArray();
+        }
+
+        private static byte[] BuildIppGetAttributesRequest(string ip, int port)
+        {
+            using var ms = new MemoryStream();
+            using var bw = new BinaryWriter(ms);
+            bw.Write(new byte[] { 2, 0, 0x00, 0x0B, 0, 0, 0, 1, 0x01 });
+            WriteIppAttribute(bw, 0x47, "attributes-charset", "utf-8");
+            WriteIppAttribute(bw, 0x48, "attributes-natural-language", "en-us");
+            WriteIppAttribute(bw, 0x45, "printer-uri", $"ipp://{ip}:{port}/ipp/print");
+            bw.Write((byte)0x03);
+            return ms.ToArray();
+        }
+
+        private static void WriteIppAttribute(BinaryWriter bw, byte tag, string name, string val)
+        {
+            byte[] nb = Encoding.ASCII.GetBytes(name);
+            byte[] vb = Encoding.ASCII.GetBytes(val);
+            bw.Write(tag);
+            bw.Write((byte)((nb.Length >> 8) & 0xFF));
+            bw.Write((byte)(nb.Length & 0xFF));
+            bw.Write(nb);
+            bw.Write((byte)((vb.Length >> 8) & 0xFF));
+            bw.Write((byte)(vb.Length & 0xFF));
+            bw.Write(vb);
         }
     }
 }

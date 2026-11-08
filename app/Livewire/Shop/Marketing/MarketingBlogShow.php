@@ -28,7 +28,7 @@ class MarketingBlogShow extends Component
 
     public function render()
     {
-        $seoTitle = $this->post->seo_title . ' – Mein Seelenfunke Magazin';
+        $seoTitle = $this->post->seo_title . ' | Mein Seelenfunke Magazin';
         $metaDescription = $this->post->meta_description ?: Str::limit(trim(preg_replace('/\s+/', ' ', strip_tags((string) ($this->post->excerpt ?: $this->post->content)))), 155);
         $canonicalUrl = route('blog.show', $this->post->slug);
         $imgPath = $this->post->header_image ?: $this->post->featured_image;

@@ -43,31 +43,81 @@
         @endif
 
         @if($isCreating || $editingId)
+            @php
+                $customerMedia = (!$isCreating && $editingType === 'customer')
+                    ? $this->editingCustomerMedia
+                    : ['orders' => collect(), 'invoices' => collect(), 'adminDocs' => [], 'orderDocs' => [], 'snapshots' => [], 'totalCount' => 0];
+            @endphp
             {{-- FULL PAGE INLINE EDITOR --}}
             <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md p-8 sm:p-10 rounded-[2.5rem] border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-2xl relative overflow-hidden animate-fade-in mt-6">
                 {{-- Form Header --}}
-                <div class="flex justify-between items-center mb-8 border-b border-gray-100 dark:border-gray-800 pb-6">
+                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 border-b border-gray-100 dark:border-gray-800 pb-6">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white tracking-wide">
-                            {{ $isCreating ? 'Neues Seelenlicht erschaffen' : "Benutzerprofil bearbeiten" }}
+                            {{ $isCreating ? 'Neues Seelenlicht erschaffen' : 'Benutzerprofil bearbeiten' }}
                         </h2>
                         <p class="text-xs text-gray-500 font-medium mt-1">
-                            {{ $isCreating ? 'Wähle die Rolle und fülle die grundlegenden Stammdaten aus.' : 'Passe die Identitätsdaten und Zugriffsrechte dieses Begleiters an.' }}
+                            {{ $formData['first_name'] || $formData['last_name'] ? trim($formData['first_name'] . ' ' . $formData['last_name']) . ' (' . $formData['email'] . ')' : 'Stammdaten, Standort und hinterlegte Dokumente verwalten.' }}
                         </p>
                     </div>
-                    <button wire:click="cancelEdit" class="p-2.5 text-gray-500 hover:text-gray-900 dark:hover:text-white bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl transition-all shadow-sm dark:shadow-inner hover:bg-red-500/20 hover:border-red-500/50 hover:text-red-500 dark:hover:text-red-400 group">
-                        <x-heroicon-m-x-mark class="w-6 h-6 group-hover:scale-110 transition-transform" />
-                    </button>
+                    <div class="flex items-center gap-3">
+                        @if(!$isCreating && $editingType === 'customer')
+                            <a href="/admin/support-tickets?createForCustomer={{ $editingId }}"
+                               class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-[var(--theme-color)] text-gray-900 shadow-sm hover:opacity-90">
+                                <x-heroicon-m-chat-bubble-left-right class="w-4 h-4" />
+                                <span>Nachricht senden</span>
+                            </a>
+                        @endif
+                        <button wire:click="cancelEdit" class="p-2.5 text-gray-500 hover:text-gray-900 dark:hover:text-white bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl transition-all shadow-sm dark:shadow-inner hover:bg-red-500/20 hover:border-red-500/50 hover:text-red-500 dark:hover:text-red-400 group">
+                            <x-heroicon-m-x-mark class="w-6 h-6 group-hover:scale-110 transition-transform" />
+                        </button>
+                    </div>
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-                    {{-- Left Column: Account & Security --}}
-                    <div class="space-y-6">
-                        <div class="flex items-center gap-3 text-[var(--theme-color)] mb-4 pb-2 border-b border-gray-100 dark:border-gray-800/50">
-                            <x-heroicon-m-shield-check class="w-5 h-5 drop-shadow-[0_0_8px_currentColor]" />
-                            <h3 class="text-[10px] font-black uppercase tracking-widest">Account & Sicherheit</h3>
-                        </div>
+                {{-- Interactive Tabs --}}
+                <div class="flex flex-wrap items-center gap-2 mb-8 p-1.5 bg-gray-50 dark:bg-gray-950 rounded-2xl border border-gray-200 dark:border-gray-800 w-fit">
+                    <button type="button"
+                            wire:click="setEditTab('account')"
+                            @class([
+                                'inline-flex items-center gap-2.5 px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all',
+                                'bg-white dark:bg-gray-900 text-[var(--theme-color)] shadow-sm border border-gray-200 dark:border-gray-700' => $activeEditTab === 'account',
+                                'text-gray-500 hover:text-gray-900 dark:hover:text-white' => $activeEditTab !== 'account',
+                            ])>
+                        <x-heroicon-m-shield-check class="w-4 h-4" />
+                        <span>Account &amp; Sicherheit</span>
+                    </button>
 
+                    <button type="button"
+                            wire:click="setEditTab('profile')"
+                            @class([
+                                'inline-flex items-center gap-2.5 px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all',
+                                'bg-white dark:bg-gray-900 text-[var(--theme-color)] shadow-sm border border-gray-200 dark:border-gray-700' => $activeEditTab === 'profile',
+                                'text-gray-500 hover:text-gray-900 dark:hover:text-white' => $activeEditTab !== 'profile',
+                            ])>
+                        <x-heroicon-m-map-pin class="w-4 h-4" />
+                        <span>Standort &amp; Profil</span>
+                    </button>
+
+                    @if(!$isCreating && $editingType === 'customer')
+                        <button type="button"
+                                wire:click="setEditTab('media')"
+                                @class([
+                                    'inline-flex items-center gap-2.5 px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all',
+                                    'bg-white dark:bg-gray-900 text-[var(--theme-color)] shadow-sm border border-gray-200 dark:border-gray-700' => $activeEditTab === 'media',
+                                    'text-gray-500 hover:text-gray-900 dark:hover:text-white' => $activeEditTab !== 'media',
+                                ])>
+                            <x-heroicon-m-folder-open class="w-4 h-4" />
+                            <span>Medien &amp; Dokumente</span>
+                            <span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-[var(--theme-color-15)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">
+                                {{ $customerMedia['totalCount'] }}
+                            </span>
+                        </button>
+                    @endif
+                </div>
+
+                @if($activeEditTab === 'account')
+                    {{-- TAB 1: ACCOUNT & SICHERHEIT --}}
+                    <div class="space-y-6 animate-fade-in">
                         @if($isCreating)
                             <div class="space-y-2">
                                 <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">System-Rolle</label>
@@ -87,7 +137,7 @@
                             </div>
                         @endif
 
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div class="space-y-2">
                                 <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Vorname *</label>
                                 <input type="text" wire:model="formData.first_name" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
@@ -98,49 +148,48 @@
                             </div>
                         </div>
 
-                        <div class="space-y-2">
-                            <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">E-Mail Adresse *</label>
-                            <input type="email" wire:model="formData.email" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
-                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">E-Mail Adresse *</label>
+                                <input type="email" wire:model="formData.email" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
+                            </div>
 
-                        <div class="space-y-2">
-                            <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Passwort {{ $isCreating ? '*' : '(Optional - Leer für kein Reset)' }}</label>
-                            <div x-data="{ showPw: false }" class="relative">
-                                <input :type="showPw ? 'text' : 'password'" wire:model="formData.password" placeholder="{{ $isCreating ? 'Mindestens 8 Zeichen' : 'Neues Passwort eingeben...' }}" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 pr-12 outline-none placeholder-gray-400 dark:placeholder-gray-600">
-                                <button type="button" @click="showPw = !showPw" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-[var(--theme-color)] transition-colors focus:outline-none">
-                                    <x-heroicon-o-eye x-show="!showPw" class="w-5 h-5" />
-                                    <x-heroicon-o-eye-slash x-show="showPw" class="w-5 h-5" style="display: none;" />
-                                </button>
+                            <div class="space-y-2">
+                                <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Passwort {{ $isCreating ? '*' : '(Optional)' }}</label>
+                                <div x-data="{ showPw: false }" class="relative">
+                                    <input :type="showPw ? 'text' : 'password'" wire:model="formData.password" placeholder="{{ $isCreating ? 'Mindestens 8 Zeichen' : 'Neues Passwort eingeben...' }}" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 pr-12 outline-none placeholder-gray-400 dark:placeholder-gray-600">
+                                    <button type="button" @click="showPw = !showPw" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-[var(--theme-color)] transition-colors focus:outline-none">
+                                        <x-heroicon-o-eye x-show="!showPw" class="w-5 h-5" />
+                                        <x-heroicon-o-eye-slash x-show="showPw" class="w-5 h-5" style="display: none;" />
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
-                        <label class="flex items-center gap-4 cursor-pointer group bg-gray-50 dark:bg-gray-950 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner mt-4 hover:border-emerald-500/50 transition-colors">
-                            <div class="relative flex items-center shrink-0">
-                                <input type="checkbox" wire:model="formData.is_verified" class="peer sr-only">
-                                <div class="w-6 h-6 bg-black border-2 border-gray-700 rounded transition-all peer-checked:bg-emerald-500 peer-checked:border-emerald-500"></div>
-                                <svg class="absolute w-4 h-4 left-1 top-1 text-gray-900 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                            </div>
-                            <div class="flex flex-col">
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <label class="flex items-center gap-4 cursor-pointer group bg-gray-50 dark:bg-gray-950 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner hover:border-emerald-500/50 transition-colors">
+                                <div class="relative flex items-center shrink-0">
+                                    <input type="checkbox" wire:model="formData.is_verified" class="peer sr-only">
+                                    <div class="w-6 h-6 bg-black border-2 border-gray-700 rounded transition-all peer-checked:bg-emerald-500 peer-checked:border-emerald-500"></div>
+                                    <svg class="absolute w-4 h-4 left-1 top-1 text-gray-900 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                </div>
                                 <span class="text-sm font-bold text-gray-800 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">E-Mail verifiziert</span>
-                                <span class="text-[10px] text-gray-500 font-medium">Gewährt direkten Zugriff auf das System</span>
-                            </div>
-                        </label>
+                            </label>
 
-                        @if(!$isCreating)
-                            <div class="bg-gray-50 dark:bg-gray-950 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                <div class="flex items-center gap-3">
-                                    <div @class([
-                                        'p-2.5 rounded-xl border shrink-0',
-                                        'bg-emerald-500/10 border-emerald-500/30 text-emerald-500 dark:text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.15)]' => $editing2faActive,
-                                        'bg-gray-100 dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-400' => !$editing2faActive,
-                                    ])>
-                                        @if($editing2faActive)
-                                            <x-heroicon-m-shield-check class="w-5 h-5 drop-shadow-[0_0_8px_currentColor]" />
-                                        @else
-                                            <x-heroicon-m-shield-exclamation class="w-5 h-5" />
-                                        @endif
-                                    </div>
-                                    <div>
+                            @if(!$isCreating)
+                                <div class="bg-gray-50 dark:bg-gray-950 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div class="flex items-center gap-3">
+                                        <div @class([
+                                            'p-2.5 rounded-xl border shrink-0',
+                                            'bg-emerald-500/10 border-emerald-500/30 text-emerald-500 dark:text-emerald-400' => $editing2faActive,
+                                            'bg-gray-100 dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-400' => !$editing2faActive,
+                                        ])>
+                                            @if($editing2faActive)
+                                                <x-heroicon-m-shield-check class="w-5 h-5" />
+                                            @else
+                                                <x-heroicon-m-shield-exclamation class="w-5 h-5" />
+                                            @endif
+                                        </div>
                                         <div class="text-sm font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
                                             <span>2-Faktor-Authentifizierung</span>
                                             @if($editing2faActive)
@@ -149,19 +198,18 @@
                                                 <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-gray-200 dark:bg-gray-800 text-gray-500 border border-gray-300 dark:border-gray-700">Inaktiv</span>
                                             @endif
                                         </div>
-                                        <div class="text-[10px] text-gray-500 font-medium mt-0.5">
-                                            {{ $editing2faActive ? 'Zwei-Faktor-Schutz ist scharf geschaltet. Deaktivierung setzt Secret & Wiederherstellungscodes zurück.' : 'Keine Zwei-Faktor-Authentifizierung für dieses Konto eingerichtet.' }}
-                                        </div>
                                     </div>
+                                    @if($editing2faActive)
+                                        <button type="button" wire:confirm="Möchtest du die 2-Faktor-Authentifizierung für diesen Benutzer wirklich deaktivieren?" wire:click="disable2Fa" class="px-3.5 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 hover:text-amber-400 border border-amber-500/30 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center justify-center gap-2 shadow-sm">
+                                            <x-heroicon-s-key class="w-4 h-4" />
+                                            2FA deaktivieren
+                                        </button>
+                                    @endif
                                 </div>
-                                @if($editing2faActive)
-                                    <button type="button" wire:confirm="Möchtest du die 2-Faktor-Authentifizierung für diesen Benutzer wirklich deaktivieren? Der Nutzer kann sich danach wieder nur mit Passwort anmelden." wire:click="disable2Fa" class="px-3.5 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 hover:text-amber-400 border border-amber-500/30 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center justify-center gap-2 shadow-sm">
-                                        <x-heroicon-s-key class="w-4 h-4" />
-                                        2FA deaktivieren
-                                    </button>
-                                @endif
-                            </div>
+                            @endif
+                        </div>
 
+                        @if(!$isCreating)
                             {{-- PROFIL-, ADRESS-, GEBURTSTAGS- & DSGVO-ÄNDERUNGSPROTOKOLL (LOG) --}}
                             <div class="p-4 bg-gray-50 dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner space-y-3">
                                 <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-gray-200 dark:border-gray-800">
@@ -169,16 +217,11 @@
                                         <div class="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
                                             <x-heroicon-m-clock class="w-4 h-4" />
                                         </div>
-                                        <div>
-                                            <div class="text-xs font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
-                                                <span>Profil- &amp; DSGVO-Änderungsprotokoll (Log)</span>
-                                                <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-700">
-                                                    {{ count($editingUserLogs) }} Einträge
-                                                </span>
-                                            </div>
-                                            <div class="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
-                                                Protokolliert automatisch alle Änderungen an Name, E-Mail, Adresse, Geburtstag &amp; DSGVO-Freigaben.
-                                            </div>
+                                        <div class="text-xs font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                                            <span>Profil- &amp; DSGVO-Änderungsprotokoll</span>
+                                            <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-700">
+                                                {{ count($editingUserLogs) }} Einträge
+                                            </span>
                                         </div>
                                     </div>
 
@@ -188,14 +231,14 @@
                                             'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' => $editingUserBirthdayCorrections === 0,
                                             'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40' => $editingUserBirthdayCorrections >= 1,
                                         ])>
-                                            🎂 Geburtstags-Korrekturen durch Kunde: {{ $editingUserBirthdayCorrections }} / 1
+                                            🎂 Geburtstags-Korrekturen: {{ $editingUserBirthdayCorrections }} / 1
                                         </span>
                                     @endif
                                 </div>
 
                                 @if(empty($editingUserLogs))
-                                    <div class="py-6 px-4 text-center rounded-xl bg-white dark:bg-gray-900 border border-dashed border-gray-200 dark:border-gray-800">
-                                        <p class="text-xs font-semibold text-gray-500 dark:text-gray-400">Noch keine Profil-Änderungen für dieses Konto protokolliert.</p>
+                                    <div class="py-5 px-4 text-center rounded-xl bg-white dark:bg-gray-900 border border-dashed border-gray-200 dark:border-gray-800">
+                                        <p class="text-xs font-semibold text-gray-500 dark:text-gray-400">Keine protokollierten Änderungen vorhanden.</p>
                                     </div>
                                 @else
                                     <div class="max-h-72 overflow-y-auto pr-1 space-y-2.5 custom-scrollbar">
@@ -243,25 +286,20 @@
                             </div>
                         @endif
                     </div>
-
-                    {{-- Right Column: Address & Details --}}
-                    <div class="space-y-6">
-                        <div class="flex items-center gap-3 text-[var(--theme-color)] mb-4 pb-2 border-b border-gray-100 dark:border-gray-800/50">
-                            <x-heroicon-m-map-pin class="w-5 h-5 drop-shadow-[0_0_8px_currentColor]" />
-                            <h3 class="text-[10px] font-black uppercase tracking-widest">Standort & Profil</h3>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4 bg-gray-50 dark:bg-gray-950 p-1.5 rounded-xl shadow-sm dark:shadow-inner border border-gray-200 dark:border-gray-800">
-                            <button wire:click="$set('formData.customer_type', 'private')" type="button" @class(['py-3.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all', 'bg-white dark:bg-gray-800 text-[var(--theme-color)] shadow-sm dark:shadow-[0_0_10px_rgba(0,0,0,0.5)] border border-gray-200 dark:border-gray-700' => $formData['customer_type'] === 'private', 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50' => $formData['customer_type'] !== 'private'])>
+                @elseif($activeEditTab === 'profile')
+                    {{-- TAB 2: STANDORT & PROFIL --}}
+                    <div class="space-y-6 animate-fade-in">
+                        <div class="grid grid-cols-2 gap-4 bg-gray-50 dark:bg-gray-950 p-1.5 rounded-xl shadow-sm dark:shadow-inner border border-gray-200 dark:border-gray-800 max-w-md">
+                            <button wire:click="$set('formData.customer_type', 'private')" type="button" @class(['py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all', 'bg-white dark:bg-gray-800 text-[var(--theme-color)] shadow-sm border border-gray-200 dark:border-gray-700' => $formData['customer_type'] === 'private', 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-300' => $formData['customer_type'] !== 'private'])>
                                 Privatperson
                             </button>
-                            <button wire:click="$set('formData.customer_type', 'business')" type="button" @class(['py-3.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all', 'bg-white dark:bg-gray-800 text-[var(--theme-color)] shadow-sm dark:shadow-[0_0_10px_rgba(0,0,0,0.5)] border border-gray-200 dark:border-gray-700' => $formData['customer_type'] === 'business', 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50' => $formData['customer_type'] !== 'business'])>
+                            <button wire:click="$set('formData.customer_type', 'business')" type="button" @class(['py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all', 'bg-white dark:bg-gray-800 text-[var(--theme-color)] shadow-sm border border-gray-200 dark:border-gray-700' => $formData['customer_type'] === 'business', 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-300' => $formData['customer_type'] !== 'business'])>
                                 Gewerblich (B2B)
                             </button>
                         </div>
 
                         @if($formData['customer_type'] === 'business')
-                            <div class="grid grid-cols-2 gap-4 animate-fade-in-up">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-fade-in-up">
                                 <div class="space-y-2">
                                     <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Firmenname</label>
                                     <input type="text" wire:model="formData.company_name" placeholder="GmbH, UG..." class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
@@ -273,25 +311,27 @@
                             </div>
                         @endif
 
-                        <div class="flex gap-4">
-                            <div class="space-y-2 w-2/3">
-                                <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Straße</label>
-                                <input type="text" wire:model="formData.street" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="flex gap-4">
+                                <div class="space-y-2 w-2/3">
+                                    <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Straße</label>
+                                    <input type="text" wire:model="formData.street" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
+                                </div>
+                                <div class="space-y-2 w-1/3">
+                                    <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Nr.</label>
+                                    <input type="text" wire:model="formData.house_number" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
+                                </div>
                             </div>
-                            <div class="space-y-2 w-1/3">
-                                <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Nr.</label>
-                                <input type="text" wire:model="formData.house_number" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
-                            </div>
-                        </div>
 
-                        <div class="flex gap-4">
-                            <div class="space-y-2 w-1/3">
-                                <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">PLZ</label>
-                                <input type="text" wire:model="formData.postal" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
-                            </div>
-                            <div class="space-y-2 w-2/3">
-                                <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Stadt</label>
-                                <input type="text" wire:model="formData.city" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
+                            <div class="flex gap-4">
+                                <div class="space-y-2 w-1/3">
+                                    <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">PLZ</label>
+                                    <input type="text" wire:model="formData.postal" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
+                                </div>
+                                <div class="space-y-2 w-2/3">
+                                    <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Stadt</label>
+                                    <input type="text" wire:model="formData.city" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
+                                </div>
                             </div>
                         </div>
 
@@ -315,8 +355,8 @@
                             <div class="pt-4 border-t border-gray-100 dark:border-gray-800/60 space-y-4">
                                 <div class="flex items-center justify-between">
                                     <div class="flex items-center gap-2 text-amber-500">
-                                        <x-heroicon-s-sparkles class="w-5 h-5 drop-shadow-[0_0_8px_currentColor]" />
-                                        <h3 class="text-[10px] font-black uppercase tracking-widest">Seelenfunken, Funki & DSGVO-Freigaben</h3>
+                                        <x-heroicon-s-sparkles class="w-5 h-5" />
+                                        <h3 class="text-[10px] font-black uppercase tracking-widest">Seelenfunken, Funki &amp; DSGVO-Freigaben</h3>
                                     </div>
                                     <label class="inline-flex items-center gap-2 cursor-pointer">
                                         <input type="checkbox" wire:model="formData.gamification_active" class="w-4 h-4 rounded border-gray-700 text-amber-500 focus:ring-amber-500">
@@ -343,56 +383,262 @@
                                     </div>
                                 </div>
 
-                                {{-- DSGVO & Opt-In / Opt-Out Steuerung durch Admin --}}
                                 <div class="bg-gray-50 dark:bg-gray-950 p-4 rounded-xl border border-gray-200 dark:border-gray-800 space-y-3">
                                     <div class="flex items-center justify-between">
-                                        <span class="text-[9px] font-black uppercase tracking-widest text-amber-500">DSGVO & Einwilligungen (Admin Opt-In / Opt-Out)</span>
-                                        <span class="text-[9px] font-bold text-gray-500">Haken jederzeit abwählbar</span>
+                                        <span class="text-[9px] font-black uppercase tracking-widest text-amber-500">DSGVO &amp; Einwilligungen</span>
                                     </div>
 
-                                    <div class="space-y-2.5">
-                                        <label class="flex items-start gap-3 p-2.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-amber-500/40 transition">
-                                            <input type="checkbox" wire:model="formData.gamification_active" class="mt-0.5 w-4 h-4 rounded border-gray-700 text-amber-500 focus:ring-amber-500">
-                                            <div>
-                                                <span class="text-xs font-bold text-gray-900 dark:text-white block">Seelenfunken-Treueprogramm ("Magie aktivieren" AGB & Datenschutz)</span>
-                                                <span class="text-[10px] text-gray-500 block">Wenn abgewählt, wird die Teilnahme am Seelenfunken-Sammelprogramm für den Kunden deaktiviert.</span>
-                                            </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                        <label class="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-amber-500/40 transition">
+                                            <input type="checkbox" wire:model="formData.gamification_active" class="w-4 h-4 rounded border-gray-700 text-amber-500 focus:ring-amber-500 shrink-0">
+                                            <span class="text-xs font-bold text-gray-900 dark:text-white">Seelenfunken-Treueprogramm aktiv</span>
                                         </label>
 
-                                        <label class="flex items-start gap-3 p-2.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-amber-500/40 transition">
-                                            <input type="checkbox" wire:model="formData.ranking_opt_in" class="mt-0.5 w-4 h-4 rounded border-gray-700 text-amber-500 focus:ring-amber-500">
-                                            <div>
-                                                <span class="text-xs font-bold text-gray-900 dark:text-white block">DSGVO: Sichtbarkeit in der Halle der Helden (Opt-In)</span>
-                                                <span class="text-[10px] text-gray-500 block">Wenn abgewählt, erscheint der Kunde nicht mehr öffentlich in der Halle der Helden.</span>
-                                            </div>
+                                        <label class="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-amber-500/40 transition">
+                                            <input type="checkbox" wire:model="formData.ranking_opt_in" class="w-4 h-4 rounded border-gray-700 text-amber-500 focus:ring-amber-500 shrink-0">
+                                            <span class="text-xs font-bold text-gray-900 dark:text-white">Sichtbarkeit in der Halle der Helden</span>
                                         </label>
 
-                                        <label class="flex items-start gap-3 p-2.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-amber-500/40 transition">
-                                            <input type="checkbox" wire:model="formData.use_real_name" class="mt-0.5 w-4 h-4 rounded border-gray-700 text-amber-500 focus:ring-amber-500">
-                                            <div>
-                                                <span class="text-xs font-bold text-gray-900 dark:text-white block">DSGVO: Echtnamen statt Spielernamen öffentlich anzeigen</span>
-                                                <span class="text-[10px] text-gray-500 block">Wenn abgewählt, wird ausschließlich der Spielername (oder ein anonymisiertes Pseudonym) gezeigt.</span>
-                                            </div>
+                                        <label class="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-amber-500/40 transition">
+                                            <input type="checkbox" wire:model="formData.use_real_name" class="w-4 h-4 rounded border-gray-700 text-amber-500 focus:ring-amber-500 shrink-0">
+                                            <span class="text-xs font-bold text-gray-900 dark:text-white">Echtnamen öffentlich anzeigen</span>
                                         </label>
 
-                                        <label class="flex items-start gap-3 p-2.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-amber-500/40 transition">
-                                            <input type="checkbox" wire:model="formData.ai_data_consent" class="mt-0.5 w-4 h-4 rounded border-gray-700 text-amber-500 focus:ring-amber-500">
-                                            <div>
-                                                <span class="text-xs font-bold text-gray-900 dark:text-white block">DSGVO: KI-Support-Freigabe (Funki Zugriff auf persönliche Kontodaten)</span>
-                                                <span class="text-[10px] text-gray-500 block">Wenn abgewählt, wird die DSGVO-Einwilligung für KI-Personendaten widerrufen (Art. 7 Abs. 3 DSGVO).</span>
-                                            </div>
+                                        <label class="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-amber-500/40 transition">
+                                            <input type="checkbox" wire:model="formData.ai_data_consent" class="w-4 h-4 rounded border-gray-700 text-amber-500 focus:ring-amber-500 shrink-0">
+                                            <span class="text-xs font-bold text-gray-900 dark:text-white">DSGVO KI-Support-Freigabe</span>
                                         </label>
                                     </div>
 
                                     <div class="pt-1">
-                                        <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">Spielername (Halle der Helden & Bewertungs-Profil)</label>
+                                        <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">Spielername</label>
                                         <input type="text" maxlength="40" wire:model="formData.player_name" placeholder="z. B. Sternenwanderer..." class="w-full text-xs font-bold border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-2.5 outline-none focus:ring-2 focus:ring-amber-500/40">
                                     </div>
                                 </div>
                             </div>
                         @endif
                     </div>
-                </div>
+                @elseif($activeEditTab === 'media' && !$isCreating && $editingType === 'customer')
+                    {{-- TAB 3: MEDIEN & DOKUMENTE (HINTERLEGTE DATEIEN) --}}
+                    <div class="space-y-8 animate-fade-in">
+                        {{-- 1. Neue Datei aktiv für Kunden hinterlegen --}}
+                        <div class="p-6 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 space-y-5">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex items-center gap-2.5">
+                                    <x-heroicon-m-cloud-arrow-up class="w-5 h-5 text-[var(--theme-color)]" />
+                                    <h3 class="text-xs font-black uppercase tracking-widest text-gray-900 dark:text-white">Neue Datei für Kunden hinterlegen</h3>
+                                    <div x-data="{ tip: false }" class="relative inline-flex items-center">
+                                        <button type="button" @mouseenter="tip = true" @mouseleave="tip = false" @click="tip = !tip" class="w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-[10px] font-black flex items-center justify-center hover:bg-[var(--theme-color)] hover:text-gray-900 transition-colors">!</button>
+                                        <div x-show="tip" x-cloak class="absolute left-6 top-0 z-30 w-72 p-3 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-xl text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed">
+                                            Hochgeladene Dateien sind sofort gespeichert und erscheinen beim Kunden direkt im Kundenportal unter „Bestellungen &rarr; Dokumente“.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                @if($customerMediaSavedText)
+                                    <span x-data="{ visible: true }"
+                                          x-init="setTimeout(() => visible = false, 4000)"
+                                          x-show="visible"
+                                          x-transition.opacity
+                                          wire:key="cust-doc-saved-{{ md5($customerMediaSavedText . microtime()) }}"
+                                          class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                        {{ $customerMediaSavedText }}
+                                    </span>
+                                @endif
+                            </div>
+
+                            {{-- Schnellwahl-Buttons --}}
+                            <div class="flex flex-wrap items-center gap-2">
+                                @foreach(['Echtheitszertifikat', 'Pflegehinweise', 'Manufaktur-Zertifikat', 'Kulanz-Beleg'] as $preset)
+                                    <button type="button"
+                                            wire:click="setCustomerUploadPresetTitle('{{ $preset }}')"
+                                            @class([
+                                                'px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all',
+                                                'bg-[var(--theme-color)] text-gray-900 border-[var(--theme-color)] shadow-2xs' => $customerUploadTitle === $preset,
+                                                'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)]' => $customerUploadTitle !== $preset,
+                                            ])>
+                                        + {{ $preset }}
+                                    </button>
+                                @endforeach
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="space-y-1.5">
+                                    <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Dokumenten-Titel</label>
+                                    <input type="text"
+                                           wire:model="customerUploadTitle"
+                                           placeholder="z. B. Echtheitszertifikat (leer = Dateiname)"
+                                           class="w-full text-xs font-bold border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-3.5 outline-none focus:ring-2 focus:ring-[var(--theme-color)]/50">
+                                </div>
+
+                                <div class="space-y-1.5">
+                                    <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Bestell-Zuordnung</label>
+                                    <select wire:model="customerUploadOrderId"
+                                            class="w-full text-xs font-bold border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-3.5 outline-none focus:ring-2 focus:ring-[var(--theme-color)]/50">
+                                        <option value="">Kundenkonto allgemein (Alle Bestellungen)</option>
+                                        @foreach($customerMedia['orders'] as $ord)
+                                            <option value="{{ $ord->id }}">Bestellung #{{ $ord->order_number }} ({{ $ord->created_at?->format('d.m.Y') }})</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+
+                                <div class="space-y-1.5">
+                                    <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Datei auswählen (Sofort-Upload)</label>
+                                    <label class="flex items-center justify-center gap-2 w-full p-3.5 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-[var(--theme-color)] bg-white dark:bg-gray-900 text-xs font-bold text-gray-600 dark:text-gray-300 cursor-pointer transition-all">
+                                        <x-heroicon-m-arrow-up-tray class="w-4 h-4 text-[var(--theme-color)]" />
+                                        <span wire:loading.remove wire:target="customerUploadFiles">Datei hochladen (PDF, ZIP, Bild)</span>
+                                        <span wire:loading wire:target="customerUploadFiles" class="text-[var(--theme-color)]">Wird gespeichert...</span>
+                                        <input type="file" wire:model="customerUploadFiles" multiple accept=".pdf,.zip,.rar,.jpg,.jpeg,.png,.webp" class="hidden">
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- 2. Hinterlegte Dateien & Dokumente des Kunden --}}
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {{-- Spalte A: Individuell hinterlegte Dokumente & Produkt-Zertifikate --}}
+                            <div class="p-6 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 space-y-4">
+                                <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-3">
+                                    <div class="flex items-center gap-2">
+                                        <x-heroicon-m-document-check class="w-5 h-5 text-[var(--theme-color)]" />
+                                        <h4 class="text-xs font-black uppercase tracking-widest text-gray-900 dark:text-white">Hinterlegte Dokumente &amp; Zertifikate</h4>
+                                    </div>
+                                    <span class="px-2.5 py-0.5 rounded-full text-[9px] font-black bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
+                                        {{ count($customerMedia['adminDocs']) + count($customerMedia['orderDocs']) }}
+                                    </span>
+                                </div>
+
+                                @if(empty($customerMedia['adminDocs']) && empty($customerMedia['orderDocs']))
+                                    <div class="py-8 text-center rounded-xl bg-white dark:bg-gray-900 border border-dashed border-gray-200 dark:border-gray-800">
+                                        <p class="text-xs font-semibold text-gray-500 dark:text-gray-400">Noch keine individuellen Dokumente oder Produkt-Zertifikate hinterlegt.</p>
+                                    </div>
+                                @else
+                                    <div class="space-y-2.5 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
+                                        @foreach($customerMedia['adminDocs'] as $aDoc)
+                                            <div class="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+                                                <div class="min-w-0 flex-1">
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-[var(--theme-color-15)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">
+                                                            {{ !empty($aDoc['order_number']) ? 'Bestellung #' . $aDoc['order_number'] : 'Kundenkonto' }}
+                                                        </span>
+                                                        <span class="text-xs font-bold text-gray-900 dark:text-white truncate">{{ $aDoc['title'] }}</span>
+                                                    </div>
+                                                    <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-1 truncate">
+                                                        {{ strtoupper($aDoc['extension'] ?? 'PDF') }} • {{ $aDoc['filename'] ?? '' }}
+                                                    </p>
+                                                </div>
+                                                <div class="flex items-center gap-1.5 shrink-0">
+                                                    <a href="{{ route('customer-document.download', ['customer' => $editingId, 'doc' => $aDoc['id']]) }}"
+                                                       target="_blank"
+                                                       class="p-2 rounded-lg bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)] transition-all"
+                                                       title="Herunterladen">
+                                                        <x-heroicon-m-arrow-down-tray class="w-4 h-4" />
+                                                    </a>
+                                                    <button type="button"
+                                                            wire:click="removeCustomerUploadedDocument('{{ $aDoc['id'] }}')"
+                                                            class="p-2 rounded-lg bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-red-500 hover:border-red-500/40 transition-all"
+                                                            title="Entfernen">
+                                                        <x-heroicon-m-trash class="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        @endforeach
+
+                                        @foreach($customerMedia['orderDocs'] as $oDoc)
+                                            <div class="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+                                                <div class="min-w-0 flex-1">
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                                                            #{{ $oDoc['order_number'] }}
+                                                        </span>
+                                                        <span class="text-xs font-bold text-gray-900 dark:text-white truncate">{{ $oDoc['title'] }}</span>
+                                                    </div>
+                                                    <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-1 truncate">
+                                                        {{ $oDoc['product_name'] }} ({{ $oDoc['extension'] }}) • {{ $oDoc['order_date'] }}
+                                                    </p>
+                                                </div>
+                                                <a href="{{ $oDoc['download_url'] }}"
+                                                   target="_blank"
+                                                   class="p-2 rounded-lg bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)] transition-all shrink-0"
+                                                   title="Herunterladen">
+                                                    <x-heroicon-m-arrow-down-tray class="w-4 h-4" />
+                                                </a>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
+
+                            {{-- Spalte B: Rechnungen, Gutschriften & Gravur-Snapshots --}}
+                            <div class="p-6 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 space-y-4">
+                                <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-3">
+                                    <div class="flex items-center gap-2">
+                                        <x-heroicon-m-document-text class="w-5 h-5 text-[var(--theme-color)]" />
+                                        <h4 class="text-xs font-black uppercase tracking-widest text-gray-900 dark:text-white">Rechnungen &amp; Bestell-Belege</h4>
+                                    </div>
+                                    <span class="px-2.5 py-0.5 rounded-full text-[9px] font-black bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
+                                        {{ $customerMedia['invoices']->count() + count($customerMedia['snapshots']) }}
+                                    </span>
+                                </div>
+
+                                @if($customerMedia['invoices']->isEmpty() && empty($customerMedia['snapshots']))
+                                    <div class="py-8 text-center rounded-xl bg-white dark:bg-gray-900 border border-dashed border-gray-200 dark:border-gray-800">
+                                        <p class="text-xs font-semibold text-gray-500 dark:text-gray-400">Noch keine Rechnungen oder Bestell-Belege vorhanden.</p>
+                                    </div>
+                                @else
+                                    <div class="space-y-2.5 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
+                                        @foreach($customerMedia['invoices'] as $inv)
+                                            <div class="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+                                                <div class="min-w-0 flex-1">
+                                                    <div class="flex items-center gap-2">
+                                                        <span @class([
+                                                            'px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border',
+                                                            'bg-red-500/10 text-red-500 border-red-500/30' => method_exists($inv, 'isCreditNote') && $inv->isCreditNote(),
+                                                            'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' => !(method_exists($inv, 'isCreditNote') && $inv->isCreditNote()),
+                                                        ])>
+                                                            {{ (method_exists($inv, 'isCreditNote') && $inv->isCreditNote()) ? 'Gutschrift' : 'Rechnung' }}
+                                                        </span>
+                                                        <span class="text-xs font-bold text-gray-900 dark:text-white truncate">{{ $inv->invoice_number }}</span>
+                                                    </div>
+                                                    <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
+                                                        {{ $inv->created_at?->format('d.m.Y') }} • {{ number_format(((int) ($inv->total ?? 0)) / 100, 2, ',', '.') }} €
+                                                    </p>
+                                                </div>
+                                                <a href="{{ route('invoice.download', $inv->id) }}"
+                                                   target="_blank"
+                                                   class="p-2 rounded-lg bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)] transition-all shrink-0"
+                                                   title="Rechnung herunterladen">
+                                                    <x-heroicon-m-arrow-down-tray class="w-4 h-4" />
+                                                </a>
+                                            </div>
+                                        @endforeach
+
+                                        @foreach($customerMedia['snapshots'] as $snap)
+                                            <div class="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+                                                <div class="min-w-0 flex-1">
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                                                            #{{ $snap['order_number'] }}
+                                                        </span>
+                                                        <span class="text-xs font-bold text-gray-900 dark:text-white truncate">{{ $snap['label'] }}</span>
+                                                    </div>
+                                                    <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-1">{{ $snap['date'] }}</p>
+                                                </div>
+                                                <a href="{{ $snap['url'] }}"
+                                                   target="_blank"
+                                                   class="p-2 rounded-lg bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)] transition-all shrink-0"
+                                                   title="Vorschau öffnen">
+                                                    <x-heroicon-m-arrow-down-tray class="w-4 h-4" />
+                                                </a>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                @endif
 
                 {{-- Action Footer --}}
                 <div class="mt-10 pt-8 border-t border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row justify-between items-center gap-6">
@@ -656,6 +902,14 @@
                                     <div class="flex justify-end gap-2 mt-1">
                                         @if(!$showArchive)
                                             <div class="opacity-100 xl:opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                                                @if(($user['user_type'] ?? '') === 'customer')
+                                                    <a href="/admin/support-tickets?createForCustomer={{ $user['id'] }}" class="p-2.5 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)]/30 rounded-xl transition-all shadow-sm dark:shadow-inner" title="Direktnachricht / Support-Ticket an Kunden senden">
+                                                        <x-heroicon-m-chat-bubble-left-right class="w-4 h-4" />
+                                                    </a>
+                                                    <button type="button" wire:click="startEdit('{{ $user['id'] }}', 'customer', 'media')" class="p-2.5 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)]/30 rounded-xl transition-all shadow-sm dark:shadow-inner" title="Hinterlegte Dateien & Dokumente">
+                                                        <x-heroicon-m-folder-open class="w-4 h-4" />
+                                                    </button>
+                                                @endif
                                                 @if(($user['user_type'] ?? '') === 'employee' && !in_array($user['role'] ?? 'internal', ['influencer', 'tax_advisor'], true))
                                                     <a href="/admin/employees" class="p-2.5 bg-gray-50 dark:bg-gray-950 border border-indigo-500/30 text-indigo-400 hover:text-indigo-300 hover:border-indigo-500/60 rounded-xl transition-all shadow-sm dark:shadow-inner" title="Zur Personalakte & Lohnabrechnung (Leitung -> Mitarbeiter)">
                                                         <x-heroicon-m-identification class="w-4 h-4" />

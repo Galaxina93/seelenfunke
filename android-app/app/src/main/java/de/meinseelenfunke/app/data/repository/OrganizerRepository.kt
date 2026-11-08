@@ -282,6 +282,51 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
         }
     }
 
+    suspend fun syncAlarmPackageToPortal(context: Context = serviceLocator.context): Result<String> {
+        return try {
+            val payload = de.meinseelenfunke.app.util.FunkenwerkAlarmManager.exportSyncPayloadStrings(context)
+            val response = serviceLocator.getOrganizerApi().syncAlarmPackage(
+                alarmsJson = payload["alarms_json"] ?: "[]",
+                timersJson = payload["timers_json"] ?: "[]",
+                smartPlugsJson = payload["smart_plugs_json"] ?: "[]",
+                wakeUpLogsJson = payload["wake_up_logs_json"] ?: "{}",
+                activeAlarmTime = payload["active_alarm_time"] ?: "08:30",
+                deviceName = payload["device_name"] ?: "Funkenwerk Android"
+            )
+            if (response.success) {
+                val stamp = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.GERMANY).format(java.util.Date())
+                de.meinseelenfunke.app.util.FunkenwerkAlarmManager.markSyncCompleted(context, stamp)
+                Result.success(stamp)
+            } else {
+                Result.failure(Exception("Server meldete Fehler beim Wecker-Sync."))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchAlarmPackageFromPortal(context: Context = serviceLocator.context): Result<Unit> {
+        return try {
+            val response = serviceLocator.getOrganizerApi().getAlarmSyncPackage()
+            if (response.success && response.data != null) {
+                val pkg = response.data
+                de.meinseelenfunke.app.util.FunkenwerkAlarmManager.applyRemotePackage(
+                    context = context,
+                    alarms = pkg.alarms,
+                    timers = pkg.timers,
+                    plugs = pkg.smartPlugs,
+                    wakeLogs = pkg.wakeUpLogs,
+                    lastSyncedAt = pkg.lastSyncedAt
+                )
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("Konnte Wecker-Paket nicht vom Portal abrufen."))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     fun saveShoppingItemsToCache(items: List<ManagementShoppingItem>) {
         try {
             val context = serviceLocator.context

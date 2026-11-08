@@ -12,12 +12,19 @@ class ProductSeeder extends Seeder
 {
     public function run(): void
     {
+        if (!\Illuminate\Support\Facades\Schema::hasColumn('products', 'collection_line')) {
+            \Illuminate\Support\Facades\Schema::table('products', function (\Illuminate\Database\Schema\Blueprint $table) {
+                $table->string('collection_line', 32)->default('manufaktur')->index()->after('type');
+            });
+        }
+
         $cats = [
             'Glas & Kristall' => 'physical',
             'Geschenksets' => 'physical',
             'Bestseller' => 'physical',
             'Metall & Alu' => 'physical',
             'Schmuck & Anhänger' => 'physical',
+            'Atelier Echtgold & Silber' => 'physical',
             'Schiefer & Natur' => 'physical',
             'Gutscheine' => 'digital',
             'E-Books & Guides' => 'digital',
@@ -33,6 +40,8 @@ class ProductSeeder extends Seeder
         $sup6 = \App\Models\Product\ProductSupplier::where('name', 'CTHOLD (Wuxi Qiyue) - Temu & Amazon DE')->first();
         $sup8 = \App\Models\Product\ProductSupplier::where('name', 'Glücksfieber (Lübeck)')->first();
         $sup9 = \App\Models\Product\ProductSupplier::where('name', 'like', '%Print Equipment%')->first();
+        $sup12 = \App\Models\Product\ProductSupplier::where('name', 'like', '%Silberketten-Store%')->first();
+        $sup13Fbm = \App\Models\Product\ProductSupplier::where('name', 'like', '%Friedrich Binder%')->first();
 
         foreach ($cats as $name => $type) {
             ProductCategory::firstOrCreate(
@@ -744,6 +753,332 @@ class ProductSeeder extends Seeder
             ['material_type' => 'paper',     'weight_grams' => 3],
         ]);
 
+        // --- PRODUKT 7: Das Echtgold Seelen-Herz (Atelier Echtgold & Silber - 585er Echtgold-Herz + 333er Echtgold-Panzerkette im Set) ---
+        // AKTUELL AUSGEBLENDET (Fokus zum Start auf Echtsilber & Echtgold ID-Gravurarmbänder):
+        Product::withTrashed()->where('slug', 'echtgold-seelen-herz')->get()->each(function (Product $p) {
+            $p->templates()->delete();
+            $p->reviews()->delete();
+            $p->packagings()->delete();
+            $p->tierPrices()->delete();
+            $p->categories()->detach();
+            $p->forceDelete();
+        });
+/*        $p7EchtgoldHerz = Product::updateOrCreate(['slug' => 'echtgold-seelen-herz'], [
+            'name' => 'Das Echtgold Seelen-Herz (585er Gold & 333er Goldkette)',
+            'type' => 'physical',
+            'collection_line' => 'atelier',
+            'description' => 'Ein bleibendes Familienerbstück aus echtem Edelmetall, auf Bestellung für Sie handveredelt in unserer Manufaktur in Gifhorn: Das Echtgold Seelen-Herz vereint einen hochglanzpolierten Herzanhänger aus echtem 585er Gelbgold (14 Karat Echtgold, gestempelt 585, 13 x 14 mm, ca. 0,80 g) mit einer feinen, diamantierten Panzerkette aus echtem 333er Gelbgold (8 Karat Echtgold, gestempelt 333, 0,8 mm Stärke, ca. 1,0 g, mit Federringverschluss). Beide Echtschmuck-Komponenten stammen aus dem deutschen Fachhandel (Silberketten-Store) und werden mit unserem 5W UV-Präzisionslaser berührungslos und materialschonend mit Ihren Wunsch-Initialen, Namen, einem Datum oder Symbol veredelt, auf Wunsch beidseitig auf Vorder- und Rückseite. Geliefert wird Ihr Unikat inklusive edlem Schmucketui und versichertem DHL-Paketversand.',
+            'short_description' => 'Echter 585er Gelbgold-Herzanhänger (14 Karat Echtgold, 13 x 14 mm) im Komplett-Set mit echter 333er Gelbgold-Panzerkette (0,8 mm), beidseitiger UV-Lasergravur & Schmucketui.',
+            'status' => 'active',
+            'is_personalizable' => true,
+            'three_d_active' => true,
+            'price' => 34900, // 349,00 € brutto Komplett-Set inkl. Schmucketui & versichertem Versand
+            'compare_at_price' => null,
+            'purchase_price' => 17059, // EK Silberketten-Store.de: 585er Gold-Herz (134,00€ brutto / 112,61€ netto) + 333er Gold-Panzerkette (69,00€ brutto / 57,98€ netto) = 203,00€ brutto / 170,59€ netto
+            'laser_runtime_minutes' => 2,
+            'electricity_wear_factor' => 15,
+            'packaging_cost' => 166, // Schwarze Westpack-Schmuckschachtel (1,06€ netto) + Versandkarton (0,60€ netto) = 1,66€ netto
+            'marketing_cost_percent' => 10.00,
+            'sku' => 'MSF-ECHTGOLD-HERZ-001',
+            'product_supplier_id' => $sup12?->id ?? $sup8?->id,
+            'reorder_url' => 'https://www.silberketten-store.de/GOLDSCHMUCK/Kettenanhaenger/Gravuranhaenger-Herz-235559-400-585-Gold-10704',
+            'barcode' => '',
+            'brand' => 'Mein-Seelenfunke Atelier',
+            'track_quantity' => true,
+            'quantity' => 0, // Auftragsbezogene Einzelanfertigung (Startbestand 0)
+            'continue_selling_when_out_of_stock' => true,
+            'weight' => 3, // ca. 1,80 g Echtgold (0,80 g Herz + 1,00 g Kette) -> aufgerundet 3 g
+            'packaging_weight' => 170, // 20 g Westpack Schmuckbox + 150 g Versandkarton
+            'height' => 14,
+            'width' => 13,
+            'length' => 0.8,
+            'shipping_class' => null, // Versicherter DHL-Paketversand (Haftung bis 500 €)
+            'preview_image_path' => 'produkte/products/echtgold-seelen-herz/overlay.png',
+            'three_d_model_path' => 'produkte/products/echtgold-seelen-herz/echtgold_seelen_herz_3d.glb',
+            'three_d_background_path' => 'produkte/products/echtgold-seelen-herz/header_bg.png',
+            'media_gallery' => [
+                ['type' => 'image', 'path' => 'produkte/products/echtgold-seelen-herz/echtgold-seelen-herz-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Das Echtgold Seelen-Herz: 585er Echtgold-Herzanhänger inklusive 333er Echtgold-Panzerkette & Gravur'],
+                ['type' => 'image', 'path' => 'produkte/products/echtgold-seelen-herz/echtgold-seelen-herz-back.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Das Echtgold Seelen-Herz: Beidseitige Präzisions-Gravur auf 585er Gelbgold'],
+                ['type' => 'image', 'path' => 'produkte/products/echtgold-seelen-herz/echtgold-seelen-herz-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_ai_generated' => true, 'alt' => 'Das Echtgold Seelen-Herz Komplett-Set an der 333er Echtgold-Panzerkette getragen'],
+                ['type' => 'image', 'path' => 'produkte/products/echtgold-seelen-herz/echtgold-seelen-herz-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Das Echtgold Seelen-Herz: Technisches Maßblatt & Abmessungen (13 x 14 mm 585er Gold-Herz + 0,8 mm 333er Goldkette)'],
+            ],
+            'configurator_settings' => [
+                'template_package' => 'echtgold-seelen-herz',
+                'origin_badge' => 'handcrafted_in_germany',
+                'auto_seasonal_main_image' => true,
+                'enable_background_video' => true,
+                'default_background_theme' => 'standard',
+                'allow_text_pos' => true,
+                'allow_logo' => true,
+                'has_back_side' => true,
+                'area_shape' => 'custom',
+                'area_left' => 20.0,
+                'area_top' => 38.0,
+                'area_width' => 60.0,
+                'area_height' => 52.5,
+                'overlay_type' => 'plane',
+                'cylinder_radius' => 50,
+                'material_type' => 'metal',
+                'model_scale' => 133,
+                'model_pos_x' => 0, 'model_pos_y' => 0, 'model_pos_z' => 0,
+                'model_rot_x' => 0, 'model_rot_y' => 0, 'model_rot_z' => 0,
+                'engraving_scale' => 75,
+                'engraving_pos_x' => 0, 'engraving_pos_y' => 0, 'engraving_pos_z' => 0,
+                'engraving_rot_x' => 0, 'engraving_rot_y' => 180, 'engraving_rot_z' => 0,
+                'back_engraving_scale' => 75,
+                'back_engraving_pos_x' => 0, 'back_engraving_pos_y' => 0, 'back_engraving_pos_z' => -1.78,
+                'back_engraving_rot_x' => 0, 'back_engraving_rot_y' => 0, 'back_engraving_rot_z' => 0,
+                'custom_points' => [
+                    ['x' => 50.0, 'y' => 42.2],
+                    ['x' => 54.5, 'y' => 39.2],
+                    ['x' => 61.5, 'y' => 38.2],
+                    ['x' => 68.5, 'y' => 39.0],
+                    ['x' => 74.8, 'y' => 42.5],
+                    ['x' => 78.5, 'y' => 48.2],
+                    ['x' => 79.5, 'y' => 55.0],
+                    ['x' => 78.2, 'y' => 62.5],
+                    ['x' => 74.5, 'y' => 70.0],
+                    ['x' => 69.2, 'y' => 77.2],
+                    ['x' => 62.5, 'y' => 83.5],
+                    ['x' => 55.5, 'y' => 88.2],
+                    ['x' => 50.0, 'y' => 90.5],
+                    ['x' => 44.5, 'y' => 88.2],
+                    ['x' => 37.5, 'y' => 83.5],
+                    ['x' => 30.8, 'y' => 77.2],
+                    ['x' => 25.5, 'y' => 70.0],
+                    ['x' => 21.8, 'y' => 62.5],
+                    ['x' => 20.5, 'y' => 55.0],
+                    ['x' => 21.5, 'y' => 48.2],
+                    ['x' => 25.2, 'y' => 42.5],
+                    ['x' => 31.5, 'y' => 39.0],
+                    ['x' => 38.5, 'y' => 38.2],
+                    ['x' => 45.5, 'y' => 39.2],
+                ]
+            ],
+            'attributes' => [
+                'Material Herzanhänger' => 'Echtes 585er Gelbgold (14 Karat Echtgold, gestempelt 585)',
+                'Material Halskette (Inklusive)' => 'Echte 333er Gelbgold-Panzerkette (8 Karat Echtgold, 0,8 mm, Federring)',
+                'Herz-Größe & Gewicht' => '13 x 14 mm (ca. 0,80 g 585er Gold + ca. 1,00 g 333er Goldkette)',
+                'Veredelung' => 'Beidseitige 5W UV-Präzisions-Lasergravur (Vorder- & Rückseite inklusive)',
+                'Etui & Versand' => 'Inklusive edlem Schmucketui & versichertem DHL-Paketversand',
+                'Herkunft' => 'Handveredelt in Deutschland (Manufaktur Gifhorn)',
+            ],
+            'tier_pricing' => [],
+            'seo_title' => 'Das Echtgold Seelen-Herz | 585er Gold-Herz mit Gravur & 333er Goldkette | Mein-Seelenfunke Atelier',
+            'seo_description' => 'Exklusives Echtgold-Set: 585er Gelbgold-Herzanhänger (14 Karat) inklusive 333er Echtgold-Panzerkette, beidseitiger Lasergravur und Schmucketui.',
+            'completion_step' => 4
+        ]);
+
+        $catIdsEchtgoldHerz = ProductCategory::whereIn('name', ['Atelier Echtgold & Silber'])->pluck('id');
+        $p7EchtgoldHerz->categories()->sync($catIdsEchtgoldHerz);
+        $p7EchtgoldHerz->tierPrices()->delete();
+
+        // Verpackungsmaterial (LUCID / /admin/product-packaging): Westpack Schmuckbox + Versandkarton (170 g gesamt)
+        $p7EchtgoldHerz->packagings()->delete();
+        $p7EchtgoldHerz->packagings()->createMany([
+            ['material_type' => 'paper',   'weight_grams' => 148],
+            ['material_type' => 'plastic', 'weight_grams' => 22],
+        ]);
+*/
+
+        // --- PRODUKT 8: Das Echtsilber Seelen-Armband (Atelier Echtgold & Silber: FBM P001.53062HERZ.5.18.5 - 925er Sterlingsilber) ---
+        $p8SilberArmband = Product::updateOrCreate(['slug' => 'id-armband-silber-herz'], [
+            'name' => 'Das Echtsilber Seelen-Armband (925er Silber & Herz)',
+            'type' => 'physical',
+            'collection_line' => 'atelier',
+            'description' => 'Ein zeitloses Schmuckstück aus echtem Edelmetall, auf Bestellung für Sie handveredelt in unserer Manufaktur in Gifhorn: Das Echtsilber Seelen-Armband stammt aus der deutschen Traditionsmanufaktur Friedrich Binder (FBM, Mönsheim, gefertigt in Deutschland seit 1910) und besteht aus massivem 925er Sterlingsilber (gestempelt 925, ca. 2,50 g). Das 2,1 mm breite, fein diamantierte Figaro-Kettengeflecht trägt eine hochglanzpolierte Gravurplatte (24 x 5,5 mm) mit einem filigran ausgestanzten Herz-Durchbruch auf der linken Seite. Mit unserem 5W UV-Präzisionslaser veredeln wir die polierte Gravurfläche berührungslos und materialschonend mit Ihrem Wunschnamen, einem besonderen Datum oder einer liebevollen Botschaft, auf Wunsch kostenfrei beidseitig auf Vorder- und Rückseite. Dank des sicheren Federringverschlusses und der offenen Figaro-Glieder lässt sich die Damen-Standardlänge von 18,5 cm flexibel am Handgelenk tragen.',
+            'short_description' => 'Massives 925er Sterlingsilber Seelen-Armband (Figaro diamantiert 2,1 mm, 18,5 cm, ca. 2,50 g) mit ausgestanztem Herz-Durchbruch und beidseitiger 5W UV-Lasergravur.',
+            'status' => 'active',
+            'is_personalizable' => true,
+            'three_d_active' => true,
+            'price' => 7990, // 79,90 € brutto inkl. beidseitiger UV-Lasergravur
+            'compare_at_price' => null,
+            'purchase_price' => 1490, // B2B-EK FBM (P001.53062HERZ.5.18.5, 2,50 g 925er Silber): ca. 14,90 € netto
+            'laser_runtime_minutes' => 2,
+            'electricity_wear_factor' => 15,
+            'packaging_cost' => 14, // Luftpolster-Versandtasche Standard (0,14 € netto; optionale Westpack-Geschenkbox als Extra wählbar)
+            'marketing_cost_percent' => 10.00,
+            'sku' => 'MSF-SILBER-ARMBAND-001',
+            'product_supplier_id' => $sup13Fbm?->id ?? $sup8?->id,
+            'reorder_url' => 'https://shop.fbm-chains.com/id-armband-figaro-diamantiert-2.1mm/P001.53062HERZ.5.18.5',
+            'barcode' => '4028576028637',
+            'brand' => 'Mein-Seelenfunke Atelier',
+            'track_quantity' => true,
+            'quantity' => 0, // Auftragsfertigung (Startbestand 0)
+            'continue_selling_when_out_of_stock' => true,
+            'weight' => 3, // 2,50 g 925er Sterlingsilber -> aufgerundet 3 g
+            'packaging_weight' => 15, // 15 g Luftpolster-Versandtasche
+            'width' => 185, // 185 mm (18,5 cm Gesamtlänge)
+            'height' => 6,  // 5,5 mm Gravurplatten-Breite
+            'length' => 2,  // 2,1 mm Kettenbreite / 1,2 mm Plattenstärke
+            'shipping_class' => 'brief',
+            'preview_image_path' => 'produkte/products/id-armband-silber-herz/overlay.png',
+            'three_d_model_path' => 'produkte/products/id-armband-silber-herz/id_armband_silber_herz_3d.glb',
+            'three_d_background_path' => 'produkte/products/id-armband-silber-herz/header_bg.png',
+            'media_gallery' => [
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-silber-herz/id-armband-silber-herz-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Das Echtsilber Seelen-Armband: Massives 925er Sterlingsilber Figaro-Armband mit Herz-Durchbruch & Lasergravur'],
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-silber-herz/id-armband-silber-herz-back.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Das Echtsilber Seelen-Armband: Beidseitige Präzisions-UV-Lasergravur auf 925er Sterlingsilber'],
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-silber-herz/id-armband-silber-herz-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_ai_generated' => true, 'alt' => 'Das Echtsilber Seelen-Armband (18,5 cm, 2,1 mm Figaro diamantiert) mit Federringverschluss und 925er Punze'],
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-silber-herz/id-armband-silber-herz-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Das Echtsilber Seelen-Armband: Technisches Maßblatt & Abmessungen (18,5 cm Länge, 24 x 5,5 mm Gravurplatte)'],
+            ],
+            'configurator_settings' => [
+                'template_package' => 'id-armband-silber-herz',
+                'origin_badge' => 'handcrafted_in_germany',
+                'out_of_stock_lead_days_min' => 3,
+                'out_of_stock_lead_days_max' => 5,
+                'auto_seasonal_main_image' => true,
+                'enable_background_video' => true,
+                'default_background_theme' => 'standard',
+                'allow_text_pos' => true,
+                'allow_logo' => true,
+                'has_back_side' => true,
+                'area_shape' => 'custom',
+                'area_left' => 35.5,
+                'area_top' => 43.5,
+                'area_width' => 43.0,
+                'area_height' => 13.0,
+                'overlay_type' => 'plane',
+                'cylinder_radius' => 50,
+                'material_type' => 'silver',
+                'engraving_Style' => 'dark',
+                'model_scale' => 118,
+                'model_pos_x' => 0, 'model_pos_y' => 0, 'model_pos_z' => 0,
+                'model_rot_x' => 0, 'model_rot_y' => 0, 'model_rot_z' => 0,
+                'engraving_scale' => 85,
+                'engraving_pos_x' => 0, 'engraving_pos_y' => 0, 'engraving_pos_z' => 0,
+                'engraving_rot_x' => 0, 'engraving_rot_y' => 180, 'engraving_rot_z' => 0,
+                'back_engraving_scale' => 85,
+                'back_engraving_pos_x' => 0, 'back_engraving_pos_y' => 0, 'back_engraving_pos_z' => -1.78,
+                'back_engraving_rot_x' => 0, 'back_engraving_rot_y' => 0, 'back_engraving_rot_z' => 0,
+                'custom_points' => [
+                    ['x' => 35.5, 'y' => 44.0],
+                    ['x' => 78.5, 'y' => 44.0],
+                    ['x' => 78.5, 'y' => 56.0],
+                    ['x' => 35.5, 'y' => 56.0],
+                ],
+            ],
+            'attributes' => [
+                'Edelmetall & Feingehalt' => 'Massives 925er Sterlingsilber (Echtsilber, gestempelt 925)',
+                'Kettenart & Verschluss' => 'Figaro diamantiert (2,1 mm Breite) mit Federringverschluss',
+                'Länge & Gewicht' => '18,5 cm Damen-Standardlänge (ca. 2,50 g Massivsilber)',
+                'Gravurplatte' => '24 x 5,5 x 1,2 mm (hochglanzpoliert mit ausgestanztem Herz links)',
+                'Veredelung' => 'Beidseitige 5W UV-Präzisions-Lasergravur (Vorder- & Rückseite inklusive)',
+                'Herkunft' => 'Rohling Made in Germany (FBM Mönsheim), handveredelt in Gifhorn',
+            ],
+            'tier_pricing' => [],
+            'seo_title' => 'Das Echtsilber Seelen-Armband (925er Silber & Herz) | Mein-Seelenfunke Atelier',
+            'seo_description' => 'Massives 925er Sterlingsilber Seelen-Armband (Figaro diamantiert 2,1 mm, 18,5 cm) mit Herz-Durchbruch und individueller, beidseitiger Lasergravur aus unserer Manufaktur.',
+            'completion_step' => 4
+        ]);
+
+        $catIdsSilberArmband = ProductCategory::whereIn('name', ['Atelier Echtgold & Silber', 'Schmuck & Anhänger', 'Geschenksets'])->pluck('id');
+        $p8SilberArmband->categories()->sync($catIdsSilberArmband);
+        $p8SilberArmband->tierPrices()->delete();
+        $p8SilberArmband->packagings()->delete();
+        $p8SilberArmband->packagings()->createMany([
+            ['material_type' => 'composite', 'weight_grams' => 12],
+            ['material_type' => 'paper',     'weight_grams' => 3],
+        ]);
+
+        // --- PRODUKT 9: Das Gold-Vermeil Seelen-Armband (Atelier Echtgold & Silber: FBM P020.53062HERZ.5.18.5 - 925er Silber Gelb vergoldet) ---
+        $p9GoldArmband = Product::updateOrCreate(['slug' => 'id-armband-gold-herz'], [
+            'name' => 'Das Gold-Vermeil Seelen-Armband (925er Silber Gelb vergoldet & Herz)',
+            'type' => 'physical',
+            'collection_line' => 'atelier',
+            'description' => 'Edler Goldglanz auf echtem Edelmetall, auf Bestellung für Sie handveredelt in unserer Manufaktur in Gifhorn: Das Gold-Vermeil Seelen-Armband wird in der deutschen Traditionsmanufaktur Friedrich Binder (FBM, Mönsheim, gefertigt in Deutschland seit 1910) aus massivem 925er Sterlingsilber gefertigt und mit einer hochwertigen Gelbgold-Plattierung (925 Gelb vergoldet / Gold Vermeil, gestempelt 925, ca. 2,50 g) veredelt. Das 2,1 mm breite, fein diamantierte Figaro-Kettengeflecht trägt eine spiegelpolierte Gravurplatte (24 x 5,5 mm) mit einem ausgestanzten Herz-Durchbruch auf der linken Seite. Mit unserem 5W UV-Präzisionslaser gravieren wir Ihren Wunschnamen, Initialen oder ein besonderes Datum gestochen scharf rechts neben das Herz, auf Wunsch kostenfrei beidseitig auf Vorder- und Rückseite. Die Damen-Standardlänge von 18,5 cm mit Federringverschluss schmiegt sich elegant an jedes Handgelenk.',
+            'short_description' => '925er Sterlingsilber Seelen-Armband mit echter Gelbgold-Vergoldung (Figaro diamantiert 2,1 mm, 18,5 cm, ca. 2,50 g), ausgestanztem Herz-Durchbruch und beidseitiger 5W UV-Lasergravur.',
+            'status' => 'active',
+            'is_personalizable' => true,
+            'three_d_active' => true,
+            'price' => 8990, // 89,90 € brutto inkl. beidseitiger UV-Lasergravur
+            'compare_at_price' => null,
+            'purchase_price' => 1890, // B2B-EK FBM (P020.53062HERZ.5.18.5, 2,50 g 925er Silber Gelb vergoldet): ca. 18,90 € netto
+            'laser_runtime_minutes' => 2,
+            'electricity_wear_factor' => 15,
+            'packaging_cost' => 14, // Luftpolster-Versandtasche Standard (0,14 € netto; optionale Westpack-Geschenkbox als Extra wählbar)
+            'marketing_cost_percent' => 10.00,
+            'sku' => 'MSF-GOLD-ARMBAND-001',
+            'product_supplier_id' => $sup13Fbm?->id ?? $sup8?->id,
+            'reorder_url' => 'https://shop.fbm-chains.com/id-armband-figaro-diamantiert-2.1mm/P020.53062HERZ.5.18.5',
+            'barcode' => '4053917317170',
+            'brand' => 'Mein-Seelenfunke Atelier',
+            'track_quantity' => true,
+            'quantity' => 0, // Auftragsfertigung (Startbestand 0)
+            'continue_selling_when_out_of_stock' => true,
+            'weight' => 3, // 2,50 g 925er Sterlingsilber Gelb vergoldet -> aufgerundet 3 g
+            'packaging_weight' => 15, // 15 g Luftpolster-Versandtasche
+            'width' => 185, // 185 mm (18,5 cm Gesamtlänge)
+            'height' => 6,  // 5,5 mm Gravurplatten-Breite
+            'length' => 2,  // 2,1 mm Kettenbreite / 1,2 mm Plattenstärke
+            'shipping_class' => 'brief',
+            'preview_image_path' => 'produkte/products/id-armband-gold-herz/overlay.png',
+            'three_d_model_path' => 'produkte/products/id-armband-gold-herz/id_armband_gold_herz_3d.glb',
+            'three_d_background_path' => 'produkte/products/id-armband-gold-herz/header_bg.png',
+            'media_gallery' => [
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-gold-herz/id-armband-gold-herz-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Das Gold-Vermeil Seelen-Armband: 925er Sterlingsilber Gelb vergoldet Figaro-Armband mit Herz-Durchbruch & Lasergravur'],
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-gold-herz/id-armband-gold-herz-back.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Das Gold-Vermeil Seelen-Armband: Beidseitige Präzisions-UV-Lasergravur auf 925er Silber Gelb vergoldet'],
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-gold-herz/id-armband-gold-herz-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_ai_generated' => true, 'alt' => 'Das Gold-Vermeil Seelen-Armband (18,5 cm, 2,1 mm Figaro diamantiert) mit Federringverschluss und 925er Punze'],
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-gold-herz/id-armband-gold-herz-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Das Gold-Vermeil Seelen-Armband: Technisches Maßblatt & Abmessungen (18,5 cm Länge, 24 x 5,5 mm Gravurplatte)'],
+            ],
+            'configurator_settings' => [
+                'template_package' => 'id-armband-gold-herz',
+                'origin_badge' => 'handcrafted_in_germany',
+                'out_of_stock_lead_days_min' => 4,
+                'out_of_stock_lead_days_max' => 6,
+                'auto_seasonal_main_image' => true,
+                'enable_background_video' => true,
+                'default_background_theme' => 'standard',
+                'allow_text_pos' => true,
+                'allow_logo' => true,
+                'has_back_side' => true,
+                'area_shape' => 'custom',
+                'area_left' => 35.5,
+                'area_top' => 43.5,
+                'area_width' => 43.0,
+                'area_height' => 13.0,
+                'overlay_type' => 'plane',
+                'cylinder_radius' => 50,
+                'material_type' => 'gold',
+                'engraving_Style' => 'dark',
+                'model_scale' => 118,
+                'model_pos_x' => 0, 'model_pos_y' => 0, 'model_pos_z' => 0,
+                'model_rot_x' => 0, 'model_rot_y' => 0, 'model_rot_z' => 0,
+                'engraving_scale' => 85,
+                'engraving_pos_x' => 0, 'engraving_pos_y' => 0, 'engraving_pos_z' => 0,
+                'engraving_rot_x' => 0, 'engraving_rot_y' => 180, 'engraving_rot_z' => 0,
+                'back_engraving_scale' => 85,
+                'back_engraving_pos_x' => 0, 'back_engraving_pos_y' => 0, 'back_engraving_pos_z' => -1.78,
+                'back_engraving_rot_x' => 0, 'back_engraving_rot_y' => 0, 'back_engraving_rot_z' => 0,
+                'custom_points' => [
+                    ['x' => 35.5, 'y' => 44.0],
+                    ['x' => 78.5, 'y' => 44.0],
+                    ['x' => 78.5, 'y' => 56.0],
+                    ['x' => 35.5, 'y' => 56.0],
+                ],
+            ],
+            'attributes' => [
+                'Edelmetall & Legierung' => 'Massives 925er Sterlingsilber mit Echtgold-Plattierung (925 Gelb vergoldet, gestempelt 925)',
+                'Kettenart & Verschluss' => 'Figaro diamantiert (2,1 mm Breite) mit Federringverschluss',
+                'Länge & Gewicht' => '18,5 cm Damen-Standardlänge (ca. 2,50 g Edelmetall)',
+                'Gravurplatte' => '24 x 5,5 x 1,2 mm (spiegelpoliert mit ausgestanztem Herz links)',
+                'Veredelung' => 'Beidseitige 5W UV-Präzisions-Lasergravur (Vorder- & Rückseite inklusive)',
+                'Herkunft' => 'Rohling Made in Germany (FBM Mönsheim), handveredelt in Gifhorn',
+            ],
+            'tier_pricing' => [],
+            'seo_title' => 'Das Gold-Vermeil Seelen-Armband (925er Silber Gelb vergoldet & Herz) | Mein-Seelenfunke Atelier',
+            'seo_description' => 'Edles Seelen-Armband aus 925er Sterlingsilber Gelb vergoldet (Figaro diamantiert 2,1 mm, 18,5 cm) mit Herz-Durchbruch und beidseitiger Lasergravur.',
+            'completion_step' => 4
+        ]);
+
+        $catIdsGoldArmband = ProductCategory::whereIn('name', ['Atelier Echtgold & Silber', 'Schmuck & Anhänger', 'Geschenksets'])->pluck('id');
+        $p9GoldArmband->categories()->sync($catIdsGoldArmband);
+        $p9GoldArmband->tierPrices()->delete();
+        $p9GoldArmband->packagings()->delete();
+        $p9GoldArmband->packagings()->createMany([
+            ['material_type' => 'composite', 'weight_grams' => 12],
+            ['material_type' => 'paper',     'weight_grams' => 3],
+        ]);
+
         // --- PRODUKT 4: KI-Agenten im E-Commerce (Digital) ---
 /*        $p4 = Product::updateOrCreate(['slug' => 'ki-agenten-ecommerce-playbook'], [
             'name' => 'KI-Agenten im E-Commerce: Der Solo-Entwickler-Praxisbericht',
@@ -803,6 +1138,7 @@ Zusätzlich erhältst du das vollständige ZIP-Archiv mit allen 200 einsatzberei
         $p5 = Product::updateOrCreate(['slug' => 'geschenkgutschein'], [
             'name' => 'Geschenkgutschein',
             'type' => 'digital',
+            'collection_line' => 'voucher',
             'description' => 'Verschenken Sie unvergessliche Momente mit unserem edlen Seelenfunken Geschenkgutschein. Der Gutschein kann wahlweise digital per E-Mail oder als lasergravierte goldene Metallkarte im schwarzen Edel-Umschlag mit goldenem Siegel per Post bestellt werden. Sie können den Betrag flexibel wählen und eine persönliche Grußbotschaft hinzufügen. Der perfekte Ausdruck Ihrer Wertschätzung.',
             'is_personalizable' => true,
             'three_d_active' => false,
@@ -851,6 +1187,16 @@ Zusätzlich erhältst du das vollständige ZIP-Archiv mit allen 200 einsatzberei
         foreach (Product::withTrashed()->get() as $existingProduct) {
             $gallery = is_array($existingProduct->media_gallery) ? $existingProduct->media_gallery : [];
             $changed = false;
+            if ($existingProduct->type === 'digital' && $existingProduct->collection_line !== 'voucher') {
+                $existingProduct->collection_line = 'voucher';
+                $changed = true;
+            } elseif ($existingProduct->type === 'service' && $existingProduct->collection_line !== 'service') {
+                $existingProduct->collection_line = 'service';
+                $changed = true;
+            } elseif ($existingProduct->type === 'physical' && !in_array($existingProduct->collection_line, ['manufaktur', 'atelier'], true)) {
+                $existingProduct->collection_line = 'manufaktur';
+                $changed = true;
+            }
             foreach ($gallery as $idx => $item) {
                 if (is_array($item) && ($item['type'] ?? 'image') === 'image' && empty($item['is_ai_generated'])) {
                     $gallery[$idx]['is_ai_generated'] = true;

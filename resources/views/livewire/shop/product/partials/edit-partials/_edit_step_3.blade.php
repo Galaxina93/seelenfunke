@@ -294,6 +294,45 @@
                                     </div>
                                 </div>
                             </div>
+
+                            @if($continue_selling && $type === 'physical')
+                                @php
+                                    $leadRangePreview = $product ? $product->getSupplierLeadDaysRange() : ['min' => 4, 'max' => 6, 'source' => 'default', 'supplier_name' => null];
+                                    $previewMin = ($out_of_stock_lead_days_min !== '' && (int) $out_of_stock_lead_days_min > 0) ? (int) $out_of_stock_lead_days_min : (int) $leadRangePreview['min'];
+                                    $previewMax = ($out_of_stock_lead_days_max !== '' && (int) $out_of_stock_lead_days_max >= $previewMin) ? (int) $out_of_stock_lead_days_max : max($previewMin + 1, (int) $leadRangePreview['max']);
+                                    $baseManufaktur = \App\Models\Delivery\DeliverySetting::getDeliveryDetails();
+                                    $manufakturMinDays = (int) ($baseManufaktur['min_days'] ?? 3);
+                                    $manufakturMaxDays = (int) ($baseManufaktur['max_days'] ?? 5);
+                                @endphp
+                                <div class="pt-5 border-t border-gray-200 dark:border-gray-800 space-y-4">
+                                    <div class="flex flex-wrap items-center justify-between gap-3">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Lieferanten-Vorlaufzeit bei Bestand 0</span>
+                                            @include('components.alerts.info-tooltip', ['key' => 'out_of_stock_lead_days'])
+                                        </div>
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30">
+                                            Gesamt bei Bestand 0: {{ $manufakturMinDays + $previewMin }}-{{ $manufakturMaxDays + $previewMax }} Werktage ({{ $previewMin }}-{{ $previewMax }} T. Zulauf + {{ $manufakturMinDays }}-{{ $manufakturMaxDays }} T. Manufaktur)
+                                        </span>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Zusätzlicher Zulauf Min. (Werktage)</label>
+                                            <div class="relative">
+                                                <input type="number" min="1" max="60" wire:model.live="out_of_stock_lead_days_min" placeholder="Auto ({{ $leadRangePreview['min'] }})" class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono font-bold focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all shadow-inner outline-none">
+                                                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] text-gray-500 font-black uppercase tracking-widest">Tage</span>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Zusätzlicher Zulauf Max. (Werktage)</label>
+                                            <div class="relative">
+                                                <input type="number" min="1" max="60" wire:model.live="out_of_stock_lead_days_max" placeholder="Auto ({{ $leadRangePreview['max'] }})" class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-mono font-bold focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all shadow-inner outline-none">
+                                                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] text-gray-500 font-black uppercase tracking-widest">Tage</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
                         </div>
                     @endif
                 </div>

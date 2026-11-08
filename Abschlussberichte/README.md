@@ -27,16 +27,19 @@ Alle Systemdokumentationen, Architekturberichte und operativen KI-Workflows sind
 * [`Produkte_Tracking_Konzept.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Produkte/Produkte_Tracking_Konzept.md)
 * [`Produkte_Verpackungsmaterial.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Produkte/Produkte_Verpackungsmaterial.md)
 * [`Produkte_Versand_DHL.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Produkte/Produkte_Versand_DHL.md)
+* [`Produkte_Digitale_Begleitdokumente.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Produkte/Produkte_Digitale_Begleitdokumente.md)
+* [`Produkte_Auftragsfertigung_und_Lieferanten_Vorlaufzeit.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Produkte/Produkte_Auftragsfertigung_und_Lieferanten_Vorlaufzeit.md)
 
 ---
 
 ## 3. Weitere Fachabteilungen
 * **`Agenten/`** – KI-Agenten, Funkira, Gemini Live Bridge, Nischen-Scanner & Laserschutzschulung (`Agenten_*.md`)
-* **`Android/`** – Mobile App & Widget-Synchronisation (`Android_*.md`)
+* **`Android/`** – Mobile App, Wecker/Smart-Home-KLAP-v2, Routine-Paket-Sync & Widget-Synchronisation (`Android_*.md`, inkl. [`Android_Wecker_SmartHome_und_Routine_Sync.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Android/Android_Wecker_SmartHome_und_Routine_Sync.md) & [`Android_Technische_Analyse.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Android/Android_Technische_Analyse.md))
 * **`Bestellungen/`** – Bestellwesen, Angebote, Checkout & Reklamationen (`Bestellungen_*.md`)
-* **`Buchhaltung/`** – Finanzen, Banken, Steuern, Fixkosten & Steuerberater-Export (`Buchhaltung_*.md`)
+* **`Blog/`** – Magazin & Ratgeber Architektur, Evergreen-SEO-Trichter, Gold-Line-Art-Embleme & Redaktions-Anleitung ([`Blog_Architektur_und_Erstellungs_Anleitung.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Blog/Blog_Architektur_und_Erstellungs_Anleitung.md))
+* **`Buchhaltung/`** – Finanzen, Banken, Steuern, Fixkosten, Steuerberater-Export & Kanzlei-Portal (`Buchhaltung_*.md`, inkl. [`Buchhaltung_Steuerberater_Kanzlei_Portal.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Buchhaltung/Buchhaltung_Steuerberater_Kanzlei_Portal.md))
 * **`Dashboard/`** – Admin- & Kunden-Cockpits (`Dashboard_*.md`)
 * **`Leitung/`** – Aufgaben, Kalender, Kontakte, Tagesroutine & Shopverwaltung (`Leitung_*.md`)
-* **`Marketing/`** – Blog, Google Ads, Gutscheine, Instagram, Landingpages, Newsletter & SEO/GEO-Architektur (`Marketing_*.md`, inkl. [`Marketing_SEO_und_GEO_Architektur.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Marketing/Marketing_SEO_und_GEO_Architektur.md))
-* **`Support/`** – Tickets, Live-Chats, Kontaktanfragen, Telegram & Twilio-KI-Telefonie (`Support_*.md`)
+* **`Marketing/`** – Blog, Google Ads, Gutscheine, Instagram, Landingpages, Newsletter, SEO/GEO-Architektur & Funkenwerk Video KI-Schnittstudio (`Marketing_*.md`, inkl. [`Marketing_SEO_und_GEO_Architektur.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Marketing/Marketing_SEO_und_GEO_Architektur.md) & [`Marketing_Funkenwerk_Video_KI_Schnittstudio.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Marketing/Marketing_Funkenwerk_Video_KI_Schnittstudio.md))
+* **`Support/`** – Tickets, Live-Chats, Kontaktanfragen, Telegram & Twilio-KI-Telefonie (`Support_*.md`, inkl. [`Support_Direktnachrichten_und_Kundenmedien.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Support/Support_Direktnachrichten_und_Kundenmedien.md))
 * **`System/`** – Architektur, Sicherheits-Audits, Reverb, Backups & Storage-Migration (`System_*.md`)

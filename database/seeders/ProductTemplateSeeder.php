@@ -159,8 +159,9 @@ class ProductTemplateSeeder extends Seeder
                     ],
                 ],
             ],
-            'goldenes-seelen-herz' => [
-                // 14k Gold-Herz (25x22 mm, Kerbe oben Y=42.2, Spitze unten Y=90.5, sichere Innenbreite bei Y=61.5 ca. 40%)
+            'goldenes-seelen-herz',
+            'echtgold-seelen-herz' => [
+                // 14k / 585er Gold-Herz (Kerbe oben Y=42.2, Spitze unten Y=90.5, sichere Innenbreite bei Y=61.5 ca. 40%)
                 'logo_x' => 50, 'logo_y' => 49, 'logo_size' => 42,
                 'text_x' => 50, 'text_y' => 61.5,
                 'text_size' => match ($holiday) {
@@ -187,6 +188,35 @@ class ProductTemplateSeeder extends Seeder
                     ],
                 ],
             ],
+            'id-armband-silber-herz',
+            'id-armband-gold-herz' => [
+                // FBM ID-Armband (Gravurplatte X=20..80, Y=42..58; Herz-Durchbruch links, sichere Gravurzone X=35.5..78.5, Y=44..56)
+                'logo_x' => 41, 'logo_y' => 50, 'logo_size' => 24,
+                'text_x' => 60, 'text_y' => 50,
+                'text_size' => match ($holiday) {
+                    'weihnachten'  => 0.54,
+                    'ostern'       => 0.62,
+                    'hochzeit'     => 0.60,
+                    'geburtstag'   => 0.58,
+                    'valentinstag' => 0.60,
+                    'halloween'    => 0.52,
+                    'muttertag'    => 0.62,
+                    'vatertag'     => 0.56,
+                    default        => 0.58,
+                },
+                'back_texts' => [
+                    [
+                        'id' => Str::uuid()->toString(),
+                        'text' => "Für immer im Herzen ♥",
+                        'font' => 'Montserrat',
+                        'align' => 'center',
+                        'x' => 57,
+                        'y' => 50,
+                        'size' => 0.56,
+                        'rotation' => 0,
+                    ],
+                ],
+            ],
             default => [
                 'logo_x' => 50, 'logo_y' => 34, 'logo_size' => 76,
                 'text_x' => 50, 'text_y' => 56, 'text_size' => 1.10,
@@ -202,7 +232,10 @@ class ProductTemplateSeeder extends Seeder
         $textContent = match ($slug) {
             'seelen-pfote-hundemarke' => "BALU\nFrohe Weihnachten",
             'seelen-talisman'         => "Frohe\nWeihnachten!\nFamilie Mustermann",
+            'id-armband-silber-herz',
+            'id-armband-gold-herz'    => "Frohe Weihnachten\n24.12.2026",
             'goldenes-seelen-herz',
+            'echtgold-seelen-herz',
             'seelen-anhaenger',
             'weizenglas-personalisiert' => "Frohe Weihnachten!\nFamilie Mustermann",
             default                   => "Frohe Weihnachten!\n- Familie Mustermann -",
@@ -437,6 +470,8 @@ class ProductTemplateSeeder extends Seeder
         $m = $this->getLayoutMetrics($slug, 'valentinstag');
         $textContent = match ($slug) {
             'seelen-pfote-hundemarke' => "BALU\nLiebling auf 4 Pfoten",
+            'id-armband-silber-herz',
+            'id-armband-gold-herz'    => "Für immer Dein\n14. Februar",
             default                   => "Für immer Dein\n- 14. Februar -",
         };
 
@@ -496,7 +531,10 @@ class ProductTemplateSeeder extends Seeder
         $textContent = match ($slug) {
             'seelen-pfote-hundemarke'   => "BALU\nNachtwächter",
             'seelen-talisman'           => "Magische\nNacht\nSeelenzauber",
+            'id-armband-silber-herz',
+            'id-armband-gold-herz',
             'goldenes-seelen-herz',
+            'echtgold-seelen-herz',
             'seelen-anhaenger'          => "Magische Nacht\nSeelenzauber",
             'weizenglas-personalisiert' => "Magische Nacht\n- Hexengebräu -",
             default                     => "Magische Nacht\n- Seelenzauber -",

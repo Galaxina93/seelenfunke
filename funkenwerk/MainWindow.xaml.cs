@@ -24,6 +24,7 @@ namespace Funkenwerk
         private readonly HttpClient _http = FunkenwerkSecurityVault.CreateSecureHttpClient(TimeSpan.FromSeconds(30));
         private readonly string _settingsPath;
 
+        private const string DEFAULT_LOCAL_TOKEN = "1|CTIWGm2Ryb0d60ixSJPME2J6uSUkR1tm6Ga6DEfBd86476e9";
         private string _apiBaseUrl = "http://127.0.0.1/api";
         private string _apiToken = "";
         private bool _isApiTokenVisible = false;
@@ -110,6 +111,13 @@ namespace Funkenwerk
         private string _lastApiStatusDetail = "Prüfe Verbindung...";
         private DateTime _lastApiCheckTime = DateTime.MinValue;
         private bool _isCheckingApiConnection = false;
+        private bool _isAuthPasswordVisible = false;
+        private bool _suppressAuthPasswordSync = false;
+        private string _authSelectedEnvKey = "stage";
+        private readonly MediaPlayer _loginAmbientPlayer = new MediaPlayer();
+        private readonly System.Windows.Threading.DispatcherTimer _loginAudioFadeTimer = new System.Windows.Threading.DispatcherTimer();
+        private double _loginAudioTargetVolume = 0.0;
+        private bool _isLoginAmbientLoaded = false;
 
         public MainWindow()
         {
@@ -144,7 +152,11 @@ namespace Funkenwerk
             _apiHealthTimer.Interval = TimeSpan.FromSeconds(20);
             _apiHealthTimer.Tick += async (s, e) =>
             {
-                await EnsureValidApiConnectionAsync(reloadModulesIfRecovered: true);
+                bool ok = await EnsureValidApiConnectionAsync(reloadModulesIfRecovered: true);
+                if (ok && (AuthLoginOverlayGrid == null || AuthLoginOverlayGrid.Visibility != Visibility.Visible))
+                {
+                    await SyncActiveModulesInBackgroundAsync();
+                }
             };
 
             Loaded += async (s, e) =>
@@ -152,11 +164,7 @@ namespace Funkenwerk
                 _isLoaded = true;
                 try { FunkenwerkVirtualCamDriver.EnsureRegistered(); } catch { }
                 CaptureOriginalDarkBrushes(RootWindowGrid);
-                ApplyDynamicThemeResources(_layoutSettings.DarkMode);
-                if (!_layoutSettings.DarkMode)
-                {
-                    ApplyThemeMode(false);
-                }
+                ApplyThemeMode(_layoutSettings.DarkMode);
                 if (_layoutSettings.StartupModule != "remember" && !string.IsNullOrWhiteSpace(_layoutSettings.StartupModule))
                 {
                     _activeSpace = _layoutSettings.StartupModule;
@@ -166,10 +174,39 @@ namespace Funkenwerk
                 SwitchSpaceUI(_activeSpace);
                 // Upgrade any legacy DPAPI secrets on disk to FWVAULT2 (AES-256-GCM + PBKDF2-SHA512 + DPAPI)
                 LoadSmartHomeConfig();
+                EnsurePrinterQueueTimerStarted();
                 LoadEmailRecipientsCache();
+                LoadMusicPlaylistsFromLocalCache();
+                InitLoginMediaAndAmbientEngine();
+                UpdateAuthLoginOverlayTheme();
                 UpdateApiConnectionDotVisual();
 
-                await EnsureValidApiConnectionAsync(reloadModulesIfRecovered: false);
+                // Crisp modern startup sound effect on software launch
+                PlaySoundAppStartup();
+
+                bool requiresInteractiveLogin = _layoutSettings.IsSessionLocked ||
+                                                !_layoutSettings.RememberCredentials ||
+                                                (string.IsNullOrWhiteSpace(_apiToken) &&
+                                                 string.IsNullOrWhiteSpace(GetSavedTokenForUrl(_apiBaseUrl)) &&
+                                                 string.IsNullOrWhiteSpace(_layoutSettings.SavedAuthPassword));
+
+                if (requiresInteractiveLogin)
+                {
+                    _apiConnectionState = "offline";
+                    _lastApiStatusDetail = "Anmeldung erforderlich";
+                    UpdateApiConnectionDotVisual();
+                    ShowAuthLoginOverlay(errorMsg: null, clearPasswordInput: _layoutSettings.IsSessionLocked || !_layoutSettings.RememberCredentials);
+                    return;
+                }
+
+                bool connected = await EnsureValidApiConnectionAsync(reloadModulesIfRecovered: false);
+                if (!connected && _lastApiStatusDetail.Contains("401", StringComparison.OrdinalIgnoreCase))
+                {
+                    ShowAuthLoginOverlay("Sitzung abgelaufen. Bitte erneut anmelden.", clearPasswordInput: false);
+                    return;
+                }
+
+                HideAuthLoginOverlay();
                 SaveSettingsToFile();
 
                 await LoadMailAccountsAsync();
@@ -181,6 +218,7 @@ namespace Funkenwerk
                 UpdateApiConnectionDotVisual();
                 _apiHealthTimer.Start();
                 _ = CheckInitialMusicImportStatusAsync();
+                _ = PollShopPrinterQueueAsync(forceLogAndRefresh: true);
             };
         }
 
@@ -193,9 +231,11 @@ namespace Funkenwerk
 
         private void CloseWindow_Click(object sender, RoutedEventArgs e) => Close();
 
+        private readonly Dictionary<(DependencyObject Obj, DependencyProperty Prop), Thickness> _originalBorderThicknesses = new();
+
         private void CaptureOriginalDarkBrushes(DependencyObject parent, HashSet<DependencyObject>? visited = null)
         {
-            if (parent == null) return;
+            if (parent == null || parent == AuthLoginOverlayGrid) return;
             visited ??= new HashSet<DependencyObject>();
             if (!visited.Add(parent)) return;
 
@@ -204,6 +244,14 @@ namespace Funkenwerk
             RecordBrushIfSolid(parent, Panel.BackgroundProperty);
             RecordBrushIfSolid(parent, Control.BackgroundProperty);
             RecordBrushIfSolid(parent, Control.BorderBrushProperty);
+            if (parent is Border bd && !_originalBorderThicknesses.ContainsKey((bd, Border.BorderThicknessProperty)))
+            {
+                _originalBorderThicknesses[(bd, Border.BorderThicknessProperty)] = bd.BorderThickness;
+            }
+            if (parent is Control ctrl && !_originalBorderThicknesses.ContainsKey((ctrl, Control.BorderThicknessProperty)))
+            {
+                _originalBorderThicknesses[(ctrl, Control.BorderThicknessProperty)] = ctrl.BorderThickness;
+            }
             if (parent is not DatePicker)
             {
                 RecordBrushIfSolid(parent, Control.ForegroundProperty);
@@ -256,37 +304,97 @@ namespace Funkenwerk
                 }
             }
 
-            SetRes("ThemeInputBgBrush", "#1E1F22", "#FFFFFF");
-            SetRes("ThemeInputFgBrush", "#F2F3F5", "#111827");
-            SetRes("ThemeInputBorderBrush", "#2B2D31", "#CBD5E1");
-            SetRes("ThemeDropdownPopupBgBrush", "#161922", "#FFFFFF");
-            SetRes("ThemeDropdownChevronBgBrush", "#18191C", "#F1F5F9");
-            SetRes("ThemeDropdownChevronStrokeBrush", "#9CA3AF", "#4B5563");
-            SetRes("ThemeDropdownItemFgBrush", "#E5E7EB", "#1F2937");
-            SetRes("ThemeDropdownItemHoverBgBrush", "#2B2D31", "#F1F5F9");
-            SetRes("ThemeDropdownItemHoverFgBrush", "#FFFFFF", "#111827");
-            SetRes("ThemeDropdownItemSelectedBgBrush", "#313338", "#E2E8F0");
-            SetRes("ThemeDropdownItemSelectedFgBrush", "#FFFFFF", "#111827");
-            SetRes("ThemeSeparatorBrush", "#2E3446", "#E2E8F0");
-            SetRes("ThemeScrollThumbBrush", "#2D3343", "#CBD5E1");
-            SetRes("ThemeSplitterLineBrush", "#222634", "#CBD5E1");
-            SetRes("ThemeSplitterGripBrush", "#4B5563", "#94A3B8");
-            SetRes("ThemeMenuDisabledFgBrush", "#6B7280", "#64748B");
+            SetRes("ThemeInputBgBrush", "#000000", "#FFFFFF");
+            SetRes("ThemeInputFgBrush", "#FFFFFF", "#111827");
+            SetRes("ThemeInputBorderBrush", "#382D18", "#CBD5E1");
+            SetRes("ThemeDropdownPopupBgBrush", "#000000", "#FFFFFF");
+            SetRes("ThemeDropdownChevronBgBrush", "#000000", "#F1F5F9");
+            SetRes("ThemeDropdownChevronStrokeBrush", "#C5A059", "#4B5563");
+            SetRes("ThemeDropdownItemFgBrush", "#FFFFFF", "#1F2937");
+            SetRes("ThemeDropdownItemHoverBgBrush", "#0D0A06", "#F1F5F9");
+            SetRes("ThemeDropdownItemHoverFgBrush", "#C5A059", "#111827");
+            SetRes("ThemeDropdownItemSelectedBgBrush", "#141008", "#E2E8F0");
+            SetRes("ThemeDropdownItemSelectedFgBrush", "#C5A059", "#111827");
+            SetRes("ThemeSeparatorBrush", "#382D18", "#E2E8F0");
+            SetRes("ThemeScrollThumbBrush", "#382D18", "#CBD5E1");
+            SetRes("ThemeSplitterLineBrush", "#382D18", "#CBD5E1");
+            SetRes("ThemeSplitterGripBrush", "#C5A059", "#94A3B8");
+            SetRes("ThemeMenuDisabledFgBrush", "#FFFFFF", "#64748B");
         }
 
         private void ApplyThemeMode(bool isDark)
         {
             _isDarkMode = isDark;
             _layoutSettings.DarkMode = isDark;
-            this.Background = BrushFromHex("#0F1117");
-            this.Foreground = BrushFromHex("#F3F4F6");
+            this.Background = BrushFromHex("#000000");
+            this.Foreground = BrushFromHex("#FFFFFF");
             ApplyDynamicThemeResources(isDark);
+
+            // First restore original border thicknesses before applying theme overrides
+            foreach (var bkv in _originalBorderThicknesses)
+            {
+                try { bkv.Key.Obj.SetValue(bkv.Key.Prop, bkv.Value); } catch { }
+            }
 
             foreach (var kv in _originalDarkBrushes)
             {
                 try
                 {
-                    kv.Key.Obj.SetValue(kv.Key.Prop, BrushFromHex(kv.Value));
+                    var obj = kv.Key.Obj;
+                    var prop = kv.Key.Prop;
+                    string origHex = kv.Value;
+
+                    if (ReferenceEquals(obj, ApiConnectionDotEllipse) ||
+                        ReferenceEquals(obj, ApiConnectionPulseRing) ||
+                        ReferenceEquals(obj, OrdersPrinterStatusDot))
+                        continue;
+
+                    if (isDark)
+                    {
+                        bool isBgProp = prop == Border.BackgroundProperty ||
+                                        prop == Panel.BackgroundProperty ||
+                                        prop == Control.BackgroundProperty;
+
+                        if (isBgProp)
+                        {
+                            string targetBgHex = origHex.Length == 9 && origHex.StartsWith("#", StringComparison.Ordinal)
+                                ? $"#{origHex.Substring(1, 2)}000000"
+                                : "#000000";
+                            obj.SetValue(prop, new SolidColorBrush((Color)ColorConverter.ConvertFromString(targetBgHex)));
+
+                            bool wasGoldSurface = origHex.Equals("#C5A059", StringComparison.OrdinalIgnoreCase) ||
+                                                  origHex.Equals("#D4AF37", StringComparison.OrdinalIgnoreCase);
+
+                            if (wasGoldSurface)
+                            {
+                                var goldBorder = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059"));
+                                if (obj is Control ctrl)
+                                {
+                                    ctrl.BorderBrush = goldBorder;
+                                    if (ctrl.BorderThickness.Left <= 0) ctrl.BorderThickness = new Thickness(1);
+                                }
+                                else if (obj is Border bd)
+                                {
+                                    bd.BorderBrush = goldBorder;
+                                    if (bd.BorderThickness.Left <= 0) bd.BorderThickness = new Thickness(1);
+                                }
+                            }
+                            else if (obj is Button btn && btn.BorderThickness.Left <= 0)
+                            {
+                                btn.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#382D18"));
+                                btn.BorderThickness = new Thickness(1);
+                            }
+                            continue;
+                        }
+
+                        if (origHex.Equals("#111827", StringComparison.OrdinalIgnoreCase))
+                        {
+                            obj.SetValue(prop, new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059")));
+                            continue;
+                        }
+                    }
+
+                    obj.SetValue(prop, BrushFromHex(origHex));
                 }
                 catch { }
             }
@@ -296,7 +404,7 @@ namespace Funkenwerk
                 SpaceSettingsBtn.ApplyTemplate();
                 if (SpaceSettingsBtn.Template?.FindName("SpaceSettingsPath", SpaceSettingsBtn) is System.Windows.Shapes.Path spPath)
                 {
-                    spPath.Stroke = BrushFromHex("#9CA3AF");
+                    spPath.Stroke = new SolidColorBrush((Color)ColorConverter.ConvertFromString(isDark ? "#FFFFFF" : "#111827"));
                 }
             }
 
@@ -312,6 +420,7 @@ namespace Funkenwerk
                 RenderTodoAll();
                 RenderMusicAll();
                 RenderSmartHomeAll();
+                RenderOrdersPrintDashboard();
                 RenderCameraStudioThemeRefresh();
                 RenderMarketingThemeRefresh();
 
@@ -321,6 +430,7 @@ namespace Funkenwerk
                         ? "api"
                         : (SettingsPaneCamera != null && SettingsPaneCamera.Visibility == Visibility.Visible ? "camera" : "sounds"));
                 SwitchSettingsTab(currentSettingsTab);
+                UpdateAuthLoginOverlayTheme();
                 UpdateApiConnectionDotVisual();
             }
         }
@@ -356,6 +466,13 @@ namespace Funkenwerk
             FunkenwerkSoundEngine.PlayActionPop(vol);
         }
 
+        private void PlaySoundAppStartup(bool force = false)
+        {
+            if (!force && !_layoutSettings.SoundsEnabled) return;
+            double vol = Math.Clamp(_layoutSettings.SoundVolume / 100.0, 0.08, 1.0);
+            FunkenwerkSoundEngine.PlayAppStartupSound(vol);
+        }
+
         // =========================================================================
         // SETTINGS & PERSISTENT LAYOUT (Item 2.1)
         // =========================================================================
@@ -373,6 +490,8 @@ namespace Funkenwerk
                         data.ApiTokenLocal = FunkenwerkSecurityVault.UnprotectSecret(data.ApiTokenLocal);
                         data.ApiTokenStage = FunkenwerkSecurityVault.UnprotectSecret(data.ApiTokenStage);
                         data.ApiTokenLive = FunkenwerkSecurityVault.UnprotectSecret(data.ApiTokenLive);
+                        data.SavedAuthEmail = FunkenwerkSecurityVault.UnprotectSecret(data.SavedAuthEmail);
+                        data.SavedAuthPassword = FunkenwerkSecurityVault.UnprotectSecret(data.SavedAuthPassword);
 
                         _layoutSettings = data;
                         if (!string.IsNullOrWhiteSpace(data.ApiBaseUrl))
@@ -460,17 +579,21 @@ namespace Funkenwerk
                     _layoutSettings.WindowTop = Top;
                 }
 
-                // Encrypt tokens at rest via Windows DPAPI before writing to disk
+                // Encrypt tokens and credentials at rest via FWVAULT2 (AES-256-GCM + PBKDF2-SHA512 + Windows DPAPI) before writing to disk
                 string plainMain = _layoutSettings.ApiToken;
                 string plainLocal = _layoutSettings.ApiTokenLocal;
                 string plainStage = _layoutSettings.ApiTokenStage;
                 string plainLive = _layoutSettings.ApiTokenLive;
+                string plainAuthEmail = _layoutSettings.SavedAuthEmail;
+                string plainAuthPass = _layoutSettings.SavedAuthPassword;
                 try
                 {
                     _layoutSettings.ApiToken = FunkenwerkSecurityVault.ProtectSecret(plainMain);
                     _layoutSettings.ApiTokenLocal = FunkenwerkSecurityVault.ProtectSecret(plainLocal);
                     _layoutSettings.ApiTokenStage = FunkenwerkSecurityVault.ProtectSecret(plainStage);
                     _layoutSettings.ApiTokenLive = FunkenwerkSecurityVault.ProtectSecret(plainLive);
+                    _layoutSettings.SavedAuthEmail = FunkenwerkSecurityVault.ProtectSecret(plainAuthEmail);
+                    _layoutSettings.SavedAuthPassword = FunkenwerkSecurityVault.ProtectSecret(plainAuthPass);
 
                     var json = JsonSerializer.Serialize(_layoutSettings, new JsonSerializerOptions { WriteIndented = true });
                     File.WriteAllText(_settingsPath, json);
@@ -481,6 +604,8 @@ namespace Funkenwerk
                     _layoutSettings.ApiTokenLocal = plainLocal;
                     _layoutSettings.ApiTokenStage = plainStage;
                     _layoutSettings.ApiTokenLive = plainLive;
+                    _layoutSettings.SavedAuthEmail = plainAuthEmail;
+                    _layoutSettings.SavedAuthPassword = plainAuthPass;
                 }
             }
             catch { }
@@ -493,6 +618,16 @@ namespace Funkenwerk
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
+            if (!_layoutSettings.RememberCredentials)
+            {
+                _apiToken = "";
+                _layoutSettings.ApiToken = "";
+                _layoutSettings.ApiTokenLocal = "";
+                _layoutSettings.ApiTokenStage = "";
+                _layoutSettings.ApiTokenLive = "";
+                _layoutSettings.SavedAuthPassword = "";
+                _layoutSettings.IsSessionLocked = true;
+            }
             SaveSettingsToFile();
             ShutdownSmartHomeEngine();
             ShutdownCameraStudioEngine();
@@ -560,7 +695,7 @@ namespace Funkenwerk
             }
 
             ApiConnectionDotEllipse.Fill = BrushFromHex(dotHex);
-            ApiConnectionDotEllipse.Stroke = BrushFromHex(_isDarkMode ? "#111827" : "#FFFFFF");
+            ApiConnectionDotEllipse.Stroke = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_isDarkMode ? "#111827" : "#FFFFFF"));
             if (ApiConnectionPulseRing != null)
             {
                 ApiConnectionPulseRing.Fill = BrushFromHex(pulseHex);
@@ -582,11 +717,18 @@ namespace Funkenwerk
         {
             try
             {
+                string authEmail = (_layoutSettings.SavedAuthEmail ?? "").Trim();
+                string authPassword = _layoutSettings.SavedAuthPassword ?? "";
+                if (string.IsNullOrEmpty(authEmail) || string.IsNullOrEmpty(authPassword))
+                {
+                    return null;
+                }
+
                 using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(6));
                 var payload = JsonSerializer.Serialize(new
                 {
-                    email = "kontakt@mein-seelenfunke.de",
-                    password = "SeeleSeele1993+++",
+                    email = authEmail,
+                    password = authPassword,
                     device_name = "Funkenwerk-Desktop"
                 });
                 using var req = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl.TrimEnd('/')}/login")
@@ -645,8 +787,17 @@ namespace Funkenwerk
 
                     if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                     {
-                        // Token expired or database re-seeded -> auto-authenticate
-                        string? freshToken = await TryRefreshApiTokenAsync(cleanUrl);
+                        // Token expired or database re-seeded -> try default local token (if local) or auto-authenticate
+                        string? freshToken = null;
+                        if (DetectApiPresetKey(cleanUrl) == "local" && !string.Equals(tokenToUse, DEFAULT_LOCAL_TOKEN, StringComparison.Ordinal))
+                        {
+                            freshToken = DEFAULT_LOCAL_TOKEN;
+                        }
+                        else
+                        {
+                            freshToken = await TryRefreshApiTokenAsync(cleanUrl);
+                        }
+
                         if (!string.IsNullOrEmpty(freshToken))
                         {
                             sw.Restart();
@@ -778,6 +929,50 @@ namespace Funkenwerk
             UpdateApiConnectionDotVisual();
         }
 
+        private bool _isBackgroundSyncRunning = false;
+
+        private async Task SyncActiveModulesInBackgroundAsync()
+        {
+            if (_isBackgroundSyncRunning || !_isLoaded) return;
+            _isBackgroundSyncRunning = true;
+            try
+            {
+                // Avoid disturbing active modal dialogs or text editing
+                bool isEditingTask = (DetailTitleBox != null && DetailTitleBox.IsKeyboardFocusWithin) ||
+                                     (DetailNoteBox != null && DetailNoteBox.IsKeyboardFocusWithin) ||
+                                     (NewTaskBox != null && NewTaskBox.IsKeyboardFocusWithin) ||
+                                     (NewSubtaskBox != null && NewSubtaskBox.IsKeyboardFocusWithin);
+                bool isEditingCalendar = CalendarEditorOverlay != null && CalendarEditorOverlay.Visibility == Visibility.Visible;
+                bool isComposingMail = ComposeModalOverlay != null && ComposeModalOverlay.Visibility == Visibility.Visible;
+
+                if (_activeSpace == "mail" && !isComposingMail)
+                {
+                    await LoadMailAccountsAsync();
+                }
+                else if (_activeSpace == "calendar" && !isEditingCalendar)
+                {
+                    await LoadCalendarEventsAsync();
+                }
+                else if (_activeSpace == "todo" && !isEditingTask)
+                {
+                    await LoadTodoListsAsync();
+                }
+                else if (_activeSpace == "contacts")
+                {
+                    await LoadContactsAsync();
+                }
+
+                // Always keep Music Favorites & Playlists in sync with Android App & Portal
+                await LoadMusicPlaylistsAsync();
+                UpdateApiConnectionDotVisual();
+            }
+            catch { }
+            finally
+            {
+                _isBackgroundSyncRunning = false;
+            }
+        }
+
         private async void ApiConnectionDot_Click(object sender, MouseButtonEventArgs e)
         {
             PlaySoundNav();
@@ -799,6 +994,702 @@ namespace Funkenwerk
             }
         }
 
+        // =========================================================================
+        // AUTHENTICATION / LOGIN OVERLAY (Luxury Atelier Video + Magic + Ambient)
+        // =========================================================================
+        private static string? ResolveLoginMediaFilePath(string fileName)
+        {
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string p1 = System.IO.Path.Combine(baseDir, fileName);
+            if (File.Exists(p1)) return p1;
+            string p2 = System.IO.Path.Combine(baseDir, "KameraMedien", fileName);
+            if (File.Exists(p2)) return p2;
+            return null;
+        }
+
+        private void InitLoginMediaAndAmbientEngine()
+        {
+            try
+            {
+                string? posterPath = ResolveLoginMediaFilePath("login_atelier_poster.jpg");
+                if (!string.IsNullOrEmpty(posterPath) && AuthLoginBgPosterImg != null)
+                {
+                    var bmp = new System.Windows.Media.Imaging.BitmapImage();
+                    bmp.BeginInit();
+                    bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    bmp.UriSource = new Uri(posterPath, UriKind.Absolute);
+                    bmp.EndInit();
+                    bmp.Freeze();
+                    AuthLoginBgPosterImg.Source = bmp;
+                }
+
+                string? videoPath = ResolveLoginMediaFilePath("login_atelier_bg.mp4");
+                if (!string.IsNullOrEmpty(videoPath) && AuthLoginBgVideo != null)
+                {
+                    AuthLoginBgVideo.Source = new Uri(videoPath, UriKind.Absolute);
+                }
+
+                _loginAmbientPlayer.MediaEnded += (s, e) =>
+                {
+                    try
+                    {
+                        _loginAmbientPlayer.Position = TimeSpan.Zero;
+                        _loginAmbientPlayer.Play();
+                    }
+                    catch { }
+                };
+
+                _loginAudioFadeTimer.Interval = TimeSpan.FromMilliseconds(45);
+                _loginAudioFadeTimer.Tick += (s, e) =>
+                {
+                    try
+                    {
+                        double current = _loginAmbientPlayer.Volume;
+                        double diff = _loginAudioTargetVolume - current;
+                        if (Math.Abs(diff) <= 0.004)
+                        {
+                            _loginAmbientPlayer.Volume = Math.Clamp(_loginAudioTargetVolume, 0.0, 1.0);
+                            if (_loginAudioTargetVolume <= 0.0001)
+                            {
+                                _loginAmbientPlayer.Pause();
+                                _loginAudioFadeTimer.Stop();
+                            }
+                            return;
+                        }
+
+                        // Gentle, smooth step (+0.0032 fade-in, -0.0038 fade-out per 45ms tick)
+                        double step = diff > 0 ? 0.0032 : -0.0038;
+                        _loginAmbientPlayer.Volume = Math.Clamp(current + step, 0.0, 1.0);
+                    }
+                    catch
+                    {
+                        _loginAudioFadeTimer.Stop();
+                    }
+                };
+            }
+            catch { }
+        }
+
+        private void StartLoginAmbientMusicWithFadeIn()
+        {
+            if (!_layoutSettings.SoundsEnabled) return;
+            try
+            {
+                string? audioPath = ResolveLoginMediaFilePath("login_mystic_ambient.m4a");
+                if (string.IsNullOrEmpty(audioPath)) return;
+
+                if (!_isLoginAmbientLoaded)
+                {
+                    _loginAmbientPlayer.Open(new Uri(audioPath, UriKind.Absolute));
+                    _isLoginAmbientLoaded = true;
+                }
+
+                double userScale = Math.Clamp(_layoutSettings.SoundVolume / 100.0, 0.1, 1.0);
+                _loginAudioTargetVolume = 0.28 * userScale;
+                if (_loginAmbientPlayer.Volume <= 0.005)
+                {
+                    _loginAmbientPlayer.Volume = 0.0;
+                }
+                _loginAmbientPlayer.Play();
+                _loginAudioFadeTimer.Start();
+            }
+            catch { }
+        }
+
+        private void FadeOutAndStopLoginAmbientMusic()
+        {
+            try
+            {
+                _loginAudioTargetVolume = 0.0;
+                _loginAudioFadeTimer.Start();
+            }
+            catch { }
+        }
+
+        private void AuthLoginBgVideo_MediaEnded(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (AuthLoginBgVideo != null && AuthLoginOverlayGrid.Visibility == Visibility.Visible)
+                {
+                    AuthLoginBgVideo.Position = TimeSpan.FromMilliseconds(1);
+                    AuthLoginBgVideo.Play();
+                }
+            }
+            catch { }
+        }
+
+        private void UpdateAuthLoginOverlayTheme()
+        {
+            if (AuthLoginOverlayGrid == null) return;
+
+            AuthLoginOverlayGrid.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#000000"));
+            AuthLoginCardBorder.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#28000000"));
+            AuthLoginCardBorder.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#77C5A059"));
+
+            if (AuthHeaderSubtitleTxt != null)
+            {
+                AuthHeaderSubtitleTxt.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F2FCE7B2"));
+            }
+
+            AuthEmailLabelTxt.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F2FCE7B2"));
+            AuthEmailInputBorder.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#BF000000"));
+            AuthEmailInputBorder.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#A6C5A059"));
+            AuthLoginEmailBox.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFFFFFFF"));
+
+            AuthPasswordLabelTxt.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F2FCE7B2"));
+            AuthPasswordInputBorder.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#BF000000"));
+            AuthPasswordInputBorder.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#A6C5A059"));
+            AuthLoginPasswordBox.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFFFFFFF"));
+            AuthLoginPasswordVisibleBox.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFFFFFFF"));
+            AuthLoginRememberCheck.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F2FFFFFF"));
+
+            if (AuthLoginPasswordEyePath != null)
+            {
+                AuthLoginPasswordEyePath.Stroke = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F2FFFFFF"));
+            }
+
+            if (AuthLoginSubmitBtn != null)
+            {
+                AuthLoginSubmitBtn.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D91F1708"));
+                AuthLoginSubmitBtn.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F2C5A059"));
+                AuthLoginSubmitBtn.BorderThickness = new Thickness(1.2);
+                AuthLoginSubmitBtn.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFFCE7B2"));
+            }
+
+            AuthLoginErrorBorder.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CC1A0808"));
+            AuthLoginErrorBorder.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CCEF4444"));
+            AuthLoginErrorTxt.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FCA5A5"));
+
+            if (HeaderLogoutLockBtn != null)
+            {
+                HeaderLogoutLockBtn.Background = BrushFromHex("#161922");
+                HeaderLogoutLockBtn.BorderBrush = BrushFromHex("#262A36");
+            }
+            if (HeaderLogoutLockIconPath != null)
+            {
+                HeaderLogoutLockIconPath.Stroke = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_isDarkMode ? "#FFFFFF" : "#111827"));
+            }
+            if (HeaderLogoutLockTxt != null)
+            {
+                HeaderLogoutLockTxt.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_isDarkMode ? "#FFFFFF" : "#111827"));
+            }
+
+            UpdateAuthEnvPillVisuals();
+        }
+
+        private void UpdateAuthEnvPillVisuals()
+        {
+            if (AuthEnvLocalPill == null || AuthEnvStagePill == null || AuthEnvLivePill == null) return;
+
+            void StylePill(Border pill, TextBlock txt, bool active)
+            {
+                if (active)
+                {
+                    pill.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D91F1708"));
+                    pill.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F2C5A059"));
+                    pill.BorderThickness = new Thickness(1.2);
+                    txt.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFFCE7B2"));
+                    txt.FontWeight = FontWeights.Bold;
+                }
+                else
+                {
+                    pill.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#A6000000"));
+                    pill.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#66C5A059"));
+                    pill.BorderThickness = new Thickness(1);
+                    txt.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E6FFFFFF"));
+                    txt.FontWeight = FontWeights.SemiBold;
+                }
+            }
+
+            StylePill(AuthEnvLocalPill, AuthEnvLocalTxt, _authSelectedEnvKey == "local");
+            StylePill(AuthEnvStagePill, AuthEnvStageTxt, _authSelectedEnvKey == "stage");
+            StylePill(AuthEnvLivePill, AuthEnvLiveTxt, _authSelectedEnvKey == "live");
+        }
+
+        private void ShowAuthLoginOverlay(string? errorMsg = null, bool clearPasswordInput = false)
+        {
+            if (AuthLoginOverlayGrid == null) return;
+
+            string detected = DetectApiPresetKey(_apiBaseUrl);
+            _authSelectedEnvKey = detected is "local" or "stage" or "live" ? detected : "stage";
+            UpdateAuthLoginOverlayTheme();
+
+            string email = !string.IsNullOrWhiteSpace(_layoutSettings.SavedAuthEmail)
+                ? _layoutSettings.SavedAuthEmail.Trim()
+                : "kontakt@mein-seelenfunke.de";
+            AuthLoginEmailBox.Text = email;
+            AuthLoginRememberCheck.IsChecked = _layoutSettings.RememberCredentials;
+
+            string pass = (!clearPasswordInput && _layoutSettings.RememberCredentials)
+                ? (_layoutSettings.SavedAuthPassword ?? "")
+                : "";
+
+            _suppressAuthPasswordSync = true;
+            AuthLoginPasswordBox.Password = pass;
+            AuthLoginPasswordVisibleBox.Text = pass;
+            _suppressAuthPasswordSync = false;
+
+            if (!string.IsNullOrWhiteSpace(errorMsg))
+            {
+                AuthLoginErrorTxt.Text = errorMsg;
+                AuthLoginErrorBorder.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                AuthLoginErrorTxt.Text = "";
+                AuthLoginErrorBorder.Visibility = Visibility.Collapsed;
+            }
+
+            if (AuthMagicActivationOverlay != null)
+            {
+                AuthMagicActivationOverlay.Visibility = Visibility.Collapsed;
+                AuthMagicActivationOverlay.Opacity = 1.0;
+            }
+            AuthLoginCardBorder.Visibility = Visibility.Visible;
+            AuthLoginCardBorder.Opacity = 1.0;
+            AuthLoginSubmitBtn.IsEnabled = true;
+            AuthLoginSubmitBtn.Content = "✦   ANMELDEN   ✦";
+            AuthLoginOverlayGrid.Visibility = Visibility.Visible;
+            if (HeaderLogoutLockBtn != null)
+            {
+                HeaderLogoutLockBtn.Visibility = Visibility.Collapsed;
+            }
+
+            try
+            {
+                if (AuthLoginBgVideo != null && AuthLoginBgVideo.Source != null)
+                {
+                    AuthLoginBgVideo.Position = TimeSpan.Zero;
+                    AuthLoginBgVideo.Play();
+                }
+            }
+            catch { }
+
+            StartLoginAmbientMusicWithFadeIn();
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (string.IsNullOrWhiteSpace(AuthLoginEmailBox.Text))
+                    AuthLoginEmailBox.Focus();
+                else if (_isAuthPasswordVisible)
+                    AuthLoginPasswordVisibleBox.Focus();
+                else
+                    AuthLoginPasswordBox.Focus();
+            }), System.Windows.Threading.DispatcherPriority.Input);
+        }
+
+        private void HideAuthLoginOverlay()
+        {
+            if (AuthLoginOverlayGrid != null)
+            {
+                AuthLoginOverlayGrid.Visibility = Visibility.Collapsed;
+            }
+            if (AuthMagicActivationOverlay != null)
+            {
+                AuthMagicActivationOverlay.Visibility = Visibility.Collapsed;
+            }
+            try
+            {
+                AuthLoginBgVideo?.Pause();
+            }
+            catch { }
+
+            FadeOutAndStopLoginAmbientMusic();
+            EnsurePrinterQueueTimerStarted();
+
+            if (HeaderLogoutLockBtn != null)
+            {
+                HeaderLogoutLockBtn.Visibility = Visibility.Visible;
+                string who = !string.IsNullOrWhiteSpace(_layoutSettings.SavedAuthEmail)
+                    ? _layoutSettings.SavedAuthEmail
+                    : "kontakt@mein-seelenfunke.de";
+                HeaderLogoutLockBtn.ToolTip = $"Angemeldet als {who} ({GetApiEnvironmentLabel(_apiBaseUrl)}) · Klicken zum Abmelden / Sperren";
+            }
+        }
+
+        private sealed class MagicSparkParticle
+        {
+            public Ellipse Visual = null!;
+            public double X;
+            public double Y;
+            public double OrbitAngle;
+            public double OrbitRadius;
+            public double OrbitSpeed;
+            public double Vx;
+            public double Vy;
+            public bool Exploded;
+        }
+
+        private async Task RunMagicActivationTransitionAsync()
+        {
+            if (AuthMagicActivationOverlay == null || AuthMagicSparksCanvas == null) return;
+
+            if (_layoutSettings.SoundsEnabled)
+            {
+                double vol = Math.Clamp(_layoutSettings.SoundVolume / 100.0, 0.08, 1.0);
+                FunkenwerkSoundEngine.PlayMagicActivationChord(vol);
+            }
+
+            // Begin gentle fade-out of the ambient background soundtrack during the magic reveal
+            FadeOutAndStopLoginAmbientMusic();
+
+            AuthLoginCardBorder.Visibility = Visibility.Collapsed;
+            AuthMagicSparksCanvas.Children.Clear();
+            AuthMagicPhasePillTxt.Text = "SEELENFUNKEN SAMMELN SICH...";
+            AuthMagicActivationOverlay.Opacity = 1.0;
+            AuthMagicActivationOverlay.Visibility = Visibility.Visible;
+
+            double w = Math.Max(900, AuthLoginOverlayGrid.ActualWidth > 0 ? AuthLoginOverlayGrid.ActualWidth : ActualWidth);
+            double h = Math.Max(600, AuthLoginOverlayGrid.ActualHeight > 0 ? AuthLoginOverlayGrid.ActualHeight : ActualHeight);
+            double centerX = w * 0.5;
+            double centerY = h * 0.5 - 32.0;
+
+            var particles = new List<MagicSparkParticle>(72);
+            var goldBrush = BrushFromHex("#FBBF24");
+            var warmGoldBrush = BrushFromHex("#FDE68A");
+
+            for (int i = 0; i < 72; i++)
+            {
+                double angle = _rng.NextDouble() * Math.PI * 2.0;
+                double dist = 45.0 + _rng.NextDouble() * Math.Max(w, h) * 0.42;
+                double r = 2.2 + _rng.NextDouble() * 3.8;
+                var el = new Ellipse
+                {
+                    Width = r * 2.0,
+                    Height = r * 2.0,
+                    Fill = (i % 3 == 0) ? warmGoldBrush : goldBrush,
+                    Opacity = 0.92
+                };
+                double px = centerX + Math.Cos(angle) * dist;
+                double py = centerY + Math.Sin(angle) * dist;
+                Canvas.SetLeft(el, px - r);
+                Canvas.SetTop(el, py - r);
+                AuthMagicSparksCanvas.Children.Add(el);
+
+                particles.Add(new MagicSparkParticle
+                {
+                    Visual = el,
+                    X = px,
+                    Y = py,
+                    OrbitAngle = angle,
+                    OrbitRadius = dist,
+                    OrbitSpeed = (0.055 + _rng.NextDouble() * 0.055) * (i % 2 == 0 ? 1.0 : -1.0),
+                    Vx = Math.Cos(angle) * (6.0 + _rng.NextDouble() * 14.0),
+                    Vy = Math.Sin(angle) * (6.0 + _rng.NextDouble() * 14.0),
+                    Exploded = false
+                });
+            }
+
+            var sw = Stopwatch.StartNew();
+            bool phase2Triggered = false;
+
+            while (sw.ElapsedMilliseconds < 1950)
+            {
+                long elapsed = sw.ElapsedMilliseconds;
+                bool isSupernova = elapsed >= 850;
+
+                if (isSupernova && !phase2Triggered)
+                {
+                    phase2Triggered = true;
+                    AuthMagicPhasePillTxt.Text = "SEELENFUNKEN ENTFESSELT";
+                }
+
+                // Celestial rings & star emblem rotation/scaling
+                AuthMagicOrbitRotate.Angle = (elapsed * 0.045) % 360.0;
+                if (!isSupernova)
+                {
+                    double p1 = Math.Clamp(elapsed / 850.0, 0.0, 1.0);
+                    AuthMagicCoreScale.ScaleX = 0.92 + 0.14 * p1;
+                    AuthMagicCoreScale.ScaleY = 0.92 + 0.14 * p1;
+                    AuthMagicStarRotate.Angle = p1 * 90.0;
+                    AuthMagicShockwaveRing.Opacity = 0.0;
+                }
+                else
+                {
+                    double p2 = Math.Clamp((elapsed - 850.0) / 900.0, 0.0, 1.0);
+                    AuthMagicCoreScale.ScaleX = 1.12 - 0.06 * p2;
+                    AuthMagicCoreScale.ScaleY = 1.12 - 0.06 * p2;
+                    AuthMagicStarRotate.Angle = 90.0 + 90.0 * Math.Sin(p2 * Math.PI * 0.5);
+                    AuthMagicShockwaveScale.ScaleX = 1.0 + p2 * 2.4;
+                    AuthMagicShockwaveScale.ScaleY = 1.0 + p2 * 2.4;
+                    AuthMagicShockwaveRing.Opacity = Math.Max(0.0, (1.0 - p2) * 0.85);
+                }
+
+                if (elapsed >= 1600)
+                {
+                    double fadeOut = Math.Clamp(1.0 - ((elapsed - 1600.0) / 350.0), 0.0, 1.0);
+                    AuthMagicActivationOverlay.Opacity = fadeOut;
+                }
+
+                foreach (var p in particles)
+                {
+                    if (!isSupernova)
+                    {
+                        p.OrbitAngle += p.OrbitSpeed;
+                        p.OrbitRadius = Math.Max(6.0, p.OrbitRadius * 0.935);
+                        p.X = centerX + Math.Cos(p.OrbitAngle) * p.OrbitRadius;
+                        p.Y = centerY + Math.Sin(p.OrbitAngle) * p.OrbitRadius;
+                    }
+                    else
+                    {
+                        if (!p.Exploded)
+                        {
+                            p.Exploded = true;
+                            p.X = centerX;
+                            p.Y = centerY;
+                        }
+                        p.X += p.Vx;
+                        p.Y += p.Vy;
+                        p.Vx *= 0.955;
+                        p.Vy *= 0.955;
+                    }
+                    double r = p.Visual.Width * 0.5;
+                    Canvas.SetLeft(p.Visual, p.X - r);
+                    Canvas.SetTop(p.Visual, p.Y - r);
+                }
+
+                await Task.Delay(16);
+            }
+
+            AuthMagicSparksCanvas.Children.Clear();
+        }
+
+        private void AuthEnvPill_Click(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Border b && b.Tag is string key)
+            {
+                PlaySoundNav();
+                _authSelectedEnvKey = key;
+                _apiBaseUrl = key switch
+                {
+                    "local" => "http://127.0.0.1/api",
+                    "live" => "https://mein-seelenfunke.de/api",
+                    _ => "https://stage.mein-seelenfunke.de/api"
+                };
+                UpdateAuthEnvPillVisuals();
+                UpdateApiConnectionDotVisual();
+            }
+        }
+
+        private void ToggleAuthLoginPasswordVisibility_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundNav();
+            _isAuthPasswordVisible = !_isAuthPasswordVisible;
+            _suppressAuthPasswordSync = true;
+            if (_isAuthPasswordVisible)
+            {
+                AuthLoginPasswordVisibleBox.Text = AuthLoginPasswordBox.Password;
+                AuthLoginPasswordBox.Visibility = Visibility.Collapsed;
+                AuthLoginPasswordVisibleBox.Visibility = Visibility.Visible;
+                if (AuthLoginPasswordEyeSlashPath != null)
+                    AuthLoginPasswordEyeSlashPath.Visibility = Visibility.Visible;
+                AuthLoginPasswordVisibleBox.Focus();
+                AuthLoginPasswordVisibleBox.CaretIndex = AuthLoginPasswordVisibleBox.Text.Length;
+            }
+            else
+            {
+                AuthLoginPasswordBox.Password = AuthLoginPasswordVisibleBox.Text;
+                AuthLoginPasswordVisibleBox.Visibility = Visibility.Collapsed;
+                AuthLoginPasswordBox.Visibility = Visibility.Visible;
+                if (AuthLoginPasswordEyeSlashPath != null)
+                    AuthLoginPasswordEyeSlashPath.Visibility = Visibility.Collapsed;
+                AuthLoginPasswordBox.Focus();
+            }
+            _suppressAuthPasswordSync = false;
+        }
+
+        private void AuthLoginPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+        {
+            if (_suppressAuthPasswordSync) return;
+            _suppressAuthPasswordSync = true;
+            AuthLoginPasswordVisibleBox.Text = AuthLoginPasswordBox.Password;
+            _suppressAuthPasswordSync = false;
+        }
+
+        private void AuthLoginPasswordVisibleBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_suppressAuthPasswordSync) return;
+            _suppressAuthPasswordSync = true;
+            AuthLoginPasswordBox.Password = AuthLoginPasswordVisibleBox.Text;
+            _suppressAuthPasswordSync = false;
+        }
+
+        private void AuthLoginInput_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                AuthLoginSubmitBtn_Click(sender, new RoutedEventArgs());
+            }
+        }
+
+        private async void AuthLoginSubmitBtn_Click(object sender, RoutedEventArgs e)
+        {
+            string email = (AuthLoginEmailBox.Text ?? "").Trim();
+            string password = _isAuthPasswordVisible
+                ? (AuthLoginPasswordVisibleBox.Text ?? "")
+                : (AuthLoginPasswordBox.Password ?? "");
+
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+            {
+                AuthLoginErrorTxt.Text = "Bitte E-Mail und Passwort eingeben.";
+                AuthLoginErrorBorder.Visibility = Visibility.Visible;
+                return;
+            }
+
+            PlaySoundNav();
+            AuthLoginErrorBorder.Visibility = Visibility.Collapsed;
+            AuthLoginSubmitBtn.IsEnabled = false;
+            AuthLoginSubmitBtn.Content = "✦   MAGIE WIRD AKTIVIERT...   ✦";
+
+            string targetUrl = _authSelectedEnvKey switch
+            {
+                "local" => "http://127.0.0.1/api",
+                "live" => "https://mein-seelenfunke.de/api",
+                _ => "https://stage.mein-seelenfunke.de/api"
+            };
+
+            try
+            {
+                var sw = Stopwatch.StartNew();
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(10));
+                var payload = JsonSerializer.Serialize(new
+                {
+                    email,
+                    password,
+                    device_name = "Funkenwerk-Desktop"
+                });
+
+                using var req = new HttpRequestMessage(HttpMethod.Post, $"{targetUrl.TrimEnd('/')}/login")
+                {
+                    Content = new StringContent(payload, Encoding.UTF8, "application/json")
+                };
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+                var res = await _http.SendAsync(req, cts.Token);
+                sw.Stop();
+                var json = await res.Content.ReadAsStringAsync();
+
+                if (!res.IsSuccessStatusCode)
+                {
+                    string errDetail = "Ungültige Zugangsdaten.";
+                    try
+                    {
+                        using var errDoc = JsonDocument.Parse(json);
+                        if (errDoc.RootElement.TryGetProperty("message", out var msgEl) && msgEl.ValueKind == JsonValueKind.String)
+                            errDetail = msgEl.GetString() ?? errDetail;
+                    }
+                    catch { }
+
+                    AuthLoginErrorTxt.Text = errDetail;
+                    AuthLoginErrorBorder.Visibility = Visibility.Visible;
+                    AuthLoginSubmitBtn.IsEnabled = true;
+                    AuthLoginSubmitBtn.Content = "✦   ANMELDEN   ✦";
+                    return;
+                }
+
+                using var doc = JsonDocument.Parse(json);
+                string freshToken = doc.RootElement.TryGetProperty("token", out var tokEl) && tokEl.ValueKind == JsonValueKind.String
+                    ? (tokEl.GetString() ?? "").Trim()
+                    : "";
+
+                if (string.IsNullOrEmpty(freshToken))
+                {
+                    AuthLoginErrorTxt.Text = "Vom Server wurde kein gültiger Token empfangen.";
+                    AuthLoginErrorBorder.Visibility = Visibility.Visible;
+                    AuthLoginSubmitBtn.IsEnabled = true;
+                    AuthLoginSubmitBtn.Content = "✦   ANMELDEN   ✦";
+                    return;
+                }
+
+                bool remember = AuthLoginRememberCheck.IsChecked == true;
+                _apiBaseUrl = targetUrl;
+                _apiToken = freshToken;
+                RememberTokenForCurrentPreset(_apiBaseUrl, _apiToken);
+
+                _layoutSettings.SavedAuthEmail = email;
+                _layoutSettings.RememberCredentials = remember;
+                _layoutSettings.SavedAuthPassword = remember ? password : "";
+                _layoutSettings.IsSessionLocked = false;
+
+                ConfigureHttpClient();
+                SaveSettingsToFile();
+
+                _apiConnectionState = "connected";
+                _lastApiLatencyMs = sw.ElapsedMilliseconds;
+                _lastApiStatusDetail = "HTTP 200 OK (Angemeldet)";
+                _lastApiCheckTime = DateTime.Now;
+                UpdateApiConnectionDotVisual();
+
+                // Start loading data in parallel with the "Magie aktivieren" portal transition
+                var reloadTask = ReloadAllModulesDataAsync();
+                await RunMagicActivationTransitionAsync();
+
+                HideAuthLoginOverlay();
+                await reloadTask;
+                _ = HarvestAllEmailRecipientsInBackgroundAsync();
+                _apiHealthTimer.Start();
+                _ = CheckInitialMusicImportStatusAsync();
+            }
+            catch (Exception ex)
+            {
+                AuthLoginErrorTxt.Text = $"Server ({GetApiEnvironmentLabel(targetUrl)}) nicht erreichbar: {ex.GetType().Name}";
+                AuthLoginErrorBorder.Visibility = Visibility.Visible;
+            }
+            finally
+            {
+                if (AuthLoginOverlayGrid.Visibility == Visibility.Visible)
+                {
+                    AuthLoginSubmitBtn.IsEnabled = true;
+                    AuthLoginSubmitBtn.Content = "✦   ANMELDEN   ✦";
+                }
+            }
+        }
+
+        private void HeaderLogoutLockBtn_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundNav();
+            _apiHealthTimer.Stop();
+
+            string oldUrl = _apiBaseUrl;
+            string oldToken = _apiToken;
+
+            // Clear active session token & stored password so unlocking requires entering the password
+            _apiToken = "";
+            string key = DetectApiPresetKey(_apiBaseUrl);
+            if (key == "local") _layoutSettings.ApiTokenLocal = "";
+            else if (key == "stage") _layoutSettings.ApiTokenStage = "";
+            else if (key == "live") _layoutSettings.ApiTokenLive = "";
+
+            _layoutSettings.SavedAuthPassword = "";
+            _layoutSettings.IsSessionLocked = true;
+            ConfigureHttpClient();
+            SaveSettingsToFile();
+
+            _apiConnectionState = "offline";
+            _lastApiStatusDetail = "Abgemeldet / Gesperrt";
+            UpdateApiConnectionDotVisual();
+            ShowAuthLoginOverlay(errorMsg: null, clearPasswordInput: true);
+
+            // Revoke token server-side in background
+            if (!string.IsNullOrWhiteSpace(oldToken))
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(4));
+                        using var req = new HttpRequestMessage(HttpMethod.Post, $"{oldUrl.TrimEnd('/')}/logout");
+                        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", oldToken);
+                        await _http.SendAsync(req, cts.Token);
+                    }
+                    catch { }
+                });
+            }
+        }
+
         private void BrandLogo_Click(object sender, MouseButtonEventArgs e)
         {
             PlaySoundNav();
@@ -816,7 +1707,7 @@ namespace Funkenwerk
                 SwitchSpaceUI(space);
                 SaveSettingsToFile();
 
-                if (space == "mail" && _mailAccounts.Count == 0)
+                if (space == "mail")
                     await LoadMailAccountsAsync();
                 else if (space == "contacts")
                     await LoadContactsAsync();
@@ -832,6 +1723,8 @@ namespace Funkenwerk
                     EnsureCameraStudioInitialized();
                 else if (space == "marketing")
                     EnsureMarketingInitialized();
+                else if (space == "orders")
+                    _ = EnsureOrdersPrintViewInitializedAsync();
             }
         }
 
@@ -849,6 +1742,8 @@ namespace Funkenwerk
                 CameraStudioViewGrid.Visibility = space == "camera" ? Visibility.Visible : Visibility.Collapsed;
             if (MarketingViewGrid != null)
                 MarketingViewGrid.Visibility = space == "marketing" ? Visibility.Visible : Visibility.Collapsed;
+            if (OrdersViewGrid != null)
+                OrdersViewGrid.Visibility = space == "orders" ? Visibility.Visible : Visibility.Collapsed;
 
             UpdateSpaceButtonVisual(SpaceMailBtn, "SpaceMailBg", "SpaceMailPath", space == "mail");
             UpdateSpaceButtonVisual(SpaceContactsBtn, "SpaceContactsBg", "SpaceContactsPath", space == "contacts");
@@ -861,6 +1756,16 @@ namespace Funkenwerk
                 UpdateSpaceButtonVisual(SpaceCameraBtn, "SpaceCameraBg", "SpaceCameraPath", space == "camera");
             if (SpaceMarketingBtn != null)
                 UpdateSpaceButtonVisual(SpaceMarketingBtn, "SpaceMarketingBg", "SpaceMarketingPath", space == "marketing");
+            if (SpaceOrdersBtn != null)
+                UpdateSpaceButtonVisual(SpaceOrdersBtn, "SpaceOrdersBg", "SpaceOrdersPath", space == "orders");
+            if (SpaceSettingsBtn != null)
+            {
+                SpaceSettingsBtn.ApplyTemplate();
+                if (SpaceSettingsBtn.Template?.FindName("SpaceSettingsPath", SpaceSettingsBtn) is System.Windows.Shapes.Path spPath)
+                {
+                    spPath.Stroke = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_isDarkMode ? "#FFFFFF" : "#111827"));
+                }
+            }
 
             if (space == "smarthome")
                 EnsureSmartHomeInitialized();
@@ -868,6 +1773,8 @@ namespace Funkenwerk
                 EnsureCameraStudioInitialized();
             else if (space == "marketing")
                 EnsureMarketingInitialized();
+            else if (space == "orders")
+                _ = EnsureOrdersPrintViewInitializedAsync();
 
             UpdateMiniPlayerVisibility();
         }
@@ -877,11 +1784,24 @@ namespace Funkenwerk
             btn.ApplyTemplate();
             if (btn.Template.FindName(bgName, btn) is Border bg)
             {
-                bg.Background = isActive ? BrushFromHex("#C5A059") : Brushes.Transparent;
+                if (_isDarkMode)
+                {
+                    bg.Background = isActive ? BrushFromHex("#000000") : Brushes.Transparent;
+                    bg.BorderBrush = isActive ? BrushFromHex("#C5A059") : Brushes.Transparent;
+                    bg.BorderThickness = isActive ? new Thickness(1.5) : new Thickness(0);
+                }
+                else
+                {
+                    bg.Background = isActive ? BrushFromHex("#C5A059") : Brushes.Transparent;
+                    bg.BorderThickness = new Thickness(0);
+                }
             }
             if (btn.Template.FindName(pathName, btn) is System.Windows.Shapes.Path path)
             {
-                path.Stroke = isActive ? BrushFromHex("#111827") : BrushFromHex("#9CA3AF");
+                string strokeHex = isActive
+                    ? (_isDarkMode ? "#C5A059" : "#111827")
+                    : (_isDarkMode ? "#FFFFFF" : "#1F2937");
+                path.Stroke = new SolidColorBrush((Color)ColorConverter.ConvertFromString(strokeHex));
             }
         }
 
@@ -1033,11 +1953,11 @@ namespace Funkenwerk
                 if (!_didInitialCollapseAccounts && _mailAccounts.Count > 0)
                 {
                     _didInitialCollapseAccounts = true;
-                    foreach (var acc in _mailAccounts)
+                    _collapsedAccountIds.Clear();
+                    if (string.IsNullOrWhiteSpace(_selectedFolder) || _selectedFolder == "Processed")
                     {
-                        _collapsedAccountIds.Add(acc.Id);
+                        _selectedFolder = "INBOX";
                     }
-                    _selectedFolder = "Processed";
                 }
 
                 RenderMailAccountsSidebar();
@@ -1109,7 +2029,9 @@ namespace Funkenwerk
                 {
                     var badge = new Border
                     {
-                        Background = BrushFromHex("#C5A059"),
+                        Background = _isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059"),
+                        BorderBrush = BrushFromHex("#C5A059"),
+                        BorderThickness = new Thickness(1),
                         CornerRadius = new CornerRadius(8),
                         Padding = new Thickness(6, 1, 6, 1),
                         VerticalAlignment = VerticalAlignment.Center,
@@ -1117,7 +2039,7 @@ namespace Funkenwerk
                         Child = new TextBlock
                         {
                             Text = acc.TotalUnread.ToString(),
-                            Foreground = BrushFromHex("#111827"),
+                            Foreground = _isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827"),
                             FontSize = 10,
                             FontWeight = FontWeights.Bold
                         }
@@ -1269,7 +2191,7 @@ namespace Funkenwerk
                         Grid.SetColumn(fLbl, 1);
                         fg.Children.Add(fLbl);
 
-                        if (unreadCount > 0 && folderKey is not ("Trash" or "Sent" or "Junk" or "Archive"))
+                        if (unreadCount > 0 && folderKey is not ("Trash" or "Sent" or "Archive"))
                         {
                             var fCount = new TextBlock
                             {
@@ -1277,6 +2199,20 @@ namespace Funkenwerk
                                 Foreground = BrushFromHex("#C5A059"),
                                 FontSize = 11,
                                 FontWeight = FontWeights.Bold,
+                                VerticalAlignment = VerticalAlignment.Center,
+                                Margin = new Thickness(6, 0, 0, 0)
+                            };
+                            Grid.SetColumn(fCount, 2);
+                            fg.Children.Add(fCount);
+                        }
+                        else if (totalCount > 0 && folderKey != "Trash")
+                        {
+                            var fCount = new TextBlock
+                            {
+                                Text = totalCount.ToString(),
+                                Foreground = BrushFromHex("#6B7280"),
+                                FontSize = 10.5,
+                                FontWeight = FontWeights.Medium,
                                 VerticalAlignment = VerticalAlignment.Center,
                                 Margin = new Thickness(6, 0, 0, 0)
                             };
@@ -1736,6 +2672,71 @@ namespace Funkenwerk
 
         private readonly HashSet<int> _pendingDeletedMailIds = new();
 
+        private static string RepairCorruptedMailSubject(string? rawSubject)
+        {
+            string s = (rawSubject ?? "").Trim();
+            if (string.IsNullOrEmpty(s)) return "(Kein Betreff)";
+
+            // Decode RFC 2047 encoded words (=?charset?B/Q?...?=) if present
+            if (s.Contains("=?", StringComparison.Ordinal))
+            {
+                s = Regex.Replace(s, @"=\?([^?]+)\?([BbQq])\?([^?]*)\?=", m =>
+                {
+                    try
+                    {
+                        string charset = m.Groups[1].Value.Trim();
+                        string mode = m.Groups[2].Value.ToUpperInvariant();
+                        string payload = m.Groups[3].Value;
+                        Encoding enc;
+                        try { enc = Encoding.GetEncoding(charset); }
+                        catch { enc = Encoding.UTF8; }
+
+                        if (mode == "B")
+                        {
+                            return enc.GetString(Convert.FromBase64String(payload));
+                        }
+                        if (mode == "Q")
+                        {
+                            string q = payload.Replace('_', ' ');
+                            using var ms = new MemoryStream();
+                            for (int i = 0; i < q.Length; i++)
+                            {
+                                if (q[i] == '=' && i + 2 < q.Length &&
+                                    byte.TryParse(q.Substring(i + 1, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte b))
+                                {
+                                    ms.WriteByte(b);
+                                    i += 2;
+                                }
+                                else
+                                {
+                                    ms.WriteByte((byte)q[i]);
+                                }
+                            }
+                            return enc.GetString(ms.ToArray());
+                        }
+                    }
+                    catch { }
+                    return m.Value;
+                });
+            }
+
+            // Repair 4-byte UTF-8 emojis corrupted into "????" by legacy PHP mb_decode_mimeheader
+            if (s.Contains("???", StringComparison.Ordinal))
+            {
+                s = Regex.Replace(s, @"^\?{3,4}\s*\[NEUE BESTELLUNG\]", "💰 [NEUE BESTELLUNG]");
+                s = Regex.Replace(s, @"^\?{3,4}\s*\[ANGEBOT ANGENOMMEN\]", "✅ [ANGEBOT ANGENOMMEN]");
+                s = Regex.Replace(s, @"^\?{3,4}\s*Deine Bestellung\b", "📦 Deine Bestellung");
+                s = Regex.Replace(s, @"^\?{3,4}\s*Deine Rechnung\b", "🧾 Deine Rechnung");
+                s = Regex.Replace(s, @"^\?{3,4}\s*Dein Mein-Seelenfunke Gutschein\b", "🎁 Dein Mein-Seelenfunke Gutschein");
+                s = Regex.Replace(s, @"^\?{3,4}\s*Dein exklusives Angebot\b", "✨ Dein exklusives Angebot");
+                s = Regex.Replace(s, @"^\?{3,4}\s*Gute Nachrichten!\s*Deine Bestellung\b", "🚚 Gute Nachrichten! Deine Bestellung");
+                s = Regex.Replace(s, @"^\?{3,4}\s*Vergiss deine Unikate nicht\b", "🛒 Vergiss deine Unikate nicht");
+                s = Regex.Replace(s, @"^\?{3,8}\s*Wie gefällt dir dein Unikat\b", "📸✨ Wie gefällt dir dein Unikat");
+            }
+
+            return s;
+        }
+
         private MailMessageDto ParseMailMessage(JsonElement m)
         {
             var dto = new MailMessageDto
@@ -1743,7 +2744,7 @@ namespace Funkenwerk
                 Id = m.GetProperty("id").GetInt32(),
                 MailAccountId = m.TryGetProperty("mail_account_id", out var ma) ? ma.GetInt32() : _selectedAccountId,
                 Folder = m.TryGetProperty("folder", out var fp) && fp.ValueKind == JsonValueKind.String ? fp.GetString() ?? "INBOX" : "INBOX",
-                Subject = m.TryGetProperty("subject", out var sp) && sp.ValueKind == JsonValueKind.String ? sp.GetString() ?? "(Kein Betreff)" : "(Kein Betreff)",
+                Subject = RepairCorruptedMailSubject(m.TryGetProperty("subject", out var sp) && sp.ValueKind == JsonValueKind.String ? sp.GetString() : "(Kein Betreff)"),
                 FromName = m.TryGetProperty("from_name", out var fn) && fn.ValueKind == JsonValueKind.String ? fn.GetString() ?? "" : "",
                 FromEmail = m.TryGetProperty("from_email", out var fe) && fe.ValueKind == JsonValueKind.String ? fe.GetString() ?? "" : "",
                 ToEmail = m.TryGetProperty("to_email", out var te) && te.ValueKind == JsonValueKind.String ? te.GetString() ?? "" : "",
@@ -1899,6 +2900,54 @@ namespace Funkenwerk
             return visibleMessages.ToList();
         }
 
+        private Brush GetMailCardBackgroundBrush(MailMessageDto msg, bool isSelected, bool isHovered)
+        {
+            bool isSpam = string.Equals(msg.Folder, "Junk", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(_selectedFolder, "Junk", StringComparison.OrdinalIgnoreCase);
+            bool isImportant = msg.Priority == "high";
+
+            if (isSelected && isSpam)
+            {
+                string spamRedAlphaHex = isHovered
+                    ? (_isDarkMode ? "#3EEF4444" : "#2CEF4444")
+                    : (_isDarkMode ? "#33EF4444" : "#22EF4444");
+                return new SolidColorBrush((Color)ColorConverter.ConvertFromString(spamRedAlphaHex));
+            }
+
+            if (isHovered)
+            {
+                string hoverOrangeAlphaHex = _isDarkMode ? "#26F97316" : "#1CF97316";
+                return new SolidColorBrush((Color)ColorConverter.ConvertFromString(hoverOrangeAlphaHex));
+            }
+
+            string cardBgHex = isSelected
+                ? (isImportant ? "#32161B" : "#26231F")
+                : (isImportant ? "#1F1216" : (msg.IsRead ? "#151821" : "#1A1F2E"));
+            return BrushFromHex(cardBgHex);
+        }
+
+        private Brush GetMailCardBorderBrush(MailMessageDto msg, bool isSelected, bool isHovered)
+        {
+            bool isSpam = string.Equals(msg.Folder, "Junk", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(_selectedFolder, "Junk", StringComparison.OrdinalIgnoreCase);
+            bool isImportant = msg.Priority == "high";
+
+            if (isSelected && isSpam)
+            {
+                return new SolidColorBrush((Color)ColorConverter.ConvertFromString(isHovered ? "#F87171" : "#EF4444"));
+            }
+
+            if (isHovered)
+            {
+                return new SolidColorBrush((Color)ColorConverter.ConvertFromString(_isDarkMode ? "#D9F97316" : "#EA580C"));
+            }
+
+            string cardBorderHex = isSelected
+                ? (isImportant ? "#EF4444" : "#C5A059")
+                : (isImportant ? "#991B1B" : (msg.IsRead ? "#222634" : "#3B4254"));
+            return BrushFromHex(cardBorderHex);
+        }
+
         private void RenderMailMessagesList()
         {
             MailMessagesPanel.Children.Clear();
@@ -1993,19 +3042,11 @@ namespace Funkenwerk
                 bool isSelected = _selectedMail != null && _selectedMail.Id == msg.Id;
                 bool isImportant = msg.Priority == "high";
 
-                string cardBgHex = isSelected
-                    ? (isImportant ? "#32161B" : "#26231F")
-                    : (isImportant ? "#1F1216" : (msg.IsRead ? "#151821" : "#1A1F2E"));
-
-                string cardBorderHex = isSelected
-                    ? (isImportant ? "#EF4444" : "#C5A059")
-                    : (isImportant ? "#991B1B" : (msg.IsRead ? "#222634" : "#3B4254"));
-
                 var card = new Border
                 {
-                    Background = BrushFromHex(cardBgHex),
-                    BorderBrush = BrushFromHex(cardBorderHex),
-                    BorderThickness = new Thickness(isImportant ? 1.5 : 1),
+                    Background = GetMailCardBackgroundBrush(msg, isSelected, false),
+                    BorderBrush = GetMailCardBorderBrush(msg, isSelected, false),
+                    BorderThickness = new Thickness(isImportant || isSelected ? 1.5 : 1),
                     CornerRadius = new CornerRadius(12),
                     Padding = new Thickness(12, 10, 12, 10),
                     Margin = new Thickness(0, 0, 0, 7),
@@ -2018,13 +3059,26 @@ namespace Funkenwerk
 
                 var stack = new StackPanel();
 
-                // Top Row: Unread/Important Dot + Sender + AI Sparkle + Date
+                // Top Row: Unread/Important Dot + Sender + AI Sparkle + Date + Top-Right Unread Dot
                 var topGrid = new Grid();
                 topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-                if (isImportant)
+                if (!msg.IsRead)
+                {
+                    var dot = new Ellipse
+                    {
+                        Width = 8,
+                        Height = 8,
+                        Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(0, 0, 7, 0),
+                        ToolTip = "Ungelesen"
+                    };
+                    topGrid.Children.Add(dot);
+                }
+                else if (isImportant)
                 {
                     var impDot = new Ellipse
                     {
@@ -2035,18 +3089,6 @@ namespace Funkenwerk
                         Margin = new Thickness(0, 0, 7, 0)
                     };
                     topGrid.Children.Add(impDot);
-                }
-                else if (!msg.IsRead)
-                {
-                    var dot = new Ellipse
-                    {
-                        Width = 8,
-                        Height = 8,
-                        Fill = BrushFromHex("#10B981"),
-                        VerticalAlignment = VerticalAlignment.Center,
-                        Margin = new Thickness(0, 0, 7, 0)
-                    };
-                    topGrid.Children.Add(dot);
                 }
 
                 bool isDraftCard = msg.Folder == "Drafts";
@@ -2080,8 +3122,21 @@ namespace Funkenwerk
                 {
                     Text = FormatShortDate(msg.ReceivedAtRaw),
                     Foreground = BrushFromHex("#9CA3AF"),
-                    FontSize = 11
+                    FontSize = 11,
+                    VerticalAlignment = VerticalAlignment.Center
                 });
+                if (!msg.IsRead)
+                {
+                    rightMeta.Children.Add(new Ellipse
+                    {
+                        Width = 7,
+                        Height = 7,
+                        Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(6, 0, 0, 0),
+                        ToolTip = "Ungelesen"
+                    });
+                }
                 Grid.SetColumn(rightMeta, 2);
                 topGrid.Children.Add(rightMeta);
 
@@ -2232,6 +3287,21 @@ namespace Funkenwerk
                 card.Child = stack;
 
                 var capturedMsg = msg;
+                int capturedMsgId = msg.Id;
+
+                card.MouseEnter += (s, e) =>
+                {
+                    bool selNow = _selectedMail != null && _selectedMail.Id == capturedMsgId;
+                    card.Background = GetMailCardBackgroundBrush(capturedMsg, selNow, isHovered: true);
+                    card.BorderBrush = GetMailCardBorderBrush(capturedMsg, selNow, isHovered: true);
+                };
+                card.MouseLeave += (s, e) =>
+                {
+                    bool selNow = _selectedMail != null && _selectedMail.Id == capturedMsgId;
+                    card.Background = GetMailCardBackgroundBrush(capturedMsg, selNow, isHovered: false);
+                    card.BorderBrush = GetMailCardBorderBrush(capturedMsg, selNow, isHovered: false);
+                };
+
                 card.MouseRightButtonUp += (s, e) =>
                 {
                     card.ContextMenu = BuildMailContextMenu(capturedMsg);
@@ -2240,7 +3310,6 @@ namespace Funkenwerk
                     e.Handled = true;
                 };
 
-                int capturedMsgId = msg.Id;
                 card.PreviewMouseLeftButtonDown += (s, e) =>
                 {
                     if (e.ClickCount == 2 && capturedMsg.Folder == "Drafts")
@@ -2278,11 +3347,13 @@ namespace Funkenwerk
                 };
                 card.DragLeave += (s, e) =>
                 {
-                    card.BorderBrush = BrushFromHex(cardBorderHex);
+                    bool selNow = _selectedMail != null && _selectedMail.Id == capturedMsgId;
+                    card.BorderBrush = GetMailCardBorderBrush(capturedMsg, selNow, card.IsMouseOver);
                 };
                 card.Drop += (s, e) =>
                 {
-                    card.BorderBrush = BrushFromHex(cardBorderHex);
+                    bool selNow = _selectedMail != null && _selectedMail.Id == capturedMsgId;
+                    card.BorderBrush = GetMailCardBorderBrush(capturedMsg, selNow, card.IsMouseOver);
                     if (e.Data.GetDataPresent("funkenwerk_mail_id"))
                     {
                         int draggedMailId = (int)e.Data.GetData("funkenwerk_mail_id");
@@ -2482,12 +3553,9 @@ namespace Funkenwerk
                     if (msg == null) continue;
                     bool isSelected = _selectedMail != null && _selectedMail.Id == cardMsgId;
                     bool isImportant = msg.Priority == "high";
-                    card.Background = BrushFromHex(isSelected
-                        ? (isImportant ? "#32161B" : "#26231F")
-                        : (isImportant ? "#1F1216" : (msg.IsRead ? "#151821" : "#1A1F2E")));
-                    card.BorderBrush = BrushFromHex(isSelected
-                        ? (isImportant ? "#EF4444" : "#C5A059")
-                        : (isImportant ? "#991B1B" : (msg.IsRead ? "#222634" : "#3B4254")));
+                    card.Background = GetMailCardBackgroundBrush(msg, isSelected, card.IsMouseOver);
+                    card.BorderBrush = GetMailCardBorderBrush(msg, isSelected, card.IsMouseOver);
+                    card.BorderThickness = new Thickness(isImportant || isSelected ? 1.5 : 1);
                 }
             }
         }
@@ -2616,6 +3684,9 @@ namespace Funkenwerk
                 {
                     try
                     {
+                        if (FunkenwerkSecurityVault.IsDangerousAttachmentFile(att.Filename))
+                            continue;
+
                         string path = GetDefaultAttachmentLocalPath(att);
                         if (File.Exists(path) && new FileInfo(path).Length > 0)
                             continue;
@@ -3271,7 +4342,14 @@ namespace Funkenwerk
             {
                 string path = GetRecipientsCachePath();
                 if (!File.Exists(path)) return;
-                string json = File.ReadAllText(path);
+                string raw = File.ReadAllText(path);
+                if (string.IsNullOrWhiteSpace(raw)) return;
+
+                bool wasPlaintext = !raw.StartsWith("FWVAULT2:", StringComparison.Ordinal) &&
+                                    !raw.StartsWith("DPAPI:", StringComparison.Ordinal);
+                string json = wasPlaintext ? raw : FunkenwerkSecurityVault.UnprotectSecret(raw);
+                if (string.IsNullOrWhiteSpace(json)) return;
+
                 var cache = JsonSerializer.Deserialize<EmailRecipientsCacheDto>(json);
                 if (cache != null)
                 {
@@ -3287,6 +4365,10 @@ namespace Funkenwerk
                             if (!string.IsNullOrWhiteSpace(r.Email))
                                 _recipientFrequencyMap[r.Email.Trim().ToLowerInvariant()] = r;
                         }
+                    }
+                    if (wasPlaintext)
+                    {
+                        SaveEmailRecipientsCache();
                     }
                 }
             }
@@ -3306,7 +4388,9 @@ namespace Funkenwerk
                         .ThenBy(x => x.Email)
                         .ToList()
                 };
-                File.WriteAllText(path, JsonSerializer.Serialize(dto));
+                string plainJson = JsonSerializer.Serialize(dto);
+                string encryptedPayload = FunkenwerkSecurityVault.ProtectSecret(plainJson);
+                File.WriteAllText(path, encryptedPayload);
             }
             catch { }
         }
@@ -5256,8 +6340,10 @@ namespace Funkenwerk
         private void UpdateCalendarViewBtnVisual(Button? btn, TextBlock? txt, bool isActive)
         {
             if (btn == null || txt == null) return;
-            btn.Background = isActive ? BrushFromHex("#C5A059") : Brushes.Transparent;
-            txt.Foreground = isActive ? BrushFromHex("#111827") : BrushFromHex("#9CA3AF");
+            btn.Background = isActive ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : Brushes.Transparent;
+            btn.BorderBrush = isActive ? BrushFromHex("#C5A059") : Brushes.Transparent;
+            btn.BorderThickness = new Thickness(isActive ? 1 : 0);
+            txt.Foreground = isActive ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : BrushFromHex("#9CA3AF");
         }
 
         // -------------------------------------------------------------------------
@@ -5349,13 +6435,13 @@ namespace Funkenwerk
                         Width = 26,
                         Height = 26,
                         CornerRadius = new CornerRadius(8),
-                        Background = isToday ? BrushFromHex("#C5A059") : BrushFromHex("#181B24"),
+                        Background = isToday ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : BrushFromHex("#181B24"),
                         BorderBrush = isToday ? BrushFromHex("#C5A059") : BrushFromHex("#242936"),
                         BorderThickness = new Thickness(1),
                         Child = new TextBlock
                         {
                             Text = cellDate.Day.ToString(),
-                            Foreground = isToday ? BrushFromHex("#111827") : BrushFromHex("#D1D5DB"),
+                            Foreground = isToday ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : BrushFromHex("#D1D5DB"),
                             FontSize = 11.5,
                             FontWeight = FontWeights.Bold,
                             HorizontalAlignment = HorizontalAlignment.Center,
@@ -5903,8 +6989,8 @@ namespace Funkenwerk
                     bool hasEvents = dayEvs.Count > 0;
                     bool isToday = dDate == DateTime.Today;
 
-                    var pillBg = hasEvents ? BrushFromHex("#C5A059") : Brushes.Transparent;
-                    var pillBrd = isToday ? BrushFromHex("#C5A059") : Brushes.Transparent;
+                    var pillBg = hasEvents ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : Brushes.Transparent;
+                    var pillBrd = (isToday || hasEvents) ? BrushFromHex("#C5A059") : Brushes.Transparent;
 
                     var dayPill = new Border
                     {
@@ -5913,7 +6999,7 @@ namespace Funkenwerk
                         CornerRadius = new CornerRadius(7),
                         Background = pillBg,
                         BorderBrush = pillBrd,
-                        BorderThickness = new Thickness(isToday && !hasEvents ? 1.5 : 0),
+                        BorderThickness = new Thickness((isToday || hasEvents) ? 1.5 : 0),
                         Margin = new Thickness(1),
                         Cursor = Cursors.Hand,
                         AllowDrop = true,
@@ -5923,7 +7009,7 @@ namespace Funkenwerk
                         Child = new TextBlock
                         {
                             Text = d.ToString(),
-                            Foreground = hasEvents ? BrushFromHex("#111827") : (isToday ? BrushFromHex("#C5A059") : BrushFromHex("#9CA3AF")),
+                            Foreground = hasEvents ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : (isToday ? BrushFromHex("#C5A059") : BrushFromHex("#9CA3AF")),
                             FontSize = 10.5,
                             FontWeight = (hasEvents || isToday) ? FontWeights.Bold : FontWeights.SemiBold,
                             HorizontalAlignment = HorizontalAlignment.Center,
@@ -6722,6 +7808,10 @@ namespace Funkenwerk
                 }
 
                 _allTasks = rootTasks;
+                if (_selectedTask != null)
+                {
+                    _selectedTask = _allTasks.FirstOrDefault(t => t.Id == _selectedTask.Id);
+                }
 
                 // If "my_day" is currently selected on first load and has 0 tasks for today, default to "all" so all tasks are immediately visible
                 if (_activeTodoListId == "my_day" && !_allTasks.Any(t => !t.IsCompleted && IsToday(t.RelevantFrom)) && _allTasks.Count > 0)
@@ -6950,11 +8040,11 @@ namespace Funkenwerk
                 CornerRadius = new CornerRadius(10),
                 BorderThickness = new Thickness(2),
                 BorderBrush = isCompleted ? BrushFromHex("#C5A059") : BrushFromHex("#6B7280"),
-                Background = isCompleted ? BrushFromHex("#C5A059") : Brushes.Transparent,
+                Background = isCompleted ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : Brushes.Transparent,
                 VerticalAlignment = VerticalAlignment.Top,
                 HorizontalAlignment = HorizontalAlignment.Left,
                 Margin = new Thickness(0, 2, 0, 0),
-                Child = isCompleted ? new TextBlock { Text = "✓", Foreground = BrushFromHex("#111827"), FontSize = 12, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } : null
+                Child = isCompleted ? new TextBlock { Text = "✓", Foreground = _isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827"), FontSize = 12, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } : null
             };
             string tid = task.Id;
             chk.MouseLeftButtonUp += async (s, e) =>
@@ -7147,6 +8237,7 @@ namespace Funkenwerk
                 await _http.PostAsync($"{_apiBaseUrl}/funki/tasks/lists/{targetListId}/tasks", new StringContent(payload, Encoding.UTF8, "application/json"));
                 PlaySoundActionPop();
                 await LoadTodoListsAsync();
+                _ = LoadCalendarEventsAsync();
             }
             catch { }
         }
@@ -7158,6 +8249,7 @@ namespace Funkenwerk
                 PlaySoundTaskDone();
                 await _http.PutAsync($"{_apiBaseUrl}/funki/tasks/{id}/toggle", new StringContent("{}", Encoding.UTF8, "application/json"));
                 await LoadTodoListsAsync();
+                _ = LoadCalendarEventsAsync();
                 if (_selectedTask != null) _selectedTask = _allTasks.FirstOrDefault(t => t.Id == _selectedTask.Id);
                 RenderTodoDetailPanel();
             }
@@ -7221,6 +8313,7 @@ namespace Funkenwerk
             await _http.PutAsync($"{_apiBaseUrl}/funki/tasks/{_selectedTask.Id}", new StringContent(payload, Encoding.UTF8, "application/json"));
             PlaySoundActionPop();
             await LoadTodoListsAsync();
+            _ = LoadCalendarEventsAsync();
             _selectedTask = _allTasks.FirstOrDefault(t => t.Id == _selectedTask.Id);
             RenderTodoDetailPanel();
         }
@@ -7232,6 +8325,7 @@ namespace Funkenwerk
             var payload = JsonSerializer.Serialize(new { relevant_from = next });
             await _http.PutAsync($"{_apiBaseUrl}/funki/tasks/{_selectedTask.Id}", new StringContent(payload, Encoding.UTF8, "application/json"));
             await LoadTodoListsAsync();
+            _ = LoadCalendarEventsAsync();
         }
 
         private async void NewSubtaskBox_KeyDown(object sender, KeyEventArgs e)
@@ -7266,6 +8360,7 @@ namespace Funkenwerk
                 await _http.DeleteAsync($"{_apiBaseUrl}/funki/tasks/{id}");
                 PlaySoundActionPop();
                 await LoadTodoListsAsync();
+                _ = LoadCalendarEventsAsync();
                 if (_selectedTask != null) _selectedTask = _allTasks.FirstOrDefault(t => t.Id == _selectedTask.Id);
                 RenderTodoDetailPanel();
             }
@@ -7347,35 +8442,40 @@ namespace Funkenwerk
             if (SettingsPaneCamera != null)
                 SettingsPaneCamera.Visibility = tab == "camera" ? Visibility.Visible : Visibility.Collapsed;
 
-            SettingsTabSoundsBtn.Background = tab == "sounds" ? BrushFromHex("#C5A059") : Brushes.Transparent;
-            if (SettingsTabSoundsIcon != null)
-                SettingsTabSoundsIcon.Foreground = tab == "sounds" ? BrushFromHex("#111827") : BrushFromHex("#F9FAFB");
-            SettingsTabSoundsTxt.Foreground = tab == "sounds" ? BrushFromHex("#111827") : BrushFromHex("#F9FAFB");
-            SettingsTabSoundsTxt.FontWeight = tab == "sounds" ? FontWeights.Bold : FontWeights.SemiBold;
-
-            SettingsTabDesignBtn.Background = tab == "design" ? BrushFromHex("#C5A059") : Brushes.Transparent;
-            if (SettingsTabDesignIcon != null)
-                SettingsTabDesignIcon.Foreground = tab == "design" ? BrushFromHex("#111827") : BrushFromHex("#F9FAFB");
-            SettingsTabDesignTxt.Foreground = tab == "design" ? BrushFromHex("#111827") : BrushFromHex("#F9FAFB");
-            SettingsTabDesignTxt.FontWeight = tab == "design" ? FontWeights.Bold : FontWeights.SemiBold;
-
-            SettingsTabApiBtn.Background = tab == "api" ? BrushFromHex("#C5A059") : Brushes.Transparent;
-            if (SettingsTabApiIcon != null)
-                SettingsTabApiIcon.Foreground = tab == "api" ? BrushFromHex("#111827") : BrushFromHex("#F9FAFB");
-            SettingsTabApiTxt.Foreground = tab == "api" ? BrushFromHex("#111827") : BrushFromHex("#F9FAFB");
-            SettingsTabApiTxt.FontWeight = tab == "api" ? FontWeights.Bold : FontWeights.SemiBold;
-
-            if (SettingsTabCameraBtn != null)
+            void StyleSettingsTabBtn(Border? btn, TextBlock? icon, TextBlock? txt, bool active)
             {
-                SettingsTabCameraBtn.Background = tab == "camera" ? BrushFromHex("#C5A059") : Brushes.Transparent;
-                if (SettingsTabCameraIcon != null)
-                    SettingsTabCameraIcon.Foreground = tab == "camera" ? BrushFromHex("#111827") : BrushFromHex("#F9FAFB");
-                if (SettingsTabCameraTxt != null)
+                if (btn == null) return;
+                if (_isDarkMode)
                 {
-                    SettingsTabCameraTxt.Foreground = tab == "camera" ? BrushFromHex("#111827") : BrushFromHex("#F9FAFB");
-                    SettingsTabCameraTxt.FontWeight = tab == "camera" ? FontWeights.Bold : FontWeights.SemiBold;
+                    btn.Background = active ? BrushFromHex("#000000") : Brushes.Transparent;
+                    btn.BorderBrush = active ? BrushFromHex("#C5A059") : Brushes.Transparent;
+                    btn.BorderThickness = active ? new Thickness(1) : new Thickness(0);
+                    var fg = BrushFromHex(active ? "#C5A059" : "#FFFFFF");
+                    if (icon != null) icon.Foreground = fg;
+                    if (txt != null)
+                    {
+                        txt.Foreground = fg;
+                        txt.FontWeight = active ? FontWeights.Bold : FontWeights.SemiBold;
+                    }
+                }
+                else
+                {
+                    btn.Background = active ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059")) : Brushes.Transparent;
+                    btn.BorderThickness = new Thickness(0);
+                    var fg = new SolidColorBrush((Color)ColorConverter.ConvertFromString(active ? "#111827" : "#374151"));
+                    if (icon != null) icon.Foreground = fg;
+                    if (txt != null)
+                    {
+                        txt.Foreground = fg;
+                        txt.FontWeight = active ? FontWeights.Bold : FontWeights.SemiBold;
+                    }
                 }
             }
+
+            StyleSettingsTabBtn(SettingsTabSoundsBtn, SettingsTabSoundsIcon, SettingsTabSoundsTxt, tab == "sounds");
+            StyleSettingsTabBtn(SettingsTabDesignBtn, SettingsTabDesignIcon, SettingsTabDesignTxt, tab == "design");
+            StyleSettingsTabBtn(SettingsTabApiBtn, SettingsTabApiIcon, SettingsTabApiTxt, tab == "api");
+            StyleSettingsTabBtn(SettingsTabCameraBtn, SettingsTabCameraIcon, SettingsTabCameraTxt, tab == "camera");
 
             UpdateApiPresetButtonsVisual(ApiUrlBox?.Text ?? _apiBaseUrl);
         }
@@ -7649,14 +8749,53 @@ namespace Funkenwerk
             UpdateMusicCacheStatusLabel();
         }
 
-        private async Task LoadMusicPlaylistsAsync()
+        private string GetMusicPlaylistsCacheFilePath()
+        {
+            return System.IO.Path.Combine(_musicCacheDir, "playlists_cache.json");
+        }
+
+        private void LoadMusicPlaylistsFromLocalCache()
         {
             try
             {
-                var res = await _http.GetAsync($"{_apiBaseUrl}/funki/music/playlists");
-                if (!res.IsSuccessStatusCode) return;
-                var json = await res.Content.ReadAsStringAsync();
+                string cacheFile = GetMusicPlaylistsCacheFilePath();
+                if (!File.Exists(cacheFile))
+                {
+                    string bundled = System.IO.Path.Combine(AppContext.BaseDirectory, "playlists_cache.json");
+                    if (File.Exists(bundled))
+                    {
+                        Directory.CreateDirectory(_musicCacheDir);
+                        File.Copy(bundled, cacheFile, overwrite: true);
+                    }
+                }
 
+                if (!File.Exists(cacheFile)) return;
+                string json = File.ReadAllText(cacheFile, Encoding.UTF8);
+                var parsed = ParseMusicPlaylistsJson(json);
+                if (parsed.Count > 0)
+                {
+                    ApplyLoadedMusicPlaylists(parsed);
+                }
+            }
+            catch { }
+        }
+
+        private void SaveMusicPlaylistsToLocalCache()
+        {
+            try
+            {
+                if (_musicPlaylists == null || _musicPlaylists.Count == 0) return;
+                Directory.CreateDirectory(_musicCacheDir);
+                string json = JsonSerializer.Serialize(new { success = true, data = _musicPlaylists }, new JsonSerializerOptions { WriteIndented = false });
+                File.WriteAllText(GetMusicPlaylistsCacheFilePath(), json, Encoding.UTF8);
+            }
+            catch { }
+        }
+
+        private static List<MusicPlaylistDto> ParseMusicPlaylistsJson(string json)
+        {
+            try
+            {
                 using var doc = JsonDocument.Parse(json);
                 JsonElement arr = doc.RootElement;
                 if (doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("data", out var dp))
@@ -7667,29 +8806,71 @@ namespace Funkenwerk
                 var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                 if (arr.ValueKind == JsonValueKind.Array)
                 {
-                    _musicPlaylists = JsonSerializer.Deserialize<List<MusicPlaylistDto>>(arr.GetRawText(), opts) ?? new();
+                    return JsonSerializer.Deserialize<List<MusicPlaylistDto>>(arr.GetRawText(), opts) ?? new();
                 }
+            }
+            catch { }
+            return new();
+        }
 
-                _allMusicTracks.Clear();
-                foreach (var pl in _musicPlaylists)
+        private void ApplyLoadedMusicPlaylists(List<MusicPlaylistDto> playlists)
+        {
+            _musicPlaylists = playlists;
+            _allMusicTracks.Clear();
+            foreach (var pl in _musicPlaylists)
+            {
+                if (pl.Tracks == null) continue;
+                foreach (var tr in pl.Tracks)
                 {
-                    if (pl.Tracks == null) continue;
-                    foreach (var tr in pl.Tracks)
-                    {
-                        tr.PlaylistName = pl.Name;
-                        _allMusicTracks.Add(tr);
-                    }
+                    tr.PlaylistName = pl.Name;
+                    _allMusicTracks.Add(tr);
                 }
+            }
 
-                // Default to Lieblingssongs if present and nothing selected yet
-                if (_activeMusicPlaylistId == "all" && _musicPlaylists.Count > 0)
+            if (_currentPlayingTrack != null)
+            {
+                var updatedCur = _allMusicTracks.FirstOrDefault(t => t.Id == _currentPlayingTrack.Id);
+                if (updatedCur != null)
                 {
-                    var favPl = _musicPlaylists.FirstOrDefault(p => p.Name.Contains("Lieblingssongs", StringComparison.OrdinalIgnoreCase)) ?? _musicPlaylists[0];
-                    _activeMusicPlaylistId = favPl.Id;
+                    _currentPlayingTrack.IsFavorite = updatedCur.IsFavorite;
                 }
+            }
 
-                RenderMusicAll();
-                UpdateMusicCacheStatusLabel();
+            // Default to Lieblingssongs if present and nothing selected yet (or selected playlist no longer exists)
+            if ((_activeMusicPlaylistId == "all" || (_activeMusicPlaylistId != "favorites" && !_musicPlaylists.Any(p => p.Id == _activeMusicPlaylistId)))
+                && _musicPlaylists.Count > 0)
+            {
+                var favPl = _musicPlaylists.FirstOrDefault(p => p.Name.Contains("Lieblingssongs", StringComparison.OrdinalIgnoreCase)) ?? _musicPlaylists[0];
+                _activeMusicPlaylistId = favPl.Id;
+            }
+
+            RenderMusicAll();
+            UpdateMusicCacheStatusLabel();
+        }
+
+        private async Task LoadMusicPlaylistsAsync()
+        {
+            // Always ensure offline local playlists are loaded first so songs are available even without a server
+            if (_allMusicTracks.Count == 0)
+            {
+                LoadMusicPlaylistsFromLocalCache();
+            }
+
+            try
+            {
+                var res = await _http.GetAsync($"{_apiBaseUrl}/funki/music/playlists");
+                if (!res.IsSuccessStatusCode) return;
+                var json = await res.Content.ReadAsStringAsync();
+
+                var remotePlaylists = ParseMusicPlaylistsJson(json);
+                int remoteTrackCount = remotePlaylists.Sum(p => p.Tracks?.Count ?? 0);
+
+                // Only overwrite local cache if remote server actually has tracks (prevents empty Stage/Live DB from wiping offline music)
+                if (remotePlaylists.Count > 0 && (remoteTrackCount > 0 || _allMusicTracks.Count == 0))
+                {
+                    ApplyLoadedMusicPlaylists(remotePlaylists);
+                    SaveMusicPlaylistsToLocalCache();
+                }
             }
             catch { }
         }
@@ -7941,7 +9122,16 @@ namespace Funkenwerk
 
         private string GetLocalCachePath(MusicTrackDto track)
         {
-            return System.IO.Path.Combine(_musicCacheDir, $"{track.Id}.m4a");
+            string byId = System.IO.Path.Combine(_musicCacheDir, $"{track.Id}.m4a");
+            if (File.Exists(byId)) return byId;
+
+            if (!string.IsNullOrWhiteSpace(track.ExternalId))
+            {
+                string byExt = System.IO.Path.Combine(_musicCacheDir, $"{track.ExternalId}.m4a");
+                if (File.Exists(byExt)) return byExt;
+            }
+
+            return byId;
         }
 
         private async Task<string?> EnsureTrackCachedAsync(MusicTrackDto track)
@@ -8026,6 +9216,13 @@ namespace Funkenwerk
             if (GlobalMiniPlayerBar == null) return;
             bool showMini = _currentPlayingTrack != null && _activeSpace != "music";
             GlobalMiniPlayerBar.Visibility = showMini ? Visibility.Visible : Visibility.Collapsed;
+
+            if (MktModeToggleContainer != null)
+            {
+                MktModeToggleContainer.Margin = showMini
+                    ? new Thickness(0, 0, 22, 84)
+                    : new Thickness(0, 0, 22, 18);
+            }
 
             if (TodoBottomInputBorder != null)
             {
@@ -8489,15 +9686,33 @@ namespace Funkenwerk
 
         private async Task ToggleTrackFavoriteAsync(MusicTrackDto track)
         {
+            bool newFav = !track.IsFavorite;
+            track.IsFavorite = newFav;
+
+            foreach (var t in _allMusicTracks)
+            {
+                bool sameId = string.Equals(t.Id, track.Id, StringComparison.OrdinalIgnoreCase);
+                bool sameExt = !string.IsNullOrEmpty(track.ExternalId) && string.Equals(t.ExternalId, track.ExternalId, StringComparison.OrdinalIgnoreCase);
+                bool sameTitleArtist = string.Equals(t.Title, track.Title, StringComparison.OrdinalIgnoreCase) &&
+                                       string.Equals(t.Artist ?? "", track.Artist ?? "", StringComparison.OrdinalIgnoreCase);
+                if (sameId || sameExt || sameTitleArtist)
+                {
+                    t.IsFavorite = newFav;
+                }
+            }
+            if (_currentPlayingTrack != null && string.Equals(_currentPlayingTrack.Id, track.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                _currentPlayingTrack.IsFavorite = newFav;
+            }
+
+            PlaySoundActionPop();
+            SaveMusicPlaylistsToLocalCache();
+            RenderMusicAll();
+
             try
             {
-                var res = await _http.PostAsync($"{_apiBaseUrl}/funki/music/tracks/{track.Id}/favorite", new StringContent("{}", Encoding.UTF8, "application/json"));
-                if (res.IsSuccessStatusCode)
-                {
-                    track.IsFavorite = !track.IsFavorite;
-                    PlaySoundActionPop();
-                    RenderMusicAll();
-                }
+                var payload = JsonSerializer.Serialize(new { is_favorite = newFav });
+                await _http.PostAsync($"{_apiBaseUrl}/funki/music/tracks/{track.Id}/favorite", new StringContent(payload, Encoding.UTF8, "application/json"));
             }
             catch { }
         }
@@ -8558,6 +9773,7 @@ namespace Funkenwerk
             // Core Window & Sidebar Backgrounds
             ["#07090D"] = "#EEF2F6",
             ["#080A0E"] = "#EEF2F6",
+            ["#090B0F"] = "#F8FAFC",
             ["#0A0C10"] = "#EEF2F6",
             ["#0B0D12"] = "#F8FAFC",
             ["#0B0D13"] = "#E2E8F0",
@@ -8565,6 +9781,7 @@ namespace Funkenwerk
             ["#0F1117"] = "#F3F4F6",
             ["#11131A"] = "#FFFFFF",
             ["#12151E"] = "#F8FAFC",
+            ["#122B22"] = "#D1FAE5",
             ["#13161F"] = "#F1F5F9",
             ["#14171F"] = "#F8FAFC",
             ["#141720"] = "#FFFFFF",
@@ -8572,6 +9789,7 @@ namespace Funkenwerk
             ["#151822"] = "#FFFFFF",
             ["#161922"] = "#FFFFFF",
             ["#161923"] = "#F1F5F9",
+            ["#162822"] = "#D1FAE5",
             ["#171A24"] = "#F8FAFC",
             ["#163026"] = "#D1FAE5",
             ["#18191C"] = "#E2E8F0",
@@ -8580,6 +9798,7 @@ namespace Funkenwerk
             ["#1A1E29"] = "#F1F5F9",
             ["#1A1F2E"] = "#FFFFFF",
             ["#1D212D"] = "#F1F5F9",
+            ["#1D2230"] = "#E2E8F0",
             ["#1E1F22"] = "#F1F5F9",
             ["#1E222D"] = "#E5E7EB",
             ["#1E2230"] = "#E2E8F0",
@@ -8589,10 +9808,15 @@ namespace Funkenwerk
             ["#1F2433"] = "#FDF8ED",
             ["#111214"] = "#F1F5F9",
             ["#11141C"] = "#F8FAFC",
+            ["#25161B"] = "#FFE4E6",
             ["#252A38"] = "#E2E8F0",
             ["#252A3A"] = "#F1F5F9",
+            ["#26C5A059"] = "#FEF3C7",
             ["#2B2D31"] = "#E2E8F0",
+            ["#2D3348"] = "#CBD5E1",
             ["#313338"] = "#CBD5E1",
+            ["#4C1D24"] = "#FECDD3",
+            ["#FCE7B2"] = "#92400E",
 
             // Semi-Transparent Camera & Studio Overlays
             ["#CC111827"] = "#E6FFFFFF",
@@ -8689,6 +9913,7 @@ namespace Funkenwerk
             ["#581C87"] = "#D8B4FE",
 
             // Typography & Icons (Mail + Camera Studio + Discord Bars)
+            ["#FFFFFF"] = "#111827",
             ["#F9FAFB"] = "#111827",
             ["#F3F4F6"] = "#1F2937",
             ["#F2F3F5"] = "#111827",
@@ -8712,9 +9937,200 @@ namespace Funkenwerk
             ["#C084FC"] = "#7E22CE"
         };
 
+        // Pure Deep-Black (#000000) + White (#FFFFFF) / Seelenfunke Gold (#C5A059) Darkmode Palette
+        private static readonly Dictionary<string, string> _darkDeepBlackHexMap = new(StringComparer.OrdinalIgnoreCase)
+        {
+            // All Window, Sidebar, Card, Input, Button, Pill & Modal Surfaces -> Deep Black (#000000)
+            ["#000000"] = "#000000",
+            ["#07090D"] = "#000000",
+            ["#080A0E"] = "#000000",
+            ["#090B0F"] = "#000000",
+            ["#0A0C10"] = "#000000",
+            ["#0B0D12"] = "#000000",
+            ["#0B0D13"] = "#000000",
+            ["#0D0F14"] = "#000000",
+            ["#0F1117"] = "#000000",
+            ["#111214"] = "#000000",
+            ["#11131A"] = "#000000",
+            ["#11141C"] = "#000000",
+            ["#12151E"] = "#000000",
+            ["#122B22"] = "#000000",
+            ["#13161F"] = "#000000",
+            ["#14171F"] = "#000000",
+            ["#141720"] = "#000000",
+            ["#151821"] = "#000000",
+            ["#151822"] = "#000000",
+            ["#161922"] = "#000000",
+            ["#161923"] = "#000000",
+            ["#162822"] = "#000000",
+            ["#171A24"] = "#000000",
+            ["#163026"] = "#000000",
+            ["#18191C"] = "#000000",
+            ["#181B24"] = "#000000",
+            ["#181C26"] = "#000000",
+            ["#1A1E29"] = "#000000",
+            ["#1A1F2E"] = "#000000",
+            ["#1D212D"] = "#000000",
+            ["#1D2230"] = "#000000",
+            ["#1E1F22"] = "#000000",
+            ["#1E222D"] = "#000000",
+            ["#1E2230"] = "#000000",
+            ["#1F222D"] = "#000000",
+            ["#1F2430"] = "#000000",
+            ["#1F2432"] = "#000000",
+            ["#1F2433"] = "#000000",
+            ["#25161B"] = "#000000",
+            ["#252A38"] = "#000000",
+            ["#252A3A"] = "#000000",
+            ["#26C5A059"] = "#000000",
+            ["#2B2D31"] = "#000000",
+            ["#2D3348"] = "#382D18",
+            ["#313338"] = "#000000",
+            ["#4C1D24"] = "#382D18",
+            ["#FCE7B2"] = "#C5A059",
+            ["#1A1710"] = "#000000",
+            ["#24211D"] = "#000000",
+            ["#26231F"] = "#000000",
+            ["#2C2415"] = "#000000",
+            ["#2E291F"] = "#000000",
+            ["#0A221A"] = "#000000",
+            ["#132226"] = "#000000",
+            ["#1F1216"] = "#000000",
+            ["#28151A"] = "#000000",
+            ["#2A1216"] = "#000000",
+            ["#2D1418"] = "#000000",
+            ["#2D161B"] = "#000000",
+            ["#32161B"] = "#000000",
+            ["#3A181E"] = "#000000",
+            ["#06281E"] = "#000000",
+            ["#064E3B"] = "#000000",
+            ["#0F291E"] = "#000000",
+            ["#142921"] = "#000000",
+            ["#14332B"] = "#000000",
+            ["#17253B"] = "#000000",
+            ["#182232"] = "#000000",
+            ["#1E293B"] = "#000000",
+            ["#27272A"] = "#000000",
+            ["#2A1E17"] = "#000000",
+            ["#2D1836"] = "#000000",
+            ["#2D1B2E"] = "#000000",
+            ["#1E1B4B"] = "#000000",
+            ["#3B1629"] = "#000000",
+            ["#132A38"] = "#000000",
+            ["#271B3A"] = "#000000",
+            ["#991B1B"] = "#000000",
+            ["#DC2626"] = "#000000",
+            ["#E11D48"] = "#000000",
+            ["#059669"] = "#000000",
+
+            // Semi-Transparent Camera & Studio Overlays -> Deep Black
+            ["#CC111827"] = "#E6000000",
+            ["#CC26231F"] = "#E6000000",
+            ["#E6111214"] = "#E6000000",
+            ["#E6161922"] = "#F2000000",
+            ["#D90F172A"] = "#F2000000",
+            ["#D97C2D12"] = "#F2000000",
+            ["#F20B0D13"] = "#F5000000",
+
+            // Structural Borders & Dividers -> Matte Dark-Gold Hairline (#382D18) on Deep Black
+            ["#382D18"] = "#382D18",
+            ["#3F4147"] = "#382D18",
+            ["#374151"] = "#382D18",
+            ["#272B36"] = "#382D18",
+            ["#222634"] = "#382D18",
+            ["#222736"] = "#382D18",
+            ["#232734"] = "#382D18",
+            ["#232836"] = "#382D18",
+            ["#232838"] = "#382D18",
+            ["#242936"] = "#382D18",
+            ["#242938"] = "#382D18",
+            ["#262A36"] = "#382D18",
+            ["#262B3A"] = "#382D18",
+            ["#2A2F3D"] = "#382D18",
+            ["#2A3042"] = "#382D18",
+            ["#2C3242"] = "#382D18",
+            ["#2D3343"] = "#382D18",
+            ["#2D3346"] = "#382D18",
+            ["#2E3446"] = "#382D18",
+            ["#2E3546"] = "#382D18",
+            ["#32384A"] = "#382D18",
+            ["#334155"] = "#382D18",
+            ["#3B4254"] = "#382D18",
+            ["#52525B"] = "#382D18",
+
+            // Highlighted / Active / Semantic Borders -> Seelenfunke Gold (#C5A059)
+            ["#4D3D1E"] = "#C5A059",
+            ["#59482A"] = "#C5A059",
+            ["#D4AF37"] = "#C5A059",
+            ["#C5A059"] = "#C5A059",
+            ["#104E3B"] = "#C5A059",
+            ["#065F46"] = "#C5A059",
+            ["#115E59"] = "#C5A059",
+            ["#1E3A8A"] = "#C5A059",
+            ["#78350F"] = "#C5A059",
+            ["#854D0E"] = "#C5A059",
+            ["#7C2D12"] = "#C5A059",
+            ["#701A75"] = "#C5A059",
+            ["#3730A3"] = "#C5A059",
+            ["#831843"] = "#C5A059",
+            ["#155E75"] = "#C5A059",
+            ["#581C87"] = "#C5A059",
+            ["#7F1D1D"] = "#C5A059",
+
+            // Typography & Icons -> Pure White (#FFFFFF) or Seelenfunke Gold (#C5A059)
+            ["#111827"] = "#000000",
+            ["#FFFFFF"] = "#FFFFFF",
+            ["#F9FAFB"] = "#FFFFFF",
+            ["#F3F4F6"] = "#FFFFFF",
+            ["#F2F3F5"] = "#FFFFFF",
+            ["#E5E7EB"] = "#FFFFFF",
+            ["#D1D5DB"] = "#FFFFFF",
+            ["#D4D4D8"] = "#FFFFFF",
+            ["#B5BAC1"] = "#FFFFFF",
+            ["#9CA3AF"] = "#FFFFFF",
+            ["#949BA4"] = "#FFFFFF",
+            ["#6B7280"] = "#FFFFFF",
+            ["#ECFDF5"] = "#FFFFFF",
+            ["#A7F3D0"] = "#C5A059",
+            ["#FEF3C7"] = "#C5A059",
+            ["#FDE68A"] = "#C5A059",
+            ["#60A5FA"] = "#C5A059",
+            ["#93C5FD"] = "#C5A059",
+            ["#38BDF8"] = "#C5A059",
+            ["#F87171"] = "#C5A059",
+            ["#FCA5A5"] = "#C5A059",
+            ["#FECACA"] = "#C5A059",
+            ["#F59E0B"] = "#C5A059",
+            ["#FBBF24"] = "#C5A059",
+            ["#FB923C"] = "#C5A059",
+            ["#34D399"] = "#C5A059",
+            ["#2DD4BF"] = "#C5A059",
+            ["#E879F9"] = "#C5A059",
+            ["#818CF8"] = "#C5A059",
+            ["#F472B6"] = "#C5A059",
+            ["#22D3EE"] = "#C5A059",
+            ["#C084FC"] = "#C5A059"
+        };
+
         private static SolidColorBrush BrushFromHex(string hex)
         {
-            if (!_isDarkMode)
+            if (_isDarkMode)
+            {
+                if (_darkDeepBlackHexMap.TryGetValue(hex, out var darkHex))
+                {
+                    hex = darkHex;
+                }
+                else if (hex.Length == 9 && hex.StartsWith("#", StringComparison.Ordinal))
+                {
+                    string alpha = hex.Substring(1, 2);
+                    string rgb = "#" + hex.Substring(3);
+                    if (_darkDeepBlackHexMap.TryGetValue(rgb, out var mappedDarkRgb) && mappedDarkRgb.Length == 7)
+                    {
+                        hex = "#" + alpha + mappedDarkRgb.Substring(1);
+                    }
+                }
+            }
+            else
             {
                 if (_darkToLightHexMap.TryGetValue(hex, out var lightHex))
                 {
@@ -8832,6 +10248,7 @@ namespace Funkenwerk
             s = Regex.Replace(s, @"</li>", "\n", RegexOptions.IgnoreCase);
 
             // Both opening and closing block tags ensure adjacent paragraphs/rows never merge into Fließtext
+            s = Regex.Replace(s, @"</(td|th)>\s*<(td|th)(?:\s[^>]*)?>", "  ·  ", RegexOptions.IgnoreCase);
             s = Regex.Replace(s, @"</?(p|div|tr|h[1-6]|table|blockquote|section|article|header|footer)(?:\s[^>]*)?>", "\n\n", RegexOptions.IgnoreCase);
             s = Regex.Replace(s, @"</(td|th)>", "  ", RegexOptions.IgnoreCase);
 
@@ -8885,6 +10302,9 @@ namespace Funkenwerk
         private readonly CameraLiveAudioPlayer _smartAudioPlayer = new();
         private string _smartModalMode = "camera"; // "camera", "plug", "tapo_auth"
         private string? _smartEditingDeviceId = null;
+        private System.Windows.Threading.DispatcherTimer? _printerPollTimer = null;
+        private bool _isPollingPrinterQueue = false;
+        private int _printerProbeTickCounter = 0;
 
         // PTZ Precision Step Mode ("micro" = 0.018, "fine" = 0.038, "normal" = 0.075, "wide" = 0.15)
         private string _smartPtzStepMode = "fine";
@@ -9142,7 +10562,9 @@ namespace Funkenwerk
 
             LoadSmartHomeConfig();
             SyncSmartCameraWorkers();
+            EnsurePrinterQueueTimerStarted();
             RenderSmartHomeAll();
+            _ = RefreshSmartPrinterStatusAsync();
             _ = RefreshSmartPlugsStatusAsync();
         }
 
@@ -9433,10 +10855,13 @@ namespace Funkenwerk
             int onlineCams = _smartHomeData.Cameras.Count(c => c.IsOnline);
             int totalCams = _smartHomeData.Cameras.Count;
             int onlinePlugs = _smartHomeData.Plugs.Count(p => p.IsOnline);
+            string printerInfo = _smartHomeData.LabelPrinter.IsOnline
+                ? $" · 🖨 MUNBYN ({_smartHomeData.LabelPrinter.IpAddress}) Bereit"
+                : $" · 🖨 MUNBYN ({_smartHomeData.LabelPrinter.IpAddress}) Offline";
             string audioStatus = !string.IsNullOrEmpty(_smartAudioPlayer.ActiveCameraName)
                 ? $" · 🔊 Live-Ton aktiv ({_smartAudioPlayer.ActiveCameraName})"
                 : "";
-            SmartHomeHeaderSubTxt.Text = $"{onlineCams}/{totalCams} IP-Kameras Online (RTSP/ONVIF) · {onlinePlugs}/{_smartHomeData.Plugs.Count} Smart Plugs im LAN erreichbar · PTZ: {GetCurrentPtzStepLabel()}{audioStatus}";
+            SmartHomeHeaderSubTxt.Text = $"{onlineCams}/{totalCams} IP-Kameras Online · {onlinePlugs}/{_smartHomeData.Plugs.Count} Smart Plugs{printerInfo} · PTZ: {GetCurrentPtzStepLabel()}{audioStatus}";
         }
 
         private void RenderSmartHomeAll()
@@ -9444,6 +10869,7 @@ namespace Funkenwerk
             if (!_isLoaded || SmartHomeViewGrid == null) return;
             UpdateSmartGridSwitcherButtons();
             RenderSmartCamerasSidebar();
+            RenderSmartPrinterSidebar();
             RenderSmartPlugsSidebar();
             RenderSmartRecordingsSidebar();
             RenderSmartCameraMatrix();
@@ -9465,8 +10891,10 @@ namespace Funkenwerk
             foreach (var item in items)
             {
                 bool active = count == item.val && (SmartMediaPlayerBorder == null || SmartMediaPlayerBorder.Visibility != Visibility.Visible);
-                item.btn.Background = active ? BrushFromHex("#C5A059") : Brushes.Transparent;
-                item.txt.Foreground = active ? BrushFromHex("#111827") : BrushFromHex("#9CA3AF");
+                item.btn.Background = active ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : Brushes.Transparent;
+                item.btn.BorderBrush = active ? BrushFromHex("#C5A059") : Brushes.Transparent;
+                item.btn.BorderThickness = new Thickness(active ? 1 : 0);
+                item.txt.Foreground = active ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : BrushFromHex("#9CA3AF");
             }
         }
 
@@ -9705,9 +11133,10 @@ namespace Funkenwerk
                 var toggleBtn = new Button
                 {
                     Content = plug.IsOn ? "⚡ EIN" : "○ AUS",
-                    Background = plug.IsOn ? BrushFromHex("#C5A059") : BrushFromHex("#232836"),
-                    Foreground = plug.IsOn ? BrushFromHex("#111827") : BrushFromHex("#D1D5DB"),
-                    BorderThickness = new Thickness(0),
+                    Background = plug.IsOn ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : BrushFromHex("#232836"),
+                    Foreground = plug.IsOn ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : BrushFromHex("#D1D5DB"),
+                    BorderBrush = plug.IsOn ? BrushFromHex("#C5A059") : BrushFromHex("#232836"),
+                    BorderThickness = new Thickness(1),
                     Padding = new Thickness(10, 5, 10, 5),
                     FontSize = 11,
                     FontWeight = FontWeights.Bold,
@@ -9762,6 +11191,832 @@ namespace Funkenwerk
                 RenderSmartPlugsSidebar();
                 UpdateSmartHeaderSummary();
             });
+        }
+
+        private void EnsurePrinterQueueTimerStarted()
+        {
+            if (_smartHomeData.LabelPrinter == null)
+            {
+                _smartHomeData.LabelPrinter = new LabelPrinterConfig();
+            }
+            if (string.IsNullOrWhiteSpace(_smartHomeData.LabelPrinter.IpAddress))
+            {
+                _smartHomeData.LabelPrinter.IpAddress = "192.168.188.149";
+            }
+
+            if (_printerPollTimer == null)
+            {
+                _printerPollTimer = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromSeconds(3.0)
+                };
+                _printerPollTimer.Tick += async (s, e) =>
+                {
+                    await PollShopPrinterQueueAsync();
+                };
+            }
+
+            if (!_printerPollTimer.IsEnabled)
+            {
+                _printerPollTimer.Start();
+                _ = RefreshSmartPrinterStatusAsync();
+            }
+        }
+
+        private List<FunkenwerkPrintJobDto> _pendingPrintJobs = new();
+        private List<FunkenwerkPrintJobDto> _historyPrintJobs = new();
+        private FunkenwerkPrintJobDto? _previewedPrintJob = null;
+        private readonly List<string> _printerDiagnosticLogs = new();
+        private string _lastPrinterQueueSignature = "";
+
+        private void AppendPrinterDiagnosticLog(string message)
+        {
+            string entry = $"[{DateTime.Now:HH:mm:ss.fff}] {message}";
+            Dispatcher.InvokeAsync(() =>
+            {
+                _printerDiagnosticLogs.Add(entry);
+                if (_printerDiagnosticLogs.Count > 250)
+                {
+                    _printerDiagnosticLogs.RemoveAt(0);
+                }
+                if (OrdersDiagnosticLogBox != null)
+                {
+                    OrdersDiagnosticLogBox.Text = string.Join(Environment.NewLine, _printerDiagnosticLogs);
+                    OrdersDiagnosticLogBox.ScrollToEnd();
+                }
+            });
+        }
+
+        private async Task EnsureOrdersPrintViewInitializedAsync()
+        {
+            EnsurePrinterQueueTimerStarted();
+            if (_printerDiagnosticLogs.Count == 0)
+            {
+                var p = _smartHomeData.LabelPrinter ??= new LabelPrinterConfig();
+                AppendPrinterDiagnosticLog($"Funkenwerk Print-Bridge bereit · Ziel-Drucker: {p.Name} ({p.IpAddress})");
+                AppendPrinterDiagnosticLog($"Verbundenes Shop-System: {GetApiEnvironmentLabel(_apiBaseUrl)} ({_apiBaseUrl})");
+            }
+            RenderOrdersPrintDashboard();
+            await RefreshSmartPrinterStatusAsync();
+            await PollShopPrinterQueueAsync(forceLogAndRefresh: true);
+        }
+
+        private async Task RefreshSmartPrinterStatusAsync()
+        {
+            var p = _smartHomeData.LabelPrinter ??= new LabelPrinterConfig();
+            var (online, statusText, serial, fw) = await MunbynLabelPrinterEngine.ProbePrinterAsync(p.IpAddress, p.IppPort, p.RawPort);
+            p.IsOnline = online;
+            p.StatusNote = statusText;
+            if (!string.IsNullOrWhiteSpace(serial)) p.SerialNumber = serial;
+            if (!string.IsNullOrWhiteSpace(fw)) p.Firmware = fw;
+
+            Dispatcher.Invoke(() =>
+            {
+                RenderSmartPrinterSidebar();
+                UpdateSmartHeaderSummary();
+                UpdateOrdersHeaderStatusUI();
+            });
+        }
+
+        private void UpdateOrdersHeaderStatusUI()
+        {
+            var p = _smartHomeData.LabelPrinter ??= new LabelPrinterConfig();
+            if (OrdersPrinterStatusDot != null)
+                OrdersPrinterStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(p.IsOnline ? "#10B981" : "#EF4444"));
+            if (OrdersPrinterStatusTxt != null)
+            {
+                OrdersPrinterStatusTxt.Text = $"{p.Name} ({p.IpAddress}) · {(p.IsOnline ? "Bereit" : "Nicht erreichbar")}";
+                OrdersPrinterStatusTxt.Foreground = BrushFromHex("#F9FAFB");
+            }
+            if (OrdersAutoPrintToggleBtn != null)
+            {
+                OrdersAutoPrintToggleBtn.Content = p.AutoPrintShopJobs ? "⚡ Auto-Print: EIN" : "○ Auto-Print: AUS (Manuell)";
+                OrdersAutoPrintToggleBtn.Background = p.AutoPrintShopJobs
+                    ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059"))
+                    : BrushFromHex("#1E222D");
+                OrdersAutoPrintToggleBtn.Foreground = p.AutoPrintShopJobs
+                    ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827"))
+                    : BrushFromHex("#E5E7EB");
+                OrdersAutoPrintToggleBtn.BorderBrush = p.AutoPrintShopJobs
+                    ? BrushFromHex("#C5A059")
+                    : BrushFromHex("#2D3346");
+                OrdersAutoPrintToggleBtn.BorderThickness = new Thickness(1);
+            }
+            if (OrdersPrintPreviewedJobBtn != null)
+            {
+                OrdersPrintPreviewedJobBtn.Background = _isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059");
+                OrdersPrintPreviewedJobBtn.Foreground = _isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827");
+                OrdersPrintPreviewedJobBtn.BorderBrush = BrushFromHex("#C5A059");
+                OrdersPrintPreviewedJobBtn.BorderThickness = new Thickness(1);
+            }
+            UpdateOrdersSidebarBadge(_pendingPrintJobs.Count);
+        }
+
+        private void UpdateOrdersSidebarBadge(int pendingCount)
+        {
+            if (SpaceOrdersBtn == null) return;
+            SpaceOrdersBtn.ApplyTemplate();
+            if (SpaceOrdersBtn.Template?.FindName("SpaceOrdersBadge", SpaceOrdersBtn) is Border badge &&
+                SpaceOrdersBtn.Template?.FindName("SpaceOrdersBadgeTxt", SpaceOrdersBtn) is TextBlock badgeTxt)
+            {
+                badge.Visibility = pendingCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+                badgeTxt.Text = pendingCount.ToString();
+            }
+        }
+
+        private void RenderOrdersPrintDashboard()
+        {
+            UpdateOrdersHeaderStatusUI();
+
+            if (OrdersPendingCountBadgeTxt != null)
+                OrdersPendingCountBadgeTxt.Text = $"{_pendingPrintJobs.Count} offen";
+            if (OrdersHistoryCountBadgeTxt != null)
+                OrdersHistoryCountBadgeTxt.Text = $"{_historyPrintJobs.Count} Einträge";
+
+            if (OrdersPendingListPanel != null)
+            {
+                OrdersPendingListPanel.Children.Clear();
+                if (_pendingPrintJobs.Count == 0)
+                {
+                    OrdersPendingListPanel.Children.Add(new Border
+                    {
+                        Background = BrushFromHex("#0B0D12"),
+                        BorderBrush = BrushFromHex("#222634"),
+                        BorderThickness = new Thickness(1),
+                        CornerRadius = new CornerRadius(10),
+                        Padding = new Thickness(16, 18, 16, 18),
+                        Child = new TextBlock
+                        {
+                            Text = "Aktuell warten keine offenen Druckaufträge in der Warteschlange.\nKlicke im Shop unter /admin/orders auf das Drucker-Icon oder drucke unten ein vorhandenes Label erneut aus.",
+                            Foreground = BrushFromHex("#9CA3AF"),
+                            FontSize = 12,
+                            TextAlignment = TextAlignment.Center,
+                            TextWrapping = TextWrapping.Wrap
+                        }
+                    });
+                }
+                else
+                {
+                    foreach (var job in _pendingPrintJobs)
+                    {
+                        OrdersPendingListPanel.Children.Add(BuildPrintJobCardUI(job, isPending: true));
+                    }
+                }
+            }
+
+            if (OrdersHistoryListPanel != null)
+            {
+                OrdersHistoryListPanel.Children.Clear();
+                if (_historyPrintJobs.Count == 0)
+                {
+                    OrdersHistoryListPanel.Children.Add(new TextBlock
+                    {
+                        Text = "Noch keine abgeschlossenen Druckaufträge im Verlauf.",
+                        Foreground = BrushFromHex("#6B7280"),
+                        FontSize = 12,
+                        Margin = new Thickness(4, 8, 4, 8)
+                    });
+                }
+                else
+                {
+                    foreach (var job in _historyPrintJobs)
+                    {
+                        OrdersHistoryListPanel.Children.Add(BuildPrintJobCardUI(job, isPending: false));
+                    }
+                }
+            }
+        }
+
+        private UIElement BuildPrintJobCardUI(FunkenwerkPrintJobDto job, bool isPending)
+        {
+            bool isFailed = string.Equals(job.Status, "failed", StringComparison.OrdinalIgnoreCase);
+            string borderCol = isPending ? "#C5A059" : (isFailed ? "#991B1B" : "#232734");
+
+            var card = new Border
+            {
+                Background = BrushFromHex("#0B0D12"),
+                BorderBrush = BrushFromHex(borderCol),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(11),
+                Padding = new Thickness(14, 12, 14, 12),
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var leftStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+
+            // Row 1: Status Pill + Order Number + Tracking Number
+            var topRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            string statusBadgeText = isPending ? "⏳ WARTESCHLANGE" : (isFailed ? "⚠ FEHLGESCHLAGEN" : "✓ GEDRUCKT");
+            string statusBadgeBg = isPending ? "#2A1E17" : (isFailed ? "#2D161B" : "#06281E");
+            string statusBadgeFg = isPending ? "#FEF3C7" : (isFailed ? "#F87171" : "#34D399");
+            string statusBadgeBorder = isPending ? "#C5A059" : (isFailed ? "#7F1D1D" : "#065F46");
+
+            var statusPill = new Border
+            {
+                Background = BrushFromHex(statusBadgeBg),
+                BorderBrush = BrushFromHex(statusBadgeBorder),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(7, 2, 7, 2),
+                Margin = new Thickness(0, 0, 8, 0),
+                Child = new TextBlock
+                {
+                    Text = statusBadgeText,
+                    Foreground = BrushFromHex(statusBadgeFg),
+                    FontSize = 9.5,
+                    FontWeight = FontWeights.Bold
+                }
+            };
+            topRow.Children.Add(statusPill);
+
+            topRow.Children.Add(new TextBlock
+            {
+                Text = $"Bestellung #{job.OrderNumber}",
+                Foreground = BrushFromHex("#F9FAFB"),
+                FontSize = 13.5,
+                FontWeight = FontWeights.Bold,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            string formatPillText = !string.IsNullOrWhiteSpace(job.PdfBase64) || job.HasPdf ? "DHL-PDF (100×150 mm)" : "Seelenfunke-Label";
+            topRow.Children.Add(new Border
+            {
+                Background = BrushFromHex("#181C26"),
+                BorderBrush = BrushFromHex("#2D3346"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(5),
+                Padding = new Thickness(6, 2, 6, 2),
+                Margin = new Thickness(8, 0, 0, 0),
+                Child = new TextBlock
+                {
+                    Text = formatPillText,
+                    Foreground = BrushFromHex("#D4AF37"),
+                    FontSize = 9.5,
+                    FontWeight = FontWeights.SemiBold
+                }
+            });
+
+            leftStack.Children.Add(topRow);
+
+            // Row 2: Recipient & Tracking
+            string recipientSummary = $"{job.Recipient?.Name} · {job.Recipient?.PostalCode} {job.Recipient?.City} ({job.Recipient?.Country})".Trim(' ', '·');
+            leftStack.Children.Add(new TextBlock
+            {
+                Text = $"Empfänger: {recipientSummary}   |   Sendungs-Nr.: {job.TrackingNumber}",
+                Foreground = BrushFromHex("#D1D5DB"),
+                FontSize = 11.5,
+                Margin = new Thickness(0, 4, 0, 0),
+                TextTrimming = TextTrimming.CharacterEllipsis
+            });
+
+            // Row 3: Timestamps & Error Note
+            string createdStr = FormatIsoTimeShort(job.CreatedAt);
+            string printedStr = FormatIsoTimeShort(job.PrintedAt);
+            string timeLine = $"Eingereiht: {createdStr}" + (!string.IsNullOrWhiteSpace(printedStr) ? $"   ·   Verarbeitet: {printedStr}" : "");
+            if (!string.IsNullOrWhiteSpace(job.ErrorMessage))
+            {
+                timeLine += $"   ·   Grund: {job.ErrorMessage}";
+            }
+            leftStack.Children.Add(new TextBlock
+            {
+                Text = timeLine,
+                Foreground = !string.IsNullOrWhiteSpace(job.ErrorMessage) ? BrushFromHex("#F87171") : BrushFromHex("#9CA3AF"),
+                FontSize = 10.5,
+                Margin = new Thickness(0, 2, 0, 0),
+                TextWrapping = TextWrapping.Wrap
+            });
+
+            Grid.SetColumn(leftStack, 0);
+            grid.Children.Add(leftStack);
+
+            // Right Action Buttons: Vorschau + Jetzt / Erneut drucken
+            var btnRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
+
+            var previewBtn = new Button
+            {
+                Content = "👁 Vorschau",
+                Background = BrushFromHex("#1E222D"),
+                Foreground = BrushFromHex("#E5E7EB"),
+                BorderBrush = BrushFromHex("#2D3346"),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(10, 6, 10, 6),
+                Margin = new Thickness(0, 0, 6, 0),
+                FontSize = 11,
+                FontWeight = FontWeights.Bold,
+                Cursor = Cursors.Hand,
+                ToolTip = "Rendert das 4×6 Zoll Etikett und zeigt es rechts in der Vorschau an"
+            };
+            var previewCornerStyle = new Style(typeof(Border));
+            previewCornerStyle.Setters.Add(new Setter(Border.CornerRadiusProperty, new CornerRadius(7)));
+            previewBtn.Resources.Add(typeof(Border), previewCornerStyle);
+            previewBtn.Click += async (s, e) => await PreviewPrintJobInOrdersAsync(job);
+            btnRow.Children.Add(previewBtn);
+
+            var printNowBtn = new Button
+            {
+                Content = isPending ? "🖨 Jetzt drucken" : "🔄 Erneut drucken",
+                Background = _isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059"),
+                Foreground = _isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827"),
+                BorderBrush = BrushFromHex("#C5A059"),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(12, 6, 12, 6),
+                FontSize = 11,
+                FontWeight = FontWeights.Bold,
+                Cursor = Cursors.Hand,
+                ToolTip = "Sendet dieses Etikett sofort an den MUNBYN ITPP941AP (192.168.188.149)"
+            };
+            var printCornerStyle = new Style(typeof(Border));
+            printCornerStyle.Setters.Add(new Setter(Border.CornerRadiusProperty, new CornerRadius(7)));
+            printNowBtn.Resources.Add(typeof(Border), printCornerStyle);
+            printNowBtn.Click += async (s, e) =>
+            {
+                printNowBtn.IsEnabled = false;
+                printNowBtn.Content = "⏳ Druckt...";
+                try
+                {
+                    await ExecuteAndAckPrintJobAsync(job, isManualTrigger: true);
+                    await PollShopPrinterQueueAsync(forceLogAndRefresh: false);
+                }
+                finally
+                {
+                    printNowBtn.IsEnabled = true;
+                    printNowBtn.Content = isPending ? "🖨 Jetzt drucken" : "🔄 Erneut drucken";
+                }
+            };
+            btnRow.Children.Add(printNowBtn);
+
+            Grid.SetColumn(btnRow, 1);
+            grid.Children.Add(btnRow);
+
+            card.Child = grid;
+            return card;
+        }
+
+        private static string FormatIsoTimeShort(string? iso)
+        {
+            if (string.IsNullOrWhiteSpace(iso)) return "";
+            if (DateTimeOffset.TryParse(iso, out var dto))
+                return dto.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss");
+            return iso;
+        }
+
+        private async Task PreviewPrintJobInOrdersAsync(FunkenwerkPrintJobDto job)
+        {
+            _previewedPrintJob = job;
+            AppendPrinterDiagnosticLog($"Erzeuge 203-DPI Vorschau für Bestellung #{job.OrderNumber}...");
+            var (bmp, _, renderSource) = await MunbynLabelPrinterEngine.RenderJobBitmapAsync(job, AppendPrinterDiagnosticLog);
+            if (bmp != null)
+            {
+                if (OrdersLabelPreviewImg != null) OrdersLabelPreviewImg.Source = bmp;
+                if (OrdersPreviewPlaceholderTxt != null) OrdersPreviewPlaceholderTxt.Visibility = Visibility.Collapsed;
+                if (OrdersPreviewTitleTxt != null) OrdersPreviewTitleTxt.Text = $"👁 VORSCHAU: #{job.OrderNumber} ({renderSource})";
+                if (OrdersPrintPreviewedJobBtn != null) OrdersPrintPreviewedJobBtn.Visibility = Visibility.Visible;
+            }
+        }
+
+        private readonly SemaphoreSlim _printExecutionGate = new(1, 1);
+
+        private async Task<bool> ExecuteAndAckPrintJobAsync(FunkenwerkPrintJobDto job, bool isManualTrigger = false)
+        {
+            await _printExecutionGate.WaitAsync();
+            try
+            {
+                var p = _smartHomeData.LabelPrinter ??= new LabelPrinterConfig();
+                p.LastJobSummary = $"⏳ Drucke Bestellung #{job.OrderNumber}...";
+                RenderSmartPrinterSidebar();
+
+                AppendPrinterDiagnosticLog($"=== DRUCKSTART {(isManualTrigger ? "(Manuell)" : "(Auto-Queue)")}: Bestellung #{job.OrderNumber} ===");
+
+                var (ok, msg, renderedBmp) = await MunbynLabelPrinterEngine.PrintJobAsync(p, job, AppendPrinterDiagnosticLog);
+
+                if (renderedBmp != null)
+                {
+                    _previewedPrintJob = job;
+                    Dispatcher.Invoke(() =>
+                    {
+                        if (OrdersLabelPreviewImg != null) OrdersLabelPreviewImg.Source = renderedBmp;
+                        if (OrdersPreviewPlaceholderTxt != null) OrdersPreviewPlaceholderTxt.Visibility = Visibility.Collapsed;
+                        if (OrdersPreviewTitleTxt != null) OrdersPreviewTitleTxt.Text = $"👁 ZULETZT GEDRUCKT: #{job.OrderNumber}";
+                        if (OrdersPrintPreviewedJobBtn != null) OrdersPrintPreviewedJobBtn.Visibility = Visibility.Visible;
+                    });
+                }
+
+                if (Guid.TryParse(job.Id, out var validJobGuid))
+                {
+                    try
+                    {
+                        var ackPayload = JsonSerializer.Serialize(new
+                        {
+                            status = ok ? "completed" : "failed",
+                            printer_ip = p.IpAddress,
+                            error_message = ok ? null : msg
+                        });
+                        using var content = new StringContent(ackPayload, Encoding.UTF8, "application/json");
+                        var ackResp = await _http.PostAsync($"{_apiBaseUrl}/printer/jobs/{validJobGuid:D}/ack", content);
+                        AppendPrinterDiagnosticLog($"[API-Ack] Job {validJobGuid:D} im Shop als '{(ok ? "completed" : "failed")}' quittiert (HTTP {(int)ackResp.StatusCode}).");
+                    }
+                    catch (Exception ex)
+                    {
+                        AppendPrinterDiagnosticLog($"[API-Ack Warnung] Quittierung fehlgeschlagen: {ex.Message}");
+                    }
+                }
+
+                if (ok)
+                {
+                    p.PrintedSessionCount++;
+                    p.IsOnline = true;
+                    p.LastJobSummary = $"✓ Gedruckt: #{job.OrderNumber} ({DateTime.Now:HH:mm:ss})";
+                    PlaySoundActionPop();
+                }
+                else
+                {
+                    p.LastJobSummary = $"⚠ Fehler #{job.OrderNumber}: {msg}";
+                }
+
+                RenderSmartPrinterSidebar();
+                UpdateOrdersHeaderStatusUI();
+                return ok;
+            }
+            finally
+            {
+                _printExecutionGate.Release();
+            }
+        }
+
+        private void OrdersAutoPrintToggle_Click(object sender, RoutedEventArgs e)
+        {
+            var p = _smartHomeData.LabelPrinter ??= new LabelPrinterConfig();
+            p.AutoPrintShopJobs = !p.AutoPrintShopJobs;
+            PlaySoundSmartSwitch(p.AutoPrintShopJobs);
+            SaveSmartHomeConfig();
+            AppendPrinterDiagnosticLog($"Auto-Print umgeschaltet auf: {(p.AutoPrintShopJobs ? "EIN (automatischer Sofortdruck)" : "AUS (manuelle Freigabe)")}");
+            RenderSmartPrinterSidebar();
+            UpdateOrdersHeaderStatusUI();
+        }
+
+        private async void OrdersRefreshQueue_Click(object sender, RoutedEventArgs e)
+        {
+            AppendPrinterDiagnosticLog("Manuelle Synchronisation mit Shop-Warteschlange & MUNBYN-Status gestartet...");
+            await RefreshSmartPrinterStatusAsync();
+            await PollShopPrinterQueueAsync(forceLogAndRefresh: true);
+        }
+
+        private async void OrdersPrintAllPending_Click(object sender, RoutedEventArgs e)
+        {
+            if (_pendingPrintJobs.Count == 0)
+            {
+                AppendPrinterDiagnosticLog("Hinweis: Keine offenen Aufträge in der Warteschlange.");
+                return;
+            }
+            var snapshot = _pendingPrintJobs.ToList();
+            AppendPrinterDiagnosticLog($"Starte Sammeldruck für {snapshot.Count} offene(n) Auftrag/Aufträge...");
+            foreach (var job in snapshot)
+            {
+                await ExecuteAndAckPrintJobAsync(job, isManualTrigger: true);
+            }
+            await PollShopPrinterQueueAsync(forceLogAndRefresh: true);
+        }
+
+        private async void OrdersIdentifyBeep_Click(object sender, RoutedEventArgs e)
+        {
+            var p = _smartHomeData.LabelPrinter ??= new LabelPrinterConfig();
+            AppendPrinterDiagnosticLog($"Sende IPP Identify-Signalton an {p.IpAddress}:{p.IppPort}...");
+            var (ok, msg) = await MunbynLabelPrinterEngine.IdentifyPrinterAsync(p.IpAddress, p.IppPort);
+            AppendPrinterDiagnosticLog(ok ? $"✓ {msg}" : $"⚠ {msg}");
+            p.LastJobSummary = ok ? $"🔔 Signal bestätigt ({DateTime.Now:HH:mm:ss})" : $"⚠ {msg}";
+            RenderSmartPrinterSidebar();
+        }
+
+        private async void OrdersClearHistory_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                using var content = new StringContent("{\"include_pending\":false}", Encoding.UTF8, "application/json");
+                var resp = await _http.PostAsync($"{_apiBaseUrl}/printer/jobs/clear", content);
+                AppendPrinterDiagnosticLog($"Druck-Verlauf geleert (HTTP {(int)resp.StatusCode}).");
+                await PollShopPrinterQueueAsync(forceLogAndRefresh: true);
+            }
+            catch (Exception ex)
+            {
+                AppendPrinterDiagnosticLog($"Fehler beim Leeren des Verlaufs: {ex.Message}");
+            }
+        }
+
+        private async void OrdersPrintPreviewedJob_Click(object sender, RoutedEventArgs e)
+        {
+            if (_previewedPrintJob == null) return;
+            await ExecuteAndAckPrintJobAsync(_previewedPrintJob, isManualTrigger: true);
+            await PollShopPrinterQueueAsync(forceLogAndRefresh: false);
+        }
+
+        private void OrdersCopyLog_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                Clipboard.SetText(string.Join(Environment.NewLine, _printerDiagnosticLogs));
+                AppendPrinterDiagnosticLog("Log in die Zwischenablage kopiert.");
+            }
+            catch { }
+        }
+
+        private void OrdersClearLog_Click(object sender, RoutedEventArgs e)
+        {
+            _printerDiagnosticLogs.Clear();
+            if (OrdersDiagnosticLogBox != null) OrdersDiagnosticLogBox.Text = "";
+            AppendPrinterDiagnosticLog("Diagnose-Log geleert.");
+        }
+
+        private void RenderSmartPrinterSidebar()
+        {
+            if (SmartPrinterSidebarPanel == null) return;
+            SmartPrinterSidebarPanel.Children.Clear();
+
+            var p = _smartHomeData.LabelPrinter ??= new LabelPrinterConfig();
+
+            var card = new Border
+            {
+                Background = BrushFromHex("#161922"),
+                BorderBrush = p.IsOnline ? BrushFromHex("#C5A059") : BrushFromHex("#232836"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(11, 10, 11, 10),
+                Margin = new Thickness(0, 0, 0, 6)
+            };
+
+            var rootStack = new StackPanel();
+
+            var topGrid = new Grid();
+            topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var st = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            var titleRow = new StackPanel { Orientation = Orientation.Horizontal };
+            titleRow.Children.Add(new Ellipse
+            {
+                Width = 8,
+                Height = 8,
+                Fill = p.IsOnline ? BrushFromHex("#10B981") : BrushFromHex("#F59E0B"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 6, 0)
+            });
+            titleRow.Children.Add(new TextBlock
+            {
+                Text = p.Name,
+                Foreground = BrushFromHex("#F9FAFB"),
+                FontSize = 12.5,
+                FontWeight = FontWeights.Bold
+            });
+            st.Children.Add(titleRow);
+
+            st.Children.Add(new TextBlock
+            {
+                Text = $"{p.IpAddress} · {p.Hostname} (4×6\" · 203 DPI)",
+                Foreground = BrushFromHex("#D4AF37"),
+                FontSize = 10.5,
+                Margin = new Thickness(14, 2, 0, 0)
+            });
+
+            st.Children.Add(new TextBlock
+            {
+                Text = p.StatusNote,
+                Foreground = BrushFromHex("#9CA3AF"),
+                FontSize = 10,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                Margin = new Thickness(14, 1, 0, 0)
+            });
+
+            st.Children.Add(new TextBlock
+            {
+                Text = p.LastJobSummary,
+                Foreground = p.LastJobSummary.StartsWith("✓") ? BrushFromHex("#34D399") : (p.LastJobSummary.StartsWith("⚠") ? BrushFromHex("#F87171") : BrushFromHex("#9CA3AF")),
+                FontSize = 10,
+                FontWeight = FontWeights.SemiBold,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                Margin = new Thickness(14, 2, 0, 0)
+            });
+
+            topGrid.Children.Add(st);
+
+            var btnCol = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top };
+
+            var autoBtn = new Button
+            {
+                Content = p.AutoPrintShopJobs ? "⚡ AUTO" : "○ MANUELL",
+                Background = p.AutoPrintShopJobs ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : BrushFromHex("#1E222D"),
+                Foreground = p.AutoPrintShopJobs ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : BrushFromHex("#E5E7EB"),
+                BorderBrush = p.AutoPrintShopJobs ? BrushFromHex("#C5A059") : BrushFromHex("#2D3346"),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(8, 4, 8, 4),
+                FontSize = 10.5,
+                FontWeight = FontWeights.Bold,
+                Cursor = Cursors.Hand,
+                ToolTip = "Automatischer Druck eingehender Shop-Bestellungen (Live / Stage / Lokal) ein-/ausschalten"
+            };
+            autoBtn.Click += (s, e) =>
+            {
+                p.AutoPrintShopJobs = !p.AutoPrintShopJobs;
+                PlaySoundSmartSwitch(p.AutoPrintShopJobs);
+                SaveSmartHomeConfig();
+                RenderSmartPrinterSidebar();
+                UpdateOrdersHeaderStatusUI();
+            };
+            btnCol.Children.Add(autoBtn);
+
+            var beepBtn = new Button
+            {
+                Content = "🔔",
+                Background = Brushes.Transparent,
+                Foreground = BrushFromHex("#C5A059"),
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(5, 2, 5, 2),
+                Margin = new Thickness(3, 0, 0, 0),
+                Cursor = Cursors.Hand,
+                ToolTip = "Drucker im WLAN piepen/blinken lassen (IPP Identify)"
+            };
+            beepBtn.Click += async (s, e) =>
+            {
+                var (ok, msg) = await MunbynLabelPrinterEngine.IdentifyPrinterAsync(p.IpAddress, p.IppPort);
+                p.LastJobSummary = ok ? $"🔔 Signal bestätigt ({DateTime.Now:HH:mm:ss})" : $"⚠ {msg}";
+                RenderSmartPrinterSidebar();
+            };
+            btnCol.Children.Add(beepBtn);
+
+            Grid.SetColumn(btnCol, 1);
+            topGrid.Children.Add(btnCol);
+            rootStack.Children.Add(topGrid);
+
+            card.Child = rootStack;
+            SmartPrinterSidebarPanel.Children.Add(card);
+        }
+
+        private async void SmartTestPrintLabel_Click(object sender, RoutedEventArgs e)
+        {
+            var p = _smartHomeData.LabelPrinter ??= new LabelPrinterConfig();
+            p.LastJobSummary = "⏳ Sende 4×6\" Test-Label an MUNBYN...";
+            RenderSmartPrinterSidebar();
+
+            var testJob = new FunkenwerkPrintJobDto
+            {
+                Id = Guid.NewGuid().ToString(),
+                Type = "test_label",
+                OrderNumber = "SF-TEST-" + DateTime.Now.ToString("HHmm"),
+                TrackingNumber = "00340434161094015900",
+                PackageIndex = 1,
+                PackageTotal = 1,
+                WeightKg = 0.45,
+                IsExpress = true,
+                Sender = new FunkenwerkPrintAddressDto
+                {
+                    Name = "Mein-Seelenfunke · Alina Steinhauer",
+                    Street = "Carl-Goerdeler-Ring 26",
+                    PostalCode = "38518",
+                    City = "Gifhorn",
+                    Country = "DE"
+                },
+                Recipient = new FunkenwerkPrintAddressDto
+                {
+                    Name = "Alina Steinhauer",
+                    Company = "Mein-Seelenfunke Laser-Manufaktur",
+                    Street = "Carl-Goerdeler-Ring 26",
+                    PostalCode = "38518",
+                    City = "Gifhorn",
+                    Country = "DE"
+                },
+                Items = new List<FunkenwerkPrintItemDto>
+                {
+                    new FunkenwerkPrintItemDto { Qty = 1, Name = "MUNBYN ITPP941AP WLAN-Testdruck", Sku = "SF-941AP" },
+                    new FunkenwerkPrintItemDto { Qty = 1, Name = "Funkenwerk Shop-Print-Bridge Bereit", Sku = "FW-PRINT" }
+                }
+            };
+
+            AppendPrinterDiagnosticLog("=== TEST-LABEL DRUCK GESTARTET ===");
+            var (ok, msg, renderedBmp) = await MunbynLabelPrinterEngine.PrintJobAsync(p, testJob, AppendPrinterDiagnosticLog);
+            if (renderedBmp != null)
+            {
+                _previewedPrintJob = testJob;
+                if (OrdersLabelPreviewImg != null) OrdersLabelPreviewImg.Source = renderedBmp;
+                if (OrdersPreviewPlaceholderTxt != null) OrdersPreviewPlaceholderTxt.Visibility = Visibility.Collapsed;
+                if (OrdersPreviewTitleTxt != null) OrdersPreviewTitleTxt.Text = $"👁 TEST-LABEL ({testJob.OrderNumber})";
+                if (OrdersPrintPreviewedJobBtn != null) OrdersPrintPreviewedJobBtn.Visibility = Visibility.Visible;
+            }
+            if (ok)
+            {
+                p.PrintedSessionCount++;
+                p.IsOnline = true;
+                p.LastJobSummary = $"✓ Test-Label gedruckt ({DateTime.Now:HH:mm:ss})";
+                PlaySoundActionPop();
+            }
+            else
+            {
+                p.LastJobSummary = $"⚠ Fehler: {msg}";
+                MessageBox.Show(msg, "MUNBYN ITPP941AP Test-Druck", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            RenderSmartPrinterSidebar();
+            UpdateOrdersHeaderStatusUI();
+        }
+
+        private async Task PollShopPrinterQueueAsync(bool forceLogAndRefresh = false)
+        {
+            if (_isPollingPrinterQueue)
+                return;
+
+            if (string.IsNullOrWhiteSpace(_apiToken))
+            {
+                if (forceLogAndRefresh)
+                    AppendPrinterDiagnosticLog("[API-Warnung] Kein aktiver API-Token für Shop-Abfrage vorhanden (bitte in Funkenwerk anmelden).");
+                return;
+            }
+
+            _isPollingPrinterQueue = true;
+            try
+            {
+                _printerProbeTickCounter++;
+                if (_printerProbeTickCounter % 10 == 1)
+                {
+                    _ = RefreshSmartPrinterStatusAsync();
+                }
+
+                var p = _smartHomeData.LabelPrinter ??= new LabelPrinterConfig();
+                var resp = await _http.GetAsync($"{_apiBaseUrl}/printer/jobs?include_pdf=1");
+                if (!resp.IsSuccessStatusCode)
+                {
+                    if (forceLogAndRefresh)
+                        AppendPrinterDiagnosticLog($"[API-Fehler] GET {_apiBaseUrl}/printer/jobs -> HTTP {(int)resp.StatusCode}");
+                    return;
+                }
+
+                string json = await resp.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+                if (!doc.RootElement.TryGetProperty("data", out var dataEl))
+                    return;
+
+                var pendingList = dataEl.TryGetProperty("pending", out var pendingEl) && pendingEl.ValueKind == JsonValueKind.Array
+                    ? (JsonSerializer.Deserialize<List<FunkenwerkPrintJobDto>>(pendingEl.GetRawText()) ?? new())
+                    : new List<FunkenwerkPrintJobDto>();
+
+                var historyList = dataEl.TryGetProperty("history", out var historyEl) && historyEl.ValueKind == JsonValueKind.Array
+                    ? (JsonSerializer.Deserialize<List<FunkenwerkPrintJobDto>>(historyEl.GetRawText()) ?? new())
+                    : new List<FunkenwerkPrintJobDto>();
+
+                _pendingPrintJobs = pendingList;
+                _historyPrintJobs = historyList;
+
+                string sig = $"{pendingList.Count}:{string.Join(",", pendingList.Select(j => j.Id))}|{historyList.Count}:{historyList.FirstOrDefault()?.Id}:{historyList.FirstOrDefault()?.Status}";
+                bool changed = sig != _lastPrinterQueueSignature;
+                _lastPrinterQueueSignature = sig;
+
+                if (OrdersApiSyncTxt != null)
+                {
+                    OrdersApiSyncTxt.Text = $"Shop-Bridge ({GetApiEnvironmentLabel(_apiBaseUrl)}) · Letzter Sync: {DateTime.Now:HH:mm:ss} · {pendingList.Count} offen, {historyList.Count} im Verlauf";
+                }
+
+                if (changed || forceLogAndRefresh)
+                {
+                    if (forceLogAndRefresh || pendingList.Count > 0)
+                    {
+                        AppendPrinterDiagnosticLog($"[Queue-Sync] {pendingList.Count} offene(r) Druckauftrag/Aufträge, {historyList.Count} im Verlauf ({GetApiEnvironmentLabel(_apiBaseUrl)}).");
+                    }
+                    RenderOrdersPrintDashboard();
+                }
+
+                // Auto-Print für offene Jobs, falls aktiviert
+                if (p.AutoPrintShopJobs && pendingList.Count > 0)
+                {
+                    foreach (var job in pendingList)
+                    {
+                        await ExecuteAndAckPrintJobAsync(job, isManualTrigger: false);
+                    }
+                    // Queue nach Abarbeitung direkt aktualisieren
+                    var refreshResp = await _http.GetAsync($"{_apiBaseUrl}/printer/jobs?include_pdf=1");
+                    if (refreshResp.IsSuccessStatusCode)
+                    {
+                        using var refreshDoc = JsonDocument.Parse(await refreshResp.Content.ReadAsStringAsync());
+                        if (refreshDoc.RootElement.TryGetProperty("data", out var rData))
+                        {
+                            _pendingPrintJobs = rData.TryGetProperty("pending", out var rPend) && rPend.ValueKind == JsonValueKind.Array
+                                ? (JsonSerializer.Deserialize<List<FunkenwerkPrintJobDto>>(rPend.GetRawText()) ?? new())
+                                : new();
+                            _historyPrintJobs = rData.TryGetProperty("history", out var rHist) && rHist.ValueKind == JsonValueKind.Array
+                                ? (JsonSerializer.Deserialize<List<FunkenwerkPrintJobDto>>(rHist.GetRawText()) ?? new())
+                                : new();
+                            RenderOrdersPrintDashboard();
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (forceLogAndRefresh)
+                    AppendPrinterDiagnosticLog($"[Queue-Exception] {ex.Message}");
+            }
+            finally
+            {
+                _isPollingPrinterQueue = false;
+            }
         }
 
         private async Task ToggleSmartPlugAsync(SmartPlugConfig plug)
@@ -10545,9 +12800,9 @@ namespace Funkenwerk
 
                     // Tactile visual + audio haptic feedback
                     PlaySoundSmartPtzTick();
-                    padBtn.Background = BrushFromHex("#C5A059");
+                    padBtn.Background = _isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059");
                     padBtn.BorderBrush = BrushFromHex("#C5A059");
-                    lbl.Foreground = BrushFromHex("#111827");
+                    lbl.Foreground = _isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827");
                     padBtn.RenderTransform = new ScaleTransform(0.90, 0.90);
 
                     _ = TriggerStepAsync();
@@ -10822,9 +13077,10 @@ namespace Funkenwerk
             {
                 Content = isAudioOn ? "🔊 Ton AN" : "🔇 Ton",
                 ToolTip = "Echtzeit-Audioübertragung dieser Kamera ein-/ausschalten",
-                Background = isAudioOn ? BrushFromHex("#C5A059") : BrushFromHex("#1E222D"),
-                Foreground = isAudioOn ? BrushFromHex("#111827") : BrushFromHex("#F3F4F6"),
-                BorderThickness = new Thickness(0),
+                Background = isAudioOn ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : BrushFromHex("#1E222D"),
+                Foreground = isAudioOn ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : BrushFromHex("#F3F4F6"),
+                BorderBrush = isAudioOn ? BrushFromHex("#C5A059") : BrushFromHex("#2E3546"),
+                BorderThickness = new Thickness(1),
                 Padding = new Thickness(8, 4, 8, 4),
                 Margin = new Thickness(0, 0, 5, 0),
                 FontSize = 11,
@@ -11439,6 +13695,7 @@ namespace Funkenwerk
                 }
 
                 SaveSmartHomeConfig();
+                await RefreshSmartPrinterStatusAsync();
                 await RefreshSmartPlugsStatusAsync();
                 RenderSmartHomeAll();
 
@@ -11447,6 +13704,8 @@ namespace Funkenwerk
                     $"Heimnetz-Scan (192.168.188.0/24) abgeschlossen:\n\n" +
                     $"📹 Erkannte RTSP/ONVIF IP-Kameras ({foundCams.Count}):\n" +
                     $"   {string.Join(", ", foundCams.OrderBy(x => x))}\n\n" +
+                    $"🖨 WLAN-Labeldrucker:\n" +
+                    $"   {_smartHomeData.LabelPrinter.Name} ({_smartHomeData.LabelPrinter.IpAddress}) · {(_smartHomeData.LabelPrinter.IsOnline ? "ONLINE & BEREIT" : "Offline")}\n\n" +
                     $"🔌 Erkannte Smart Plugs ({foundPlugs.Count}):\n" +
                     $"   {string.Join(", ", foundPlugs.OrderBy(x => x))}" +
                     (newPlugs > 0 ? $"\n\n({newPlugs} neue Steckdose(n) automatisch hinzugefügt!)" : ""),
@@ -11498,6 +13757,11 @@ namespace Funkenwerk
         private readonly FunkenwerkVoiceChangerEngine _camVoiceChanger = new FunkenwerkVoiceChangerEngine();
         private DateTime? _videoSignalAutoStopDeadlineUtc = null;
         private int _videoSignalAutoStopLastDisplayedSec = -1;
+        private readonly MediaPlayer _camMusicSignalPlayer = new MediaPlayer();
+        private bool _isCamMusicSignalPlaying = false;
+        private bool _camMusicSignalEventsWired = false;
+        private DateTime? _musicSignalAutoStopDeadlineUtc = null;
+        private int _musicSignalAutoStopLastDisplayedSec = -1;
 
         private System.Windows.Threading.DispatcherTimer? _camRenderTimer;
         private System.Windows.Threading.DispatcherTimer? _camAudioMeterTimer;
@@ -11624,6 +13888,14 @@ namespace Funkenwerk
                 }
                 catch { }
             }
+
+            // Ensure MusicSignalClips list is clean and auto-populate with Seelenfunke Studio Tracks if empty
+            _camConfig.MusicSignalClips ??= new List<MusicSignalClipItem>();
+            _camConfig.MusicSignalClips.RemoveAll(c => string.IsNullOrWhiteSpace(c.FilePath) || !File.Exists(c.FilePath));
+            if (_camConfig.MusicSignalClips.Count == 0)
+            {
+                PopulateDefaultSfMusicSignalClips(silent: true);
+            }
         }
 
         private void SaveCameraStudioConfig()
@@ -11649,6 +13921,7 @@ namespace Funkenwerk
                 RefreshCameraWindowShareTargets();
                 RenderCameraMediaGallery();
                 RenderVideoSignalDeckList();
+                RenderMusicSignalDeckList();
                 RenderDeepFakePresetsUI();
                 SwitchCameraInspectorTab(_activeCamInspectorTab);
                 UpdateHardwareCameraStartStopButtonUI();
@@ -11658,6 +13931,27 @@ namespace Funkenwerk
 
             _isCameraStudioInitialized = true;
             LoadCameraStudioConfig();
+
+            if (!_camMusicSignalEventsWired)
+            {
+                _camMusicSignalEventsWired = true;
+                _camMusicSignalPlayer.MediaEnded += (s, e) =>
+                {
+                    if (_camConfig.MusicSignalLoop || _musicSignalAutoStopDeadlineUtc.HasValue)
+                    {
+                        try
+                        {
+                            _camMusicSignalPlayer.Position = TimeSpan.Zero;
+                            _camMusicSignalPlayer.Play();
+                        }
+                        catch { }
+                    }
+                    else
+                    {
+                        StopMusicSignalPlayback(showToast: true);
+                    }
+                };
+            }
 
             // 1. Register "Funkenwerk Kamera" in Windows DirectShow (HKCU & HKLM 64-bit & 32-bit + WM_DEVICECHANGE for Discord)
             var (regOk, regMsg) = FunkenwerkVirtualCamDriver.EnsureRegistered(_camConfig.Width, _camConfig.Height, _camConfig.Fps);
@@ -11681,6 +13975,7 @@ namespace Funkenwerk
                 RefreshCameraWindowShareTargets();
                 SyncCameraUiFromConfig();
                 RenderVideoSignalDeckList();
+                RenderMusicSignalDeckList();
                 RenderDeepFakePresetsUI();
             }
             finally
@@ -11717,6 +14012,7 @@ namespace Funkenwerk
         {
             try { _camRenderTimer?.Stop(); } catch { }
             try { _camAudioMeterTimer?.Stop(); } catch { }
+            try { _camMusicSignalPlayer.Stop(); _camMusicSignalPlayer.Close(); } catch { }
             try { _camVoiceChanger.Dispose(); } catch { }
             try { _camMediaInjector.Dispose(); } catch { }
             try { _camDeepFakeEngine.Dispose(); } catch { }
@@ -11920,6 +14216,14 @@ namespace Funkenwerk
             _camMediaInjector.BoomerangEnabled = _camConfig.VideoSignalBoomerang;
             UpdateTarnDurationButtonsUI();
 
+            // Music Signal Injector Controls
+            if (CamMusicLoopCheck != null) CamMusicLoopCheck.IsChecked = _camConfig.MusicSignalLoop;
+            int musVol = Math.Clamp(_camConfig.MusicSignalVolume <= 0 ? 75 : _camConfig.MusicSignalVolume, 0, 100);
+            _camConfig.MusicSignalVolume = musVol;
+            if (CamMusicSignalVolumeSlider != null) CamMusicSignalVolumeSlider.Value = musVol;
+            if (CamMusicSignalVolumeTxt != null) CamMusicSignalVolumeTxt.Text = $"{musVol} %";
+            try { _camMusicSignalPlayer.Volume = _camConfig.SoundMuted ? 0.0 : Math.Clamp(musVol / 100.0, 0.0, 1.0); } catch { }
+
             // Voice Changer ("Stimme" Tab) Controls
             if (CamVoiceEnableCheck != null) CamVoiceEnableCheck.IsChecked = _camConfig.VoiceChangerEnabled;
             if (CamVoiceMonitorCheck != null) CamVoiceMonitorCheck.IsChecked = _camConfig.VoiceLiveMonitor;
@@ -12093,6 +14397,26 @@ namespace Funkenwerk
                 RenderVideoSignalDeckList();
                 UpdateCameraLiveStatusBadges();
                 ShowCameraToast("🎥 Tarn-Clip abgelaufen → Automatisch zurück auf Original-Aufnahme!");
+            }
+
+            // Optional Per-Track Auto-Stop Timer for Music Signal Player
+            if (_isCamMusicSignalPlaying && _musicSignalAutoStopDeadlineUtc.HasValue)
+            {
+                double remMusSec = (_musicSignalAutoStopDeadlineUtc.Value - DateTime.UtcNow).TotalSeconds;
+                if (remMusSec <= 0)
+                {
+                    StopMusicSignalPlayback(showToast: false);
+                    ShowCameraToast("⏱ Musik-Timer abgelaufen → Musik-Einspieler gestoppt!");
+                }
+                else
+                {
+                    int ceilMusSec = Math.Max(1, (int)Math.Ceiling(remMusSec));
+                    if (ceilMusSec != _musicSignalAutoStopLastDisplayedSec)
+                    {
+                        _musicSignalAutoStopLastDisplayedSec = ceilMusSec;
+                        UpdateMusicSignalStatusBannerText();
+                    }
+                }
             }
 
             if (primaryRaw == null)
@@ -12397,6 +14721,7 @@ namespace Funkenwerk
                 if (_camConfig.DeepFakeEnabled) activeFx.Add("DEEP-FAKE KI");
                 if (_camConfig.VoiceChangerEnabled) activeFx.Add("STIMME: " + (_camConfig.VoiceChangerPreset ?? "DSP").ToUpperInvariant());
                 if (_camMediaInjector.IsPlaying) activeFx.Add("VIDEO-SIGNAL");
+                if (_isCamMusicSignalPlaying) activeFx.Add("MUSIK-SIGNAL");
                 if (_camConfig.BeautyFilter != "none") activeFx.Add("TIKTOK-BEAUTY");
                 if (_camConfig.ColorFilter != "none") activeFx.Add(_camConfig.ColorFilter.ToUpperInvariant());
                 if (_camConfig.DistortionFilter != "none") activeFx.Add(_camConfig.DistortionFilter.ToUpperInvariant());
@@ -13219,8 +15544,10 @@ namespace Funkenwerk
             void StyleBtn(Button? b, bool active)
             {
                 if (b == null) return;
-                b.Background = active ? BrushFromHex("#C5A059") : BrushFromHex("#13161F");
-                b.Foreground = active ? BrushFromHex("#111827") : BrushFromHex("#D1D5DB");
+                b.Background = active ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : BrushFromHex("#13161F");
+                b.Foreground = active ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : BrushFromHex("#D1D5DB");
+                b.BorderBrush = active ? BrushFromHex("#C5A059") : BrushFromHex("#2E3446");
+                b.BorderThickness = new Thickness(1);
                 b.FontWeight = active ? FontWeights.Bold : FontWeights.SemiBold;
             }
 
@@ -13240,16 +15567,18 @@ namespace Funkenwerk
                 bool isMouseFollow = mode != "single" &&
                                      !string.IsNullOrEmpty(_selectedShareRegionMode) &&
                                      _selectedShareRegionMode.StartsWith("mouse_follow");
-                CamQuickMouseFollowBtn.Background = isMouseFollow ? BrushFromHex("#C5A059") : BrushFromHex("#13161F");
-                CamQuickMouseFollowBtn.Foreground = isMouseFollow ? BrushFromHex("#111827") : BrushFromHex("#38BDF8");
+                CamQuickMouseFollowBtn.Background = isMouseFollow ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : BrushFromHex("#13161F");
+                CamQuickMouseFollowBtn.Foreground = isMouseFollow ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : BrushFromHex("#38BDF8");
                 CamQuickMouseFollowBtn.BorderBrush = isMouseFollow ? BrushFromHex("#C5A059") : BrushFromHex("#2E3446");
             }
 
             if (CamDiscordScreenShareBtn != null)
             {
                 bool sharing = mode == "windowshare" || mode == "screenshare_only" || mode == "pip";
-                CamDiscordScreenShareBtn.Background = sharing ? BrushFromHex("#23A55A") : BrushFromHex("#2B2D31");
-                CamDiscordScreenShareBtn.Foreground = sharing ? BrushFromHex("#FFFFFF") : BrushFromHex("#F2F3F5");
+                CamDiscordScreenShareBtn.Background = sharing ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#23A55A")) : BrushFromHex("#2B2D31");
+                CamDiscordScreenShareBtn.Foreground = sharing ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#FFFFFF")) : BrushFromHex("#F2F3F5");
+                CamDiscordScreenShareBtn.BorderBrush = sharing ? BrushFromHex("#C5A059") : BrushFromHex("#2E3446");
+                CamDiscordScreenShareBtn.BorderThickness = new Thickness(1);
             }
         }
 
@@ -13430,8 +15759,10 @@ namespace Funkenwerk
             if (CamPipQuickCropBtn != null)
             {
                 bool cropOpen = CamPipScissorsBanner != null && CamPipScissorsBanner.Visibility == Visibility.Visible;
-                CamPipQuickCropBtn.Background = cropOpen ? BrushFromHex("#C5A059") : BrushFromHex("#2B2D31");
-                CamPipQuickCropBtn.Foreground = cropOpen ? BrushFromHex("#111827") : BrushFromHex("#F2F3F5");
+                CamPipQuickCropBtn.Background = cropOpen ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : BrushFromHex("#2B2D31");
+                CamPipQuickCropBtn.Foreground = cropOpen ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : BrushFromHex("#F2F3F5");
+                CamPipQuickCropBtn.BorderBrush = cropOpen ? BrushFromHex("#C5A059") : BrushFromHex("#2E3446");
+                CamPipQuickCropBtn.BorderThickness = new Thickness(1);
             }
             if (CamPipQuickChromaBtn != null)
             {
@@ -13790,6 +16121,11 @@ namespace Funkenwerk
             CamSoundMuteBtn.Content = muted ? "🔇 Stumm" : "🔊 Sound";
             CamSoundMuteBtn.Background = muted ? BrushFromHex("#2D161B") : BrushFromHex("#1F2430");
             CamSoundMuteBtn.Foreground = muted ? BrushFromHex("#F87171") : BrushFromHex("#60A5FA");
+            try
+            {
+                _camMusicSignalPlayer.Volume = muted ? 0.0 : Math.Clamp(_camConfig.MusicSignalVolume / 100.0, 0.0, 1.0);
+            }
+            catch { }
         }
 
         // =========================================================================
@@ -14058,8 +16394,10 @@ namespace Funkenwerk
 
             void StyleBtn(Button b, bool active)
             {
-                b.Background = active ? BrushFromHex("#C5A059") : Brushes.Transparent;
-                b.Foreground = active ? BrushFromHex("#111827") : BrushFromHex(dark ? "#B5BAC1" : "#334155");
+                b.Background = active ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : Brushes.Transparent;
+                b.Foreground = active ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : BrushFromHex(dark ? "#B5BAC1" : "#334155");
+                b.BorderBrush = active ? BrushFromHex("#C5A059") : Brushes.Transparent;
+                b.BorderThickness = new Thickness(active ? 1 : 0);
                 b.FontWeight = active ? FontWeights.Bold : FontWeights.SemiBold;
             }
 
@@ -14178,14 +16516,19 @@ namespace Funkenwerk
         private void UpdateVoicePresetButtonsUI()
         {
             if (CamVoicePresetsGrid == null) return;
-            bool dark = _layoutSettings.DarkMode;
+            bool dark = _isDarkMode;
             foreach (var child in CamVoicePresetsGrid.Children)
             {
                 if (child is Button b && b.Tag is string tag)
                 {
                     bool active = string.Equals(_camConfig.VoiceChangerPreset, tag, StringComparison.OrdinalIgnoreCase);
-                    b.Background = active ? BrushFromHex("#C5A059") : BrushFromHex(dark ? "#13161F" : "#EEF2F6");
-                    b.Foreground = active ? BrushFromHex("#111827") : BrushFromHex(dark ? "#D1D5DB" : "#1E293B");
+                    b.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(
+                        active ? (dark ? "#000000" : "#C5A059") : (dark ? "#000000" : "#EEF2F6")));
+                    b.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(
+                        dark ? (active ? "#C5A059" : "#FFFFFF") : "#111827"));
+                    b.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(
+                        active ? "#C5A059" : (dark ? "#382D18" : "#CBD5E1")));
+                    b.BorderThickness = new Thickness(1);
                     b.FontWeight = active ? FontWeights.Bold : FontWeights.SemiBold;
                 }
             }
@@ -14616,9 +16959,10 @@ namespace Funkenwerk
             void StyleBtn(Button? b, bool active)
             {
                 if (b == null) return;
-                b.Background = active ? BrushFromHex("#C5A059") : BrushFromHex("#1E1F22");
-                b.Foreground = active ? BrushFromHex("#111827") : BrushFromHex("#D1D5DB");
+                b.Background = active ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : BrushFromHex("#1E1F22");
+                b.Foreground = active ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : BrushFromHex("#D1D5DB");
                 b.BorderBrush = active ? BrushFromHex("#C5A059") : BrushFromHex("#2B2D31");
+                b.BorderThickness = new Thickness(1);
             }
 
             StyleBtn(CamTarnLen5Btn, mode == "5");
@@ -15076,8 +17420,8 @@ namespace Funkenwerk
                     var chip = new Button
                     {
                         Content = label,
-                        Background = activeChip ? BrushFromHex("#C5A059") : BrushFromHex(dark ? "#1E1F22" : "#E2E8F0"),
-                        Foreground = activeChip ? BrushFromHex("#111827") : BrushFromHex(dark ? "#D1D5DB" : "#1E293B"),
+                        Background = activeChip ? (dark ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : BrushFromHex(dark ? "#1E1F22" : "#E2E8F0"),
+                        Foreground = activeChip ? (dark ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : BrushFromHex("#FFFFFF"),
                         BorderBrush = activeChip ? BrushFromHex("#C5A059") : BrushFromHex(dark ? "#2B2D31" : "#CBD5E1"),
                         BorderThickness = new Thickness(1),
                         FontSize = 9.5,
@@ -15205,6 +17549,466 @@ namespace Funkenwerk
         }
 
         // =========================================================================
+        // DYNAMIC MUSIC SIGNAL PLAYER & STUDIO BACKGROUND SOUND (Under Video-Einspieler)
+        // =========================================================================
+        private void PopulateDefaultSfMusicSignalClips(bool silent = false)
+        {
+            try
+            {
+                EnsureMarketingMusicInitialized();
+                _camConfig.MusicSignalClips ??= new List<MusicSignalClipItem>();
+                int added = 0;
+                var catalog = (_mktVault?.MusicCatalog != null && _mktVault.MusicCatalog.Count > 0)
+                    ? _mktVault.MusicCatalog
+                    : BuildDefaultMarketingMusicCatalog();
+                foreach (var track in catalog)
+                {
+                    string? path = ResolveMarketingMusicFilePath(track);
+                    if (!string.IsNullOrWhiteSpace(path) && File.Exists(path) &&
+                        !_camConfig.MusicSignalClips.Any(c => string.Equals(c.FilePath, path, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        _camConfig.MusicSignalClips.Add(new MusicSignalClipItem
+                        {
+                            Title = track.Title,
+                            FilePath = path,
+                            CategoryBadge = track.CategoryLabel
+                        });
+                        added++;
+                    }
+                }
+                if (!silent && added > 0)
+                {
+                    SaveCameraStudioConfig();
+                    RenderMusicSignalDeckList();
+                    ShowCameraToast($"🎵 {added} Seelenfunke Studio-Songs in den Musik-Einspieler geladen!");
+                }
+            }
+            catch { }
+        }
+
+        private void CamMusicLoopCheck_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_suppressCameraUiEvents || !_isCameraStudioInitialized) return;
+            PlaySoundSmartPtzTick();
+            _camConfig.MusicSignalLoop = CamMusicLoopCheck?.IsChecked == true;
+            SaveCameraStudioConfig();
+            UpdateMusicSignalStatusBannerText();
+        }
+
+        private void CamMusicSignalVolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_suppressCameraUiEvents || !_isCameraStudioInitialized) return;
+            int vol = Math.Clamp((int)Math.Round(e.NewValue), 0, 100);
+            _camConfig.MusicSignalVolume = vol;
+            if (CamMusicSignalVolumeTxt != null)
+                CamMusicSignalVolumeTxt.Text = $"{vol} %";
+            try
+            {
+                _camMusicSignalPlayer.Volume = _camConfig.SoundMuted ? 0.0 : Math.Clamp(vol / 100.0, 0.0, 1.0);
+            }
+            catch { }
+            SaveCameraStudioConfig();
+        }
+
+        private void CamAddMusicSignal_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Musik oder Sound für Musik-Einspieler hinzufügen",
+                Filter = "Audiodateien (*.mp3;*.m4a;*.wav;*.flac;*.ogg;*.wma)|*.mp3;*.m4a;*.wav;*.flac;*.ogg;*.wma",
+                Multiselect = true
+            };
+
+            if (dlg.ShowDialog() == true && dlg.FileNames.Length > 0)
+            {
+                PlaySoundActionPop();
+                _camConfig.MusicSignalClips ??= new List<MusicSignalClipItem>();
+                foreach (var f in dlg.FileNames)
+                {
+                    if (!_camConfig.MusicSignalClips.Any(c => string.Equals(c.FilePath, f, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        _camConfig.MusicSignalClips.Insert(0, new MusicSignalClipItem
+                        {
+                            Title = System.IO.Path.GetFileNameWithoutExtension(f),
+                            FilePath = f,
+                            CategoryBadge = "Eigene Datei"
+                        });
+                    }
+                }
+                SaveCameraStudioConfig();
+                RenderMusicSignalDeckList();
+                ShowCameraToast($"🎵 {dlg.FileNames.Length} Musikdatei(en) zum Einspieler hinzugefügt!");
+            }
+        }
+
+        private void CamLoadSfMusicCatalog_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundActionPop();
+            int before = _camConfig.MusicSignalClips?.Count ?? 0;
+            PopulateDefaultSfMusicSignalClips(silent: true);
+            SaveCameraStudioConfig();
+            RenderMusicSignalDeckList();
+            int after = _camConfig.MusicSignalClips?.Count ?? 0;
+            ShowCameraToast(after > before
+                ? $"✨ {after - before} Seelenfunke Songs zum Musik-Einspieler hinzugefügt!"
+                : "✨ Alle 12 Seelenfunke Studio-Songs sind bereits im Musik-Einspieler bereit!");
+        }
+
+        private void StartMusicSignalClipPlayback(MusicSignalClipItem clip)
+        {
+            if (!File.Exists(clip.FilePath))
+            {
+                _camConfig.MusicSignalClips?.Remove(clip);
+                SaveCameraStudioConfig();
+                RenderMusicSignalDeckList();
+                return;
+            }
+
+            PlaySoundActionPop();
+            _camConfig.ActiveMusicSignalPath = clip.FilePath;
+
+            if (clip.AutoStopTimerEnabled && clip.AutoStopDurationSec > 0)
+            {
+                int sec = Math.Clamp(clip.AutoStopDurationSec, 1, 600);
+                _musicSignalAutoStopDeadlineUtc = DateTime.UtcNow.AddSeconds(sec);
+                _musicSignalAutoStopLastDisplayedSec = sec;
+            }
+            else
+            {
+                _musicSignalAutoStopDeadlineUtc = null;
+                _musicSignalAutoStopLastDisplayedSec = -1;
+            }
+
+            try
+            {
+                _camMusicSignalPlayer.Stop();
+                _camMusicSignalPlayer.Open(new Uri(clip.FilePath, UriKind.Absolute));
+                _camMusicSignalPlayer.Volume = _camConfig.SoundMuted
+                    ? 0.0
+                    : Math.Clamp(_camConfig.MusicSignalVolume / 100.0, 0.0, 1.0);
+                _camMusicSignalPlayer.Play();
+                _isCamMusicSignalPlaying = true;
+            }
+            catch
+            {
+                _isCamMusicSignalPlaying = false;
+            }
+
+            if (CamMusicSignalActiveBar != null && CamMusicSignalStatusTxt != null)
+            {
+                CamMusicSignalActiveBar.Visibility = _isCamMusicSignalPlaying ? Visibility.Visible : Visibility.Collapsed;
+                UpdateMusicSignalStatusBannerText();
+            }
+
+            RenderMusicSignalDeckList();
+            UpdateCameraLiveStatusBadges();
+            ShowCameraToast(clip.AutoStopTimerEnabled
+                ? $"🎵 Spiele '{clip.Title}' für {clip.AutoStopDurationSec}s ein!"
+                : $"🎵 Musik-Einspieler aktiv: '{clip.Title}'");
+        }
+
+        private void CamStopMusicSignal_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundNav();
+            StopMusicSignalPlayback(showToast: true);
+        }
+
+        private void StopMusicSignalPlayback(bool showToast)
+        {
+            _musicSignalAutoStopDeadlineUtc = null;
+            _musicSignalAutoStopLastDisplayedSec = -1;
+            _isCamMusicSignalPlaying = false;
+            _camConfig.ActiveMusicSignalPath = "";
+            try { _camMusicSignalPlayer.Stop(); } catch { }
+            if (CamMusicSignalActiveBar != null) CamMusicSignalActiveBar.Visibility = Visibility.Collapsed;
+            RenderMusicSignalDeckList();
+            UpdateCameraLiveStatusBadges();
+            if (showToast)
+                ShowCameraToast("⏹ Musik-Einspieler gestoppt");
+        }
+
+        private void UpdateMusicSignalStatusBannerText()
+        {
+            if (!_isCamMusicSignalPlaying || CamMusicSignalStatusTxt == null) return;
+            var activeClip = _camConfig.MusicSignalClips?.FirstOrDefault(c =>
+                string.Equals(c.FilePath, _camConfig.ActiveMusicSignalPath, StringComparison.OrdinalIgnoreCase));
+            string title = activeClip?.Title ?? System.IO.Path.GetFileNameWithoutExtension(_camConfig.ActiveMusicSignalPath);
+            string modeDesc = _camConfig.MusicSignalLoop ? "Dauerschleife" : "1x Abspielen";
+            if (_musicSignalAutoStopDeadlineUtc.HasValue)
+            {
+                int rem = Math.Max(1, (int)Math.Ceiling((_musicSignalAutoStopDeadlineUtc.Value - DateTime.UtcNow).TotalSeconds));
+                modeDesc = $"⏱ Stopp in {rem}s • " + modeDesc;
+            }
+            CamMusicSignalStatusTxt.Text = $"▶ Spielt: {title} ({modeDesc})";
+        }
+
+        private void RenderMusicSignalDeckList()
+        {
+            if (CamMusicSignalListPanel == null) return;
+            CamMusicSignalListPanel.Children.Clear();
+
+            if (_camConfig.MusicSignalClips == null || _camConfig.MusicSignalClips.Count == 0)
+            {
+                CamMusicSignalListPanel.Children.Add(new TextBlock
+                {
+                    Text = "Keine Songs hinterlegt. Klicke auf '➕ Musik...' oder '✨ SF-Album laden'!",
+                    Foreground = BrushFromHex("#9CA3AF"),
+                    FontSize = 10.5,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(2, 2, 2, 0)
+                });
+                return;
+            }
+
+            bool dark = _isDarkMode;
+
+            foreach (var clip in _camConfig.MusicSignalClips.ToList())
+            {
+                if (clip.AutoStopDurationSec <= 0) clip.AutoStopDurationSec = 10;
+                if (string.IsNullOrWhiteSpace(clip.AutoStopPresetMode))
+                    clip.AutoStopPresetMode = clip.AutoStopTimerEnabled ? clip.AutoStopDurationSec.ToString() : "off";
+
+                bool isPlayingThis = _isCamMusicSignalPlaying &&
+                                     string.Equals(_camConfig.ActiveMusicSignalPath, clip.FilePath, StringComparison.OrdinalIgnoreCase);
+
+                var card = new Border
+                {
+                    Background = isPlayingThis ? BrushFromHex("#064E3B") : BrushFromHex(dark ? "#11131A" : "#F8FAFC"),
+                    BorderBrush = isPlayingThis ? BrushFromHex("#10B981") : BrushFromHex(dark ? "#262A36" : "#CBD5E1"),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(8),
+                    Padding = new Thickness(8, 6, 8, 6),
+                    Margin = new Thickness(0, 0, 0, 6)
+                };
+
+                var cardStack = new StackPanel();
+
+                // Row 1: Title + Play/Stop Button + Delete Button
+                var g = new Grid { Margin = new Thickness(0, 0, 0, 5) };
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var titleTxt = new TextBlock
+                {
+                    Text = (isPlayingThis ? "🟢 " : "🎵 ") + clip.Title,
+                    Foreground = isPlayingThis ? BrushFromHex("#ECFDF5") : BrushFromHex("#FFFFFF"),
+                    FontSize = 11.5,
+                    FontWeight = isPlayingThis ? FontWeights.Bold : FontWeights.SemiBold,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    Margin = new Thickness(0, 0, 6, 0),
+                    ToolTip = clip.Title
+                };
+                g.Children.Add(titleTxt);
+
+                string playLabel = isPlayingThis
+                    ? "⏹ Stopp"
+                    : (clip.AutoStopTimerEnabled ? $"▶ Einspielen ({clip.AutoStopDurationSec}s)" : "▶ Einspielen");
+
+                var playBtn = new Button
+                {
+                    Content = playLabel,
+                    Background = isPlayingThis ? BrushFromHex("#DC2626") : BrushFromHex("#C5A059"),
+                    Foreground = isPlayingThis ? BrushFromHex("#FFFFFF") : BrushFromHex("#111827"),
+                    BorderBrush = isPlayingThis ? BrushFromHex("#DC2626") : BrushFromHex("#C5A059"),
+                    BorderThickness = new Thickness(1),
+                    FontWeight = FontWeights.Bold,
+                    FontSize = 10.5,
+                    Padding = new Thickness(9, 4, 9, 4),
+                    Margin = new Thickness(0, 0, 4, 0),
+                    Cursor = Cursors.Hand
+                };
+                var capturedClip = clip;
+                playBtn.Click += (s, ev) =>
+                {
+                    if (isPlayingThis)
+                        CamStopMusicSignal_Click(playBtn, ev);
+                    else
+                        StartMusicSignalClipPlayback(capturedClip);
+                };
+                Grid.SetColumn(playBtn, 1);
+                g.Children.Add(playBtn);
+
+                var delBtn = new Button
+                {
+                    Content = "🗑",
+                    Background = BrushFromHex(dark ? "#1E1F22" : "#E2E8F0"),
+                    Foreground = BrushFromHex(dark ? "#9CA3AF" : "#475569"),
+                    BorderThickness = new Thickness(0),
+                    Padding = new Thickness(6, 4, 6, 4),
+                    Cursor = Cursors.Hand,
+                    ToolTip = "Aus Musik-Einspieler entfernen"
+                };
+                delBtn.Click += (s, ev) =>
+                {
+                    if (isPlayingThis)
+                        StopMusicSignalPlayback(showToast: false);
+                    _camConfig.MusicSignalClips.Remove(capturedClip);
+                    SaveCameraStudioConfig();
+                    RenderMusicSignalDeckList();
+                };
+                Grid.SetColumn(delBtn, 2);
+                g.Children.Add(delBtn);
+
+                cardStack.Children.Add(g);
+
+                // Row 2: Per-Music Auto-Stop Timer Selection (Aus | 5s | 10s | 15s | Manuell Sek.)
+                var timerRow = new Grid();
+                timerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                timerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                timerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var timerLbl = new TextBlock
+                {
+                    Text = "⏱ Timer:",
+                    Foreground = isPlayingThis ? BrushFromHex("#A7F3D0") : BrushFromHex(dark ? "#9CA3AF" : "#475569"),
+                    FontSize = 10,
+                    FontWeight = FontWeights.Bold,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 5, 0)
+                };
+                timerRow.Children.Add(timerLbl);
+
+                var btnWrap = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+
+                Button MakeMusicTimerChip(string label, string modeKey, int secVal)
+                {
+                    bool activeChip = modeKey == "off"
+                        ? !capturedClip.AutoStopTimerEnabled
+                        : (capturedClip.AutoStopTimerEnabled && capturedClip.AutoStopDurationSec == secVal);
+
+                    var chip = new Button
+                    {
+                        Content = label,
+                        Background = activeChip ? (dark ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : BrushFromHex(dark ? "#1E1F22" : "#E2E8F0"),
+                        Foreground = activeChip ? (dark ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : BrushFromHex("#FFFFFF"),
+                        BorderBrush = activeChip ? BrushFromHex("#C5A059") : BrushFromHex(dark ? "#2B2D31" : "#CBD5E1"),
+                        BorderThickness = new Thickness(1),
+                        FontSize = 9.5,
+                        FontWeight = activeChip ? FontWeights.Bold : FontWeights.SemiBold,
+                        Padding = new Thickness(6, 2, 6, 2),
+                        Margin = new Thickness(0, 0, 3, 0),
+                        Cursor = Cursors.Hand,
+                        ToolTip = modeKey == "off"
+                            ? "Kein Auto-Stopp Timer für diesen Song"
+                            : $"Song stoppt nach {secVal} Sekunden automatisch"
+                    };
+                    chip.Click += (s, ev) =>
+                    {
+                        PlaySoundSmartPtzTick();
+                        if (modeKey == "off")
+                        {
+                            capturedClip.AutoStopTimerEnabled = false;
+                            capturedClip.AutoStopPresetMode = "off";
+                            if (isPlayingThis)
+                            {
+                                _musicSignalAutoStopDeadlineUtc = null;
+                                UpdateMusicSignalStatusBannerText();
+                            }
+                        }
+                        else
+                        {
+                            capturedClip.AutoStopTimerEnabled = true;
+                            capturedClip.AutoStopDurationSec = secVal;
+                            capturedClip.AutoStopPresetMode = modeKey;
+                            if (isPlayingThis)
+                            {
+                                _musicSignalAutoStopDeadlineUtc = DateTime.UtcNow.AddSeconds(secVal);
+                                UpdateMusicSignalStatusBannerText();
+                            }
+                        }
+                        SaveCameraStudioConfig();
+                        RenderMusicSignalDeckList();
+                    };
+                    return chip;
+                }
+
+                btnWrap.Children.Add(MakeMusicTimerChip("Aus", "off", 0));
+                btnWrap.Children.Add(MakeMusicTimerChip("5s", "5", 5));
+                btnWrap.Children.Add(MakeMusicTimerChip("10s", "10", 10));
+                btnWrap.Children.Add(MakeMusicTimerChip("15s", "15", 15));
+
+                Grid.SetColumn(btnWrap, 1);
+                timerRow.Children.Add(btnWrap);
+
+                var customSp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+                bool isCustomActive = capturedClip.AutoStopTimerEnabled &&
+                                      capturedClip.AutoStopDurationSec != 5 &&
+                                      capturedClip.AutoStopDurationSec != 10 &&
+                                      capturedClip.AutoStopDurationSec != 15;
+                var customBox = new TextBox
+                {
+                    Text = capturedClip.AutoStopDurationSec.ToString(),
+                    Width = 34,
+                    Background = BrushFromHex(dark ? "#1E1F22" : "#FFFFFF"),
+                    Foreground = BrushFromHex("#FFFFFF"),
+                    BorderBrush = isCustomActive ? BrushFromHex("#C5A059") : BrushFromHex(dark ? "#2B2D31" : "#CBD5E1"),
+                    BorderThickness = new Thickness(1),
+                    FontSize = 10,
+                    FontWeight = FontWeights.Bold,
+                    Padding = new Thickness(3, 1, 3, 1),
+                    HorizontalContentAlignment = HorizontalAlignment.Center,
+                    ToolTip = "Eigene Dauer in Sekunden eingeben"
+                };
+                customBox.LostFocus += (s, ev) =>
+                {
+                    if (int.TryParse(customBox.Text.Trim(), out int val) && val > 0)
+                    {
+                        int clamped = Math.Clamp(val, 1, 600);
+                        if (capturedClip.AutoStopDurationSec != clamped)
+                        {
+                            capturedClip.AutoStopDurationSec = clamped;
+                            capturedClip.AutoStopTimerEnabled = true;
+                            capturedClip.AutoStopPresetMode = "custom";
+                            if (isPlayingThis)
+                            {
+                                _musicSignalAutoStopDeadlineUtc = DateTime.UtcNow.AddSeconds(clamped);
+                                UpdateMusicSignalStatusBannerText();
+                            }
+                            SaveCameraStudioConfig();
+                            RenderMusicSignalDeckList();
+                        }
+                    }
+                };
+                customBox.KeyDown += (s, ev) =>
+                {
+                    if (ev.Key == Key.Enter && int.TryParse(customBox.Text.Trim(), out int val) && val > 0)
+                    {
+                        int clamped = Math.Clamp(val, 1, 600);
+                        capturedClip.AutoStopDurationSec = clamped;
+                        capturedClip.AutoStopTimerEnabled = true;
+                        capturedClip.AutoStopPresetMode = "custom";
+                        if (isPlayingThis)
+                        {
+                            _musicSignalAutoStopDeadlineUtc = DateTime.UtcNow.AddSeconds(clamped);
+                            UpdateMusicSignalStatusBannerText();
+                        }
+                        SaveCameraStudioConfig();
+                        RenderMusicSignalDeckList();
+                        ShowCameraToast($"⏱ Musik-Timer für '{capturedClip.Title}' auf {clamped}s gesetzt");
+                    }
+                };
+                customSp.Children.Add(customBox);
+                customSp.Children.Add(new TextBlock
+                {
+                    Text = "s",
+                    Foreground = isPlayingThis ? BrushFromHex("#A7F3D0") : BrushFromHex(dark ? "#9CA3AF" : "#475569"),
+                    FontSize = 10,
+                    FontWeight = FontWeights.Bold,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(2, 0, 0, 0)
+                });
+                Grid.SetColumn(customSp, 2);
+                timerRow.Children.Add(customSp);
+
+                cardStack.Children.Add(timerRow);
+                card.Child = cardStack;
+                CamMusicSignalListPanel.Children.Add(card);
+            }
+        }
+
+        // =========================================================================
         // TIKTOK & BEAUTY FACE FILTERS + 60FPS FLUID SHADERS (Requirement 9+)
         // =========================================================================
         private void CamBeautyFilter_Click(object sender, RoutedEventArgs e)
@@ -15247,8 +18051,10 @@ namespace Funkenwerk
                 if (child is Button b && b.Tag is string tag)
                 {
                     bool active = string.Equals(_camConfig.BeautyFilter, tag, StringComparison.OrdinalIgnoreCase);
-                    b.Background = active ? BrushFromHex("#C5A059") : BrushFromHex("#13161F");
-                    b.Foreground = active ? BrushFromHex("#111827") : BrushFromHex("#D1D5DB");
+                    b.Background = active ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : BrushFromHex("#13161F");
+                    b.Foreground = active ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : BrushFromHex("#D1D5DB");
+                    b.BorderBrush = active ? BrushFromHex("#C5A059") : BrushFromHex("#2E3446");
+                    b.BorderThickness = new Thickness(1);
                     b.FontWeight = active ? FontWeights.Bold : FontWeights.Normal;
                 }
             }
@@ -15351,8 +18157,10 @@ namespace Funkenwerk
                 if (child is Button b && b.Tag is string tag)
                 {
                     bool active = string.Equals(_camConfig.ColorFilter, tag, StringComparison.OrdinalIgnoreCase);
-                    b.Background = active ? BrushFromHex("#C5A059") : BrushFromHex("#13161F");
-                    b.Foreground = active ? BrushFromHex("#111827") : BrushFromHex("#D1D5DB");
+                    b.Background = active ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : BrushFromHex("#13161F");
+                    b.Foreground = active ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : BrushFromHex("#D1D5DB");
+                    b.BorderBrush = active ? BrushFromHex("#C5A059") : BrushFromHex("#2E3446");
+                    b.BorderThickness = new Thickness(1);
                     b.FontWeight = active ? FontWeights.Bold : FontWeights.Normal;
                 }
             }
@@ -15378,8 +18186,10 @@ namespace Funkenwerk
                 if (child is Button b && b.Tag is string tag)
                 {
                     bool active = string.Equals(_camConfig.DistortionFilter, tag, StringComparison.OrdinalIgnoreCase);
-                    b.Background = active ? BrushFromHex("#C5A059") : BrushFromHex("#13161F");
-                    b.Foreground = active ? BrushFromHex("#111827") : BrushFromHex("#D1D5DB");
+                    b.Background = active ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : BrushFromHex("#13161F");
+                    b.Foreground = active ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : BrushFromHex("#D1D5DB");
+                    b.BorderBrush = active ? BrushFromHex("#C5A059") : BrushFromHex("#2E3446");
+                    b.BorderThickness = new Thickness(1);
                     b.FontWeight = active ? FontWeights.Bold : FontWeights.Normal;
                 }
             }
@@ -15549,8 +18359,10 @@ namespace Funkenwerk
                 if (child is Button b && b.Tag is string tag)
                 {
                     bool active = string.Equals(_camConfig.DeepFakeArMode, tag, StringComparison.OrdinalIgnoreCase);
-                    b.Background = active ? BrushFromHex("#C5A059") : BrushFromHex("#13161F");
-                    b.Foreground = active ? BrushFromHex("#111827") : BrushFromHex("#D1D5DB");
+                    b.Background = active ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : BrushFromHex("#13161F");
+                    b.Foreground = active ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : BrushFromHex("#D1D5DB");
+                    b.BorderBrush = active ? BrushFromHex("#C5A059") : BrushFromHex("#2E3446");
+                    b.BorderThickness = new Thickness(1);
                     b.FontWeight = active ? FontWeights.Bold : FontWeights.Normal;
                 }
             }
@@ -16075,8 +18887,10 @@ namespace Funkenwerk
 
             void StyleBtn(Button b, bool active)
             {
-                b.Background = active ? BrushFromHex("#C5A059") : Brushes.Transparent;
-                b.Foreground = active ? BrushFromHex("#111827") : BrushFromHex("#D1D5DB");
+                b.Background = active ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : Brushes.Transparent;
+                b.Foreground = active ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : BrushFromHex("#D1D5DB");
+                b.BorderBrush = active ? BrushFromHex("#C5A059") : Brushes.Transparent;
+                b.BorderThickness = new Thickness(active ? 1 : 0);
                 b.FontWeight = active ? FontWeights.Bold : FontWeights.SemiBold;
             }
 
@@ -16308,6 +19122,17 @@ namespace Funkenwerk
 
         private void RenderCameraStudioThemeRefresh()
         {
+            SwitchCameraInspectorTab(_activeCamInspectorTab);
+            UpdateSplitModeButtonsUI();
+            UpdateVoicePresetButtonsUI();
+            UpdateBeautyFilterButtonsUI();
+            UpdateColorFilterButtonsUI();
+            UpdateDistortionFilterButtonsUI();
+            UpdateDeepFakeArButtonsUI();
+            UpdateTarnDurationButtonsUI();
+            UpdateRecordingSpeedButtonsUI();
+            UpdatePreviewSpeedButtonsUI();
+
             if (!_isCameraStudioInitialized) return;
 
             if (CamViewportContainerBorder != null)
@@ -16343,24 +19168,15 @@ namespace Funkenwerk
                 CamSoundVuBar.Background = BrushFromHex("#111214");
             }
 
-            SwitchCameraInspectorTab(_activeCamInspectorTab);
-            UpdateSplitModeButtonsUI();
-            UpdateVoicePresetButtonsUI();
-            UpdateBeautyFilterButtonsUI();
-            UpdateColorFilterButtonsUI();
-            UpdateDistortionFilterButtonsUI();
-            UpdateDeepFakeArButtonsUI();
             UpdateVirtualCamButtonUI();
             UpdateHardwareCameraStartStopButtonUI();
             UpdateMicMuteButtonUI(_camConfig.MicMuted);
             UpdateSoundMuteButtonUI(_camConfig.SoundMuted);
             RenderCameraMediaGallery();
             RenderVideoSignalDeckList();
+            RenderMusicSignalDeckList();
             RenderDeepFakePresetsUI();
-            UpdateTarnDurationButtonsUI();
             UpdatePipQuickUiState();
-            UpdateRecordingSpeedButtonsUI();
-            UpdatePreviewSpeedButtonsUI();
         }
 
         public async Task RunAutomatedCameraStudioVerificationAsync(string reportPath)
@@ -16600,6 +19416,43 @@ namespace Funkenwerk
     // =========================================================================
     public static class FunkenwerkSoundEngine
     {
+        public static void PlayAppStartupSound(double volume)
+        {
+            Task.Run(() =>
+            {
+                try
+                {
+                    // Short, crisp, modern luxury boot sound (~420ms):
+                    // Tight sub-bass punch (120Hz -> 62Hz) + snappy D-minor9 -> A-major crystal-gold harmonic hit
+                    double[] notes = { 587.33, 880.00, 1174.66, 1479.98 }; // D5, A5, D6, F#6
+                    double[] starts = { 0.015, 0.055, 0.095, 0.130 };
+                    PlayWave(0.42, volume * 0.44, t =>
+                    {
+                        // 1. Modern punchy sub-bass impact + crisp micro-transient
+                        double subFreq = 62.0 + 68.0 * Math.Exp(-t * 36.0);
+                        double subEnv = Math.Min(1.0, t / 0.003) * Math.Exp(-t * 14.0);
+                        double sub = Math.Sin(2.0 * Math.PI * subFreq * t) * subEnv * 0.55;
+                        double click = t < 0.012 ? Math.Sin(2.0 * Math.PI * 1950.0 * t) * Math.Exp(-t * 240.0) * 0.28 : 0.0;
+
+                        // 2. Crisp crystal-gold chord shimmer
+                        double chord = 0.0;
+                        for (int i = 0; i < notes.Length; i++)
+                        {
+                            double dt = t - starts[i];
+                            if (dt <= 0) continue;
+                            double attack = Math.Min(1.0, dt / 0.004);
+                            double decay = Math.Exp(-dt * (10.5 + i * 1.5));
+                            double tone = Math.Sin(2.0 * Math.PI * notes[i] * dt)
+                                        + 0.30 * Math.Sin(2.0 * Math.PI * (notes[i] * 2.0) * dt) * Math.Exp(-dt * 20.0);
+                            chord += tone * attack * decay;
+                        }
+                        return Math.Tanh((sub + click + chord * 0.32) * 1.25);
+                    });
+                }
+                catch { }
+            });
+        }
+
         public static void PlayNavTap(double volume)
         {
             Task.Run(() =>
@@ -16725,6 +19578,36 @@ namespace Funkenwerk
             });
         }
 
+        public static void PlayMagicActivationChord(double volume)
+        {
+            Task.Run(() =>
+            {
+                try
+                {
+                    // Seelenfunke "Die Magie erwacht" 5-note golden crystal harp arpeggio (A4 -> C#5 -> E5 -> A5 -> D6, 1.35s)
+                    double[] notes = { 440.0, 554.37, 659.25, 880.0, 1174.66 };
+                    double[] starts = { 0.0, 0.085, 0.170, 0.255, 0.350 };
+                    PlayWave(1.35, volume * 0.44, t =>
+                    {
+                        double sum = 0;
+                        for (int i = 0; i < notes.Length; i++)
+                        {
+                            double dt = t - starts[i];
+                            if (dt <= 0) continue;
+                            double attack = Math.Min(1.0, dt / 0.012);
+                            double decay = Math.Exp(-dt * 3.8);
+                            double fundamental = Math.Sin(2.0 * Math.PI * notes[i] * dt);
+                            double harmonic2 = 0.28 * Math.Sin(2.0 * Math.PI * (notes[i] * 2.0) * dt) * Math.Exp(-dt * 6.5);
+                            double shimmer = 0.12 * Math.Sin(2.0 * Math.PI * (notes[i] * 3.0) * dt) * Math.Exp(-dt * 11.0);
+                            sum += (fundamental + harmonic2 + shimmer) * attack * decay;
+                        }
+                        return sum * 0.28;
+                    });
+                }
+                catch { }
+            });
+        }
+
         public static void PlayActionPop(double volume)
         {
             Task.Run(() =>
@@ -16836,6 +19719,10 @@ namespace Funkenwerk
         public string ApiTokenLocal { get; set; } = "";
         public string ApiTokenStage { get; set; } = "";
         public string ApiTokenLive { get; set; } = "";
+        public string SavedAuthEmail { get; set; } = "";
+        public string SavedAuthPassword { get; set; } = "";
+        public bool RememberCredentials { get; set; } = true;
+        public bool IsSessionLocked { get; set; } = false;
         public string ActiveModule { get; set; } = "mail";
         public int SelectedAccountId { get; set; } = 0;
         public string SelectedFolder { get; set; } = "INBOX";
@@ -16891,6 +19778,7 @@ namespace Funkenwerk
     {
         [JsonPropertyName("id")] public string Id { get; set; } = "";
         [JsonPropertyName("playlist_id")] public string? PlaylistId { get; set; }
+        [JsonPropertyName("external_id")] public string? ExternalId { get; set; }
         [JsonPropertyName("title")] public string Title { get; set; } = "";
         [JsonPropertyName("artist")] public string? Artist { get; set; }
         [JsonPropertyName("duration_seconds")] public int DurationSeconds { get; set; }

@@ -203,6 +203,114 @@ use HasFactory, HasUuids, SoftDeletes;
         };
     }
 
+    public function isAtelierLine(): bool
+    {
+        return $this->type === 'physical' && ($this->collection_line ?? 'manufaktur') === 'atelier';
+    }
+
+    public function isManufakturLine(): bool
+    {
+        return $this->type === 'physical' && ($this->collection_line ?? 'manufaktur') !== 'atelier';
+    }
+
+    public function resolveCollectionWorld(): string
+    {
+        if ($this->slug === 'geschenkgutschein' || $this->type === 'digital') {
+            return 'voucher';
+        }
+        if ($this->isAtelierLine()) {
+            return 'atelier';
+        }
+        return 'manufaktur';
+    }
+
+    public function getCollectionLineLabelAttribute(): string
+    {
+        if ($this->type === 'digital') {
+            return 'Geschenkgutscheine & Digital';
+        }
+        if ($this->type === 'service') {
+            return 'Dienstleistung & Service';
+        }
+        return ($this->collection_line ?? 'manufaktur') === 'atelier'
+            ? 'Atelier Echtgold & Silber'
+            : 'Manufaktur-Kollektion';
+    }
+
+    /**
+     * Normalisiert einen einzelnen Eintrag für digitale Begleitdokumente (z. B. Echtheitszertifikat, Pflegehinweise).
+     *
+     * @param array<string, mixed> $doc
+     * @return array{id: string, title: string, path: string, filename: string, extension: string, size_bytes: int, uploaded_at: string}|null
+     */
+    public static function normalizeDigitalDocumentItem(array $doc, int $index = 0): ?array
+    {
+        $path = trim((string) ($doc['path'] ?? ''));
+        if ($path === '') {
+            return null;
+        }
+
+        $filename = trim((string) ($doc['filename'] ?? basename($path)));
+        if ($filename === '') {
+            $filename = basename($path);
+        }
+
+        $extension = strtolower(trim((string) ($doc['extension'] ?? pathinfo($filename, PATHINFO_EXTENSION) ?: pathinfo($path, PATHINFO_EXTENSION) ?: 'pdf')));
+        $defaultTitle = pathinfo($filename, PATHINFO_FILENAME) ?: ('Dokument ' . ($index + 1));
+        $title = trim((string) ($doc['title'] ?? $defaultTitle));
+        if ($title === '') {
+            $title = $defaultTitle;
+        }
+
+        $id = trim((string) ($doc['id'] ?? ''));
+        if ($id === '') {
+            $id = 'doc_' . substr(md5($path . '|' . $index), 0, 12);
+        }
+
+        return [
+            'id' => $id,
+            'title' => $title,
+            'path' => str_replace('\\', '/', $path),
+            'filename' => $filename,
+            'extension' => $extension,
+            'size_bytes' => max(0, (int) ($doc['size_bytes'] ?? 0)),
+            'uploaded_at' => trim((string) ($doc['uploaded_at'] ?? '')),
+        ];
+    }
+
+    /**
+     * Liefert alle am Produkt hinterlegten digitalen Begleitdokumente (z. B. Echtheitszertifikat, Pflegeanleitung),
+     * die unabhängig vom Produkttyp nach dem Kauf im Kundenportal unter "Dokumente" bereitgestellt werden.
+     *
+     * @return array<int, array{id: string, title: string, path: string, filename: string, extension: string, size_bytes: int, uploaded_at: string}>
+     */
+    public function getDigitalDocuments(): array
+    {
+        $settings = is_array($this->configurator_settings) ? $this->configurator_settings : [];
+        $rawDocs = is_array($settings['digital_documents'] ?? null) ? $settings['digital_documents'] : [];
+
+        $normalized = [];
+        foreach (array_values($rawDocs) as $index => $doc) {
+            if (!is_array($doc)) {
+                continue;
+            }
+            $item = self::normalizeDigitalDocumentItem($doc, $index);
+            if ($item !== null) {
+                $normalized[] = $item;
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Prüft, ob für dieses Produkt digitale Begleitdokumente hinterlegt sind.
+     */
+    public function hasDigitalDocuments(): bool
+    {
+        return count($this->getDigitalDocuments()) > 0;
+    }
+
     public function tierPrices()
     {
         return $this->hasMany(ProductTierPrice::class)->orderBy('qty', 'asc');
@@ -446,6 +554,125 @@ use HasFactory, HasUuids, SoftDeletes;
     public function increaseStock(int $amount, ?string $variantId = null): void
     {
         $this->restoreStock($amount, $variantId);
+    }
+
+    /**
+     * Ermittelt den aktuell verfügbaren Lagerbestand (unter Berücksichtigung einer optionalen Varianten-ID).
+     */
+    public function getAvailableStockQuantity(?string $variantId = null): int
+    {
+        if ($variantId !== null && $variantId !== '' && is_array($this->variants_data) && count($this->variants_data) > 0) {
+            foreach ($this->variants_data as $variant) {
+                if (is_array($variant) && ($variant['id'] ?? null) === $variantId) {
+                    if (isset($variant['stock']) && $variant['stock'] !== '' && $variant['stock'] !== null) {
+                        return (int) $variant['stock'];
+                    }
+                    break;
+                }
+            }
+        }
+
+        return (int) ($this->quantity ?? 0);
+    }
+
+    /**
+     * Prüft, ob dieses physische Produkt bei der angefragten Menge eine Rohling-Nachbestellung beim Lieferanten benötigt
+     * (d. h. Bestandsführung aktiv, Überverkauf erlaubt und verfügbarer Bestand < angefragte Menge).
+     */
+    public function requiresSupplierProcurement(int $requestedQty = 1, ?string $variantId = null): bool
+    {
+        if (!$this->isPhysical() || $this->isGiftVoucher()) {
+            return false;
+        }
+
+        if (!$this->track_quantity || !$this->continue_selling_when_out_of_stock) {
+            return false;
+        }
+
+        $needed = max(1, $requestedQty);
+        return $this->getAvailableStockQuantity($variantId) < $needed;
+    }
+
+    /**
+     * Ermittelt die fehlende Rohling-Menge, die beim Lieferanten nachbestellt werden muss.
+     */
+    public function getMissingStockQuantity(int $requestedQty = 1, ?string $variantId = null): int
+    {
+        if (!$this->requiresSupplierProcurement($requestedQty, $variantId)) {
+            return 0;
+        }
+
+        $available = max(0, $this->getAvailableStockQuantity($variantId));
+        return max(0, max(1, $requestedQty) - $available);
+    }
+
+    /**
+     * Ermittelt die zusätzliche Lieferanten-Vorlaufzeit (Min/Max in Werktagen) bei Bestand 0:
+     * 1. Produktspezifischer Override aus configurator_settings['out_of_stock_lead_days_min' / 'max']
+     * 2. Automatischer Fallback aus dem verknüpften ProductSupplier (lead_time_land_days / lead_time_air_days)
+     * 3. Sicherheits-Fallback (4-6 Werktage für Manufaktur, 5-7 Werktage für Atelier)
+     *
+     * @return array{min: int, max: int, source: string, supplier_name: ?string}
+     */
+    public function getSupplierLeadDaysRange(): array
+    {
+        $settings = is_array($this->configurator_settings) ? $this->configurator_settings : [];
+        $customMin = (isset($settings['out_of_stock_lead_days_min']) && $settings['out_of_stock_lead_days_min'] !== '' && $settings['out_of_stock_lead_days_min'] !== null)
+            ? max(0, (int) $settings['out_of_stock_lead_days_min'])
+            : 0;
+        $customMax = (isset($settings['out_of_stock_lead_days_max']) && $settings['out_of_stock_lead_days_max'] !== '' && $settings['out_of_stock_lead_days_max'] !== null)
+            ? max(0, (int) $settings['out_of_stock_lead_days_max'])
+            : 0;
+
+        $supplier = $this->relationLoaded('supplier')
+            ? $this->supplier
+            : (!empty($this->product_supplier_id) ? $this->supplier()->first() : null);
+        $supplierName = $supplier?->name;
+
+        if ($customMin > 0 || $customMax > 0) {
+            $min = $customMin > 0 ? $customMin : max(1, $customMax - 2);
+            $max = $customMax >= $min ? $customMax : ($min + 2);
+
+            return [
+                'min' => $min,
+                'max' => $max,
+                'source' => 'custom',
+                'supplier_name' => $supplierName,
+            ];
+        }
+
+        if ($supplier) {
+            $landDays = max(0, (int) ($supplier->lead_time_land_days ?? 0));
+            $airDays = max(0, (int) ($supplier->lead_time_air_days ?? 0));
+            $baseDays = $landDays > 0 ? $landDays : ($airDays > 0 ? $airDays : 0);
+
+            if ($baseDays > 0) {
+                return [
+                    'min' => $baseDays,
+                    'max' => $baseDays + 2,
+                    'source' => 'supplier',
+                    'supplier_name' => $supplierName,
+                ];
+            }
+        }
+
+        $defaultMin = $this->isAtelierLine() ? 5 : 4;
+        $defaultMax = $this->isAtelierLine() ? 7 : 6;
+
+        return [
+            'min' => $defaultMin,
+            'max' => $defaultMax,
+            'source' => 'default',
+            'supplier_name' => $supplierName,
+        ];
+    }
+
+    /**
+     * Liefert die effektiven Lieferzeit-Details (inkl. Lieferanten-Vorlaufzeit bei Bestand 0 + Manufakturzeit).
+     */
+    public function getEffectiveDeliveryDetails(int $requestedQty = 1, ?string $variantId = null): array
+    {
+        return \App\Models\Delivery\DeliverySetting::getDeliveryDetailsForProduct($this, $requestedQty, $variantId);
     }
 
     // --- NEUE TYP-LOGIK ---

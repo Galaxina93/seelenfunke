@@ -61,6 +61,7 @@ return new class extends Migration
             $table->string('name');
             $table->string('slug')->unique();
             $table->string('type')->default('physical')->index();
+            $table->string('collection_line', 32)->default('manufaktur')->index();
             $table->boolean('is_personalizable')->default(true);
             $table->boolean('three_d_active')->default(true);
             $table->enum('status', ['draft', 'active', 'archived'])->default('draft')->index();

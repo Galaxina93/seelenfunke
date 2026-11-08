@@ -13,13 +13,8 @@
                 <p class="text-gray-700 text-lg mb-4 leading-relaxed">
                     Ob für verdiente Mitarbeiter, langjährige Partner oder einen Herzensmenschen: Schenken sollte Freude bereiten, keinen Stress verursachen.
                 </p>
-                <p class="text-gray-700 text-lg mb-6 leading-relaxed">
+                <p class="text-gray-700 text-lg mb-8 leading-relaxed">
                     Bei <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong> erhalten Sie kein anonymes Massenprodukt, sondern ein handveredeltes Unikat aus vergoldetem Edelstahl, massivem Aluminium, 360°-Kristallglas oder optisch reinem K9-Kristall. Wir übernehmen für Sie den kompletten Prozess von der Prüfung Ihrer Daten bis zum sicheren Versand an den Empfänger.
-                </p>
-
-                {{-- Highlight Box --}}
-                <p class="text-white text-lg mb-10 leading-relaxed bg-gradient-to-r from-[#6e5218] to-primary-dark p-6 rounded-xl shadow-lg border-l-4 border-white/30">
-                    <strong>Unser Anspruch:</strong> Sie gestalten Ihr Wunschstück bequem im Live-3D-Konfigurator und wir sorgen in unserer deutschen Manufaktur dafür, dass beim Auspacken echte Begeisterung entsteht.
                 </p>
 
                 <h3 class="text-xl font-bold text-gray-800 mb-6">Ihre Vorteile im Überblick:</h3>

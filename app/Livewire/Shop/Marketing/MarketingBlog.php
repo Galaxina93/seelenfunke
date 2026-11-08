@@ -187,6 +187,26 @@ class MarketingBlog extends Component
         $this->author_name = $post->author_name;
     }
 
+    public static function sanitizeBlogText(?string $text): ?string
+    {
+        if ($text === null) {
+            return null;
+        }
+
+        // Entferne HTML-Entities für Gedankenstriche und ersetze Zahlenbereiche (z. B. 12–14 -> 12 bis 14)
+        $clean = str_replace(['&ndash;', '&mdash;', '&#8211;', '&#8212;'], '–', $text);
+        $clean = preg_replace('/(\d)\s*[–—]\s*(\d)/u', '$1 bis $2', $clean) ?? $clean;
+
+        // Ersetze Gedankenstriche mit Leerzeichen durch Komma oder Doppelpunkt-lose Trennung
+        $clean = preg_replace('/\s+[–—]\s+/u', ', ', $clean) ?? $clean;
+        $clean = str_replace(['–', '—'], '-', $clean);
+
+        // Entferne jegliche Hinweise auf maschinelle Texterstellung
+        $clean = preg_replace('/\b(KI-generiert|KI-Text|Von KI erstellt|Als KI-Sprachmodell)\b/iu', '', $clean) ?? $clean;
+
+        return trim($clean);
+    }
+
     public static function sanitizeBlogHtml(string $html): string
     {
         $clean = preg_replace('/<\s*(script|iframe|object|embed|applet|meta|base|form)\b[^>]*>.*?<\s*\/\s*\1\s*>/is', '', $html) ?? $html;
@@ -194,7 +214,7 @@ class MarketingBlog extends Component
         $clean = preg_replace('/\s+on[a-z]+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $clean) ?? $clean;
         $clean = preg_replace('/\b(href|src|action|formaction|xlink:href)\s*=\s*(["\']?)\s*(?:javascript|vbscript|data\s*:\s*text\/html)[^"\'>\s]*\2/i', '$1="#"', $clean) ?? $clean;
 
-        return $clean;
+        return (string) self::sanitizeBlogText($clean);
     }
 
     public function save()
@@ -203,9 +223,13 @@ class MarketingBlog extends Component
             abort(403);
         }
 
-        $this->validate();
-
+        $this->title = self::sanitizeBlogText((string) $this->title);
+        $this->excerpt = self::sanitizeBlogText($this->excerpt);
+        $this->meta_title = self::sanitizeBlogText($this->meta_title);
+        $this->meta_description = self::sanitizeBlogText($this->meta_description);
         $this->content = self::sanitizeBlogHtml((string) $this->content);
+
+        $this->validate();
 
         $data = [
             'title' => $this->title,

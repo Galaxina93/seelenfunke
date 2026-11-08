@@ -14,8 +14,8 @@
     --}}
     <nav x-data="{ open: false }"
          @click.away="open = false"
-         class="bg-primary-dark shadow-lg fixed w-full top-0 transition-all duration-300"
-         style="z-index: 99999;"
+         class="bg-black shadow-lg fixed w-full top-0 transition-all duration-300"
+         style="background-color: #000000; z-index: 99999;"
          id="navbar">
 
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
@@ -47,11 +47,6 @@
                         <a href="{{ route('shop') }}"
                            class="{{ Request::routeIs('shop') ? 'text-primary' : 'text-white' }} hover:text-primary transition-colors font-medium whitespace-nowrap">
                             Shop
-                        </a>
-
-                        <a href="{{ route('marketing/marketing/blog') }}"
-                           class="{{ Request::routeIs('marketing/marketing/blog') ? 'text-primary' : 'text-white' }} hover:text-primary transition-colors font-medium whitespace-nowrap">
-                            Blog
                         </a>
 
                         <a href="{{ route('product.show', 'geschenkgutschein') }}"
@@ -105,7 +100,7 @@
             </div>
         </div>
 
-        {{-- Mobile Menu (Modern White Design) --}}
+        {{-- Mobile Menu (100% Black Design) --}}
         <div x-show="open"
              x-transition:enter="transition ease-out duration-200"
              x-transition:enter-start="opacity-0 -translate-y-2"
@@ -114,41 +109,36 @@
              x-transition:leave-start="opacity-100 translate-y-0"
              x-transition:leave-end="opacity-0 -translate-y-2"
              x-cloak
-             class="md:hidden bg-white text-gray-900 border-t border-gray-200/80 shadow-[0_20px_50px_rgba(0,0,0,0.14)] rounded-b-2xl absolute w-full left-0 overflow-hidden">
+             class="md:hidden bg-black text-white border-t border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-b-2xl absolute w-full left-0 overflow-hidden"
+             style="background-color: #000000;">
 
             <div class="px-4 pt-4 pb-6 space-y-1.5">
                 <a href="{{ route('home') }}"
-                   class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-base transition-colors {{ Request::routeIs('home') ? 'bg-amber-50/80 text-primary font-bold border border-primary/20' : 'text-gray-800 font-medium hover:bg-gray-50 hover:text-primary' }}">
+                   class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-base transition-colors {{ Request::routeIs('home') ? 'bg-white/10 text-primary font-bold border border-primary/30' : 'text-white font-medium hover:bg-white/5 hover:text-primary' }}">
                     <span>Startseite</span>
                     @if(Request::routeIs('home')) <span class="w-1.5 h-1.5 rounded-full bg-primary"></span> @endif
                 </a>
 
                 <a href="{{ route('manufacture') }}"
-                   class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-base transition-colors {{ Request::routeIs('manufacture') ? 'bg-amber-50/80 text-primary font-bold border border-primary/20' : 'text-gray-800 font-medium hover:bg-gray-50 hover:text-primary' }}">
+                   class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-base transition-colors {{ Request::routeIs('manufacture') ? 'bg-white/10 text-primary font-bold border border-primary/30' : 'text-white font-medium hover:bg-white/5 hover:text-primary' }}">
                     <span>Manufaktur</span>
                     @if(Request::routeIs('manufacture')) <span class="w-1.5 h-1.5 rounded-full bg-primary"></span> @endif
                 </a>
 
                 <a href="{{ route('shop') }}"
-                   class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-base transition-colors {{ Request::routeIs('shop') ? 'bg-amber-50/80 text-primary font-bold border border-primary/20' : 'text-gray-800 font-medium hover:bg-gray-50 hover:text-primary' }}">
+                   class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-base transition-colors {{ Request::routeIs('shop') ? 'bg-white/10 text-primary font-bold border border-primary/30' : 'text-white font-medium hover:bg-white/5 hover:text-primary' }}">
                     <span>Shop</span>
                     @if(Request::routeIs('shop')) <span class="w-1.5 h-1.5 rounded-full bg-primary"></span> @endif
                 </a>
 
-                <a href="{{ route('marketing/marketing/blog') }}"
-                   class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-base transition-colors {{ Request::routeIs('marketing/marketing/blog') ? 'bg-amber-50/80 text-primary font-bold border border-primary/20' : 'text-gray-800 font-medium hover:bg-gray-50 hover:text-primary' }}">
-                    <span>Blog</span>
-                    @if(Request::routeIs('marketing/marketing/blog')) <span class="w-1.5 h-1.5 rounded-full bg-primary"></span> @endif
-                </a>
-
                 <a href="{{ route('contact') }}"
-                   class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-base transition-colors {{ Request::routeIs('contact') ? 'bg-amber-50/80 text-primary font-bold border border-primary/20' : 'text-gray-800 font-medium hover:bg-gray-50 hover:text-primary' }}">
+                   class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-base transition-colors {{ Request::routeIs('contact') ? 'bg-white/10 text-primary font-bold border border-primary/30' : 'text-white font-medium hover:bg-white/5 hover:text-primary' }}">
                     <span>Kontakt</span>
                     @if(Request::routeIs('contact')) <span class="w-1.5 h-1.5 rounded-full bg-primary"></span> @endif
                 </a>
 
                 <a href="{{ route('product.show', 'geschenkgutschein') }}"
-                   class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-base font-bold transition-colors {{ request()->is('produkt/geschenkgutschein') ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'text-amber-600 hover:bg-amber-50/60 hover:text-amber-700' }}">
+                   class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-base font-bold transition-colors {{ request()->is('produkt/geschenkgutschein') ? 'bg-white/10 text-amber-400 border border-amber-400/30' : 'text-amber-400 hover:bg-white/5 hover:text-amber-300' }}">
                     <span class="flex items-center gap-2">
                         <i class="bi bi-gift-fill text-primary"></i>
                         <span>Gutscheine kaufen</span>
@@ -156,12 +146,12 @@
                 </a>
 
                 <div class="pt-2">
-                    <a href="{{ route('calculator') }}" class="block px-4 py-3 text-center bg-primary text-gray-900 font-bold rounded-xl shadow-sm hover:bg-primary-dark hover:text-white transition-all">
+                    <a href="{{ route('calculator') }}" class="block px-4 py-3 text-center bg-primary text-gray-900 font-bold rounded-xl shadow-sm hover:bg-primary-light transition-all">
                         Angebot kalkulieren
                     </a>
                 </div>
 
-                <div class="mt-4 border-t border-gray-100 pt-3 pb-1">
+                <div class="mt-4 border-t border-white/10 pt-3 pb-1">
                     <livewire:auth.auth-login-dropdown :isMobile="true" />
                 </div>
             </div>

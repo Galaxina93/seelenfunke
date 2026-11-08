@@ -6,6 +6,7 @@
     $totalInvoicesCount = $filteredInvoices->count() + $filteredPayouts->count();
 @endphp
 <div x-data="{ mainTab: 'expenses', showExplanation: false }"
+     x-on:switch-tab.window="mainTab = $event.detail.tab"
      class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6 lg:py-7 animate-fade-in-up font-sans antialiased text-gray-700 dark:text-gray-300">
 
     {{-- Flash-Meldungen --}}
@@ -46,6 +47,35 @@
                         &bull; St.-Nr.: <span class="font-mono">{{ $companyMeta['tax_id'] ?: '—' }}</span>
                         &bull; <span class="text-primary font-semibold">{{ $activeMonthData['is_small_business_year'] ? '§ 19 UStG' : 'Regelbesteuert (' . $formattedTaxRate . ' %)' }}</span>
                     </p>
+                    <div class="flex flex-wrap items-center gap-2 mt-2">
+                        {{-- Fristen-Radar Badge --}}
+                        <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold {{ $deadlineStatus['is_past'] ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20' : ($deadlineStatus['days_remaining'] <= 5 ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700') }}">
+                            <x-heroicon-o-calendar class="w-3.5 h-3.5 text-primary" />
+                            <span>UStVA-Frist: {{ $deadlineStatus['date_formatted'] }}</span>
+                            @if($deadlineStatus['is_past'])
+                                <span class="text-rose-600 font-extrabold">(Fällig)</span>
+                            @elseif($deadlineStatus['is_today'])
+                                <span class="text-amber-600 font-extrabold">(Heute)</span>
+                            @else
+                                <span class="text-gray-400 font-normal">({{ $deadlineStatus['days_remaining'] }} Tage verbleibend)</span>
+                            @endif
+                        </div>
+
+                        {{-- Beleg-Vollständigkeit Badge --}}
+                        @if($activeMonthData['missing_receipts_count'] === 0)
+                            <div class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                                <x-heroicon-s-check-circle class="w-3.5 h-3.5 text-emerald-500" />
+                                <span>Belege 100 % vollständig</span>
+                            </div>
+                        @else
+                            <button type="button" wire:click="setReceiptStatusFilter('missing_receipt')"
+                                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-colors cursor-pointer"
+                                    title="Tabelle nach fehlenden Belegen filtern">
+                                <x-heroicon-s-exclamation-triangle class="w-3.5 h-3.5 text-amber-600" />
+                                <span>{{ $activeMonthData['missing_receipts_count'] }} Belege fehlen (Filtern)</span>
+                            </button>
+                        @endif
+                    </div>
                 </div>
             </div>
 
@@ -155,34 +185,74 @@
 
         {{-- Kachel-Header: Titel + Tab-Umschalter + Gewerbe/Privat-Filter --}}
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-4 mb-4 border-b border-gray-100 dark:border-gray-800">
-            <div class="flex flex-wrap items-center gap-2">
-                <div class="inline-flex items-center gap-1 bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800">
+            <div class="w-full lg:w-auto overflow-x-auto max-w-full no-scrollbar pb-1 lg:pb-0">
+                <div class="inline-flex items-center gap-1 bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800 whitespace-nowrap">
                     <button type="button" @click="mainTab = 'expenses'"
                             :class="mainTab === 'expenses' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500 hover:text-gray-900'"
-                            class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer">
+                            class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0">
                         Ausgaben &amp; Belege ({{ $totalExpensesCount }})
                     </button>
                     <button type="button" @click="mainTab = 'invoices'"
                             :class="mainTab === 'invoices' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500 hover:text-gray-900'"
-                            class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer">
+                            class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0">
                         Rechnungen &amp; Gutschriften ({{ $totalInvoicesCount }})
                     </button>
                     <button type="button" @click="mainTab = 'ustva'"
                             :class="mainTab === 'ustva' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500 hover:text-gray-900'"
-                            class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer">
+                            class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0">
                         UStVA &amp; Jahreswerte
                     </button>
                     <button type="button" @click="mainTab = 'hr'"
                             :class="mainTab === 'hr' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500 hover:text-gray-900'"
-                            class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer">
+                            class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0">
                         Personal ({{ isset($employeeContracts) ? $employeeContracts->count() : 0 }})
+                    </button>
+                    <button type="button" @click="mainTab = 'tasks'"
+                            :class="mainTab === 'tasks' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500 hover:text-gray-900'"
+                            class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 flex items-center gap-1.5">
+                        <span>Aufgaben ({{ $openTaxTasksCount }})</span>
+                        @if($openTaxTasksCount > 0)
+                            <span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                        @endif
                     </button>
                 </div>
             </div>
 
             {{-- Rechts: Kompakte Filter passend zum Tab --}}
             <div class="flex flex-wrap items-center gap-2">
-                <div x-show="mainTab !== 'invoices'" class="inline-flex items-center bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800">
+                <div x-show="mainTab === 'expenses'" class="flex flex-wrap items-center gap-2">
+                    <div class="inline-flex items-center bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800">
+                        <button type="button" wire:click="setScopeFilter('all')"
+                                class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $scopeFilter === 'all' ? 'bg-primary text-white' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">
+                            Alle
+                        </button>
+                        <button type="button" wire:click="setScopeFilter('business')"
+                                class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $scopeFilter === 'business' ? 'bg-primary text-white' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">
+                            Gewerblich
+                        </button>
+                        <button type="button" wire:click="setScopeFilter('private')"
+                                class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $scopeFilter === 'private' ? 'bg-primary text-white' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">
+                            Privat
+                        </button>
+                    </div>
+
+                    <div class="inline-flex items-center bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800">
+                        <button type="button" wire:click="setReceiptStatusFilter('all')"
+                                class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $receiptStatusFilter === 'all' ? 'bg-gray-900 text-white dark:bg-primary dark:text-gray-950' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">
+                            Alle Belege
+                        </button>
+                        <button type="button" wire:click="setReceiptStatusFilter('with_receipt')"
+                                class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $receiptStatusFilter === 'with_receipt' ? 'bg-gray-900 text-white dark:bg-primary dark:text-gray-950' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">
+                            Belegt ✓
+                        </button>
+                        <button type="button" wire:click="setReceiptStatusFilter('missing_receipt')"
+                                class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $receiptStatusFilter === 'missing_receipt' ? 'bg-rose-600 text-white' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">
+                            Fehlt ⚠️ ({{ $activeMonthData['missing_receipts_count'] }})
+                        </button>
+                    </div>
+                </div>
+
+                <div x-show="mainTab === 'ustva'" class="inline-flex items-center bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800">
                     <button type="button" wire:click="setScopeFilter('all')"
                             class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $scopeFilter === 'all' ? 'bg-primary text-white' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">
                         Alle
@@ -205,6 +275,21 @@
                         <option value="cancellation">Stornos &amp; Gutschriften</option>
                         <option value="influencer_payout">Creator-Gutschriften (§ 14 UStG)</option>
                     </select>
+                </div>
+
+                <div x-show="mainTab === 'tasks'" x-cloak class="inline-flex items-center bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800">
+                    <button type="button" wire:click="$set('taskStatusFilter', 'open')"
+                            class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $taskStatusFilter === 'open' ? 'bg-primary text-white' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">
+                        Offen ({{ $openTaxTasksCount }})
+                    </button>
+                    <button type="button" wire:click="$set('taskStatusFilter', 'completed')"
+                            class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $taskStatusFilter === 'completed' ? 'bg-primary text-white' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">
+                        Erledigt ({{ $completedTaxTasksCount }})
+                    </button>
+                    <button type="button" wire:click="$set('taskStatusFilter', 'all')"
+                            class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $taskStatusFilter === 'all' ? 'bg-primary text-white' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">
+                        Alle
+                    </button>
                 </div>
             </div>
         </div>
@@ -262,6 +347,13 @@
                                                     class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:border-primary text-[10px] font-black uppercase tracking-wider text-primary cursor-pointer">
                                                 <x-heroicon-o-arrow-down-tray class="w-3.5 h-3.5" /> Vertrag
                                             </button>
+                                        @elseif($fItem['is_business'])
+                                            <button type="button" wire:click="prefillNewTaskForMissingReceipt('{{ $fItem['name'] }}', '{{ number_format($fItem['gross'], 2, ',', '.') }}', 'Fixvertrag')"
+                                                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 cursor-pointer"
+                                                    title="Rückfrage an Mandantin Alina zur Belegnachreichung erstellen">
+                                                <x-heroicon-s-exclamation-triangle class="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                                <span>Beleg anfragen</span>
+                                            </button>
                                         @else
                                             <span class="text-gray-300 dark:text-gray-700">—</span>
                                         @endif
@@ -273,10 +365,18 @@
                             @foreach($variableItemsDetailed as $vItem)
                                 <tr class="hover:bg-gray-50/70 dark:hover:bg-gray-950/40 transition-colors">
                                     <td class="py-3 pr-4">
-                                        <span class="font-bold text-gray-900 dark:text-white block">{{ $vItem['title'] }}</span>
+                                        <div class="flex items-center gap-2">
+                                            <span class="font-bold text-gray-900 dark:text-white block">{{ $vItem['title'] }}</span>
+                                            @if($vItem['is_uncategorized'] ?? false)
+                                                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/25">
+                                                    Zuordnung offen
+                                                </span>
+                                            @endif
+                                        </div>
                                         <span class="text-[11px] text-gray-400">
                                             {{ $vItem['date'] }}
                                             @if($vItem['invoice_number']) &bull; Beleg {{ $vItem['invoice_number'] }} @endif
+                                            @if($vItem['source'] === 'bank') &bull; Bankumsatz @endif
                                         </span>
                                     </td>
                                     <td class="py-3 px-3 whitespace-nowrap text-gray-500 dark:text-gray-400">
@@ -306,6 +406,13 @@
                                                     </button>
                                                 @endforeach
                                             </div>
+                                        @elseif($vItem['is_business'])
+                                            <button type="button" wire:click="prefillNewTaskForMissingReceipt('{{ $vItem['title'] }}', '{{ number_format($vItem['abs_gross'], 2, ',', '.') }}', '{{ $vItem['date'] }}')"
+                                                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 cursor-pointer"
+                                                    title="Rückfrage an Mandantin Alina zur Belegnachreichung erstellen">
+                                                <x-heroicon-s-exclamation-triangle class="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                                <span>Beleg anfragen</span>
+                                            </button>
                                         @else
                                             <span class="text-gray-300 dark:text-gray-700">—</span>
                                         @endif
@@ -494,6 +601,13 @@
 
         {{-- TAB 4: PERSONAL-STAMMBLÄTTER, STUNDENZETTEL & LOHNABRECHNUNGEN --}}
         <div x-show="mainTab === 'hr'" x-cloak>
+            <div class="mb-4 p-3 rounded-2xl bg-amber-500/10 dark:bg-amber-500/15 border border-primary/30 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-600 dark:text-gray-300">Gesamte Bruttolöhne ({{ $monthNamesShort[$selectedMonth] }}/{{ $selectedYear }}):</span>
+                    <strong class="font-mono text-primary text-sm font-bold">{{ number_format($monthlyGrossSalariesCents / 100, 2, ',', '.') }} €</strong>
+                </div>
+                <span class="text-[11px] text-gray-500 font-semibold">{{ $employeeContracts->count() }} Personalakten registriert</span>
+            </div>
             <div class="divide-y divide-gray-100 dark:divide-gray-800">
                 @forelse($employeeContracts ?? [] as $empContract)
                     @php
@@ -574,6 +688,206 @@
                     </div>
                 @endforelse
             </div>
+        </div>
+
+        {{-- TAB 5: KANZLEI-AUFGABEN & RÜCKFRAGEN (Direkter Kanal mit Mandantin Alina) --}}
+        <div x-show="mainTab === 'tasks'" x-cloak>
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-5 border-b border-gray-100 dark:border-gray-800">
+                <div>
+                    <h3 class="text-xs font-black uppercase tracking-wider text-gray-900 dark:text-white">
+                        Kanzlei-Rückfragen &amp; Aufgaben
+                    </h3>
+                    <span class="text-[11px] text-gray-400">
+                        Asynchroner Beleg- und Aufgabenabgleich mit Mandantin Alina Steinhauer
+                    </span>
+                </div>
+                <button type="button" wire:click="toggleNewTaskForm"
+                        class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-black font-black uppercase tracking-wider text-[11px] shadow-sm hover:shadow-md transition-all cursor-pointer shrink-0">
+                    <x-heroicon-o-arrow-down-tray class="w-3.5 h-3.5 rotate-45" />
+                    <span>{{ $showNewTaskForm ? 'Schließen' : 'Neue Rückfrage stellen' }}</span>
+                </button>
+            </div>
+
+            {{-- Formular für neue Rückfrage --}}
+            @if($showNewTaskForm)
+                <div class="mb-6 p-4 sm:p-5 rounded-2xl bg-gray-50/90 dark:bg-gray-950/70 border border-gray-200 dark:border-gray-800 space-y-4 animate-fade-in">
+                    <div class="flex items-center justify-between pb-2.5 border-b border-gray-200/70 dark:border-gray-800">
+                        <span class="text-xs font-black uppercase tracking-wider text-gray-900 dark:text-white">
+                            Neue Rückfrage oder To-Do an Mandantin
+                        </span>
+                        <button type="button" wire:click="toggleNewTaskForm" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                            ✕
+                        </button>
+                    </div>
+
+                    <form wire:submit="createTaxTask" class="space-y-3.5">
+                        <div>
+                            <label class="block text-[10px] font-black uppercase tracking-wider text-gray-500 mb-1">Betreff / Anliegen</label>
+                            <input type="text" wire:model="newTaskTitle" placeholder="z. B. Belegnachweis für Ausgabe vom 22.10.2026 benötigt"
+                                   class="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white outline-none focus:border-primary">
+                            @error('newTaskTitle') <span class="text-red-500 text-[10px] font-bold mt-1 block">{{ $message }}</span> @enderror
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[10px] font-black uppercase tracking-wider text-gray-500 mb-1">Fälligkeit (optional)</label>
+                                <input type="date" wire:model="newTaskRelevantFrom"
+                                       class="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white outline-none focus:border-primary">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-black uppercase tracking-wider text-gray-500 mb-1">Priorität</label>
+                                <select wire:model="newTaskPriority"
+                                        class="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white outline-none focus:border-primary cursor-pointer">
+                                    <option value="niedrig">Normal</option>
+                                    <option value="hoch">Dringend</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-[10px] font-black uppercase tracking-wider text-gray-500 mb-1">Details / Nachricht</label>
+                            <textarea wire:model="newTaskNote" rows="2" placeholder="Genaue Frage oder Erläuterung an die Mandantin..."
+                                      class="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white outline-none focus:border-primary"></textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-[10px] font-black uppercase tracking-wider text-gray-500 mb-1">Dokument oder Formular anhängen</label>
+                            <input type="file" wire:model="newTaskUploads" multiple
+                                   class="text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-gray-200 dark:file:bg-gray-800 file:text-gray-700 dark:file:text-gray-300 hover:file:bg-gray-300 cursor-pointer">
+                        </div>
+
+                        <div class="flex items-center justify-end gap-2 pt-2">
+                            <button type="button" wire:click="toggleNewTaskForm"
+                                    class="px-3.5 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 text-xs font-bold uppercase tracking-wider hover:bg-gray-100 dark:hover:bg-gray-800">
+                                Abbrechen
+                            </button>
+                            <button type="submit" wire:loading.attr="disabled"
+                                    class="px-4 py-2 rounded-xl bg-primary text-black text-xs font-black uppercase tracking-wider shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50">
+                                <span wire:loading.remove wire:target="createTaxTask">Rückfrage übermitteln</span>
+                                <span wire:loading wire:target="createTaxTask">Speichere...</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            @endif
+
+            {{-- Liste der Kanzlei-Aufgaben --}}
+            @if($taxTasks->isEmpty())
+                <div class="p-8 rounded-2xl bg-gray-50 dark:bg-gray-950/50 border border-dashed border-gray-200 dark:border-gray-800 text-center">
+                    <x-heroicon-s-check-circle class="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
+                    <p class="text-xs font-bold text-gray-700 dark:text-gray-300">Keine Rückfragen vorhanden</p>
+                    <p class="text-[11px] text-gray-400 mt-0.5">Alle steuerlichen Aufgaben sind aktuell vollständig abgearbeitet.</p>
+                </div>
+            @else
+                <div class="space-y-3">
+                    @foreach($taxTasks as $task)
+                        <div class="p-4 rounded-2xl bg-white dark:bg-gray-950/50 border {{ $task->is_completed ? 'border-gray-200/60 dark:border-gray-800/60 opacity-75' : ($task->priority === 'hoch' ? 'border-rose-300 dark:border-rose-900/60' : 'border-gray-200 dark:border-gray-800') }} transition-all">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="flex items-start gap-3">
+                                    <button type="button" wire:click="toggleTaskComplete('{{ $task->id }}')"
+                                            class="mt-0.5 w-5 h-5 rounded-lg border {{ $task->is_completed ? 'bg-primary border-primary text-black' : 'border-gray-300 dark:border-gray-600 hover:border-primary' }} flex items-center justify-center shrink-0 transition-colors cursor-pointer"
+                                            title="{{ $task->is_completed ? 'Als offen markieren' : 'Als erledigt markieren' }}">
+                                        @if($task->is_completed)
+                                            <span class="text-xs font-black">✓</span>
+                                        @endif
+                                    </button>
+
+                                    <div>
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="text-xs font-bold {{ $task->is_completed ? 'line-through text-gray-400' : 'text-gray-900 dark:text-white' }}">
+                                                {{ $task->title }}
+                                            </span>
+
+                                            @if($task->priority === 'hoch')
+                                                <span class="px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                                                    Dringend
+                                                </span>
+                                            @endif
+
+                                            @if($task->is_completed)
+                                                <span class="px-2 py-0.5 rounded-md text-[9px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                                    Erledigt
+                                                </span>
+                                            @endif
+                                        </div>
+
+                                        <div class="flex flex-wrap items-center gap-3 mt-1 text-[11px] text-gray-400">
+                                            <span>Erstellt: {{ $task->created_at->format('d.m.Y H:i') }}</span>
+                                            @if($task->relevant_from)
+                                                <span class="font-semibold {{ $task->relevant_from->isPast() && !$task->is_completed ? 'text-rose-600 dark:text-rose-400' : 'text-gray-500 dark:text-gray-400' }}">
+                                                    Fällig: {{ $task->relevant_from->format('d.m.Y') }}
+                                                </span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="shrink-0 flex items-center gap-2">
+                                    <button type="button" wire:click="openTaskResponse('{{ $task->id }}')"
+                                            class="px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-gray-900 hover:bg-gray-200 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[10px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-300 transition-colors cursor-pointer">
+                                        {{ $activeResponseTaskId === $task->id ? 'Schließen' : 'Antworten' }}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {{-- Notiz / Dialog-Verlauf --}}
+                            @if(!empty($task->ai_plan))
+                                <div class="mt-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-900/60 border border-gray-200/70 dark:border-gray-800 text-xs text-gray-700 dark:text-gray-300 whitespace-pre-line leading-relaxed font-sans">
+                                    {{ $task->ai_plan }}
+                                </div>
+                            @endif
+
+                            {{-- Angehängte Dateien --}}
+                            @php
+                                $files = is_array($task->file_paths) ? $task->file_paths : (json_decode($task->file_paths ?? '[]', true) ?: []);
+                            @endphp
+                            @if(!empty($files))
+                                <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
+                                    <span class="text-[10px] font-black uppercase tracking-wider text-gray-400 mr-1">Dateien:</span>
+                                    @foreach($files as $filePath)
+                                        <button type="button" wire:click="downloadTaskFile('{{ $task->id }}', @js($filePath))"
+                                                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:border-primary text-[10px] font-mono text-primary cursor-pointer">
+                                            <x-heroicon-o-arrow-down-tray class="w-3 h-3" />
+                                            <span>{{ basename($filePath) }}</span>
+                                        </button>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            {{-- Inline-Antwortformular --}}
+                            @if($activeResponseTaskId === $task->id)
+                                <div class="mt-3.5 p-3.5 rounded-xl bg-gray-50/90 dark:bg-gray-900/90 border border-gray-200 dark:border-gray-700 space-y-2.5 animate-fade-in">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-[10px] font-black uppercase tracking-wider text-gray-900 dark:text-white">
+                                            Antwort / Belegnachweis erfassen
+                                        </span>
+                                        <button type="button" wire:click="closeTaskResponse" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                                            ✕
+                                        </button>
+                                    </div>
+                                    <textarea wire:model="taskResponseText" rows="2" placeholder="Nachricht an Mandantin Alina..."
+                                              class="w-full px-3 py-2 rounded-xl bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white outline-none focus:border-primary"></textarea>
+                                    <div>
+                                        <label class="block text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">Weitere Datei anhängen</label>
+                                        <input type="file" wire:model="taskResponseUploads" multiple
+                                               class="text-xs text-gray-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-gray-200 dark:file:bg-gray-800 file:text-gray-700 dark:file:text-gray-300 hover:file:bg-gray-300 cursor-pointer">
+                                    </div>
+                                    <div class="flex justify-end gap-2 pt-1">
+                                        <button type="button" wire:click="closeTaskResponse" class="px-3 py-1.5 text-xs font-bold text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">
+                                            Abbrechen
+                                        </button>
+                                        <button type="button" wire:click="submitTaskResponse('{{ $task->id }}')" wire:loading.attr="disabled"
+                                                class="px-3.5 py-1.5 rounded-xl bg-primary text-black text-xs font-black uppercase tracking-wider shadow-sm disabled:opacity-50">
+                                            <span wire:loading.remove wire:target="submitTaskResponse">Antwort speichern</span>
+                                            <span wire:loading wire:target="submitTaskResponse">Speichere...</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            @endif
         </div>
 
         {{-- Unten mittig: Dezenter Button "Erklärung anzeigen" (wie im Influencer-Dashboard) --}}

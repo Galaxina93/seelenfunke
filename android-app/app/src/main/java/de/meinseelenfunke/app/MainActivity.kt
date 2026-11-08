@@ -24,6 +24,8 @@ class MainActivity : FragmentActivity() {
             }
         }
 
+        de.meinseelenfunke.app.util.FunkenwerkAlarmManager.ensureInitialized(this)
+
         SoundManager.playSound(R.raw.open_project_brain)
 
         setContent {
@@ -82,6 +84,11 @@ class MainActivity : FragmentActivity() {
         } else if (intent?.hasExtra("open_tab") == true) {
             val tab = intent.getIntExtra("open_tab", 0)
             val subTab = intent.getIntExtra("open_subtab", 0)
+            if (intent.hasExtra("alarm_inner_tab")) {
+                de.meinseelenfunke.app.util.FunkenwerkAlarmManager.setActiveInnerSubTab(
+                    intent.getIntExtra("alarm_inner_tab", 0)
+                )
+            }
             if (intent.hasExtra("selected_date")) {
                 de.meinseelenfunke.app.util.NavigationBridge.pendingSelectedDate = intent.getStringExtra("selected_date")
             }

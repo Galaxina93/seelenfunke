@@ -36,6 +36,7 @@ namespace Funkenwerk
         public string ReadyCaption { get; set; } = "";
         public string LandingPageSlug { get; set; } = "";
         public bool IsCompletedToday { get; set; } = false;
+        public string RecommendedMusicTrackId { get; set; } = "";
     }
 
     public class ViralVideoAnalysisDto
@@ -164,6 +165,55 @@ namespace Funkenwerk
         public List<TopCompetitorAccountDto> TopAccounts { get; set; } = new();
         public List<MarketQuestionItemDto> QuestionsCatalog { get; set; } = new();
         public List<CustomAiScanRecordDto> CustomAiScans { get; set; } = new();
+        public List<ViralConceptIdeaDto> ViralIdeas { get; set; } = new();
+        public int ActiveViralIdeaIndex { get; set; } = 0;
+        public List<MarketingMusicTrackDto> MusicCatalog { get; set; } = new();
+    }
+
+    public class MarketingMusicTrackDto
+    {
+        public int TrackNumber { get; set; }
+        public string Id { get; set; } = "";
+        public string FileName { get; set; } = "";
+        public string ExportFileName { get; set; } = "";
+        public string CategoryKey { get; set; } = "viral"; // "viral", "camera", "werkstatt", "atelier"
+        public string CategoryLabel { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string Subtitle { get; set; } = "";
+        public int Bpm { get; set; } = 84;
+        public string MusicalKey { get; set; } = "D-Moll";
+        public int DurationSeconds { get; set; } = 75;
+        public string DurationFormatted => $"{DurationSeconds / 60}:{DurationSeconds % 60:00}";
+        public string DropTimingLabel { get; set; } = "";
+        public string ScenarioGuide { get; set; } = "";
+        public string MixingGuide { get; set; } = "";
+        public string InstrumentationGuide { get; set; } = "";
+        public string SunoUdioPrompt { get; set; } = "";
+    }
+
+    public class ViralConceptIdeaDto
+    {
+        public int Rank { get; set; }
+        public string CategoryKey { get; set; } = "launch"; // "launch", "asmr", "story", "quick"
+        public string CategoryLabel { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string BaseTitle { get; set; } = "";
+        public string DurationLabel { get; set; } = "";
+        public string EffortLabel { get; set; } = "";
+        public string ViewsBenchmark { get; set; } = "";
+        public string OnScreenHook { get; set; } = "";
+        public string TrendingSongs { get; set; } = "";
+        public string ShortSongBadge { get; set; } = "";
+        public string ReferenceTrendUrl { get; set; } = "";
+        public string StructureBreakdown { get; set; } = "";
+        public string WhyItGoesViral { get; set; } = "";
+        public string Step1Setup { get; set; } = "";
+        public string Step2Shoot { get; set; } = "";
+        public string Step3EditAndPost { get; set; } = "";
+        public string ReadyCaptionAndTags { get; set; } = "";
+        public int ProductVariantIndex { get; set; } = 0;
+        public string ActiveProductName { get; set; } = "";
+        public string RecommendedMusicTrackId { get; set; } = "";
     }
 
     public partial class MainWindow : Window
@@ -172,12 +222,21 @@ namespace Funkenwerk
         private string _marketingVaultPath = "";
         private MarketingVaultStorageDto _mktVault = new();
         private int _currentDailyRecipeIndex = 0;
-        private string _activeMarketingSubTab = "plan"; // "plan", "accounts", "questions", "templates", "ads"
+        private int _currentViralIdeaIndex = 0;
+        private bool _isFocusViralDropdownOpen = false;
+        private string _activeMarketingSubTab = "plan"; // "plan", "routine", "accounts", "questions", "templates", "ads", "viral", "music"
         private string _activeAccountClusterFilter = "all";
         private string _activeQuestionCategoryFilter = "all";
+        private string _activeViralCategoryFilter = "all";
+        private string _activeMusicCategoryFilter = "all";
         private string _marketingSearchQuery = "";
         private TopCompetitorAccountDto? _selectedCompetitorAccount = null;
         private DailyShootRecipeDto? _selectedPlanRecipe = null;
+        private ViralConceptIdeaDto? _selectedViralIdea = null;
+        private MarketingMusicTrackDto? _selectedMusicTrack = null;
+        private readonly MediaPlayer _mktMusicPreviewPlayer = new();
+        private string _currentlyPlayingMktTrackId = "";
+        private bool _isMktMusicPreviewPlaying = false;
 
         private static List<ShopMarketingProductDto> BuildDefaultShopProducts()
         {
@@ -678,8 +737,13 @@ namespace Funkenwerk
             }
             _mktVault.SeasonContext = localSeason;
 
+            EnsureMarketingMusicInitialized();
             IntegrateDynamicShopProductsIntoPlan();
+            EnsureViralIdeasInitialized();
             CheckAndResetRoutineCycles();
+
+            _mktMusicPreviewPlayer.MediaEnded -= MktMusicPreviewPlayer_MediaEnded;
+            _mktMusicPreviewPlayer.MediaEnded += MktMusicPreviewPlayer_MediaEnded;
 
             // Pick daily recommendation automatically by day of year if not manually overridden today
             if (_mktVault.DailyRecipes.Count > 0)
@@ -695,12 +759,28 @@ namespace Funkenwerk
                 _selectedPlanRecipe = _mktVault.DailyRecipes[_currentDailyRecipeIndex];
             }
 
+            if (_mktVault.ViralIdeas.Count > 0)
+            {
+                if (_mktVault.ActiveViralIdeaIndex >= 0 && _mktVault.ActiveViralIdeaIndex < _mktVault.ViralIdeas.Count)
+                {
+                    _currentViralIdeaIndex = _mktVault.ActiveViralIdeaIndex;
+                }
+                else
+                {
+                    _currentViralIdeaIndex = 0; // Startet standardmäßig mit #1: Handy in Schleife durchschneiden!
+                }
+                _selectedViralIdea = _mktVault.ViralIdeas[_currentViralIdeaIndex];
+            }
+
             _selectedCompetitorAccount = _mktVault.TopAccounts.FirstOrDefault();
+            _selectedMusicTrack = _mktVault.MusicCatalog.FirstOrDefault();
 
             RenderDailyHeroBanner();
             RenderDynamicSeasonAndAdsUI();
             StyleClusterFilterButtons();
             StyleQuestionCategoryButtons();
+            StyleViralFilterButtons();
+            StyleMusicCategoryButtons();
             SwitchMarketingSubTabUI("plan");
             ApplyMarketingModeUI(_mktVault.IsFocusMode, save: false);
 
@@ -711,15 +791,21 @@ namespace Funkenwerk
         private void RenderMarketingThemeRefresh()
         {
             if (!_isMarketingInitialized) return;
+            EnsureMarketingMusicInitialized();
             RenderDailyHeroBanner();
             RenderDynamicSeasonAndAdsUI();
             StyleClusterFilterButtons();
             StyleQuestionCategoryButtons();
+            StyleViralFilterButtons();
+            StyleMusicCategoryButtons();
             SwitchMarketingSubTabUI(_activeMarketingSubTab);
             RenderMarketingPlanPane();
             RenderMarketingRoutinePane();
             RenderMarketingAccountsPane();
             RenderMarketingQuestionsPane();
+            RenderMarketingViralPane();
+            RenderMarketingMusicPane();
+            RenderFocusViralDropdown();
             ApplyMarketingModeUI(_mktVault.IsFocusMode, save: false);
         }
 
@@ -1075,6 +1161,17 @@ namespace Funkenwerk
 
                 MktAdsDynamicProductsTxt.Text = sb.ToString().TrimEnd();
             }
+
+            if (MktViralTopSeasonBadgeTxt != null)
+            {
+                string holidayInfo = !string.IsNullOrEmpty(s.PrimaryHolidayName)
+                    ? $"{s.PrimaryHolidayBadge} (Annahmeschluss: {s.PrimaryHolidayCutoff})"
+                    : s.SeasonName;
+                MktViralTopSeasonBadgeTxt.Text = $"{s.SeasonIcon} {s.SeasonName} · {holidayInfo} · {prods.Count} Shop-Produkte aktiv";
+            }
+
+            RenderFocusViralDropdown();
+            if (_activeMarketingSubTab == "viral") RenderMarketingViralPane();
         }
 
         private void MktApplySeasonMotto_Click(object sender, RoutedEventArgs e)
@@ -1103,7 +1200,9 @@ namespace Funkenwerk
             _selectedPlanRecipe = r;
             SaveMarketingVaultOffline();
             RenderDailyHeroBanner();
+            RenderFocusViralDropdown();
             if (_activeMarketingSubTab == "plan") RenderMarketingPlanPane();
+            else if (_activeMarketingSubTab == "viral") RenderMarketingViralPane();
 
             if (sender is Button btn)
             {
@@ -1135,14 +1234,20 @@ namespace Funkenwerk
 
             if (MktModeNormalBtn != null)
             {
-                MktModeNormalBtn.Background = !focusMode ? BrushFromHex("#C5A059") : Brushes.Transparent;
-                MktModeNormalBtn.Foreground = !focusMode ? BrushFromHex("#111827") : BrushFromHex("#D1D5DB");
+                MktModeNormalBtn.Background = !focusMode ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : Brushes.Transparent;
+                MktModeNormalBtn.Foreground = !focusMode ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : BrushFromHex("#D1D5DB");
+                MktModeNormalBtn.BorderBrush = !focusMode ? BrushFromHex("#C5A059") : Brushes.Transparent;
+                MktModeNormalBtn.BorderThickness = new Thickness(!focusMode ? 1 : 0);
             }
             if (MktModeFocusBtn != null)
             {
-                MktModeFocusBtn.Background = focusMode ? BrushFromHex("#C5A059") : Brushes.Transparent;
-                MktModeFocusBtn.Foreground = focusMode ? BrushFromHex("#111827") : BrushFromHex("#D1D5DB");
+                MktModeFocusBtn.Background = focusMode ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : Brushes.Transparent;
+                MktModeFocusBtn.Foreground = focusMode ? (_isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827")) : BrushFromHex("#D1D5DB");
+                MktModeFocusBtn.BorderBrush = focusMode ? BrushFromHex("#C5A059") : Brushes.Transparent;
+                MktModeFocusBtn.BorderThickness = new Thickness(focusMode ? 1 : 0);
             }
+
+            UpdateMiniPlayerVisibility();
 
             if (save)
             {
@@ -1198,6 +1303,7 @@ namespace Funkenwerk
                 if (string.IsNullOrEmpty(_marketingVaultPath)) return;
                 _mktVault.LastUpdated = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
                 _mktVault.ActiveDailyRecipeIndex = _currentDailyRecipeIndex;
+                _mktVault.ActiveViralIdeaIndex = _currentViralIdeaIndex;
                 string json = JsonSerializer.Serialize(_mktVault, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(_marketingVaultPath, json, Encoding.UTF8);
             }
@@ -1266,11 +1372,12 @@ namespace Funkenwerk
             var r = _mktVault.DailyRecipes[_currentDailyRecipeIndex];
             r.IsCompletedToday = _mktVault.CompletedRecipeDays.Contains(r.DayNumber);
             int totalDays = _mktVault.DailyRecipes.Count;
+            var recTrack = GetRecommendedTrackForDailyRecipe(r);
 
             MktHeroDayBadgeTxt.Text = $"RUNDE {_mktVault.CurrentRound} · TAG {r.DayNumber:00}/{totalDays:00} · {r.WeekdayLabel.ToUpperInvariant()}";
             MktHeroCategoryBadgeTxt.Text = $"{r.CategoryBadge} · {r.DurationLabel}";
             MktHeroTitleTxt.Text = r.Title;
-            MktHeroHookPreviewTxt.Text = $"Hook im Bild: „{r.OnScreenHookText}“  ·  Audio: {r.AudioDirection}";
+            MktHeroHookPreviewTxt.Text = $"Hook im Bild: „{r.OnScreenHookText}“  ·  🎵 Soundempfehlung: {recTrack.Title} ({recTrack.Bpm} BPM · {recTrack.MusicalKey})";
 
             MktHeroStep1Txt.Text = r.Step1Setup;
             MktHeroStep2Txt.Text = r.Step2Hook;
@@ -1309,30 +1416,48 @@ namespace Funkenwerk
                 MktFocusStep2Txt.Text = r.Step3Clips;
             if (MktFocusStep3Txt != null)
                 MktFocusStep3Txt.Text = $"{r.CapCutTemplate} · 18:30–20:00 Uhr posten ({r.LandingPageSlug})";
+            if (MktFocusSoundRecTitleTxt != null)
+            {
+                MktFocusSoundRecTitleTxt.Text = $"🎵 Soundempfehlung für heute: {recTrack.Title}";
+                MktFocusSoundRecTitleTxt.Foreground = BrushFromHex("#D4AF37");
+            }
+            if (MktFocusSoundRecMetaTxt != null)
+            {
+                MktFocusSoundRecMetaTxt.Text = $"{recTrack.Bpm} BPM · {recTrack.MusicalKey} · {recTrack.DurationFormatted} · {recTrack.DropTimingLabel}";
+                MktFocusSoundRecMetaTxt.Foreground = BrushFromHex("#9CA3AF");
+            }
+            if (MktFocusSoundRecBorder != null)
+            {
+                MktFocusSoundRecBorder.Background = BrushFromHex("#0B0D12");
+                MktFocusSoundRecBorder.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059"));
+            }
             if (MktFocusDoneBtn != null)
             {
                 MktFocusDoneBtn.Content = r.IsCompletedToday ? "✓ Heute erledigt" : "✓ Heute als erledigt markieren";
                 MktFocusDoneBtn.Background = r.IsCompletedToday
                     ? BrushFromHex("#064E3B")
-                    : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059"));
+                    : (_isDarkMode ? BrushFromHex("#000000") : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059")));
                 MktFocusDoneBtn.Foreground = r.IsCompletedToday
                     ? BrushFromHex("#34D399")
-                    : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#111827"));
+                    : (_isDarkMode ? BrushFromHex("#C5A059") : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#111827")));
+                MktFocusDoneBtn.BorderBrush = BrushFromHex("#C5A059");
+                MktFocusDoneBtn.BorderThickness = new Thickness(1);
             }
             if (MktFocusCardBorder != null)
             {
                 MktFocusCardBorder.Background = BrushFromHex("#141720");
                 MktFocusCardBorder.BorderBrush = BrushFromHex(r.IsCompletedToday ? "#10B981" : "#232734");
             }
+            UpdateMarketingMusicPreviewButtonsUI();
 
             if (MktOfflineStatusTxt != null)
             {
                 int doneCount = _mktVault.CompletedRecipeDays.Count;
                 int dailyDone = _marketingRoutineMatrix.Count(x => x.Cycle == "daily" && _mktVault.CompletedRoutineIds.Contains(x.Id));
                 int prodCount = _mktVault.ShopProducts?.Count ?? 7;
-                MktOfflineStatusTxt.Text = $"🛍️ {prodCount} Produkte · ☀️ Routine {dailyDone}/4 · 🔄 Runde {_mktVault.CurrentRound} ({doneCount}/{totalDays} Drehs)";
+                MktOfflineStatusTxt.Text = $"🛍️ {prodCount} Produkte · 🎵 12 Songs · ☀️ Routine {dailyDone}/4 · 🔄 Runde {_mktVault.CurrentRound} ({doneCount}/{totalDays} Drehs)";
                 if (MktTabRoutineBtn != null)
-                    MktTabRoutineBtn.Content = $"⚡ Routine ({dailyDone}/4 heute)";
+                    MktTabRoutineBtn.Content = $"⚡ Routine ({dailyDone}/4)";
             }
 
             RenderDynamicSeasonAndAdsUI();
@@ -1385,7 +1510,8 @@ namespace Funkenwerk
         {
             if (_mktVault.DailyRecipes.Count == 0) return;
             var r = _mktVault.DailyRecipes[_currentDailyRecipeIndex];
-            string taskTitle = $"🎬 Video drehen ({r.DurationLabel}): {r.Title} [{r.CapCutTemplate}]";
+            var recTrack = GetRecommendedTrackForDailyRecipe(r);
+            string taskTitle = $"🎬 Video drehen ({r.DurationLabel}): {r.Title} [{r.CapCutTemplate} · Song: {recTrack.Title}]";
 
             PlaySoundTaskDone();
             if (sender is Button btn)
@@ -1459,7 +1585,7 @@ namespace Funkenwerk
         }
 
         // =========================================================================
-        // SUB-NAVIGATION TABS: PLAN | ACCOUNTS | RÖNTGEN | CAPCUT & BIO | ADS
+        // SUB-NAVIGATION TABS: PLAN | ACCOUNTS | RÖNTGEN | CAPCUT & BIO | ADS | VIRAL | MUSIK
         // =========================================================================
         private void MktSubTab_Click(object sender, RoutedEventArgs e)
         {
@@ -1481,6 +1607,10 @@ namespace Funkenwerk
             MktPaneQuestions.Visibility = tab == "questions" ? Visibility.Visible : Visibility.Collapsed;
             MktPaneTemplates.Visibility = tab == "templates" ? Visibility.Visible : Visibility.Collapsed;
             MktPaneAds.Visibility = tab == "ads" ? Visibility.Visible : Visibility.Collapsed;
+            if (MktPaneViral != null)
+                MktPaneViral.Visibility = tab == "viral" ? Visibility.Visible : Visibility.Collapsed;
+            if (MktPaneMusic != null)
+                MktPaneMusic.Visibility = tab == "music" ? Visibility.Visible : Visibility.Collapsed;
 
             StyleSubTabButton(MktTabPlanBtn, tab == "plan");
             StyleSubTabButton(MktTabRoutineBtn, tab == "routine");
@@ -1488,11 +1618,15 @@ namespace Funkenwerk
             StyleSubTabButton(MktTabQuestionsBtn, tab == "questions");
             StyleSubTabButton(MktTabTemplatesBtn, tab == "templates");
             StyleSubTabButton(MktTabAdsBtn, tab == "ads");
+            StyleSubTabButton(MktTabViralBtn, tab == "viral");
+            StyleSubTabButton(MktTabMusicBtn, tab == "music");
 
             if (tab == "plan") RenderMarketingPlanPane();
             else if (tab == "routine") RenderMarketingRoutinePane();
             else if (tab == "accounts") RenderMarketingAccountsPane();
             else if (tab == "questions") RenderMarketingQuestionsPane();
+            else if (tab == "viral") RenderMarketingViralPane();
+            else if (tab == "music") RenderMarketingMusicPane();
         }
 
         // =========================================================================
@@ -1541,14 +1675,14 @@ namespace Funkenwerk
             int weeklyDone = _marketingRoutineMatrix.Count(x => x.Cycle == "weekly" && _mktVault.CompletedRoutineIds.Contains(x.Id));
             int monthlyDone = _marketingRoutineMatrix.Count(x => x.Cycle == "monthly" && _mktVault.CompletedRoutineIds.Contains(x.Id));
 
-            if (MktRoutineDailyBadgeTxt != null) MktRoutineDailyBadgeTxt.Text = $"{dailyDone}/4 erledigt";
-            if (MktRoutineWeeklyBadgeTxt != null) MktRoutineWeeklyBadgeTxt.Text = $"{weeklyDone}/4 erledigt";
-            if (MktRoutineMonthlyBadgeTxt != null) MktRoutineMonthlyBadgeTxt.Text = $"{monthlyDone}/4 erledigt";
+            if (MktRoutineDailyBadgeTxt != null) MktRoutineDailyBadgeTxt.Text = $"{dailyDone}/4";
+            if (MktRoutineWeeklyBadgeTxt != null) MktRoutineWeeklyBadgeTxt.Text = $"{weeklyDone}/4";
+            if (MktRoutineMonthlyBadgeTxt != null) MktRoutineMonthlyBadgeTxt.Text = $"{monthlyDone}/4";
 
             if (MktRoutineHeaderSummaryTxt != null)
             {
                 int kw = System.Globalization.ISOWeek.GetWeekOfYear(DateTime.Today);
-                MktRoutineHeaderSummaryTxt.Text = $"☀️ Heute: {dailyDone}/4 erledigt   ·   📅 KW {kw:00}: {weeklyDone}/4 erledigt   ·   🏆 {DateTime.Today:MMMM}: {monthlyDone}/4 erledigt";
+                MktRoutineHeaderSummaryTxt.Text = $"☀️ Heute: {dailyDone}/4   ·   📅 KW {kw:00}: {weeklyDone}/4   ·   🏆 {DateTime.Today:MMMM}: {monthlyDone}/4";
             }
 
             foreach (var item in _marketingRoutineMatrix)
@@ -1562,96 +1696,46 @@ namespace Funkenwerk
                         ? BrushFromHex("#34D399")
                         : BrushFromHex("#232734"),
                     BorderThickness = new Thickness(isDone ? 1.5 : 1),
-                    CornerRadius = new CornerRadius(10),
-                    Padding = new Thickness(13, 11, 13, 11),
-                    Margin = new Thickness(0, 0, 0, 9),
-                    Cursor = Cursors.Hand
+                    CornerRadius = new CornerRadius(9),
+                    Padding = new Thickness(12, 10, 12, 10),
+                    Margin = new Thickness(0, 0, 0, 8),
+                    Cursor = Cursors.Hand,
+                    ToolTip = item.Description
                 };
 
-                var sp = new StackPanel();
-                var topGrid = new Grid();
-                topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                var rowGrid = new Grid();
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-                topGrid.Children.Add(new TextBlock
+                var leftSp = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+                leftSp.Children.Add(new TextBlock
                 {
-                    Text = item.PillarBadge,
-                    Foreground = BrushFromHex(isDone ? "#34D399" : "#D4AF37"),
-                    FontSize = 10,
+                    Text = isDone ? $"✓ {item.Title}" : $"○ {item.Title}",
+                    Foreground = BrushFromHex("#F9FAFB"),
+                    FontSize = 12.5,
                     FontWeight = FontWeights.Bold,
-                    VerticalAlignment = VerticalAlignment.Center
+                    TextWrapping = TextWrapping.Wrap
                 });
+                rowGrid.Children.Add(leftSp);
 
                 var statusPill = new Border
                 {
                     Background = BrushFromHex(isDone ? "#064E3B" : "#1F2430"),
                     CornerRadius = new CornerRadius(6),
-                    Padding = new Thickness(8, 2, 8, 2),
+                    Padding = new Thickness(8, 3, 8, 3),
+                    VerticalAlignment = VerticalAlignment.Center,
                     Child = new TextBlock
                     {
-                        Text = isDone ? "✓ Erledigt" : $"⏱ {item.TimeLabel}",
-                        Foreground = BrushFromHex(isDone ? "#34D399" : "#D1D5DB"),
+                        Text = isDone ? "✓" : item.TimeLabel,
+                        Foreground = BrushFromHex(isDone ? "#34D399" : "#D4AF37"),
                         FontSize = 10.5,
                         FontWeight = FontWeights.Bold
                     }
                 };
                 Grid.SetColumn(statusPill, 1);
-                topGrid.Children.Add(statusPill);
-                sp.Children.Add(topGrid);
+                rowGrid.Children.Add(statusPill);
 
-                sp.Children.Add(new TextBlock
-                {
-                    Text = isDone ? $"✓ {item.Title}" : $"○ {item.Title}",
-                    Foreground = BrushFromHex("#F9FAFB"),
-                    FontSize = 13,
-                    FontWeight = FontWeights.Bold,
-                    Margin = new Thickness(0, 5, 0, 3),
-                    TextWrapping = TextWrapping.Wrap
-                });
-
-                sp.Children.Add(new TextBlock
-                {
-                    Text = item.Description,
-                    Foreground = BrushFromHex("#D1D5DB"),
-                    FontSize = 11.5,
-                    LineHeight = 17,
-                    TextWrapping = TextWrapping.Wrap
-                });
-
-                if (!string.IsNullOrEmpty(item.QuickJumpTab))
-                {
-                    var actionRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 7, 0, 0) };
-                    var jumpBtn = new Button
-                    {
-                        Content = item.QuickJumpTab == "camera" ? "📷 Kamera öffnen" : "👉 Direkt öffnen",
-                        Background = BrushFromHex("#1F2430"),
-                        Foreground = BrushFromHex("#D4AF37"),
-                        FontWeight = FontWeights.Bold,
-                        FontSize = 10.5,
-                        BorderThickness = new Thickness(0),
-                        Padding = new Thickness(9, 4, 9, 4),
-                        Cursor = Cursors.Hand
-                    };
-                    string targetTab = item.QuickJumpTab;
-                    jumpBtn.Click += (s, ev) =>
-                    {
-                        ev.Handled = true;
-                        PlaySoundNav();
-                        if (targetTab == "camera")
-                        {
-                            SwitchSpaceUI("camera");
-                            SaveSettingsToFile();
-                        }
-                        else
-                        {
-                            SwitchMarketingSubTabUI(targetTab);
-                        }
-                    };
-                    actionRow.Children.Add(jumpBtn);
-                    sp.Children.Add(actionRow);
-                }
-
-                card.Child = sp;
+                card.Child = rowGrid;
                 string capturedId = item.Id;
                 card.MouseLeftButtonUp += (s, ev) =>
                 {
@@ -1734,11 +1818,13 @@ namespace Funkenwerk
         {
             if (btn == null) return;
             btn.Background = active
-                ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059"))
+                ? (_isDarkMode ? BrushFromHex("#000000") : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059")))
                 : BrushFromHex("#181B24");
             btn.Foreground = active
-                ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#111827"))
+                ? (_isDarkMode ? BrushFromHex("#C5A059") : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#111827")))
                 : BrushFromHex("#D1D5DB");
+            btn.BorderBrush = active ? BrushFromHex("#C5A059") : BrushFromHex("#232734");
+            btn.BorderThickness = new Thickness(1);
             btn.FontWeight = active ? FontWeights.Bold : FontWeights.SemiBold;
         }
 
@@ -1751,6 +1837,792 @@ namespace Funkenwerk
             if (_activeMarketingSubTab == "plan") RenderMarketingPlanPane();
             else if (_activeMarketingSubTab == "accounts") RenderMarketingAccountsPane();
             else if (_activeMarketingSubTab == "questions") RenderMarketingQuestionsPane();
+            else if (_activeMarketingSubTab == "viral") RenderMarketingViralPane();
+            else if (_activeMarketingSubTab == "music") RenderMarketingMusicPane();
+        }
+
+        // =========================================================================
+        // PANE 7: VIRAL GEHEN (260-VIDEO-AUSWERTUNG & 15 KURZE VIRAL-REZEPTE)
+        // + FOKUS-MODUS DROPDOWN ("Deine Virale Idee für heute")
+        // =========================================================================
+        private void EnsureViralIdeasInitialized()
+        {
+            if (_mktVault.ViralIdeas == null || _mktVault.ViralIdeas.Count < 15)
+            {
+                _mktVault.ViralIdeas = BuildDefaultViralIdeas();
+            }
+
+            foreach (var idea in _mktVault.ViralIdeas)
+            {
+                if (string.IsNullOrEmpty(idea.BaseTitle))
+                {
+                    idea.BaseTitle = idea.Title;
+                }
+            }
+        }
+
+        private void MktViralFilter_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is string filter)
+            {
+                PlaySoundNav();
+                _activeViralCategoryFilter = filter;
+                StyleViralFilterButtons();
+                RenderMarketingViralPane();
+            }
+        }
+
+        private void StyleViralFilterButtons()
+        {
+            StyleSubTabButton(MktViralFilterAllBtn, _activeViralCategoryFilter == "all");
+            StyleSubTabButton(MktViralFilterLaunchBtn, _activeViralCategoryFilter == "launch");
+            StyleSubTabButton(MktViralFilterAsmrBtn, _activeViralCategoryFilter == "asmr");
+            StyleSubTabButton(MktViralFilterStoryBtn, _activeViralCategoryFilter == "story");
+            StyleSubTabButton(MktViralFilterQuickBtn, _activeViralCategoryFilter == "quick");
+        }
+
+        private ShopMarketingProductDto GetProductForViralIdea(ViralConceptIdeaDto idea)
+        {
+            var prods = (_mktVault.ShopProducts != null && _mktVault.ShopProducts.Count > 0)
+                ? _mktVault.ShopProducts
+                : BuildDefaultShopProducts();
+            if (prods.Count == 0) return new ShopMarketingProductDto { Name = "Das Goldene Seelen-Herz", LandingSlug = "/l/goldenes-seelen-herz" };
+
+            int idx = ((idea.ProductVariantIndex % prods.Count) + prods.Count) % prods.Count;
+            return prods[idx];
+        }
+
+        private void RenderMarketingViralPane()
+        {
+            EnsureViralIdeasInitialized();
+            if (MktViralListPanel == null) return;
+            MktViralListPanel.Children.Clear();
+
+            var s = _mktVault.SeasonContext ?? ComputeLocalSeasonAndHolidayContext(DateTime.Today);
+            if (MktViralTopSeasonBadgeTxt != null)
+            {
+                string holidayInfo = !string.IsNullOrEmpty(s.PrimaryHolidayName)
+                    ? $"{s.PrimaryHolidayBadge} (Versand bis {s.PrimaryHolidayCutoff})"
+                    : s.SeasonName;
+                MktViralTopSeasonBadgeTxt.Text = $"{s.SeasonIcon} {s.SeasonName} · {holidayInfo}";
+            }
+
+            var ideas = _mktVault.ViralIdeas.AsEnumerable();
+            if (_activeViralCategoryFilter != "all")
+            {
+                ideas = ideas.Where(x => x.CategoryKey == _activeViralCategoryFilter);
+            }
+            if (!string.IsNullOrEmpty(_marketingSearchQuery))
+            {
+                ideas = ideas.Where(x =>
+                    x.Title.Contains(_marketingSearchQuery, StringComparison.OrdinalIgnoreCase) ||
+                    x.TrendingSongs.Contains(_marketingSearchQuery, StringComparison.OrdinalIgnoreCase) ||
+                    x.CategoryLabel.Contains(_marketingSearchQuery, StringComparison.OrdinalIgnoreCase));
+            }
+
+            var filteredList = ideas.ToList();
+            if (_selectedViralIdea == null || !filteredList.Any(x => x.Rank == _selectedViralIdea.Rank))
+            {
+                _selectedViralIdea = filteredList.FirstOrDefault() ?? _mktVault.ViralIdeas.FirstOrDefault();
+            }
+
+            int activeFocusRank = (_mktVault.ViralIdeas.Count > 0 && _currentViralIdeaIndex >= 0 && _currentViralIdeaIndex < _mktVault.ViralIdeas.Count)
+                ? _mktVault.ViralIdeas[_currentViralIdeaIndex].Rank
+                : 1;
+
+            foreach (var idea in filteredList)
+            {
+                bool isSelected = _selectedViralIdea != null && _selectedViralIdea.Rank == idea.Rank;
+                bool isTodayFocus = idea.Rank == activeFocusRank;
+                var prod = GetProductForViralIdea(idea);
+
+                var card = new Border
+                {
+                    Background = BrushFromHex(isSelected ? "#26231F" : "#141720"),
+                    BorderBrush = isSelected
+                        ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059"))
+                        : BrushFromHex(isTodayFocus ? "#4D3D1E" : "#222634"),
+                    BorderThickness = new Thickness(isSelected ? 1.5 : 1),
+                    CornerRadius = new CornerRadius(10),
+                    Padding = new Thickness(12, 9, 12, 9),
+                    Margin = new Thickness(0, 0, 0, 7),
+                    Cursor = Cursors.Hand
+                };
+
+                var sp = new StackPanel();
+                var topGrid = new Grid();
+                topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var leftBadges = new StackPanel { Orientation = Orientation.Horizontal };
+                leftBadges.Children.Add(new TextBlock
+                {
+                    Text = $"#{idea.Rank:00} · {idea.CategoryLabel}",
+                    Foreground = BrushFromHex("#D4AF37"),
+                    FontSize = 10,
+                    FontWeight = FontWeights.Bold
+                });
+                if (isTodayFocus)
+                {
+                    leftBadges.Children.Add(new TextBlock
+                    {
+                        Text = "  🔥 HEUTE IM FOKUS",
+                        Foreground = BrushFromHex("#34D399"),
+                        FontSize = 9.5,
+                        FontWeight = FontWeights.Bold
+                    });
+                }
+                topGrid.Children.Add(leftBadges);
+
+                var durTxt = new TextBlock
+                {
+                    Text = $"{idea.DurationLabel} · {idea.ViewsBenchmark}",
+                    Foreground = BrushFromHex("#9CA3AF"),
+                    FontSize = 10,
+                    FontWeight = FontWeights.Bold
+                };
+                Grid.SetColumn(durTxt, 1);
+                topGrid.Children.Add(durTxt);
+                sp.Children.Add(topGrid);
+
+                sp.Children.Add(new TextBlock
+                {
+                    Text = idea.Title,
+                    Foreground = BrushFromHex("#F9FAFB"),
+                    FontSize = 12.5,
+                    FontWeight = FontWeights.Bold,
+                    Margin = new Thickness(0, 3, 0, 0),
+                    TextWrapping = TextWrapping.Wrap
+                });
+
+                card.ToolTip = $"🎵 {idea.ShortSongBadge} · 🛍️ {prod.Name}";
+                card.Child = sp;
+                int capturedRank = idea.Rank;
+                card.MouseLeftButtonUp += (sObj, ev) =>
+                {
+                    PlaySoundNav();
+                    _selectedViralIdea = _mktVault.ViralIdeas.FirstOrDefault(x => x.Rank == capturedRank);
+                    RenderMarketingViralPane();
+                };
+
+                MktViralListPanel.Children.Add(card);
+            }
+
+            RenderSelectedViralIdeaDetails();
+        }
+
+        private (string hook, string step1, string step2, string step3, string caption) BuildDynamicViralTexts(ViralConceptIdeaDto idea)
+        {
+            var s = _mktVault.SeasonContext ?? ComputeLocalSeasonAndHolidayContext(DateTime.Today);
+            var prod = GetProductForViralIdea(idea);
+
+            string seasonLabel = !string.IsNullOrEmpty(s.PrimaryHolidayName)
+                ? $"{s.PrimaryHolidayBadge} ({s.SeasonName})"
+                : $"{s.SeasonIcon} {s.SeasonName}";
+            string cutoffNote = !string.IsNullOrEmpty(s.PrimaryHolidayCutoff)
+                ? $"Bestellschluss für pünktlichen Versand: {s.PrimaryHolidayCutoff}."
+                : "Versandfertig in 3–5 Werktagen aus Gifhorn.";
+            string mottoSentence = !string.IsNullOrWhiteSpace(s.EffectiveCaptionAddon)
+                ? s.EffectiveCaptionAddon
+                : $"Passend für {seasonLabel} handveredelt in unserer Manufaktur in Gifhorn.";
+            string extraTags = !string.IsNullOrWhiteSpace(s.EffectiveHashtags) ? $" {s.EffectiveHashtags}" : "";
+
+            string hook = idea.OnScreenHook.Replace("{PRODUKT}", prod.Name).Replace("{SAISON}", s.SeasonName);
+            string step1 = idea.Step1Setup
+                .Replace("{PRODUKT}", prod.Name)
+                .Replace("{SETUP_ITEMS}", !string.IsNullOrWhiteSpace(prod.SetupItems) ? prod.SetupItems : prod.Name)
+                .Replace("{SONG}", idea.ShortSongBadge);
+            string step2 = idea.Step2Shoot
+                .Replace("{PRODUKT}", prod.Name)
+                .Replace("{SLUG}", prod.LandingSlug)
+                .Replace("{SAISON}", seasonLabel);
+            string step3 = $"{idea.Step3EditAndPost.Replace("{PRODUKT}", prod.Name).Replace("{SLUG}", prod.LandingSlug)}\nSaison-Hinweis ({seasonLabel}): {cutoffNote}";
+            string caption = $"{idea.ReadyCaptionAndTags.Replace("{PRODUKT}", prod.Name).Replace("{SLUG}", prod.LandingSlug)}\n\n{mottoSentence}\n\n{prod.Hashtags}{extraTags}".Trim();
+
+            return (hook, step1, step2, step3, caption);
+        }
+
+        private void RenderSelectedViralIdeaDetails()
+        {
+            var idea = _selectedViralIdea ?? _mktVault.ViralIdeas.FirstOrDefault();
+            if (idea == null || MktViralDetailTitleTxt == null) return;
+
+            var prod = GetProductForViralIdea(idea);
+            var dyn = BuildDynamicViralTexts(idea);
+            var recTrack = GetRecommendedTrackForViralIdea(idea);
+
+            MktViralDetailBadgeTxt.Text = $"🔥 VIRAL #{idea.Rank:00} · {idea.CategoryLabel.ToUpperInvariant()} · {idea.DurationLabel.ToUpperInvariant()}";
+            MktViralDetailStatsTxt.Text = $"Ø {idea.ViewsBenchmark} Views · Aufwand: {idea.EffortLabel} · Produkt: {prod.Name}";
+            MktViralDetailTitleTxt.Text = idea.Title;
+            MktViralDetailHookTxt.Text = $"On-Screen-Hook (0–2,5s mittig im Bild): „{dyn.hook}“";
+            MktViralDetailSongTxt.Text = idea.TrendingSongs;
+            if (MktViralDetailOwnSoundRecTxt != null)
+            {
+                MktViralDetailOwnSoundRecTxt.Text = $"✨ Rechtsfreier Seelenfunke-Sound: {recTrack.Title}";
+                MktViralDetailOwnSoundRecTxt.Foreground = BrushFromHex("#D4AF37");
+            }
+            if (MktViralDetailOwnSoundMetaTxt != null)
+            {
+                MktViralDetailOwnSoundMetaTxt.Text = $"{recTrack.Bpm} BPM · {recTrack.MusicalKey} · {recTrack.DurationFormatted} · {recTrack.DropTimingLabel}";
+                MktViralDetailOwnSoundMetaTxt.Foreground = BrushFromHex("#9CA3AF");
+            }
+            MktViralDetailStructureTxt.Text = idea.StructureBreakdown;
+            MktViralDetailWhyViralTxt.Text = idea.WhyItGoesViral;
+            MktViralDetailStep1Txt.Text = dyn.step1;
+            MktViralDetailStep2Txt.Text = dyn.step2;
+            MktViralDetailStep3Txt.Text = dyn.step3;
+            MktViralDetailCaptionTxt.Text = dyn.caption;
+            UpdateMarketingMusicPreviewButtonsUI();
+        }
+
+        private void RenderFocusViralDropdown()
+        {
+            EnsureViralIdeasInitialized();
+            if (_mktVault.ViralIdeas.Count == 0 || MktFocusViralTitleTxt == null) return;
+
+            if (_currentViralIdeaIndex < 0 || _currentViralIdeaIndex >= _mktVault.ViralIdeas.Count)
+                _currentViralIdeaIndex = 0;
+
+            var idea = _mktVault.ViralIdeas[_currentViralIdeaIndex];
+            var prod = GetProductForViralIdea(idea);
+            var s = _mktVault.SeasonContext ?? ComputeLocalSeasonAndHolidayContext(DateTime.Today);
+            var dyn = BuildDynamicViralTexts(idea);
+            var recTrack = GetRecommendedTrackForViralIdea(idea);
+
+            if (MktFocusViralHeaderPreviewTxt != null)
+            {
+                MktFocusViralHeaderPreviewTxt.Text = $"#{idea.Rank} {idea.Title} ({idea.DurationLabel} · 🎵 {recTrack.Title})";
+            }
+
+            if (MktFocusViralChevronTxt != null)
+            {
+                MktFocusViralChevronTxt.Text = _isFocusViralDropdownOpen ? "▲ Zuklappen" : "▼ Aufklappen";
+            }
+
+            if (MktFocusViralBodyBorder != null)
+            {
+                MktFocusViralBodyBorder.Visibility = _isFocusViralDropdownOpen ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            if (MktFocusViralDurationBadgeTxt != null)
+            {
+                MktFocusViralDurationBadgeTxt.Text = $"🔥 #{idea.Rank} · {idea.DurationLabel} · {idea.EffortLabel}";
+            }
+
+            if (MktFocusViralSeasonBadgeTxt != null)
+            {
+                string holidayBadge = !string.IsNullOrEmpty(s.PrimaryHolidayCutoff)
+                    ? $"{s.SeasonIcon} {s.SeasonName} · {s.PrimaryHolidayBadge} (bis {s.PrimaryHolidayCutoff})"
+                    : $"{s.SeasonIcon} {s.SeasonName}";
+                MktFocusViralSeasonBadgeTxt.Text = $"{holidayBadge} · {prod.Name}";
+            }
+
+            MktFocusViralTitleTxt.Text = $"{idea.Title} ({prod.Name})";
+            MktFocusViralHookTxt.Text = $"Hook im Bild: „{dyn.hook}“";
+            MktFocusViralSongTxt.Text = $"🎵 TikTok & Instagram Trend-Song: {idea.TrendingSongs}";
+            MktFocusViralStep1Txt.Text = dyn.step1;
+            MktFocusViralStep2Txt.Text = dyn.step2;
+            MktFocusViralStep3Txt.Text = dyn.step3;
+
+            if (MktFocusViralSoundRecTxt != null)
+            {
+                MktFocusViralSoundRecTxt.Text = $"🎵 Musik-Empfehlung für diese Virale Idee: {recTrack.Title}";
+                MktFocusViralSoundRecTxt.Foreground = BrushFromHex("#D4AF37");
+            }
+            if (MktFocusViralSoundMetaTxt != null)
+            {
+                MktFocusViralSoundMetaTxt.Text = $"{recTrack.Bpm} BPM · {recTrack.MusicalKey} · {recTrack.DurationFormatted} · {recTrack.DropTimingLabel}";
+                MktFocusViralSoundMetaTxt.Foreground = BrushFromHex("#9CA3AF");
+            }
+            if (MktFocusViralSoundRecBorder != null)
+            {
+                MktFocusViralSoundRecBorder.Background = BrushFromHex("#0B0D12");
+                MktFocusViralSoundRecBorder.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059"));
+            }
+            UpdateMarketingMusicPreviewButtonsUI();
+        }
+
+        private void MktToggleFocusViralDropdown_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundNav();
+            _isFocusViralDropdownOpen = !_isFocusViralDropdownOpen;
+            RenderFocusViralDropdown();
+        }
+
+        private void MktPrevViralIdea_Click(object sender, RoutedEventArgs e)
+        {
+            EnsureViralIdeasInitialized();
+            if (_mktVault.ViralIdeas.Count == 0) return;
+            PlaySoundNav();
+            _currentViralIdeaIndex = (_currentViralIdeaIndex - 1 + _mktVault.ViralIdeas.Count) % _mktVault.ViralIdeas.Count;
+            _selectedViralIdea = _mktVault.ViralIdeas[_currentViralIdeaIndex];
+            SaveMarketingVaultOffline();
+            RenderFocusViralDropdown();
+            if (_activeMarketingSubTab == "viral") RenderMarketingViralPane();
+        }
+
+        private void MktNextViralIdea_Click(object sender, RoutedEventArgs e)
+        {
+            EnsureViralIdeasInitialized();
+            if (_mktVault.ViralIdeas.Count == 0) return;
+            PlaySoundNav();
+            _currentViralIdeaIndex = (_currentViralIdeaIndex + 1) % _mktVault.ViralIdeas.Count;
+            _selectedViralIdea = _mktVault.ViralIdeas[_currentViralIdeaIndex];
+            SaveMarketingVaultOffline();
+            RenderFocusViralDropdown();
+            if (_activeMarketingSubTab == "viral") RenderMarketingViralPane();
+        }
+
+        private void MktSetViralAsFocusIdea_Click(object sender, RoutedEventArgs e)
+        {
+            EnsureViralIdeasInitialized();
+            if (_selectedViralIdea == null) return;
+            PlaySoundTaskDone();
+
+            int idx = _mktVault.ViralIdeas.FindIndex(x => x.Rank == _selectedViralIdea.Rank);
+            if (idx >= 0)
+            {
+                _currentViralIdeaIndex = idx;
+                SaveMarketingVaultOffline();
+                RenderFocusViralDropdown();
+                RenderMarketingViralPane();
+            }
+
+            if (sender is Button btn)
+            {
+                string orig = btn.Content?.ToString() ?? "⭐ Als Fokus-Idee heute setzen";
+                btn.Content = "✓ Im Fokus-Dropdown gesetzt!";
+                _ = Task.Delay(1500).ContinueWith(_ => Dispatcher.Invoke(() => btn.Content = orig));
+            }
+        }
+
+        private void MktRotateSelectedViralProduct_Click(object sender, RoutedEventArgs e)
+        {
+            EnsureViralIdeasInitialized();
+            var target = (_mktVault.IsFocusMode && _mktVault.ViralIdeas.Count > 0)
+                ? _mktVault.ViralIdeas[Math.Clamp(_currentViralIdeaIndex, 0, _mktVault.ViralIdeas.Count - 1)]
+                : (_selectedViralIdea ?? _mktVault.ViralIdeas.FirstOrDefault());
+            if (target == null) return;
+
+            PlaySoundActionPop();
+            target.ProductVariantIndex++;
+            SaveMarketingVaultOffline();
+            RenderFocusViralDropdown();
+            if (_activeMarketingSubTab == "viral") RenderMarketingViralPane();
+        }
+
+        private void MktCopySelectedViralSong_Click(object sender, RoutedEventArgs e)
+        {
+            EnsureViralIdeasInitialized();
+            var target = (_mktVault.IsFocusMode && _mktVault.ViralIdeas.Count > 0)
+                ? _mktVault.ViralIdeas[Math.Clamp(_currentViralIdeaIndex, 0, _mktVault.ViralIdeas.Count - 1)]
+                : (_selectedViralIdea ?? _mktVault.ViralIdeas.FirstOrDefault());
+            if (target == null) return;
+
+            Clipboard.SetText(target.TrendingSongs);
+            PlaySoundActionPop();
+            if (sender is Button btn)
+            {
+                string orig = btn.Content?.ToString() ?? "📋 Song kopieren";
+                btn.Content = "✓ Song kopiert!";
+                _ = Task.Delay(1400).ContinueWith(_ => Dispatcher.Invoke(() => btn.Content = orig));
+            }
+        }
+
+        private void MktCopySelectedViralCaption_Click(object sender, RoutedEventArgs e)
+        {
+            EnsureViralIdeasInitialized();
+            var target = (_mktVault.IsFocusMode && _mktVault.ViralIdeas.Count > 0)
+                ? _mktVault.ViralIdeas[Math.Clamp(_currentViralIdeaIndex, 0, _mktVault.ViralIdeas.Count - 1)]
+                : (_selectedViralIdea ?? _mktVault.ViralIdeas.FirstOrDefault());
+            if (target == null) return;
+
+            var dyn = BuildDynamicViralTexts(target);
+            Clipboard.SetText(dyn.caption);
+            PlaySoundActionPop();
+            if (sender is Button btn)
+            {
+                string orig = btn.Content?.ToString() ?? "📋 Caption";
+                btn.Content = "✓ Kopiert!";
+                _ = Task.Delay(1400).ContinueWith(_ => Dispatcher.Invoke(() => btn.Content = orig));
+            }
+        }
+
+        private void MktOpenViralReferenceUrl_Click(object sender, RoutedEventArgs e)
+        {
+            var idea = _selectedViralIdea ?? _mktVault.ViralIdeas.FirstOrDefault();
+            if (idea == null || string.IsNullOrWhiteSpace(idea.ReferenceTrendUrl)) return;
+            PlaySoundNav();
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = idea.ReferenceTrendUrl,
+                    UseShellExecute = true
+                });
+            }
+            catch { }
+        }
+
+        private async void MktAddViralToTodo_Click(object sender, RoutedEventArgs e)
+        {
+            var idea = _selectedViralIdea ?? _mktVault.ViralIdeas.FirstOrDefault();
+            if (idea == null) return;
+            var prod = GetProductForViralIdea(idea);
+            string taskTitle = $"🔥 Viral-Video drehen ({idea.DurationLabel}): {idea.Title} mit {prod.Name} [Song: {idea.ShortSongBadge}]";
+
+            PlaySoundTaskDone();
+            if (sender is Button btn)
+            {
+                string orig = btn.Content?.ToString() ?? "➕ In To-Do";
+                btn.Content = "✓ Im To-Do!";
+                _ = Task.Delay(1500).ContinueWith(_ => Dispatcher.Invoke(() => btn.Content = orig));
+            }
+
+            try
+            {
+                var payload = JsonSerializer.Serialize(new
+                {
+                    title = taskTitle,
+                    priority = "hoch",
+                    relevant_from = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                });
+                await _http.PostAsync($"{_apiBaseUrl}/funki/tasks/lists/my_day/tasks", new StringContent(payload, Encoding.UTF8, "application/json"));
+                await LoadTodoListsAsync();
+            }
+            catch
+            {
+                _allTasks.Insert(0, new TaskItemDto
+                {
+                    Id = Guid.NewGuid().ToString("N"),
+                    Title = taskTitle,
+                    Priority = "hoch",
+                    IsCompleted = false
+                });
+                UpdateSpacesBadges();
+            }
+        }
+
+        private List<ViralConceptIdeaDto> BuildDefaultViralIdeas()
+        {
+            return new List<ViralConceptIdeaDto>
+            {
+                new ViralConceptIdeaDto
+                {
+                    Rank = 1,
+                    CategoryKey = "launch",
+                    CategoryLabel = "✂️ Schleife & Launch",
+                    Title = "Handy in Schleife durchschneiden (Online Grand Opening)",
+                    DurationLabel = "9 Sek.",
+                    EffortLabel = "5 Min. Dreh",
+                    ViewsBenchmark = "4,5M–18M",
+                    ShortSongBadge = "Taylor Swift – The Fate of Ophelia (Piano) / Bridgerton Strings",
+                    TrendingSongs = "TikTok & Reels #1: Taylor Swift – The Fate of Ophelia (Piano / Instrumental)   |   #2: Vitamin String Quartet – Give Me Everything (Bridgerton Strings)   |   #3: Petit Biscuit – Sunset Lover (-8 dB) + 100 % echter Scheren-Schnipp (0 dB)",
+                    ReferenceTrendUrl = "https://www.tiktok.com/search?q=online%20business%20grand%20opening%20ribbon%20cutting%20phone",
+                    OnScreenHook = "Wenn man eine Online-Manufaktur eröffnet und trotzdem feierlich das Band durchschneidet ✨✂️",
+                    StructureBreakdown = "• Sek. 0,0–2,2 (Visueller Stopp): Smartphone liegt auf dunklem Schiefer, Display auf 100 % Helligkeit mit @meinseelenfunke / 3D-Konfigurator für {PRODUKT}. Ein goldenes oder schwarzes Satinband ist mit einer Schleife fest um das Handy gebunden. Die goldene Schere schwebt (mit weißen Handschuhen!) bereits an der Schleife.\n• Sek. 2,2–4,8 (ASMR-Schnitt): Ein einzelner, knackiger Scherenschnitt (0 dB Original-Ton!). Das Band fällt nach links und rechts auseinander.\n• Sek. 4,8–9,0 (Reveal & Loop): Der Finger (im weißen Handschuh) tippt live auf das freigelegte Display und dreht {PRODUKT} in 3D, während daneben das echte Unikat in der schwarzen Westpack-Box funkelt.",
+                    WhyItGoesViral = "1. Muster-Unterbrechung (Pattern Interrupt): Zuschauer kennen Band-Durchschneiden nur von echten Ladengeschäften – ein Handy in einer Geschenk-Schleife stoppt in 0,4 Sek. den Daumen.\n2. Sympathie-Trigger ('Support Small Business'): Tausende fremde Zuschauer kommentieren automatisch 'Herzlichen Glückwunsch zur Eröffnung!', was den Algorithmus explodieren lässt.",
+                    Step1Setup = "1. Zweites Smartphone (Display-Timeout aus, 100 % Helligkeit, geöffnet auf @meinseelenfunke oder {PRODUKT}).\n2. 40 cm Satinband (Gold #C5A059 oder Schwarz) + scharfe Gold-Schere + weiße Baumwollhandschuhe.\n3. Echtes {PRODUKT} in geöffneter Westpack-Box rechts neben das Handy legen.",
+                    Step2Shoot = "Binde das Band locker um das Handy (Schleife mittig auf dem Display). Starte die Aufnahme exakt, wenn die Schere das Band berührt (kein Leerlauf!). Schneide bei Sekunde 2,5 kräftig durch, ziehe die Bandenden zur Seite und drehe 3 Sekunden lang {PRODUKT} live auf dem Handybildschirm.",
+                    Step3EditAndPost = "Schneide das Video auf knackige 8,5–9,5 Sekunden. Lass das echte 'Schnipp'-Geräusch der Schere bei 100 % (0 dB) und lege 'The Fate of Ophelia (Piano)' oder 'Bridgerton Strings' bei -8 dB darunter. Link in Bio auf {SLUG}.",
+                    ReadyCaptionAndTags = "Hiermit ist unsere Online-Manufaktur Mein-Seelenfunke offiziell eröffnet! ✂️✨ Da wir kein Straßengeschäft haben, mussten wir das feierliche Band eben auf unsere eigene Art durchschneiden. 🤍 Welches Stück würdest du als Erstes im 3D-Konfigurator gestalten – {PRODUKT} oder den Seelen Kristall? 👇\n\n👉 Schau dich jetzt in unserem Atelier um: mein-seelenfunke.de ({SLUG})\n\n#neueröffnung #grandopening #kleinesunternehmen #handgemacht #geschenkidee",
+                    ProductVariantIndex = 1
+                },
+                new ViralConceptIdeaDto
+                {
+                    Rank = 2,
+                    CategoryKey = "asmr",
+                    CategoryLabel = "🔊 ASMR & Handschuhe",
+                    Title = "Das 8-Sekunden Schachtel-Klacken (Westpack White-Glove Ritual)",
+                    DurationLabel = "8 Sek.",
+                    EffortLabel = "4 Min. Dreh",
+                    ViewsBenchmark = "2,8M–9,4M",
+                    ShortSongBadge = "100 % Original Box-Snap + Petit Biscuit – Sunset Lover",
+                    TrendingSongs = "Original ASMR Ton (Samt-Streichen & Schachtel-Klacken auf 0 dB)   |   Hintergrund (-10 dB): Petit Biscuit – Sunset Lover (Slowed Instrumental) oder Ludovico Einaudi – Una Mattina",
+                    ReferenceTrendUrl = "https://www.tiktok.com/search?q=luxury%20jewelry%20packaging%20white%20gloves%20asmr",
+                    OnScreenHook = "POV: Dein Geschenk verlässt unsere Manufaktur erst nach dem White-Glove-Ritual 🧤✨",
+                    StructureBreakdown = "• Sek. 0,0–2,5: Blütenweiße Handschuhe streichen langsam über das funkelnde {PRODUKT} im warmen Streiflicht.\n• Sek. 2,5–5,5: Sanftes Einbetten in das schwarze Samt-Inlay der mattschwarzen Westpack-Schachtel.\n• Sek. 5,5–8,0: Der Deckel schließt mit einem satten, tiefen 'KLACK' – Ende exakt auf dem Schallimpuls.",
+                    WhyItGoesViral = "Hebt den wahrgenommenen Wert sofort auf 250-€-Juwelier-Niveau und löst bei Geschenk-Käufern das Gefühl aus: 'Ich muss nichts mehr selbst einpacken!'",
+                    Step1Setup = "Mattschwarze Westpack-Schmuckbox · Blütenweiße Baumwollhandschuhe · Feiner Staubpinsel · {PRODUKT}.",
+                    Step2Shoot = "Halte das Handy-Mikrofon 15 cm nah an die Schachtel. Streiche einmal mit dem Pinsel über {PRODUKT}, lege es in die Box und schließe den Deckel hörbar.",
+                    Step3EditAndPost = "Kürze auf exakt 8 Sekunden. Der letzte Frame ist die geschlossene Box mit Gold-Logo (perfekter Loop!). Song bei -10 dB darunterlegen.",
+                    ReadyCaptionAndTags = "Kein Fingerabdruck, kein Staubkorn – jedes {PRODUKT} wird in unserer Manufaktur mit weißen Handschuhen geprüft und verschenkfertig gebettet. 🧤🖤 Für wen suchst du gerade ein besonderes Unikat? 👇\n\n👉 Direkt konfigurieren: {SLUG}\n\n#whiteglove #unboxingasmr #schmuckliebe #geschenkverpackung",
+                    ProductVariantIndex = 1
+                },
+                new ViralConceptIdeaDto
+                {
+                    Rank = 3,
+                    CategoryKey = "asmr",
+                    CategoryLabel = "🔊 ASMR & Handschuhe",
+                    Title = "Licht-Aus im Dunkeln: Der 3D-Kristall erwacht (Lights-Off Reveal)",
+                    DurationLabel = "10 Sek.",
+                    EffortLabel = "5 Min. Dreh",
+                    ViewsBenchmark = "3,9M–14M",
+                    ShortSongBadge = "Hans Zimmer – Cornfield Chase (Piano) / Einaudi – Experience",
+                    TrendingSongs = "TikTok & Reels #1: Hans Zimmer – Cornfield Chase (Dorian Marko Piano)   |   #2: Ludovico Einaudi – Experience (Violin Drop bei Sek. 3,5)",
+                    ReferenceTrendUrl = "https://www.tiktok.com/search?q=3d%20crystal%20photo%20light%20reveal%20in%20dark",
+                    OnScreenHook = "Warte bis das Licht ausgeht... 🕯️✨ (Aus einem normalen 2D-Handyfoto!)",
+                    StructureBreakdown = "• Sek. 0,0–3,0: Raum ist hell, Handy mit 2D-Foto wird neben den unbeleuchteten Glasblock gehalten.\n• Sek. 3,0–3,5: Raumlicht geht schlagartig aus (Klick-Geräusch des Schalters!).\n• Sek. 3,5–10,0: Der LED-Sockel schaltet sich ein und das 3D-Portrait im {PRODUKT} leuchtet magisch im Dunkeln, während weiße Handschuhe es um 45° drehen.",
+                    WhyItGoesViral = "'Warte bis...'-Hooks in Kombination mit einem echten Hell-zu-Dunkel-Kontrast bei Sekunde 3 sorgen für über 85 % Watchtime bis zum Ende.",
+                    Step1Setup = "Der Seelen Kristall (oder {PRODUKT}) · LED-Leuchtsockel · 2. Handy mit Vorlagen-Foto · Raum komplett abdunkelbar.",
+                    Step2Shoot = "Starte mit Raumlicht an (Foto neben Kristall). Schalte bei Sekunde 3 das Raumlicht aus und im selben Moment den LED-Sockel an. Drehe das Stück langsam.",
+                    Step3EditAndPost = "Lege den Violin-/Piano-Drop von 'Cornfield Chase' oder 'Experience' exakt auf Sekunde 3,2 (den Einschalt-Moment des Lichts!).",
+                    ReadyCaptionAndTags = "Aus einem ganz normalen Handyfoto wird ein leuchtendes 3D-Erinnerungsstück für die Ewigkeit. 💎✨ Welches Foto auf deinem Handy hätte diesen Platz verdient? 👇\n\n👉 Teste dein Foto live in 3D: {SLUG}\n\n#3dkristall #lichtmagie #erinnerungsstück #fotogeschenk",
+                    ProductVariantIndex = 0
+                },
+                new ViralConceptIdeaDto
+                {
+                    Rank = 4,
+                    CategoryKey = "story",
+                    CategoryLabel = "🤍 Emotion & Story",
+                    Title = "Letzte Handschrift auf altem Papier -> Für immer in Gold",
+                    DurationLabel = "11 Sek.",
+                    EffortLabel = "6 Min. Dreh",
+                    ViewsBenchmark = "3,2M–11M",
+                    ShortSongBadge = "SYML – Where's My Love (Acoustic Piano) / Billie Eilish Instrumental",
+                    TrendingSongs = "TikTok & Reels #1: SYML – Where's My Love (Acoustic Piano Solo)   |   #2: Billie Eilish – What Was I Made For? (Piano Instrumental) + 3 Sek. echtes Laser-Singen",
+                    ReferenceTrendUrl = "https://www.tiktok.com/search?q=handwriting%20engraved%20necklace%20memorial",
+                    OnScreenHook = "„Kannst du die letzte Geburtstagskarte meiner Oma auf Gold verewigen?“ 🥺🤍",
+                    StructureBreakdown = "• Sek. 0,0–2,5: Eine alte handgeschriebene Karte ('Hab dich lieb, deine Oma') liegt neben dem ungravierten {PRODUKT}.\n• Sek. 2,5–6,0: Makro-Aufnahme: Der xTool F2 Ultra brennt exakt diese Schwünge mit einem hellen Blitz ins Material.\n• Sek. 6,0–11,0: Weiße Handschuhe halten die Papierkarte und das fertige {PRODUKT} direkt nebeneinander ins warme Streiflicht.",
+                    WhyItGoesViral = "Handschriften von Großeltern/Eltern lösen sofort Gänsehaut aus und werden extrem häufig per WhatsApp an Geschwister und Familie weitergeleitet (hohe Share-Rate!).",
+                    Step1Setup = "Handgeschriebener Zettel/Karte · {PRODUKT} · Weiße Baumwollhandschuhe · xTool F2 Ultra UV.",
+                    Step2Shoot = "Clip 1 (2,5s): Zettel neben Rohling. Clip 2 (3,5s): Laser-Gravur in Nahaufnahme. Clip 3 (5s): Fertiges Stück neben dem Zettel leicht im Licht kippen.",
+                    Step3EditAndPost = "0–6s echter Laser-Ton hörbar lassen, ab Sekunde 6 sanftes Piano ('Where's My Love') aufblenden. Direktlink auf {SLUG}.",
+                    ReadyCaptionAndTags = "Manche Worte auf Papier verblassen mit den Jahren – aber auf {PRODUKT} bleiben sie für immer nah am Herzen tragbar. 🤍✨ Wessen Handschrift würdest du verewigen lassen? 👇\n\n👉 Handschrift einfach abfotografieren & hochladen: {SLUG}\n\n#handschriftgravur #erinnerungsschmuck #omageschenk #seelenfunke",
+                    ProductVariantIndex = 1
+                },
+                new ViralConceptIdeaDto
+                {
+                    Rank = 5,
+                    CategoryKey = "quick",
+                    CategoryLabel = "⚡ 7-Sek. Trends",
+                    Title = "7-Sekunden Endlos-Loop: Violetter UV-Laser schwebt im Glas",
+                    DurationLabel = "7 Sek.",
+                    EffortLabel = "3 Min. Dreh",
+                    ViewsBenchmark = "1,9M–8,5M",
+                    ShortSongBadge = "100 % Original UV-Laser-Knistern (0 dB) + Øfdream – Thelema",
+                    TrendingSongs = "100 % Original xTool 5W UV-Laser-Knistern (0 dB)   |   Optional leise (-14 dB): Øfdream – Thelema (Slowed) oder Pure ASMR (ohne Musik)",
+                    ReferenceTrendUrl = "https://www.tiktok.com/search?q=subsurface%20laser%20engraving%20crystal%20asmr",
+                    OnScreenHook = "Wie kommt das Bild mitten ins Glas, ohne die Oberfläche zu berühren? 🤯🔮",
+                    StructureBreakdown = "• Sek. 0,0–4,5: Extreme 3x-Makro-Aufnahme durch die Laserschutz-Scheibe: Tausende violette Mikropunkte blitzen im K9-Kristall auf.\n• Sek. 4,5–7,0: Weiße Handschuhe streichen über die spiegelglatte Außenfläche des Glases – null Kratzer außen, 100 % 3D innen!",
+                    WhyItGoesViral = "Technik-Rätsel ('Wie ist das physikalisch möglich?') triggern hunderte Diskussionen in den Kommentaren, während das kurze 7s-Video 3x durchläuft.",
+                    Step1Setup = "xTool F2 Ultra UV im laufenden Kristall-Job · Smartphone mit 2x/3x Zoom fest ans Schutzfenster halten · Weiße Handschuhe.",
+                    Step2Shoot = "Filme 5 Sekunden lang das violette Aufblitzen im Kristall und 2 Sekunden lang, wie du mit dem behandschuhten Finger über die glatte Glas-Außenseite streichst.",
+                    Step3EditAndPost = "Auf exakt 7,0 Sekunden schneiden. Keinen Abspann einbauen, damit das Video unbemerkt wieder von vorn startet.",
+                    ReadyCaptionAndTags = "Unser 5W UV-Laser bündelt das Licht exakt im Inneren des K9-Kristalls – die Oberfläche bleibt spiegelglatt und unversehrt! 🔮⚡ Faszinierend, oder? 👇\n\n👉 Erstelle dein eigenes 3D-Kristall-Unikat: {SLUG}\n\n#uvlaser #laserasmr #3dglasgravur #manufaktur #technikmagie",
+                    ProductVariantIndex = 0
+                },
+                new ViralConceptIdeaDto
+                {
+                    Rank = 6,
+                    CategoryKey = "story",
+                    CategoryLabel = "🤍 Emotion & Story",
+                    Title = "Der Perfektionismus-Check: „Warum dieses Stück NICHT rausgeht“",
+                    DurationLabel = "13 Sek.",
+                    EffortLabel = "6 Min. Dreh",
+                    ViewsBenchmark = "2,1M–6,8M",
+                    ShortSongBadge = "Ruhige Gründer-Stimme + Warmes Lo-Fi Piano (-15 dB)",
+                    TrendingSongs = "Originalton / Ruhige Stimme (0 dB)   |   Hintergrund (-15 dB): Idealism – Both of Us (Lo-Fi Piano) oder Toshifumi Hinata – Reflections",
+                    ReferenceTrendUrl = "https://www.tiktok.com/search?q=why%20this%20order%20failed%20quality%20control%20jewelry",
+                    OnScreenHook = "Warum dieses {PRODUKT} meine Qualitätskontrolle heute NICHT bestanden hat 🔍🧤",
+                    StructureBreakdown = "• Sek. 0,0–4,0: Du hältst {PRODUKT} mit weißen Handschuhen unter die Lupe ins Streiflicht ('Für 99 % sieht es perfekt aus, aber die Gravur sitzt 0,4 mm zu weit links').\n• Sek. 4,0–9,0: Einlegen eines brandneuen Rohlings in den xTool Laser und perfekter Zweit-Durchlauf.\n• Sek. 9,0–13,0: Beide Stücke kurz vergleichen und das makellose Stück in die Westpack-Box betten.",
+                    WhyItGoesViral = "Zuschauer versuchen im Video den winzigen 'Fehler' zu finden (halten das Video an -> 200 % Watchtime!) und fassen blindes Vertrauen in deine Manufaktur-Qualität.",
+                    Step1Setup = "Ein Probe-/Ausschuss-Stück + ein perfektes {PRODUKT} · Juwelierlupe · Weiße Handschuhe · Westpack-Box.",
+                    Step2Shoot = "Zeige 4s das Probestück unter der Lupe, 4s den neuen Laserblitz und 5s das makellose Endergebnis in der schwarzen Schachtel.",
+                    Step3EditAndPost = "Entweder mit 2 ruhigen Sätzen einsprechen oder rein über Text-Einblendungen + sanftes Piano lösen.",
+                    ReadyCaptionAndTags = "Aus unserer Manufaktur in Gifhorn geht kein Stück heraus, das ich nicht selbst mit Stolz verschenken würde. 🔍🤍 Siehst du den winzigen Unterschied von 0,4 mm? 👇\n\n👉 Handveredelte Perfektion entdecken: {SLUG}\n\n#qualitätskontrolle #manufaktur #handarbeit #perfektionismus #schmuckmanufaktur",
+                    ProductVariantIndex = 1
+                },
+                new ViralConceptIdeaDto
+                {
+                    Rank = 7,
+                    CategoryKey = "launch",
+                    CategoryLabel = "✂️ Schleife & Launch",
+                    Title = "3D-Konfigurator am Handy -> Fingerschnips -> Echtes Unikat",
+                    DurationLabel = "8 Sek.",
+                    EffortLabel = "4 Min. Dreh",
+                    ViewsBenchmark = "1,8M–5,5M",
+                    ShortSongBadge = "Sabrina Carpenter – Espresso (Instrumental) / Beat-Transition",
+                    TrendingSongs = "TikTok & Reels #1: Sabrina Carpenter – Espresso (Instrumental Beat-Drop)   |   #2: Peggy Gou – (It Goes Like) Nanana (Instrumental)",
+                    ReferenceTrendUrl = "https://www.tiktok.com/search?q=custom%203d%20preview%20to%20real%20product%20transition",
+                    OnScreenHook = "Wenn du erst im 3D-Konfigurator spielst... und es 3 Tage später ECHT vor dir liegt ✨📱",
+                    StructureBreakdown = "• Sek. 0,0–3,5: Eine Hand dreht {PRODUKT} live im 3D-Konfigurator auf dem Smartphone-Display.\n• Sek. 3,5–4,0: Die andere Hand (im weißen Handschuh) führt das echte {PRODUKT} exakt im gleichen Winkel vor die Kameralinse.\n• Sek. 4,0–8,0: Das echte Unikat funkelt im Streiflicht vor der schwarzen Westpack-Box.",
+                    WhyItGoesViral = "Nimmt jedem Erstbesucher sofort die größte Angst im Online-Handel ('Sieht das am Ende wirklich so aus wie in der Vorschau?') und löst direkte Spieltrieb-Klicks auf den Bio-Link aus.",
+                    Step1Setup = "Smartphone mit geöffnetem 3D-Konfigurator ({SLUG}) · Echtes {PRODUKT} mit identischem Motiv · Weiße Handschuhe.",
+                    Step2Shoot = "Drehe 3,5 Sekunden lang das 3D-Modell am Handy und schiebe auf dem Beat-Drop das echte {PRODUKT} exakt darüber ins Bild.",
+                    Step3EditAndPost = "Schnitt exakt auf den Beat-Drop bei Sekunde 3,5 legen. Direktlink in Bio auf {SLUG} setzen.",
+                    ReadyCaptionAndTags = "Kein blindes Bestellen mehr: Bei uns siehst du dein {PRODUKT} schon vor dem Kauf live in 3D von allen Seiten! 📱✨ Hast du unseren 3D-Konfigurator schon kostenlos ausprobiert? 👇\n\n👉 Jetzt eigenes Foto/Wunschtext in 3D testen: {SLUG}\n\n#3dkonfigurator #vorhernachher #personalisiertegeschenke #unikat",
+                    ProductVariantIndex = 2
+                },
+                new ViralConceptIdeaDto
+                {
+                    Rank = 8,
+                    CategoryKey = "story",
+                    CategoryLabel = "🤍 Emotion & Story",
+                    Title = "Schwarz-Eloxal Kontrast-Magie: Silber-Weiß blitzt aus Tiefschwarz",
+                    DurationLabel = "9 Sek.",
+                    EffortLabel = "4 Min. Dreh",
+                    ViewsBenchmark = "2,4M–7,9M",
+                    ShortSongBadge = "Yiruma – River Flows in You + xTool Laser-Zischen",
+                    TrendingSongs = "Sek. 0–4: 100 % Original Laser-Zischen (0 dB)   |   Ab Sek. 4: Yiruma – River Flows in You (Warm Piano -8 dB)",
+                    ReferenceTrendUrl = "https://www.tiktok.com/search?q=black%20metal%20laser%20engraving%20satisfying",
+                    OnScreenHook = "Dieser Kontrast, wenn der Laser auf mattschwarzes Metall trifft... ⚡🖤",
+                    StructureBreakdown = "• Sek. 0,0–4,0: Der Laserstrahl rast in Höchstgeschwindigkeit über das tiefschwarze Aluminium (Der Seelenanhänger) und legt in Echtzeit strahlendes Silber-Weiß frei.\n• Sek. 4,0–9,0: Weiße Handschuhe heben das Herz hoch und wenden es auf die Rückseite (geheime Botschaft).",
+                    WhyItGoesViral = "Der extreme Hell-Dunkel-Kontrast beim Abtragen der schwarzen Eloxalschicht gehört zu den meistgespeicherten 'Satisfying Engraving'-Clips auf TikTok und Reels.",
+                    Step1Setup = "Der Seelenanhänger (Schwarz-Eloxal) oder {PRODUKT} · xTool F2 Ultra · Weiße Handschuhe · Schwarze Westpack-Box.",
+                    Step2Shoot = "Starte die Aufnahme 0,2 Sek. vor dem ersten Laserblitz (2x Zoom). Nimm das Stück danach mit weißen Handschuhen heraus und wende es im Licht.",
+                    Step3EditAndPost = "Auf 9 Sekunden kürzen, Original-Laserzischen ungekürzt auf 0 dB lassen.",
+                    ReadyCaptionAndTags = "Außen edles Mattschwarz, innen eine Botschaft in strahlendem Silber-Weiß, die niemals verblasst. 🖤✨ Welches Datum oder welchen Namen würdest du auf die Rückseite gravieren? 👇\n\n👉 Jetzt gestalten: {SLUG}\n\n#satisfyingvideo #lasergravur #schwarzesschmuckstück #gravuranhänger",
+                    ProductVariantIndex = 4
+                },
+                new ViralConceptIdeaDto
+                {
+                    Rank = 9,
+                    CategoryKey = "quick",
+                    CategoryLabel = "⚡ 7-Sek. Trends",
+                    Title = "Das Bestseller-Duell: „Team 1 (Gold) oder Team 2 (Kristall)?“",
+                    DurationLabel = "7 Sek.",
+                    EffortLabel = "3 Min. Dreh",
+                    ViewsBenchmark = "1,5M–4,9M",
+                    ShortSongBadge = "Tyla – Water (Instrumental) / Luxury Lounge Beat",
+                    TrendingSongs = "TikTok & Reels #1: Tyla – Water (Instrumental Slowed)   |   #2: Kaytranada – Intimidated (Instrumental Lounge Beat)",
+                    ReferenceTrendUrl = "https://www.tiktok.com/search?q=which%20one%20would%20you%20choose%20jewelry%20edition",
+                    OnScreenHook = "Ehrliche Frage: Über welches Geschenk würdest du dich mehr freuen – 1 oder 2? 👇✨",
+                    StructureBreakdown = "• Sek. 0,0–3,5: Links im Bild funkelt Das Goldene Seelen-Herz in der geöffneten Westpack-Box ('1').\n• Sek. 3,5–7,0: Kameraschwenk 15 cm nach rechts auf Den Seelen Kristall auf dem leuchtenden LED-Sockel ('2').",
+                    WhyItGoesViral = "Menschen lieben es, in 1 Sekunde ihre Meinung abzugeben ('1' oder '2' tippen). Hunderte Kurz-Kommentare pushen das Video sofort in neue Feeds.",
+                    Step1Setup = "Das Goldene Seelen-Herz (in Westpack-Box) + Der Seelen Kristall (auf LED-Sockel) nebeneinander auf dunklem Schiefer.",
+                    Step2Shoot = "Ein einziger ruhiger Kameraschwenk von links (Stück 1) nach rechts (Stück 2) mit weißen Handschuhen, die kurz beide Stücke ins Licht drehen.",
+                    Step3EditAndPost = "Über das linke Stück '1 💛' und über das rechte Stück '2 💎' als kleinen Text setzen. Auf 7 Sekunden schneiden.",
+                    ReadyCaptionAndTags = "Stell dir vor, dein Lieblingsmensch überrascht dich heute: Team 1 (Goldenes Seelen-Herz) oder Team 2 (Leuchtender 3D Seelen Kristall)? Schreib 1 oder 2 in die Kommentare! 👇✨\n\n👉 Beide Unikate findest du hier: {SLUG}\n\n#geschenkidee #team1oder2 #schmuckoderkristall #persönlichesgeschenk",
+                    ProductVariantIndex = 0
+                },
+                new ViralConceptIdeaDto
+                {
+                    Rank = 10,
+                    CategoryKey = "story",
+                    CategoryLabel = "🤍 Emotion & Story",
+                    Title = "Haustier-Unikat: „Damit deine Fellnase immer bei dir ist 🐾“",
+                    DurationLabel = "12 Sek.",
+                    EffortLabel = "5 Min. Dreh",
+                    ViewsBenchmark = "2,9M–10M",
+                    ShortSongBadge = "JVKE – golden hour (Piano Slowed)",
+                    TrendingSongs = "TikTok & Reels #1: JVKE – golden hour (Piano Slowed)   |   #2: Coldplay – Sparks (Instrumental Piano) + 3s Laser-Singen",
+                    ReferenceTrendUrl = "https://www.tiktok.com/search?q=custom%20pet%20memorial%20engraving%20dog",
+                    OnScreenHook = "Für alle, deren Vierbeiner kein bloßes Haustier, sondern Familie ist 🐾🤍",
+                    StructureBreakdown = "• Sek. 0,0–3,0: Smartphone mit einem süßen Hunde-/Katzenfoto liegt neben dem Rohling ({PRODUKT} / Seelen-Pfote).\n• Sek. 3,0–7,0: Präzisions-Gravur im xTool F2 Ultra.\n• Sek. 7,0–12,0: Das fertige Stück wird im goldenen Licht direkt neben das Haustier-Foto gehalten.",
+                    WhyItGoesViral = "Die Haustier-Community (Hunde & Katzen) hat auf TikTok und Instagram die höchste emotionale Kauf- und Markier-Rate ('@freundin das brauchen wir für Bello!').",
+                    Step1Setup = "Die Seelen-Pfote oder Der Seelen Kristall ({PRODUKT}) · Handy mit Haustierfoto · Weiße Handschuhe.",
+                    Step2Shoot = "Zeige 3s das Haustierfoto am Handy, 4s den Laserblitz und 5s das fertige Unikat in der weißen behandschuhten Hand.",
+                    Step3EditAndPost = "Beim Übergang vom Laser zum fertigen Stück den Piano-Refrain von 'golden hour' einsetzen lassen.",
+                    ReadyCaptionAndTags = "Ob als täglicher Begleiter am Halsband oder als leuchtende Erinnerung für die Ewigkeit – wir verewigen deine Fellnase mit höchster Präzision. 🐾🤍 Wie heißt dein treuster Begleiter? 👇\n\n👉 Jetzt gestalten: {SLUG}\n\n#hundeliebe #katzenliebe #pfotenabdruck #haustiergeschenk #hundemarke",
+                    ProductVariantIndex = 3
+                },
+                new ViralConceptIdeaDto
+                {
+                    Rank = 11,
+                    CategoryKey = "quick",
+                    CategoryLabel = "⚡ 7-Sek. Trends",
+                    Title = "Der 180°-Wende-Moment: Das Geheimnis auf der Rückseite",
+                    DurationLabel = "8 Sek.",
+                    EffortLabel = "4 Min. Dreh",
+                    ViewsBenchmark = "1,7M–6,2M",
+                    ShortSongBadge = "Stephen Sanchez – Until I Found You (Instrumental Strings)",
+                    TrendingSongs = "TikTok & Reels #1: Stephen Sanchez – Until I Found You (Strings Instrumental)   |   #2: Taylor Swift – Lover (Piano Instrumental)",
+                    ReferenceTrendUrl = "https://www.tiktok.com/search?q=secret%20message%20backside%20engraved%20necklace",
+                    OnScreenHook = "Von vorne ein edles Schmuckstück... aber dreh es mal um 🤫✨",
+                    StructureBreakdown = "• Sek. 0,0–3,5: Weiße Handschuhe halten die glänzende Vorderseite von {PRODUKT} (mit den Koordinaten eines besonderen Ortes).\n• Sek. 3,5–8,0: Langsame 180°-Drehung zwischen den Fingern – auf der Rückseite erscheint eine persönliche Liebesbotschaft oder Handschrift.",
+                    WhyItGoesViral = "Neugier-Lücke ('Was steht auf der Rückseite?') zwingt den Zuschauer dranzubleiben und oft auf Pause zu drücken, um die geheime Gravur zu lesen.",
+                    Step1Setup = "Beidseitig graviertes {PRODUKT} (z. B. Goldenes Seelen-Herz oder Seelen-Talisman) · Weiße Handschuhe · Schwarzer Hintergrund.",
+                    Step2Shoot = "Halte {PRODUKT} ruhig ins Streiflicht, wende es bei Sekunde 3,5 sanft um 180° auf die Rückseite und lege es in die Westpack-Box.",
+                    Step3EditAndPost = "Auf 8 Sekunden schneiden. Keinen Text über die Mitte legen, damit die Gravur frei lesbar bleibt.",
+                    ReadyCaptionAndTags = "Vorne die Koordinaten des Ortes, an dem alles begann – und auf der Rückseite nur für dich allein lesbar: Deine persönlichen Worte. 🤫💛 Welchen Ort würdest du verewigen? 👇\n\n👉 Vorder- & Rückseite im 3D-Konfigurator gestalten: {SLUG}\n\n#koordinatenschmuck #geheimebotschaft #partnergeschenk #jahrestagsgeschenk",
+                    ProductVariantIndex = 2
+                },
+                new ViralConceptIdeaDto
+                {
+                    Rank = 12,
+                    CategoryKey = "asmr",
+                    CategoryLabel = "🔊 ASMR & Handschuhe",
+                    Title = "360° Rotations-Hypnose: Weizenglas dreht sich im Laserstrahl",
+                    DurationLabel = "10 Sek.",
+                    EffortLabel = "5 Min. Dreh",
+                    ViewsBenchmark = "1,6M–5,8M",
+                    ShortSongBadge = "RA3 Servo-Sound (0 dB) + Daft Punk – Veridis Quo (Slowed)",
+                    TrendingSongs = "Sek. 0–5: 100 % Original RA3 Rotations- & Laser-Sound (0 dB)   |   Ab Sek. 5: Daft Punk – Veridis Quo (Slowed -8 dB)",
+                    ReferenceTrendUrl = "https://www.tiktok.com/search?q=rotary%20laser%20engraving%20beer%20glass%20satisfying",
+                    OnScreenHook = "Wenn das Feierabend-Glas im 360°-Laser zum Einzelstück wird 🍺⚡",
+                    StructureBreakdown = "• Sek. 0,0–5,0: Das Weizenglas dreht sich im xTool RA3 Rotationsaufsatz wie ein Uhrwerk, während der UV-Laser das Wappen/Motiv schneeweiß ins Kristallglas brennt.\n• Sek. 5,0–10,0: Weiße Handschuhe heben das fertige Glas ins warme Gegenlicht – die milchweiße Frost-Gravur leuchtet gestochen scharf.",
+                    WhyItGoesViral = "Mechanische Präzision + Rotation wirkt extrem hypnotisch und erschließt sofort die riesige Zielgruppe für Männer-, Papa-, Vereins- und Trauzeugen-Geschenke.",
+                    Step1Setup = "Der Feierabend-Funke (Weizenglas) · xTool RA3 Rotationsaufsatz · Weiße Handschuhe · Gegenlicht-Lampe.",
+                    Step2Shoot = "Filme 5s die Drehung im RA3 während des Laserns und 5s das fertige Glas im warmen Gegenlicht vor dunklem Hintergrund.",
+                    Step3EditAndPost = "Auf 10 Sekunden schneiden. Das mechanische Summen des RA3 in den ersten 4 Sekunden hörbar lassen.",
+                    ReadyCaptionAndTags = "Kein Aufkleber, kein Verblassen in der Spülmaschine: Unsere UV-Lasergravur ist für die Ewigkeit direkt ins Kristallglas geschmolzen. 🍺✨ Wer aus deinem Freundeskreis hat sein eigenes Stammglas verdient? 👇\n\n👉 Jetzt Wunschname & Motiv eingeben: {SLUG}\n\n#weizenglas #männergeschenk #papageschenk #glasgravur #feierabendbier",
+                    ProductVariantIndex = 5
+                },
+                new ViralConceptIdeaDto
+                {
+                    Rank = 13,
+                    CategoryKey = "asmr",
+                    CategoryLabel = "🔊 ASMR & Handschuhe",
+                    Title = "Pack with Me: „Verpacke mit mir eine Kundenbestellung aus Gifhorn“",
+                    DurationLabel = "12 Sek.",
+                    EffortLabel = "5 Min. Dreh",
+                    ViewsBenchmark = "1,4M–4,6M",
+                    ShortSongBadge = "Packaging ASMR (0 dB) + Laufey – From The Start (Instrumental)",
+                    TrendingSongs = "Original ASMR Verpackungs-Geräusche (0 dB)   |   Hintergrund (-10 dB): Laufey – From The Start (Instrumental) oder Cozy Cafe Bossanova",
+                    ReferenceTrendUrl = "https://www.tiktok.com/search?q=pack%20an%20order%20with%20me%20small%20jewelry%20business%20asmr",
+                    OnScreenHook = "Verpacke mit mir eine ganz besondere Bestellung aus unserer Manufaktur 📦🧤",
+                    StructureBreakdown = "• Sek. 0,0–3,0: Weiße Handschuhe nehmen das frisch gravierte {PRODUKT} aus dem xTool F2 Ultra.\n• Sek. 3,0–7,5: Einlegen in die schwarze Westpack-Box, Schließen des Deckels (KLACK!).\n• Sek. 7,5–12,0: Optionales Schwarz-Gold-Geschenkpapier / Versandkarton + Beilegen der Dankeskarte.",
+                    WhyItGoesViral = "'Pack an Order with Me'-Videos zeigen echte Aktivität im Shop ('Da bestellen andere, also ist der Shop vertrauenswürdig!') und machen Lust, dass das nächste Paket das eigene ist.",
+                    Step1Setup = "{PRODUKT} · Schwarze Westpack-Box · Weiße Handschuhe · Schwarzer Versandkarton & Dankeskarte.",
+                    Step2Shoot = "4 kurze Schnitte à 2,5–3 Sekunden: 1. Entnahme aus Laser, 2. Einlegen in Box, 3. Box schließen, 4. In Versandkarton legen.",
+                    Step3EditAndPost = "Schnelle, knackige Schnitte auf den Takt von 'From The Start (Instrumental)' legen, Original-Rascheln bei 0 dB lassen.",
+                    ReadyCaptionAndTags = "Jedes einzelne Paket, das unsere Manufaktur in Gifhorn verlässt, hält eine persönliche Geschichte in sich. 📦🤍 Soll wir deine nächste Bestellung auch mit der Kamera begleiten? Schreib uns deine Bestellnummer in die Kommentare! 👇\n\n👉 Zum Shop: {SLUG}\n\n#packwithme #bestellungverpacken #manufaktur #kleinesunternehmen #geschenkbox",
+                    ProductVariantIndex = 1
+                },
+                new ViralConceptIdeaDto
+                {
+                    Rank = 14,
+                    CategoryKey = "quick",
+                    CategoryLabel = "⚡ 7-Sek. Trends",
+                    Title = "„Besser als Geld im Umschlag“ (Der Hochzeits- & Jahrestags-Retter)",
+                    DurationLabel = "8 Sek.",
+                    EffortLabel = "4 Min. Dreh",
+                    ViewsBenchmark = "1,9M–6,4M",
+                    ShortSongBadge = "Duomo – Wildest Dreams (Bridgerton Strings Cover)",
+                    TrendingSongs = "TikTok & Reels #1: Duomo – Wildest Dreams (Strings Cover)   |   #2: Edith Whiskers – Home (Instrumental)",
+                    ReferenceTrendUrl = "https://www.tiktok.com/search?q=wedding%20gift%20idea%20better%20than%20money%20crystal",
+                    OnScreenHook = "POV: Alle anderen schenken nur einen langweiligen Briefumschlag... und du kommst DAMIT an ✨🤍",
+                    StructureBreakdown = "• Sek. 0,0–2,5: Die schwarze Westpack-Box (oder der beleuchtete Seelen Kristall) steht edel auf dem Tisch.\n• Sek. 2,5–8,0: Weiße Handschuhe öffnen langsam den Deckel und enthüllen {PRODUKT} mit den Initialen / dem Hochzeitsfoto des Paares.",
+                    WhyItGoesViral = "Jede Woche suchen tausende Gäste verzweifelt nach einem Geschenk für Hochzeit, Jahrestag oder runden Geburtstag – dieses Video wird extrem oft als Lesezeichen gespeichert!",
+                    Step1Setup = "{PRODUKT} · Schwarze Westpack-Box oder LED-Sockel · Weiße Handschuhe.",
+                    Step2Shoot = "Halte die Kamera nah an die geschlossene Box, öffne den Deckel langsam mit weißen Handschuhen im warmen Licht.",
+                    Step3EditAndPost = "8 Sekunden Länge. Hinweis 'Speichere dir dieses Video für die nächste Einladung 📌' in die Caption setzen.",
+                    ReadyCaptionAndTags = "Geld ist nach zwei Wochen ausgegeben – ein persönliches Unikat aus unserer Manufaktur bleibt ein Leben lang. 🤍✨ Speichere dir dieses Video für die nächste Hochzeit, Taufe oder den nächsten Jahrestag! 📌\n\n👉 In 2 Minuten im 3D-Konfigurator gestalten: {SLUG}\n\n#hochzeitsgeschenk #jahrestagsgeschenk #besseralsgeld #geschenkidee #erinnerungsstück",
+                    ProductVariantIndex = 0
+                },
+                new ViralConceptIdeaDto
+                {
+                    Rank = 15,
+                    CategoryKey = "launch",
+                    CategoryLabel = "✂️ Schleife & Launch",
+                    Title = "Der 60-Sekunden Last-Minute-Retter (Gutschein & Vorab-Freude)",
+                    DurationLabel = "8 Sek.",
+                    EffortLabel = "4 Min. Dreh",
+                    ViewsBenchmark = "1,1M–3,8M",
+                    ShortSongBadge = "Sabrina Carpenter – Please Please Please (Instrumental)",
+                    TrendingSongs = "TikTok & Reels #1: Sabrina Carpenter – Please Please Please (Instrumental)   |   #2: French Cafe Accordion / Upbeat Piano",
+                    ReferenceTrendUrl = "https://www.tiktok.com/search?q=last%20minute%20personalized%20gift%20idea%20saved%20me",
+                    OnScreenHook = "Wenn du morgen ein Geschenk brauchst, aber trotzdem etwas 100 % Persönliches schenken willst 🎁⚡",
+                    StructureBreakdown = "• Sek. 0,0–3,0: Blick auf den Kalender / die Uhr ('Morgen ist der Ehrentag!').\n• Sek. 3,0–8,0: Weiße Handschuhe präsentieren den edlen Mein-Seelenfunke Geschenkgutschein neben einem funkelnden {PRODUKT} und dem 3D-Konfigurator am Handy.",
+                    WhyItGoesViral = "Rettet alle Spätkäufer nach dem Versand-Annahmeschluss vor Feiertagen und bringt 100 % Sofort-Umsatz ohne Versandrisiko.",
+                    Step1Setup = "Edler Seelenfunke-Gutschein (PDF/Karte) · Smartphone mit /gutschein Seite · {PRODUKT} als Deko daneben.",
+                    Step2Shoot = "Zeige 3 Sekunden die Gutschein-Auswahl am Handy und 5 Sekunden die edle Übergabe mit {PRODUKT} im Hintergrund.",
+                    Step3EditAndPost = "Besonders an den letzten 4 Tagen vor einem Feiertag (nach Versand-Cutoff!) posten. Link auf /gutschein.",
+                    ReadyCaptionAndTags = "Zu spät für den Paketversand dran? Kein Stress! Mit unserem Seelenfunke-Geschenkgutschein verschenkst du heute sofort die Vorfreude – und der Beschenkte gestaltet sich sein Unikat selbst in 3D! 🎁✨\n\n👉 Sofort als PDF-Download oder edle Karte sichern: /gutschein\n\n#lastminutegeschenk #geschenkgutschein #geschenkretter #meinseelenfunke",
+                    ProductVariantIndex = 6
+                }
+            };
         }
 
         // =========================================================================
@@ -1829,19 +2701,13 @@ namespace Funkenwerk
                 {
                     Text = r.Title,
                     Foreground = BrushFromHex("#F9FAFB"),
-                    FontSize = 13,
+                    FontSize = 12.5,
                     FontWeight = FontWeights.Bold,
-                    Margin = new Thickness(0, 4, 0, 2),
+                    Margin = new Thickness(0, 3, 0, 0),
                     TextWrapping = TextWrapping.Wrap
                 });
 
-                sp.Children.Add(new TextBlock
-                {
-                    Text = $"{r.ProductName}  ·  {r.CategoryBadge}",
-                    Foreground = BrushFromHex("#9CA3AF"),
-                    FontSize = 11
-                });
-
+                card.ToolTip = $"{r.ProductName} · {r.CategoryBadge}";
                 card.Child = sp;
                 int capturedDay = r.DayNumber;
                 card.MouseLeftButtonUp += (s, e) =>
@@ -1862,18 +2728,26 @@ namespace Funkenwerk
             var r = _selectedPlanRecipe ?? _mktVault.DailyRecipes.FirstOrDefault();
             if (r == null || MktPlanDetailTitleTxt == null) return;
 
+            var recTrack = GetRecommendedTrackForDailyRecipe(r);
+
             MktPlanDetailBadgeTxt.Text = $"RUNDE {_mktVault.CurrentRound} · TAG {r.DayNumber:00} · {r.WeekdayLabel.ToUpperInvariant()} · {r.CategoryBadge.ToUpperInvariant()} ({r.DurationLabel})";
             MktPlanDetailTitleTxt.Text = r.Title;
             MktPlanDetailProductTxt.Text = r.ProductName;
             MktPlanDetailTemplateTxt.Text = r.CapCutTemplate;
             MktPlanDetailLandingTxt.Text = r.LandingPageSlug;
             MktPlanDetailHookTxt.Text = $"„{r.OnScreenHookText}“";
-            MktPlanDetailAudioTxt.Text = r.AudioDirection;
+            if (MktPlanDetailSoundRecTxt != null)
+            {
+                MktPlanDetailSoundRecTxt.Text = $"🎵 {recTrack.Title} ({recTrack.Bpm} BPM · {recTrack.MusicalKey} · {recTrack.DurationFormatted})";
+                MktPlanDetailSoundRecTxt.Foreground = BrushFromHex("#D4AF37");
+            }
+            MktPlanDetailAudioTxt.Text = $"{r.AudioDirection}  ·  {recTrack.DropTimingLabel}";
             MktPlanDetailStep1Txt.Text = r.Step1Setup;
             MktPlanDetailStep2Txt.Text = r.Step2Hook;
             MktPlanDetailStep3Txt.Text = r.Step3Clips;
             MktPlanDetailStep4Txt.Text = r.Step4Edit;
             MktPlanDetailCaptionBox.Text = r.ReadyCaption;
+            UpdateMarketingMusicPreviewButtonsUI();
         }
 
         private void MktSetSelectedAsToday_Click(object sender, RoutedEventArgs e)
@@ -1901,6 +2775,921 @@ namespace Funkenwerk
                 btn.Content = "✓ Kopiert!";
                 Task.Delay(1400).ContinueWith(_ => Dispatcher.Invoke(() => btn.Content = orig));
             }
+        }
+
+        // =========================================================================
+        // PANE 8: EIGENER SEELENFUNKE MUSIKKATALOG & ALBUM (12 RECHTSFREIE TRACKS)
+        // + DYNAMISCHE SOUND-EMPFEHLUNG IM FOKUS-MODUS, DREHPLAN & VIRAL-DROPDOWN
+        // =========================================================================
+        private void EnsureMarketingMusicInitialized()
+        {
+            if (_mktVault.MusicCatalog == null || _mktVault.MusicCatalog.Count < 12)
+            {
+                _mktVault.MusicCatalog = BuildDefaultMarketingMusicCatalog();
+            }
+        }
+
+        private MarketingMusicTrackDto GetRecommendedTrackForDailyRecipe(DailyShootRecipeDto? r)
+        {
+            EnsureMarketingMusicInitialized();
+            var cat = _mktVault.MusicCatalog;
+            if (cat.Count == 0) return new MarketingMusicTrackDto { Title = "Golden Shimmer Drop (Viral Reveal)", Bpm = 92, MusicalKey = "D-Moll", DurationSeconds = 72 };
+            if (r == null) return cat[0];
+
+            if (!string.IsNullOrWhiteSpace(r.RecommendedMusicTrackId))
+            {
+                var explicitMatch = cat.FirstOrDefault(x => string.Equals(x.Id, r.RecommendedMusicTrackId, StringComparison.OrdinalIgnoreCase));
+                if (explicitMatch != null) return explicitMatch;
+            }
+
+            string mappedId = r.DayNumber switch
+            {
+                1 => "sf_mkt_01",  // Goldenes Seelen-Herz White-Glove ASMR -> Golden Shimmer Drop (92 BPM, D-Moll)
+                2 => "sf_mkt_02",  // Seelen Kristall Licht-Reveal im Dunkeln -> Lights-Off Crystal (84 BPM, A-Moll)
+                3 => "sf_mkt_04",  // Gründerin Perfektionismus-Check -> Founder Trust Piano (74 BPM, D-Moll)
+                4 => "sf_mkt_08",  // Seelen-Pfote Laser-ASMR -> Schiefer, Glas & Gold Manufaktur (82 BPM, A-Moll)
+                5 => "sf_mkt_07",  // Weizenglas RA3 Rotation -> Action-Cam White-Glove POV (86 BPM, D-Moll)
+                6 => "sf_mkt_05",  // Omas Handschrift Story -> Omas Handschrift Elegie (68 BPM, A-Moll)
+                7 => "sf_mkt_03",  // 3D-Konfigurator Live-Beweis -> Velvet Impulse Beat (90 BPM, D-Dorisch)
+                8 => "sf_mkt_07",  // Westpack White-Glove Ritual -> Action-Cam White-Glove POV (86 BPM, D-Moll)
+                9 => "sf_mkt_11",  // Seelen-Talisman Koordinaten -> Kerzenlicht & Kristall (62 BPM, A-Moll)
+                10 => "sf_mkt_06", // UV-Laser Magie im Glas erklärt -> Atelier Herzschlag (72 BPM, D-Moll)
+                11 => "sf_mkt_09", // Kunden-Bestellung verpacken -> Pack With Me Gifhorn (88 BPM, D-Dorisch)
+                12 => "sf_mkt_03", // Team Gold vs. Team Kristall -> Velvet Impulse Beat (90 BPM, D-Dorisch)
+                13 => "sf_mkt_10", // Hochzeits- & Jahrestags-Edition -> Mystisches Atelier Login-Theme (60 BPM, D-Dorisch)
+                14 => "sf_mkt_12", // Sonntagsschicht in Gifhorn -> Sonntagsschicht Ruhe (64 BPM, D-Moll)
+                _ => ""
+            };
+
+            if (string.IsNullOrEmpty(mappedId))
+            {
+                string badge = (r.CategoryBadge + " " + r.Title).ToLowerInvariant();
+                if (badge.Contains("story") || badge.Contains("erinnerung") || badge.Contains("oma")) mappedId = "sf_mkt_05";
+                else if (badge.Contains("gründer") || badge.Contains("check") || badge.Contains("talk")) mappedId = "sf_mkt_04";
+                else if (badge.Contains("verpack") || badge.Contains("box") || badge.Contains("handschuh")) mappedId = "sf_mkt_07";
+                else if (badge.Contains("kristall") || badge.Contains("dunkel") || badge.Contains("licht")) mappedId = "sf_mkt_02";
+                else mappedId = cat[(Math.Max(1, r.DayNumber) - 1) % cat.Count].Id;
+            }
+
+            r.RecommendedMusicTrackId = mappedId;
+            return cat.FirstOrDefault(x => x.Id == mappedId) ?? cat[0];
+        }
+
+        private MarketingMusicTrackDto GetRecommendedTrackForViralIdea(ViralConceptIdeaDto? idea)
+        {
+            EnsureMarketingMusicInitialized();
+            var cat = _mktVault.MusicCatalog;
+            if (cat.Count == 0) return new MarketingMusicTrackDto { Title = "Golden Shimmer Drop (Viral Reveal)", Bpm = 92, MusicalKey = "D-Moll", DurationSeconds = 72 };
+            if (idea == null) return cat[0];
+
+            if (!string.IsNullOrWhiteSpace(idea.RecommendedMusicTrackId))
+            {
+                var explicitMatch = cat.FirstOrDefault(x => string.Equals(x.Id, idea.RecommendedMusicTrackId, StringComparison.OrdinalIgnoreCase));
+                if (explicitMatch != null) return explicitMatch;
+            }
+
+            string mappedId = idea.Rank switch
+            {
+                1 => "sf_mkt_01",  // Handy in Schleife durchschneiden -> Golden Shimmer Drop (92 BPM, D-Moll)
+                2 => "sf_mkt_07",  // 8-Sek. Westpack Schachtel-Klacken -> Action-Cam White-Glove POV (86 BPM, D-Moll)
+                3 => "sf_mkt_02",  // Licht-Aus im Dunkeln 3D-Kristall -> Lights-Off Crystal (84 BPM, A-Moll)
+                4 => "sf_mkt_05",  // Letzte Handschrift von Oma -> Omas Handschrift Elegie (68 BPM, A-Moll)
+                5 => "sf_mkt_02",  // Hunde-Erinnerung im K9-Kristall -> Lights-Off Crystal (84 BPM, A-Moll)
+                6 => "sf_mkt_08",  // Vorher/Nachher Schiefer & Glas -> Schiefer, Glas & Gold Manufaktur (82 BPM, A-Moll)
+                7 => "sf_mkt_06",  // Qualitätskontrolle mit Lupe -> Atelier Herzschlag (72 BPM, D-Moll)
+                8 => "sf_mkt_01",  // UV-Laser mitten ins Glas -> Golden Shimmer Drop (92 BPM, D-Moll)
+                9 => "sf_mkt_04",  // Gründerin vor der Kamera -> Founder Trust Piano (74 BPM, D-Moll)
+                10 => "sf_mkt_03", // Team 1 Gold vs. Team 2 Kristall -> Velvet Impulse Beat (90 BPM, D-Dorisch)
+                11 => "sf_mkt_11", // Geheime Botschaft auf der Rückseite -> Kerzenlicht & Kristall (62 BPM, A-Moll)
+                12 => "sf_mkt_08", // Weizenglas im RA3 Rotationsaufsatz -> Schiefer, Glas & Gold Manufaktur (82 BPM, A-Moll)
+                13 => "sf_mkt_09", // Pack an Order with Me -> Pack With Me Gifhorn (88 BPM, D-Dorisch)
+                14 => "sf_mkt_10", // Besser als Geld im Umschlag -> Mystisches Atelier Login-Theme (60 BPM, D-Dorisch)
+                15 => "sf_mkt_03", // 60-Sek. Last-Minute-Retter Gutschein -> Velvet Impulse Beat (90 BPM, D-Dorisch)
+                _ => cat[(Math.Max(1, idea.Rank) - 1) % cat.Count].Id
+            };
+
+            idea.RecommendedMusicTrackId = mappedId;
+            return cat.FirstOrDefault(x => x.Id == mappedId) ?? cat[0];
+        }
+
+        private string? ResolveMarketingMusicFilePath(MarketingMusicTrackDto track)
+        {
+            if (track == null || string.IsNullOrWhiteSpace(track.FileName)) return null;
+
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string localAppData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Funkenwerk", "MarketingMusic");
+
+            string[] candidates =
+            {
+                Path.Combine(baseDir, "Assets", "MarketingMusic", track.FileName),
+                Path.Combine(localAppData, track.FileName),
+                Path.Combine(baseDir, track.FileName),
+                @"\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke\funkenwerk\Assets\MarketingMusic\" + track.FileName
+            };
+
+            foreach (var p in candidates)
+            {
+                try
+                {
+                    if (File.Exists(p)) return p;
+                }
+                catch { }
+            }
+            return null;
+        }
+
+        private void MktMusicPreviewPlayer_MediaEnded(object? sender, EventArgs e)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                _isMktMusicPreviewPlaying = false;
+                _currentlyPlayingMktTrackId = "";
+                UpdateMarketingMusicPreviewButtonsUI();
+                if (_activeMarketingSubTab == "music") RenderMarketingMusicPane();
+            });
+        }
+
+        private void ToggleMarketingMusicTrackPreview(MarketingMusicTrackDto? track)
+        {
+            if (track == null) return;
+
+            if (_isMktMusicPreviewPlaying && string.Equals(_currentlyPlayingMktTrackId, track.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                StopMarketingMusicPreview();
+                PlaySoundNav();
+                return;
+            }
+
+            string? path = ResolveMarketingMusicFilePath(track);
+            if (string.IsNullOrEmpty(path) || !File.Exists(path))
+            {
+                MessageBox.Show($"Die Audiodatei '{track.FileName}' wurde nicht gefunden.", "Musik-Vorschau", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            try
+            {
+                // Pause main music player if it is playing so the user hears the marketing track cleanly
+                if (_isMusicPlaying)
+                {
+                    _mediaPlayer.Pause();
+                    _isMusicPlaying = false;
+                    _musicTimer.Stop();
+                    if (MusicPlayPauseBtn != null) MusicPlayPauseBtn.Content = "▶";
+                }
+
+                _mktMusicPreviewPlayer.Stop();
+                _mktMusicPreviewPlayer.Open(new Uri(path, UriKind.Absolute));
+                _mktMusicPreviewPlayer.Volume = Math.Clamp(_layoutSettings.SoundVolume / 100.0, 0.25, 1.0);
+                _mktMusicPreviewPlayer.Play();
+
+                _currentlyPlayingMktTrackId = track.Id;
+                _isMktMusicPreviewPlaying = true;
+                UpdateMarketingMusicPreviewButtonsUI();
+                if (_activeMarketingSubTab == "music") RenderMarketingMusicPane();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Fehler beim Abspielen: {ex.Message}", "Musik-Vorschau", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private void StopMarketingMusicPreview()
+        {
+            try
+            {
+                _mktMusicPreviewPlayer.Stop();
+            }
+            catch { }
+            _isMktMusicPreviewPlaying = false;
+            _currentlyPlayingMktTrackId = "";
+            UpdateMarketingMusicPreviewButtonsUI();
+        }
+
+        private void UpdateMarketingMusicPreviewButtonsUI()
+        {
+            var activeDailyRecipe = (_mktVault.DailyRecipes != null && _mktVault.DailyRecipes.Count > 0)
+                ? _mktVault.DailyRecipes[Math.Clamp(_currentDailyRecipeIndex, 0, _mktVault.DailyRecipes.Count - 1)]
+                : null;
+            var planRecipe = _selectedPlanRecipe ?? activeDailyRecipe;
+            var focusPlanTrack = GetRecommendedTrackForDailyRecipe(activeDailyRecipe);
+            var detailPlanTrack = GetRecommendedTrackForDailyRecipe(planRecipe);
+
+            var activeViralIdea = (_mktVault.ViralIdeas != null && _mktVault.ViralIdeas.Count > 0)
+                ? _mktVault.ViralIdeas[Math.Clamp(_currentViralIdeaIndex, 0, _mktVault.ViralIdeas.Count - 1)]
+                : null;
+            var detailViralIdea = _selectedViralIdea ?? activeViralIdea;
+            var focusViralTrack = GetRecommendedTrackForViralIdea(activeViralIdea);
+            var detailViralTrack = GetRecommendedTrackForViralIdea(detailViralIdea);
+
+            void StylePlayBtn(Button? btn, string trackId, string defaultLabel)
+            {
+                if (btn == null) return;
+                bool playingThis = _isMktMusicPreviewPlaying && string.Equals(_currentlyPlayingMktTrackId, trackId, StringComparison.OrdinalIgnoreCase);
+                btn.Content = playingThis ? "⏹ Stopp" : defaultLabel;
+                btn.Background = playingThis
+                    ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059"))
+                    : BrushFromHex("#1E222D");
+                btn.Foreground = playingThis
+                    ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#111827"))
+                    : BrushFromHex("#F9FAFB");
+                btn.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059"));
+                btn.BorderThickness = new Thickness(1);
+            }
+
+            StylePlayBtn(MktFocusSoundPlayBtn, focusPlanTrack.Id, "▶ Anhören");
+            StylePlayBtn(MktPlanSoundPlayBtn, detailPlanTrack.Id, "▶ Anhören");
+            StylePlayBtn(MktFocusViralSoundPlayBtn, focusViralTrack.Id, "▶ Anhören");
+            StylePlayBtn(MktViralSoundPlayBtn, detailViralTrack.Id, "▶ Anhören");
+
+            if (_selectedMusicTrack != null)
+            {
+                StylePlayBtn(MktMusicDetailPlayBtn, _selectedMusicTrack.Id, "▶ Song anhören");
+            }
+        }
+
+        private void PromptDownloadMarketingTrack(MarketingMusicTrackDto? track, Button? feedbackBtn = null)
+        {
+            if (track == null) return;
+            string? srcPath = ResolveMarketingMusicFilePath(track);
+            if (string.IsNullOrEmpty(srcPath) || !File.Exists(srcPath))
+            {
+                MessageBox.Show($"Die Audiodatei '{track.FileName}' wurde nicht gefunden.", "Song-Download", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            PlaySoundActionPop();
+            var dlg = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = $"Rechtsfreien Seelenfunke-Song speichern: {track.Title}",
+                FileName = !string.IsNullOrWhiteSpace(track.ExportFileName) ? track.ExportFileName : track.FileName,
+                DefaultExt = ".m4a",
+                Filter = "M4A Studio-Audio (*.m4a)|*.m4a|Alle Dateien (*.*)|*.*"
+            };
+
+            if (dlg.ShowDialog() == true && !string.IsNullOrWhiteSpace(dlg.FileName))
+            {
+                try
+                {
+                    File.Copy(srcPath, dlg.FileName, overwrite: true);
+                    PlaySoundTaskDone();
+                    if (feedbackBtn != null)
+                    {
+                        string orig = feedbackBtn.Content?.ToString() ?? "⬇ Download";
+                        feedbackBtn.Content = "✓ Gespeichert!";
+                        _ = Task.Delay(1600).ContinueWith(_ => Dispatcher.Invoke(() => feedbackBtn.Content = orig));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Fehler beim Speichern: {ex.Message}", "Song-Download", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        private void MktPlayRecommendedPlanTrack_Click(object sender, RoutedEventArgs e)
+        {
+            var r = _mktVault.IsFocusMode
+                ? (_mktVault.DailyRecipes.Count > 0 ? _mktVault.DailyRecipes[Math.Clamp(_currentDailyRecipeIndex, 0, _mktVault.DailyRecipes.Count - 1)] : null)
+                : (_selectedPlanRecipe ?? _mktVault.DailyRecipes.FirstOrDefault());
+            var track = GetRecommendedTrackForDailyRecipe(r);
+            ToggleMarketingMusicTrackPreview(track);
+        }
+
+        private void MktDownloadRecommendedPlanTrack_Click(object sender, RoutedEventArgs e)
+        {
+            var r = _mktVault.IsFocusMode
+                ? (_mktVault.DailyRecipes.Count > 0 ? _mktVault.DailyRecipes[Math.Clamp(_currentDailyRecipeIndex, 0, _mktVault.DailyRecipes.Count - 1)] : null)
+                : (_selectedPlanRecipe ?? _mktVault.DailyRecipes.FirstOrDefault());
+            var track = GetRecommendedTrackForDailyRecipe(r);
+            PromptDownloadMarketingTrack(track, sender as Button);
+        }
+
+        private void MktRotateRecommendedPlanTrack_Click(object sender, RoutedEventArgs e)
+        {
+            EnsureMarketingMusicInitialized();
+            var cat = _mktVault.MusicCatalog;
+            if (cat.Count == 0) return;
+
+            var r = _mktVault.IsFocusMode
+                ? (_mktVault.DailyRecipes.Count > 0 ? _mktVault.DailyRecipes[Math.Clamp(_currentDailyRecipeIndex, 0, _mktVault.DailyRecipes.Count - 1)] : null)
+                : (_selectedPlanRecipe ?? _mktVault.DailyRecipes.FirstOrDefault());
+            if (r == null) return;
+
+            PlaySoundActionPop();
+            var current = GetRecommendedTrackForDailyRecipe(r);
+            int idx = cat.FindIndex(x => x.Id == current.Id);
+            var next = cat[(idx + 1) % cat.Count];
+            r.RecommendedMusicTrackId = next.Id;
+
+            SaveMarketingVaultOffline();
+            RenderDailyHeroBanner();
+            if (_activeMarketingSubTab == "plan") RenderMarketingPlanPane();
+        }
+
+        private void MktPlayRecommendedViralTrack_Click(object sender, RoutedEventArgs e)
+        {
+            EnsureViralIdeasInitialized();
+            var idea = _mktVault.IsFocusMode
+                ? (_mktVault.ViralIdeas.Count > 0 ? _mktVault.ViralIdeas[Math.Clamp(_currentViralIdeaIndex, 0, _mktVault.ViralIdeas.Count - 1)] : null)
+                : (_selectedViralIdea ?? _mktVault.ViralIdeas.FirstOrDefault());
+            var track = GetRecommendedTrackForViralIdea(idea);
+            ToggleMarketingMusicTrackPreview(track);
+        }
+
+        private void MktDownloadRecommendedViralTrack_Click(object sender, RoutedEventArgs e)
+        {
+            EnsureViralIdeasInitialized();
+            var idea = _mktVault.IsFocusMode
+                ? (_mktVault.ViralIdeas.Count > 0 ? _mktVault.ViralIdeas[Math.Clamp(_currentViralIdeaIndex, 0, _mktVault.ViralIdeas.Count - 1)] : null)
+                : (_selectedViralIdea ?? _mktVault.ViralIdeas.FirstOrDefault());
+            var track = GetRecommendedTrackForViralIdea(idea);
+            PromptDownloadMarketingTrack(track, sender as Button);
+        }
+
+        private void MktRotateRecommendedViralTrack_Click(object sender, RoutedEventArgs e)
+        {
+            EnsureMarketingMusicInitialized();
+            EnsureViralIdeasInitialized();
+            var cat = _mktVault.MusicCatalog;
+            if (cat.Count == 0) return;
+
+            var idea = _mktVault.IsFocusMode
+                ? (_mktVault.ViralIdeas.Count > 0 ? _mktVault.ViralIdeas[Math.Clamp(_currentViralIdeaIndex, 0, _mktVault.ViralIdeas.Count - 1)] : null)
+                : (_selectedViralIdea ?? _mktVault.ViralIdeas.FirstOrDefault());
+            if (idea == null) return;
+
+            PlaySoundActionPop();
+            var current = GetRecommendedTrackForViralIdea(idea);
+            int idx = cat.FindIndex(x => x.Id == current.Id);
+            var next = cat[(idx + 1) % cat.Count];
+            idea.RecommendedMusicTrackId = next.Id;
+
+            SaveMarketingVaultOffline();
+            RenderFocusViralDropdown();
+            if (_activeMarketingSubTab == "viral") RenderMarketingViralPane();
+        }
+
+        private void MktMusicCategoryFilter_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is string cat)
+            {
+                PlaySoundNav();
+                _activeMusicCategoryFilter = cat;
+                StyleMusicCategoryButtons();
+                RenderMarketingMusicPane();
+            }
+        }
+
+        private void StyleMusicCategoryButtons()
+        {
+            StyleSubTabButton(MktMusicCatAllBtn, _activeMusicCategoryFilter == "all");
+            StyleSubTabButton(MktMusicCatViralBtn, _activeMusicCategoryFilter == "viral");
+            StyleSubTabButton(MktMusicCatCameraBtn, _activeMusicCategoryFilter == "camera");
+            StyleSubTabButton(MktMusicCatWerkstattBtn, _activeMusicCategoryFilter == "werkstatt");
+            StyleSubTabButton(MktMusicCatAtelierBtn, _activeMusicCategoryFilter == "atelier");
+        }
+
+        private void RenderMarketingMusicPane()
+        {
+            EnsureMarketingMusicInitialized();
+            if (MktMusicListPanel == null) return;
+            MktMusicListPanel.Children.Clear();
+
+            var tracks = _mktVault.MusicCatalog.AsEnumerable();
+            if (_activeMusicCategoryFilter != "all")
+            {
+                tracks = tracks.Where(t => t.CategoryKey == _activeMusicCategoryFilter);
+            }
+            if (!string.IsNullOrEmpty(_marketingSearchQuery))
+            {
+                tracks = tracks.Where(t =>
+                    t.Title.Contains(_marketingSearchQuery, StringComparison.OrdinalIgnoreCase) ||
+                    t.Subtitle.Contains(_marketingSearchQuery, StringComparison.OrdinalIgnoreCase) ||
+                    t.CategoryLabel.Contains(_marketingSearchQuery, StringComparison.OrdinalIgnoreCase) ||
+                    t.ScenarioGuide.Contains(_marketingSearchQuery, StringComparison.OrdinalIgnoreCase));
+            }
+
+            var filtered = tracks.ToList();
+            if (_selectedMusicTrack == null || !filtered.Any(x => x.Id == _selectedMusicTrack.Id))
+            {
+                _selectedMusicTrack = filtered.FirstOrDefault() ?? _mktVault.MusicCatalog.FirstOrDefault();
+            }
+
+            var todayRecipe = (_mktVault.DailyRecipes != null && _mktVault.DailyRecipes.Count > 0)
+                ? _mktVault.DailyRecipes[Math.Clamp(_currentDailyRecipeIndex, 0, _mktVault.DailyRecipes.Count - 1)]
+                : null;
+            string todayTrackId = GetRecommendedTrackForDailyRecipe(todayRecipe).Id;
+
+            foreach (var track in filtered)
+            {
+                bool isSelected = _selectedMusicTrack != null && _selectedMusicTrack.Id == track.Id;
+                bool isPlaying = _isMktMusicPreviewPlaying && string.Equals(_currentlyPlayingMktTrackId, track.Id, StringComparison.OrdinalIgnoreCase);
+                bool isTodayRec = string.Equals(todayTrackId, track.Id, StringComparison.OrdinalIgnoreCase);
+
+                var card = new Border
+                {
+                    Background = BrushFromHex(isSelected ? "#26231F" : "#141720"),
+                    BorderBrush = (isSelected || isPlaying)
+                        ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059"))
+                        : BrushFromHex(isTodayRec ? "#4D3D1E" : "#222634"),
+                    BorderThickness = new Thickness((isSelected || isPlaying) ? 1.5 : 1),
+                    CornerRadius = new CornerRadius(10),
+                    Padding = new Thickness(12, 10, 12, 10),
+                    Margin = new Thickness(0, 0, 0, 7),
+                    Cursor = Cursors.Hand
+                };
+
+                var outerGrid = new Grid();
+                outerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                outerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                outerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var playQuickBtn = new Button
+                {
+                    Content = isPlaying ? "⏹" : "▶",
+                    Width = 34,
+                    Height = 34,
+                    Background = isPlaying
+                        ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059"))
+                        : BrushFromHex("#1E222D"),
+                    Foreground = isPlaying
+                        ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#111827"))
+                        : BrushFromHex("#D4AF37"),
+                    BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059")),
+                    BorderThickness = new Thickness(1),
+                    FontWeight = FontWeights.Bold,
+                    FontSize = 13,
+                    Margin = new Thickness(0, 0, 10, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Cursor = Cursors.Hand,
+                    ToolTip = isPlaying ? "Vorschau stoppen" : "Song direkt anhören"
+                };
+                var capturedTrack = track;
+                playQuickBtn.Click += (sObj, ev) =>
+                {
+                    ev.Handled = true;
+                    _selectedMusicTrack = capturedTrack;
+                    ToggleMarketingMusicTrackPreview(capturedTrack);
+                };
+                Grid.SetColumn(playQuickBtn, 0);
+                outerGrid.Children.Add(playQuickBtn);
+
+                var midStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                var badgeRow = new StackPanel { Orientation = Orientation.Horizontal };
+                badgeRow.Children.Add(new TextBlock
+                {
+                    Text = $"#{track.TrackNumber:00} · {track.CategoryLabel}",
+                    Foreground = BrushFromHex("#D4AF37"),
+                    FontSize = 10,
+                    FontWeight = FontWeights.Bold
+                });
+                if (isTodayRec)
+                {
+                    badgeRow.Children.Add(new TextBlock
+                    {
+                        Text = "  ★ HEUTE EMPFOHLEN",
+                        Foreground = BrushFromHex("#34D399"),
+                        FontSize = 9.5,
+                        FontWeight = FontWeights.Bold
+                    });
+                }
+                midStack.Children.Add(badgeRow);
+
+                midStack.Children.Add(new TextBlock
+                {
+                    Text = track.Title,
+                    Foreground = BrushFromHex("#F9FAFB"),
+                    FontSize = 13,
+                    FontWeight = FontWeights.Bold,
+                    Margin = new Thickness(0, 2, 0, 2),
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                });
+
+                midStack.Children.Add(new TextBlock
+                {
+                    Text = $"{track.Bpm} BPM · {track.MusicalKey} · {track.DurationFormatted}",
+                    Foreground = BrushFromHex("#9CA3AF"),
+                    FontSize = 10.5
+                });
+                Grid.SetColumn(midStack, 1);
+                outerGrid.Children.Add(midStack);
+
+                var dlQuickBtn = new Button
+                {
+                    Content = "⬇",
+                    Width = 30,
+                    Height = 30,
+                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059")),
+                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#111827")),
+                    BorderThickness = new Thickness(0),
+                    FontWeight = FontWeights.Bold,
+                    FontSize = 12,
+                    Margin = new Thickness(8, 0, 0, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Cursor = Cursors.Hand,
+                    ToolTip = "Song als .m4a herunterladen"
+                };
+                dlQuickBtn.Click += (sObj, ev) =>
+                {
+                    ev.Handled = true;
+                    PromptDownloadMarketingTrack(capturedTrack, dlQuickBtn);
+                };
+                Grid.SetColumn(dlQuickBtn, 2);
+                outerGrid.Children.Add(dlQuickBtn);
+
+                card.Child = outerGrid;
+                card.MouseLeftButtonUp += (sObj, ev) =>
+                {
+                    PlaySoundNav();
+                    _selectedMusicTrack = capturedTrack;
+                    RenderMarketingMusicPane();
+                };
+
+                MktMusicListPanel.Children.Add(card);
+            }
+
+            RenderSelectedMusicTrackDetail();
+        }
+
+        private void RenderSelectedMusicTrackDetail()
+        {
+            var t = _selectedMusicTrack ?? _mktVault.MusicCatalog.FirstOrDefault();
+            if (t == null || MktMusicDetailTitleTxt == null) return;
+
+            MktMusicDetailCatBadgeTxt.Text = t.CategoryLabel;
+            MktMusicDetailTechBadgeTxt.Text = $"{t.Bpm} BPM · {t.MusicalKey} · {t.DurationFormatted} · 48 kHz Stereo AAC (.m4a)";
+            MktMusicDetailTitleTxt.Text = $"#{t.TrackNumber:00} {t.Title}";
+            MktMusicDetailSubtitleTxt.Text = t.Subtitle;
+            MktMusicDetailDropTimingTxt.Text = t.DropTimingLabel;
+            MktMusicDetailScenarioTxt.Text = t.ScenarioGuide;
+            MktMusicDetailMixGuideTxt.Text = t.MixingGuide;
+            MktMusicDetailInstrumentsTxt.Text = t.InstrumentationGuide;
+            MktMusicDetailPromptTxt.Text = t.SunoUdioPrompt;
+            UpdateMarketingMusicPreviewButtonsUI();
+        }
+
+        private void MktPlaySelectedMusicTrack_Click(object sender, RoutedEventArgs e)
+        {
+            var t = _selectedMusicTrack ?? _mktVault.MusicCatalog.FirstOrDefault();
+            ToggleMarketingMusicTrackPreview(t);
+        }
+
+        private void MktDownloadSelectedMusicTrack_Click(object sender, RoutedEventArgs e)
+        {
+            var t = _selectedMusicTrack ?? _mktVault.MusicCatalog.FirstOrDefault();
+            PromptDownloadMarketingTrack(t, sender as Button);
+        }
+
+        private void MktAssignMusicTrackToToday_Click(object sender, RoutedEventArgs e)
+        {
+            var t = _selectedMusicTrack ?? _mktVault.MusicCatalog.FirstOrDefault();
+            if (t == null) return;
+
+            PlaySoundTaskDone();
+            if (_mktVault.DailyRecipes.Count > 0)
+            {
+                var r = _mktVault.DailyRecipes[Math.Clamp(_currentDailyRecipeIndex, 0, _mktVault.DailyRecipes.Count - 1)];
+                r.RecommendedMusicTrackId = t.Id;
+            }
+            if (_mktVault.ViralIdeas.Count > 0)
+            {
+                var idea = _mktVault.ViralIdeas[Math.Clamp(_currentViralIdeaIndex, 0, _mktVault.ViralIdeas.Count - 1)];
+                idea.RecommendedMusicTrackId = t.Id;
+            }
+
+            SaveMarketingVaultOffline();
+            RenderDailyHeroBanner();
+            RenderFocusViralDropdown();
+            RenderMarketingMusicPane();
+
+            if (sender is Button btn)
+            {
+                string orig = btn.Content?.ToString() ?? "🎯 Für heute nutzen";
+                btn.Content = "✓ Für heute gesetzt!";
+                _ = Task.Delay(1500).ContinueWith(_ => Dispatcher.Invoke(() => btn.Content = orig));
+            }
+        }
+
+        private void MktCopySelectedMusicPrompt_Click(object sender, RoutedEventArgs e)
+        {
+            var t = _selectedMusicTrack ?? _mktVault.MusicCatalog.FirstOrDefault();
+            if (t == null) return;
+            Clipboard.SetText(t.SunoUdioPrompt);
+            PlaySoundActionPop();
+            if (sender is Button btn)
+            {
+                string orig = btn.Content?.ToString() ?? "📋 Prompt kopieren";
+                btn.Content = "✓ Prompt kopiert!";
+                _ = Task.Delay(1400).ContinueWith(_ => Dispatcher.Invoke(() => btn.Content = orig));
+            }
+        }
+
+        private void MktOpenMusicFolder_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundNav();
+            EnsureMarketingMusicInitialized();
+            var first = _mktVault.MusicCatalog.FirstOrDefault();
+            string? path = first != null ? ResolveMarketingMusicFilePath(first) : null;
+            string folder = !string.IsNullOrEmpty(path)
+                ? (Path.GetDirectoryName(path) ?? AppDomain.CurrentDomain.BaseDirectory)
+                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Funkenwerk", "MarketingMusic");
+
+            try
+            {
+                Directory.CreateDirectory(folder);
+                Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
+            }
+            catch { }
+        }
+
+        private void MktExportFullAlbum_Click(object sender, RoutedEventArgs e)
+        {
+            EnsureMarketingMusicInitialized();
+            PlaySoundActionPop();
+
+            var dlg = new Microsoft.Win32.OpenFolderDialog
+            {
+                Title = "Zielordner für das komplette 12-Song Seelenfunke Marketing-Album wählen"
+            };
+
+            if (dlg.ShowDialog() == true && !string.IsNullOrWhiteSpace(dlg.FolderName))
+            {
+                int copied = 0;
+                foreach (var t in _mktVault.MusicCatalog)
+                {
+                    string? src = ResolveMarketingMusicFilePath(t);
+                    if (!string.IsNullOrEmpty(src) && File.Exists(src))
+                    {
+                        string targetName = !string.IsNullOrWhiteSpace(t.ExportFileName) ? t.ExportFileName : t.FileName;
+                        string dest = Path.Combine(dlg.FolderName, targetName);
+                        try
+                        {
+                            File.Copy(src, dest, overwrite: true);
+                            copied++;
+                        }
+                        catch { }
+                    }
+                }
+
+                PlaySoundTaskDone();
+                if (sender is Button btn)
+                {
+                    string orig = btn.Content?.ToString() ?? "📦 Ganzes Album speichern (12 Songs)";
+                    btn.Content = $"✓ {copied}/12 Songs exportiert!";
+                    _ = Task.Delay(1800).ContinueWith(_ => Dispatcher.Invoke(() => btn.Content = orig));
+                }
+            }
+        }
+
+        private static List<MarketingMusicTrackDto> BuildDefaultMarketingMusicCatalog()
+        {
+            return new List<MarketingMusicTrackDto>
+            {
+                // =========================================================================
+                // KATEGORIE 1: VIRALE REELS & SHIMMER-DROPS (3 SONGS)
+                // =========================================================================
+                new MarketingMusicTrackDto
+                {
+                    TrackNumber = 1,
+                    Id = "sf_mkt_01",
+                    FileName = "sf_mkt_01_golden_shimmer_drop.m4a",
+                    ExportFileName = "Mein-Seelenfunke_01_Golden-Shimmer-Drop_92BPM_D-Moll.m4a",
+                    CategoryKey = "viral",
+                    CategoryLabel = "🔥 Virale Reels & Shimmer-Drops",
+                    Title = "Golden Shimmer Drop (Viral Reveal)",
+                    Subtitle = "Tiefer Sub-Bass-Puls (0–2s) + Kristallglas-Shimmer-Drop exakt bei Sekunde 4,0",
+                    Bpm = 92,
+                    MusicalKey = "D-Moll (D minor)",
+                    DurationSeconds = 72,
+                    DropTimingLabel = "⏱️ Sek. 0,0–2,0: Tiefer Herzschlag-Puls · Sek. 4,0: Edler Kristall-Shimmer-Drop (für Laser-Start oder Umdrehen!)",
+                    ScenarioGuide = "• Perfekt für deine viralen „White-Glove Laser-Gravur & Reveal“-Videos sowie das „Handy in Schleife durchschneiden“-Video.\n• Sek. 0–4: Zeige die Vorlage / die Schere am Band / den UV-Laser.\n• Sek. 4,0 (exakt auf dem Shimmer-Drop!): Dreh das fertige Gold-Herz oder den Seelen Kristall mit weißen Handschuhen ins Licht.",
+                    MixingGuide = "• Sekunde 0–4: Originalton (Laser-Singen oder Scheren-Schnitt) auf 100 % (0 dB), Musik auf -10 dB.\n• Ab Sekunde 4,0 (beim Shimmer-Drop): Musik auf -3 dB hochziehen für sofortige Gänsehaut.",
+                    InstrumentationGuide = "• Warmes Filzklavier (Felt Piano in D-Moll) für menschliche Wärme („Seele“) + echte Kristallglas-Harfen-Obertöne („Funke“) + 55 Hz Sub-Bass-Herzschlag.",
+                    SunoUdioPrompt = "Viral luxury aesthetic background music, emotional cinematic minimal electronic, warm deep sub bass pulse in first 2 seconds, intimate felt piano in D minor, sparkling crystal glass plucks, subtle slow heartbeat percussion, dark gold aesthetic, mesmerizing build-up with goosebump shimmer drop at 4 seconds, 92 BPM, instrumental, ultra clean mastering"
+                },
+                new MarketingMusicTrackDto
+                {
+                    TrackNumber = 2,
+                    Id = "sf_mkt_02",
+                    FileName = "sf_mkt_02_lights_off_crystal.m4a",
+                    ExportFileName = "Mein-Seelenfunke_02_Lights-Off-Crystal_84BPM_A-Moll.m4a",
+                    CategoryKey = "viral",
+                    CategoryLabel = "🔥 Virale Reels & Shimmer-Drops",
+                    Title = "Lights-Off Crystal (3D Licht-Reveal)",
+                    Subtitle = "Spannungs-Aufbau im Hellen -> Magischer Glas-Harfen-Drop bei Sekunde 3,5 wenn das Licht ausgeht",
+                    Bpm = 84,
+                    MusicalKey = "A-Moll (A minor)",
+                    DurationSeconds = 75,
+                    DropTimingLabel = "⏱️ Sek. 0,0–3,2: Sanfte Spannung · Sek. 3,5: Licht-Aus & Leuchtsockel-Drop mit Kathedralen-Hall",
+                    ScenarioGuide = "• Maßgeschneidert für „Der Seelen Kristall“ im abgedunkelten Raum.\n• Sek. 0,0–3,2: Zeige das Handyfoto neben dem unbeleuchteten Kristallblock.\n• Sek. 3,5: Schalte das Raumlicht aus und den LED-Sockel ein – exakt hier öffnet sich die volle Kristall-Harfe.",
+                    MixingGuide = "• Lass das echte Klick-Geräusch des Lichtschalters bei Sekunde 3,3 hörbar (0 dB) und lege den Drop von „Lights-Off Crystal“ exakt auf das Aufleuchten.",
+                    InstrumentationGuide = "• A-Moll Filzklavier + analoger Cello-Bogen + hochfrequente 528 Hz / 880 Hz Kristallglas-Chimes, die im Kopf sofort mit leuchtendem K9-Kristallglas verknüpft werden.",
+                    SunoUdioPrompt = "Cinematic dark luxury crystal reveal soundtrack, A minor, intimate felt piano, warm analog cello swell, dramatic silence at 3.2 seconds followed by magical glowing crystal glass harp chord drop at 3.5 seconds, deep sub bass warmth, cathedral shimmer reverb, 84 BPM, instrumental"
+                },
+                new MarketingMusicTrackDto
+                {
+                    TrackNumber = 3,
+                    Id = "sf_mkt_03",
+                    FileName = "sf_mkt_03_velvet_impulse_beat.m4a",
+                    ExportFileName = "Mein-Seelenfunke_03_Velvet-Impulse-Beat_90BPM_D-Dorisch.m4a",
+                    CategoryKey = "viral",
+                    CategoryLabel = "🔥 Virale Reels & Shimmer-Drops",
+                    Title = "Velvet Impulse Beat (Bestseller & 7-Sek. Loops)",
+                    Subtitle = "Moderner Boutique-Lounge-Puls für schnelle Schnitte, 3D-Konfigurator-Demos & Bestseller-Duelle",
+                    Bpm = 90,
+                    MusicalKey = "D-Dorisch (D Dorian)",
+                    DurationSeconds = 68,
+                    DropTimingLabel = "⏱️ Sofortiger Samt-Puls ab Sek. 0,0 · Akzent-Impulse alle 2,6 Sek. für knackige Schnitt-Wechsel",
+                    ScenarioGuide = "• Ideal für kurze 7–12 Sek. Videos: „Team 1 (Gold-Herz) oder Team 2 (Seelen Kristall)?“, 3D-Konfigurator-Beweis am Smartphone oder Last-Minute-Gutschein-Reels.",
+                    MixingGuide = "• Musik durchgehend auf -5 dB legen; jeder Beat-Impuls markiert den perfekten Moment für den nächsten Kamera-Winkel.",
+                    InstrumentationGuide = "• Samtiger Sub-Bass-Groove (90 BPM) + warmes Rhodes/Felt-Piano in D-Dorisch + dezente goldene Glas-Plucks ohne aufdringliche Drums.",
+                    SunoUdioPrompt = "Sophisticated dark gold boutique lounge beat, D Dorian, warm velvet sub bass groove, muted felt piano chords, delicate crystal glass plucks, modern luxury jewelry reel soundtrack, clean rhythmic pulse for fast cuts, 90 BPM, instrumental"
+                },
+
+                // =========================================================================
+                // KATEGORIE 2: VOR DER KAMERA & STORYTELLING (3 SONGS)
+                // =========================================================================
+                new MarketingMusicTrackDto
+                {
+                    TrackNumber = 4,
+                    Id = "sf_mkt_04",
+                    FileName = "sf_mkt_04_founder_trust_piano.m4a",
+                    ExportFileName = "Mein-Seelenfunke_04_Founder-Trust-Piano_74BPM_D-Moll.m4a",
+                    CategoryKey = "camera",
+                    CategoryLabel = "🎙️ Vor der Kamera & Storytelling",
+                    Title = "Founder Trust Piano (Vor der Kamera & Voiceover)",
+                    Subtitle = "Warmer Neoklassik-Teppich mit Frequenz-Lücke in den Mitten – lässt deiner Stimme 100 % Raum",
+                    Bpm = 74,
+                    MusicalKey = "D-Moll (D minor)",
+                    DurationSeconds = 84,
+                    DropTimingLabel = "⏱️ Durchgehend ruhiger, vertrauenswürdiger Fluss (74 BPM) – übertönt niemals deine Sprechstimme",
+                    ScenarioGuide = "• Dein Standard-Background-Song, wenn du selbst vor der Kamera sprichst („Hallo aus unserer Manufaktur in Gifhorn“, „Warum ich mich für den xTool F2 Ultra UV entschieden habe“, Fragerunden & Storytime).",
+                    MixingGuide = "• Deine Stimme auf 0 dB (100 %), diesen Song auf -16 dB bis -18 dB darunterlegen. Durch das gedämpfte Filzklavier bleibt jede Silbe deiner Stimme glasklar verständlich.",
+                    InstrumentationGuide = "• Speziell zwischen 800 Hz und 3.000 Hz (menschlicher Stimmfrequenzbereich) sanft abgesenkt: Weiches Felt Piano + tiefes warmes Cello-Pad.",
+                    SunoUdioPrompt = "Warm emotional ambient lo-fi neoclassical background music for voiceover, D minor, soft muted felt piano, warm cello pad, gentle analog warmth, calm and trustworthy handcrafted luxury brand mood, leaves mid-range frequency space for female voiceover, 74 BPM, instrumental, no drums"
+                },
+                new MarketingMusicTrackDto
+                {
+                    TrackNumber = 5,
+                    Id = "sf_mkt_05",
+                    FileName = "sf_mkt_05_oma_handschrift_elegie.m4a",
+                    ExportFileName = "Mein-Seelenfunke_05_Omas-Handschrift-Elegie_68BPM_A-Moll.m4a",
+                    CategoryKey = "camera",
+                    CategoryLabel = "🎙️ Vor der Kamera & Storytelling",
+                    Title = "Omas Handschrift Elegie (Emotionales Storytelling)",
+                    Subtitle = "Tief berührendes Filzklavier & Solo-Cello für Gedenkstücke, Handschriften & Haustier-Erinnerungen",
+                    Bpm = 68,
+                    MusicalKey = "A-Moll (A minor)",
+                    DurationSeconds = 88,
+                    DropTimingLabel = "⏱️ Sek. 0–4: Intimes Solo-Piano · Ab Sek. 6,5: Warmes Solo-Cello setzt ein (Tränen- & Gänsehaut-Moment)",
+                    ScenarioGuide = "• Für deine emotionalsten Aufträge: „Letzte Geburtstagskarte von Oma auf 14k Gold verewigt“ oder „Er war 14 Jahre mein treuester Begleiter (Seelen-Pfote / Seelen Kristall)“.",
+                    MixingGuide = "• Ohne Sprechen: Musik auf -5 dB + 3 Sekunden leises Original-Laser-Zischen am Anfang. Mit Voiceover: Musik auf -15 dB.",
+                    InstrumentationGuide = "• Intimes Nils-Frahm-/Olafur-Arnalds-inspiriertes Filzklavier (inkl. sanfter Hammer-Mechanik) + singendes analoges Cello in A-Moll.",
+                    SunoUdioPrompt = "Deeply emotional intimate neoclassical piano and solo cello soundtrack, A minor, soft felt piano with gentle key mechanics, warm expressive cello melody entering at 6 seconds, nostalgic heirloom memory mood, Olafur Arnalds style, 68 BPM, instrumental"
+                },
+                new MarketingMusicTrackDto
+                {
+                    TrackNumber = 6,
+                    Id = "sf_mkt_06",
+                    FileName = "sf_mkt_06_atelier_herzschlag.m4a",
+                    ExportFileName = "Mein-Seelenfunke_06_Atelier-Herzschlag_72BPM_D-Moll.m4a",
+                    CategoryKey = "camera",
+                    CategoryLabel = "🎙️ Vor der Kamera & Storytelling",
+                    Title = "Atelier Herzschlag (Qualitäts-Check & Lupe)",
+                    Subtitle = "Souveräner, ruhiger Manufaktur-Puls für „Warum dieses Stück heute NICHT verschickt wird“-Videos",
+                    Bpm = 72,
+                    MusicalKey = "D-Moll (D minor)",
+                    DurationSeconds = 80,
+                    DropTimingLabel = "⏱️ Sek. 0–3: Fokussierter Atelier-Puls · Ab Sek. 5: Warme Auflösung beim Zeigen des perfekten Unikats",
+                    ScenarioGuide = "• Perfekt für Videos, die dein kompromissloses Qualitätsversprechen zeigen: Prüfung unter der Lupe mit weißen Handschuhen, Vergleich Oberflächengravur vs. UV-Tiefengravur.",
+                    MixingGuide = "• Deine erklärende Stimme auf 0 dB, Musik auf -15 dB.",
+                    InstrumentationGuide = "• Dezenter 72-BPM-Ruhepuls + warmes D-Moll Filzklavier + feine Kristall-Obertöne.",
+                    SunoUdioPrompt = "Calm authoritative luxury craftsmanship background music, D minor, subtle 72 BPM heartbeat pulse, warm felt piano, resonant cello drone, precision jeweler quality inspection mood, leaves space for speaking, 72 BPM, instrumental"
+                },
+
+                // =========================================================================
+                // KATEGORIE 3: WERKSTATT, ACTION-CAM & WHITE-GLOVE PACKAGING (3 SONGS)
+                // =========================================================================
+                new MarketingMusicTrackDto
+                {
+                    TrackNumber = 7,
+                    Id = "sf_mkt_07",
+                    FileName = "sf_mkt_07_actioncam_white_glove.m4a",
+                    ExportFileName = "Mein-Seelenfunke_07_ActionCam-White-Glove-POV_86BPM_D-Moll.m4a",
+                    CategoryKey = "werkstatt",
+                    CategoryLabel = "🧤 Werkstatt, Action-Cam & Packaging",
+                    Title = "Action-Cam White-Glove POV (Werkstatt & Handschuhe)",
+                    Subtitle = "Speziell für deine Kopf-/Action-Cam-Videos mit weißen Handschuhen beim Prüfen & Verpacken",
+                    Bpm = 86,
+                    MusicalKey = "D-Moll (D minor)",
+                    DurationSeconds = 78,
+                    DropTimingLabel = "⏱️ Rhythmisches 86-BPM-Handwerks-Pacing – trägt ASMR-Geräusche (Samt, Pinsel, Box-Klack), ohne sie zu überdecken",
+                    ScenarioGuide = "• Dein Signature-Sound, wenn du die Action-Cam auf dem Kopf trägst, weiße Baumwollhandschuhe anhast und der Zuschauer aus deiner Ich-Perspektive (POV) sieht, wie du das Unikat aus dem xTool F2 Ultra nimmst, abpinselst und in die schwarze Westpack-Box bettest.",
+                    MixingGuide = "• Original-Werkstatt-ASMR (Pinsel-Streichen, Samt-Inlay, sattes Schachtel-Klacken) auf 100 % (0 dB) lassen! Diesen Song bei -9 dB als edlen Teppich darunterlegen.",
+                    InstrumentationGuide = "• Rhythmische gedämpfte Filzklavier-Arpeggien in D-Moll + seidiger Sub-Bass + kristallklare Höhen, die den hohen Mittenbereich für echte ASMR-Geräusche komplett freihalten.",
+                    SunoUdioPrompt = "First-person POV luxury workshop packaging soundtrack, D minor, rhythmic muted felt piano arpeggios, warm deep sub bass, leaves crisp high-mid space for white glove and velvet box ASMR sounds, sophisticated handcrafted aesthetic, 86 BPM, instrumental"
+                },
+                new MarketingMusicTrackDto
+                {
+                    TrackNumber = 8,
+                    Id = "sf_mkt_08",
+                    FileName = "sf_mkt_08_schiefer_gold_manufaktur.m4a",
+                    ExportFileName = "Mein-Seelenfunke_08_Schiefer-Glas-Gold-Manufaktur_82BPM_A-Moll.m4a",
+                    CategoryKey = "werkstatt",
+                    CategoryLabel = "🧤 Werkstatt, Action-Cam & Packaging",
+                    Title = "Schiefer, Glas & Gold (Laser-Manufaktur)",
+                    Subtitle = "Edler Manufaktur-Soundtrack für xTool F2 Ultra UV, Förderband & RA3 Rotationsaufsatz",
+                    Bpm = 82,
+                    MusicalKey = "A-Moll (A minor)",
+                    DurationSeconds = 76,
+                    DropTimingLabel = "⏱️ Sek. 0–3,5: Dunkler Schiefer-Bass · Ab Sek. 3,8: Goldener Harmonie-Aufbau zum Laser-Fortschritt",
+                    ScenarioGuide = "• Perfekt für Nahaufnahmen an der Maschine: Naturschiefer-Gravur, Weizenglas im RA3 Rotationsaufsatz oder Serienfertigung auf dem Conveyor-Förderband.",
+                    MixingGuide = "• Laser-Summen in den ersten 3,5 Sekunden auf 0 dB, danach diesen Track auf -5 dB tragen lassen.",
+                    InstrumentationGuide = "• Erdiger, tiefer Analog-Bass (Schiefer & Metall) trifft auf glitzernde Kristall-Obertöne (Glas & UV-Laser) in A-Moll.",
+                    SunoUdioPrompt = "Modern high-end laser atelier soundtrack, A minor, deep slate and metal sub bass texture, warm analog synth pad, sparkling UV crystal harmonics, rhythmic precision pulse, dark luxury manufactory mood, 82 BPM, instrumental"
+                },
+                new MarketingMusicTrackDto
+                {
+                    TrackNumber = 9,
+                    Id = "sf_mkt_09",
+                    FileName = "sf_mkt_09_pack_with_me_gifhorn.m4a",
+                    ExportFileName = "Mein-Seelenfunke_09_Pack-With-Me-Gifhorn_88BPM_D-Dorisch.m4a",
+                    CategoryKey = "werkstatt",
+                    CategoryLabel = "🧤 Werkstatt, Action-Cam & Packaging",
+                    Title = "Pack With Me Gifhorn (Edles Unboxing & Versand)",
+                    Subtitle = "Warmer, flüssiger Boutique-Flow für „Packe Bestellung #... mit mir“-Videos mit weißen Handschuhen",
+                    Bpm = 88,
+                    MusicalKey = "D-Dorisch (D Dorian)",
+                    DurationSeconds = 74,
+                    DropTimingLabel = "⏱️ Alle 2,7 Sek. sanfter Harmonie-Wechsel – ideal für 4–5 flüssige Verpackungs-Schnitte",
+                    ScenarioGuide = "• Für deine „Pack an Order with Me“-Videos mit Action-Cam: 1. Unikat prüfen -> 2. In schwarze Westpack-Box legen -> 3. Schwarz-Gold-Geschenkpapier / Dankeskarte dazu -> 4. Versandfertig machen.",
+                    MixingGuide = "• Papier-Rascheln und Schachtel-Schließen auf 0 dB, Musik auf -8 dB.",
+                    InstrumentationGuide = "• Positiv-edles D-Dorisch mit weichem Filzklavier, warmem Cello-Hauch und feinen Glöckchen-Obertönen.",
+                    SunoUdioPrompt = "Warm boutique order packaging background music, D Dorian, flowing felt piano chords, gentle cello warmth, subtle luxury chime accents, cozy and prestigious small business packing aesthetic, 88 BPM, instrumental"
+                },
+
+                // =========================================================================
+                // KATEGORIE 4: MYSTISCHES ATELIER & RUHIGE SZENEN (3 SONGS INKL. LOGIN-SONG)
+                // =========================================================================
+                new MarketingMusicTrackDto
+                {
+                    TrackNumber = 10,
+                    Id = "sf_mkt_10",
+                    FileName = "sf_mkt_10_mystic_atelier_login.m4a",
+                    ExportFileName = "Mein-Seelenfunke_10_Mystisches-Atelier-Login-Extended_60BPM_D-Dorisch.m4a",
+                    CategoryKey = "atelier",
+                    CategoryLabel = "🕯️ Mystisches Atelier & Ruhige Szenen",
+                    Title = "Mein Seelenfunke – Mystisches Atelier (Login-Song Extended)",
+                    Subtitle = "Dein geliebter, mystisch-warmer Funkenwerk-Login-Soundtrack in voller 1:30-Minuten-Albumlänge",
+                    Bpm = 60,
+                    MusicalKey = "D-Dorisch (D Dorian)",
+                    DurationSeconds = 90,
+                    DropTimingLabel = "⏱️ Sanftes Einfaden (0–3s) · Mystische Kristall-Harfe & Cello-Drone im 60-BPM-Ruhepuls",
+                    ScenarioGuide = "• Genau der mystische, ruhige Song aus deinem Funkenwerk-Loginbereich – hier in voller Länge (1:30 Min.) für ruhige Abend-Aufnahmen, edle Schiefer-/Glas-/Kerzenlicht-Kamerafahrten, Hochzeits-Unikate und Marken-Trailer.",
+                    MixingGuide = "• Wirkt sowohl pur auf 0 dB als epischer Marken-Soundtrack als auch auf -12 dB unter ruhigen Erzählungen.",
+                    InstrumentationGuide = "• Warmer analoger Cello-Drone (D2 + A2) + mystische Kristallglas-Harfen-Chimes + gedämpftes Filzklavier in D-Dorisch + tiefer 60-BPM-Kathedralen-Raumklang.",
+                    SunoUdioPrompt = "Dark luxury ambient cinematic soundtrack, warm analog cello drone, mystical resonant crystal glass harp chimes, soft felt piano in D Dorian, deep warm sub bass, slow atmospheric cathedral reverb, boutique jewelry atelier vibe, Hans Zimmer meets Nils Frahm and Olafur Arnalds, 60 BPM, instrumental, no drums, ultra clean mastering"
+                },
+                new MarketingMusicTrackDto
+                {
+                    TrackNumber = 11,
+                    Id = "sf_mkt_11",
+                    FileName = "sf_mkt_11_kerzenlicht_kristall.m4a",
+                    ExportFileName = "Mein-Seelenfunke_11_Kerzenlicht-und-Kristall_62BPM_A-Moll.m4a",
+                    CategoryKey = "atelier",
+                    CategoryLabel = "🕯️ Mystisches Atelier & Ruhige Szenen",
+                    Title = "Kerzenlicht & Kristall (Edle Makro-Ruhe)",
+                    Subtitle = "Schwerelose Glas-Harfe & Kerzenlicht-Piano für langsame 360°-Produktfahrten am Abend",
+                    Bpm = 62,
+                    MusicalKey = "A-Moll (A minor)",
+                    DurationSeconds = 86,
+                    DropTimingLabel = "⏱️ Zeitloser 62-BPM-Fluss für Zeitlupen- und Makro-Aufnahmen im warmen Kerzenschein",
+                    ScenarioGuide = "• Perfekt für ruhige Aesthetic-Reels am Abend: Wenn auf deinem Regal Kerzen brennen und du mit der Kamera ganz langsam an Schiefer, Kristallglas und 14k Gold entlangfährst.",
+                    MixingGuide = "• Pur auf -2 dB nutzen oder mit leisem Knistern/Raumton mischen.",
+                    InstrumentationGuide = "• A-Moll Kristallglas-Harfe + weitläufiger Shimmer-Reverb + samtiges Filzklavier.",
+                    SunoUdioPrompt = "Candlelight luxury macro product showcase soundtrack, A minor, ethereal crystal glass harp harmonics, slow intimate felt piano, warm analog pad, peaceful evening jewelry atelier atmosphere, 62 BPM, instrumental, no percussion"
+                },
+                new MarketingMusicTrackDto
+                {
+                    TrackNumber = 12,
+                    Id = "sf_mkt_12",
+                    FileName = "sf_mkt_12_sonntagsschicht_ruhe.m4a",
+                    ExportFileName = "Mein-Seelenfunke_12_Sonntagsschicht-in-Gifhorn_64BPM_D-Moll.m4a",
+                    CategoryKey = "atelier",
+                    CategoryLabel = "🕯️ Mystisches Atelier & Ruhige Szenen",
+                    Title = "Sonntagsschicht in Gifhorn (Warme Manufaktur-Seele)",
+                    Subtitle = "Geborgene, ehrliche Feierabend- & Sonntags-Atmosphäre für ruhige Einblicke hinter die Kulissen",
+                    Bpm = 64,
+                    MusicalKey = "D-Moll (D minor)",
+                    DurationSeconds = 82,
+                    DropTimingLabel = "⏱️ Sanfter, herzlicher Aufbau – ideal für Wochen-Rückblicke, Dankes-Videos & ruhige Werkbank-Szenen",
+                    ScenarioGuide = "• Für deine Sonntags- oder Feierabend-Videos: „Während draußen alles ruhig ist, verpacke ich noch eure Herzens-Bestellungen für Montag“.",
+                    MixingGuide = "• Mit Stimme auf -15 dB, ohne Stimme auf -4 dB + echte leise Handgriffe an der Werkbank.",
+                    InstrumentationGuide = "• Warmes D-Moll Filzklavier + sanfter Kontrabass/Cello-Bogen + dezente goldene Oberton-Glöckchen.",
+                    SunoUdioPrompt = "Cozy Sunday evening luxury workshop ambient music, D minor, warm felt piano melody, gentle acoustic cello and upright bass warmth, peaceful handcrafted brand storytelling soundtrack, 64 BPM, instrumental"
+                }
+            };
         }
 
         // =========================================================================
@@ -1932,11 +3721,13 @@ namespace Funkenwerk
                 if (btn == null) continue;
                 bool active = _activeAccountClusterFilter == key;
                 btn.Background = active
-                    ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059"))
+                    ? (_isDarkMode ? BrushFromHex("#000000") : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059")))
                     : BrushFromHex("#181B24");
                 btn.Foreground = active
-                    ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#111827"))
+                    ? (_isDarkMode ? BrushFromHex("#C5A059") : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#111827")))
                     : BrushFromHex("#D1D5DB");
+                btn.BorderBrush = active ? BrushFromHex("#C5A059") : BrushFromHex("#232734");
+                btn.BorderThickness = new Thickness(1);
                 btn.FontWeight = active ? FontWeights.Bold : FontWeights.SemiBold;
             }
         }
@@ -2085,11 +3876,12 @@ namespace Funkenwerk
                 var adaptBtn = new Button
                 {
                     Content = "⚡ Heute so drehen",
-                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059")),
-                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#111827")),
+                    Background = _isDarkMode ? BrushFromHex("#000000") : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059")),
+                    Foreground = _isDarkMode ? BrushFromHex("#C5A059") : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#111827")),
+                    BorderBrush = BrushFromHex("#C5A059"),
+                    BorderThickness = new Thickness(1),
                     FontWeight = FontWeights.Bold,
                     FontSize = 11,
-                    BorderThickness = new Thickness(0),
                     Padding = new Thickness(10, 4, 10, 4),
                     Cursor = Cursors.Hand
                 };
@@ -2111,12 +3903,16 @@ namespace Funkenwerk
                 headerGrid.Children.Add(rightStack);
                 vSp.Children.Add(headerGrid);
 
-                var infoGrid = new UniformGrid { Columns = 3, Margin = new Thickness(0, 8, 0, 0) };
-                infoGrid.Children.Add(BuildMiniFactBox("HOOK (0–3 SEK.)", v.HookFirst3Sec));
-                infoGrid.Children.Add(BuildMiniFactBox("SOUND & BESONDERHEIT", $"{v.SoundUsed} · {v.SpecialFeature}"));
-                infoGrid.Children.Add(BuildMiniFactBox("SEELENFUNKE VORLAGE", v.SeelenfunkeAdaptation));
-                vSp.Children.Add(infoGrid);
+                vSp.Children.Add(new TextBlock
+                {
+                    Text = $"Hook: {v.HookFirst3Sec}   ·   Vorlage: {v.SeelenfunkeAdaptation}",
+                    Foreground = BrushFromHex("#9CA3AF"),
+                    FontSize = 11.5,
+                    Margin = new Thickness(0, 4, 0, 0),
+                    TextWrapping = TextWrapping.Wrap
+                });
 
+                vCard.ToolTip = $"Sound & Besonderheit: {v.SoundUsed} · {v.SpecialFeature}";
                 vCard.Child = vSp;
                 MktAccVideosListPanel.Children.Add(vCard);
             }
@@ -2185,11 +3981,13 @@ namespace Funkenwerk
                 if (btn == null) continue;
                 bool active = _activeQuestionCategoryFilter == key;
                 btn.Background = active
-                    ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059"))
+                    ? (_isDarkMode ? BrushFromHex("#000000") : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059")))
                     : BrushFromHex("#181B24");
                 btn.Foreground = active
-                    ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#111827"))
+                    ? (_isDarkMode ? BrushFromHex("#C5A059") : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#111827")))
                     : BrushFromHex("#D1D5DB");
+                btn.BorderBrush = active ? BrushFromHex("#C5A059") : BrushFromHex("#232734");
+                btn.BorderThickness = new Thickness(1);
                 btn.FontWeight = active ? FontWeights.Bold : FontWeights.SemiBold;
             }
         }
@@ -2219,73 +4017,38 @@ namespace Funkenwerk
                     Background = BrushFromHex("#141720"),
                     BorderBrush = BrushFromHex("#232734"),
                     BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(10),
+                    CornerRadius = new CornerRadius(9),
                     Padding = new Thickness(14, 10, 14, 10),
-                    Margin = new Thickness(0, 0, 0, 7)
+                    Margin = new Thickness(0, 0, 0, 6),
+                    ToolTip = $"Markt-Ergebnis: {q.MarketFinding}"
                 };
 
                 var grid = new Grid();
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.15, GridUnitType.Star) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.15, GridUnitType.Star) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.2, GridUnitType.Star) });
 
-                var col0 = new StackPanel { Margin = new Thickness(0, 0, 12, 0) };
+                var col0 = new StackPanel { Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center };
                 col0.Children.Add(new TextBlock
                 {
-                    Text = $"FRAGE #{q.Number:00} · {q.CategoryName.ToUpperInvariant()}",
-                    Foreground = BrushFromHex("#D4AF37"),
-                    FontSize = 10,
-                    FontWeight = FontWeights.Bold
-                });
-                col0.Children.Add(new TextBlock
-                {
-                    Text = q.Question,
+                    Text = $"#{q.Number:00}  {q.Question}",
                     Foreground = BrushFromHex("#F9FAFB"),
                     FontSize = 12.5,
                     FontWeight = FontWeights.Bold,
-                    Margin = new Thickness(0, 3, 0, 0),
                     TextWrapping = TextWrapping.Wrap
                 });
                 grid.Children.Add(col0);
 
-                var col1 = new StackPanel { Margin = new Thickness(6, 0, 12, 0) };
+                var col1 = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
                 col1.Children.Add(new TextBlock
                 {
-                    Text = "MARKT-ERGEBNIS (TOP 20 ACCOUNTS)",
-                    Foreground = BrushFromHex("#9CA3AF"),
-                    FontSize = 9.5,
-                    FontWeight = FontWeights.Bold
-                });
-                col1.Children.Add(new TextBlock
-                {
-                    Text = q.MarketFinding,
-                    Foreground = BrushFromHex("#D1D5DB"),
-                    FontSize = 11.5,
-                    Margin = new Thickness(0, 3, 0, 0),
+                    Text = $"✓ {q.SeelenfunkeRule}",
+                    Foreground = BrushFromHex("#34D399"),
+                    FontSize = 12,
+                    FontWeight = FontWeights.SemiBold,
                     TextWrapping = TextWrapping.Wrap
                 });
                 Grid.SetColumn(col1, 1);
                 grid.Children.Add(col1);
-
-                var col2 = new StackPanel { Margin = new Thickness(6, 0, 0, 0) };
-                col2.Children.Add(new TextBlock
-                {
-                    Text = "GESETZ FÜR MEIN SEELENFUNKE",
-                    Foreground = BrushFromHex("#34D399"),
-                    FontSize = 9.5,
-                    FontWeight = FontWeights.Bold
-                });
-                col2.Children.Add(new TextBlock
-                {
-                    Text = $"✓ {q.SeelenfunkeRule}",
-                    Foreground = BrushFromHex("#F9FAFB"),
-                    FontSize = 11.5,
-                    FontWeight = FontWeights.SemiBold,
-                    Margin = new Thickness(0, 3, 0, 0),
-                    TextWrapping = TextWrapping.Wrap
-                });
-                Grid.SetColumn(col2, 2);
-                grid.Children.Add(col2);
 
                 card.Child = grid;
                 MktQuestionsListPanel.Children.Add(card);

@@ -100,7 +100,7 @@ class ProductIdeas extends Component
 
     public function setStatusFilter(string $filter): void
     {
-        $allowed = ['all', 'top_idea', 'sample_needed', 'planned', 'ready'];
+        $allowed = ['all', 'top_idea', 'sample_needed', 'planned', 'ready', 'transferred'];
         $this->statusFilter = in_array($filter, $allowed, true) ? $filter : 'all';
         $this->loadIdeas();
     }
@@ -145,7 +145,7 @@ class ProductIdeas extends Component
 
     public function updateStatusQuick(string $id, string $newStatus): void
     {
-        $allowed = ['top_idea', 'sample_needed', 'planned', 'ready', 'discarded'];
+        $allowed = ['top_idea', 'sample_needed', 'planned', 'ready', 'transferred', 'discarded'];
         if (!in_array($newStatus, $allowed, true)) {
             return;
         }
@@ -267,7 +267,7 @@ class ProductIdeas extends Component
             'title' => 'required|string|max:255',
             'rank' => 'required|integer|min:1|max:999',
             'category' => 'required|string|max:64',
-            'status' => 'required|string|in:top_idea,sample_needed,planned,ready,discarded',
+            'status' => 'required|string|in:top_idea,sample_needed,planned,ready,transferred,discarded',
             'material_summary' => 'nullable|string|max:500',
             'supplier_name' => 'nullable|string|max:255',
             'notes' => 'nullable|string|max:15000',

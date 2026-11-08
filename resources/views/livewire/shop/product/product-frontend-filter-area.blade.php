@@ -18,13 +18,31 @@
             @endif
             <div class="absolute inset-0 bg-[var(--theme-color-10)] blur-[100px] rounded-full w-[500px] h-[500px] mx-auto opacity-25 pointer-events-none"></div>
             <div class="relative z-10 px-4">
-                <span class="text-[var(--theme-color)] font-bold uppercase tracking-[0.2em] text-xs mb-3 block drop-shadow">Handveredelt in Gifhorn</span>
-                <h1 class="text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-white mb-5 drop-shadow-lg">
-                    Unsere Kollektion
-                </h1>
-                <p class="text-gray-200 max-w-2xl mx-auto text-lg leading-relaxed px-4 drop-shadow">
-                    Entdecke Unikate, die deine Seele berühren. Jedes Stück wird mit Liebe, modernster Technik und Sorgfalt für dich personalisiert.
-                </p>
+                @if($collectionWorld === 'atelier')
+                    <span class="text-[#C5A059] font-bold uppercase tracking-[0.2em] text-xs mb-3 block drop-shadow">Atelier Gifhorn · 585er &amp; 333er Echtgold · 925er Silber</span>
+                    <h1 class="text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-white mb-5 drop-shadow-lg">
+                        Atelier Echtgold &amp; Silber
+                    </h1>
+                    <p class="text-gray-200 max-w-2xl mx-auto text-lg leading-relaxed px-4 drop-shadow">
+                        Meisterstücke aus echtem Gold und Sterling Silber. Jedes Schmuckstück wird mit weißen Handschuhen in unserer Manufaktur individuell für dich veredelt.
+                    </p>
+                @elseif($collectionWorld === 'voucher')
+                    <span class="text-[var(--theme-color)] font-bold uppercase tracking-[0.2em] text-xs mb-3 block drop-shadow">Sofort-Freude &amp; Edel-Umschlag</span>
+                    <h1 class="text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-white mb-5 drop-shadow-lg">
+                        Geschenkgutscheine
+                    </h1>
+                    <p class="text-gray-200 max-w-2xl mx-auto text-lg leading-relaxed px-4 drop-shadow">
+                        Verschenke freie Auswahl in unserer Manufaktur, wahlweise als Sofort-PDF oder als lasergravierte goldene Metallkarte im Edel-Umschlag mit Wachssiegel.
+                    </p>
+                @else
+                    <span class="text-[var(--theme-color)] font-bold uppercase tracking-[0.2em] text-xs mb-3 block drop-shadow">Handveredelt in Gifhorn</span>
+                    <h1 class="text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-white mb-5 drop-shadow-lg">
+                        Unsere Kollektion
+                    </h1>
+                    <p class="text-gray-200 max-w-2xl mx-auto text-lg leading-relaxed px-4 drop-shadow">
+                        Entdecke Unikate, die deine Seele berühren. Jedes Stück wird mit Liebe, modernster Technik und Sorgfalt für dich personalisiert.
+                    </p>
+                @endif
             </div>
         </div>
 
@@ -32,6 +50,39 @@
 
             {{-- Filter & Search Bar --}}
             <div class="bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 p-4 md:p-5 mb-12">
+
+                {{-- 3-Welten-Kollektions-Weiche (Manufaktur | Atelier Echtgold & Silber | Geschenkgutscheine) --}}
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 p-1.5 bg-gray-50 rounded-2xl border border-gray-100 mb-4">
+                    <button type="button"
+                            wire:click="setCollectionWorld('manufaktur')"
+                            class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer {{ $collectionWorld === 'manufaktur' ? 'bg-[#F5F1E8] text-gray-900 border border-[#D8C9A8] shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/70 border border-transparent' }}">
+                        <svg class="w-4 h-4 shrink-0 {{ $collectionWorld === 'manufaktur' ? 'text-gray-900' : 'text-gray-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                        <span class="truncate">Manufaktur-Kollektion</span>
+                        @if(($manufakturCount ?? 0) > 0)
+                            <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black leading-none {{ $collectionWorld === 'manufaktur' ? 'bg-white/90 text-gray-900 border border-[#D8C9A8]/60' : 'bg-gray-200/80 text-gray-600' }}">{{ $manufakturCount }}</span>
+                        @endif
+                    </button>
+
+                    <button type="button"
+                            wire:click="setCollectionWorld('atelier')"
+                            class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer {{ $collectionWorld === 'atelier' ? 'bg-[#F5F1E8] text-gray-900 border border-[#D8C9A8] shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/70 border border-transparent' }}">
+                        <svg class="w-4 h-4 shrink-0 {{ $collectionWorld === 'atelier' ? 'text-gray-900' : 'text-gray-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                        <span class="truncate">Atelier Echtgold &amp; Silber</span>
+                        @if(($atelierCount ?? 0) > 0)
+                            <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black leading-none {{ $collectionWorld === 'atelier' ? 'bg-white/90 text-gray-900 border border-[#D8C9A8]/60' : 'bg-gray-200/80 text-gray-600' }}">{{ $atelierCount }}</span>
+                        @endif
+                    </button>
+
+                    <button type="button"
+                            wire:click="setCollectionWorld('voucher')"
+                            class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer {{ $collectionWorld === 'voucher' ? 'bg-[#F5F1E8] text-gray-900 border border-[#D8C9A8] shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/70 border border-transparent' }}">
+                        <svg class="w-4 h-4 shrink-0 {{ $collectionWorld === 'voucher' ? 'text-gray-900' : 'text-gray-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" /></svg>
+                        <span class="truncate">Geschenkgutscheine</span>
+                        @if(($voucherCount ?? 0) > 0)
+                            <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black leading-none {{ $collectionWorld === 'voucher' ? 'bg-white/90 text-gray-900 border border-[#D8C9A8]/60' : 'bg-gray-200/80 text-gray-600' }}">{{ $voucherCount }}</span>
+                        @endif
+                    </button>
+                </div>
                 
                 {{-- Suchleiste Volle Breite Oben --}}
                 <div class="w-full mb-4">
@@ -49,37 +100,11 @@
                 </div>
 
                 {{-- Untere Ebene: Pills & Dropdowns (Kompakt auf Desktop, damit nichts abschneidet) --}}
+                @if($collectionWorld !== 'voucher')
                 <div class="flex flex-col xl:flex-row gap-3 justify-between items-stretch xl:items-center">
 
-                    {{-- Type, Personalizable & Sale Pills --}}
+                    {{-- Personalizable & Sale Pills --}}
                     <div class="flex flex-col lg:flex-row gap-2.5 w-full xl:w-auto shrink-0">
-                        {{-- Type Filter (Pills) --}}
-                        @if(count($availableTypes) > 0)
-                            <div class="flex bg-gray-50 p-1 rounded-xl border border-gray-100 w-full lg:w-auto overflow-x-auto no-scrollbar">
-                                <button wire:click="$set('filterType', 'all')" class="flex-1 lg:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'all' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
-                                    Alle
-                                </button>
-                                @if(in_array('physical', $availableTypes, true))
-                                    <button wire:click="$set('filterType', 'physical')" class="flex-1 lg:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'physical' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
-                                        <svg class="w-3.5 h-3.5 {{ $filterType === 'physical' ? 'text-[var(--theme-color)]' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                                        Physisch
-                                    </button>
-                                @endif
-                                @if(in_array('digital', $availableTypes, true))
-                                    <button wire:click="$set('filterType', 'digital')" class="flex-1 lg:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'digital' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
-                                        <svg class="w-3.5 h-3.5 {{ $filterType === 'digital' ? 'text-blue-500' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                        Digital
-                                    </button>
-                                @endif
-                                @if(in_array('service', $availableTypes, true))
-                                    <button wire:click="$set('filterType', 'service')" class="flex-1 lg:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'service' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
-                                        <svg class="w-3.5 h-3.5 {{ $filterType === 'service' ? 'text-orange-500' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                                        Service
-                                    </button>
-                                @endif
-                            </div>
-                        @endif
-
                         {{-- Personalizable Filter (Pills) --}}
                         <div class="flex bg-gray-50 p-1 rounded-xl border border-gray-100 w-full lg:w-auto overflow-x-auto no-scrollbar">
                             <button wire:click="$set('filterPersonalizable', 'all')" class="flex-1 lg:flex-none flex items-center justify-center px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterPersonalizable === 'all' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700' }}">
@@ -88,9 +113,11 @@
                             <button wire:click="$set('filterPersonalizable', 'yes')" class="flex-1 lg:flex-none flex items-center justify-center px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterPersonalizable === 'yes' ? 'bg-[var(--theme-color-10)] text-[var(--theme-color)] shadow-sm border border-[var(--theme-color-30)]' : 'text-gray-500 hover:text-[var(--theme-color)]' }}">
                                 Personalisiert
                             </button>
-                            <button wire:click="$set('filterPersonalizable', 'no')" class="flex-1 lg:flex-none flex items-center justify-center px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterPersonalizable === 'no' ? 'bg-gray-200 text-gray-800 shadow-sm border border-gray-300' : 'text-gray-500 hover:text-gray-800' }}">
-                                Standard
-                            </button>
+                            @if(!empty($hasStandardProducts))
+                                <button wire:click="$set('filterPersonalizable', 'no')" class="flex-1 lg:flex-none flex items-center justify-center px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterPersonalizable === 'no' ? 'bg-gray-200 text-gray-800 shadow-sm border border-gray-300' : 'text-gray-500 hover:text-gray-800' }}">
+                                    Standard
+                                </button>
+                            @endif
                         </div>
 
                         {{-- Angebote / Sale Filter Pill --}}
@@ -140,9 +167,10 @@
                         </div>
                     @endif
                 </div>
+                @endif
 
                 {{-- Aktive Filter anzeigen (Nur wenn etwas ausgewählt ist) --}}
-                @if($search !== '' || $filterType !== 'all' || $filterPersonalizable !== 'all' || $filterSale || $filterCategory !== '' || $filterHoliday !== '')
+                @if($search !== '' || $filterPersonalizable !== 'all' || $filterSale || $filterCategory !== '' || $filterHoliday !== '')
                     <div class="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-3 animate-fade-in">
                         <span class="text-xs font-bold text-gray-400 uppercase tracking-widest mr-2">Aktive Filter:</span>
 
@@ -157,13 +185,6 @@
                             <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-600 text-xs font-bold uppercase tracking-wider border border-red-200">
                                 Nur Angebote
                                 <button wire:click="$set('filterSale', false)" class="hover:text-red-800"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
-                            </span>
-                        @endif
-
-                        @if($filterType !== 'all')
-                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--theme-color-10)] text-gray-800 text-xs font-bold uppercase tracking-wider border border-[var(--theme-color-30)]">
-                                Typ: {{ match($filterType) { 'physical' => 'Physisch', 'digital' => 'Digital', 'service' => 'Service', default => $filterType } }}
-                                <button wire:click="$set('filterType', 'all')" class="hover:text-red-500"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
                             </span>
                         @endif
 
@@ -182,9 +203,9 @@
                         @endif
 
                         @if($filterCategory !== '')
-                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-900 text-white text-xs font-medium">
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F5F1E8] text-gray-900 border border-[#D8C9A8] text-xs font-bold">
                                 Kategorie: {{ $categories->firstWhere('id', $filterCategory)->name ?? \App\Models\Product\ProductCategory::find($filterCategory)?->name ?? 'Unbekannt' }}
-                                <button wire:click="$set('filterCategory', '')" class="hover:text-red-400"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+                                <button wire:click="$set('filterCategory', '')" class="hover:text-red-500"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
                             </span>
                         @endif
 
@@ -195,17 +216,38 @@
 
             {{-- Produkt Grid --}}
             <div wire:loading.class="opacity-50 blur-sm pointer-events-none"
-                 wire:target="search, filterType, filterPersonalizable, filterSale, toggleSaleFilter, filterCategory, filterHoliday, resetFilters, gotoPage, nextPage, previousPage"
+                 wire:target="search, collectionWorld, setCollectionWorld, filterType, filterPersonalizable, filterSale, toggleSaleFilter, filterCategory, filterHoliday, resetFilters, gotoPage, nextPage, previousPage"
                  class="transition-all duration-300">
                 @if($products->isEmpty())
-                    <div class="text-center py-20 bg-white rounded-3xl border border-gray-100 shadow-sm animate-fade-in-up">
-                        <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-50 text-gray-300 mb-6">
-                            <svg class="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    @if($collectionWorld === 'atelier' && $search === '' && !$filterSale && $filterCategory === '' && $filterHoliday === '')
+                        <div class="text-center py-16 px-6 bg-white rounded-3xl border border-[#C5A059]/30 shadow-sm animate-fade-in-up max-w-3xl mx-auto">
+                            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#C5A059]/10 text-[#C5A059] mb-5 border border-[#C5A059]/25">
+                                <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                            </div>
+                            <span class="text-[#C5A059] font-bold uppercase tracking-[0.2em] text-[11px] mb-2 block">Exklusive Einzelanfertigung · 585er Echtgold &amp; 925er Silber</span>
+                            <h3 class="text-2xl font-serif font-bold text-gray-900 mb-3">Unser Echtgold- &amp; Silber-Atelier wird vorbereitet</h3>
+                            <p class="text-gray-600 mb-6 max-w-xl mx-auto text-sm leading-relaxed">
+                                Unsere neuen Meisterstücke aus massivem 585er und 333er Echtgold sowie 925er Sterling Silber durchlaufen aktuell die Original-Fotoproduktion in unserer Manufaktur in Gifhorn und sind in Kürze hier konfigurierbar.
+                            </p>
+                            <div class="flex flex-wrap items-center justify-center gap-4 text-xs font-bold text-gray-700 mb-7">
+                                <span class="inline-flex items-center gap-1.5"><span class="text-[#C5A059]">✓</span> 585er &amp; 333er Echtgold</span>
+                                <span class="inline-flex items-center gap-1.5"><span class="text-[#C5A059]">✓</span> Inkl. Westpack-Schmuckbox</span>
+                                <span class="inline-flex items-center gap-1.5"><span class="text-[#C5A059]">✓</span> Handveredelt in Gifhorn</span>
+                            </div>
+                            <button type="button" wire:click="setCollectionWorld('manufaktur')" class="px-6 py-3 bg-[#F5F1E8] text-gray-900 border border-[#D8C9A8] rounded-full font-bold text-xs uppercase tracking-wider shadow-sm hover:bg-[#EDE6D6] transition-all cursor-pointer">
+                                Zur Manufaktur-Kollektion
+                            </button>
                         </div>
-                        <h3 class="text-xl font-serif font-bold text-gray-900 mb-2">Keine Treffer gefunden</h3>
-                        <p class="text-gray-500 mb-6 max-w-md mx-auto">Es tut uns leid, aber zu deiner Auswahl haben wir aktuell keine passenden Produkte in der Kollektion.</p>
-                        <button wire:click="resetFilters" class="px-6 py-2.5 bg-gray-900 text-white rounded-full font-bold text-sm shadow-md hover:bg-black transition-all">Filter zurücksetzen</button>
-                    </div>
+                    @else
+                        <div class="text-center py-20 bg-white rounded-3xl border border-gray-100 shadow-sm animate-fade-in-up">
+                            <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-50 text-gray-300 mb-6">
+                                <svg class="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                            </div>
+                            <h3 class="text-xl font-serif font-bold text-gray-900 mb-2">Keine Treffer gefunden</h3>
+                            <p class="text-gray-500 mb-6 max-w-md mx-auto">Es tut uns leid, aber zu deiner Auswahl haben wir aktuell keine passenden Produkte in der Kollektion.</p>
+                            <button wire:click="resetFilters" class="px-6 py-2.5 bg-gray-900 text-white rounded-full font-bold text-sm shadow-md hover:bg-black transition-all">Filter zurücksetzen</button>
+                        </div>
+                    @endif
                 @else
                     <style>
                         .sf-card {
@@ -428,15 +470,21 @@
                                     {{-- Product Type Badges --}}
                                     @if(!$isSoldOut && !$isBackorder)
                                         <div class="absolute top-3 right-3 z-30 flex flex-col gap-2 pointer-events-none">
+                                            @if($product->isAtelierLine())
+                                                <div class="bg-[#F5F1E8]/95 backdrop-blur-sm text-gray-900 border border-[#D8C9A8] text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm flex items-center gap-1.5">
+                                                    <svg class="w-3 h-3 text-gray-900" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                                                    Atelier
+                                                </div>
+                                            @endif
                                             @if($product->type === 'digital')
-                                                <div class="bg-blue-600/90 backdrop-blur text-white text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm flex items-center gap-1.5">
-                                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                                    Digital
+                                                <div class="bg-[#F5F1E8]/95 backdrop-blur-sm text-gray-900 border border-[#D8C9A8] text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm flex items-center gap-1.5">
+                                                    <svg class="w-3 h-3 text-gray-900" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" /></svg>
+                                                    Gutschein
                                                 </div>
                                             @endif
                                             @if($product->type === 'service')
-                                                <div class="bg-orange-500/90 backdrop-blur text-white text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm flex items-center gap-1.5">
-                                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                                <div class="bg-[#F5F1E8]/95 backdrop-blur-sm text-gray-900 border border-[#D8C9A8] text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm flex items-center gap-1.5">
+                                                    <svg class="w-3 h-3 text-gray-900" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                                                     Service
                                                 </div>
                                             @endif
@@ -529,7 +577,7 @@
                                                         Ausverkauft
                                                     </div>
                                                 @else
-                                                    <div class="absolute top-[25%] -right-[35%] w-[160%] bg-gray-900/95 backdrop-blur text-white text-[9px] font-black py-2 shadow-xl transform rotate-45 uppercase tracking-[0.15em] border-y border-white/10 text-center">
+                                                    <div class="absolute top-[25%] -right-[35%] w-[160%] bg-[#F5F1E8]/95 backdrop-blur-sm text-gray-900 text-[9px] font-black py-2 shadow-md transform rotate-45 uppercase tracking-[0.15em] border-y border-[#D8C9A8] text-center">
                                                         Vorbestellbar
                                                     </div>
                                                 @endif

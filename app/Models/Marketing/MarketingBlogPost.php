@@ -32,7 +32,7 @@ class MarketingBlogPost extends Model implements HasSystemBlueprint
     {
         return ModelBlueprint::make(
             label: 'Blog- & Magazin-Artikel',
-            description: 'Redaktionelle Beiträge und Geschenk-Ratgeber inklusive KI-Kennzeichnung nach EU AI Act.',
+            description: 'Redaktionelle Manufaktur-Beiträge, Materialkunde und Geschenk-Ratgeber.',
             department: SystemDepartment::Marketing,
             navigationNodes: ['admin.marketing.blog', 'shop.blog'],
             lifecycle: LifecycleBehavior::MasterData,

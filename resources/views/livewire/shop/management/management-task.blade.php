@@ -440,20 +440,20 @@
                         {{-- Subtasks / Steps --}}
                         <div class="space-y-2 pt-2 border-t border-gray-200 dark:border-gray-800">
                             @foreach($selectedTask->subtasks as $sub)
-                                <div wire:key="detail-sub-{{ $sub->id }}" class="flex items-center justify-between gap-2 py-1 group/sub">
-                                    <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                                <div wire:key="detail-sub-{{ $sub->id }}" class="flex items-start justify-between gap-2 py-1.5 group/sub">
+                                    <div class="flex items-start gap-2.5 min-w-0 flex-1">
                                         <button type="button"
                                                 wire:click="toggleTask('{{ $sub->id }}')"
-                                                class="w-4 h-4 rounded-full border flex items-center justify-center shrink-0 {{ $sub->is_completed ? 'bg-[var(--theme-color)] border-[var(--theme-color)]' : 'border-gray-400 dark:border-gray-500' }}">
+                                                class="mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center shrink-0 {{ $sub->is_completed ? 'bg-[var(--theme-color)] border-[var(--theme-color)]' : 'border-gray-400 dark:border-gray-500' }}">
                                             @if($sub->is_completed)
                                                 <svg class="w-2.5 h-2.5 text-gray-950" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                                             @endif
                                         </button>
-                                        <span class="text-sm truncate {{ $sub->is_completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200' }}">
+                                        <span class="text-xs sm:text-sm break-words leading-snug {{ $sub->is_completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200' }}">
                                             {{ $sub->title }}
                                         </span>
                                     </div>
-                                    <button type="button" wire:click="deleteTask('{{ $sub->id }}')" class="opacity-0 group-hover/sub:opacity-100 text-gray-400 hover:text-red-500 p-1">
+                                    <button type="button" wire:click="deleteTask('{{ $sub->id }}')" class="opacity-0 group-hover/sub:opacity-100 text-gray-400 hover:text-red-500 p-1 shrink-0">
                                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                                     </button>
                                 </div>

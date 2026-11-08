@@ -89,10 +89,14 @@ class SystemDeliveryDisplay extends Component
 
     public function render()
     {
+        $productModel = $this->product instanceof \App\Models\Product\Product ? $this->product : null;
+        $deliveryDetails = DeliverySetting::getDeliveryDetailsForProduct($productModel);
+
         return view('livewire.shop.system.system-delivery-display', [
             'setting' => DeliverySetting::first(),
             'activeTime' => DeliveryTime::where('is_active', true)->first(),
-            'deliveryText' => DeliverySetting::getCurrentDeliveryText()
+            'deliveryDetails' => $deliveryDetails,
+            'deliveryText' => $deliveryDetails['full_text'],
         ]);
     }
 }

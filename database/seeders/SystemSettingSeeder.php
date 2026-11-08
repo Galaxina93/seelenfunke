@@ -72,10 +72,10 @@ class SystemSettingSeeder extends Seeder
             'owner_website'             => 'www.mein-seelenfunke.de',
 
             // Bankdaten
-            'owner_bank_name'           => 'Volksbank BraWo',
+            'owner_bank_name'           => 'FYRST (Deutsche Bank AG)',
             'owner_bank_address'        => '',
-            'owner_bic'                 => '123456789',
-            'owner_iban'                => 'DE123456789123456',
+            'owner_bic'                 => 'DEUTDE2HP24',
+            'owner_iban'                => 'DE76 2507 0370 0079 8629 00',
 
             // Erweiterte behördliche Daten (Platzhalter)
             'owner_finanzamt_nr'        => '2319',

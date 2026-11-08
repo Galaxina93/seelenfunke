@@ -59,7 +59,10 @@ fun MusicTabContent() {
     var isImporting by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        MusicPlayerManager.fetchPlaylists(context)
+        while (true) {
+            MusicPlayerManager.fetchPlaylists(context)
+            kotlinx.coroutines.delay(15000)
+        }
     }
 
     val filteredTracks = remember(allTracks, activePlaylistId, searchQuery) {
@@ -126,6 +129,17 @@ fun MusicTabContent() {
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+
+                    if (currentTrack != null) {
+                        Text(
+                            text = if (currentTrack?.isFavorite == true) "♥" else "♡",
+                            color = if (currentTrack?.isFavorite == true) Gold else AppTheme.colors.textMuted,
+                            fontSize = 18.sp,
+                            modifier = Modifier
+                                .clickable { currentTrack?.let { MusicPlayerManager.toggleFavorite(context, it) } }
+                                .padding(horizontal = 6.dp, vertical = 4.dp)
                         )
                     }
 

@@ -904,7 +904,9 @@ object MusicPlayerManager {
         // Optimistic local update + local persistence so favorites work offline & on Stage/Live
         val updatedPlaylists = _playlists.value.map { pl ->
             pl.copy(tracks = pl.tracks.map { tr ->
-                if (tr.id == track.id) tr.copy(isFavorite = newFav) else tr
+                val isSame = tr.id == track.id ||
+                    (tr.title.equals(track.title, ignoreCase = true) && tr.artist.equals(track.artist, ignoreCase = true))
+                if (isSame) tr.copy(isFavorite = newFav) else tr
             })
         }
         if (updatedPlaylists.isNotEmpty()) {
@@ -916,6 +918,7 @@ object MusicPlayerManager {
 
         scope.launch {
             try {
+                val bodyStr = JSONObject().apply { put("is_favorite", newFav) }.toString()
                 for (baseUrl in getCandidateBaseUrls()) {
                     for (token in getCandidateTokens()) {
                         try {
@@ -923,7 +926,7 @@ object MusicPlayerManager {
                                 .url("$baseUrl/funki/music/tracks/${track.id}/favorite")
                                 .header("Authorization", "Bearer $token")
                                 .header("Accept", "application/json")
-                                .post("{}".toRequestBody("application/json".toMediaType()))
+                                .post(bodyStr.toRequestBody("application/json".toMediaType()))
                                 .build()
                             val ok = withContext(Dispatchers.IO) {
                                 fastMetaClient.newCall(req).execute().use { it.isSuccessful }

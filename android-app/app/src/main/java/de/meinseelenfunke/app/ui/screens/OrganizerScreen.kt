@@ -27,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.CalendarToday
@@ -36,11 +37,13 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlaylistAddCheck
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -177,8 +180,8 @@ fun OrganizerScreen(
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
     val pagerState = rememberPagerState(
-        initialPage = initialTab.coerceIn(0, 5),
-        pageCount = { 6 }
+        initialPage = initialTab.coerceIn(0, 6),
+        pageCount = { 7 }
     )
     var isFirstLoad by remember { mutableStateOf(true) }
 
@@ -189,7 +192,7 @@ fun OrganizerScreen(
     }
 
     LaunchedEffect(initialTab, navTrigger) {
-        val target = initialTab.coerceIn(0, 5)
+        val target = initialTab.coerceIn(0, 6)
         if (pagerState.currentPage != target) {
             pagerState.scrollToPage(target)
         }
@@ -201,7 +204,16 @@ fun OrganizerScreen(
             viewModel.loadAllOrganizerData(showLoading = false)
         }
     }
-    val tabTitles = listOf("Aufgaben", "Kalender", "Routine", "Einkauf", "E-Mail", "Musik")
+    val tabTitles = listOf("Aufgaben", "Kalender", "Routine", "Einkauf", "E-Mail", "Musik", "Wecker")
+    val tabIcons = listOf(
+        Icons.Default.CheckCircle,
+        Icons.Default.CalendarToday,
+        Icons.Default.Schedule,
+        Icons.Default.ShoppingCart,
+        Icons.Default.Email,
+        Icons.Default.MusicNote,
+        Icons.Default.Alarm
+    )
 
     Box(
         modifier = Modifier
@@ -243,14 +255,26 @@ fun OrganizerScreen(
         }
         Column(modifier = Modifier.fillMaxSize()) {
             // Title Header
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 20.dp)) {
-                Text(
-                    text = "ORGANIZER",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Gold,
-                    letterSpacing = 2.sp
-                )
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "ORGANIZER",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Gold,
+                        letterSpacing = 2.sp
+                    )
+                    Text(
+                        text = tabTitles.getOrElse(pagerState.currentPage) { "Aufgaben" },
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Gold
+                    )
+                }
                 Text(
                     text = "Behalte deinen Tag im Blick",
                     fontSize = 12.sp,
@@ -258,7 +282,7 @@ fun OrganizerScreen(
                 )
             }
 
-            // Tab bar
+            // Compact Icon Tab bar (7 Tabs: Aufgaben, Kalender, Routine, Einkauf, E-Mail, Musik, Wecker)
             TabRow(
                 selectedTabIndex = pagerState.currentPage,
                 containerColor = Color.Transparent,
@@ -273,8 +297,9 @@ fun OrganizerScreen(
                 }
             ) {
                 tabTitles.forEachIndexed { index, title ->
+                    val isSelected = pagerState.currentPage == index
                     Tab(
-                        selected = pagerState.currentPage == index,
+                        selected = isSelected,
                         onClick = {
                             scope.launch {
                                 pagerState.animateScrollToPage(index)
@@ -282,13 +307,12 @@ fun OrganizerScreen(
                         },
                         selectedContentColor = Gold,
                         unselectedContentColor = AppTheme.colors.textMuted,
-                        text = {
-                            Text(
-                                text = title,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        icon = {
+                            Icon(
+                                imageVector = tabIcons[index],
+                                contentDescription = title,
+                                modifier = Modifier.size(20.dp),
+                                tint = if (isSelected) Gold else AppTheme.colors.textMuted
                             )
                         }
                     )
@@ -403,6 +427,9 @@ fun OrganizerScreen(
                                 viewModel = emailViewModel
                             )
                             5 -> MusicTabContent()
+                            6 -> AlarmTabContent(
+                                viewModel = viewModel
+                            )
                         }
                     }
                 }

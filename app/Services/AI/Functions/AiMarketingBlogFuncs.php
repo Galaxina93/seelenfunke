@@ -181,7 +181,7 @@ trait AiMarketingBlogFuncs
             return ['status' => 'error', 'message' => 'Kein Admin-Benutzer im System gefunden.'];
         }
 
-        $title = trim($args['title'] ?? '');
+        $title = (string) \App\Livewire\Shop\Marketing\MarketingBlog::sanitizeBlogText(trim($args['title'] ?? ''));
         if (empty($title)) {
             return ['status' => 'error', 'message' => 'Titel darf nicht leer sein.'];
         }
@@ -199,16 +199,20 @@ trait AiMarketingBlogFuncs
             $status = 'draft';
         }
 
+        $excerpt = isset($args['excerpt']) ? \App\Livewire\Shop\Marketing\MarketingBlog::sanitizeBlogText($args['excerpt']) : null;
+        $metaTitle = isset($args['meta_title']) ? \App\Livewire\Shop\Marketing\MarketingBlog::sanitizeBlogText($args['meta_title']) : null;
+        $metaDesc = isset($args['meta_description']) ? \App\Livewire\Shop\Marketing\MarketingBlog::sanitizeBlogText($args['meta_description']) : null;
+
         $post = MarketingBlogPost::create([
             'title' => substr($title, 0, 255),
             'slug' => $slug,
             'content' => \App\Livewire\Shop\Marketing\MarketingBlog::sanitizeBlogHtml((string) ($args['content'] ?? '')),
-            'excerpt' => isset($args['excerpt']) ? substr($args['excerpt'], 0, 1000) : null,
+            'excerpt' => $excerpt ? substr($excerpt, 0, 1000) : null,
             'blog_category_id' => $args['blog_category_id'] ?? null,
             'status' => $status,
             'published_at' => $status === 'published' ? now() : null,
-            'meta_title' => isset($args['meta_title']) ? substr($args['meta_title'], 0, 255) : null,
-            'meta_description' => isset($args['meta_description']) ? substr($args['meta_description'], 0, 500) : null,
+            'meta_title' => $metaTitle ? substr($metaTitle, 0, 255) : null,
+            'meta_description' => $metaDesc ? substr($metaDesc, 0, 500) : null,
             'is_advertisement' => false,
             'contains_affiliate_links' => false,
             'user_id' => $admin->id
@@ -227,7 +231,7 @@ trait AiMarketingBlogFuncs
         }
 
         if (isset($args['title'])) {
-            $title = trim($args['title']);
+            $title = (string) \App\Livewire\Shop\Marketing\MarketingBlog::sanitizeBlogText(trim($args['title']));
             $post->title = substr($title, 0, 255);
             $baseSlug = Str::slug($title) ?: 'blog-post';
             $slug = $baseSlug;

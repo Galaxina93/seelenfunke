@@ -128,6 +128,14 @@
         </div>
     @endif
 
+    @if(!empty($data['has_digital_documents']))
+        {{-- HINWEIS: DIGITALE BEGLEITDOKUMENTE (ZERTIFIKATE / PFLEGEHINWEISE) --}}
+        <div style="margin-top: 24px; padding: 15px 18px; background-color: #faf8f5; border: 1px solid #e7e2d8; border-left: 4px solid #C5A059; border-radius: 6px; font-size: 13px; color: #44403c; line-height: 1.55;">
+            <strong style="color: #1c1917;">📄 Digitale Dokumente zu deiner Bestellung:</strong><br>
+            Zu deiner Bestellung gehören digitale Begleitdokumente. Du findest diese jederzeit in deinem <a href="{{ url('/orders') }}" style="color: #9a6f1a; font-weight: bold; text-decoration: underline;">Kundenportal</a> in der Bestellansicht unter <strong>Dokumente</strong>.
+        </div>
+    @endif
+
     {{-- HINWEIS ZUR XML DATEI (Wird vom System nur bei gewerblichen Kunden befüllt/angezeigt) --}}
     @if(!empty($xmlPath))
         <div style="margin-top: 30px; padding: 15px; background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; font-size: 12px; color: #6c757d; line-height: 1.5;">

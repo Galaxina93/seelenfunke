@@ -40,6 +40,11 @@ class FetchMailsCommand extends Command
 
         $failedAccounts = 0;
         foreach ($accounts as $account) {
+            if (trim((string) $account->password) === '') {
+                $this->line("Postfach übersprungen (kein Passwort hinterlegt): {$account->email}");
+                continue;
+            }
+
             $this->info("Postfach wird verarbeitet: {$account->email}...");
 
             if (!\App\Services\System\SystemSecurityService::isSafeMailHost((string) $account->imap_host)) {
@@ -85,13 +90,13 @@ class FetchMailsCommand extends Command
 
                         $fromObj = $message->getFrom()[0] ?? null;
                         $fromEmail = $fromObj ? $fromObj->mail : 'unknown';
-                        // Decode MIME strings for names (like "=?utf-8?Q?..." to readable names)
-                        $rawFromName = $fromObj ? $fromObj->personal : '';
-                        $fromName = mb_decode_mimeheader((string)$rawFromName) ?: $rawFromName;
+                        // Decode MIME strings for names without corrupting already-decoded UTF-8 / Emojis
+                        $rawFromName = $fromObj ? (string) $fromObj->personal : '';
+                        $fromName = self::decodeMimeHeaderSafe($rawFromName);
 
-                        // Decode MIME encoded subjects
-                        $rawSubject = (string)$message->getSubject();
-                        $decodedSubject = mb_decode_mimeheader($rawSubject) ?: $rawSubject;
+                        // Decode MIME encoded subjects without corrupting 4-byte UTF-8 emojis (mb_decode_mimeheader turns raw UTF-8 emojis into "????")
+                        $rawSubject = (string) $message->getSubject();
+                        $decodedSubject = self::repairCorruptedSubjectIcons(self::decodeMimeHeaderSafe($rawSubject));
 
                         $receivedAt = $message->getDate() ? Carbon::parse($message->getDate()) : null;
 
@@ -102,13 +107,19 @@ class FetchMailsCommand extends Command
                         }
 
                         // Skip if we already stored it for this account or if it was already deleted as Spam / expired Trash
-                        if (
-                            $normalizedMessageId !== '' && (
-                                MailMessage::where('mail_account_id', $account->id)->where('message_id', $normalizedMessageId)->exists()
-                                || \App\Services\Management\MailAiSortService::isMessageIdDeleted($normalizedMessageId)
-                            )
-                        ) {
-                            continue;
+                        if ($normalizedMessageId !== '') {
+                            if (\App\Services\Management\MailAiSortService::isMessageIdDeleted($normalizedMessageId)) {
+                                continue;
+                            }
+                            $existingMsg = MailMessage::where('mail_account_id', $account->id)
+                                ->where('message_id', $normalizedMessageId)
+                                ->first();
+                            if ($existingMsg) {
+                                if ($decodedSubject !== '' && $existingMsg->subject !== $decodedSubject && str_contains((string) $existingMsg->subject, '???')) {
+                                    $existingMsg->update(['subject' => $decodedSubject]);
+                                }
+                                continue;
+                            }
                         }
 
                         $bodyHtml = $message->hasHTMLBody() ? $message->getHTMLBody() : null;
@@ -205,8 +216,8 @@ class FetchMailsCommand extends Command
                                 continue;
                             }
 
-                            $rawFilename = (string)$attachment->getName();
-                            $decodedFilename = mb_decode_mimeheader($rawFilename) ?: $rawFilename;
+                            $rawFilename = (string) $attachment->getName();
+                            $decodedFilename = self::decodeMimeHeaderSafe($rawFilename);
                             $filename = $decodedFilename ?: 'unknown_file_' . Str::random(5);
                             
                             $safeFilename = self::sanitizeAttachmentFilename($filename, (string) ($attachment->getExtension() ?: 'dat'));
@@ -306,6 +317,12 @@ class FetchMailsCommand extends Command
 
         $fromPlain = trim((string) $plain);
         if ($fromPlain !== '') {
+            if (preg_match('/(?:<!DOCTYPE|<html\b|<head\b|<style\b|@import\s+url|font-family\s*:|text-decoration\s*:|#outlook)/i', $fromPlain)) {
+                if ($fromHtml !== '') {
+                    return $fromHtml;
+                }
+            }
+            $fromPlain = preg_replace('/@import\s+url\([^)]*\)\s*;?/i', '', $fromPlain);
             $fromPlain = preg_replace('/^\s*(?:[.#@a-zA-Z0-9_:,\-\s\[\]\*>+]+\{[^{}]*\}\s*)+/m', '', $fromPlain);
             $fromPlain = html_entity_decode(html_entity_decode($fromPlain, ENT_QUOTES | ENT_HTML5, 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
             $fromPlain = trim($fromPlain);
@@ -338,5 +355,94 @@ class FetchMailsCommand extends Command
         }
 
         return $base . '.' . $ext;
+    }
+
+    /**
+     * Safely decodes RFC 2047 MIME encoded-words (=?charset?B/Q?...?=) without passing
+     * already-decoded UTF-8 strings or 4-byte emojis through mb_decode_mimeheader(),
+     * which otherwise corrupts raw UTF-8 emojis into "????".
+     */
+    public static function decodeMimeHeaderSafe(?string $raw): string
+    {
+        $str = trim((string) $raw);
+        if ($str === '' || !str_contains($str, '=?')) {
+            return $str;
+        }
+
+        // Collapse whitespace between adjacent RFC 2047 encoded-words
+        $collapsed = preg_replace('/(\?=)\s+(=\?)/', '$1$2', $str) ?? $str;
+
+        $decoded = preg_replace_callback(
+            '/=\?([^?]+)\?([BQbq])\?([^?]*)\?=/',
+            function (array $m): string {
+                $charset = strtoupper(trim($m[1]));
+                $enc = strtoupper($m[2]);
+                $payload = $m[3];
+
+                if ($enc === 'B') {
+                    $bytes = base64_decode($payload, true);
+                    if ($bytes === false) {
+                        $bytes = base64_decode($payload);
+                    }
+                } else {
+                    $bytes = quoted_printable_decode(str_replace('_', ' ', $payload));
+                }
+
+                if ($bytes === false || $bytes === '') {
+                    return '';
+                }
+
+                if ($charset !== 'UTF-8' && $charset !== 'UTF8' && $charset !== 'US-ASCII' && $charset !== 'ASCII') {
+                    try {
+                        $converted = @iconv($charset, 'UTF-8//IGNORE', $bytes);
+                        if ($converted !== false && $converted !== '') {
+                            return $converted;
+                        }
+                        return mb_convert_encoding($bytes, 'UTF-8', $charset);
+                    } catch (\Throwable $e) {
+                        return $bytes;
+                    }
+                }
+
+                return $bytes;
+            },
+            $collapsed
+        );
+
+        return trim((string) ($decoded ?? $str));
+    }
+
+    /**
+     * Repairs subjects where 3-byte or 4-byte UTF-8 emojis were previously turned into "???" or "????" by mb_decode_mimeheader().
+     */
+    public static function repairCorruptedSubjectIcons(?string $subject): string
+    {
+        $s = self::decodeMimeHeaderSafe($subject);
+        if ($s === '' || !str_contains($s, '??')) {
+            return $s;
+        }
+
+        $s = preg_replace('/^(\[EXPRESS\]\s+)?\?{3,4}\s*(\[NEUE BESTELLUNG\])/u', '$1💰 $2', $s) ?? $s;
+        $s = preg_replace('/^\?{3,4}\s*(\[ANGEBOT ANGENOMMEN\])/u', '✅ $1', $s) ?? $s;
+        $s = preg_replace('/^\?{3,4}\s*(Deine Bestellung\b)/u', '📦 $1', $s) ?? $s;
+        $s = preg_replace('/^\?{3,4}\s*(Deine Rechnung\b)/u', '🧾 $1', $s) ?? $s;
+        $s = preg_replace('/^\?{3,4}\s*(Juhu!\s*Ein Freund hat)/u', '🎁 $1', $s) ?? $s;
+        $s = preg_replace('/^\?{3,4}\s*(Dein Mein-Seelenfunke Gutschein\b)/u', '🎁 $1', $s) ?? $s;
+        $s = preg_replace('/^\?{3,4}\s*(Dein Geschenkgutschein von\b)/u', '✨ $1', $s) ?? $s;
+        $s = preg_replace('/^\?{3,4}\s*(Dein exklusives Angebot\b)/u', '✨ $1', $s) ?? $s;
+        $s = preg_replace('/^\?{3,4}\s*(Ein besonderer Seelenfunke\b)/u', '✨ $1', $s) ?? $s;
+        $s = preg_replace('/^\?{3,4}\s*(Gute Nachrichten!\s*Deine Bestellung\b)/u', '🚚 $1', $s) ?? $s;
+        $s = preg_replace('/^\?{3,4}\s*(Vergiss deine Unikate nicht\b)/u', '🛒 $1', $s) ?? $s;
+        $s = preg_replace('/^\?{3,8}\s*(Wie gefällt dir dein Unikat\b)/u', '📸✨ $1', $s) ?? $s;
+        $s = preg_replace('/^\?{3,4}\s*(Ihr persönliches Angebot von\b)/u', '🧾 $1', $s) ?? $s;
+        $s = preg_replace('/^\?{3,4}\s*((\[EXPRESS\]\s+)?Neue Anfrage:)/u', '🧾 $1', $s) ?? $s;
+        $s = preg_replace('/(Du hast da etwas vergessen!)\s*\?{3,4}$/u', '$1 🛒', $s) ?? $s;
+        $s = preg_replace('/(wurde versendet!)\s*\?{3,4}$/u', '$1 🚚', $s) ?? $s;
+        $s = preg_replace('/(Wichtige Rückfrage zu deinem Foto[^\?]+)\s*\?{6,8}$/u', '$1 📸✨', $s) ?? $s;
+        // Strip any remaining leading/trailing ??? or ???? emoji corruption artifacts
+        $s = preg_replace('/^\?{3,8}\s+/u', '', $s) ?? $s;
+        $s = preg_replace('/\s+\?{3,8}$/u', '', $s) ?? $s;
+
+        return trim($s);
     }
 }

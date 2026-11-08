@@ -208,6 +208,23 @@
                                         </p>
                                     @endif
 
+                                    @php
+                                        $chkVarId = is_array($item->configuration) ? ($item->configuration['variant_id'] ?? null) : null;
+                                        $chkNeedsProcurement = ($item->product && method_exists($item->product, 'requiresSupplierProcurement'))
+                                            ? $item->product->requiresSupplierProcurement((int) ($item->quantity ?? 1), $chkVarId)
+                                            : false;
+                                        $chkDelivDetails = $chkNeedsProcurement
+                                            ? \App\Models\Delivery\DeliverySetting::getDeliveryDetailsForProduct($item->product, (int) ($item->quantity ?? 1), $chkVarId)
+                                            : null;
+                                    @endphp
+                                    @if($chkNeedsProcurement && $chkDelivDetails)
+                                        <div class="mt-1">
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80">
+                                                <span>⏱️ Auftragsfertigung · {{ $chkDelivDetails['min_days'] }}-{{ $chkDelivDetails['max_days'] }} Werktage</span>
+                                            </span>
+                                        </div>
+                                    @endif
+
                                     @if(!empty($item->configuration['custom_fields_data']) && is_array($item->configuration['custom_fields_data']))
                                         <div class="mt-1.5 flex flex-wrap gap-1">
                                             @foreach($item->configuration['custom_fields_data'] as $cfRow)
@@ -409,12 +426,31 @@
                 $hasPhysicalItems = collect($cart->items ?? [])->contains(function($ci) {
                     return ($ci->product->type ?? 'physical') === 'physical';
                 });
+                $checkoutDeliveryText = \App\Models\Delivery\DeliverySetting::getCurrentDeliveryText();
+                $hasCheckoutBackorder = false;
+                $maxCheckoutMinDays = 0;
+                foreach (($cart->items ?? []) as $ci) {
+                    if ($ci->product && ($ci->product->type ?? 'physical') === 'physical') {
+                        $ciVarId = is_array($ci->configuration) ? ($ci->configuration['variant_id'] ?? null) : null;
+                        $ciDeliv = \App\Models\Delivery\DeliverySetting::getDeliveryDetailsForProduct($ci->product, (int) ($ci->quantity ?? 1), $ciVarId);
+                        if (!empty($ciDeliv['is_backorder_procurement'])) {
+                            $hasCheckoutBackorder = true;
+                        }
+                        if ((int) ($ciDeliv['min_days'] ?? 0) >= $maxCheckoutMinDays) {
+                            $maxCheckoutMinDays = (int) ($ciDeliv['min_days'] ?? 0);
+                            $checkoutDeliveryText = $ciDeliv['full_text'] ?? $checkoutDeliveryText;
+                        }
+                    }
+                }
             @endphp
             @if($hasPhysical)
-                <div class="mt-4 p-3 bg-emerald-50/70 border border-emerald-100 rounded-xl flex items-center gap-3 text-xs text-emerald-900">
+                <div class="mt-4 p-3 {{ $hasCheckoutBackorder ? 'bg-amber-50/80 border-amber-200 text-amber-900' : 'bg-emerald-50/70 border-emerald-100 text-emerald-900' }} border rounded-xl flex items-center gap-3 text-xs">
                     <span class="text-base shrink-0">🚚</span>
                     <div class="min-w-0">
-                        <span class="font-bold block text-emerald-950">{{ \App\Models\Delivery\DeliverySetting::getCurrentDeliveryText() }}</span>
+                        <span class="font-bold block {{ $hasCheckoutBackorder ? 'text-amber-950' : 'text-emerald-950' }}">{{ $checkoutDeliveryText }}</span>
+                        @if($hasCheckoutBackorder)
+                            <span class="block text-[10px] text-amber-800 mt-0.5">Enthält Auftragsfertigung (Rohling wird für deine Bestellung frisch bezogen &amp; in Gifhorn veredelt).</span>
+                        @endif
                     </div>
                 </div>
             @endif

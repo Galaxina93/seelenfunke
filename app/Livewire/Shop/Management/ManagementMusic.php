@@ -206,7 +206,32 @@ class ManagementMusic extends Component
     {
         $t = ManagementTrack::find($trackId);
         if ($t) {
-            $t->update(['is_favorite' => !$t->is_favorite]);
+            $newFav = !$t->is_favorite;
+            $t->update(['is_favorite' => $newFav]);
+            if (!empty($t->external_id)) {
+                ManagementTrack::where('external_id', $t->external_id)->update(['is_favorite' => $newFav]);
+            } else {
+                ManagementTrack::where('title', $t->title)->where('artist', $t->artist)->update(['is_favorite' => $newFav]);
+            }
+            foreach ([storage_path('app/leitung/music/playlists_catalog.json'), base_path('funkenwerk/playlists_cache.json')] as $jsonFile) {
+                if (file_exists($jsonFile) && is_writable($jsonFile)) {
+                    $decoded = json_decode((string) @file_get_contents($jsonFile), true);
+                    if (is_array($decoded) && isset($decoded['data']) && is_array($decoded['data'])) {
+                        foreach ($decoded['data'] as &$pl) {
+                            if (!isset($pl['tracks']) || !is_array($pl['tracks'])) continue;
+                            foreach ($pl['tracks'] as &$tr) {
+                                $sameId = ($tr['id'] ?? '') === $t->id;
+                                $sameExt = !empty($t->external_id) && ($tr['external_id'] ?? '') === $t->external_id;
+                                if ($sameId || $sameExt) {
+                                    $tr['is_favorite'] = $newFav;
+                                }
+                            }
+                        }
+                        unset($pl, $tr);
+                        @file_put_contents($jsonFile, json_encode($decoded, JSON_UNESCAPED_UNICODE));
+                    }
+                }
+            }
         }
     }
 

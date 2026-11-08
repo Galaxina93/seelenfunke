@@ -69,6 +69,16 @@ namespace Funkenwerk
         public string AutoStopPresetMode { get; set; } = "off"; // "off", "5", "10", "15", "custom"
     }
 
+    public class MusicSignalClipItem
+    {
+        public string Title { get; set; } = "";
+        public string FilePath { get; set; } = "";
+        public string CategoryBadge { get; set; } = "Musik";
+        public bool AutoStopTimerEnabled { get; set; } = false;
+        public int AutoStopDurationSec { get; set; } = 10;
+        public string AutoStopPresetMode { get; set; } = "off"; // "off", "5", "10", "15", "custom"
+    }
+
     public class DeepFakeFacePreset
     {
         public string Name { get; set; } = "";
@@ -287,6 +297,12 @@ namespace Funkenwerk
         public int TarnClipDurationSec { get; set; } = 10; // Default 10s (5s, 10s, 15s, custom)
         public string TarnClipDurationMode { get; set; } = "10"; // "5", "10", "15", "custom"
         public string ActiveVideoSignalPath { get; set; } = "";
+
+        // 16B. Dynamic Music Signal Player & Studio Background Audio Deck (under Video-Einspieler)
+        public List<MusicSignalClipItem> MusicSignalClips { get; set; } = new();
+        public bool MusicSignalLoop { get; set; } = true;
+        public int MusicSignalVolume { get; set; } = 75; // 0 .. 100
+        public string ActiveMusicSignalPath { get; set; } = "";
 
         // 17. Real-Time Studio Voice Changer & DSP Engine ("Stimme" Tab)
         public bool VoiceChangerEnabled { get; set; } = false;
@@ -2162,7 +2178,11 @@ namespace Funkenwerk
                 VoiceRobotModulation = fullCfg?.VoiceRobotModulation ?? 0,
                 VoiceReverbMix = fullCfg?.VoiceReverbMix ?? 0,
                 VoiceSubBass = fullCfg?.VoiceSubBass ?? 0,
-                VoiceNoiseGate = fullCfg?.VoiceNoiseGate ?? 15
+                VoiceNoiseGate = fullCfg?.VoiceNoiseGate ?? 15,
+                ActiveMusicSignalPath = fullCfg?.ActiveMusicSignalPath ?? "",
+                MusicSignalVolume = fullCfg?.MusicSignalVolume ?? 75,
+                MusicSignalLoop = fullCfg?.MusicSignalLoop ?? true,
+                SoundMuted = fullCfg?.SoundMuted ?? false
             };
             return StartRecording(ffmpegPath, outputMp4Path, width, height, fps, cfg);
         }
@@ -2229,19 +2249,38 @@ namespace Funkenwerk
                     _writtenFrames = 0;
 
                     bool includeMic = !cfg.MicMuted && cfg.RecordingMode != "video_only" && !string.IsNullOrWhiteSpace(cfg.SelectedMicrophoneName);
+                    bool includeMusic = !cfg.SoundMuted && cfg.RecordingMode != "video_only" && !string.IsNullOrWhiteSpace(cfg.ActiveMusicSignalPath) && File.Exists(cfg.ActiveMusicSignalPath);
                     int crf = cfg.RecordingMode == "gaming_60" ? 17 : 21;
                     string volStr = Math.Clamp(cfg.MicVolume / 100.0, 0.0, 2.0).ToString("0.00", CultureInfo.InvariantCulture);
+                    string musVolStr = Math.Clamp(cfg.MusicSignalVolume / 100.0, 0.0, 1.5).ToString("0.00", CultureInfo.InvariantCulture);
 
                     string safeMicName = FunkenwerkSecurityVault.SanitizeCliArgument(cfg.SelectedMicrophoneName);
+                    string safeMusicPath = includeMusic ? FunkenwerkSecurityVault.SanitizeCliArgument(cfg.ActiveMusicSignalPath) : "";
                     string safeOutPath = FunkenwerkSecurityVault.SanitizeCliArgument(outputMp4Path);
                     string baseAudioFilter = FunkenwerkVoiceChangerEngine.BuildFfmpegAudioFilter(cfg, volStr);
                     string audioFilter = AppendAudioTempoFilter(baseAudioFilter, _speedMultiplier);
+                    string musicFilter = AppendAudioTempoFilter($"volume={musVolStr}", _speedMultiplier);
+                    string loopArg = cfg.MusicSignalLoop ? "-stream_loop -1 " : "";
                     string args;
-                    if (includeMic && !string.IsNullOrEmpty(safeMicName))
+                    if (includeMic && !string.IsNullOrEmpty(safeMicName) && includeMusic && !string.IsNullOrEmpty(safeMusicPath))
+                    {
+                        args = $"-y -hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s {width}x{height} -r {_fps} -i - " +
+                               $"-f dshow -rtbufsize 32M -i audio=\"{safeMicName}\" " +
+                               $"{loopArg}-i \"{safeMusicPath}\" " +
+                               $"-filter_complex \"[1:a]{audioFilter}[mic];[2:a]{musicFilter}[mus];[mic][mus]amix=inputs=2:duration=first:dropout_transition=0[aout]\" " +
+                               $"-map 0:v -map \"[aout]\" -c:v libx264 -preset ultrafast -crf {crf} -pix_fmt yuv420p -c:a aac -b:a 160k -shortest -movflags +faststart \"{safeOutPath}\"";
+                    }
+                    else if (includeMic && !string.IsNullOrEmpty(safeMicName))
                     {
                         args = $"-y -hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s {width}x{height} -r {_fps} -i - " +
                                $"-f dshow -rtbufsize 32M -i audio=\"{safeMicName}\" " +
                                $"-filter:a \"{audioFilter}\" -c:v libx264 -preset ultrafast -crf {crf} -pix_fmt yuv420p -c:a aac -b:a 160k -shortest -movflags +faststart \"{safeOutPath}\"";
+                    }
+                    else if (includeMusic && !string.IsNullOrEmpty(safeMusicPath))
+                    {
+                        args = $"-y -hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s {width}x{height} -r {_fps} -i - " +
+                               $"{loopArg}-i \"{safeMusicPath}\" " +
+                               $"-map 0:v -map 1:a -filter:a \"{musicFilter}\" -c:v libx264 -preset ultrafast -crf {crf} -pix_fmt yuv420p -c:a aac -b:a 160k -shortest -movflags +faststart \"{safeOutPath}\"";
                     }
                     else
                     {
@@ -2264,7 +2303,7 @@ namespace Funkenwerk
 
                     // Check within 180ms if audio device caused an immediate exit; if so, fallback to video-only so recording ALWAYS works
                     Thread.Sleep(180);
-                    if (_ffmpegProc.HasExited && includeMic)
+                    if (_ffmpegProc.HasExited && (includeMic || includeMusic))
                     {
                         string fallbackArgs = $"-y -hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s {width}x{height} -r {_fps} -i - " +
                                               $"-c:v libx264 -preset ultrafast -crf {crf} -pix_fmt yuv420p -movflags +faststart \"{outputMp4Path}\"";

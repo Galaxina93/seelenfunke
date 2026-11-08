@@ -775,6 +775,48 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
     }
 
     /**
+     * Prüft, ob mindestens eine Bestellposition digitale Begleitdokumente (z. B. Echtheitszertifikat) enthält.
+     */
+    public function hasDigitalDocuments(): bool
+    {
+        return count($this->getDigitalDocumentsList()) > 0;
+    }
+
+    /**
+     * Liefert alle digitalen Begleitdokumente aller Bestellpositionen (z. B. Echtheitszertifikate, Pflegehinweise).
+     *
+     * @return array<int, array{item_id: string, product_name: string, doc_id: string, title: string, filename: string, extension: string, size_bytes: int, path: string}>
+     */
+    public function getDigitalDocumentsList(): array
+    {
+        if (!$this->relationLoaded('items')) {
+            $this->load('items.product');
+        }
+
+        $documents = [];
+        foreach ($this->items as $item) {
+            if (!method_exists($item, 'resolveDigitalDocuments')) {
+                continue;
+            }
+            $itemDocs = $item->resolveDigitalDocuments();
+            foreach ($itemDocs as $doc) {
+                $documents[] = [
+                    'item_id' => (string) $item->id,
+                    'product_name' => (string) ($item->product_name ?: ($item->product->name ?? 'Produkt')),
+                    'doc_id' => (string) $doc['id'],
+                    'title' => (string) $doc['title'],
+                    'filename' => (string) $doc['filename'],
+                    'extension' => strtoupper((string) ($doc['extension'] ?: 'PDF')),
+                    'size_bytes' => (int) ($doc['size_bytes'] ?? 0),
+                    'path' => (string) $doc['path'],
+                ];
+            }
+        }
+
+        return $documents;
+    }
+
+    /**
      * Führt alle geschäftslogischen Rückabwicklungen bei Stornierung oder Erstattung durch:
      * 1. Lagerbestand: Ausschließliche Rückbuchung unpersonalisierter Standardware (Laserprodukte verfallen als Ausschuss).
      * 2. Herzensprojekt: Rückbuchung des Spendenbeitrags.
@@ -798,7 +840,10 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
         // 1. Lagerbestand: NUR für bezahlte, unpersonalisierte Produkte und nur wenn vorher pending/processing (nicht bereits storniert/ausgeliefert)
         if ($wasPaid && !$alreadyCancelledOrRefunded && in_array($effectiveStatus, ['pending', 'processing'], true)) {
             foreach ($this->items as $item) {
-                $isPersonalized = !empty($item->configuration) || ($item->product && $item->product->is_personalizable);
+                $customConfig = is_array($item->configuration)
+                    ? array_diff_key($item->configuration, array_flip(['digital_documents', 'purchased_image_path', 'variant_id', 'variant_name', 'selected_attributes']))
+                    : $item->configuration;
+                $isPersonalized = !empty($customConfig) || ($item->product && $item->product->is_personalizable);
                 if (!$isPersonalized && $item->product) {
                     $itemVariantId = is_array($item->configuration) ? ($item->configuration['variant_id'] ?? null) : null;
                     $item->product->restoreStock($item->quantity, $itemVariantId);
@@ -912,6 +957,37 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
             }
             \Illuminate\Support\Facades\Log::info("Rabattcode-Zähler für {$mv->code} nach Storno von Order {$this->order_number} zurückgesetzt.");
         }
+    }
+
+    /**
+     * Prüft, ob die Bestellung Positionen mit Lieferanten-Rohling-Beschaffung (Auftragsfertigung bei Bestand 0) enthält.
+     */
+    public function hasSupplierProcurementItems(): bool
+    {
+        $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();
+        return $items->contains(fn (OrderOrderItem $item) => $item->requiresSupplierProcurement());
+    }
+
+    /**
+     * Prüft, ob für mindestens eine Position der Rohling noch beim Lieferanten nachbestellt werden muss.
+     */
+    public function hasPendingSupplierProcurement(): bool
+    {
+        if (in_array($this->status, ['cancelled', 'completed', 'shipped'], true)) {
+            return false;
+        }
+
+        $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();
+        return $items->contains(fn (OrderOrderItem $item) => $item->requiresSupplierProcurement() && !$item->isSupplierOrderPlaced() && !$item->is_completed);
+    }
+
+    /**
+     * Liefert alle Bestellpositionen, bei denen der Rohling noch nicht beim Lieferanten bestellt wurde.
+     */
+    public function getPendingSupplierProcurementItems(): \Illuminate\Support\Collection
+    {
+        $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();
+        return $items->filter(fn (OrderOrderItem $item) => $item->requiresSupplierProcurement() && !$item->isSupplierOrderPlaced() && !$item->is_completed)->values();
     }
 }
 

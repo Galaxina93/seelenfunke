@@ -270,6 +270,26 @@ Route::prefix('funki/emails')->group(function () {
         }
 
         $messages = $query->paginate(150);
+        foreach ($messages->items() as $m) {
+            $dirty = false;
+            if (is_string($m->subject) && (str_contains($m->subject, '??') || str_contains($m->subject, '=?'))) {
+                $fixed = \App\Console\Commands\FetchMailsCommand::repairCorruptedSubjectIcons($m->subject);
+                if ($fixed !== $m->subject) {
+                    $m->subject = $fixed;
+                    $dirty = true;
+                }
+            }
+            if (is_string($m->body_plain) && preg_match('/(?:<!DOCTYPE|<html\b|<head\b|<style\b|@import\s+url|font-family\s*:|text-decoration\s*:|#outlook)/i', $m->body_plain)) {
+                $cleanBody = \App\Console\Commands\FetchMailsCommand::extractCleanPlainText($m->body_plain, $m->body_html);
+                if ($cleanBody !== null && $cleanBody !== $m->body_plain) {
+                    $m->body_plain = $cleanBody;
+                    $dirty = true;
+                }
+            }
+            if ($dirty) {
+                $m->saveQuietly();
+            }
+        }
 
         return response()->json(['success' => true, 'data' => $messages]);
     });
@@ -277,6 +297,24 @@ Route::prefix('funki/emails')->group(function () {
     // 3. Single Mail Details
     Route::get('/messages/{id}', function ($id) {
         $msg = MailMessage::with('attachments')->findOrFail($id);
+        $dirty = false;
+        if (is_string($msg->subject) && (str_contains($msg->subject, '??') || str_contains($msg->subject, '=?'))) {
+            $fixed = \App\Console\Commands\FetchMailsCommand::repairCorruptedSubjectIcons($msg->subject);
+            if ($fixed !== $msg->subject) {
+                $msg->subject = $fixed;
+                $dirty = true;
+            }
+        }
+        if (is_string($msg->body_plain) && preg_match('/(?:<!DOCTYPE|<html\b|<head\b|<style\b|@import\s+url|font-family\s*:|text-decoration\s*:|#outlook)/i', $msg->body_plain)) {
+            $cleanBody = \App\Console\Commands\FetchMailsCommand::extractCleanPlainText($msg->body_plain, $msg->body_html);
+            if ($cleanBody !== null && $cleanBody !== $msg->body_plain) {
+                $msg->body_plain = $cleanBody;
+                $dirty = true;
+            }
+        }
+        if ($dirty) {
+            $msg->saveQuietly();
+        }
         
         // Auto mark as read when fetching details
         if (!$msg->is_read) {

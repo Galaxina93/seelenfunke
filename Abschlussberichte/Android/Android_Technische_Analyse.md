@@ -194,3 +194,36 @@ Die Startseite (`ZentrumScreen`) konzentriert sich im aufgeräumten „Alle Kach
 * **Parallele Initialisierung:** `ZentrumViewModel`, `FinanceViewModel` und `OrganizerViewModel` bündeln alle API-Aufrufe in einem `coroutineScope { async { ... } }`-Block. Dadurch reduziert sich die Ladezeit von der Summe aller Einzelanfragen ($\sum T_i$) auf die Dauer des langsamsten Einzel-Requests ($\max(T_i)$).
 * **Optimistisches Task-Toggling:** Beim Abhaken einer Aufgabe wird der UI-State sofort im Arbeitsspeicher aktualisiert (`< 16 ms`) und anschließend `getUltimateCommand()` im Hintergrund neu abgefragt, damit sich die „Nächster Schritt“-Empfehlung sofort anpasst.
 
+---
+
+## 8. Wecker, Timer, Stoppuhr, Smart-Home KLAP v2 & Tagesroutine-Sync
+* **Kompakte 7-Icon-Organizer-Navigation (`OrganizerScreen.kt`):** Die obere Organizer-Leiste nutzt 7 kompakte Icons (`Aufgaben`, `Kalender`, `Routine`, `Einkauf`, `E-Mail`, `Kontakte`, `Wecker`), ergänzt durch eine direkte **„Wecker“**-Kachel auf der Startseite (`ZentrumScreen.kt`).
+* **3 Unter-Tabs (`AlarmTabScreen.kt`):** Integriert `Wecker`, `Timer` (2-Spalten-Grid mit Kreis-Fortschrittsring) und `Stoppuhr` (`00:00.00` mit Rundenzähler) im konsistenten Dark- & Light-Mode.
+* **Smart-Home & KI-Briefing (`FunkenwerkAlarmManager.kt` & `SmartAlarmReceiver.kt`):** Schaltet beim Klingeln lokale TP-Link Tapo WLAN-Steckdosen über das lokale KLAP v2 AES-128-CBC-Protokoll (`192.168.188.x`), spricht ein deutsches KI-Morgen-Briefing (`TextToSpeech`) und synchronisiert die Weck- und Aufstehzeiten als JSON-Paket via `POST /api/funki/routine/alarm-sync` mit `/admin/routine` (Detailbericht: [`Android_Wecker_SmartHome_und_Routine_Sync.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Android/Android_Wecker_SmartHome_und_Routine_Sync.md)).
+
+---
+
+## 9. E-Mail & KI-Trichter 1:1 Parität mit Funkenwerk Windows Suite & Webportal
+
+### 9.1 Ursache für `???`-Artefakte und rohen CSS-/HTML-Code in E-Mails
+1. **Korrupte UTF-8-Emojis (`???` / `????`) in Betreffzeilen:** Ältere oder durch IMAP-Header-Konvertierung beschädigte E-Mails enthielten `???` bzw. `????` anstelle von 4-Byte-UTF-8-Emojis sowie unkodierte RFC-2047-Strings (`=?UTF-8?B?...?=`).
+2. **Roher CSS-Code in Vorschau & Leseansicht:**
+   * Viele HTML-E-Mails speicherten `<style>`-Blöcke (`a {text-decoration: none;}`, `@import url(...)`, `body { font-family:... }`) direkt in `body_plain`.
+   * Zudem nutzte `EmailDetailDialog` zuvor `HtmlCompat.fromHtml(htmlContent)` in einer Android `TextView`. Da `HtmlCompat.fromHtml` den Textinhalt innerhalb von `<style>...</style>`-Tags nicht entfernt, wurde der gesamte CSS-Code sichtbar über der E-Mail ausgegeben.
+
+### 9.2 Mehrstufige Sanitizer-Pipeline (Backend + Android)
+* **Backend (`FetchMailsCommand.php` & `routes/api/emails.php`):**
+  * `repairCorruptedSubjectIcons` repariert alle 17 bekannten Shop- & System-Betreffmuster (`💰 [NEUE BESTELLUNG]`, `✅ [ANGEBOT ANGENOMMEN]`, `📦 Deine Bestellung`, `🧾 Deine Rechnung`, `🎁 Juhu!`, `✨ Dein Geschenkgutschein`, `🚚 Gute Nachrichten!`, `🛒 Vergiss deine Unikate nicht`, `📸✨ Wie gefällt dir dein Unikat` u. v. m.) und entfernt verbleibende `???`-Präfixe/Suffixe sowohl beim IMAP-Import als auch on-the-fly in `GET /api/funki/emails/messages`.
+  * `extractCleanPlainText` erkennt verschmutzte `body_plain`-Felder (`@import url`, `font-family:`, `<!DOCTYPE`, `<style`) und extrahiert stattdessen strukturierten Klartext aus `body_html`. Alle 223 betroffenen Bestands-E-Mails in `mail_messages` wurden per Datenbank-Migration bereinigt.
+* **Android (`EmailTextSanitizer` in `EmailViewModel.kt`):**
+  * 1:1 Kotlin-Port der Windows-Desktop-Sanitizer-Engine (`decodeRfc2047`, `repairSubject`, `cleanSenderName`, `formatCleanEmailBody`, `stripHtmlToStructuredText`, `getPlainSnippet`).
+  * Im E-Mail-Reader (`EmailDetailDialog`) wird standardmäßig die saubere, selektierbare Textansicht (`📄 Bereinigter Text`) im nativen Dark-/Light-Mode gerendert; optional kann per Toggle (`🌐 Original HTML-Ansicht`) auf eine echte `WebView` umgeschaltet werden.
+
+### 9.3 1:1 Funktionsumfang (KI-Trichter, Anhänge, Kontextmenü & Compose)
+* **Globale KI-Trichter-Ansichten (`✨ Verarbeitet` & `📦 Archiv`):** Übergreifende Ansicht aller durch den KI-Trichter analysierten E-Mails inkl. Zähler-Badges (`importantCount`, `totalCount`, `archivedCount`), dynamischer Filter-Pills (`Alle`, `🔴 Wichtig`, `⚪ Normal`, `🏷 Kategorie`), Inline-`👉 ActionHint` und direktem **`✓ Erledigt`**-Button (`PUT /api/funki/emails/messages/{id}/resolve`).
+* **KI-Sortierung & IMAP-Sync:** Direkte Buttons für `✨ KI-Trichter` (`POST /api/funki/emails/ai-sort`) und `↻ Sync` (`POST /api/funki/emails/sync`) im Header.
+* **E-Mail-Anhänge (`📎 Anhänge`):** Anzeige aller Anhänge mit Dateigröße im Reader sowie 1-Tap-Download & Öffnen über `OkHttpClient` + `FileProvider` (`GET /api/funki/emails/attachments/{id}`).
+* **Vollständiges 3-Punkte-Kontextmenü & Reader-Aktionen:** `Öffnen`, `Aufgabe erledigt / Als Wichtig markieren`, `Gelesen / Ungelesen`, `↩ Antworten` (inkl. Zitat), `↪ Weiterleiten` (inkl. Übernahme bestehender Anhänge), `📝 Entwurf speichern & weiterbearbeiten`, `📋 Als Aufgabe (To-Do) anlegen`, `👤 Absender als Kontakt speichern`, `📁 Verschieben nach...`, `⚡ Absender-Regel (Auto-Ordner)...`, `🛡 Als Spam markieren` und `🗑 Löschen`.
+
+
+

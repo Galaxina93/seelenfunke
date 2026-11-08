@@ -244,6 +244,16 @@
             android:exported="false" />
 
         <receiver
+            android:name=".receiver.SmartAlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="de.meinseelenfunke.app.action.ALARM_TRIGGER" />
+                <action android:name="de.meinseelenfunke.app.action.ALARM_DISMISS" />
+                <action android:name="de.meinseelenfunke.app.action.ALARM_SNOOZE" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
             android:name=".receiver.BootReceiver"
             android:exported="true">
             <intent-filter>

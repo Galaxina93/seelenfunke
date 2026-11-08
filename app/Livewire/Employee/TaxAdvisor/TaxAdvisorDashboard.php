@@ -14,18 +14,25 @@ use App\Services\Export\FileDownloadService;
 use App\Services\FinancialService;
 use App\Services\InvoiceService;
 use App\Services\Marketing\InfluencerService;
+use App\Models\Management\ManagementTask as TaskModel;
+use App\Models\Management\ManagementTaskList as TaskListModel;
+use App\Models\System\SystemLog;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use ZipArchive;
 
 #[Layout('components.layouts.backend_layout', ['guard' => 'employee'])]
 class TaxAdvisorDashboard extends Component
 {
+    use WithFileUploads;
+
     public int $selectedYear;
     public int $selectedMonth;
     public bool $isNet = false;
@@ -33,11 +40,28 @@ class TaxAdvisorDashboard extends Component
     // Filter & Ansicht-Steuerung
     public string $scopeFilter = 'all'; // all, business, private
     public string $periodMode = 'month'; // month, year
+    public string $receiptStatusFilter = 'all'; // all, with_receipt, missing_receipt
     public string $invoiceTypeFilter = ''; // '', invoice, cancellation, credit_note, influencer_payout
     public string $invoiceSearch = '';
     public string $expenseSearch = '';
 
     public array $archivedExports = [];
+
+    // Kanzlei-Aufgaben & Rückfragen
+    #[Locked]
+    public ?string $taxAdvisorListId = null;
+    public string $taskStatusFilter = 'open'; // open, completed, all
+    public bool $showNewTaskForm = false;
+    public string $newTaskTitle = '';
+    public string $newTaskPriority = 'niedrig'; // niedrig, hoch
+    public ?string $newTaskRelevantFrom = null;
+    public string $newTaskNote = '';
+    public $newTaskUploads = [];
+
+    // Antwort / Thread für bestehende Aufgabe
+    public ?string $activeResponseTaskId = null;
+    public string $taskResponseText = '';
+    public $taskResponseUploads = [];
 
     public function boot(): void
     {
@@ -57,6 +81,224 @@ class TaxAdvisorDashboard extends Component
         }
 
         $this->loadArchivedExports();
+        $this->taxAdvisorListId = $this->getTaxAdvisorList()->id;
+    }
+
+    public function getTaxAdvisorList(): TaskListModel
+    {
+        return TaskListModel::firstOrCreate(
+            ['name' => 'Kanzlei & Steuern'],
+            [
+                'icon' => 'calculator',
+                'color' => '#C5A059',
+                'position' => 10,
+                'is_archived' => false,
+            ]
+        );
+    }
+
+    public function toggleNewTaskForm(): void
+    {
+        $this->showNewTaskForm = !$this->showNewTaskForm;
+        if (!$this->showNewTaskForm) {
+            $this->reset(['newTaskTitle', 'newTaskPriority', 'newTaskRelevantFrom', 'newTaskNote', 'newTaskUploads']);
+            $this->newTaskPriority = 'niedrig';
+        }
+    }
+
+    public function createTaxTask(): void
+    {
+        $this->validate([
+            'newTaskTitle' => 'required|string|min:3|max:255',
+            'newTaskPriority' => 'required|in:niedrig,hoch',
+            'newTaskRelevantFrom' => 'nullable|date',
+            'newTaskNote' => 'nullable|string|max:3000',
+            'newTaskUploads.*' => 'nullable|file|max:20480|mimes:pdf,jpg,jpeg,png,webp,txt,csv,xlsx,zip',
+        ], [
+            'newTaskTitle.required' => 'Bitte gib einen Betreff für die Rückfrage ein.',
+            'newTaskTitle.min' => 'Der Betreff muss mindestens 3 Zeichen lang sein.',
+        ]);
+
+        $list = $this->getTaxAdvisorList();
+        $employee = Auth::guard('employee')->user();
+        $authorName = trim(($employee?->first_name ?? '') . ' ' . ($employee?->last_name ?? '')) ?: 'Steuerberater';
+
+        $filePaths = [];
+        if (!empty($this->newTaskUploads)) {
+            foreach ($this->newTaskUploads as $file) {
+                $path = $file->store('leitung/tasks/attachments', 'local');
+                $filePaths[] = $path;
+            }
+        }
+
+        $formattedNote = null;
+        if (!empty(trim($this->newTaskNote))) {
+            $timestamp = now()->format('d.m.Y H:i');
+            $formattedNote = "[$timestamp - Kanzlei ($authorName)]:\n" . trim($this->newTaskNote);
+        }
+
+        $highestPos = (int) TaskModel::where('task_list_id', $list->id)->max('position');
+
+        TaskModel::create([
+            'task_list_id' => $list->id,
+            'title' => trim($this->newTaskTitle),
+            'priority' => $this->newTaskPriority,
+            'relevant_from' => !empty($this->newTaskRelevantFrom) ? Carbon::parse($this->newTaskRelevantFrom) : null,
+            'ai_plan' => $formattedNote,
+            'file_paths' => !empty($filePaths) ? $filePaths : null,
+            'is_completed' => false,
+            'position' => $highestPos + 1,
+        ]);
+
+        $this->reset(['newTaskTitle', 'newTaskPriority', 'newTaskRelevantFrom', 'newTaskNote', 'newTaskUploads', 'showNewTaskForm']);
+        $this->newTaskPriority = 'niedrig';
+
+        session()->flash('tax_success', 'Rückfrage / Aufgabe erfolgreich an Mandanten übermittelt.');
+    }
+
+    public function toggleTaskComplete(string $taskId): void
+    {
+        $list = $this->getTaxAdvisorList();
+        $task = TaskModel::where('task_list_id', $list->id)->find($taskId);
+        if (!$task) {
+            abort(403);
+        }
+
+        $task->update([
+            'is_completed' => !$task->is_completed,
+        ]);
+
+        $statusText = $task->is_completed ? 'als erledigt markiert' : 'wiedereröffnet';
+        session()->flash('tax_success', "Aufgabe '{$task->title}' {$statusText}.");
+    }
+
+    public function openTaskResponse(string $taskId): void
+    {
+        if ($this->activeResponseTaskId === $taskId) {
+            $this->activeResponseTaskId = null;
+            $this->reset(['taskResponseText', 'taskResponseUploads']);
+        } else {
+            $this->activeResponseTaskId = $taskId;
+            $this->reset(['taskResponseText', 'taskResponseUploads']);
+        }
+    }
+
+    public function closeTaskResponse(): void
+    {
+        $this->activeResponseTaskId = null;
+        $this->reset(['taskResponseText', 'taskResponseUploads']);
+    }
+
+    public function submitTaskResponse(string $taskId): void
+    {
+        $list = $this->getTaxAdvisorList();
+        $task = TaskModel::where('task_list_id', $list->id)->find($taskId);
+        if (!$task) {
+            abort(403);
+        }
+
+        $this->validate([
+            'taskResponseText' => 'nullable|string|max:3000',
+            'taskResponseUploads.*' => 'nullable|file|max:20480|mimes:pdf,jpg,jpeg,png,webp,txt,csv,xlsx,zip',
+        ]);
+
+        if (empty(trim($this->taskResponseText)) && empty($this->taskResponseUploads)) {
+            session()->flash('tax_error', 'Bitte gib eine Nachricht ein oder wähle eine Datei aus.');
+            return;
+        }
+
+        $employee = Auth::guard('employee')->user();
+        $authorName = trim(($employee?->first_name ?? '') . ' ' . ($employee?->last_name ?? '')) ?: 'Steuerberater';
+        $timestamp = now()->format('d.m.Y H:i');
+
+        if (!empty(trim($this->taskResponseText))) {
+            $entry = "[$timestamp - Kanzlei ($authorName)]:\n" . trim($this->taskResponseText);
+            $existing = trim((string) $task->ai_plan);
+            $updatedNote = $existing !== '' ? $existing . "\n\n" . $entry : $entry;
+            $task->ai_plan = $updatedNote;
+        }
+
+        if (!empty($this->taskResponseUploads)) {
+            $currentFiles = is_array($task->file_paths) ? $task->file_paths : (json_decode($task->file_paths ?? '[]', true) ?: []);
+            foreach ($this->taskResponseUploads as $file) {
+                $path = $file->store('leitung/tasks/attachments', 'local');
+                $currentFiles[] = $path;
+            }
+            $task->file_paths = array_values($currentFiles);
+        }
+
+        $task->save();
+
+        $this->reset(['taskResponseText', 'taskResponseUploads', 'activeResponseTaskId']);
+        session()->flash('tax_success', 'Antwort / Dokumente erfolgreich gespeichert.');
+    }
+
+    public function downloadTaskFile(string $taskId, string $filePath)
+    {
+        $list = $this->getTaxAdvisorList();
+        $task = TaskModel::where('task_list_id', $list->id)->find($taskId);
+        if (!$task) {
+            abort(403);
+        }
+
+        $files = is_array($task->file_paths) ? $task->file_paths : (json_decode($task->file_paths ?? '[]', true) ?: []);
+        $cleanPath = (string) $filePath;
+
+        if (str_contains($cleanPath, '..') || !in_array($cleanPath, $files, true) || !Storage::disk('local')->exists($cleanPath)) {
+            abort(403);
+        }
+
+        $this->logTaxAdvisorAccess('task_attachment', $cleanPath, ['task_id' => $taskId]);
+
+        return response()->download(Storage::disk('local')->path($cleanPath), basename($cleanPath));
+    }
+
+    public function prefillNewTaskForMissingReceipt(string $title, string $amount, string $date): void
+    {
+        $this->showNewTaskForm = true;
+        $this->newTaskTitle = 'Beleg fehlt: ' . trim($title);
+        $this->newTaskPriority = 'hoch';
+        $this->newTaskNote = "Für die steuerliche Erfassung und den Vorsteuerabzug fehlt der Beleg für:\n\n• Posten: " . trim($title) . "\n• Betrag: " . trim($amount) . " €\n• Datum: " . trim($date) . "\n\nBitte die Rechnung oder Quittung hier als PDF oder Foto hochladen.";
+        $this->dispatch('switch-tab', tab: 'tasks');
+        session()->flash('tax_success', 'Rückfrage-Formular vorbefüllt. Bitte prüfen und absenden.');
+    }
+
+    public function setReceiptStatusFilter(string $filter): void
+    {
+        if (in_array($filter, ['all', 'with_receipt', 'missing_receipt'], true)) {
+            $this->receiptStatusFilter = $filter;
+        }
+    }
+
+    protected function logTaxAdvisorAccess(string $action, string $target, array $meta = []): void
+    {
+        try {
+            $employee = Auth::guard('employee')->user();
+            if (!$employee) {
+                return;
+            }
+
+            SystemLog::create([
+                'type' => 'gobd_audit',
+                'action_id' => 'tax_' . Str::random(12),
+                'title' => 'Steuerberater Export Zugriff',
+                'message' => "Steuerberater {$employee->first_name} {$employee->last_name} ({$employee->email}) hat '{$target}' abgerufen.",
+                'status' => 'success',
+                'payload' => array_merge([
+                    'employee_id' => $employee->id,
+                    'email' => $employee->email,
+                    'action' => $action,
+                    'target' => $target,
+                    'period' => "{$this->selectedYear}-" . str_pad((string) $this->selectedMonth, 2, '0', STR_PAD_LEFT),
+                    'ip' => request()->ip(),
+                    'user_agent' => request()->userAgent(),
+                ], $meta),
+                'started_at' => now(),
+                'finished_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // Audit-Logging blockiert nicht den eigentlichen Mandanten-Download
+        }
     }
 
     public function selectMonth(int $month): void
@@ -116,6 +358,7 @@ class TaxAdvisorDashboard extends Component
             return null;
         }
 
+        $this->logTaxAdvisorAccess('datev_package_zip', $result['zip_name']);
         session()->flash('tax_success', "DATEV- & UStVA-Komplettpaket ({$result['zip_name']}) erfolgreich generiert.");
         return response()->download($result['zip_path'], $result['zip_name']);
     }
@@ -131,6 +374,7 @@ class TaxAdvisorDashboard extends Component
         $encoded = mb_convert_encoding($csvContent, 'Windows-1252', 'UTF-8');
 
         $filename = "EXTF_Buchungsstapel_{$data['month_number']}_{$data['year']}.csv";
+        $this->logTaxAdvisorAccess('datev_csv', $filename);
 
         return response()->streamDownload(function () use ($encoded) {
             echo $encoded;
@@ -150,6 +394,7 @@ class TaxAdvisorDashboard extends Component
         $pdf = $financialService->generateUstvaPdf($data);
 
         $filename = "UStVA_Auswertung_{$data['month_number']}_{$data['year']}.pdf";
+        $this->logTaxAdvisorAccess('ustva_pdf', $filename);
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
@@ -174,6 +419,7 @@ class TaxAdvisorDashboard extends Component
 
         $monthStr = str_pad((string) $this->selectedMonth, 2, '0', STR_PAD_LEFT);
         $downloadName = "Finanzbericht_{$this->selectedYear}_{$monthStr}.zip";
+        $this->logTaxAdvisorAccess('financial_report_zip', $downloadName);
 
         return response()->download($zipPath, $downloadName);
     }
@@ -291,6 +537,7 @@ class TaxAdvisorDashboard extends Component
             $zip->close();
         }
 
+        $this->logTaxAdvisorAccess('monthly_invoices_zip', $zipName);
         return response()->download($zipPath, $zipName);
     }
 
@@ -384,6 +631,7 @@ class TaxAdvisorDashboard extends Component
             $zip->close();
         }
 
+        $this->logTaxAdvisorAccess('monthly_hr_package_zip', $zipName);
         return response()->download($zipPath, $zipName);
     }
 
@@ -392,6 +640,7 @@ class TaxAdvisorDashboard extends Component
      */
     public function downloadArchivedTaxExport(string $filename, FileDownloadService $exportService)
     {
+        $this->logTaxAdvisorAccess('archived_tax_export', basename($filename));
         return $exportService->downloadTaxExport(basename($filename));
     }
 
@@ -420,13 +669,16 @@ class TaxAdvisorDashboard extends Component
                 && !str_contains($storagePath, '..')
                 && !str_contains($storagePath, "\0")
                 && (str_starts_with($storagePath, 'buchhaltung/invoices/') || str_starts_with($storagePath, 'invoices/'))
+                && Storage::disk('local')->exists($storagePath)
                 && !is_link(Storage::disk('local')->path($storagePath))
             ) {
+                $this->logTaxAdvisorAccess('invoice_pdf', $filename, ['invoice_id' => $invoiceId]);
                 return Storage::disk('local')->download($storagePath, $filename);
             }
         }
 
         $pdf = $invoiceService->generatePdf($invoice);
+        $this->logTaxAdvisorAccess('invoice_pdf', $filename, ['invoice_id' => $invoiceId]);
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
         }, $filename, [
@@ -456,6 +708,7 @@ class TaxAdvisorDashboard extends Component
             abort(404, 'XML-Datei konnte nicht bereitgestellt werden.');
         }
 
+        $this->logTaxAdvisorAccess('invoice_xml', "ERechnung_{$safeInvoiceNumber}.xml", ['invoice_id' => $invoiceId]);
         return Storage::disk('local')->download($path, "ERechnung_{$safeInvoiceNumber}.xml");
     }
 
@@ -518,6 +771,7 @@ class TaxAdvisorDashboard extends Component
         }
 
         $cleanFilename = preg_replace('/[^A-Za-z0-9._-]/', '_', basename($realPath)) ?: 'Beleg.pdf';
+        $this->logTaxAdvisorAccess('receipt_or_contract', $cleanFilename, ['path' => $normalized]);
 
         return Storage::disk($disk)->download($normalized, $cleanFilename);
     }
@@ -609,6 +863,16 @@ class TaxAdvisorDashboard extends Component
                 if ($this->scopeFilter === 'private' && $isBusiness) {
                     continue;
                 }
+
+                // Beleg-Statusfilter
+                $hasReceipt = !empty($item->contract_file_path);
+                if ($this->receiptStatusFilter === 'with_receipt' && !$hasReceipt) {
+                    continue;
+                }
+                if ($this->receiptStatusFilter === 'missing_receipt' && ($hasReceipt || !$isBusiness)) {
+                    continue;
+                }
+
                 if ($this->expenseSearch !== '') {
                     $needle = mb_strtolower(trim($this->expenseSearch));
                     $haystack = mb_strtolower($item->name . ' ' . $group->name . ' ' . ($item->notes ?? ''));
@@ -634,6 +898,7 @@ class TaxAdvisorDashboard extends Component
                     'vat' => $vat,
                     'year_gross' => $yearGross,
                     'contract_file_path' => $item->contract_file_path,
+                    'has_receipt' => $hasReceipt,
                 ]);
             }
         }
@@ -651,7 +916,6 @@ class TaxAdvisorDashboard extends Component
         $bankTxs = class_exists(AccountingBankTransaction::class)
             ? AccountingBankTransaction::with(['account', 'financeCategory'])
                 ->whereHas('account', fn ($q) => $q->where('admin_id', $mandantAdminId))
-                ->whereNotNull('accounting_category_id')
                 ->whereYear('transaction_date', $this->selectedYear)
                 ->when($this->periodMode === 'month', fn ($q) => $q->whereMonth('transaction_date', $this->selectedMonth))
                 ->orderByDesc('transaction_date')
@@ -693,6 +957,16 @@ class TaxAdvisorDashboard extends Component
             if ($this->scopeFilter === 'private' && $isBusiness) {
                 continue;
             }
+
+            // Beleg-Statusfilter
+            $hasReceipt = !empty($files);
+            if ($this->receiptStatusFilter === 'with_receipt' && !$hasReceipt) {
+                continue;
+            }
+            if ($this->receiptStatusFilter === 'missing_receipt' && ($hasReceipt || !$isBusiness)) {
+                continue;
+            }
+
             if ($this->expenseSearch !== '') {
                 $needle = mb_strtolower(trim($this->expenseSearch));
                 $haystack = mb_strtolower($special->title . ' ' . ($special->category ?? '') . ' ' . ($special->invoice_number ?? '') . ' ' . ($special->location ?? ''));
@@ -717,6 +991,8 @@ class TaxAdvisorDashboard extends Component
                 'abs_net' => $absNet,
                 'abs_vat' => $absVat,
                 'file_paths' => $files,
+                'has_receipt' => $hasReceipt,
+                'is_uncategorized' => false,
             ]);
         }
 
@@ -741,8 +1017,17 @@ class TaxAdvisorDashboard extends Component
                 continue;
             }
 
+            // Beleg-Statusfilter
+            $hasReceipt = !empty($files);
+            if ($this->receiptStatusFilter === 'with_receipt' && !$hasReceipt) {
+                continue;
+            }
+            if ($this->receiptStatusFilter === 'missing_receipt' && ($hasReceipt || !$isBusiness)) {
+                continue;
+            }
+
             $txTitle = $tx->counterpart_name ?: ($tx->purpose ?: 'Bankbuchung');
-            $txCat = $tx->financeCategory?->name ?: 'Banktransaktion';
+            $txCat = $tx->financeCategory?->name ?: ($tx->accounting_category_id ? 'Banktransaktion' : 'Unkategorisiert / Offen');
 
             if ($this->expenseSearch !== '') {
                 $needle = mb_strtolower(trim($this->expenseSearch));
@@ -760,7 +1045,7 @@ class TaxAdvisorDashboard extends Component
                 'title' => $txTitle,
                 'category' => $txCat,
                 'invoice_number' => null,
-                'location' => 'Bankkonto',
+                'location' => $tx->account?->name ?: 'Bankkonto',
                 'is_business' => $isBusiness,
                 'tax_rate' => 0.0,
                 'signed_gross' => $signedGross,
@@ -768,6 +1053,8 @@ class TaxAdvisorDashboard extends Component
                 'abs_net' => $absGross,
                 'abs_vat' => 0.0,
                 'file_paths' => $files,
+                'has_receipt' => $hasReceipt,
+                'is_uncategorized' => empty($tx->accounting_category_id),
             ]);
         }
 
@@ -871,11 +1158,73 @@ class TaxAdvisorDashboard extends Component
             }
         }
 
+        // Kanzlei & Steuern Aufgaben
+        $taxList = $this->getTaxAdvisorList();
+        $taxTasksQuery = TaskModel::where('task_list_id', $taxList->id)
+            ->whereNull('parent_id')
+            ->where('is_archived', false);
+
+        if ($this->taskStatusFilter === 'open') {
+            $taxTasksQuery->where('is_completed', false);
+        } elseif ($this->taskStatusFilter === 'completed') {
+            $taxTasksQuery->where('is_completed', true);
+        }
+
+        $taxTasks = $taxTasksQuery->orderBy('is_completed')
+            ->orderByRaw("CASE WHEN priority = 'hoch' THEN 0 ELSE 1 END")
+            ->orderBy('relevant_from')
+            ->orderByDesc('created_at')
+            ->get();
+
+        $openTaxTasksCount = TaskModel::where('task_list_id', $taxList->id)
+            ->whereNull('parent_id')
+            ->where('is_archived', false)
+            ->where('is_completed', false)
+            ->count();
+
+        $completedTaxTasksCount = TaskModel::where('task_list_id', $taxList->id)
+            ->whereNull('parent_id')
+            ->where('is_archived', false)
+            ->where('is_completed', true)
+            ->count();
+
+        // Fristen-Radar für den Abrechnungsmonat berechnen (§ 18 UStG / § 108 AO)
+        $baseDeadline = Carbon::create($this->selectedYear, $this->selectedMonth, 10)->addMonth();
+        if ($baseDeadline->isSaturday()) {
+            $baseDeadline->addDays(2);
+        } elseif ($baseDeadline->isSunday()) {
+            $baseDeadline->addDay();
+        }
+
+        $now = now()->startOfDay();
+        $deadlineDay = $baseDeadline->copy()->startOfDay();
+        $daysUntilDeadline = (int) $now->diffInDays($deadlineDay, false);
+
+        $deadlineStatus = [
+            'date_formatted' => $baseDeadline->format('d.m.Y'),
+            'is_past' => $deadlineDay->isPast(),
+            'is_today' => $deadlineDay->isToday(),
+            'days_remaining' => $daysUntilDeadline,
+        ];
+
+        // Lohnsummen für den gewählten Monat berechnen (HR)
+        $monthlyGrossSalariesCents = 0;
+        if ($employeeContracts->isNotEmpty()) {
+            foreach ($employeeContracts as $emp) {
+                $mPayslip = $emp->selected_month_payslip ?? null;
+                $mStats = $emp->selected_month_stats ?? null;
+                $monthlyGrossSalariesCents += $mPayslip ? (int) $mPayslip->gross_amount_cents : (int) ($mStats['estimated_gross_cents'] ?? 0);
+            }
+        }
+
         return view('livewire.employee.tax-advisor.tax-advisor-dashboard', [
             'employee' => $employee,
             'companyMeta' => $financialService->getCompanyTaxMeta(),
             'monthsNav' => $monthsNav,
             'activeMonthData' => $activeMonthData,
+            'deadlineStatus' => $deadlineStatus,
+            'monthlyGrossSalariesCents' => $monthlyGrossSalariesCents,
+            'receiptStatusFilter' => $this->receiptStatusFilter,
             'monthlyStatsBrutto' => $monthlyStatsBrutto,
             'monthlyStatsNetto' => $monthlyStatsNetto,
             'yearlyMatrix' => $yearlyMatrix,
@@ -888,6 +1237,9 @@ class TaxAdvisorDashboard extends Component
             'filteredPayouts' => $filteredPayouts,
             'employeeContracts' => $employeeContracts,
             'defaultTaxRate' => (float) shop_setting('default_tax_rate', 19.0),
+            'taxTasks' => $taxTasks,
+            'openTaxTasksCount' => $openTaxTasksCount,
+            'completedTaxTasksCount' => $completedTaxTasksCount,
         ]);
     }
 }

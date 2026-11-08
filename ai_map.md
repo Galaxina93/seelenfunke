@@ -1,5 +1,5 @@
 # Seelenfunke System-Architektur & AI Map (`ai_map.md`)
-> Generiert via `php artisan ai:generate-map` (2026-11-06 01:59)
+> Generiert via `php artisan ai:generate-map` (2026-11-08 22:27)
 
 ## 1. Ökosystem-Pfade & Umgebungen
 - **Hauptportal (`Mein-Seelenfunke`)**: Win-UNC `\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke` | WSL `/home/ubuntuxina/meine-projekte/seelenfunke` (Docker PHP: `mein_php_server`) | Lokal `http://127.0.0.1` (`http://seelenfunke.test`) | Stage `https://stage.mein-seelenfunke.de` | Live `https://mein-seelenfunke.de`
@@ -31,7 +31,7 @@
   - Support: Tickets (`SupportTicket`), Chats (`SupportChats`), Telefonie (`SupportTelephony`) | System: `/admin/settings` (`SystemShopConfig`), `/admin/users` (`SystemUserManagement`), `SystemLogs`, `SystemBackups`
 
 ## 3. Datenbank-Seeder (`database/seeders/*.php`)
-- **Root**: `AccountingSeeder, AiAgentSeeder, AiCompanyStructureSeeder, AiHealthMedicationSeeder, AiKnowledgeBaseLaserSeeder, AiKnowledgeBaseSeeder, AiTarifeSeeder, BankTransactionTestSeeder, BlogCategorySeeder, DatabaseSeeder, FinancialDataSeeder, GamificationTestSeeder, GamificationUltimatePlayerSeeder, LogisticsShippingSeeder, MailAccountSeeder, ManagementCalenderSeeder, ManagementContactSeeder, ManagementDayRoutineSeeder, ManagementShoppingListSeeder, ManagementTaskSeeder, MarketingBlogSeeder, MarketingLinktreeSeeder, MonthlyVoucherSeeder, NewsletterKampagnenSeeder, OrderShoppingCartSeeder, OrdersTableSeeder, ProductAssetSeeder, ProductAttributeSeeder, ProductCategorySeeder, ProductIdeaSeeder, ProductLandingPageSeeder, ProductPackagingSeeder, ProductReviewSeeder, ProductSeeder, ProductSupplierSeeder, ProductTemplateSeeder, Spaceship3DGlbSeeder, SystemCronjobSeeder, SystemSettingSeeder, TaxRateSeeder, UserSeeder`
+- **Root**: `AccountingSeeder, AiAgentSeeder, AiCompanyStructureSeeder, AiHealthMedicationSeeder, AiKnowledgeBaseLaserSeeder, AiKnowledgeBaseSeeder, AiTarifeSeeder, BankTransactionTestSeeder, BlogCategorySeeder, DatabaseSeeder, FinancialDataSeeder, GamificationTestSeeder, GamificationUltimatePlayerSeeder, LogisticsShippingSeeder, MailAccountSeeder, ManagementCalenderSeeder, ManagementContactSeeder, ManagementDayRoutineSeeder, ManagementMusicSeeder, ManagementShoppingListSeeder, ManagementTaskSeeder, MarketingBlogSeeder, MarketingLinktreeSeeder, MonthlyVoucherSeeder, NewsletterKampagnenSeeder, OrderShoppingCartSeeder, OrdersTableSeeder, ProductAssetSeeder, ProductAttributeSeeder, ProductCategorySeeder, ProductIdeaSeeder, ProductLandingPageSeeder, ProductPackagingSeeder, ProductReviewSeeder, ProductSeeder, ProductSupplierSeeder, ProductTemplateSeeder, Spaceship3DGlbSeeder, SystemCronjobSeeder, SystemSettingSeeder, TaxRateSeeder, UserSeeder`
 
 ## 4. Datenbank-Modelle (`app/Models/<Domain>/*.php`)
 - **Accounting**: `AccountingBankAccount, AccountingBankTransaction, AccountingCategorizationRule, AccountingCategory, AccountingCostItem, AccountingCostItemHistory, AccountingGroup, AccountingInvoice, AccountingSpecialIssue`
@@ -108,6 +108,6 @@
 - **Navigation**: `BackendNavigationService`
 - **Root**: `AccountingEInvoiceParserService, AccountingXmlInvoiceService, AnalyticsService, BankApiService, CartFileCleanupService, CartService, ConfiguratorService, DhlService, ElsterEricService, FinancialService, FirebaseService, GoogleReviewsService, HerzensprojektService, InvoiceService, PriceCalcService, ProductConfiguratorService, ProductTrackingService, ReferralService, ShippingCalculatorService, StealthCrawlerService, WishlistService`
 - **Storage**: `GlbOptimizerService`
-- **System**: `SystemBlueprintService, SystemErrorLogger, SystemSecurityService`
+- **System**: `FunkenwerkPrintService, SystemBlueprintService, SystemErrorLogger, SystemSecurityService`
 - **Tax**: `TaxSettingService`
 

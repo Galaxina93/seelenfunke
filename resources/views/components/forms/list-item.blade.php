@@ -41,9 +41,9 @@
     }
 @endphp
 
-<li @if($dotState) x-data="{ unread: {{ $dotState }} }" @endif
-    @if($dotEvent) @{{ $dotEvent }}.window="unread = true" @endif
-    @if($dotClearEvent) @{{ $dotClearEvent }}.window="unread = false" @endif>
+<li @if($dotState) x-data="{ unread: Boolean({{ $dotState }}) }" x-effect="unread = Boolean({{ $dotState }})" @endif
+    @if($dotEvent) x-on:{{ $dotEvent }}.window="unread = ($event.detail && $event.detail.hasUnread !== undefined) ? Boolean($event.detail.hasUnread) : true; @if($dotState) {{ $dotState }} = unread; @endif" @endif
+    @if($dotClearEvent) x-on:{{ $dotClearEvent }}.window="unread = false; @if($dotState) {{ $dotState }} = false; @endif" @endif>
     <a href="{{ $route }}" wire:navigate
        @if($dotState) @click="unread = false; {{ $dotState }} = false" @endif
        class="group flex items-center gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isActive ? $activeClasses : $inactiveClasses }}">

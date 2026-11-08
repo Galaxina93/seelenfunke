@@ -215,16 +215,6 @@
                 <span class="text-primary">Sondern echtes Handwerk.</span>
             </h2>
 
-            {{-- Kompakter, klarer Text --}}
-            <div class="text-lg text-gray-200 font-light leading-relaxed max-w-2xl mx-auto space-y-3">
-                <p>
-                    Bei <strong>Mein Seelenfunke</strong> gestaltest du dein Unikat live im 3D-Konfigurator, und wir fertigen es direkt in unserer eigenen Manufaktur in <strong>{{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}</strong>.
-                </p>
-                <p class="font-medium text-white">
-                    Jedes Schmuckstück, jeder Anhänger und jeder Kristall wird mit unserem High-End-Lasersystem präzise veredelt, von Hand geprüft und sicher gepolstert (auf Wunsch in unserer edlen Schmuckbox) versendet.
-                </p>
-            </div>
-
             {{-- 4 Vorteile nebeneinander mit goldenem Haken (ohne Kachel-BG & ohne Subtext) --}}
             <div class="flex flex-wrap justify-center items-center gap-x-8 gap-y-3 pt-2">
                 <div class="inline-flex items-center gap-2 text-sm font-semibold text-gray-100">
@@ -259,14 +249,6 @@
                    title="Jetzt Unikat im 3D-Konfigurator gestalten"
                    class="inline-flex items-center gap-3 bg-primary text-gray-900 px-9 py-4 rounded-full font-bold text-lg shadow-[0_0_25px_rgba(201,166,107,0.3)] hover:bg-white hover:text-primary-dark transition-all transform hover:scale-105">
                     <span>Jetzt Unikat im Shop gestalten</span>
-                </a>
-                <a href="{{ route('calculator') }}"
-                   title="Angebot für personalisierte Geschenke online berechnen"
-                   class="inline-flex items-center gap-3 bg-white/10 border border-primary/50 text-white px-8 py-4 rounded-full font-semibold text-lg hover:bg-primary hover:text-gray-900 transition-all transform hover:scale-105">
-                    <svg class="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                    </svg>
-                    <span>B2B- & Mengen-Kalkulator</span>
                 </a>
             </div>
         </div>

@@ -37,7 +37,10 @@
                             $prod = $item->product;
                             $type = $prod->type ?? 'physical';
                             $attributes = $prod->attributes ?? [];
-                            $deliveryTime = \App\Models\Delivery\DeliverySetting::getCurrentDeliveryText();
+                            $itemVariantId = is_array($item->configuration) ? ($item->configuration['variant_id'] ?? null) : null;
+                            $itemDeliveryDetails = \App\Models\Delivery\DeliverySetting::getDeliveryDetailsForProduct($prod ?? null, (int) ($item->quantity ?? 1), $itemVariantId);
+                            $deliveryTime = $itemDeliveryDetails['full_text'] ?? \App\Models\Delivery\DeliverySetting::getCurrentDeliveryText();
+                            $isItemBackorder = !empty($itemDeliveryDetails['is_backorder_procurement']);
                         @endphp
 
                         <div x-data="{ showText: false, showMotiv: false }" class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition hover:shadow-md w-full" wire:key="item-{{ $item->id }}">
@@ -234,7 +237,12 @@
                                                         </span>
                                                     @endif
                                                 @elseif($type === 'physical')
-                                                    @if($deliveryTime)
+                                                    @if($isItemBackorder)
+                                                        <span class="text-amber-700 inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg font-bold">
+                                                            <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                            <span>Auftragsfertigung · {{ $deliveryTime }}</span>
+                                                        </span>
+                                                    @elseif($deliveryTime)
                                                         <span class="text-green-700 inline-flex items-center gap-1.5 bg-green-50/80 border border-green-100 px-2.5 py-1 rounded-lg">
                                                             <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                                             <span>{{ $deliveryTime }}</span>

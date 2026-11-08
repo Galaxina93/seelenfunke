@@ -189,7 +189,14 @@ class ProductPackagingSeeder extends Seeder
             $slug = (string) $product->slug;
             $name = mb_strtolower((string) $product->name);
 
-            if (str_contains($slug, 'kristall') || str_contains($slug, 'schiefer') || str_contains($name, 'kristall') || str_contains($name, 'schiefer')) {
+            if ($product->isAtelierLine() || str_contains($slug, 'echtgold')) {
+                ProductPackaging::where('product_id', $product->id)
+                    ->whereNull('packaging_item_id')
+                    ->update([
+                        'packaging_item_id' => $frankfurtBox->id,
+                        'label' => $frankfurtBox->name . ' + Versandkarton',
+                    ]);
+            } elseif (str_contains($slug, 'kristall') || str_contains($slug, 'schiefer') || str_contains($name, 'kristall') || str_contains($name, 'schiefer')) {
                 ProductPackaging::where('product_id', $product->id)
                     ->whereNull('packaging_item_id')
                     ->update([

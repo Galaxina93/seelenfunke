@@ -1,4 +1,73 @@
-<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="min-h-screen bg-transparent p-4 md:p-8 font-sans antialiased text-gray-900 dark:text-gray-300">
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;"
+     x-data="{
+        feedbackShow: false,
+        feedbackType: 'info',
+        feedbackTitle: '',
+        feedbackMessage: '',
+        feedbackTimer: null,
+        triggerFeedback(detail) {
+            const payload = Array.isArray(detail) ? (detail[0] || {}) : (detail || {});
+            this.feedbackType = payload.type || 'info';
+            this.feedbackTitle = payload.title || 'System-Hinweis';
+            this.feedbackMessage = payload.message || '';
+            this.feedbackShow = true;
+            if (this.feedbackTimer) clearTimeout(this.feedbackTimer);
+            this.feedbackTimer = setTimeout(() => { this.feedbackShow = false; }, 6500);
+        }
+     }"
+     @order-feedback.window="triggerFeedback($event.detail)"
+     class="min-h-screen bg-transparent p-4 md:p-8 font-sans antialiased text-gray-900 dark:text-gray-300 relative">
+
+    {{-- GLOBALER LIVE-TOAST FÜR DRUCK- & BESTELL-FEEDBACK --}}
+    <div x-cloak
+         x-show="feedbackShow"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 -translate-y-4 scale-95"
+         x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+         x-transition:leave-end="opacity-0 -translate-y-4 scale-95"
+         style="display: none;"
+         class="fixed top-20 right-4 sm:right-8 z-[150] max-w-md w-full pointer-events-auto">
+        <div class="rounded-2xl p-4 shadow-2xl border backdrop-blur-xl flex items-start gap-3.5"
+             :class="{
+                'bg-white/95 dark:bg-gray-900/95 border-emerald-500/50 text-gray-900 dark:text-white': feedbackType === 'success',
+                'bg-white/95 dark:bg-gray-900/95 border-amber-500/60 text-gray-900 dark:text-white': feedbackType === 'warning',
+                'bg-white/95 dark:bg-gray-900/95 border-red-500/60 text-gray-900 dark:text-white': feedbackType === 'error',
+                'bg-white/95 dark:bg-gray-900/95 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white': feedbackType === 'info'
+             }">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border"
+                 :class="{
+                    'bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400': feedbackType === 'success',
+                    'bg-amber-500/15 border-amber-500/30 text-amber-600 dark:text-amber-400': feedbackType === 'warning',
+                    'bg-red-500/15 border-red-500/30 text-red-600 dark:text-red-400': feedbackType === 'error',
+                    'bg-gray-500/15 border-gray-500/30 text-gray-600 dark:text-gray-400': feedbackType === 'info'
+                 }">
+                <template x-if="feedbackType === 'success'">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                </template>
+                <template x-if="feedbackType === 'warning'">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                </template>
+                <template x-if="feedbackType === 'error'">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </template>
+            </div>
+            <div class="flex-1 min-w-0">
+                <h4 class="text-xs font-black uppercase tracking-wider"
+                    :class="{
+                        'text-emerald-600 dark:text-emerald-400': feedbackType === 'success',
+                        'text-amber-600 dark:text-amber-400': feedbackType === 'warning',
+                        'text-red-600 dark:text-red-400': feedbackType === 'error'
+                    }"
+                    x-text="feedbackTitle"></h4>
+                <p class="text-xs text-gray-600 dark:text-gray-300 font-medium leading-relaxed mt-1" x-text="feedbackMessage"></p>
+            </div>
+            <button type="button" @click="feedbackShow = false" class="text-gray-400 hover:text-gray-700 dark:hover:text-white p-1 rounded-lg transition-colors">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+    </div>
 
     {{-- VIEW 1: LISTEN-ANSICHT --}}
     @if(!$selectedOrderId)
@@ -230,15 +299,41 @@
                     <option value="unpaid">Offen</option>
                 </select>
 
-                {{-- Sammel-Druck Button --}}
-                <button wire:click="downloadMergedLabels"
+                @php
+                    $hasBatchLabels = ($printableLabelsCount ?? 0) > 0;
+                @endphp
+
+                {{-- Sammel-Druck via Funkenwerk Button --}}
+                <button wire:click="printMergedLabelsViaFunkenwerk"
                         wire:loading.attr="disabled"
-                        class="flex items-center gap-2 px-4 py-3 bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] hover:bg-[var(--theme-color)] hover:text-gray-900 rounded-[1.5rem] text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all shadow-sm dark:shadow-inner shrink-0 group"
-                        title="Alle gefilterten DHL Labels als eine PDF herunterladen">
-                    <svg class="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        class="flex items-center gap-2 px-4 py-3 rounded-[1.5rem] text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all shrink-0 group {{ $hasBatchLabels
+                            ? 'bg-[var(--theme-color)] text-gray-900 hover:opacity-90 shadow-sm cursor-pointer'
+                            : 'bg-gray-100/70 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-800 text-gray-400 dark:text-gray-600 opacity-50 cursor-not-allowed' }}"
+                        title="{{ $hasBatchLabels
+                            ? $printableLabelsCount . ' Bestellung(en) mit DHL-Label direkt über Funkenwerk auf dem MUNBYN ITPP941AP ausdrucken'
+                            : 'Kein Sammel-Druck möglich: Keine Bestellung in der aktuellen Auswahl besitzt ein generiertes DHL-Label' }}">
+                    <svg class="w-4 h-4 {{ $hasBatchLabels ? 'group-hover:-translate-y-0.5' : '' }} transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                     </svg>
-                    Sammel-Druck
+                    <span>Funkenwerk-Druck</span>
+                    @if($hasBatchLabels)
+                        <span class="px-1.5 py-0.5 rounded-md bg-black/15 text-[10px] font-mono">{{ $printableLabelsCount }}</span>
+                    @endif
+                </button>
+
+                {{-- Sammel-Druck PDF Button --}}
+                <button wire:click="downloadMergedLabels"
+                        wire:loading.attr="disabled"
+                        class="flex items-center gap-2 px-4 py-3 rounded-[1.5rem] text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all shrink-0 group {{ $hasBatchLabels
+                            ? 'bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] hover:bg-[var(--theme-color)] hover:text-gray-900 shadow-sm dark:shadow-inner cursor-pointer'
+                            : 'bg-gray-100/70 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-800 text-gray-400 dark:text-gray-600 opacity-50 cursor-not-allowed' }}"
+                        title="{{ $hasBatchLabels
+                            ? 'Alle gefilterten DHL Labels (' . $printableLabelsCount . ') als eine PDF herunterladen'
+                            : 'Kein PDF Sammel-Download möglich: Keine Bestellung in der aktuellen Auswahl besitzt ein generiertes DHL-Label' }}">
+                    <svg class="w-4 h-4 {{ $hasBatchLabels ? 'group-hover:-translate-y-0.5' : '' }} transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <span>PDF Sammel-Download</span>
                 </button>
 
                 {{-- Reset Button --}}

@@ -239,6 +239,61 @@
                                     </div>
                                 @endif
 
+                                {{-- Lieferanten-Nachbestellung (Auftragsfertigung bei Bestand 0) --}}
+                                @if($isOrder && $item->requiresSupplierProcurement())
+                                    @php
+                                        $isSupOrdered = $item->isSupplierOrderPlaced();
+                                        $missingSupQty = $item->getMissingSupplierQuantity();
+                                        $supReorderUrl = $item->getSupplierReorderUrl();
+                                        $supName = $item->getSupplierName();
+                                        $supProcData = $item->getSupplierProcurementData();
+                                    @endphp
+                                    <div class="mt-3 flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl border {{ $isSupOrdered ? 'bg-sky-500/5 border-sky-500/30 dark:bg-sky-950/30' : 'bg-amber-500/10 border-amber-500/40 dark:bg-amber-950/30' }}" onclick="event.stopPropagation()">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-sm leading-none">{{ $isSupOrdered ? '🚚' : '📦' }}</span>
+                                            <div>
+                                                <div class="text-[10px] font-black uppercase tracking-widest {{ $isSupOrdered ? 'text-sky-700 dark:text-sky-300' : 'text-amber-700 dark:text-amber-300' }}">
+                                                    @if($isSupOrdered)
+                                                        Rohling beim Lieferanten bestellt ✓
+                                                    @else
+                                                        Rohling nachbestellen ({{ $missingSupQty }}× benötigt)
+                                                    @endif
+                                                </div>
+                                                <div class="text-[9px] font-bold text-gray-500 dark:text-gray-400">
+                                                    Auftragsfertigung{{ $supName ? ' · ' . $supName : '' }}
+                                                    @if(!empty($supProcData['ordered_at']) && $isSupOrdered)
+                                                        · Bestellt am {{ \Carbon\Carbon::parse($supProcData['ordered_at'])->format('d.m.Y H:i') }}
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="flex items-center gap-1.5">
+                                            @if($supReorderUrl)
+                                                <a href="{{ $supReorderUrl }}"
+                                                   target="_blank"
+                                                   rel="noopener noreferrer"
+                                                   onclick="event.stopPropagation()"
+                                                   class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors shadow-2xs"
+                                                   title="Direktlink zum Rohling beim Lieferanten öffnen">
+                                                    <span>Kauflink</span>
+                                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                                </a>
+                                            @endif
+
+                                            <button type="button"
+                                                    wire:click.prevent="toggleSupplierOrdered('{{ $item->id }}')"
+                                                    class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors shadow-2xs {{ $isSupOrdered ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30 hover:bg-sky-500/25' : 'bg-amber-500 text-gray-950 hover:bg-amber-400 border border-amber-600/30' }}">
+                                                @if($isSupOrdered)
+                                                    <span>Bestellt ✓</span>
+                                                @else
+                                                    <span>Als bestellt markieren</span>
+                                                @endif
+                                            </button>
+                                        </div>
+                                    </div>
+                                @endif
+
                                 {{-- Partial Fulfillment UI --}}
                                 @if($isOrder)
                                     <div class="mt-4 flex items-center justify-between bg-gray-100/70 dark:bg-gray-950/50 p-2 sm:p-2.5 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner w-full xl:w-max gap-2 sm:gap-4" onclick="event.stopPropagation()">

@@ -75,11 +75,42 @@ protected $fillable = [
     ];
 
     protected $casts = [
-        'password' => 'encrypted',
         'is_default' => 'boolean',
         'is_commercial' => 'boolean',
         'last_sync_at' => 'datetime',
     ];
+
+    protected function password(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            get: function (?string $value): string {
+                if ($value === null || $value === '') {
+                    return '';
+                }
+                try {
+                    return \Illuminate\Support\Facades\Crypt::decryptString($value);
+                } catch (\Throwable) {
+                    if (str_starts_with($value, 'eyJpdiI6')) {
+                        return '';
+                    }
+                    // Fallback for legacy plaintext values before re-encryption
+                    return $value;
+                }
+            },
+            set: function (?string $value): string {
+                if ($value === null || $value === '') {
+                    return '';
+                }
+                try {
+                    // Avoid double-encrypting if already encrypted
+                    \Illuminate\Support\Facades\Crypt::decryptString($value);
+                    return $value;
+                } catch (\Throwable) {
+                    return \Illuminate\Support\Facades\Crypt::encryptString($value);
+                }
+            }
+        );
+    }
 
     protected static function booted(): void
     {

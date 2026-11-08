@@ -80,6 +80,49 @@ class ProductAssetSeeder extends Seeder
         file_put_contents($goldHerzDir . '/goldenes_seelen_herz_3d.glb', $goldHerzGlb);
         $this->ensureGoldenesHerzGalleryAndTemplates($publicProductsPath, $goldHerzDir, false);
 
+        // 3b. Das Echtgold Seelen-Herz (Atelier: 585er Echtgold-Herz 13x14 mm + 333er Echtgold-Panzerkette 0,8 mm)
+        $echtgoldHerzDir = $publicProductsPath . '/echtgold-seelen-herz';
+        File::ensureDirectoryExists($echtgoldHerzDir);
+        $this->ensureHeaderBackground($publicProductsPath, $echtgoldHerzDir);
+
+        $echtgoldOverlayPath = $echtgoldHerzDir . '/overlay.png';
+        $this->renderGoldenesHerzOverlay($echtgoldOverlayPath);
+        $this->ensureSeasonalOverlays($echtgoldHerzDir, true);
+
+        $echtgoldPngBytes = file_get_contents($echtgoldOverlayPath);
+        $echtgoldGlb = $this->buildSingleTexturedGlb($goldHerzMesh, $echtgoldPngBytes, 'EchtgoldSeelenHerz');
+        file_put_contents($echtgoldHerzDir . '/echtgold_seelen_herz_3d.glb', $echtgoldGlb);
+        $this->ensureEchtgoldHerzGalleryAndTemplates($publicProductsPath, $echtgoldHerzDir, false);
+
+        // 3c. Das Echtsilber Seelen-Armband (FBM P001.53062HERZ.5.18.5: 925er Sterlingsilber, Figaro diamantiert 2,1 mm, 18,5 cm)
+        $silberArmbandDir = $publicProductsPath . '/id-armband-silber-herz';
+        File::ensureDirectoryExists($silberArmbandDir);
+        $this->ensureHeaderBackground($publicProductsPath, $silberArmbandDir);
+
+        $silberArmbandOverlayPath = $silberArmbandDir . '/overlay.png';
+        $this->renderIdArmbandHerzOverlay($silberArmbandOverlayPath, 'silver');
+        $this->ensureSeasonalOverlays($silberArmbandDir, true);
+
+        $armbandMesh = $this->buildIdArmbandHerz3DMesh();
+        $silberArmbandPngBytes = file_get_contents($silberArmbandOverlayPath);
+        $silberArmbandGlb = $this->buildSingleTexturedGlb($armbandMesh, $silberArmbandPngBytes, 'IdArmbandSilberHerz');
+        file_put_contents($silberArmbandDir . '/id_armband_silber_herz_3d.glb', $silberArmbandGlb);
+        $this->ensureIdArmbandHerzGalleryAndTemplates($publicProductsPath, $silberArmbandDir, 'id-armband-silber-herz', 'silver', true);
+
+        // 3d. Das Gold-Vermeil Seelen-Armband (FBM P020.53062HERZ.5.18.5: 925er Silber Gelb vergoldet, Figaro diamantiert 2,1 mm, 18,5 cm)
+        $goldArmbandDir = $publicProductsPath . '/id-armband-gold-herz';
+        File::ensureDirectoryExists($goldArmbandDir);
+        $this->ensureHeaderBackground($publicProductsPath, $goldArmbandDir);
+
+        $goldArmbandOverlayPath = $goldArmbandDir . '/overlay.png';
+        $this->renderIdArmbandHerzOverlay($goldArmbandOverlayPath, 'gold');
+        $this->ensureSeasonalOverlays($goldArmbandDir, true);
+
+        $goldArmbandPngBytes = file_get_contents($goldArmbandOverlayPath);
+        $goldArmbandGlb = $this->buildSingleTexturedGlb($armbandMesh, $goldArmbandPngBytes, 'IdArmbandGoldHerz');
+        file_put_contents($goldArmbandDir . '/id_armband_gold_herz_3d.glb', $goldArmbandGlb);
+        $this->ensureIdArmbandHerzGalleryAndTemplates($publicProductsPath, $goldArmbandDir, 'id-armband-gold-herz', 'gold', true);
+
         // 4. Saisonale Overlays auch für die bestehenden personalisierbaren Produkte sicherstellen
         foreach (['seelen-kristall', 'seelen-anhaenger', 'weizenglas-personalisiert'] as $slug) {
             $dir = $publicProductsPath . '/' . $slug;
@@ -1354,6 +1397,616 @@ class ProductAssetSeeder extends Seeder
     }
 
     /**
+     * Erzeugt die Studio-/Lifestyle-/Rückseiten-Galeriebilder sowie alle 8 saisonalen Vorlagenbilder
+     * für Das Echtgold Seelen-Herz (585er Echtgold-Herz 13x14 mm + 333er Echtgold-Panzerkette).
+     */
+    private function ensureEchtgoldHerzGalleryAndTemplates(string $publicProductsPath, string $echtgoldHerzDir, bool $force = false): void
+    {
+        if (!extension_loaded('gd')) {
+            return;
+        }
+
+        $overlayPath = $echtgoldHerzDir . '/overlay.png';
+        if (!file_exists($overlayPath)) {
+            return;
+        }
+
+        $fontSansBold = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf';
+        $fontSans = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
+        $fontSerifBold = '/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf';
+        $hasTtf = file_exists($fontSerifBold);
+
+        $renderScene = function (
+            string $outFile,
+            array $bgRgbTop,
+            array $bgRgbBot,
+            array $engravingLines,
+            string $badgeTopText,
+            string $subCaption
+        ) use ($overlayPath, $hasTtf, $fontSansBold, $fontSans, $fontSerifBold, $force): void {
+            if (file_exists($outFile) && !$force) {
+                return;
+            }
+
+            $im = imagecreatetruecolor(1024, 1024);
+            imagealphablending($im, true);
+
+            for ($y = 0; $y < 1024; $y++) {
+                $t = $y / 1023.0;
+                $r = (int) round($bgRgbTop[0] * (1 - $t) + $bgRgbBot[0] * $t);
+                $g = (int) round($bgRgbTop[1] * (1 - $t) + $bgRgbBot[1] * $t);
+                $b = (int) round($bgRgbTop[2] * (1 - $t) + $bgRgbBot[2] * $t);
+                $lineCol = imagecolorallocate($im, $r, $g, $b);
+                imageline($im, 0, $y, 1023, $y, $lineCol);
+            }
+
+            for ($rad = 340; $rad >= 20; $rad -= 10) {
+                $alpha = (int) min(126, max(108, round(126 - (340 - $rad) * 0.045)));
+                $glowCol = imagecolorallocatealpha($im, 218, 175, 82, $alpha);
+                imagefilledellipse($im, 512, 490, $rad * 2, $rad * 2, $glowCol);
+            }
+
+            // Feine 0,8 mm 333er Echtgold-Panzerkette durch die Schlaufe
+            $chainCol = imagecolorallocatealpha($im, 232, 196, 104, 18);
+            imagesetthickness($im, 4);
+            imageline($im, 150, 40, 512, 272, $chainCol);
+            imageline($im, 874, 40, 512, 272, $chainCol);
+            imagesetthickness($im, 1);
+
+            $ov = @imagecreatefrompng($overlayPath);
+            if ($ov) {
+                imagecopyresampled($im, $ov, 172, 150, 0, 0, 680, 680, imagesx($ov), imagesy($ov));
+                imagedestroy($ov);
+            }
+
+            $laserCol = imagecolorallocatealpha($im, 28, 22, 16, 12);
+            $goldCol = imagecolorallocate($im, 218, 178, 90);
+            $whiteCol = imagecolorallocate($im, 250, 246, 238);
+            $mutedCol = imagecolorallocate($im, 190, 178, 160);
+
+            $drawCenter = static function ($im, float $pt, int $cx, int $y, int $col, string $font, string $txt) use ($hasTtf): void {
+                if ($hasTtf && file_exists($font)) {
+                    $bb = imagettfbbox($pt, 0, $font, $txt);
+                    $tw = $bb[2] - $bb[0];
+                    $tx = (int) round($cx - ($tw / 2) - $bbox0 = $bb[0]);
+                    imagettftext($im, $pt, 0, $tx, $y, $col, $font, $txt);
+                }
+            };
+
+            $startY = 545 - (int) ((count($engravingLines) - 1) * 22);
+            foreach ($engravingLines as $idx => $line) {
+                $pt = $idx === 0 ? 22.0 : 16.5;
+                $font = $idx === 0 ? $fontSerifBold : $fontSansBold;
+                $drawCenter($im, $pt, 512, $startY + $idx * 44, $laserCol, $font, $line);
+            }
+
+            $drawCenter($im, 11.5, 512, 68, $goldCol, $fontSansBold, $badgeTopText);
+            $drawCenter($im, 14.0, 512, 945, $whiteCol, $fontSerifBold, 'Das Echtgold Seelen-Herz • 585er Gold & 333er Gold-Panzerkette');
+            $drawCenter($im, 11.0, 512, 972, $mutedCol, $fontSans, $subCaption);
+
+            imagejpeg($im, $outFile, 92);
+            imagedestroy($im);
+        };
+
+        $renderScene(
+            $echtgoldHerzDir . '/echtgold-seelen-herz-main.jpg',
+            [24, 19, 14],
+            [11, 8, 6],
+            ['♥', 'Emilia', '14.08.2026'],
+            'ATELIER ECHTGOLD • 585ER GOLD-HERZ & 333ER GOLD-PANZERKETTE',
+            'Echt 585er Gelbgold (13 × 14 mm, gestempelt 585) + 333er Echtgold-Panzerkette (0,8 mm)'
+        );
+
+        $renderScene(
+            $echtgoldHerzDir . '/echtgold-seelen-herz-back.jpg',
+            [26, 21, 16],
+            [12, 9, 7],
+            ['Für immer', 'im Herzen', '♥'],
+            'ATELIER ECHTGOLD • PRÄZISIONS-UV-LASERGRAVUR',
+            'Feinste 5W UV-Laser-Kaltgravur in unserer Manufaktur in Gifhorn'
+        );
+
+        $renderScene(
+            $echtgoldHerzDir . '/echtgold-seelen-herz-lifestyle.jpg',
+            [36, 27, 18],
+            [16, 11, 7],
+            ['Mama ♥', 'Unser', 'Goldstück'],
+            'KOMPLETT-SET INKL. 333ER ECHTGOLD-PANZERKETTE',
+            'Gestempeltes 585er & 333er Echtgold • Handveredelt in Deutschland'
+        );
+
+        $tplDir = storage_path('app/public/produkte/product-templates');
+        File::ensureDirectoryExists($tplDir);
+
+        $holidayScenes = [
+            'weihnachten'  => [[18, 26, 38], [9, 13, 20],  ['Frohes Fest', 'Mein Schatz', '♥']],
+            'ostern'       => [[28, 34, 24], [14, 18, 12], ['Alles Liebe', 'zu Ostern', '✿']],
+            'hochzeit'     => [[36, 26, 28], [18, 12, 14], ['Für immer', 'verbunden', '♥']],
+            'geburtstag'   => [[34, 28, 18], [16, 13, 8],  ['Alles Liebe', 'zum Ehrentag', '★']],
+            'valentinstag' => [[42, 18, 24], [20, 8, 12],  ['Ich liebe Dich', 'Mein Herz', '♥']],
+            'halloween'    => [[32, 20, 14], [14, 9, 6],   ['Ewiger', 'Seelenfunke', '✦']],
+            'muttertag'    => [[38, 22, 28], [18, 10, 14], ['Beste Mama', 'der Welt', '♥']],
+            'vatertag'     => [[20, 26, 34], [10, 13, 18], ['Für immer', 'Familie', '★']],
+        ];
+
+        foreach ($holidayScenes as $hKey => [$topRgb, $botRgb, $lines]) {
+            $renderScene(
+                $tplDir . "/echtgold-seelen-herz-{$hKey}.jpg",
+                $topRgb,
+                $botRgb,
+                $lines,
+                'ATELIER ECHTGOLD • 585ER GOLD & 333ER GOLDKETTE',
+                '585er Echtgold-Herzanhänger (13 × 14 mm) inkl. 333er Echtgold-Panzerkette'
+            );
+        }
+    }
+
+    /**
+     * Erzeugt das exakt zum 2D-Overlay (800x800) deckungsgleiche 3D-Mesh für die FBM ID-Gravurarmbänder
+     * (53062HERZ: Gravurplatte 24 x 5,5 mm mit ausgestanztem Herz-Cutout links, seitlichen Dreiecks-Endkappen
+     * und diamantierten 2,1 mm Figaro-Kettengliedern).
+     */
+    private function buildIdArmbandHerz3DMesh(): array
+    {
+        $positions = [];
+        $normals = [];
+        $uvs = [];
+        $indices = [];
+
+        // 1. Abgerundete Rechteck-Gravurplatte (x = 136..664, y = 340..460, Eckenradius r = 22)
+        $platePts = [];
+        $corners = [
+            [664.0 - 22.0, 340.0 + 22.0, -M_PI * 0.5, 0.0],
+            [664.0 - 22.0, 460.0 - 22.0, 0.0, M_PI * 0.5],
+            [136.0 + 22.0, 460.0 - 22.0, M_PI * 0.5, M_PI],
+            [136.0 + 22.0, 340.0 + 22.0, M_PI, M_PI * 1.5],
+        ];
+        foreach ($corners as [$cx, $cy, $a0, $a1]) {
+            $steps = 12;
+            for ($i = 0; $i <= $steps; $i++) {
+                $a = $a0 + ($a1 - $a0) * ($i / $steps);
+                $platePts[] = [$cx + 22.0 * cos($a), $cy + 22.0 * sin($a)];
+            }
+        }
+        $this->extrudePixelContour($platePts, null, [400.0, 400.0], 0.032, $positions, $normals, $uvs, $indices, 1.5);
+
+        // 2. 3D-Innenwände für das ausgestanzte Herz-Cutout links (cx = 236, cy = 400) & die seitlichen Bügel-Schlitze
+        $addHoleWallRing = static function (array $pts, float $zHalf = 0.032) use (&$positions, &$normals, &$uvs, &$indices): void {
+            $toX = static fn(float $px): float => ($px - 400.0) / 360.0;
+            $toY = static fn(float $py): float => (400.0 - $py) / 360.0;
+            $toU = static fn(float $px): float => $px / 800.0;
+            $toV = static fn(float $py): float => $py / 800.0;
+            $m = count($pts);
+            for ($i = 0; $i < $m; $i++) {
+                $next = ($i + 1) % $m;
+                [$x0, $y0] = $pts[$i];
+                [$x1, $y1] = $pts[$next];
+                $dx = $toX($x1) - $toX($x0);
+                $dy = $toY($y1) - $toY($y0);
+                $len = hypot($dx, $dy) ?: 1.0;
+                $nx = -$dy / $len;
+                $ny = $dx / $len;
+                $vBase = intdiv(count($positions), 3);
+                array_push(
+                    $positions,
+                    $toX($x0), $toY($y0), $zHalf,
+                    $toX($x1), $toY($y1), $zHalf,
+                    $toX($x1), $toY($y1), -$zHalf,
+                    $toX($x0), $toY($y0), -$zHalf
+                );
+                for ($k = 0; $k < 4; $k++) {
+                    array_push($normals, $nx, $ny, 0.0);
+                }
+                array_push($uvs, $toU(400.0), $toV(400.0), $toU(400.0), $toV(400.0), $toU(400.0), $toV(400.0), $toU(400.0), $toV(400.0));
+                array_push($indices, $vBase, $vBase + 1, $vBase + 2, $vBase, $vBase + 2, $vBase + 3);
+            }
+        };
+
+        $heartHolePts = [];
+        $hSteps = 40;
+        $rotAngle = deg2rad(-12.0);
+        $cosR = cos($rotAngle);
+        $sinR = sin($rotAngle);
+        for ($i = 0; $i < $hSteps; $i++) {
+            $t = ($i / $hSteps) * M_PI * 2.0;
+            $hx = 16.0 * pow(sin($t), 3) * 2.15;
+            $hy = -(13.0 * cos($t) - 5.0 * cos(2.0 * $t) - 2.0 * cos(3.0 * $t) - cos(4.0 * $t)) * 2.05;
+            $rx = $hx * $cosR - $hy * $sinR;
+            $ry = $hx * $sinR + $hy * $cosR;
+            $heartHolePts[] = [236.0 + $rx, 402.0 + $ry];
+        }
+        $addHoleWallRing($heartHolePts, 0.032);
+
+        // 3. Dreieckige Endkappen links (x = 82..156) & rechts (x = 644..718)
+        $leftCapPts = [
+            [156.0, 360.0], [156.0, 440.0], [82.0, 412.0], [82.0, 388.0],
+        ];
+        $rightCapPts = [
+            [644.0, 360.0], [718.0, 388.0], [718.0, 412.0], [644.0, 440.0],
+        ];
+        $this->extrudePixelContour($leftCapPts, null, [120.0, 400.0], 0.028, $positions, $normals, $uvs, $indices, 1.0);
+        $this->extrudePixelContour($rightCapPts, null, [680.0, 400.0], 0.028, $positions, $normals, $uvs, $indices, 1.0);
+
+        // 4. Figaro-Kettenglieder links (x = 12..88) & rechts (x = 712..788)
+        $makeLinkRing = function (float $cx, float $cy, float $rxOut, float $ryOut, float $thick) use (&$positions, &$normals, &$uvs, &$indices): void {
+            $steps = 32;
+            $outer = [];
+            $inner = [];
+            for ($i = 0; $i < $steps; $i++) {
+                $a = ($i / $steps) * M_PI * 2.0;
+                $outer[] = [$cx + $rxOut * cos($a), $cy + $ryOut * sin($a)];
+                $inner[] = [$cx + max(3.0, $rxOut - $thick) * cos($a), $cy + max(3.0, $ryOut - $thick) * sin($a)];
+            }
+            $this->extrudePixelContour($outer, $inner, [$cx, $cy], 0.024, $positions, $normals, $uvs, $indices, 1.0);
+        };
+
+        $makeLinkRing(64.0, 400.0, 24.0, 17.0, 8.0);
+        $makeLinkRing(30.0, 400.0, 18.0, 16.0, 7.5);
+        $makeLinkRing(736.0, 400.0, 24.0, 17.0, 8.0);
+        $makeLinkRing(770.0, 400.0, 18.0, 16.0, 7.5);
+
+        return compact('positions', 'normals', 'uvs', 'indices');
+    }
+
+    /**
+     * Prüft, ob ein Punkt (x, y) im ausgestanzten Herz-Durchbruch (cx=236, cy=402, Rotation -12°) liegt.
+     */
+    private function isInsideArmbandHeartCutout(float $x, float $y): array
+    {
+        $dx = $x - 236.0;
+        $dy = $y - 402.0;
+        $rotAngle = deg2rad(12.0);
+        $lx = ($dx * cos($rotAngle) - $dy * sin($rotAngle)) / 32.0;
+        $ly = -($dx * sin($rotAngle) + $dy * cos($rotAngle)) / 31.0 + 0.12;
+        // Klassische implizite Herz-Gleichung: (x^2 + y^2 - 1)^3 - x^2 * y^3 <= 0
+        $a = $lx * $lx + $ly * $ly - 1.0;
+        $val = $a * $a * $a - $lx * $lx * $ly * $ly * $ly;
+        return [$val <= 0.0, $val];
+    }
+
+    /**
+     * Rendert das gestochen scharfe 800x800 2D-Overlay (overlay.png) für die FBM ID-Gravurarmbänder
+     * (53062HERZ: 925er Sterlingsilber bzw. 925er Silber Gelb vergoldet, Figaro diamantiert 2,1 mm).
+     */
+    private function renderIdArmbandHerzOverlay(string $targetPath, string $metal = 'silver'): void
+    {
+        if (!extension_loaded('gd')) {
+            return;
+        }
+
+        $isGold = ($metal === 'gold');
+        $out = imagecreatetruecolor(800, 800);
+        imagealphablending($out, false);
+        imagesavealpha($out, true);
+        $trans = imagecolorallocatealpha($out, $isGold ? 218 : 225, $isGold ? 182 : 230, $isGold ? 98 : 238, 127);
+        imagefill($out, 0, 0, $trans);
+
+        // 16x Subpixel-Supersampling (4x4 SSAA) über den gesamten Armband-Streifen (y = 330..470, x = 8..792)
+        for ($py = 332; $py <= 468; $py++) {
+            for ($px = 8; $px <= 792; $px++) {
+                $rAcc = 0.0;
+                $gAcc = 0.0;
+                $bAcc = 0.0;
+                $cov = 0;
+
+                for ($sy = 0; $sy < 4; $sy++) {
+                    $y = $py + ($sy + 0.5) * 0.25;
+                    for ($sx = 0; $sx < 4; $sx++) {
+                        $x = $px + ($sx + 0.5) * 0.25;
+
+                        $hit = false;
+                        $pr = 0.0;
+                        $pg = 0.0;
+                        $pb = 0.0;
+
+                        // A. Prüfe Haupt-Gravurplatte (x = 136..664, y = 340..460, Eckenradius r = 22)
+                        if ($x >= 136.0 && $x <= 664.0 && $y >= 340.0 && $y <= 460.0) {
+                            $cx = max(136.0 + 22.0, min(664.0 - 22.0, $x));
+                            $cy = max(340.0 + 22.0, min(460.0 - 22.0, $y));
+                            $cornerDist = hypot($x - $cx, $y - $cy);
+                            if ($cornerDist <= 22.0) {
+                                // Prüfe ausgestanztes Herz-Cutout links (cx=236, cy=402)
+                                [$inHeart, $heartVal] = $this->isInsideArmbandHeartCutout($x, $y);
+                                // Prüfe seitliche Bügelschlitze (links x=149..162, rechts x=638..651, y=362..438)
+                                $inLeftSlot = ($x >= 149.0 && $x <= 162.0 && $y >= 362.0 && $y <= 438.0 && !($y >= 386.0 && $y <= 414.0 && $x <= 156.0));
+                                $inRightSlot = ($x >= 638.0 && $x <= 651.0 && $y >= 362.0 && $y <= 438.0 && !($y >= 386.0 && $y <= 414.0 && $x >= 644.0));
+
+                                if (!$inHeart && !$inLeftSlot && !$inRightSlot) {
+                                    $hit = true;
+                                    $distTop = $y - 340.0;
+                                    $distBot = 460.0 - $y;
+                                    $distLeft = $x - 136.0;
+                                    $distRight = 664.0 - $x;
+                                    $edgeDist = min($distTop, $distBot, $distLeft, $distRight, 22.0 - $cornerDist);
+
+                                    // Spiegelpolierter Metallverlauf über die Gravurplatte
+                                    $uX = ($x - 400.0) / 264.0;
+                                    $uY = ($y - 400.0) / 60.0;
+                                    $sheen = exp(-pow(($uX * 0.45 + $uY * 0.35 + 0.12) / 0.55, 2));
+
+                                    if ($isGold) {
+                                        $pr = 244.0 + 11.0 * $sheen - 4.0 * $uY;
+                                        $pg = 213.0 + 24.0 * $sheen - 7.0 * $uY;
+                                        $pb = 132.0 + 38.0 * $sheen - 10.0 * $uY;
+                                    } else {
+                                        $pr = 238.0 + 15.0 * $sheen - 4.0 * $uY;
+                                        $pg = 241.0 + 13.0 * $sheen - 4.0 * $uY;
+                                        $pb = 246.0 + 9.0 * $sheen - 3.0 * $uY;
+                                    }
+
+                                    // Edle 3D-Außenkantenfase (Oberkante hell, Unterkante dunkler Spiegelkontrast)
+                                    if ($edgeDist < 4.5) {
+                                        $bevel = 1.0 - ($edgeDist / 4.5);
+                                        if ($y < 350.0) {
+                                            $pr += ($isGold ? 10.0 : 12.0) * $bevel;
+                                            $pg += ($isGold ? 16.0 : 12.0) * $bevel;
+                                            $pb += ($isGold ? 24.0 : 10.0) * $bevel;
+                                        } else {
+                                            $pr -= ($isGold ? 68.0 : 62.0) * $bevel;
+                                            $pg -= ($isGold ? 72.0 : 60.0) * $bevel;
+                                            $pb -= ($isGold ? 64.0 : 56.0) * $bevel;
+                                        }
+                                    }
+
+                                    // Polierte 3D-Innenfase rund um das ausgestanzte Herz-Cutout
+                                    if ($heartVal > 0.0 && $heartVal < 0.22) {
+                                        $hBevel = 1.0 - ($heartVal / 0.22);
+                                        $pr -= ($isGold ? 64.0 : 58.0) * $hBevel;
+                                        $pg -= ($isGold ? 68.0 : 56.0) * $hBevel;
+                                        $pb -= ($isGold ? 58.0 : 52.0) * $hBevel;
+                                    }
+                                }
+                            }
+                        }
+
+                        // B. Dreieckige Endkappen / Bügel links (x=82..156) & rechts (x=644..718)
+                        if (!$hit) {
+                            $inCap = false;
+                            $capT = 0.0;
+                            $capHalfH = 14.0;
+                            if ($x >= 82.0 && $x <= 156.0) {
+                                $capT = ($x - 82.0) / (156.0 - 82.0);
+                                $capHalfH = 12.0 + 18.0 * $capT;
+                                if (abs($y - 400.0) <= $capHalfH && !($x >= 148.0 && abs($y - 400.0) > 14.0)) {
+                                    $inCap = true;
+                                }
+                            } elseif ($x >= 644.0 && $x <= 718.0) {
+                                $capT = (718.0 - $x) / (718.0 - 644.0);
+                                $capHalfH = 12.0 + 18.0 * $capT;
+                                if (abs($y - 400.0) <= $capHalfH && !($x <= 652.0 && abs($y - 400.0) > 14.0)) {
+                                    $inCap = true;
+                                }
+                            }
+
+                            if ($inCap) {
+                                $hit = true;
+                                $vU = ($y - 400.0) / max(1.0, $capHalfH);
+                                $cyl = cos(($vU + 0.22) * 1.45);
+                                if ($isGold) {
+                                    $pr = 212.0 + 42.0 * $cyl;
+                                    $pg = 176.0 + 48.0 * $cyl;
+                                    $pb = 96.0 + 52.0 * $cyl;
+                                } else {
+                                    $pr = 205.0 + 46.0 * $cyl;
+                                    $pg = 210.0 + 44.0 * $cyl;
+                                    $pb = 218.0 + 37.0 * $cyl;
+                                }
+                            }
+                        }
+
+                        // C. Diamantierte 2,1 mm Figaro-Kettenglieder links (x=10..88) & rechts (x=712..790)
+                        if (!$hit) {
+                            $links = [
+                                [64.0, 400.0, 23.0, 16.0, 7.2],
+                                [30.0, 400.0, 17.5, 15.0, 6.8],
+                                [736.0, 400.0, 23.0, 16.0, 7.2],
+                                [770.0, 400.0, 17.5, 15.0, 6.8],
+                            ];
+                            foreach ($links as [$lcx, $lcy, $rx, $ry, $th]) {
+                                $nx = ($x - $lcx) / $rx;
+                                $ny = ($y - $lcy) / $ry;
+                                $rNorm = hypot($nx, $ny);
+                                $innerRatio = ($rx - $th) / $rx;
+                                if ($rNorm <= 1.0 && $rNorm >= $innerRatio) {
+                                    $hit = true;
+                                    $tubePos = ($rNorm - ($innerRatio + 1.0) * 0.5) / ((1.0 - $innerRatio) * 0.5);
+                                    $nz = sqrt(max(0.0, 1.0 - $tubePos * $tubePos));
+                                    // Diamantierte Facetten-Glanzlichter
+                                    $facet = 0.55 + 0.45 * cos(($x - $lcx) * 0.28 - ($y - $lcy) * 0.22);
+                                    if ($isGold) {
+                                        $pr = 185.0 + 68.0 * $nz * $facet;
+                                        $pg = 148.0 + 74.0 * $nz * $facet;
+                                        $pb = 74.0 + 68.0 * $nz * $facet;
+                                    } else {
+                                        $pr = 182.0 + 70.0 * $nz * $facet;
+                                        $pg = 188.0 + 66.0 * $nz * $facet;
+                                        $pb = 198.0 + 57.0 * $nz * $facet;
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+
+                        if ($hit) {
+                            $rAcc += max(45.0, min(255.0, $pr));
+                            $gAcc += max(35.0, min(255.0, $pg));
+                            $bAcc += max(20.0, min(255.0, $pb));
+                            $cov++;
+                        }
+                    }
+                }
+
+                if ($cov > 0) {
+                    $r = (int) round($rAcc / $cov);
+                    $g = (int) round($gAcc / $cov);
+                    $b = (int) round($bAcc / $cov);
+                    $gdAlpha = (int) round(127.0 * (1.0 - ($cov / 16.0)));
+                    imagesetpixel($out, $px, $py, ($gdAlpha << 24) | ($r << 16) | ($g << 8) | $b);
+                }
+            }
+        }
+
+        imagepng($out, $targetPath, 9);
+        imagedestroy($out);
+    }
+
+    /**
+     * Erzeugt die Studio-/Lifestyle-/Rückseiten-Galeriebilder (100% Product-Only, ohne Geschenkboxen!)
+     * sowie alle 8 saisonalen Feiertags-Vorlagenbilder für die beiden FBM ID-Gravurarmbänder.
+     */
+    private function ensureIdArmbandHerzGalleryAndTemplates(
+        string $publicProductsPath,
+        string $prodDir,
+        string $slug,
+        string $metal = 'silver',
+        bool $force = false
+    ): void {
+        if (!extension_loaded('gd')) {
+            return;
+        }
+
+        $overlayPath = $prodDir . '/overlay.png';
+        if (!file_exists($overlayPath)) {
+            return;
+        }
+
+        $isGold = ($metal === 'gold');
+        $fontSansBold = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf';
+        $fontSans = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
+        $fontSerifBold = '/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf';
+        $hasTtf = file_exists($fontSerifBold);
+
+        $titleFooter = $isGold
+            ? 'Das Gold-Vermeil Seelen-Armband • 925er Silber Gelb vergoldet (18,5 cm)'
+            : 'Das Echtsilber Seelen-Armband • Massives 925er Sterlingsilber (18,5 cm)';
+
+        $renderScene = function (
+            string $outFile,
+            array $bgRgbTop,
+            array $bgRgbBot,
+            array $engravingLines,
+            string $badgeTopText,
+            string $subCaption
+        ) use ($overlayPath, $isGold, $titleFooter, $hasTtf, $fontSansBold, $fontSans, $fontSerifBold, $force): void {
+            if (file_exists($outFile) && !$force) {
+                return;
+            }
+
+            $im = imagecreatetruecolor(1024, 1024);
+            imagealphablending($im, true);
+
+            for ($y = 0; $y < 1024; $y++) {
+                $t = $y / 1023.0;
+                // Sanfter Studio-Vignetten-Verlauf ohne konzentrisches Banding
+                $centerBoost = max(0.0, 1.0 - abs(($y - 512.0) / 420.0));
+                $boost = $centerBoost * $centerBoost * 14.0;
+                $r = (int) min(255, round($bgRgbTop[0] * (1 - $t) + $bgRgbBot[0] * $t + ($isGold ? $boost * 1.15 : $boost * 0.90)));
+                $g = (int) min(255, round($bgRgbTop[1] * (1 - $t) + $bgRgbBot[1] * $t + ($isGold ? $boost * 0.90 : $boost * 1.00)));
+                $b = (int) min(255, round($bgRgbTop[2] * (1 - $t) + $bgRgbBot[2] * $t + ($isGold ? $boost * 0.55 : $boost * 1.15)));
+                $lineCol = imagecolorallocate($im, $r, $g, $b);
+                imageline($im, 0, $y, 1023, $y, $lineCol);
+            }
+
+            // Originalgetreues Armband-Overlay (860x860) mittig einbetten
+            $ov = @imagecreatefrompng($overlayPath);
+            if ($ov) {
+                imagecopyresampled($im, $ov, 82, 82, 0, 0, 860, 860, imagesx($ov), imagesy($ov));
+                imagedestroy($ov);
+            }
+
+            // Kontrastreiche, tief-anthrazitfarbene Lasergravur rechts neben dem Herz-Durchbruch (cx = 576, cy = 512)
+            $laserCol = imagecolorallocatealpha($im, 24, 22, 20, 10);
+            $accentCol = $isGold
+                ? imagecolorallocate($im, 218, 178, 90)
+                : imagecolorallocate($im, 212, 220, 232);
+            $whiteCol = imagecolorallocate($im, 250, 246, 238);
+            $mutedCol = imagecolorallocate($im, 185, 176, 162);
+
+            $drawCenter = static function ($im, float $pt, int $cx, int $y, int $col, string $font, string $txt) use ($hasTtf): void {
+                if ($hasTtf && file_exists($font)) {
+                    $bb = imagettfbbox($pt, 0, $font, $txt);
+                    $tw = $bb[2] - $bb[0];
+                    $tx = (int) round($cx - ($tw / 2) - $bb[0]);
+                    imagettftext($im, $pt, 0, $tx, $y, $col, $font, $txt);
+                }
+            };
+
+            $lineCount = count($engravingLines);
+            $startY = $lineCount === 1 ? 520 : 500;
+            foreach ($engravingLines as $idx => $line) {
+                $pt = $idx === 0 ? 19.5 : 13.5;
+                $font = $idx === 0 ? $fontSerifBold : $fontSansBold;
+                $drawCenter($im, $pt, 578, $startY + $idx * 28, $laserCol, $font, $line);
+            }
+
+            $drawCenter($im, 11.5, 512, 68, $accentCol, $fontSansBold, $badgeTopText);
+            $drawCenter($im, 14.0, 512, 945, $whiteCol, $fontSerifBold, $titleFooter);
+            $drawCenter($im, 11.0, 512, 972, $mutedCol, $fontSans, $subCaption);
+
+            imagejpeg($im, $outFile, 92);
+            imagedestroy($im);
+        };
+
+        $materialSubtitle = $isGold
+            ? '925er Sterlingsilber Gelb vergoldet (2,50 g) • Figaro diamantiert 2,1 mm • Herz-Cutout'
+            : 'Massives 925er Sterlingsilber (2,50 g) • Figaro diamantiert 2,1 mm • Herz-Cutout';
+
+        $renderScene(
+            $prodDir . "/{$slug}-main.jpg",
+            $isGold ? [24, 19, 14] : [18, 22, 28],
+            $isGold ? [11, 8, 6]   : [9, 11, 15],
+            ['Emilia ♥', '14.08.2026'],
+            $isGold
+                ? 'ATELIER EDELMETALL • 925ER SILBER GELB VERGOLDET (MADE IN GERMANY)'
+                : 'ATELIER EDELMETALL • MASSIVES 925ER STERLINGSILBER (MADE IN GERMANY)',
+            $materialSubtitle
+        );
+
+        $renderScene(
+            $prodDir . "/{$slug}-back.jpg",
+            $isGold ? [26, 21, 16] : [20, 24, 30],
+            $isGold ? [12, 9, 7]   : [10, 12, 16],
+            ['Für immer', 'im Herzen ♥'],
+            'BEIDSEITIGE 5W UV-PRÄZISIONS-LASERGRAVUR • RÜCKSEITEN-ANSICHT',
+            'Vorder- und Rückseite der Gravurplatte individuell personalisierbar'
+        );
+
+        $renderScene(
+            $prodDir . "/{$slug}-lifestyle.jpg",
+            $isGold ? [34, 26, 18] : [24, 28, 36],
+            $isGold ? [15, 11, 7]  : [11, 13, 18],
+            ['Lieblingsmensch', 'Für immer wir'],
+            'DEUTSCHE TRADITIONSMANUFAKTUR FBM (SEIT 1910) • HANDVEREDELT IN GIFHORN',
+            'Echter 925er Feingehaltsstempel • Federringverschluss • 18,5 cm Länge'
+        );
+
+        $tplDir = storage_path('app/public/produkte/product-templates');
+        File::ensureDirectoryExists($tplDir);
+
+        $holidayScenes = [
+            'weihnachten'  => [[18, 26, 38], [9, 13, 20],  ['Frohes Fest ♥', 'Mein Schatz']],
+            'ostern'       => [[28, 34, 24], [14, 18, 12], ['Frohes Ostern', 'Alles Liebe ✿']],
+            'hochzeit'     => [[36, 26, 28], [18, 12, 14], ['Lieblingsmensch', '24.08.2026']],
+            'geburtstag'   => [[34, 28, 18], [16, 13, 8],  ['Happy Birthday', 'Mein Stern ★']],
+            'valentinstag' => [[42, 18, 24], [20, 8, 12],  ['Für immer Dein', '14. Februar ♥']],
+            'halloween'    => [[32, 20, 14], [14, 9, 6],   ['Magische Nacht', 'Seelenzauber ✦']],
+            'muttertag'    => [[38, 22, 28], [18, 10, 14], ['Beste Mama ♥', 'der Welt']],
+            'vatertag'     => [[20, 26, 34], [10, 13, 18], ['Unser Held', 'Für immer ★']],
+        ];
+
+        foreach ($holidayScenes as $hKey => [$topRgb, $botRgb, $lines]) {
+            $renderScene(
+                $tplDir . "/{$slug}-{$hKey}.jpg",
+                $topRgb,
+                $botRgb,
+                $lines,
+                'ATELIER GESCHENK-EDITION • 925ER EDELMETALL MIT HERZ-CUTOUT',
+                $materialSubtitle
+            );
+        }
+    }
+
+    /**
      * Stellt sicher, dass für alle 5 physischen Produkte die technischen Maßblätter (*-dimensions.jpg) existieren.
      * Fehlende Maßblätter werden direkt nativ über PHP-GD + DejaVu-Fonts gerendert.
      */
@@ -1493,11 +2146,81 @@ class ProductAssetSeeder extends Seeder
                     ['label' => 'Herkunft & Gravur', 'value' => 'Handveredelt in DE', 'sub' => 'Beidseitige Faserlaser-Gravur'],
                 ],
             ],
+            [
+                'slug' => 'echtgold-seelen-herz',
+                'outFileName' => 'echtgold-seelen-herz-dimensions.jpg',
+                'title' => 'Das Echtgold Seelen-Herz – Maße & Details',
+                'subtitle' => 'Massiver 585er Echtgold-Herzanhänger (14 Karat) inkl. 333er Echtgold-Panzerkette (0,8 mm)',
+                'overlayTop' => 185,
+                'horizArrows' => [
+                    ['x1' => 481, 'x2' => 543, 'y' => 202, 'dashedYFrom1' => 225, 'dashedYFrom2' => 225, 'labelPos' => 'above', 'label' => 'Schlaufe: 585 Echtgold (gestempelt)'],
+                    ['x1' => 330, 'x2' => 694, 'y' => 742, 'dashedYFrom1' => 490, 'dashedYFrom2' => 490, 'labelPos' => 'below', 'label' => 'Herz-Breite: 13 mm (1,3 cm)'],
+                ],
+                'vertArrows' => [
+                    ['y1' => 382, 'y2' => 713, 'x' => 210, 'dashedXFrom1' => 445, 'dashedXFrom2' => 512, 'label' => 'Herz-Höhe: 14 mm (ohne Schlaufe)'],
+                    ['y1' => 217, 'y2' => 713, 'x' => 814, 'dashedXFrom1' => 543, 'dashedXFrom2' => 512, 'label' => 'Kette: 0,8 mm (333er Echtgold)'],
+                ],
+                'callouts' => [],
+                'specs' => [
+                    ['label' => 'Herz-Anhänger', 'value' => '585er Echtgold', 'sub' => '13 × 14 mm • 0,80 g (14 Karat)'],
+                    ['label' => 'Halskette (Im Set)', 'value' => '333er Echtgold', 'sub' => '0,8 mm Panzerkette (Karabiner)'],
+                    ['label' => 'Echtheitsstempel', 'value' => '585 & 333 Punze', 'sub' => 'Geprüftes Edelmetall'],
+                    ['label' => 'Herkunft & Gravur', 'value' => 'Handveredelt in DE', 'sub' => 'Präzisions-UV-Lasergravur'],
+                ],
+            ],
+            [
+                'slug' => 'id-armband-silber-herz',
+                'outFileName' => 'id-armband-silber-herz-dimensions.jpg',
+                'title' => 'Das Echtsilber Seelen-Armband: Maße & Details',
+                'subtitle' => 'Massives 925er Sterlingsilber (FBM Made in Germany) mit Figaro-Kette (2,1 mm) & Herz-Durchbruch',
+                'overlayTop' => 185,
+                'horizArrows' => [
+                    ['x1' => 327, 'x2' => 697, 'y' => 360, 'dashedYFrom1' => 423, 'dashedYFrom2' => 423, 'labelPos' => 'above', 'label' => 'Gravurplatte: 24,0 mm (2,4 cm)'],
+                    ['x1' => 240, 'x2' => 784, 'y' => 610, 'dashedYFrom1' => 465, 'dashedYFrom2' => 465, 'labelPos' => 'below', 'label' => 'Gesamtlänge: 18,5 cm (185 mm)'],
+                ],
+                'vertArrows' => [
+                    ['y1' => 423, 'y2' => 507, 'x' => 845, 'dashedXFrom1' => 697, 'dashedXFrom2' => 697, 'labelPos' => 'above', 'label' => 'Platten-Höhe: 5,5 mm'],
+                ],
+                'callouts' => [
+                    ['x' => 397, 'y' => 465, 'tx' => 260, 'ty' => 715, 'label' => 'Echter Herz-Durchbruch'],
+                    ['x' => 560, 'y' => 465, 'tx' => 710, 'ty' => 715, 'label' => 'Beidseitige Gravurfläche'],
+                ],
+                'specs' => [
+                    ['label' => 'Edelmetall', 'value' => '925 Sterlingsilber', 'sub' => 'ca. 2,50 g (gestempelt 925)'],
+                    ['label' => 'Armband-Länge', 'value' => '18,5 cm (185 mm)', 'sub' => 'Figaro diamantiert 2,1 mm'],
+                    ['label' => 'Gravurplatte', 'value' => '24 × 5,5 × 1,2 mm', 'sub' => 'Mit Herz-Durchbruch links'],
+                    ['label' => 'Herkunft & Gravur', 'value' => 'Handveredelt in DE', 'sub' => 'Rohling: FBM (Made in DE)'],
+                ],
+            ],
+            [
+                'slug' => 'id-armband-gold-herz',
+                'outFileName' => 'id-armband-gold-herz-dimensions.jpg',
+                'title' => 'Das Gold-Vermeil Seelen-Armband: Maße & Details',
+                'subtitle' => '925er Sterlingsilber Gelb vergoldet (FBM Made in Germany) mit Figaro-Kette (2,1 mm) & Herz',
+                'overlayTop' => 185,
+                'horizArrows' => [
+                    ['x1' => 327, 'x2' => 697, 'y' => 360, 'dashedYFrom1' => 423, 'dashedYFrom2' => 423, 'labelPos' => 'above', 'label' => 'Gravurplatte: 24,0 mm (2,4 cm)'],
+                    ['x1' => 240, 'x2' => 784, 'y' => 610, 'dashedYFrom1' => 465, 'dashedYFrom2' => 465, 'labelPos' => 'below', 'label' => 'Gesamtlänge: 18,5 cm (185 mm)'],
+                ],
+                'vertArrows' => [
+                    ['y1' => 423, 'y2' => 507, 'x' => 845, 'dashedXFrom1' => 697, 'dashedXFrom2' => 697, 'labelPos' => 'above', 'label' => 'Platten-Höhe: 5,5 mm'],
+                ],
+                'callouts' => [
+                    ['x' => 397, 'y' => 465, 'tx' => 260, 'ty' => 715, 'label' => 'Echter Herz-Durchbruch'],
+                    ['x' => 560, 'y' => 465, 'tx' => 710, 'ty' => 715, 'label' => 'Beidseitige Gravurfläche'],
+                ],
+                'specs' => [
+                    ['label' => 'Edelmetall', 'value' => '925 Gelb vergoldet', 'sub' => 'ca. 2,50 g (gestempelt 925)'],
+                    ['label' => 'Armband-Länge', 'value' => '18,5 cm (185 mm)', 'sub' => 'Figaro diamantiert 2,1 mm'],
+                    ['label' => 'Gravurplatte', 'value' => '24 × 5,5 × 1,2 mm', 'sub' => 'Mit Herz-Durchbruch links'],
+                    ['label' => 'Herkunft & Gravur', 'value' => 'Handveredelt in DE', 'sub' => 'Rohling: FBM (Made in DE)'],
+                ],
+            ],
         ];
 
         foreach ($sheets as $cfg) {
             $outPath = $publicProductsPath . '/' . $cfg['slug'] . '/' . $cfg['outFileName'];
-            if (!file_exists($outPath) || $force || $cfg['slug'] === 'goldenes-seelen-herz') {
+            if (!file_exists($outPath) || $force || in_array($cfg['slug'], ['goldenes-seelen-herz', 'echtgold-seelen-herz', 'id-armband-silber-herz', 'id-armband-gold-herz'], true)) {
                 $this->renderDimensionSheetWithGd($publicProductsPath, $cfg);
             }
         }
@@ -1632,9 +2355,15 @@ class ProductAssetSeeder extends Seeder
             imagefilledpolygon($im, [$x, $y1, $x - 5, $y1 + 11, $x + 5, $y1 + 11], $colBrightGold);
             imagefilledpolygon($im, [$x, $y2, $x - 5, $y2 - 11, $x + 5, $y2 - 11], $colBrightGold);
 
-            imagefilledrectangle($im, (int) ($x - $badgeW / 2), $midY - 16, (int) ($x + $badgeW / 2), $midY + 16, $colBadgeBg);
-            imagerectangle($im, (int) ($x - $badgeW / 2), $midY - 16, (int) ($x + $badgeW / 2), $midY + 16, $colGold);
-            $drawCenteredText($im, 14, $x, $midY + 5, $colTextGold, $fontSansBold, $label);
+            $vPos = $va['labelPos'] ?? 'center';
+            $badgeY = match ($vPos) {
+                'above' => $y1 - 24,
+                'below' => $y2 + 24,
+                default => $midY,
+            };
+            imagefilledrectangle($im, (int) ($x - $badgeW / 2), $badgeY - 16, (int) ($x + $badgeW / 2), $badgeY + 16, $colBadgeBg);
+            imagerectangle($im, (int) ($x - $badgeW / 2), $badgeY - 16, (int) ($x + $badgeW / 2), $badgeY + 16, $colGold);
+            $drawCenteredText($im, 14, $x, $badgeY + 5, $colTextGold, $fontSansBold, $label);
         }
 
         // Callouts

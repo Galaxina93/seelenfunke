@@ -130,8 +130,10 @@
                             <option value="filter_draft">Nur Entwürfe</option>
                             <option value="filter_incomplete">Unvollständig (&lt; 100 %)</option>
                             <option value="filter_low_stock">Kritischer Bestand / Leer</option>
-                            <option value="filter_physical">Nur Physisch</option>
-                            <option value="filter_digital">Nur Digital</option>
+                            <option value="filter_manufaktur">Nur Manufaktur-Kollektion</option>
+                            <option value="filter_atelier">Nur Atelier Echtgold &amp; Silber</option>
+                            <option value="filter_physical">Nur Physisch (Alle)</option>
+                            <option value="filter_digital">Nur Digital (Gutscheine)</option>
                         </optgroup>
                     </select>
                     <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 dark:text-gray-500">
@@ -234,7 +236,11 @@
                                     @elseif($prod->type === 'service')
                                         <span class="px-2.5 py-0.5 rounded-lg bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-500/20 text-[9px] font-black uppercase tracking-widest">Service</span>
                                     @else
-                                        <span class="px-2.5 py-0.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-[9px] font-black uppercase tracking-widest">Physisch</span>
+                                        @if($prod->isAtelierLine())
+                                            <span class="px-2.5 py-0.5 rounded-lg bg-[#C5A059]/15 text-[#9a7632] dark:text-[#e2c27d] border border-[#C5A059]/40 text-[9px] font-black uppercase tracking-widest">👑 Atelier</span>
+                                        @else
+                                            <span class="px-2.5 py-0.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-[9px] font-black uppercase tracking-widest">Physisch</span>
+                                        @endif
                                         @if($prod->usesCustomFieldsPersonalization())
                                             <span class="px-2.5 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 text-[9px] font-black uppercase tracking-widest">⚡ Schnell-Gravur ({{ count($prod->getCustomFieldsDefinition()) }})</span>
                                         @elseif($prod->usesStudioConfigurator())
@@ -551,6 +557,11 @@
                             <p class="{{ $currentLayout === 'medium' ? 'text-xs sm:text-sm' : 'text-sm md:text-base' }} text-[var(--theme-color)] font-mono font-bold dark:drop-shadow-[0_0_8px_rgba(197,160,89,0.5)]">{{ number_format($prod->price / 100, 2, ',', '.') }} €</p>
                             <div class="flex flex-wrap items-center gap-1.5">
                                 @if($prod->type === 'physical')
+                                    @if($prod->isAtelierLine())
+                                        <span class="px-2 py-0.5 rounded-lg bg-[#C5A059]/15 border border-[#C5A059]/40 text-[9px] font-black uppercase tracking-wider text-[#9a7632] dark:text-[#e2c27d]" title="Exklusiver Premium-Bereich: Atelier Echtgold & Silber">
+                                            👑 Atelier
+                                        </span>
+                                    @endif
                                     @if($prod->usesCustomFieldsPersonalization())
                                         <span class="px-2 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-[9px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400" title="Schnell-Personalisierung mit dynamischen Eingabefeldern">
                                             ⚡ Schnell-Gravur ({{ count($prod->getCustomFieldsDefinition()) }})
@@ -587,12 +598,21 @@
                                      class="cursor-pointer group/qty relative transition-transform hover:scale-[1.02] flex items-center gap-2">
 
                                     @if($prod->quantity <= 0)
-                                        {{-- Ausverkauft / Voll --}}
-                                        <span class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30 dark:shadow-inner group-hover/qty:border-red-400 transition-colors">
-                                            <span class="w-1.5 h-1.5 rounded-full bg-red-500 dark:shadow-[0_0_8px_currentColor]"></span>
-                                            {{ $prod->type === 'service' ? 'Ausgebucht' : 'Ausverkauft' }}
-                                            <svg class="w-3.5 h-3.5 ml-1 text-red-500 opacity-50 group-hover/qty:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                                        </span>
+                                        @if($prod->continue_selling_when_out_of_stock)
+                                            {{-- Auftragsfertigung / Nachbestellung bei Bestand 0 --}}
+                                            <span class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30 dark:shadow-inner group-hover/qty:border-amber-400 transition-colors" title="Bestand 0 · Überverkauf aktiv (Rohling wird auf Bestellung bezogen)">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 dark:shadow-[0_0_8px_currentColor]"></span>
+                                                0 Stk. (Auftragsfertigung)
+                                                <svg class="w-3.5 h-3.5 ml-1 text-amber-500 opacity-50 group-hover/qty:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                            </span>
+                                        @else
+                                            {{-- Ausverkauft / Voll --}}
+                                            <span class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30 dark:shadow-inner group-hover/qty:border-red-400 transition-colors">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-red-500 dark:shadow-[0_0_8px_currentColor]"></span>
+                                                {{ $prod->type === 'service' ? 'Ausgebucht' : 'Ausverkauft' }}
+                                                <svg class="w-3.5 h-3.5 ml-1 text-red-500 opacity-50 group-hover/qty:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                            </span>
+                                        @endif
                                     @elseif($prod->quantity < $threshold)
                                         {{-- Kritischer Bestand --}}
                                         <span class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30 dark:shadow-inner group-hover/qty:border-amber-400 transition-colors">
@@ -780,6 +800,28 @@
                     </div>
                 </div>
 
+                {{-- NEU: KOLLEKTIONS-BEREICH (3-WELTEN-WEICHE) IM KI-GENERATOR --}}
+                <div class="mb-4">
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2">Kollektions-Bereich im Shop (3-Welten-Weiche)</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <button type="button" wire:click="setQuickAiCollectionLine('auto')"
+                                class="p-2.5 rounded-2xl border text-left transition-all {{ $quickAiCollectionLine === 'auto' ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
+                            <div class="text-[10px] font-black uppercase tracking-wider">🤖 KI-Auto</div>
+                            <div class="text-[9px] opacity-75 mt-0.5">Aus Link &amp; Material erkennen</div>
+                        </button>
+                        <button type="button" wire:click="setQuickAiCollectionLine('manufaktur')"
+                                class="p-2.5 rounded-2xl border text-left transition-all {{ $quickAiCollectionLine === 'manufaktur' ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
+                            <div class="text-[10px] font-black uppercase tracking-wider">✨ Manufaktur-Kollektion</div>
+                            <div class="text-[9px] opacity-75 mt-0.5">Edelstahl, Kristall &amp; Alltags-Geschenke</div>
+                        </button>
+                        <button type="button" wire:click="setQuickAiCollectionLine('atelier')"
+                                class="p-2.5 rounded-2xl border text-left transition-all {{ $quickAiCollectionLine === 'atelier' ? 'border-[#C5A059] bg-[#F5F1E8] dark:bg-[#C5A059]/15 text-gray-900 dark:text-[#e2c27d]' : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
+                            <div class="text-[10px] font-black uppercase tracking-wider">👑 Atelier Echtgold &amp; Silber</div>
+                            <div class="text-[9px] opacity-75 mt-0.5">585/333 Echtgold &amp; 925 Silber</div>
+                        </button>
+                    </div>
+                </div>
+
                 {{-- NEU: PERSONALISIERUNGS- & VERKAUFS-MODUS IM KI-GENERATOR --}}
                 <div class="mb-5 p-4 rounded-2xl bg-gray-50 dark:bg-gray-950/80 border border-gray-200 dark:border-gray-800 space-y-3">
                     <div class="flex items-center justify-between gap-2">
@@ -894,7 +936,7 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-3 gap-3 mb-6">
+                <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
                     <div>
                         <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Breite (mm) <span class="font-normal opacity-70">(Opt.)</span></label>
                         <input type="number" wire:model="quickAiWidth" placeholder="Auto (mm)" class="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-bold text-gray-900 dark:text-white outline-none">
@@ -906,6 +948,14 @@
                     <div>
                         <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Tiefe (mm) <span class="font-normal opacity-70">(Opt.)</span></label>
                         <input type="number" step="0.1" wire:model="quickAiLength" placeholder="Auto (mm)" class="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400 mb-1.5" title="Lieferanten-Vorlaufzeit Min. bei Bestand 0">Zulauf Min (T.)</label>
+                        <input type="number" min="1" max="60" wire:model="quickAiLeadDaysMin" placeholder="Auto (Tage)" class="w-full px-3.5 py-2 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-500/30 text-xs font-mono font-bold text-gray-900 dark:text-white outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400 mb-1.5" title="Lieferanten-Vorlaufzeit Max. bei Bestand 0">Zulauf Max (T.)</label>
+                        <input type="number" min="1" max="60" wire:model="quickAiLeadDaysMax" placeholder="Auto (Tage)" class="w-full px-3.5 py-2 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-500/30 text-xs font-mono font-bold text-gray-900 dark:text-white outline-none">
                     </div>
                 </div>
 

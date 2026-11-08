@@ -5,21 +5,19 @@
         @endif
     @endpush
 
-    {{-- 1. HEADER BILD (Hero) --}}
-    <div class="relative min-h-[420px] md:min-h-[520px] w-full bg-gray-900 overflow-hidden flex flex-col justify-end py-16 md:py-24 px-6 md:px-12">
+    {{-- 1. HEADER BILD (Hero mit goldenem Line-Art Emblem auf Schwarz) --}}
+    <div class="relative min-h-[420px] md:min-h-[500px] w-full bg-[#050505] overflow-hidden flex flex-col justify-end py-16 md:py-20 px-6 md:px-12">
         @if($post->header_image || $post->featured_image)
-            <img src="{{ asset('storage/' . ($post->header_image ?: $post->featured_image)) }}" alt="{{ $post->title }}" class="absolute inset-0 w-full h-full object-cover opacity-50 transition-transform duration-1000 hover:scale-105">
-        @else
-            <div class="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-900 opacity-90"></div>
+            <img src="{{ asset('storage/' . ($post->header_image ?: $post->featured_image)) }}" alt="{{ $post->title }}" class="absolute inset-0 w-full h-full object-contain opacity-35 pb-12 transition-transform duration-1000 hover:scale-105">
         @endif
 
         {{-- Feiner Farbverlauf nach unten für fließenden Übergang --}}
-        <div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-slate-900/25 to-slate-900/40"></div>
+        <div class="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-[#050505]/60"></div>
 
         <div class="relative z-10 flex flex-col items-center text-center w-full">
             <div class="max-w-4xl animate-fade-in-up">
                 @if($post->category)
-                    <a href="{{ route('marketing/marketing/blog', ['kategorie' => $post->category->slug]) }}" class="inline-block px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md text-white text-[10px] font-black uppercase tracking-widest mb-6 border border-white/20 hover:bg-white/20 hover:border-white/40 transition-all shadow-[0_0_15px_rgba(0,0,0,0.2)]">
+                    <a href="{{ route('marketing/marketing/blog', ['kategorie' => $post->category->slug]) }}" class="inline-block px-4 py-1.5 rounded-full bg-[#F5F1E8]/95 text-gray-900 text-[10px] font-black uppercase tracking-widest mb-6 border border-[#D8C9A8] hover:bg-[#EDE6D6] transition-all shadow-sm">
                         {{ $post->category->name }}
                     </a>
                 @endif
@@ -31,13 +29,8 @@
                 <div class="flex flex-wrap items-center justify-center gap-4 text-white/80 text-xs font-medium uppercase tracking-wider">
                     <span class="flex items-center gap-2">
                         <svg class="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                        <span class="font-bold">{{ $post->author->name ?? 'Redaktion' }}</span>
+                        <span class="font-bold">{{ $post->author->name ?? 'Mein-Seelenfunke Manufaktur' }}</span>
                     </span>
-                    <span class="text-primary/50">•</span>
-                    <time datetime="{{ $post->published_at }}" class="font-bold flex items-center gap-2">
-                        <svg class="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                        {{ $post->published_at->translatedFormat('d. M Y') }}
-                    </time>
                     @if(!empty($readingTimeMinutes))
                         <span class="text-primary/50">•</span>
                         <span class="font-bold flex items-center gap-1.5">
@@ -240,7 +233,7 @@
                                 <a href="{{ route('product.show', $relProd->slug) }}" class="aspect-square w-full bg-gray-100 overflow-hidden block">
                                     @if($relImgUrl)
                                         <img src="{{ $relImgUrl }}"
-                                             alt="{{ $relProd->name }} – Personalisiert mit Lasergravur"
+                                             alt="{{ $relProd->name }} | Personalisiert mit Lasergravur"
                                              loading="lazy"
                                              decoding="async"
                                              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">

@@ -66,6 +66,9 @@
                         <button type="button" wire:click="setStatusFilter('planned')" class="px-2.5 py-1 rounded-lg transition-all cursor-pointer {{ $statusFilter === 'planned' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-300' }}">
                             Geplant
                         </button>
+                        <button type="button" wire:click="setStatusFilter('transferred')" class="px-2.5 py-1 rounded-lg transition-all cursor-pointer {{ $statusFilter === 'transferred' ? 'bg-white dark:bg-gray-800 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-300' }}">
+                            In Kollektion
+                        </button>
                     </div>
 
                     <!-- Live-Suche -->
@@ -116,6 +119,7 @@
                                     'top_idea' => ['label' => '🏆 Top 1', 'class' => 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30'],
                                     'sample_needed' => ['label' => '📸 Muster/Fotos', 'class' => 'bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/30'],
                                     'ready' => ['label' => '✅ Bereit', 'class' => 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'],
+                                    'transferred' => ['label' => '👑 In Kollektion', 'class' => 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'],
                                     'discarded' => ['label' => 'Verworfen', 'class' => 'bg-gray-200 dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-700'],
                                     default => ['label' => '💡 Geplant', 'class' => 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700'],
                                 };
@@ -306,6 +310,7 @@
                                 <option value="sample_needed">📸 Muster / Fotos nötig</option>
                                 <option value="planned">💡 Geplant</option>
                                 <option value="ready">✅ Bereit für Shop</option>
+                                <option value="transferred">👑 In Kollektion übertragen</option>
                                 <option value="discarded">Verworfen</option>
                             </select>
                         </div>

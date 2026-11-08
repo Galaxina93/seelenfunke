@@ -1,22 +1,22 @@
 <div>
     <div class="w-full">
         @if($success)
-            <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center animate-fade-in-up">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-emerald-600 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div class="bg-emerald-950/60 border border-emerald-500/40 rounded-xl p-4 text-center animate-fade-in-up">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-emerald-400 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 19v-8.93a2 2 0 01.89-1.664l7-4.666a2 2 0 012.22 0l7 4.666A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-1.14.76a2 2 0 01-2.22 0l-1.14-.76" />
                 </svg>
-                <h4 class="text-gray-900 font-bold mb-1">Fast geschafft!</h4>
-                <p class="text-sm text-gray-600">Bitte prüfe deine E-Mails, um die Anmeldung zu bestätigen.</p>
+                <h4 class="text-white font-bold mb-1">Fast geschafft!</h4>
+                <p class="text-sm text-white">Bitte prüfe deine E-Mails, um die Anmeldung zu bestätigen.</p>
             </div>
         @else
-            <h4 class="text-lg font-serif font-bold mb-1 text-gray-900">Newsletter</h4>
+            <h4 class="text-lg font-serif font-bold mb-1 text-white">Newsletter</h4>
 
             {{-- Der neue Slogan --}}
-            <p class="text-sm text-gray-700 font-medium italic mb-2">
+            <p class="text-sm text-white font-medium italic mb-2">
                 Ein kleiner Lichtblick für dein Postfach.
             </p>
 
-            <p class="text-xs text-gray-500 mb-4 leading-relaxed">
+            <p class="text-xs text-white mb-4 leading-relaxed">
                 Erhalte exklusive Angebote und Einblicke in unsere Manufaktur.
             </p>
 
@@ -26,20 +26,20 @@
                            wire:model="email"
                            placeholder="Deine E-Mail Adresse"
                            class="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder-gray-400 shadow-sm transition-colors cursor-text">
-                    @error('email') <span class="text-red-600 text-xs mt-1 block font-medium">{{ $message }}</span> @enderror
+                    @error('email') <span class="text-red-400 text-xs mt-1 block font-medium">{{ $message }}</span> @enderror
                 </div>
 
-                <div class="flex items-start gap-2.5 p-2 rounded-xl transition-all @error('privacy_accepted') bg-red-50/80 border border-red-400 ring-2 ring-red-500/20 @else border border-transparent @enderror">
+                <div class="flex items-start gap-2.5 p-2 rounded-xl transition-all @error('privacy_accepted') bg-red-950/60 border border-red-400 ring-2 ring-red-500/20 @else border border-transparent @enderror">
                     <input type="checkbox"
                            id="privacy"
                            wire:model.live="privacy_accepted"
                            class="mt-0.5 w-4 h-4 rounded bg-white @error('privacy_accepted') border-red-500 text-red-600 focus:ring-red-500/30 @else border-gray-300 text-primary focus:ring-primary/30 @enderror cursor-pointer accent-[#C5A059]">
-                    <label for="privacy" class="text-xs @error('privacy_accepted') text-red-700 font-semibold @else text-gray-600 @enderror cursor-pointer leading-tight select-none">
-                        Ich willige ein, den E-Mail-Newsletter von Mein Seelenfunke (Informationen zu neuen Unikaten, Manufaktur-Einblicken &amp; Angeboten) zu erhalten. Die Einwilligung kann jederzeit kostenlos widerrufen werden (Art.&nbsp;7 Abs.&nbsp;3 DSGVO). Hinweise zur Verarbeitung in der <a href="{{ route('datenschutz') }}" class="text-amber-800 underline hover:text-amber-900 font-medium">Datenschutzerklärung</a>.
+                    <label for="privacy" class="text-xs @error('privacy_accepted') text-red-300 font-semibold @else text-white @enderror cursor-pointer leading-tight select-none">
+                        Ich willige ein, den E-Mail-Newsletter von Mein Seelenfunke (Informationen zu neuen Unikaten, Manufaktur-Einblicken &amp; Angeboten) zu erhalten. Die Einwilligung kann jederzeit kostenlos widerrufen werden (Art.&nbsp;7 Abs.&nbsp;3 DSGVO). Hinweise zur Verarbeitung in der <a href="{{ route('datenschutz') }}" class="text-primary underline hover:text-primary-light font-medium">Datenschutzerklärung</a>.
                     </label>
                 </div>
                 @error('privacy_accepted')
-                    <span class="text-red-600 text-xs flex items-center gap-1.5 font-semibold animate-fade-in">
+                    <span class="text-red-400 text-xs flex items-center gap-1.5 font-semibold animate-fade-in">
                         <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
                         <span>{{ $message }}</span>
                     </span>

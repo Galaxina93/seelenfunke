@@ -66,6 +66,10 @@
                 @if($this->selectedOrder->shipments->isNotEmpty())
                     <div class="flex flex-col gap-2 max-h-32 overflow-y-auto custom-scrollbar pr-2">
                         @foreach($this->selectedOrder->shipments as $shipment)
+                            @php
+                                $hasLabelPdf = !empty($shipment->shipping_label_path);
+                                $shipmentJustPrinted = ($this->lastPrintedShipmentId ?? null) === (string) $shipment->id;
+                            @endphp
                             <div class="flex items-center gap-2 bg-gray-100 dark:bg-gray-900/50 p-1.5 rounded-lg border border-gray-200 dark:border-gray-800 justify-between w-full xl:w-48">
                                 <div class="flex flex-col min-w-0">
                                     <span class="text-[9px] text-gray-500 font-bold tracking-widest uppercase">Paket {{ $loop->iteration }}</span>
@@ -73,11 +77,30 @@
                                         {{ $shipment->tracking_number }}
                                     </a>
                                 </div>
-                                @if($shipment->shipping_label_path)
-                                    <button wire:click="downloadDhlLabel('{{ $shipment->id }}')" class="shrink-0 w-8 h-8 rounded-lg bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-[var(--theme-color-10)] hover:border-[var(--theme-color)] transition-all shadow-sm dark:shadow-inner" title="Label Herunterladen">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                <div class="flex items-center gap-1 shrink-0">
+                                    <button type="button"
+                                            wire:click="printDhlLabelViaFunkenwerk('{{ $shipment->id }}')"
+                                            title="{{ $hasLabelPdf ? 'DHL-Label (' . $shipment->tracking_number . ') direkt via Funkenwerk auf MUNBYN Labeldrucker drucken' : 'Kein PDF-Label hinterlegt – bitte Label neu generieren' }}"
+                                            class="relative w-8 h-8 rounded-lg border flex items-center justify-center transition-all shadow-sm {{ $hasLabelPdf
+                                                ? ($shipmentJustPrinted
+                                                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white cursor-pointer'
+                                                    : 'bg-[var(--theme-color-10)] border-[var(--theme-color-30)] text-[var(--theme-color)] hover:bg-[var(--theme-color)] hover:text-gray-900 cursor-pointer')
+                                                : 'bg-gray-100/70 dark:bg-gray-900/40 border-gray-200 dark:border-gray-800 text-gray-300 dark:text-gray-600 opacity-50 cursor-not-allowed' }}">
+                                        <span wire:loading.remove wire:target="printDhlLabelViaFunkenwerk('{{ $shipment->id }}')">
+                                            @if($shipmentJustPrinted && $hasLabelPdf)
+                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                            @else
+                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                                            @endif
+                                        </span>
+                                        <span wire:loading wire:target="printDhlLabelViaFunkenwerk('{{ $shipment->id }}')" class="animate-spin w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full"></span>
                                     </button>
-                                @endif
+                                    @if($shipment->shipping_label_path)
+                                        <button wire:click="downloadDhlLabel('{{ $shipment->id }}')" class="w-8 h-8 rounded-lg bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-[var(--theme-color-10)] hover:border-[var(--theme-color)] transition-all shadow-sm dark:shadow-inner" title="Label als PDF herunterladen">
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                        </button>
+                                    @endif
+                                </div>
                             </div>
                         @endforeach
                         <button wire:click="openDhlModal('{{ $this->selectedOrder->id }}')" class="flex items-center justify-center gap-2 w-full mt-1 px-2 py-1.5 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg text-[10px] uppercase tracking-widest font-bold text-gray-500 hover:border-yellow-500 hover:text-yellow-600 dark:hover:border-yellow-400 dark:hover:text-yellow-400 transition-colors">
@@ -85,11 +108,27 @@
                             Weitere Labels
                         </button>
                     </div>
-                @elseif(in_array($this->selectedOrder->status, ['processing', 'shipped', 'completed']))
-                    <button wire:click="openDhlModal('{{ $this->selectedOrder->id }}')" class="group flex items-center gap-2 px-4 py-2 bg-[var(--theme-color)] text-gray-900 rounded-xl font-bold text-xs hover:bg-opacity-80 transition-all shadow-sm dark:shadow-[0_0_15px_rgba(var(--theme-color-rgb,197,160,89),0.2)]">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                        <span>Label erstellen</span>
-                    </button>
+                @else
+                    <div class="flex items-center gap-2">
+                        @if(!in_array($this->selectedOrder->status, ['cancelled', 'refunded']))
+                            <button wire:click="openDhlModal('{{ $this->selectedOrder->id }}')" class="group flex items-center gap-2 px-4 py-2 bg-[var(--theme-color)] text-gray-900 rounded-xl font-bold text-xs hover:bg-opacity-80 transition-all shadow-sm dark:shadow-[0_0_15px_rgba(var(--theme-color-rgb,197,160,89),0.2)]">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                                <span>DHL Label</span>
+                            </button>
+                        @endif
+                        <div class="relative group/detailprint">
+                            <button type="button"
+                                    wire:click="printOrderLabelViaFunkenwerk('{{ $this->selectedOrder->id }}')"
+                                    title="Kein Druck möglich: Bitte zuerst ein DHL-Label generieren"
+                                    class="flex items-center gap-2 px-3.5 py-2 bg-gray-100/70 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-800 text-gray-400 dark:text-gray-600 opacity-50 cursor-not-allowed rounded-xl font-bold text-xs transition-all">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                                <span>Kein Label</span>
+                            </button>
+                            <div class="pointer-events-none opacity-0 group-hover/detailprint:opacity-100 transition-opacity duration-200 absolute bottom-full right-0 mb-2 z-50 whitespace-nowrap px-2.5 py-1.5 rounded-lg text-[10px] font-bold shadow-lg bg-gray-900 text-amber-300 border border-amber-500/40">
+                                Erst „DHL Label“ erstellen, um zu drucken
+                            </div>
+                        </div>
+                    </div>
                 @endif
             @else
                 <span class="text-[9px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-widest bg-blue-50 dark:bg-blue-950/20 px-3 py-2 rounded-xl border border-blue-200 dark:border-blue-900/40 flex items-center gap-1.5">

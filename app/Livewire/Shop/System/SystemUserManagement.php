@@ -10,13 +10,15 @@ use App\Models\Employee\Employee;
 use App\Models\System\SystemLog;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
 #[Layout('components.layouts.backend_layout')]
 class SystemUserManagement extends Component
 {
-    use WithPagination, \App\Livewire\Traits\WithDepartmentTheming;
+    use WithPagination, WithFileUploads, \App\Livewire\Traits\WithDepartmentTheming;
 
     public string $themingDepartment = 'System';
 
@@ -36,6 +38,12 @@ class SystemUserManagement extends Component
     public array $editingUserLogs = [];
     #[\Livewire\Attributes\Locked]
     public int $editingUserBirthdayCorrections = 0;
+
+    public string $activeEditTab = 'account';
+    public $customerUploadFiles = [];
+    public string $customerUploadTitle = '';
+    public string $customerUploadOrderId = '';
+    public ?string $customerMediaSavedText = null;
 
     public $isCreating = false;
     public $createType = 'customer';
@@ -229,11 +237,18 @@ class SystemUserManagement extends Component
         session()->flash('message', 'Neues Seelenlicht erfolgreich erschaffen.');
     }
 
-    public function startEdit($id, $type)
+    public function startEdit($id, $type, string $initialTab = 'account')
     {
         $this->isCreating = false;
         $this->editingId = $id;
         $this->editingType = $type;
+
+        $allowedTabs = $type === 'customer' ? ['account', 'profile', 'media'] : ['account', 'profile'];
+        $this->activeEditTab = in_array($initialTab, $allowedTabs, true) ? $initialTab : 'account';
+        $this->customerUploadFiles = [];
+        $this->customerUploadTitle = '';
+        $this->customerUploadOrderId = '';
+        $this->customerMediaSavedText = null;
 
         $model = $this->getModelInstance($type, $id);
         $this->editing2faActive = (bool) ($model->profile->two_factor_is_active ?? false);
@@ -274,6 +289,205 @@ class SystemUserManagement extends Component
         ];
     }
 
+    public function setEditTab(string $tab): void
+    {
+        $allowedTabs = $this->editingType === 'customer' ? ['account', 'profile', 'media'] : ['account', 'profile'];
+        $this->activeEditTab = in_array($tab, $allowedTabs, true) ? $tab : 'account';
+    }
+
+    public function setCustomerUploadPresetTitle(string $title): void
+    {
+        $this->customerUploadTitle = trim($title);
+    }
+
+    public function updatedCustomerUploadFiles(): void
+    {
+        if ($this->editingType !== 'customer' || empty($this->editingId)) {
+            return;
+        }
+
+        $this->validate([
+            'customerUploadFiles.*' => 'file|mimes:pdf,zip,rar,jpg,jpeg,png,webp|max:51200',
+        ]);
+
+        /** @var Customer $customer */
+        $customer = Customer::withTrashed()->findOrFail($this->editingId);
+        $order = null;
+        if (!empty($this->customerUploadOrderId)) {
+            $order = \App\Models\Order\OrderOrder::where('customer_id', $customer->id)
+                ->find($this->customerUploadOrderId);
+        }
+
+        $files = is_array($this->customerUploadFiles) ? $this->customerUploadFiles : [$this->customerUploadFiles];
+        $presetTitle = trim($this->customerUploadTitle);
+
+        foreach (array_values($files) as $idx => $file) {
+            if (!$file) {
+                continue;
+            }
+
+            $originalName = $file->getClientOriginalName();
+            $ext = strtolower($file->getClientOriginalExtension() ?: pathinfo($originalName, PATHINFO_EXTENSION) ?: 'pdf');
+            $baseTitle = $presetTitle !== ''
+                ? ($idx > 0 ? $presetTitle . ' (' . ($idx + 1) . ')' : $presetTitle)
+                : (pathinfo($originalName, PATHINFO_FILENAME) ?: 'Dokument');
+
+            $docId = (string) Str::uuid();
+            $safeSlug = Str::slug($baseTitle) ?: 'dokument';
+            $storedFilename = $safeSlug . '-' . substr($docId, 0, 8) . '.' . $ext;
+            $storedPath = $file->storeAs('produkte/products-secure/customer-files/' . $customer->id, $storedFilename, 'local');
+
+            $customer->addAdminUploadedDocument([
+                'id' => $docId,
+                'title' => $baseTitle,
+                'path' => $storedPath,
+                'filename' => $originalName,
+                'mime_type' => $file->getMimeType() ?: 'application/pdf',
+                'size' => (int) $file->getSize(),
+                'extension' => $ext,
+                'uploaded_at' => now()->toIso8601String(),
+                'order_id' => $order?->id,
+                'order_number' => $order?->order_number,
+            ]);
+        }
+
+        $adminEmail = Auth::guard('admin')->user()->email ?? 'System';
+        SystemLog::create([
+            'type' => 'system',
+            'action_id' => 'user:customer_document_uploaded',
+            'title' => 'Kundendokument hinterlegt',
+            'message' => "Für Kunde '{$customer->email}' wurde ein Dokument hinterlegt.",
+            'status' => 'success',
+            'payload' => [
+                'actor' => $adminEmail,
+                'customer_id' => $customer->id,
+                'order_id' => $order?->id,
+            ],
+            'started_at' => now(),
+            'finished_at' => now(),
+        ]);
+
+        $this->customerUploadFiles = [];
+        $this->customerUploadTitle = '';
+        $this->customerMediaSavedText = 'Gespeichert';
+        $this->dispatch('notify', message: 'Dokument direkt beim Kunden hinterlegt.', type: 'success');
+    }
+
+    public function removeCustomerUploadedDocument(string $docId): void
+    {
+        if ($this->editingType !== 'customer' || empty($this->editingId)) {
+            return;
+        }
+
+        /** @var Customer $customer */
+        $customer = Customer::withTrashed()->findOrFail($this->editingId);
+        if ($customer->removeAdminUploadedDocument($docId)) {
+            $this->customerMediaSavedText = 'Gespeichert';
+            $this->dispatch('notify', message: 'Hinterlegtes Dokument entfernt.', type: 'info');
+        }
+    }
+
+    public function getEditingCustomerMediaProperty(): array
+    {
+        if ($this->editingType !== 'customer' || empty($this->editingId)) {
+            return [
+                'orders' => collect(),
+                'invoices' => collect(),
+                'adminDocs' => [],
+                'orderDocs' => [],
+                'snapshots' => [],
+                'totalCount' => 0,
+            ];
+        }
+
+        /** @var Customer|null $customer */
+        $customer = Customer::withTrashed()->find($this->editingId);
+        if (!$customer) {
+            return [
+                'orders' => collect(),
+                'invoices' => collect(),
+                'adminDocs' => [],
+                'orderDocs' => [],
+                'snapshots' => [],
+                'totalCount' => 0,
+            ];
+        }
+
+        $orders = \App\Models\Order\OrderOrder::with(['items.product', 'invoices'])
+            ->where('customer_id', $customer->id)
+            ->latest()
+            ->get();
+
+        $orderIds = $orders->pluck('id')->all();
+        $invoices = \App\Models\Accounting\AccountingInvoice::where(function ($q) use ($customer, $orderIds) {
+            $q->where('customer_id', $customer->id);
+            if (!empty($orderIds)) {
+                $q->orWhereIn('order_id', $orderIds);
+            }
+        })->latest()->get();
+
+        $adminDocs = $customer->getAdminUploadedDocuments();
+        $orderDocs = [];
+        $snapshots = [];
+
+        foreach ($orders as $order) {
+            foreach ($order->items as $item) {
+                foreach ($item->resolveDigitalDocuments() as $doc) {
+                    $orderDocs[] = [
+                        'order_id' => $order->id,
+                        'order_number' => $order->order_number,
+                        'order_date' => $order->created_at?->format('d.m.Y') ?? '',
+                        'item_id' => $item->id,
+                        'product_name' => $item->product_name,
+                        'title' => $doc['title'] ?? 'Dokument',
+                        'extension' => strtoupper((string) ($doc['extension'] ?? 'PDF')),
+                        'download_url' => route('digital-product.download', ['item' => $item->id, 'doc' => $doc['id']]),
+                    ];
+                }
+
+                if ($item->product && $item->product->type === 'digital' && !empty($item->product->digital_download_path)) {
+                    $orderDocs[] = [
+                        'order_id' => $order->id,
+                        'order_number' => $order->order_number,
+                        'order_date' => $order->created_at?->format('d.m.Y') ?? '',
+                        'item_id' => $item->id,
+                        'product_name' => $item->product_name,
+                        'title' => $item->product_name . ' (Digitale Produktdatei)',
+                        'extension' => strtoupper(pathinfo((string) ($item->product->digital_filename ?? ''), PATHINFO_EXTENSION) ?: 'ZIP'),
+                        'download_url' => route('digital-product.download', ['item' => $item->id]),
+                    ];
+                }
+
+                if (!empty($item->configuration['snapshot_path'])) {
+                    $paths = is_array($item->configuration['snapshot_path'])
+                        ? $item->configuration['snapshot_path']
+                        : ['Konfiguration' => $item->configuration['snapshot_path']];
+
+                    foreach ($paths as $side => $path) {
+                        $label = count($paths) > 1
+                            ? $item->product_name . ' (' . ($side === 'front' ? 'Vorderseite' : ($side === 'back' ? 'Rückseite' : ucfirst((string) $side))) . ')'
+                            : $item->product_name . ' (Gravur-Vorschau)';
+                        $snapshots[] = [
+                            'order_number' => $order->order_number,
+                            'date' => $order->created_at?->format('d.m.Y') ?? '',
+                            'label' => $label,
+                            'url' => resolve_snapshot_url($path, asset('storage/' . $path)),
+                        ];
+                    }
+                }
+            }
+        }
+
+        return [
+            'orders' => $orders,
+            'invoices' => $invoices,
+            'adminDocs' => $adminDocs,
+            'orderDocs' => $orderDocs,
+            'snapshots' => $snapshots,
+            'totalCount' => count($adminDocs) + $invoices->count() + count($orderDocs) + count($snapshots),
+        ];
+    }
+
     public function cancelEdit()
     {
         $this->editingId = null;
@@ -281,6 +495,11 @@ class SystemUserManagement extends Component
         $this->editing2faActive = false;
         $this->editingUserLogs = [];
         $this->editingUserBirthdayCorrections = 0;
+        $this->activeEditTab = 'account';
+        $this->customerUploadFiles = [];
+        $this->customerUploadTitle = '';
+        $this->customerUploadOrderId = '';
+        $this->customerMediaSavedText = null;
         $this->isCreating = false;
         $this->resetErrorBag();
     }

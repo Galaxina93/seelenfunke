@@ -7,13 +7,12 @@
     <div class="bg-white min-h-screen">
 
         {{-- Header / Hero Section (Analog zur Kollektion) --}}
-        <div class="bg-gray-50 border-b border-gray-100 py-16 md:py-20 text-center px-4">
+        <div class="bg-[#F5F1E8]/60 border-b border-[#D8C9A8]/60 py-16 md:py-20 text-center px-4">
             <h1 class="text-4xl md:text-5xl font-serif font-bold text-gray-900 mb-4">
-                Der Seelen Blog
+                Magazin & Ratgeber
             </h1>
-            <p class="text-gray-500 max-w-2xl mx-auto text-lg leading-relaxed">
-                Tauche ein in die Welt von Mein Seelenfunke. <br>
-                Entdecke Geschichten, Tipps und Neuigkeiten rund um unsere Manufaktur.
+            <p class="text-gray-600 max-w-2xl mx-auto text-lg leading-relaxed">
+                Zeitlose Inspiration für Gravursprüche, Materialkunde zu 585er Echtgold, 925er Silber & K9-Kristall sowie Einblicke in unsere Gifhorner Manufaktur.
             </p>
         </div>
 
@@ -27,19 +26,19 @@
                 <div class="flex flex-wrap gap-3">
                     <button
                         wire:click="setCategory('')"
-                        class="px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 border
+                        class="px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 border cursor-pointer
                         {{ $categorySlug == ''
-                            ? 'bg-gray-900 text-white border-gray-900 shadow-md transform -translate-y-0.5'
-                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400 hover:text-gray-900' }}">
+                            ? 'bg-[#F5F1E8] text-gray-900 border-[#D8C9A8] shadow-sm transform -translate-y-0.5'
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-[#D8C9A8] hover:text-gray-900' }}">
                         Alle Beiträge
                     </button>
                     @foreach($categories as $cat)
                         <button
                             wire:click="setCategory('{{ $cat->slug }}')"
-                            class="px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 border
+                            class="px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 border cursor-pointer
                             {{ $categorySlug == $cat->slug
-                                ? 'bg-primary text-white border-primary shadow-md transform -translate-y-0.5'
-                                : 'bg-white text-gray-600 border-gray-200 hover:border-primary hover:text-primary' }}">
+                                ? 'bg-[#F5F1E8] text-gray-900 border-[#D8C9A8] shadow-sm transform -translate-y-0.5'
+                                : 'bg-white text-gray-600 border-gray-200 hover:border-[#D8C9A8] hover:text-gray-900' }}">
                             {{ $cat->name }}
                         </button>
                     @endforeach
@@ -76,44 +75,35 @@
                     @foreach($posts as $post)
                         <article class="group flex flex-col h-full bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-500 transform hover:-translate-y-1">
 
-                            {{-- Image Container --}}
-                            <a href="{{ route('blog.show', $post->slug) }}" class="block relative h-64 overflow-hidden">
+                            {{-- Image Container (Schwarzer Grund + Goldenes Line-Art Emblem) --}}
+                            <a href="{{ route('blog.show', $post->slug) }}" class="block relative h-64 overflow-hidden bg-[#050505]">
                                 @if($post->featured_image)
                                     <img src="{{ asset('storage/' . $post->featured_image) }}"
                                          alt="{{ $post->title }}"
-                                         class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105">
+                                         class="w-full h-full object-contain p-3 transition-transform duration-700 group-hover:scale-105">
                                 @else
-                                    <div class="flex items-center justify-center h-full bg-gray-100 text-gray-300">
+                                    <div class="flex items-center justify-center h-full bg-[#050505] text-primary">
                                         <svg class="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                                     </div>
                                 @endif
 
-                                {{-- Overlay Gradient --}}
-                                <div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-60 group-hover:opacity-40 transition-opacity duration-500"></div>
-
-                                {{-- Kategorie Badge --}}
+                                {{-- Kategorie Badge im leichten Beigeton --}}
                                 @if($post->category)
-                                    <span class="absolute top-4 left-4 bg-white/90 backdrop-blur-md text-gray-900 text-[10px] font-bold px-3 py-1.5 rounded-full shadow-sm uppercase tracking-wider z-20">
+                                    <span class="absolute top-4 left-4 bg-[#F5F1E8]/95 backdrop-blur-md text-gray-900 border border-[#D8C9A8] text-[10px] font-bold px-3 py-1.5 rounded-full shadow-sm uppercase tracking-wider z-20">
                                         {{ $post->category->name }}
                                     </span>
                                 @endif
 
                                 {{-- Werbung Badge --}}
                                 @if($post->is_advertisement)
-                                    <span class="absolute top-4 right-4 bg-gray-900/90 backdrop-blur text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm uppercase tracking-widest z-20 border border-white/20">
+                                    <span class="absolute top-4 right-4 bg-[#F5F1E8]/95 text-gray-900 border border-[#D8C9A8] text-[10px] font-bold px-2 py-1 rounded shadow-sm uppercase tracking-widest z-20">
                                         Anzeige
                                     </span>
                                 @endif
                             </a>
 
-                            {{-- Content --}}
+                            {{-- Content (Zeitlos ohne Verfallsdatum) --}}
                             <div class="p-8 flex flex-col flex-1 relative">
-                                {{-- Datum --}}
-                                <div class="text-xs text-gray-400 font-medium mb-3 flex items-center gap-2">
-                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                                    {{ $post->published_at->format('d.m.Y') }}
-                                </div>
-
                                 {{-- Titel --}}
                                 <h2 class="text-xl font-serif font-bold text-gray-900 mb-3 leading-tight group-hover:text-primary transition-colors duration-300">
                                     <a href="{{ route('blog.show', $post->slug) }}">

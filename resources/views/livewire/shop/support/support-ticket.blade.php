@@ -10,9 +10,14 @@
                 <span class="flex items-center gap-3">
                     <span class="text-[var(--theme-color)] dark:drop-shadow-[0_0_15px_var(--theme-color)0.5)]">🛡️</span> Support Desk
                 </span>
-                <div class="flex bg-gray-100 dark:bg-gray-950 p-1 rounded-lg border border-gray-200 dark:border-gray-800 shrink-0">
-                    <button wire:click="$set('viewMode', 'split')" class="px-3 py-1.5 rounded-md text-xs font-bold transition-all {{ $viewMode === 'split' ? 'bg-[var(--theme-color)] text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-300' }}">Split</button>
-                    <button wire:click="$set('viewMode', 'table')" class="px-3 py-1.5 rounded-md text-xs font-bold transition-all {{ $viewMode === 'table' ? 'bg-[var(--theme-color)] text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-300' }}">Tabelle</button>
+                <div class="flex items-center gap-2 shrink-0">
+                    <button type="button" wire:click="openCreateTicketModal" class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-[var(--theme-color)] text-gray-900 shadow-sm hover:opacity-90 transition-all flex items-center gap-1.5">
+                        <span>+ Nachricht an Kunde</span>
+                    </button>
+                    <div class="flex bg-gray-100 dark:bg-gray-950 p-1 rounded-lg border border-gray-200 dark:border-gray-800 shrink-0">
+                        <button wire:click="$set('viewMode', 'split')" class="px-3 py-1.5 rounded-md text-xs font-bold transition-all {{ $viewMode === 'split' ? 'bg-[var(--theme-color)] text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-300' }}">Split</button>
+                        <button wire:click="$set('viewMode', 'table')" class="px-3 py-1.5 rounded-md text-xs font-bold transition-all {{ $viewMode === 'table' ? 'bg-[var(--theme-color)] text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-300' }}">Tabelle</button>
+                    </div>
                 </div>
             </h2>
 
@@ -46,7 +51,7 @@
             <div class="flex-1 overflow-y-auto custom-scrollbar bg-white/60 dark:bg-gray-900" x-data>
                 @forelse($tickets as $t)
                     @php $unread = $t->messages->where('sender_type', 'customer')->where('is_read_by_admin', false)->count(); @endphp
-                    <div wire:click="selectTicket('{{ $t->id }}')" @click="if(window.innerWidth < 1024) { setTimeout(() => document.getElementById('ticket-chat-area').scrollIntoView({behavior: 'smooth'}), 100); }" class="p-4 sm:p-5 border-b border-gray-100 dark:border-gray-800/50 cursor-pointer transition-all {{ $activeTicketId === $t->id ? 'bg-[var(--theme-color)]/10 border-l-4 border-l-[var(--theme-color)] dark:shadow-inner' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50 border-l-4 border-l-transparent' }}">
+                    <div wire:click="selectTicket('{{ $t->id }}')" @click="window.dispatchEvent(new CustomEvent('clear-admin-ticket-badge')); if(window.innerWidth < 1024) { setTimeout(() => document.getElementById('ticket-chat-area').scrollIntoView({behavior: 'smooth'}), 100); }" class="p-4 sm:p-5 border-b border-gray-100 dark:border-gray-800/50 cursor-pointer transition-all {{ $activeTicketId === $t->id ? 'bg-[var(--theme-color)]/10 border-l-4 border-l-[var(--theme-color)] dark:shadow-inner' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50 border-l-4 border-l-transparent' }}">
                         <div class="flex justify-between items-start mb-2 gap-2">
                             <div class="flex items-center gap-2">
                                 @if($unread > 0) <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)] shrink-0"></span> @endif
@@ -124,7 +129,7 @@
                                 {{ $t->updated_at->diffForHumans() }}
                             </td>
                             <td class="px-4 xl:px-6 py-3 text-right">
-                                 <button wire:click="selectTicket('{{ $t->id }}'); $set('viewMode', 'split')" class="px-4 py-2 bg-[var(--theme-color)] text-gray-900 font-black rounded-xl tracking-widest uppercase text-[10px] hover:scale-105 transition-transform dark:shadow-[0_0_10px_var(--theme-color)0.3)]">Öffnen</button>
+                                 <button wire:click="selectTicket('{{ $t->id }}'); $set('viewMode', 'split')" @click="window.dispatchEvent(new CustomEvent('clear-admin-ticket-badge'))" class="px-4 py-2 bg-[var(--theme-color)] text-gray-900 font-black rounded-xl tracking-widest uppercase text-[10px] hover:scale-105 transition-transform dark:shadow-[0_0_10px_var(--theme-color)0.3)]">Öffnen</button>
                             </td>
                         </tr>
                         @empty
@@ -147,7 +152,196 @@
         {{-- RECHTE SEITE: CHAT / DETAIL ANSICHT --}}
         <div id="ticket-chat-area" class="w-full lg:flex-1 bg-white/90 dark:bg-gray-900 rounded-[2rem] dark:shadow-2xl border border-gray-200/80 dark:border-gray-800 flex flex-col overflow-hidden relative min-h-[70vh] lg:h-full lg:min-h-0 transition-opacity duration-300">
 
-        @if($activeTicket)
+        @if($isCreatingTicket)
+            {{-- ADMIN-INITIATED TICKET / DIREKTNACHRICHT AN KUNDEN --}}
+            <div class="p-4 sm:p-6 border-b border-gray-200/80 dark:border-gray-800 shrink-0 flex items-center justify-between bg-gray-50/80 dark:bg-gray-950/50">
+                <div class="flex items-center gap-2.5">
+                    <span class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-[var(--theme-color-15)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">Direktnachricht</span>
+                    <h2 class="text-lg sm:text-xl font-serif font-bold text-gray-900 dark:text-white">Neue Nachricht an Kunden senden</h2>
+                    <div x-data="{ tip: false }" class="relative inline-flex items-center">
+                        <button type="button" @mouseenter="tip = true" @mouseleave="tip = false" @click="tip = !tip" class="w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-[10px] font-black flex items-center justify-center hover:bg-[var(--theme-color)] hover:text-gray-900 transition-colors">!</button>
+                        <div x-show="tip" x-cloak class="absolute left-6 top-0 z-30 w-72 p-3 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-xl text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed">
+                            Erstellt ein direktes Support-Ticket für den ausgewählten Kunden. Der Kunde sieht sofort den roten Benachrichtigungspunkt im Kundenportal und erhält bei Offline-Status eine E-Mail-Benachrichtigung.
+                        </div>
+                    </div>
+                </div>
+                <button type="button" wire:click="closeCreateTicketModal" class="p-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-red-500 transition-all">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <form wire:submit.prevent="createAdminTicket" class="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 custom-scrollbar">
+                {{-- 1. Kunde auswählen --}}
+                <div class="space-y-2 relative">
+                    <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Empfänger (Kunde) *</label>
+                    @if($this->selectedNewTicketCustomer)
+                        @php
+                            $selCust = $this->selectedNewTicketCustomer;
+                            $selInitials = mb_strtoupper(mb_substr((string) $selCust->first_name, 0, 1) . mb_substr((string) $selCust->last_name, 0, 1));
+                            $selShortId = 'KDN-' . strtoupper(substr(str_replace('-', '', (string) $selCust->id), 0, 6));
+                        @endphp
+                        <div class="flex items-center justify-between gap-3 p-4 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-[var(--theme-color)]/40">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="w-10 h-10 rounded-xl bg-[var(--theme-color-15)] border border-[var(--theme-color-30)] text-[var(--theme-color)] font-black text-xs flex items-center justify-center shrink-0">
+                                    {{ $selInitials !== '' ? $selInitials : 'KD' }}
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <p class="text-sm font-bold text-gray-900 dark:text-white truncate">
+                                            {{ $selCust->first_name }} {{ $selCust->last_name }}
+                                        </p>
+                                        <span class="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-500 dark:text-gray-400">{{ $selShortId }}</span>
+                                    </div>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ $selCust->email }}</p>
+                                </div>
+                            </div>
+                            <button type="button" wire:click="clearSelectedCustomerForNewTicket" class="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300 hover:text-red-500 transition-all shrink-0">
+                                Ändern
+                            </button>
+                        </div>
+                    @else
+                        @php
+                            $searchResults = $this->customerSearchResults;
+                            $hasTypedQuery = mb_strlen(trim((string) $newTicketCustomerSearch)) >= 1;
+                        @endphp
+                        <div class="relative">
+                            <div class="relative flex items-center">
+                                <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 absolute left-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                                <input type="text"
+                                       wire:model.live.debounce.150ms="newTicketCustomerSearch"
+                                       autocomplete="off"
+                                       placeholder="Kundenname, E-Mail oder ID tippen..."
+                                       class="w-full text-sm border border-gray-200 dark:border-gray-800 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white pl-11 pr-10 py-3.5 outline-none focus:ring-2 focus:ring-[var(--theme-color)] transition-all">
+                                <div wire:loading wire:target="newTicketCustomerSearch" class="absolute right-3.5">
+                                    <svg class="animate-spin h-4 w-4 text-[var(--theme-color)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                                </div>
+                                @if($hasTypedQuery)
+                                    <button type="button" wire:loading.remove wire:target="newTicketCustomerSearch" wire:click="$set('newTicketCustomerSearch', '')" class="absolute right-3.5 text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </button>
+                                @endif
+                            </div>
+
+                            @if($hasTypedQuery)
+                                <div class="mt-2 rounded-2xl bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden z-20">
+                                    <div class="px-4 py-2 bg-gray-50 dark:bg-gray-900/90 border-b border-gray-200/80 dark:border-gray-800 flex items-center justify-between gap-2 text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">
+                                        <span>{{ $searchResults['total'] }} {{ $searchResults['total'] === 1 ? 'Treffer' : 'Treffer' }}</span>
+                                        @if($searchResults['has_more'])
+                                            <span class="text-[var(--theme-color)]">Top 15 von {{ $searchResults['total'] }} Kunden</span>
+                                        @endif
+                                    </div>
+                                    <div class="max-h-64 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800/70 custom-scrollbar">
+                                        @forelse($searchResults['items'] as $entry)
+                                            <button type="button"
+                                                    wire:key="cust-search-{{ $entry['id'] }}"
+                                                    wire:click="selectCustomerForNewTicket('{{ $entry['id'] }}')"
+                                                    class="w-full text-left px-4 py-3 flex items-center justify-between gap-3 hover:bg-[var(--theme-color-10)] transition-colors group">
+                                                <div class="flex items-center gap-3 min-w-0">
+                                                    <div class="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-900 group-hover:bg-[var(--theme-color-20)] text-gray-700 dark:text-gray-300 group-hover:text-[var(--theme-color)] font-black text-xs flex items-center justify-center shrink-0 transition-colors">
+                                                        {{ $entry['initials'] }}
+                                                    </div>
+                                                    <div class="min-w-0">
+                                                        <div class="flex items-center gap-2 flex-wrap">
+                                                            <span class="text-xs sm:text-sm font-bold text-gray-900 dark:text-white truncate">{{ $entry['full_name'] }}</span>
+                                                            @if($entry['is_similar'])
+                                                                <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">Ähnlich</span>
+                                                            @endif
+                                                        </div>
+                                                        <div class="flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                                                            <span class="truncate">{{ $entry['email'] }}</span>
+                                                            @if(!empty($entry['city']))
+                                                                <span class="text-gray-300 dark:text-gray-700">•</span>
+                                                                <span class="truncate">{{ $entry['city'] }}</span>
+                                                            @endif
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="flex items-center gap-2 shrink-0">
+                                                    <span class="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-500 dark:text-gray-400">{{ $entry['short_id'] }}</span>
+                                                    <svg class="w-4 h-4 text-gray-400 group-hover:text-[var(--theme-color)] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                                                </div>
+                                            </button>
+                                        @empty
+                                            <div class="p-4 text-center text-xs text-gray-500 dark:text-gray-400 font-bold">
+                                                Kein passender oder ähnlicher Kunde gefunden.
+                                            </div>
+                                        @endforelse
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
+                    @endif
+                    @error('newTicketCustomerId') <span class="text-xs text-red-500 font-bold block">{{ $message }}</span> @enderror
+                </div>
+
+                {{-- 2. Kategorie & optionale Bestellung --}}
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Kategorie</label>
+                        <select wire:model="newTicketCategory" class="w-full text-sm border border-gray-200 dark:border-gray-800 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white p-3.5 outline-none focus:ring-2 focus:ring-[var(--theme-color)]">
+                            <option value="support">Hilfe &amp; Support</option>
+                            <option value="general">Allgemeine Frage</option>
+                            <option value="return">Retoure / Reklamation</option>
+                            <option value="bug">Systemhinweis</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Verknüpfte Bestellung (Optional)</label>
+                        <select wire:model="newTicketOrderId" class="w-full text-sm border border-gray-200 dark:border-gray-800 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white p-3.5 outline-none focus:ring-2 focus:ring-[var(--theme-color)]">
+                            <option value="">Ohne Bestellbezug</option>
+                            @foreach($this->selectedCustomerOrders as $cOrd)
+                                <option value="{{ $cOrd->id }}">Bestellung #{{ $cOrd->order_number }} ({{ $cOrd->created_at?->format('d.m.Y') }})</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+
+                {{-- 3. Betreff --}}
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Betreff *</label>
+                    <input type="text"
+                           wire:model="newTicketSubject"
+                           placeholder="z. B. Rückfrage zu deiner Gravur / Wichtige Information zu deiner Bestellung"
+                           class="w-full text-sm border border-gray-200 dark:border-gray-800 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white p-3.5 outline-none focus:ring-2 focus:ring-[var(--theme-color)]">
+                    @error('newTicketSubject') <span class="text-xs text-red-500 font-bold block">{{ $message }}</span> @enderror
+                </div>
+
+                {{-- 4. Nachricht --}}
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nachricht an Kunden *</label>
+                    <textarea wire:model="newTicketMessage"
+                              rows="5"
+                              placeholder="Schreibe deine Nachricht an den Kunden..."
+                              class="w-full text-sm border border-gray-200 dark:border-gray-800 rounded-2xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white p-4 outline-none focus:ring-2 focus:ring-[var(--theme-color)] resize-none"></textarea>
+                    @error('newTicketMessage') <span class="text-xs text-red-500 font-bold block">{{ $message }}</span> @enderror
+                </div>
+
+                {{-- 5. Anhänge & Absenden --}}
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-gray-200 dark:border-gray-800">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <label class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-bold text-gray-600 dark:text-gray-300 hover:border-[var(--theme-color)] cursor-pointer transition-all">
+                            <svg class="w-4 h-4 text-[var(--theme-color)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+                            <span>Anhang hinzufügen</span>
+                            <input type="file" wire:model="newTicketAttachments" multiple class="hidden">
+                        </label>
+                        @if(!empty($newTicketAttachments))
+                            <span class="text-xs font-bold text-[var(--theme-color)]">{{ count($newTicketAttachments) }} Datei(en) ausgewählt</span>
+                        @endif
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        <button type="button" wire:click="closeCreateTicketModal" class="px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-all">
+                            Abbrechen
+                        </button>
+                        <button type="submit" wire:loading.attr="disabled" class="px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest bg-[var(--theme-color)] text-gray-900 shadow-sm hover:opacity-90 transition-all flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                            <span>Nachricht senden</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        @elseif($activeTicket)
             <div class="p-4 sm:p-6 border-b border-gray-200/80 dark:border-gray-800 shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-50/80 dark:bg-gray-950/50 relative z-10 gap-4">
                 <div class="w-full sm:w-auto min-w-0">
                     <div class="flex items-center gap-3 mb-2">
@@ -315,6 +509,16 @@
                         </div>
                     </form>
                 @endif
+            </div>
+        @else
+            <div class="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                <div class="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 flex items-center justify-center mb-4 text-[var(--theme-color)]">
+                    <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+                </div>
+                <p class="text-sm font-bold text-gray-900 dark:text-white mb-4">Wähle links ein Ticket aus oder starte eine Direktnachricht</p>
+                <button type="button" wire:click="openCreateTicketModal" class="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest bg-[var(--theme-color)] text-gray-900 shadow-sm hover:opacity-90 transition-all">
+                    + Nachricht an Kunde
+                </button>
             </div>
         @endif
     </div>

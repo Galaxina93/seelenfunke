@@ -33,7 +33,31 @@ data class EmailAccount(
     @SerializedName("is_commercial") val isCommercial: Boolean = true,
     val status: String? = null,
     @SerializedName("total_unread") val totalUnread: Int = 0,
-    val folders: Map<String, String>? = null
+    val folders: Map<String, String>? = null,
+    val counts: Map<String, Int>? = null,
+    @SerializedName("total_counts") val totalCounts: Map<String, Int>? = null
+)
+
+data class EmailProcessedSummary(
+    @SerializedName("total_count") val totalCount: Int = 0,
+    @SerializedName("important_count") val importantCount: Int = 0,
+    @SerializedName("normal_count") val normalCount: Int = 0,
+    @SerializedName("unread_count") val unreadCount: Int = 0,
+    @SerializedName("archived_count") val archivedCount: Int = 0
+)
+
+data class EmailMessageTags(
+    @SerializedName("action_hint") val actionHint: String? = null,
+    @SerializedName("account_email") val accountEmail: String? = null,
+    val resolved: Boolean? = null
+)
+
+data class EmailMessageAttachment(
+    val id: Int = 0,
+    val filename: String = "Anhang",
+    val size: Long = 0L,
+    val path: String? = null,
+    @SerializedName("content_type") val contentType: String? = "application/octet-stream"
 )
 
 data class EmailMessage(
@@ -43,22 +67,40 @@ data class EmailMessage(
     @SerializedName("from_name") val fromName: String?,
     @SerializedName("from_email") val fromEmail: String?,
     @SerializedName("to_email") val toEmail: String?,
+    @SerializedName("cc_email") val ccEmail: String? = null,
+    @SerializedName("bcc_email") val bccEmail: String? = null,
     val subject: String?,
     @SerializedName("body_plain") val body: String?,
     @SerializedName("body_html") val htmlBody: String?,
+    val category: String? = null,
+    val priority: String? = null,
+    @SerializedName("ai_status") val aiStatus: String? = null,
     @SerializedName("is_read") val isRead: Boolean = false,
+    @SerializedName("is_archived") val isArchived: Boolean = false,
     @SerializedName("received_at") val receivedAt: String?,
-    @SerializedName("has_attachments") val hasAttachments: Boolean = false
+    @SerializedName("has_attachments") val hasAttachments: Boolean = false,
+    val tags: EmailMessageTags? = null,
+    val attachments: List<EmailMessageAttachment>? = null
 ) {
     val from: String
         get() = fromName?.takeIf { it.isNotBlank() } ?: fromEmail ?: ""
 
     val to: String
         get() = toEmail ?: ""
+
+    val actionHint: String
+        get() = tags?.actionHint ?: ""
+
+    val accountEmail: String
+        get() = tags?.accountEmail ?: ""
+
+    val isImportant: Boolean
+        get() = priority.equals("high", ignoreCase = true)
 }
 
 
 data class EmailAttachment(
+    val id: Int? = null,
     val path: String,
     val filename: String,
     val mime: String,
@@ -66,15 +108,58 @@ data class EmailAttachment(
 )
 
 data class SendEmailRequest(
+    @SerializedName("draft_id") val draftId: String? = null,
     @SerializedName("account_id") val accountId: String? = null,
     val from: String,
     val to: String,
+    val cc: String? = null,
+    val bcc: String? = null,
     val subject: String,
     val body: String,
     val attachments: List<EmailAttachment>? = null
 )
 
-data class EmailAccountResponse(val success: Boolean, val data: List<EmailAccount>)
+data class SaveDraftRequest(
+    @SerializedName("draft_id") val draftId: String? = null,
+    @SerializedName("account_id") val accountId: String,
+    val to: String = "",
+    val cc: String = "",
+    val bcc: String = "",
+    val subject: String = "",
+    val body: String = ""
+)
+
+data class ResolveMessageRequest(
+    val important: Boolean = false
+)
+
+data class SenderRuleRequest(
+    @SerializedName("target_folder") val targetFolder: String
+)
+
+data class EmailRecipientDto(
+    val email: String = "",
+    val name: String = "",
+    val count: Int = 1
+)
+
+data class RecipientsResponse(
+    val success: Boolean = false,
+    val data: List<EmailRecipientDto>? = null
+)
+
+data class AiSortResponse(
+    val success: Boolean = false,
+    val message: String? = null,
+    val processed: Int? = null,
+    val important: Int? = null
+)
+
+data class EmailAccountResponse(
+    val success: Boolean,
+    val data: List<EmailAccount>,
+    @SerializedName("processed_summary") val processedSummary: EmailProcessedSummary? = null
+)
 data class SingleEmailAccountResponse(val success: Boolean, val data: EmailAccount)
 data class EmailMessagesData(val data: List<EmailMessage>)
 data class EmailMessagesResponse(val success: Boolean, val data: EmailMessagesData)
@@ -125,12 +210,18 @@ interface EmailApi {
     @GET("funki/contacts")
     suspend fun getContacts(): ContactsResponse
 
+    @GET("funki/emails/recipients")
+    suspend fun getRecipients(): RecipientsResponse
+
     @GET("funki/emails/messages")
     suspend fun getMessages(
         @Query("folder") folder: String?,
         @Query("account_id") accountId: String?,
         @Query("search") search: String?,
-        @Query("unread_only") unreadOnly: Boolean?
+        @Query("unread") unread: Int?,
+        @Query("global") global: Int? = 1,
+        @Query("priority_filter") priorityFilter: String? = null,
+        @Query("category_filter") categoryFilter: String? = null
     ): EmailMessagesResponse
 
     @GET("funki/emails/messages/{id}")
@@ -139,6 +230,35 @@ interface EmailApi {
     @POST("funki/emails/send")
     suspend fun sendEmail(
         @Body request: SendEmailRequest
+    ): SimpleSuccessResponse
+
+    @POST("funki/emails/drafts")
+    suspend fun saveDraft(
+        @Body request: SaveDraftRequest
+    ): EmailMessageDetailResponse
+
+    @POST("funki/emails/sync")
+    suspend fun syncEmails(): SimpleSuccessResponse
+
+    @POST("funki/emails/ai-sort")
+    suspend fun aiSortEmails(): AiSortResponse
+
+    @PUT("funki/emails/messages/{id}/resolve")
+    suspend fun resolveMessage(
+        @Path("id") id: String,
+        @Body request: ResolveMessageRequest
+    ): SimpleSuccessResponse
+
+    @POST("funki/emails/messages/{id}/create-task")
+    suspend fun createTaskFromMail(@Path("id") id: String): SimpleSuccessResponse
+
+    @POST("funki/emails/messages/{id}/create-contact")
+    suspend fun createContactFromMail(@Path("id") id: String): SimpleSuccessResponse
+
+    @POST("funki/emails/messages/{id}/rule")
+    suspend fun createSenderRule(
+        @Path("id") id: String,
+        @Body request: SenderRuleRequest
     ): SimpleSuccessResponse
 
     @Multipart

@@ -106,4 +106,165 @@ use HasFactory, HasUuids;
         $path = $this->resolveDisplayImagePath();
         return $path ? \App\Models\Product\ProductTemplate::resolveImageUrl($path) : null;
     }
+
+    /**
+     * Liefert alle digitalen Begleitdokumente (z. B. Echtheitszertifikat, Pflegehinweise) zu dieser Bestellposition.
+     * Kombiniert den Kaufzeitpunkt-Snapshot aus configuration['digital_documents'] mit den aktuell am Produkt
+     * hinterlegten Dokumenten (dedupliziert nach ID und Dateipfad).
+     *
+     * @return array<int, array{id: string, title: string, path: string, filename: string, extension: string, size_bytes: int, uploaded_at: string}>
+     */
+    public function resolveDigitalDocuments(): array
+    {
+        $conf = is_array($this->configuration) ? $this->configuration : [];
+        $snapshotDocs = is_array($conf['digital_documents'] ?? null) ? $conf['digital_documents'] : [];
+        $productDocs = ($this->product && method_exists($this->product, 'getDigitalDocuments'))
+            ? $this->product->getDigitalDocuments()
+            : [];
+
+        $mergedById = [];
+        $pathToId = [];
+
+        foreach (array_values($snapshotDocs) as $idx => $rawDoc) {
+            if (!is_array($rawDoc)) {
+                continue;
+            }
+            $norm = Product::normalizeDigitalDocumentItem($rawDoc, $idx);
+            if (!$norm) {
+                continue;
+            }
+            $mergedById[$norm['id']] = $norm;
+            $pathToId[$norm['path']] = $norm['id'];
+        }
+
+        foreach (array_values($productDocs) as $idx => $rawDoc) {
+            if (!is_array($rawDoc)) {
+                continue;
+            }
+            $norm = Product::normalizeDigitalDocumentItem($rawDoc, $idx);
+            if (!$norm) {
+                continue;
+            }
+            if (isset($pathToId[$norm['path']])) {
+                $existingId = $pathToId[$norm['path']];
+                $mergedById[$existingId] = array_merge($mergedById[$existingId], $norm, ['id' => $existingId]);
+            } else {
+                $mergedById[$norm['id']] = $norm;
+                $pathToId[$norm['path']] = $norm['id'];
+            }
+        }
+
+        return array_values($mergedById);
+    }
+
+    /**
+     * Prüft, ob dieser Bestellposition digitale Begleitdokumente zugeordnet sind.
+     */
+    public function hasDigitalDocuments(): bool
+    {
+        return count($this->resolveDigitalDocuments()) > 0;
+    }
+
+    /**
+     * Liefert die zum Kaufzeitpunkt gespeicherten Beschaffungsdaten für Rohlinge (Auftragsfertigung bei Bestand 0).
+     */
+    public function getSupplierProcurementData(): ?array
+    {
+        $conf = is_array($this->configuration) ? $this->configuration : [];
+        return is_array($conf['supplier_procurement'] ?? null) ? $conf['supplier_procurement'] : null;
+    }
+
+    /**
+     * Prüft, ob für diese Bestellposition eine Rohling-Nachbestellung beim Lieferanten erforderlich ist.
+     */
+    public function requiresSupplierProcurement(): bool
+    {
+        $data = $this->getSupplierProcurementData();
+        return !empty($data['required']);
+    }
+
+    /**
+     * Prüft, ob der Rohling für diese Bestellposition bereits beim Lieferanten bestellt wurde.
+     */
+    public function isSupplierOrderPlaced(): bool
+    {
+        $data = $this->getSupplierProcurementData();
+        return !empty($data['ordered_from_supplier']);
+    }
+
+    /**
+     * Liefert die fehlende Rohling-Stückzahl, die beim Lieferanten nachbestellt werden muss.
+     */
+    public function getMissingSupplierQuantity(): int
+    {
+        $data = $this->getSupplierProcurementData();
+        return max(1, (int) ($data['missing_quantity'] ?? $this->quantity ?? 1));
+    }
+
+    /**
+     * Liefert den Direkt-Kauflink zum Rohling beim Lieferanten.
+     */
+    public function getSupplierReorderUrl(): ?string
+    {
+        $data = $this->getSupplierProcurementData();
+        $url = trim((string) ($data['reorder_url'] ?? ''));
+        if ($url !== '') {
+            return $url;
+        }
+
+        if ($this->product) {
+            if (!empty($this->product->reorder_url)) {
+                return (string) $this->product->reorder_url;
+            }
+            $supplier = $this->product->relationLoaded('supplier')
+                ? $this->product->supplier
+                : (!empty($this->product->product_supplier_id) ? $this->product->supplier()->first() : null);
+            if (!empty($supplier?->website)) {
+                return (string) $supplier->website;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Liefert den Namen des Lieferanten für die Rohling-Beschaffung.
+     */
+    public function getSupplierName(): ?string
+    {
+        $data = $this->getSupplierProcurementData();
+        $name = trim((string) ($data['supplier_name'] ?? ''));
+        if ($name !== '') {
+            return $name;
+        }
+
+        if ($this->product) {
+            $supplier = $this->product->relationLoaded('supplier')
+                ? $this->product->supplier
+                : (!empty($this->product->product_supplier_id) ? $this->product->supplier()->first() : null);
+            if (!empty($supplier?->name)) {
+                return (string) $supplier->name;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Markiert die Rohling-Nachbestellung beim Lieferanten als erledigt oder offen.
+     */
+    public function markSupplierOrdered(bool $ordered = true): void
+    {
+        $conf = is_array($this->configuration) ? $this->configuration : [];
+        $procurement = is_array($conf['supplier_procurement'] ?? null)
+            ? $conf['supplier_procurement']
+            : ['required' => true, 'missing_quantity' => max(1, (int) $this->quantity)];
+
+        $procurement['ordered_from_supplier'] = $ordered;
+        $procurement['ordered_at'] = $ordered ? now()->format('d.m.Y H:i') : null;
+        $conf['supplier_procurement'] = $procurement;
+
+        $this->configuration = $conf;
+        $this->save();
+    }
 }

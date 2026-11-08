@@ -130,6 +130,7 @@ class CustomerTicketsComponent extends Component
 
             // NEU: Punkt ausschalten, falls Chat offen ist
             $this->dispatch('clear-ticket-badge');
+            $this->dispatch('ticket-badge-update', hasUnread: false);
         } else {
             // NEU: Punkt anschalten, falls User im Listen-Modus ist
             $this->dispatch('ticket-badge-update', hasUnread: true);
@@ -255,6 +256,7 @@ class CustomerTicketsComponent extends Component
 
             // NEU: Punkt ausschalten
             $this->dispatch('clear-ticket-badge');
+            $this->dispatch('ticket-badge-update', hasUnread: false);
 
             // Lade Rating falls das Ticket geschlossen ist
             if ($ticket->rating !== null) {

@@ -69,6 +69,72 @@
         </div>
     </div>
 
+    {{-- ===================================================================== --}}
+    {{-- 0. FUNKENWERK ANDROID WECKER-SYNC & DYNAMISCHE AUFSTEH-TAKTUNG         --}}
+    {{-- ===================================================================== --}}
+    <div class="bg-white dark:bg-gray-900 rounded-2xl sm:rounded-3xl border border-gray-200 dark:border-gray-800 p-3.5 sm:px-5 sm:py-4 shadow-sm">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 flex items-center justify-center text-gray-900 dark:text-white shrink-0">
+                    <x-heroicon-m-bell-alert class="w-4 h-4 text-[var(--theme-color)]" />
+                </div>
+                <div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-xs sm:text-sm font-bold text-gray-900 dark:text-white">Wecker-Taktung</span>
+                        <span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-800 font-mono">
+                            ⏰ {{ $alarmSyncStats['active_alarm_time'] }} Uhr ({{ $alarmSyncStats['active_alarm_label'] }})
+                        </span>
+                        <span class="px-2 py-0.5 rounded-md text-[11px] font-bold {{ $useAlarmShift && $alarmSyncStats['selected_date_shift_minutes'] !== 0 ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-800' : 'bg-gray-100 dark:bg-gray-950 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-800' }} border">
+                            {{ $useAlarmShift ? $alarmSyncStats['selected_date_shift_label'] : 'Statisch (' . $alarmSyncStats['earliest_routine_base'] . ' Uhr)' }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between sm:justify-end gap-2">
+                <div class="flex items-center gap-1.5 text-[11px] font-semibold">
+                    <span class="px-2.5 py-1.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300" title="Durchschnittliche Aufstehzeit im gewählten Zeitraum">
+                        Ø Aufstehen: <strong class="font-mono text-gray-900 dark:text-white">{{ $alarmSyncStats['avg_wake_time_period'] }}</strong>
+                    </span>
+                    <span class="hidden sm:inline-flex px-2.5 py-1.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400" title="Letzte Paket-Synchronisation mit der Funkenwerk Android-App">
+                        Sync: {{ $alarmSyncStats['last_synced_at'] }}
+                    </span>
+                </div>
+
+                <div class="flex items-center gap-1.5">
+                    <button
+                        type="button"
+                        wire:click="toggleAlarmShift"
+                        class="px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors flex items-center gap-1.5
+                        {{ $useAlarmShift
+                            ? 'bg-gray-900 text-white border-gray-900 dark:bg-white dark:text-gray-900 dark:border-white'
+                            : 'bg-gray-100 dark:bg-gray-950 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-800 hover:text-gray-900 dark:hover:text-white' }}"
+                        title="Passt die Startzeiten deiner Tagesroutine und den Fair-Score dynamisch an deine tatsächliche Wecker-/Aufstehzeit an">
+                        <x-heroicon-m-adjustments-horizontal class="w-4 h-4" />
+                        <span>{{ $useAlarmShift ? 'Dynamisch aktiv' : 'Statisch' }}</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        wire:click="syncAlarmPackage"
+                        wire:loading.attr="disabled"
+                        class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs"
+                        title="Wecker- & Aufsteh-Paket aus der Funkenwerk Android-App abrufen und Routine-Taktung aktualisieren">
+                        <x-heroicon-m-arrow-path wire:loading.class="animate-spin" wire:target="syncAlarmPackage" class="w-4 h-4" />
+                        <span>Wecker-Sync</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        @if($syncFeedbackMessage)
+            <div class="mt-2.5 pt-2.5 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                <span>✓ {{ $syncFeedbackMessage }}</span>
+                <button type="button" wire:click="$set('syncFeedbackMessage', null)" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
+            </div>
+        @endif
+    </div>
+
     @if($viewMode !== 'routine')
         {{-- ===================================================================== --}}
         {{-- 1. FUNKI BEWERTUNGSSYSTEM & SYSTEM-COACH (MATT, CLEAN, MOBILOPTIMIERT) --}}
@@ -418,7 +484,7 @@
                                     <td class="py-2.5 pl-2 pr-2 {{ $evalPeriod === 'month' ? 'w-40 sm:w-52 max-w-[210px]' : '' }} sticky left-0 bg-white dark:bg-gray-900 group-hover:bg-gray-50 dark:group-hover:bg-gray-800/40 z-10">
                                         <div class="flex items-center gap-1.5 min-w-0">
                                             <span class="w-2 h-2 rounded-full shrink-0 {{ $dotClass }}"></span>
-                                            <span class="font-mono text-[10px] sm:text-[11px] font-semibold text-gray-500 dark:text-gray-400 shrink-0">{{ $row['start_time'] }}</span>
+                                            <span class="font-mono text-[10px] sm:text-[11px] font-semibold shrink-0 {{ ($useAlarmShift ?? false) && ($row['start_time'] !== ($row['base_start_time'] ?? $row['start_time'])) ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400' }}" @if(($useAlarmShift ?? false) && ($row['start_time'] !== ($row['base_start_time'] ?? $row['start_time']))) title="Dynamisch getaktet über Wecker (Basis: {{ $row['base_start_time'] }} Uhr)" @endif>{{ $row['start_time'] }}</span>
                                             <span class="font-semibold text-gray-900 dark:text-gray-100 truncate text-xs" title="{{ $row['title'] }}">
                                                 {{ $row['title'] }}
                                             </span>
@@ -707,12 +773,14 @@
                     $nowFormat = date('H:i');
                     $activeId = null;
                     $sortedRoutines = $routines->sortBy('start_time')->values();
+                    $shiftMinsTimeline = $useAlarmShift ? ($alarmSyncStats['selected_date_shift_minutes'] ?? 0) : 0;
 
                     foreach ($sortedRoutines as $i => $r) {
-                        $start = date('H:i', strtotime($r->start_time));
+                        $baseStartStr = date('H:i', strtotime($r->start_time));
+                        $start = \App\Livewire\Shop\Management\ManagementRoutine::shiftRoutineTimeString($baseStartStr, $shiftMinsTimeline);
                         $end = ($r->duration_minutes > 0)
-                            ? date('H:i', strtotime($r->start_time . " +{$r->duration_minutes} minutes"))
-                            : date('H:i', strtotime(($sortedRoutines[$i + 1] ?? $sortedRoutines[0])->start_time));
+                            ? date('H:i', strtotime($start . " +{$r->duration_minutes} minutes"))
+                            : \App\Livewire\Shop\Management\ManagementRoutine::shiftRoutineTimeString(date('H:i', strtotime(($sortedRoutines[$i + 1] ?? $sortedRoutines[0])->start_time)), $shiftMinsTimeline);
 
                         if ($start <= $end) {
                             if ($nowFormat >= $start && $nowFormat < $end) { $activeId = $r->id; break; }
@@ -732,12 +800,17 @@
                             $stepsCount = $r->steps->count();
                             $doneStepsCount = count(array_intersect($r->steps->pluck('id')->map(fn($id) => (string)$id)->toArray(), $completedStepIds));
                             $isStepsExpanded = in_array($r->id, $expandedSteps);
+                            $baseTimeFormatted = \Carbon\Carbon::parse($r->start_time)->format('H:i');
+                            $displayTimeFormatted = \App\Livewire\Shop\Management\ManagementRoutine::shiftRoutineTimeString($baseTimeFormatted, $shiftMinsTimeline);
                         @endphp
 
                         <div class="flex items-stretch gap-2.5 sm:gap-4 group">
                             {{-- Uhrzeit --}}
                             <div class="w-11 sm:w-12 text-right font-mono text-xs font-bold pt-4 shrink-0 {{ $isActive ? 'text-gray-900 dark:text-white' : ($isCompletedToday ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400') }}">
-                                {{ \Carbon\Carbon::parse($r->start_time)->format('H:i') }}
+                                <div>{{ $displayTimeFormatted }}</div>
+                                @if($displayTimeFormatted !== $baseTimeFormatted)
+                                    <div class="text-[9px] font-normal text-gray-400 dark:text-gray-500 line-through">{{ $baseTimeFormatted }}</div>
+                                @endif
                             </div>
 
                             {{-- Timeline Continuous Track & Dot --}}

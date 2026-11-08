@@ -10,25 +10,25 @@ Das Bestellungs-Management ist die zentrale Schnittstelle zur physischen Bestell
 ## Beteiligte Komponenten & Modelle
 
 ### Backend-Livewire-Controller
-* [OrderOverview](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderOverview.php)
+* [OrderOverview](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderOverview.php)
   * Die primäre administrative Schaltzentrale für Bestellungs-CRUD, Verpackungsfortschritte und Versandlabel-Erstellung.
 
 ### Dienste & Jobs
-* [DhlService](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/DhlService.php)
+* [DhlService](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/DhlService.php)
   * Kommuniziert mit den APIs von DHL zur Erzeugung von Tracking-IDs und Paketaufklebern.
-* [ProcessOrderDocumentsAndMails](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Jobs/ProcessOrderDocumentsAndMails.php)
+* [ProcessOrderDocumentsAndMails](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Jobs/ProcessOrderDocumentsAndMails.php)
   * Hintergrund-Job zur asynchronen PDF-Rechnungserstellung und E-Mail-Zustellung.
-* [FileDownloadService](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/Export/FileDownloadService.php)
+* [FileDownloadService](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/Export/FileDownloadService.php)
   * Exportiert Laserdateien (SVGs) für 3D-Gravuren.
 
 ### Modelle
-* [OrderOrder](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Order/OrderOrder.php)
+* [OrderOrder](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Order/OrderOrder.php)
   * Speichert Bestell-Header: `order_number`, `status` (`pending`, `processing`, `shipped`, `completed`, `cancelled`, `refunded`, `failed`), `payment_status` (`paid`, `unpaid`), Liefer- und Rechnungsadresse, Express-Status (`is_express`) und Notizen.
-* [OrderOrderItem](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Order/OrderOrderItem.php)
+* [OrderOrderItem](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Order/OrderOrderItem.php)
   * Die einzelnen Positionen. Speichert `quantity`, `completed_quantity` (wichtig für die Verpackungsstation) und `is_completed`.
-* [OrderShipment](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Order/OrderShipment.php)
+* [OrderShipment](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Order/OrderShipment.php)
   * Referenziert erzeugte Sendungsdaten und den Pfad zum DHL-PDF-Label.
-* [SystemLog](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/System/SystemLog.php)
+* [SystemLog](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/System/SystemLog.php)
   * Protokolliert Laufzeitfehler bei Statusänderungen oder API-Fehlern.
 
 ---
@@ -101,5 +101,10 @@ Für Bestellpositionen, die über die **Schnell-Personalisierung (`personalizati
    - Beim Klick auf **„XTOOL LASER-DATEI LADEN“** werden die eingegebenen Texte und die gewählte Konfigurator-Schriftart (`type === 'font'`) automatisch aus `custom_fields_data` / `texts` übernommen, die `.woff2`-Schrift als Base64-`@font-face` in die SVG eingebettet und maßstabsgetreu ausgegeben.
 3. **Deduplizierte Bestelldetailansicht**:
    - „Besondere Kundenwünsche“ (`notes`), „Gebuchte Verpackung & Extras“ (`addons_summary`) und der „Laser-Steckbrief“ werden in [`details-pane.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-overview-partials/details-pane.blade.php) und [`footer.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/footer.blade.php) jeweils nur an einer einzigen, eindeutigen Stelle gerendert.
+
+### 7. Digitale Begleitdokumente (Echtheitszertifikate & Pflegehinweise) in Bestellansicht & E-Mails (06.11.2026)
+- Physische Produkte können optionale digitale Begleitdokumente (`configurator_settings['digital_documents']`) mitführen, die beim Kauf in `order_order_items.configuration['digital_documents']` gesichert und über `OrderOrderItem::resolveDigitalDocuments()` aufgelöst werden.
+- Im Kundenportal (`/orders`) werden diese Dateien im Bereich **Dokumente** nach Zahlungseingang (`payment_status === 'paid'`) über [`DigitalProductDownloadController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/Customer/DigitalProductDownloadController.php) zum Download bereitgestellt; alle Bestell-E-Mails weisen den Kunden automatisch darauf hin. Siehe [`Produkte_Digitale_Begleitdokumente.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Produkte/Produkte_Digitale_Begleitdokumente.md).
+
 
 

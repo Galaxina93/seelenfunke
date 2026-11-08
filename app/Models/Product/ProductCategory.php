@@ -73,7 +73,7 @@ use HasFactory;
      * 4. Füllt das Grid bei weniger als 6 aktiven Kategorien automatisch mit "Aktuell vergriffen"- bzw.
      *    "DEMNÄCHST"-Kacheln auf exakt 6 Kacheln auf.
      */
-    public static function resolveShowcaseTiles(int $targetCount = 6): \Illuminate\Support\Collection
+    public static function resolveShowcaseTiles(int $targetCount = 8): \Illuminate\Support\Collection
     {
         try {
             $activeProducts = Product::with([
@@ -144,8 +144,14 @@ use HasFactory;
                 $slugs = $tile['slugs'] ?? [];
                 $type = $tile['type'] ?? null;
                 $materialKeywords = $tile['material_keywords'] ?? [];
+                $tileCollectionLine = $tile['collection_line'] ?? null;
 
-                $allMatched = $activeProducts->filter(function (Product $product) use ($normCats, $dbCatIds, $slugs, $type, $materialKeywords) {
+                $allMatched = $activeProducts->filter(function (Product $product) use ($normCats, $dbCatIds, $slugs, $type, $materialKeywords, $tileCollectionLine) {
+                    // Strikte 3-Welten-Trennung: Ein Produkt aus "Atelier Echtgold & Silber" oder "Geschenkgutscheine"
+                    // darf niemals in einer Manufaktur-Kategorie ("Schmuck & Accessoires", "Metall & Aluminium") gezählt oder als Bild gezogen werden.
+                    if ($tileCollectionLine !== null && $product->resolveCollectionWorld() !== $tileCollectionLine) {
+                        return false;
+                    }
                     if ($type !== null && $product->type === $type) {
                         return true;
                     }
@@ -197,7 +203,7 @@ use HasFactory;
                         $stockBadgeText .= ' · ab ' . number_format($minPriceCents / 100, 2, ',', '.') . ' €*';
                     }
                 } elseif ($voucherCount > 0) {
-                    $stockBadgeText = ($voucherCount === 1 ? 'Wertgutschein' : $voucherCount . ' Gutscheine') . ' · 5,00 € – 1.000,00 €*';
+                    $stockBadgeText = ($voucherCount === 1 ? '1 Gutschein' : $voucherCount . ' Gutscheine') . ' · 5,00 € bis 1.000,00 €*';
                 } else {
                     $stockBadgeText = $unikateCount . ' ' . ($unikateCount === 1 ? 'Unikat' : 'Unikate');
                     if ($minPriceCents) {
@@ -205,7 +211,7 @@ use HasFactory;
                     }
                 }
 
-                // Ziel-URL im Shop ermitteln
+                // Ziel-URL im Shop ermitteln (inkl. 3-Welten-Routing für Atelier & Gutscheine)
                 $targetCategoryId = $dbCatIds[0] ?? null;
                 if (!$targetCategoryId) {
                     foreach ($tile['category_names'] as $catName) {
@@ -217,11 +223,17 @@ use HasFactory;
                     }
                 }
 
-                $shopUrl = ($matched->count() === 1 && $matched->first()->slug === 'geschenkgutschein')
-                    ? route('product.show', 'geschenkgutschein')
-                    : ($targetCategoryId
-                        ? route('shop', ['filterCategory' => $targetCategoryId])
-                        : ($matched->count() === 1 ? route('product.show', $matched->first()->slug) : route('shop')));
+                if ($tileCollectionLine === 'atelier') {
+                    $shopUrl = route('shop', ['collectionWorld' => 'atelier']);
+                } elseif ($tileCollectionLine === 'voucher') {
+                    $shopUrl = route('shop', ['collectionWorld' => 'voucher']);
+                } else {
+                    $shopUrl = ($matched->count() === 1 && $matched->first()->slug === 'geschenkgutschein')
+                        ? route('product.show', 'geschenkgutschein')
+                        : ($targetCategoryId
+                            ? route('shop', ['collectionWorld' => 'manufaktur', 'filterCategory' => $targetCategoryId])
+                            : ($matched->count() === 1 ? route('product.show', $matched->first()->slug) : route('shop')));
+                }
 
                 // Gewichtete Zufalls-Auswahl (Weighted Random + Neuheiten-Boost) für das Kachel-Produktbild
                 $tile['is_ai_generated'] = false;
@@ -242,7 +254,7 @@ use HasFactory;
                         $meta = $candidateProduct->resolveMainImageMeta(null, true, $usedImagePaths);
                         if (!empty($meta['url'])) {
                             $tile['image'] = $meta['url'];
-                            $tile['alt'] = $candidateProduct->name . ' – ' . $tile['title'];
+                            $tile['alt'] = $candidateProduct->name . ' | ' . $tile['title'];
                             $tile['is_ai_generated'] = (bool) ($meta['is_ai_generated'] ?? false);
                             $tile['hero_product_name'] = $candidateProduct->name;
 
@@ -291,7 +303,7 @@ use HasFactory;
                 return $tile;
             });
 
-            // 3-Stufen-Priorisierung für exakt $targetCount (6) Kacheln:
+            // 2-Stufen-Priorisierung (ausschließlich Kategorien mit real vorhandenen Produkten, keine "DEMNÄCHST"-Platzhalter):
             // Stufe 1: Aktive & verfügbare Kategorien (Neuheiten-Kategorien und physische Unikate zuerst)
             $availableTiles = $evaluatedTiles
                 ->filter(fn (array $t) => $t['is_available'])
@@ -303,31 +315,13 @@ use HasFactory;
                 ->filter(fn (array $t) => !$t['is_available'] && $t['has_active_products'])
                 ->values();
 
-            // Stufe 3: Geplante "DEMNÄCHST"-Kategorien zum Auffüllen auf exakt $targetCount Kacheln
-            $comingSoonTiles = $evaluatedTiles
-                ->filter(fn (array $t) => !$t['has_active_products'])
-                ->values();
-
             return $availableTiles
                 ->concat($outOfStockTiles)
-                ->concat($comingSoonTiles)
                 ->take($targetCount)
                 ->values();
         } catch (\Throwable $e) {
             report($e);
-            return collect(self::getCoreTileBlueprints())->take($targetCount)->map(function (array $tile) {
-                $tile['is_available'] = false;
-                $tile['has_active_products'] = false;
-                $tile['matched_count'] = 0;
-                $tile['in_stock_count'] = 0;
-                $tile['total_stock_units'] = 0;
-                $tile['min_price_cents'] = null;
-                $tile['stock_badge_text'] = '';
-                $tile['sale_badge'] = null;
-                $tile['shop_url'] = route('shop');
-                $tile['is_ai_generated'] = false;
-                return $tile;
-            })->values();
+            return collect();
         }
     }
 
@@ -426,16 +420,19 @@ use HasFactory;
         $name = trim((string) $category->name);
         $safeName = e($name);
         $type = (string) ($category->type ?: 'physical');
+        $isAtelierCat = str_contains(mb_strtolower($name), 'atelier') || str_contains(mb_strtolower($name), 'echtgold');
 
-        $subtitle = match ($type) {
-            'digital' => 'DIGITAL & SOFORT',
-            'service' => 'MANUFAKTUR SERVICE',
+        $subtitle = match (true) {
+            $isAtelierCat => '585ER GOLD & 925ER SILBER',
+            $type === 'digital' => 'DIGITAL & SOFORT',
+            $type === 'service' => 'MANUFAKTUR SERVICE',
             default   => 'MANUFAKTUR UNIKATE',
         };
 
-        $description = match ($type) {
-            'digital' => "Sofort verfügbar und mit Liebe zum Detail ausgearbeitet: Entdecken Sie unsere digitalen Angebote aus der Kollektion <strong>{$safeName}</strong>.",
-            'service' => "Individuelle Beratung und maßgeschneiderte Umsetzung im Bereich <strong>{$safeName}</strong> direkt aus unserer Manufaktur.",
+        $description = match (true) {
+            $isAtelierCat => "Echte Edelmetalle für besondere Lebensmomente: Entdecken Sie unsere Unikate aus <strong>{$safeName}</strong>.",
+            $type === 'digital' => "Sofort verfügbar und mit Liebe zum Detail ausgearbeitet: Entdecken Sie unsere digitalen Angebote aus der Kollektion <strong>{$safeName}</strong>.",
+            $type === 'service' => "Individuelle Beratung und maßgeschneiderte Umsetzung im Bereich <strong>{$safeName}</strong> direkt aus unserer Manufaktur.",
             default   => "Handveredelte Unikate mit Charakter: Entdecken Sie unsere personalisierbaren Geschenke und Gravur-Highlights aus der Kategorie <strong>{$safeName}</strong>.",
         };
 
@@ -443,8 +440,10 @@ use HasFactory;
             'key' => 'cat_' . ($category->slug ?: $category->id),
             'title' => $name,
             'subtitle' => $subtitle,
+            'collection_line' => $isAtelierCat ? 'atelier' : 'manufaktur',
+            'collection_world_label' => $isAtelierCat ? 'Atelier Echtgold & Silber' : 'Manufaktur-Kollektion',
             'image' => asset('shop/product/seelen-kristall_w.webp'),
-            'alt' => $name . ' – Personalisierte Unikate von Mein Seelenfunke',
+            'alt' => $name . ' | Personalisierte Unikate von Mein Seelenfunke',
             'description' => $description,
             'features' => [
                 'Präzise Laser-Veredelung in Deutschland',
@@ -459,6 +458,28 @@ use HasFactory;
             'is_dynamic_category' => true,
             'icon_svg' => '<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />',
         ];
+    }
+
+    /**
+     * Berechnet die exakten Stückzahlen der 3 Kollektions-Welten (Manufaktur, Atelier Echtgold & Silber, Geschenkgutscheine).
+     */
+    public static function resolveCollectionWorldCounts(): array
+    {
+        try {
+            $activeProducts = Product::where('status', 'active')->get();
+
+            return [
+                'manufaktur' => $activeProducts->filter(fn (Product $p) => $p->resolveCollectionWorld() === 'manufaktur')->count(),
+                'atelier'    => $activeProducts->filter(fn (Product $p) => $p->resolveCollectionWorld() === 'atelier')->count(),
+                'voucher'    => $activeProducts->filter(fn (Product $p) => $p->resolveCollectionWorld() === 'voucher')->count(),
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'manufaktur' => 6,
+                'atelier'    => 1,
+                'voucher'    => 1,
+            ];
+        }
     }
 
     /**
@@ -486,8 +507,8 @@ use HasFactory;
     }
 
     /**
-     * Liefert die 6 kuratierten Manufaktur-Kernwelten inkl. universeller Kategorie-Texte,
-     * 3 positiver Fakten und Fallback-Bildern für den "DEMNÄCHST"-Zustand.
+     * Liefert die kuratierten Kernwelten (strikt getrennt nach den 3 Kollektions-Welten:
+     * Manufaktur-Kollektion, Atelier Echtgold & Silber, Geschenkgutscheine).
      */
     public static function getCoreTileBlueprints(): array
     {
@@ -495,7 +516,9 @@ use HasFactory;
             [
                 'key' => 'glas_kristall',
                 'title' => 'Glas & Kristall',
-                'subtitle' => 'PREMIUM GRAVUR',
+                'subtitle' => 'MANUFAKTUR · PREMIUM GRAVUR',
+                'collection_line' => 'manufaktur',
+                'collection_world_label' => 'Manufaktur-Kollektion',
                 'image' => asset('shop/product/seelen-kristall_w.webp'),
                 'alt' => 'K9-Kristallglas und Trinkgläser mit präziser Lasergravur',
                 'description' => 'Unsere Königsdisziplin. Wir veredeln hochwertiges <strong>K9-Kristallglas & Kristallgläser</strong> mit präzisen Lasergravuren, die durch den Weiß-Effekt edel gefrostet wirken.',
@@ -513,7 +536,9 @@ use HasFactory;
             [
                 'key' => 'metall_alu',
                 'title' => 'Metall & Aluminium',
-                'subtitle' => 'MODERNE ELEGANZ',
+                'subtitle' => 'MANUFAKTUR · MODERNE ELEGANZ',
+                'collection_line' => 'manufaktur',
+                'collection_world_label' => 'Manufaktur-Kollektion',
                 'image' => asset('shop/product/seelen-anhaenger_s.webp'),
                 'alt' => 'Lasergravur auf massivem Aluminium und Metall-Unikaten',
                 'description' => 'Spürbare Wertigkeit aus eloxiertem <strong>Aluminium und edlen Metallen</strong>. Kontrastreiche, abriebfeste Lasergravuren auf Vorder- und Rückseite für den Alltag.',
@@ -531,7 +556,9 @@ use HasFactory;
             [
                 'key' => 'klein_fein',
                 'title' => 'Schmuck & Accessoires',
-                'subtitle' => 'KLEIN & FEIN',
+                'subtitle' => 'MANUFAKTUR · KLEIN & FEIN',
+                'collection_line' => 'manufaktur',
+                'collection_world_label' => 'Manufaktur-Kollektion',
                 'image' => asset('shop/product/flaschenoeffner.webp'),
                 'alt' => 'Personalisierte Schlüsselanhänger und Accessoires',
                 'description' => 'Große Emotionen im handlichen Format. Edle <strong>Halsketten, Schlüsselanhänger, Glücksbringer und Accessoires</strong> als täglicher Begleiter oder persönliches Geschenk.',
@@ -547,9 +574,51 @@ use HasFactory;
                 'icon_svg' => '<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" />',
             ],
             [
+                'key' => 'atelier_echtgold_silber',
+                'title' => 'Atelier Echtgold & Silber',
+                'subtitle' => '585ER GOLD & 925ER SILBER',
+                'collection_line' => 'atelier',
+                'collection_world_label' => 'Atelier Echtgold & Silber',
+                'image' => asset('storage/produkte/products/echtgold-seelen-herz/echtgold-seelen-herz-main.jpg'),
+                'alt' => 'Atelier Echtgold und 925er Silber Schmuck mit Lasergravur',
+                'description' => 'Echte Edelmetalle für besondere Lebensmomente. Wir veredeln gestempeltes <strong>585er & 333er Echtgold sowie 925er Sterlingsilber</strong> per berührungslosem UV-Präzisionslaser auf Bestellung.',
+                'features' => [
+                    'Echtes 585er/333er Gold & 925er Silber',
+                    'Beidseitige UV-Präzisions-Lasergravur',
+                    'Inklusive Schmucketui & versichertem Versand',
+                ],
+                'category_names' => ['Atelier Echtgold & Silber'],
+                'material_keywords' => [],
+                'slugs' => ['echtgold-seelen-herz'],
+                'type' => null,
+                'icon_svg' => '<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />',
+            ],
+            [
+                'key' => 'atelier_armbaender',
+                'title' => 'Echtgold & Silber Armbänder',
+                'subtitle' => 'ATELIER · GRAVUR-ARMBÄNDER',
+                'collection_line' => 'atelier',
+                'collection_world_label' => 'Atelier Echtgold & Silber',
+                'image' => asset('storage/produkte/products/echtgold-seelen-herz/echtgold-seelen-herz-lifestyle.jpg'),
+                'alt' => 'Personalisierte Gravurarmbänder aus 925er Sterlingsilber und Echtgold',
+                'description' => 'Feine Figaro- und massive Panzer-Gravurarmbänder aus <strong>925er Sterlingsilber sowie 333er & 585er Echtgold</strong> mit beidseitig gravierbarer Platte.',
+                'features' => [
+                    'Gestempeltes 925er Silber & Echtgold',
+                    'Gravurschild für Namen, Datum & Koordinaten',
+                    'Für Damen, Herren, Partner & zur Taufe',
+                ],
+                'category_names' => ['Atelier Armbänder'],
+                'material_keywords' => ['gravurarmband', 'silberarmband'],
+                'slugs' => [],
+                'type' => null,
+                'icon_svg' => '<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />',
+            ],
+            [
                 'key' => 'geschenksets',
-                'title' => 'Gutscheine',
-                'subtitle' => 'LIEBEVOLL VERPACKT',
+                'title' => 'Geschenkgutscheine',
+                'subtitle' => 'SOFORT ODER METALLKARTE',
+                'collection_line' => 'voucher',
+                'collection_world_label' => 'Geschenkgutscheine',
                 'image' => asset('shop/product/geschenkpapier.webp'),
                 'alt' => 'Exklusive Geschenksets und Wertgutscheine von Mein Seelenfunke',
                 'description' => 'Das Auspacken ist Teil des Erlebnisses. Entdecken Sie flexible <strong>Seelenfunken-Wertgutscheine digital per E-Mail oder als lasergravierte Metallkarte</strong> im Edel-Umschlag.',
@@ -568,6 +637,8 @@ use HasFactory;
                 'key' => 'schiefer_natur',
                 'title' => 'Schiefer & Natur',
                 'subtitle' => 'RUSTIKALE UNIKATE',
+                'collection_line' => 'manufaktur',
+                'collection_world_label' => 'Manufaktur-Kollektion',
                 'image' => asset('shop/product/schiefer.webp'),
                 'alt' => 'Personalisierte Schieferplatten und Naturmaterialien mit Lasergravur',
                 'description' => 'Jedes Stück ein gewachsenes Natur-Unikat. Die charaktervolle Struktur von <strong>Schiefer und edlen Hölzern</strong> sorgt für faszinierende Kontraste bei der Gravur.',
@@ -586,6 +657,8 @@ use HasFactory;
                 'key' => 'deine_idee',
                 'title' => 'Deine Idee & B2B',
                 'subtitle' => 'SONDERANFERTIGUNG',
+                'collection_line' => 'manufaktur',
+                'collection_world_label' => 'Manufaktur-Kollektion',
                 'image' => asset('shop/product/individuell.webp'),
                 'alt' => 'Sonderanfertigungen und individuelle Laser-Projekte',
                 'description' => 'Sie planen ein besonderes Projekt, Vereins-Awards oder eine individuelle Serie? Wir prüfen die technische Machbarkeit und setzen Ihre Wunschgravur um.',

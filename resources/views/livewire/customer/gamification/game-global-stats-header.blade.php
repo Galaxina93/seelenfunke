@@ -27,13 +27,27 @@
             Rechnungen
         </a>
 
-        <a href="{{ route('customer.support') }}" wire:navigate @click="hasUnreadSupport = false"
+        @php
+            $headerCustId = auth()->guard('customer')->id();
+            $headerUnreadSupport = $headerCustId
+                ? \App\Models\Support\SupportTicketMessage::where('sender_type', '!=', 'customer')
+                    ->where('is_read_by_customer', false)
+                    ->whereIn('support_ticket_id', \App\Models\Support\SupportTicket::where('customer_id', $headerCustId)->pluck('id'))
+                    ->exists()
+                : false;
+        @endphp
+        <a href="{{ route('customer.support') }}" wire:navigate
+           x-data="{ unread: {{ $headerUnreadSupport ? 'true' : 'false' }} }"
+           x-effect="if (typeof hasUnreadSupport !== 'undefined') { unread = Boolean(hasUnreadSupport); }"
+           x-on:clear-ticket-badge.window="unread = false; if (typeof hasUnreadSupport !== 'undefined') { hasUnreadSupport = false; }"
+           x-on:ticket-badge-update.window="unread = ($event.detail && $event.detail.hasUnread !== undefined) ? Boolean($event.detail.hasUnread) : true; if (typeof hasUnreadSupport !== 'undefined') { hasUnreadSupport = unread; }"
+           @click="unread = false; if (typeof hasUnreadSupport !== 'undefined') { hasUnreadSupport = false; }"
            class="flex items-center gap-1.5 xl:gap-2 px-2.5 xl:px-3.5 py-2 xl:py-2.5 rounded-2xl text-[11px] xl:text-xs font-bold tracking-wide transition-all relative {{ request()->routeIs('customer.support') ? 'bg-primary text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/80' }}">
             <div class="relative">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                <span x-show="hasUnreadSupport" style="display: none;" class="absolute -top-1 -right-1 flex h-2 w-2">
+                <span x-show="unread" style="display: none;" class="absolute -top-1 -right-1 flex h-2 w-2">
                     <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                    <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.8)]"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500 shadow-[0_0_6px_rgba(197,160,89,0.8)]"></span>
                 </span>
             </div>
             Hilfe & Support

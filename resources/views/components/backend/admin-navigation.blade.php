@@ -73,11 +73,19 @@
                         @endphp
                         <li x-data="{ open: {{ $isActive ? 'true' : 'false' }} }">
                             <button @click="open = !open" class="group flex items-center w-full text-left gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isActive ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100/80 dark:hover:bg-white/5' }}">
-                                @if(!empty($deptColorCss))
-                                    <x-dynamic-component :component="'heroicon-o-' . $displayIcon" class="h-5 w-5 shrink-0 transition-colors {{ $deptColorCss }} {{ $hasAgents ? 'animate-pulse-slow' : '' }}" />
-                                @else
-                                    <x-dynamic-component :component="'heroicon-o-' . $displayIcon" class="h-5 w-5 shrink-0 transition-colors {{ $isActive ? 'text-primary' : 'text-gray-400 dark:text-gray-500 group-hover:text-gray-900 dark:group-hover:text-white' }}" />
-                                @endif
+                                <div class="relative shrink-0">
+                                    @if(!empty($deptColorCss))
+                                        <x-dynamic-component :component="'heroicon-o-' . $displayIcon" class="h-5 w-5 shrink-0 transition-colors {{ $deptColorCss }} {{ $hasAgents ? 'animate-pulse-slow' : '' }}" />
+                                    @else
+                                        <x-dynamic-component :component="'heroicon-o-' . $displayIcon" class="h-5 w-5 shrink-0 transition-colors {{ $isActive ? 'text-primary' : 'text-gray-400 dark:text-gray-500 group-hover:text-gray-900 dark:group-hover:text-white' }}" />
+                                    @endif
+                                    @if(($item['id'] ?? '') === 'support')
+                                        <span x-show="!open && hasUnreadSupport" style="display: none;" class="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 dark:shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
+                                        </span>
+                                    @endif
+                                </div>
                                 <span class="flex-1">{{ $item['title'] }}</span>
                                 <x-heroicon-m-chevron-right class="h-4 w-4 shrink-0 transition-transform duration-300" ::class="open ? 'rotate-90' : ''" />
                             </button>

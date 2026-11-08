@@ -3,16 +3,26 @@ package de.meinseelenfunke.app.data.repository
 import android.content.Context
 import android.net.Uri
 import de.meinseelenfunke.app.data.api.EmailAccount
+import de.meinseelenfunke.app.data.api.EmailAccountResponse
 import de.meinseelenfunke.app.data.api.EmailMessage
 import de.meinseelenfunke.app.data.api.EmailAttachment
+import de.meinseelenfunke.app.data.api.EmailRecipientDto
+import de.meinseelenfunke.app.data.api.ManagementContact
+import de.meinseelenfunke.app.data.api.ResolveMessageRequest
+import de.meinseelenfunke.app.data.api.SaveDraftRequest
 import de.meinseelenfunke.app.data.api.SendEmailRequest
+import de.meinseelenfunke.app.data.api.SenderRuleRequest
 import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.util.AppLogger
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-
-import de.meinseelenfunke.app.data.api.ManagementContact
+import java.io.File
+import java.util.concurrent.TimeUnit
 
 class EmailRepository(private val serviceLocator: ServiceLocator) {
 
@@ -27,6 +37,33 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
         } catch (e: Exception) {
             AppLogger.error(serviceLocator.context, "EmailRepo", "getAccounts failed", e)
             Result.failure(e)
+        }
+    }
+
+    suspend fun getAccountsResponse(): Result<EmailAccountResponse> {
+        return try {
+            val response = serviceLocator.getEmailApi().getAccounts()
+            if (response.success) {
+                Result.success(response)
+            } else {
+                Result.failure(Exception("Konnte E-Mail-Konten nicht laden."))
+            }
+        } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "getAccountsResponse failed", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getRecipients(): Result<List<EmailRecipientDto>> {
+        return try {
+            val response = serviceLocator.getEmailApi().getRecipients()
+            if (response.success) {
+                Result.success(response.data ?: emptyList())
+            } else {
+                Result.success(emptyList())
+            }
+        } catch (e: Exception) {
+            Result.success(emptyList())
         }
     }
 
@@ -97,10 +134,22 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
         folder: String?,
         accountId: String?,
         search: String?,
-        unreadOnly: Boolean?
+        unreadOnly: Boolean?,
+        global: Int? = 1,
+        priorityFilter: String? = null,
+        categoryFilter: String? = null
     ): Result<List<EmailMessage>> {
         return try {
-            val response = serviceLocator.getEmailApi().getMessages(folder, accountId, search, unreadOnly)
+            val unreadFlag = if (unreadOnly == true) 1 else null
+            val response = serviceLocator.getEmailApi().getMessages(
+                folder = folder,
+                accountId = accountId,
+                search = search,
+                unread = unreadFlag,
+                global = global,
+                priorityFilter = priorityFilter,
+                categoryFilter = categoryFilter
+            )
             if (response.success) {
                 Result.success(response.data.data)
             } else {
@@ -132,13 +181,19 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
         to: String,
         subject: String,
         body: String,
-        attachments: List<EmailAttachment>? = null
+        attachments: List<EmailAttachment>? = null,
+        draftId: String? = null,
+        cc: String? = null,
+        bcc: String? = null
     ): Result<Unit> {
         return try {
             val request = SendEmailRequest(
+                draftId = draftId,
                 accountId = accountId,
                 from = from,
                 to = to,
+                cc = cc,
+                bcc = bcc,
                 subject = subject,
                 body = body,
                 attachments = attachments
@@ -152,6 +207,162 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
         } catch (e: Exception) {
             AppLogger.error(serviceLocator.context, "EmailRepo", "sendEmail failed: from=$from, to=$to, subject=$subject", e)
             Result.failure(e)
+        }
+    }
+
+    suspend fun saveDraft(
+        draftId: String?,
+        accountId: String,
+        to: String,
+        cc: String,
+        bcc: String,
+        subject: String,
+        body: String
+    ): Result<EmailMessage> {
+        return try {
+            val request = SaveDraftRequest(
+                draftId = draftId,
+                accountId = accountId,
+                to = to,
+                cc = cc,
+                bcc = bcc,
+                subject = subject,
+                body = body
+            )
+            val response = serviceLocator.getEmailApi().saveDraft(request)
+            if (response.success) {
+                Result.success(response.data)
+            } else {
+                Result.failure(Exception("Entwurf konnte nicht gespeichert werden."))
+            }
+        } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "saveDraft failed", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun syncEmails(): Result<String> {
+        return try {
+            val response = serviceLocator.getEmailApi().syncEmails()
+            if (response.success) {
+                Result.success(response.message ?: "Postfächer synchronisiert.")
+            } else {
+                Result.failure(Exception(response.message ?: "Synchronisation fehlgeschlagen."))
+            }
+        } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "syncEmails failed", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun aiSortEmails(): Result<String> {
+        return try {
+            val response = serviceLocator.getEmailApi().aiSortEmails()
+            if (response.success) {
+                Result.success(response.message ?: "E-Mails durch den KI-Trichter verarbeitet.")
+            } else {
+                Result.failure(Exception(response.message ?: "KI-Sortierung fehlgeschlagen."))
+            }
+        } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "aiSortEmails failed", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun resolveMessageImportance(id: String, important: Boolean): Result<String> {
+        return try {
+            val response = serviceLocator.getEmailApi().resolveMessage(id, ResolveMessageRequest(important = important))
+            if (response.success) {
+                Result.success(response.message ?: if (important) "Als Wichtig markiert." else "Aufgabe als erledigt markiert.")
+            } else {
+                Result.failure(Exception(response.message ?: "Status konnte nicht geändert werden."))
+            }
+        } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "resolveMessageImportance failed: id=$id", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun createTaskFromMail(id: String): Result<String> {
+        return try {
+            val response = serviceLocator.getEmailApi().createTaskFromMail(id)
+            if (response.success) {
+                Result.success(response.message ?: "Aufgabe in 'E-Mail Aufgaben' angelegt.")
+            } else {
+                Result.failure(Exception(response.message ?: "Aufgabe konnte nicht erstellt werden."))
+            }
+        } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "createTaskFromMail failed: id=$id", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun createContactFromMail(id: String): Result<String> {
+        return try {
+            val response = serviceLocator.getEmailApi().createContactFromMail(id)
+            if (response.success) {
+                Result.success(response.message ?: "Absender im Adressbuch gespeichert.")
+            } else {
+                Result.failure(Exception(response.message ?: "Kontakt konnte nicht gespeichert werden."))
+            }
+        } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "createContactFromMail failed: id=$id", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun createSenderRule(id: String, targetFolder: String): Result<String> {
+        return try {
+            val response = serviceLocator.getEmailApi().createSenderRule(id, SenderRuleRequest(targetFolder = targetFolder))
+            if (response.success) {
+                Result.success(response.message ?: "Automatische Regel für Absender aktiviert.")
+            } else {
+                Result.failure(Exception(response.message ?: "Regel konnte nicht gespeichert werden."))
+            }
+        } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "createSenderRule failed: id=$id", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun downloadAttachmentToFile(context: Context, attachmentId: Int, filename: String): Result<File> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val baseUrl = serviceLocator.getBaseUrl().let { if (it.endsWith("/")) it else "$it/" }
+                val token = serviceLocator.getAuthToken()
+                val url = "${baseUrl}funki/emails/attachments/$attachmentId"
+
+                val client = OkHttpClient.Builder()
+                    .connectTimeout(30, TimeUnit.SECONDS)
+                    .readTimeout(60, TimeUnit.SECONDS)
+                    .build()
+
+                val requestBuilder = Request.Builder().url(url)
+                if (!token.isNullOrBlank()) {
+                    requestBuilder.addHeader("Authorization", "Bearer $token")
+                }
+
+                val response = client.newCall(requestBuilder.build()).execute()
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(Exception("Download fehlgeschlagen (HTTP ${response.code})."))
+                }
+
+                val bodyBytes = response.body?.bytes()
+                    ?: return@withContext Result.failure(Exception("Leere Datei vom Server erhalten."))
+
+                val safeName = filename
+                    .replace(Regex("[^a-zA-Z0-9._\\-äöüÄÖÜß ()]"), "_")
+                    .trim()
+                    .ifBlank { "Anhang_$attachmentId.dat" }
+
+                val dir = File(context.cacheDir, "mail_attachments").apply { mkdirs() }
+                val targetFile = File(dir, safeName)
+                targetFile.writeBytes(bodyBytes)
+                Result.success(targetFile)
+            } catch (e: Exception) {
+                AppLogger.error(context, "EmailRepo", "downloadAttachmentToFile failed: id=$attachmentId", e)
+                Result.failure(e)
+            }
         }
     }
 

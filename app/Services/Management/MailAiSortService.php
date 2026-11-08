@@ -209,7 +209,7 @@ class MailAiSortService
                 $seenBackupFailure
             );
 
-            // 1. SPAM -> Create persistent Blacklist Rule + Delete message (empties Spam folder)
+            // 1. SPAM -> Create persistent Blacklist Rule + Move to Spam ('Junk') folder
             if ($importance === 'Spam') {
                 if ($from !== '') {
                     MailRule::updateOrCreate(
@@ -224,10 +224,14 @@ class MailAiSortService
                         ]
                     );
                 }
-                if (!empty($msg->message_id)) {
-                    $spamMessageIdsToRemember[] = (string) $msg->message_id;
-                }
-                $msg->delete();
+                $msg->update([
+                    'subject' => $subj,
+                    'folder' => 'Junk',
+                    'is_archived' => false,
+                    'category' => 'Spam / Phishing',
+                    'priority' => 'low',
+                    'ai_status' => 'processed',
+                ]);
                 $spamDeletedCount++;
                 continue;
             }

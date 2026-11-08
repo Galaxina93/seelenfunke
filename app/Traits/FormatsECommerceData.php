@@ -125,6 +125,13 @@ trait FormatsECommerceData
                 }
             }
 
+            $itemDigitalDocs = [];
+            if (is_object($item) && method_exists($item, 'resolveDigitalDocuments')) {
+                $itemDigitalDocs = $item->resolveDigitalDocuments();
+            } elseif (is_array($config['digital_documents'] ?? null)) {
+                $itemDigitalDocs = $config['digital_documents'];
+            }
+
             $items[] = [
                 'name'         => is_object($item) ? ($item->product_name ?? $item->name ?? 'Unbekanntes Produkt') : ($item['product_name'] ?? 'Unbekanntes Produkt'),
                 'quantity'     => is_object($item) ? $item->quantity : ($item['quantity'] ?? 1),
@@ -134,6 +141,7 @@ trait FormatsECommerceData
                 'is_personalizable' => (is_object($item) && isset($item->product) && method_exists($item->product, 'isPersonalizable')) ? $item->product->isPersonalizable() : true,
                 'main_image'   => $mainImage,
                 'type'         => $itemType,
+                'digital_documents' => $itemDigitalDocs,
             ];
         }
 
@@ -299,6 +307,10 @@ trait FormatsECommerceData
 
             'payment_url' => $this->payment_url ?? null,
             'instant_downloads' => method_exists($this, 'getInstantDownloads') ? $this->getInstantDownloads() : [],
+            'has_digital_documents' => method_exists($this, 'hasDigitalDocuments')
+                ? $this->hasDigitalDocuments()
+                : collect($items)->contains(fn ($it) => !empty($it['digital_documents'])),
+            'digital_documents_list' => method_exists($this, 'getDigitalDocumentsList') ? $this->getDigitalDocumentsList() : [],
             'tracking_numbers' => method_exists($this, 'shipments') && $this->shipments ? $this->shipments->pluck('tracking_number')->filter()->toArray() : [],
 
             // Kontakt & Adressen

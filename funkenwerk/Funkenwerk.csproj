@@ -22,6 +22,13 @@
     <None Include="FunkenwerkCam32.dll" CopyToOutputDirectory="PreserveNewest" />
     <None Include="placeholder.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="funkenwerk_dlc_bridge.py" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="login_atelier_bg.mp4" CopyToOutputDirectory="PreserveNewest" Condition="Exists('login_atelier_bg.mp4')" />
+    <None Include="login_atelier_poster.jpg" CopyToOutputDirectory="PreserveNewest" Condition="Exists('login_atelier_poster.jpg')" />
+    <None Include="login_mystic_ambient.m4a" CopyToOutputDirectory="PreserveNewest" Condition="Exists('login_mystic_ambient.m4a')" />
+    <None Include="playlists_cache.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('playlists_cache.json')" />
+    <None Include="Assets\MarketingMusic\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\Login\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\Music\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

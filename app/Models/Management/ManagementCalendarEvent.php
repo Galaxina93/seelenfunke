@@ -56,7 +56,7 @@ use HasUuids;
         'title', 'start_date', 'end_date', 'is_all_day',
         'recurrence', 'recurrence_end_date',
         'reminder_minutes',
-        'category', 'description', 'ics_uid', 'send_email'
+        'category', 'description', 'ics_uid', 'priority', 'send_email'
     ];
 
     protected $casts = [

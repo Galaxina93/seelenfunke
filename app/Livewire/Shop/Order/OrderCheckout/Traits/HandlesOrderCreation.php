@@ -252,7 +252,10 @@ trait HandlesOrderCreation
             if (!$customer) {
                 $tempPassword = Str::random(32);
                 $isExistingEmployee = \App\Models\Employee\Employee::where('email', $this->email)->exists();
-                $wantsAccount = !$isExistingEmployee && (bool) ($this->create_account || $this->hasDigitalOrIngameItems($cart));
+                $hasProductDigitalDocuments = $cart && $cart->items && $cart->items->contains(
+                    fn ($ci) => $ci->product && method_exists($ci->product, 'hasDigitalDocuments') && $ci->product->hasDigitalDocuments()
+                );
+                $wantsAccount = !$isExistingEmployee && (bool) ($this->create_account || $this->hasDigitalOrIngameItems($cart) || $hasProductDigitalDocuments);
                 $customer = Customer::create([
                     'email' => $this->email,
                     'first_name' => $this->first_name,
@@ -433,6 +436,36 @@ trait HandlesOrderCreation
                 if (!empty($this->digital_waiver_accepted) && (($item->product->type ?? 'physical') === 'digital' || !empty($itemConfig['is_ingame_shop_item']))) {
                     $itemConfig['digital_waiver_accepted'] = true;
                     $itemConfig['digital_waiver_accepted_at'] = now()->toIso8601String();
+                }
+                if ($item->product && method_exists($item->product, 'hasDigitalDocuments') && $item->product->hasDigitalDocuments()) {
+                    $itemConfig['digital_documents'] = $item->product->getDigitalDocuments();
+                }
+                if ($item->product && method_exists($item->product, 'requiresSupplierProcurement')) {
+                    $variantIdForCheck = is_string($itemConfig['variant_id'] ?? null) ? $itemConfig['variant_id'] : null;
+                    if ($item->product->requiresSupplierProcurement((int) $item->quantity, $variantIdForCheck)) {
+                        $leadRange = $item->product->getSupplierLeadDaysRange();
+                        $deliveryDetails = \App\Models\Delivery\DeliverySetting::getDeliveryDetailsForProduct(
+                            $item->product,
+                            (int) $item->quantity,
+                            $variantIdForCheck
+                        );
+                        $supplierModel = $item->product->relationLoaded('supplier')
+                            ? $item->product->supplier
+                            : (!empty($item->product->product_supplier_id) ? $item->product->supplier()->first() : null);
+
+                        $itemConfig['supplier_procurement'] = [
+                            'required' => true,
+                            'missing_quantity' => $item->product->getMissingStockQuantity((int) $item->quantity, $variantIdForCheck),
+                            'ordered_from_supplier' => false,
+                            'ordered_at' => null,
+                            'supplier_id' => $item->product->product_supplier_id,
+                            'supplier_name' => $supplierModel?->name,
+                            'reorder_url' => $item->product->reorder_url ?: ($supplierModel?->website ?: null),
+                            'lead_days_min' => (int) ($leadRange['min'] ?? 4),
+                            'lead_days_max' => (int) ($leadRange['max'] ?? 6),
+                            'estimated_delivery_text' => $deliveryDetails['full_text'] ?? null,
+                        ];
+                    }
                 }
 
                 $finalConfiguration = !empty($itemConfig) ? $itemConfig : $item->configuration;

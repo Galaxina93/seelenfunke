@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
@@ -89,6 +90,7 @@ import de.meinseelenfunke.app.ui.theme.Gold
 import de.meinseelenfunke.app.ui.theme.Rose500
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
 import de.meinseelenfunke.app.ui.theme.SpaceBlue
+import de.meinseelenfunke.app.util.FunkenwerkAlarmManager
 import de.meinseelenfunke.app.util.SoundManager
 import java.util.Locale
 
@@ -479,6 +481,15 @@ fun DashboardContent(
     }
     val expressCount = remember(orders) { orders.count { it.is_express == true } }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(Unit) {
+        FunkenwerkAlarmManager.ensureInitialized(context)
+    }
+    val alarms by FunkenwerkAlarmManager.alarmsFlow.collectAsState()
+    val nextActiveAlarm = remember(alarms) {
+        alarms.filter { it.isEnabled }.minByOrNull { it.hour * 60 + it.minute }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         // Row 1: To-do Liste (Tab 0) & Routine (Tab 2)
         Row(
@@ -507,7 +518,7 @@ fun DashboardContent(
             )
         }
 
-        // Row 2: Kalender (Tab 1) & Bestellungen (für Admins)
+        // Row 2: Kalender (Tab 1) & Bestellungen (für Admins) / Wecker
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -536,6 +547,43 @@ fun DashboardContent(
                     subtitle = if (expressCount > 0) "⚡ $expressCount Express!" else "$totalOrdersCount Aufträge gesamt",
                     isAlert = expressCount > 0,
                     onClick = onNavigateToOrders
+                )
+            } else {
+                CompactDashboardTile(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Default.Alarm,
+                    title = "Wecker",
+                    value = if (nextActiveAlarm != null) "${nextActiveAlarm.timeFormatted} Uhr" else "Kein Wecker",
+                    subtitle = nextActiveAlarm?.scheduleText ?: "Wecker, Timer & Stoppuhr",
+                    isAlert = false,
+                    onClick = { onNavigateToOrganizer(6) }
+                )
+            }
+        }
+
+        // Row 3: Wecker (Tab 6 - Wecker, Timer, Stoppuhr, Smart-Home & KI)
+        if (isAdmin) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                val alarmSubtitle = if (nextActiveAlarm != null) {
+                    buildString {
+                        append(nextActiveAlarm.scheduleText)
+                        if (nextActiveAlarm.triggerPlugOnRing && nextActiveAlarm.smartPlugIps.isNotEmpty()) append(" · ⚡ Smart-Home")
+                        if (nextActiveAlarm.aiBriefingEnabled) append(" · 🎙️ KI")
+                    }
+                } else {
+                    "Wecker, Timer & Stoppuhr öffnen"
+                }
+                CompactDashboardTile(
+                    modifier = Modifier.fillMaxWidth(),
+                    icon = Icons.Default.Alarm,
+                    title = "Wecker",
+                    value = if (nextActiveAlarm != null) "${nextActiveAlarm.timeFormatted} Uhr · ${nextActiveAlarm.label}" else "Kein aktiver Wecker",
+                    subtitle = alarmSubtitle,
+                    isAlert = false,
+                    onClick = { onNavigateToOrganizer(6) }
                 )
             }
         }

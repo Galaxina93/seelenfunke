@@ -260,4 +260,117 @@ use HasFactory, HasUuids, softDeletes, AuthenticatableTrait, HasApiTokens, Notif
             ]);
         }
     }
+
+    /**
+     * Pfad zum privaten Manifest für vom Admin individuell hinterlegte Kundendokumente.
+     */
+    public function getAdminDocumentsManifestPath(): string
+    {
+        return 'produkte/products-secure/customer-files/' . $this->id . '/manifest.json';
+    }
+
+    /**
+     * Liefert alle vom Admin direkt beim Kunden hinterlegten Dokumente (optional gefiltert nach Bestellung + allgemeine Dokumente).
+     */
+    public function getAdminUploadedDocuments(?string $orderId = null): array
+    {
+        if (empty($this->id)) {
+            return [];
+        }
+
+        $manifestPath = $this->getAdminDocumentsManifestPath();
+        $disk = \Illuminate\Support\Facades\Storage::disk('local');
+
+        if (!$disk->exists($manifestPath)) {
+            return [];
+        }
+
+        $decoded = json_decode((string) $disk->get($manifestPath), true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($decoded as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $norm = \App\Models\Product\Product::normalizeDigitalDocumentItem($item);
+            if (!$norm) {
+                continue;
+            }
+            $norm['order_id'] = !empty($item['order_id']) ? (string) $item['order_id'] : null;
+            $norm['order_number'] = !empty($item['order_number']) ? (string) $item['order_number'] : null;
+            $norm['uploaded_by_admin'] = true;
+
+            if ($orderId !== null && $orderId !== '') {
+                if (!empty($norm['order_id']) && (string) $norm['order_id'] !== (string) $orderId) {
+                    continue;
+                }
+            }
+
+            $normalized[] = $norm;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Fügt ein neues vom Admin hochgeladenes Dokument zum Kunden-Manifest hinzu.
+     */
+    public function addAdminUploadedDocument(array $doc): array
+    {
+        $existing = $this->getAdminUploadedDocuments();
+        $norm = \App\Models\Product\Product::normalizeDigitalDocumentItem($doc);
+        if ($norm) {
+            $norm['order_id'] = !empty($doc['order_id']) ? (string) $doc['order_id'] : null;
+            $norm['order_number'] = !empty($doc['order_number']) ? (string) $doc['order_number'] : null;
+            $norm['uploaded_by_admin'] = true;
+            array_unshift($existing, $norm);
+
+            \Illuminate\Support\Facades\Storage::disk('local')->put(
+                $this->getAdminDocumentsManifestPath(),
+                json_encode(array_values($existing), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+            );
+        }
+
+        return $existing;
+    }
+
+    /**
+     * Entfernt ein vom Admin hochgeladenes Kundendokument inkl. Datei auf dem privaten Storage.
+     */
+    public function removeAdminUploadedDocument(string $docId): bool
+    {
+        $existing = $this->getAdminUploadedDocuments();
+        $found = false;
+        $remaining = [];
+        $disk = \Illuminate\Support\Facades\Storage::disk('local');
+
+        foreach ($existing as $doc) {
+            if (($doc['id'] ?? '') === $docId) {
+                $found = true;
+                $path = ltrim(str_replace('\\', '/', (string) ($doc['path'] ?? '')), '/');
+                if (
+                    $path !== ''
+                    && !str_contains($path, '..')
+                    && str_starts_with($path, 'produkte/products-secure/customer-files/' . $this->id . '/')
+                    && $disk->exists($path)
+                ) {
+                    $disk->delete($path);
+                }
+                continue;
+            }
+            $remaining[] = $doc;
+        }
+
+        if ($found) {
+            $disk->put(
+                $this->getAdminDocumentsManifestPath(),
+                json_encode(array_values($remaining), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+            );
+        }
+
+        return $found;
+    }
 }

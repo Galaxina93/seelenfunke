@@ -74,6 +74,16 @@ class OrderOverview extends Component
     public ?float $dhlRecommendedWeight = null;
     public string $dhlPackagingType = 'box';
 
+    // DRUCK-FEEDBACK STATE
+    public ?string $lastPrintedOrderId = null;
+    public ?string $lastPrintedShipmentId = null;
+
+    private function notifyOrderFeedback(string $type, string $title, string $message): void
+    {
+        $this->dispatch('order-feedback', type: $type, title: $title, message: $message);
+        session()->flash($type === 'success' ? 'success' : 'error', $message);
+    }
+
     protected $queryString = [
         'search' => ['except' => ''],
         'statusFilter' => ['except' => ''],
@@ -114,6 +124,7 @@ class OrderOverview extends Component
     {
         // Holt genau EINE Order, die am wichtigsten ist
         return OrderOrder::query()
+            ->with(['items.product.supplier'])
             ->whereIn('status', ['pending', 'processing']) // Nur offene
             ->orderByRaw("CASE WHEN status IN ('completed', 'cancelled', 'refunded') THEN 1 ELSE 0 END ASC")
             ->orderBy('is_express', 'desc') // Express zuerst
@@ -151,6 +162,11 @@ class OrderOverview extends Component
             $standardMessage = '<div class="mt-3 bg-[var(--theme-color-10)] p-3 rounded-xl border border-[var(--theme-color-30)] shadow-inner"><span class="text-[var(--theme-color)] font-black text-sm tracking-widest block mb-1">⚡ SCHNELLE NUMMER:</span> <span class="text-white font-bold block">Ausschließlich Lagerware! Keine Personalisierung/Laser-Arbeit nötig. Einfach aus dem Regal nehmen, verpacken, Label drauf und ab die Post!</span></div>';
         }
 
+        if ($prio->hasPendingSupplierProcurement()) {
+            $pendingCount = $prio->getPendingSupplierProcurementItems()->count();
+            $standardMessage .= '<div class="mt-3 bg-amber-950/90 p-3 rounded-xl border border-amber-500/40 shadow-inner"><span class="text-amber-400 font-black text-sm tracking-widest block mb-1">📦 ROHLING NACHBESTELLEN:</span> <span class="text-white font-bold block">Für ' . $pendingCount . ' Position(en) muss zuerst der Rohling beim Lieferanten bestellt werden (Auftragsfertigung). Öffne die Bestellung für den direkten 1-Klick-Kauflink!</span></div>';
+        }
+
         if ($prio->is_express) {
             if (count($missingItems) > 0) {
                 return '<span class="text-red-400 font-bold">Lagerbestand Kritisch!</span> ' . count($missingItems) . ' Artikel für diesen Express-Versand fehlen physisch. Bitte sofort prüfen!' . $standardMessage;
@@ -185,7 +201,7 @@ class OrderOverview extends Component
         $this->selectedOrderId = $id;
 
         // Order laden (Eager Loading für Performance)
-        $this->selectedOrder = OrderOrder::with(['items.product', 'invoices', 'shipments'])->find($id);
+        $this->selectedOrder = OrderOrder::with(['items.product.supplier', 'invoices', 'shipments'])->find($id);
 
         // Daten für das Bearbeitungs-Formular laden
         if ($this->selectedOrder) {
@@ -357,6 +373,18 @@ class OrderOverview extends Component
                 'completed_quantity' => $newStatus ? $item->quantity : 0
             ]);
             $this->selectedOrder->refresh();
+        }
+    }
+
+    public function toggleSupplierOrdered($itemId)
+    {
+        $item = OrderOrderItem::with('product.supplier')->find($itemId);
+        if ($item && $this->selectedOrder && $item->order_id == $this->selectedOrder->id) {
+            $newState = !$item->isSupplierOrderPlaced();
+            $item->markSupplierOrdered($newState);
+            $this->selectedOrder->refresh();
+            $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
+            session()->flash('success', $newState ? 'Rohling als beim Lieferanten bestellt markiert.' : 'Lieferanten-Bestellstatus zurückgesetzt.');
         }
     }
 
@@ -751,7 +779,19 @@ class OrderOverview extends Component
             if ($this->selectedOrder && $this->selectedOrder->id == $this->dhlModalOrderId) {
                 $this->selectedOrder->refresh();
             }
-            session()->flash('success', "DHL Labels ($this->dhlPackageCount) erfolgreich generiert! 🚀");
+            // Direkt automatisch an Funkenwerk übergeben
+            try {
+                $order->refresh();
+                app(\App\Services\System\FunkenwerkPrintService::class)->enqueueOrderLabel($order);
+                $this->lastPrintedOrderId = (string) $order->id;
+            } catch (\Throwable $printErr) {
+                // Kein harter Abbruch falls Queue nicht schreibbar
+            }
+            $this->notifyOrderFeedback(
+                'success',
+                'DHL-Label erstellt & an Funkenwerk gesendet 🖨️',
+                "Für Bestellung #{$order->order_number} ({$this->dhlPackageCount} Paket) wurde das DHL-Label generiert und an den MUNBYN ITPP941AP übergeben."
+            );
             $this->closeDhlModal();
 
         } catch (\Exception $e) {
@@ -783,7 +823,136 @@ class OrderOverview extends Component
                 }
             }
         }
-        session()->flash('error', 'Label nicht gefunden.');
+        $this->notifyOrderFeedback('error', 'Label-Datei nicht gefunden', 'Die PDF-Datei des DHL-Labels konnte auf dem Server nicht gefunden werden.');
+    }
+
+    public function printDhlLabelViaFunkenwerk($shipmentId)
+    {
+        $shipment = \App\Models\Order\OrderShipment::with('order.items.product')->find($shipmentId);
+        if (!$shipment) {
+            $this->notifyOrderFeedback('error', 'Versandlabel nicht gefunden', 'Das gewählte Versandpaket existiert nicht mehr.');
+            return;
+        }
+
+        if (empty($shipment->shipping_label_path)) {
+            $this->notifyOrderFeedback(
+                'warning',
+                'Kein DHL-Label vorhanden',
+                "Für Paket {$shipment->tracking_number} ist noch keine PDF-Label-Datei hinterlegt. Bitte erstelle zuerst ein DHL-Label."
+            );
+            return;
+        }
+
+        try {
+            app(\App\Services\System\FunkenwerkPrintService::class)->enqueueShipmentLabel($shipment);
+            $this->lastPrintedShipmentId = (string) $shipment->id;
+            if ($shipment->order_id) {
+                $this->lastPrintedOrderId = (string) $shipment->order_id;
+            }
+            $this->notifyOrderFeedback(
+                'success',
+                'Druckauftrag an Funkenwerk gesendet 🖨️',
+                "DHL-Label ({$shipment->tracking_number}) wurde in die Warteschlange für den MUNBYN ITPP941AP (192.168.188.149) eingereiht."
+            );
+        } catch (\Throwable $e) {
+            $this->notifyOrderFeedback('error', 'Druck nicht möglich', $e->getMessage());
+        }
+    }
+
+    public function printOrderLabelViaFunkenwerk($orderId)
+    {
+        $order = OrderOrder::with(['items.product', 'shipments'])->find($orderId);
+        if (!$order) {
+            $this->notifyOrderFeedback('error', 'Bestellung nicht gefunden', 'Die gewählte Bestellung konnte nicht gefunden werden.');
+            return;
+        }
+
+        if ($order->isOnlyDigital()) {
+            $this->notifyOrderFeedback(
+                'warning',
+                'Kein Druck möglich (Digitalprodukt)',
+                "Bestellung #{$order->order_number} enthält ausschließlich digitale Produkte – es ist kein physisches Versandlabel erforderlich."
+            );
+            return;
+        }
+
+        if (in_array($order->status, ['cancelled', 'refunded'], true)) {
+            $this->notifyOrderFeedback(
+                'warning',
+                'Kein Druck möglich (Storniert)',
+                "Bestellung #{$order->order_number} ist storniert bzw. erstattet. Für stornierte Aufträge wird kein Versandlabel gedruckt."
+            );
+            return;
+        }
+
+        $validShipments = ($order->shipments ?? collect())->filter(fn($s) => !empty($s->shipping_label_path));
+        if ($validShipments->isEmpty()) {
+            $this->notifyOrderFeedback(
+                'warning',
+                'Noch kein DHL-Label vorhanden',
+                "Für Bestellung #{$order->order_number} wurde noch kein DHL-Versandlabel generiert. Bitte öffne die Bestellung und klicke zuerst auf 'DHL Label'."
+            );
+            return;
+        }
+
+        try {
+            $jobs = app(\App\Services\System\FunkenwerkPrintService::class)->enqueueOrderLabel($order);
+            $count = count($jobs);
+            $trackingNumbers = collect($jobs)->pluck('tracking_number')->filter()->implode(', ');
+            $this->lastPrintedOrderId = (string) $order->id;
+            $this->notifyOrderFeedback(
+                'success',
+                'Druckauftrag an Funkenwerk gesendet 🖨️',
+                "Bestellung #{$order->order_number} ({$count} DHL-Label: {$trackingNumbers}) wurde an Funkenwerk (MUNBYN ITPP941AP) übergeben."
+            );
+        } catch (\Throwable $e) {
+            $this->notifyOrderFeedback('error', 'Druck nicht möglich', $e->getMessage());
+        }
+    }
+
+    public function printMergedLabelsViaFunkenwerk()
+    {
+        $query = $this->buildBaseQuery();
+        $orders = $query->with(['items.product', 'shipments'])->get();
+        $printService = app(\App\Services\System\FunkenwerkPrintService::class);
+        $totalQueued = 0;
+        $ordersQueued = 0;
+
+        foreach ($orders as $order) {
+            if (empty($this->statusFilter) && !in_array($order->status, ['processing', 'shipped'])) {
+                continue;
+            }
+            if ($order->isOnlyDigital() || in_array($order->status, ['cancelled', 'refunded'], true)) {
+                continue;
+            }
+            $hasValidShipment = ($order->shipments ?? collect())->contains(function ($s) use ($printService) {
+                return !empty($s->shipping_label_path) && $printService->readLabelPdfBytes($s->shipping_label_path) !== null;
+            });
+            if (!$hasValidShipment) {
+                continue;
+            }
+            try {
+                $jobs = $printService->enqueueOrderLabel($order);
+                $totalQueued += count($jobs);
+                $ordersQueued++;
+            } catch (\Throwable) {
+            }
+        }
+
+        if ($totalQueued === 0) {
+            $this->notifyOrderFeedback(
+                'warning',
+                'Kein Sammel-Druck möglich',
+                'In der aktuellen Auswahl befindet sich noch keine Bestellung mit generiertem DHL-Versandlabel. Bitte erstelle zuerst die DHL-Labels in den Aufträgen.'
+            );
+            return;
+        }
+
+        $this->notifyOrderFeedback(
+            'success',
+            'Sammel-Druck an Funkenwerk gesendet 🖨️',
+            "{$totalQueued} DHL-Etikett(en) aus {$ordersQueued} Bestellung(en) wurden gesammelt an Funkenwerk (MUNBYN ITPP941AP) übergeben."
+        );
     }
 
     public function downloadMergedLabels()
@@ -831,7 +1000,11 @@ class OrderOverview extends Component
         }
         
         if (empty($labelJobs)) {
-            session()->flash('error', 'Keine DHL Labels in der aktuellen Auswahl gefunden.');
+            $this->notifyOrderFeedback(
+                'warning',
+                'Kein PDF Sammel-Download möglich',
+                'In der aktuellen Auswahl befindet sich noch keine Bestellung mit generiertem DHL-Versandlabel.'
+            );
             return;
         }
 
@@ -911,15 +1084,21 @@ class OrderOverview extends Component
         // 5. Query ausführen (Pagination)
         $orders = $query->paginate(20);
 
+        $printableLabelsCount = (clone $query)
+            ->when(empty($this->statusFilter), fn($q) => $q->whereIn('status', ['processing', 'shipped']))
+            ->whereHas('shipments', fn($q) => $q->whereNotNull('shipping_label_path')->where('shipping_label_path', '!=', ''))
+            ->count();
+
         return view('livewire.shop.order.order-overview', [
             'orders' => $orders,
-            'stats' => $stats
+            'stats' => $stats,
+            'printableLabelsCount' => $printableLabelsCount,
         ]);
     }
 
     private function buildBaseQuery()
     {
-        $query = OrderOrder::query()->with(['items.product', 'invoices', 'shipments', 'sampleInfluencer']);
+        $query = OrderOrder::query()->with(['items.product.supplier', 'invoices', 'shipments', 'sampleInfluencer']);
 
         // 1. Suche
         if ($this->search) {

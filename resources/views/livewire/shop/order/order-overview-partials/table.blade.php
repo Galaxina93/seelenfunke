@@ -187,11 +187,69 @@
                 </td>
 
                 {{-- SPALTE 7: ACTIONS --}}
+                @php
+                    $validLabelShipments = $order->shipments
+                        ? $order->shipments->filter(fn($s) => !empty($s->shipping_label_path))
+                        : collect();
+                    $hasPrintableLabel = !$isOnlyDigitalOrder
+                        && !in_array($order->status, ['cancelled', 'refunded'])
+                        && $validLabelShipments->isNotEmpty();
+                    $labelCount = $validLabelShipments->count();
+                    $firstTracking = $validLabelShipments->first()?->tracking_number;
+                    $wasJustPrinted = ($this->lastPrintedOrderId ?? null) === (string) $order->id;
+
+                    if ($isOnlyDigitalOrder) {
+                        $printReasonText = 'Kein Druck: Rein digitales Produkt';
+                    } elseif (in_array($order->status, ['cancelled', 'refunded'])) {
+                        $printReasonText = 'Kein Druck: Bestellung storniert';
+                    } elseif (!$hasPrintableLabel) {
+                        $printReasonText = 'Kein Label vorhanden – erst DHL-Label erstellen';
+                    } elseif ($wasJustPrinted) {
+                        $printReasonText = 'An Funkenwerk gesendet (' . ($firstTracking ?: 'DHL') . ')';
+                    } else {
+                        $printReasonText = $labelCount > 1
+                            ? "{$labelCount} DHL-Labels bereit – via Funkenwerk drucken"
+                            : "DHL-Label ({$firstTracking}) via Funkenwerk drucken";
+                    }
+                @endphp
                 <td class="px-6 {{ $hasItems ? 'pt-5 pb-2.5' : 'py-5' }} text-right align-middle">
-                    <button wire:click="openDetail('{{ $order->id }}')"
-                            class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-500 dark:text-gray-400 hover:bg-[var(--theme-color)] hover:border-[var(--theme-color)] hover:text-gray-900 transition-all duration-300 transform hover:-translate-y-0.5 shadow-sm dark:shadow-inner">
-                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
-                    </button>
+                    <div class="inline-flex items-center justify-end gap-2">
+                        <div class="relative group/print">
+                            <button type="button"
+                                    wire:click.stop="printOrderLabelViaFunkenwerk('{{ $order->id }}')"
+                                    title="{{ $printReasonText }}"
+                                    class="relative inline-flex items-center justify-center w-10 h-10 rounded-full border transition-all duration-300 shadow-sm dark:shadow-inner {{ $hasPrintableLabel
+                                        ? ($wasJustPrinted
+                                            ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white cursor-pointer transform hover:-translate-y-0.5'
+                                            : 'bg-[var(--theme-color-10)] border-[var(--theme-color-30)] text-[var(--theme-color)] hover:bg-[var(--theme-color)] hover:border-[var(--theme-color)] hover:text-gray-900 cursor-pointer transform hover:-translate-y-0.5')
+                                        : 'bg-gray-100/70 dark:bg-gray-900/40 border-gray-200 dark:border-gray-800/80 text-gray-300 dark:text-gray-600 opacity-50 cursor-not-allowed' }}">
+                                <span wire:loading.remove wire:target="printOrderLabelViaFunkenwerk('{{ $order->id }}')">
+                                    @if($wasJustPrinted && $hasPrintableLabel)
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                    @else
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                    @endif
+                                </span>
+                                <span wire:loading wire:target="printOrderLabelViaFunkenwerk('{{ $order->id }}')" class="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full"></span>
+
+                                @if($hasPrintableLabel)
+                                    <span class="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+                                        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 ring-2 ring-white dark:ring-gray-900"></span>
+                                    </span>
+                                @endif
+                            </button>
+
+                            {{-- Direktes Hover-Feedback-Badge über dem Icon --}}
+                            <div class="pointer-events-none opacity-0 group-hover/print:opacity-100 transition-opacity duration-200 absolute bottom-full right-0 mb-2 z-50 whitespace-nowrap px-2.5 py-1.5 rounded-lg text-[10px] font-bold shadow-lg border {{ $hasPrintableLabel ? 'bg-gray-900 text-white border-emerald-500/40' : 'bg-gray-900 text-amber-300 border-amber-500/40' }}">
+                                {{ $printReasonText }}
+                            </div>
+                        </div>
+
+                        <button wire:click="openDetail('{{ $order->id }}')"
+                                class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-500 dark:text-gray-400 hover:bg-[var(--theme-color)] hover:border-[var(--theme-color)] hover:text-gray-900 transition-all duration-300 transform hover:-translate-y-0.5 shadow-sm dark:shadow-inner">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+                        </button>
+                    </div>
                 </td>
             </tr>
 
@@ -219,6 +277,18 @@
                                     @else
                                         <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md {{ $estPackages > 1 ? 'bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300' : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400' }} border" title="{{ $dhlPreview['recommended_box_hint'] ?? ($dhlPreview['dhl_class'] ?? 'DHL Paket') }}">
                                             📦 {{ $estPackages }} {{ $estPackages === 1 ? 'Paket' : 'Pakete' }} · {{ number_format($dhlPreview['total_weight_kg'] ?? 0.5, 2, ',', '.') }} kg
+                                        </span>
+                                    @endif
+                                @endif
+
+                                @if(!in_array($order->status, ['completed', 'cancelled', 'refunded']))
+                                    @if($order->hasPendingSupplierProcurement())
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/40 text-amber-700 dark:text-amber-300 font-black uppercase tracking-wider" title="Mindestens ein Rohling muss für diese Auftragsfertigung noch beim Lieferanten bestellt werden">
+                                            📦 Rohling bestellen
+                                        </span>
+                                    @elseif($order->hasSupplierProcurementItems())
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-500/10 border border-sky-500/30 text-sky-700 dark:text-sky-300 font-bold" title="Rohling wurde beim Lieferanten bestellt (im Zulauf)">
+                                            🚚 Rohling bestellt
                                         </span>
                                     @endif
                                 @endif

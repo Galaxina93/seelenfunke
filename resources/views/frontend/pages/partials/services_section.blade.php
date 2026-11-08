@@ -1,8 +1,9 @@
 @php
-    $resolvedTiles = \App\Models\Product\ProductCategory::resolveShowcaseTiles(6);
+    $resolvedTiles = \App\Models\Product\ProductCategory::resolveShowcaseTiles(10);
+    $worldCounts = \App\Models\Product\ProductCategory::resolveCollectionWorldCounts();
 @endphp
 
-<section id="services" class="bg-white text-black py-20" aria-labelledby="services-heading">
+<section id="services" x-data="{ activeWorld: 'manufaktur' }" class="bg-white text-black py-20" aria-labelledby="services-heading">
     <style>
         .sf-card {
             transform: translate3d(0, 0, 0);
@@ -127,28 +128,74 @@
         };
     </script>
 
-    <header class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center mb-12">
+    <header class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center mb-10">
         <h2 id="services-heading" class="text-primary-dark font-serif font-bold text-3xl sm:text-4xl lg:text-5xl">
             Veredelungen & Materialien für Ihre Unikate
         </h2>
         <p class="mt-4 text-gray-600 text-base max-w-3xl mx-auto">
-            Entdecken Sie unsere aktuell im Bestand verfügbaren <strong>Manufaktur-Materialien und Geschenk-Welten</strong> sowie kommende Erweiterungen, an denen wir in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }} bereits arbeiten.
+            Entdecken Sie unsere drei klar getrennten Kollektions-Welten aus unserer Manufaktur in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}.
         </p>
+
+        {{-- 3-Welten-Umschalter (Manufaktur-Kollektion · Atelier Echtgold & Silber · Geschenkgutscheine) --}}
+        <div class="mt-7 max-w-4xl mx-auto">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-2 bg-white rounded-2xl border border-gray-200 shadow-sm">
+                <button type="button"
+                        @click="activeWorld = 'manufaktur'"
+                        :class="activeWorld === 'manufaktur'
+                            ? 'bg-[#F5F1E8] text-gray-900 shadow-sm border-[#D8C9A8]'
+                            : 'bg-transparent text-gray-600 hover:bg-gray-50 border-transparent'"
+                        class="flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl border text-xs sm:text-sm font-bold uppercase tracking-wider transition-all cursor-pointer">
+                    <svg class="w-4 h-4 shrink-0 text-[#9A7B38]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                    <span class="truncate">Manufaktur-Kollektion</span>
+                    <span :class="activeWorld === 'manufaktur' ? 'bg-white/80 text-gray-900 border border-[#D8C9A8]' : 'bg-gray-100 text-gray-600'"
+                          class="px-2 py-0.5 rounded-full text-[11px] font-black">{{ $worldCounts['manufaktur'] ?? 6 }}</span>
+                </button>
+
+                <button type="button"
+                        @click="activeWorld = 'atelier'"
+                        :class="activeWorld === 'atelier'
+                            ? 'bg-[#F5F1E8] text-gray-900 shadow-sm border-[#D8C9A8]'
+                            : 'bg-transparent text-gray-600 hover:bg-gray-50 border-transparent'"
+                        class="flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl border text-xs sm:text-sm font-bold uppercase tracking-wider transition-all cursor-pointer">
+                    <svg class="w-4 h-4 shrink-0 text-[#9A7B38]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
+                    <span class="truncate">Atelier Echtgold & Silber</span>
+                    <span :class="activeWorld === 'atelier' ? 'bg-white/80 text-gray-900 border border-[#D8C9A8]' : 'bg-gray-100 text-gray-600'"
+                          class="px-2 py-0.5 rounded-full text-[11px] font-black">{{ $worldCounts['atelier'] ?? 1 }}</span>
+                </button>
+
+                <button type="button"
+                        @click="activeWorld = 'voucher'"
+                        :class="activeWorld === 'voucher'
+                            ? 'bg-[#F5F1E8] text-gray-900 shadow-sm border-[#D8C9A8]'
+                            : 'bg-transparent text-gray-600 hover:bg-gray-50 border-transparent'"
+                        class="flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl border text-xs sm:text-sm font-bold uppercase tracking-wider transition-all cursor-pointer">
+                    <svg class="w-4 h-4 shrink-0 text-[#9A7B38]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/></svg>
+                    <span class="truncate">Geschenkgutscheine</span>
+                    <span :class="activeWorld === 'voucher' ? 'bg-white/80 text-gray-900 border border-[#D8C9A8]' : 'bg-gray-100 text-gray-600'"
+                          class="px-2 py-0.5 rounded-full text-[11px] font-black">{{ $worldCounts['voucher'] ?? 1 }}</span>
+                </button>
+            </div>
+        </div>
     </header>
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
         @foreach($resolvedTiles as $tile)
+            @php
+                $tileWorld = $tile['collection_line'] ?? 'manufaktur';
+            @endphp
             @if($tile['is_available'])
                 {{-- =====================================================================
                      AKTIVE & VERFÜGBARE KACHEL (Dynamisch aus realem Bestand)
                 ===================================================================== --}}
-                <article onmouseenter="window.sfCardHoverEnter && window.sfCardHoverEnter(this)"
+                <article x-show="activeWorld === '{{ $tileWorld }}'"
+                         x-cloak
+                         onmouseenter="window.sfCardHoverEnter && window.sfCardHoverEnter(this)"
                          onmouseleave="window.sfCardHoverLeave && window.sfCardHoverLeave(this)"
                          onclick="if(!event.target.closest('a, button')) window.location.href='{{ $tile['shop_url'] }}'"
                          class="sf-card bg-white rounded-2xl shadow-lg border-2 border-primary overflow-hidden group relative z-10 flex flex-col cursor-pointer">
                     <figure class="overflow-hidden relative bg-gray-900" style="aspect-ratio: 10 / 9;">
                         @if($tile['sale_badge'])
-                            <div class="absolute top-3 left-3 {{ !empty($tile['is_new_arrival']) && str_contains((string) $tile['sale_badge'], 'Neu') ? 'bg-gray-900/90 text-amber-300 border border-amber-400/40' : 'bg-red-600/95 text-white' }} backdrop-blur-sm text-[9px] font-black px-2.5 py-1 rounded-full z-20 shadow-md uppercase tracking-wider">
+                            <div class="absolute top-3 left-3 {{ !empty($tile['is_new_arrival']) && str_contains((string) $tile['sale_badge'], 'Neu') ? 'bg-[#F5F1E8]/95 text-gray-900 border border-[#D8C9A8]' : 'bg-red-600/95 text-white' }} backdrop-blur-sm text-[9px] font-black px-2.5 py-1 rounded-full z-20 shadow-sm uppercase tracking-wider">
                                 {{ $tile['sale_badge'] }}
                             </div>
                         @endif
@@ -225,7 +272,9 @@
                 {{-- =====================================================================
                      PRODUKT EXISTIERT, ABER AKTUELL AUSVERKAUFT (Bestand = 0)
                 ===================================================================== --}}
-                <article class="bg-gray-50 rounded-2xl shadow-sm border border-amber-200 overflow-hidden opacity-80 relative group flex flex-col">
+                <article x-show="activeWorld === '{{ $tileWorld }}'"
+                         x-cloak
+                         class="bg-gray-50 rounded-2xl shadow-sm border border-amber-200 overflow-hidden opacity-80 relative group flex flex-col">
                     <div class="absolute top-3 right-3 z-20 bg-amber-600 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-md uppercase tracking-wider">
                         Aktuell vergriffen
                     </div>
@@ -257,46 +306,6 @@
                     <div class="p-5 flex-1 flex flex-col">
                         <p class="text-gray-500 mb-3.5 text-xs">{!! $tile['description'] !!}</p>
                         <ul class="text-xs text-gray-400 space-y-1.5">
-                            @foreach(array_slice($tile['features'], 0, 2) as $feature)
-                                <li class="flex items-center gap-2">• {{ $feature }}</li>
-                            @endforeach
-                        </ul>
-                    </div>
-                </article>
-            @else
-                {{-- =====================================================================
-                     NOCH KEIN AKTIVES PRODUKT IM SYSTEM -> AUTOMATISCH "DEMNÄCHST"
-                ===================================================================== --}}
-                <article class="bg-gray-50 rounded-2xl shadow-none border border-gray-200 overflow-hidden opacity-60 grayscale-[0.9] cursor-default relative group flex flex-col">
-                    <div class="absolute inset-0 z-20 flex items-center justify-center bg-white/20 backdrop-blur-[1px]">
-                        <div class="bg-black/80 text-white px-5 py-1.5 rounded-full text-xs font-bold tracking-widest border border-white/20 shadow-xl transform -rotate-12">
-                            DEMNÄCHST
-                        </div>
-                    </div>
-
-                    <figure class="overflow-hidden relative bg-gray-900" style="aspect-ratio: 10 / 9;">
-                        <img src="{{ $tile['image'] }}"
-                             alt="{{ $tile['alt'] }}"
-                             width="500"
-                             height="450"
-                             loading="lazy"
-                             decoding="async"
-                             class="w-full h-full object-cover object-center block">
-                    </figure>
-
-                    <div class="bg-gray-600 px-5 py-4 relative">
-                        <div class="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center shadow-sm absolute -top-6 right-5">
-                            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-gray-500">
-                                {!! $tile['icon_svg'] !!}
-                            </svg>
-                        </div>
-                        <h3 class="text-xl font-bold text-gray-200 mb-1 pr-12">{{ $tile['title'] }}</h3>
-                        <span class="text-gray-300/80 text-[11px] font-medium tracking-wider uppercase">{{ $tile['subtitle'] }}</span>
-                    </div>
-
-                    <div class="p-5 flex-1 flex flex-col">
-                        <p class="text-gray-500 mb-3.5 text-xs">{!! $tile['description'] !!}</p>
-                        <ul class="text-xs text-gray-400 space-y-1.5" aria-label="Produktmerkmale {{ $tile['title'] }}">
                             @foreach(array_slice($tile['features'], 0, 2) as $feature)
                                 <li class="flex items-center gap-2">• {{ $feature }}</li>
                             @endforeach

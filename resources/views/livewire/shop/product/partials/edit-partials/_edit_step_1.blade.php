@@ -138,6 +138,50 @@
                     </label>
                 </div>
 
+                {{-- KOLLEKTIONS-BEREICH (WERT-GRUPPIERUNG BEI PHYSISCH) --}}
+                @if($type === 'physical')
+                    <div class="mt-8 pt-6 border-t border-gray-200 dark:border-gray-800">
+                        <div class="flex items-center justify-between gap-3 mb-4">
+                            <span class="text-xs font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Kollektions-Bereich im Shop</span>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {{-- MANUFAKTUR-KOLLEKTION --}}
+                            <label class="cursor-pointer relative group">
+                                <input type="radio" wire:model.live="collection_line" value="manufaktur" class="sr-only">
+                                <div class="p-4 rounded-2xl border-2 transition-all duration-200 flex items-center gap-4
+                                            {{ $collection_line === 'manufaktur'
+                                                ? 'border-[var(--theme-color)] bg-[var(--theme-color-10)] text-gray-900 dark:text-white'
+                                                : 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 text-gray-500 hover:border-gray-300 dark:hover:border-gray-700'
+                                            }}">
+                                    <div class="w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0
+                                                {{ $collection_line === 'manufaktur' ? 'bg-[var(--theme-color)] text-white dark:text-gray-900' : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800' }}">✨</div>
+                                    <div class="min-w-0 flex-1">
+                                        <span class="font-serif font-bold text-base block">Manufaktur-Kollektion</span>
+                                        <span class="text-[9px] font-black uppercase tracking-widest opacity-70 block">Standard-Sortiment (Alltags-Unikate)</span>
+                                    </div>
+                                </div>
+                            </label>
+
+                            {{-- ATELIER ECHTGOLD & SILBER --}}
+                            <label class="cursor-pointer relative group">
+                                <input type="radio" wire:model.live="collection_line" value="atelier" class="sr-only">
+                                <div class="p-4 rounded-2xl border-2 transition-all duration-200 flex items-center gap-4
+                                            {{ $collection_line === 'atelier'
+                                                ? 'border-[#C5A059] bg-[#C5A059]/10 text-gray-900 dark:text-white'
+                                                : 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 text-gray-500 hover:border-gray-300 dark:hover:border-gray-700'
+                                            }}">
+                                    <div class="w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0
+                                                {{ $collection_line === 'atelier' ? 'bg-[#C5A059] text-white dark:text-gray-900' : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800' }}">👑</div>
+                                    <div class="min-w-0 flex-1">
+                                        <span class="font-serif font-bold text-base block">Atelier Echtgold &amp; Silber</span>
+                                        <span class="text-[9px] font-black uppercase tracking-widest opacity-70 block">Exklusiver Premium-Bereich (333/585 Gold &amp; 925 Silber)</span>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                @endif
+
                 {{-- Personalisierbar Toggle --}}
                 <div class="mt-8 pt-6 border-t border-gray-200 dark:border-gray-800">
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

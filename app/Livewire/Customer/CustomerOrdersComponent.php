@@ -143,24 +143,44 @@ class CustomerOrdersComponent extends Component
         $this->showSuccessMessageFor = $itemId;
     }
 
-    public function downloadDigitalFile($itemId)
+    public function downloadDigitalFile($itemId, ?string $docId = null)
     {
         $user = Auth::guard('customer')->user();
         if (!$user) {
             abort(403);
         }
 
-        $item = OrderOrderItem::where('id', $itemId)
+        $item = OrderOrderItem::with(['order', 'product'])
+            ->where('id', $itemId)
             ->whereHas('order', function ($q) use ($user) {
                 $q->where('customer_id', $user->id);
             })->first();
 
-        if (!$item || !$item->product || $item->product->type !== 'digital' || empty($item->product->digital_download_path)) {
+        if (!$item) {
             session()->flash('error', 'Datei nicht verfügbar.');
             return;
         }
 
-        $downloadPath = ltrim(str_replace('\\', '/', (string) $item->product->digital_download_path), '/');
+        $downloadPath = '';
+        $rawDownloadName = 'Download';
+
+        if ($docId !== null && trim($docId) !== '') {
+            $matchedDoc = collect($item->resolveDigitalDocuments())->firstWhere('id', trim($docId));
+            if (!$matchedDoc || empty($matchedDoc['path'])) {
+                session()->flash('error', 'Dokument nicht verfügbar.');
+                return;
+            }
+            $downloadPath = ltrim(str_replace('\\', '/', (string) $matchedDoc['path']), '/');
+            $ext = strtolower((string) ($matchedDoc['extension'] ?? pathinfo($downloadPath, PATHINFO_EXTENSION) ?: 'pdf'));
+            $rawDownloadName = trim((string) ($matchedDoc['title'] ?? 'Dokument')) . '.' . $ext;
+        } elseif ($item->product && $item->product->type === 'digital' && !empty($item->product->digital_download_path)) {
+            $downloadPath = ltrim(str_replace('\\', '/', (string) $item->product->digital_download_path), '/');
+            $rawDownloadName = (string) ($item->product->digital_filename ?: 'Download');
+        } else {
+            session()->flash('error', 'Datei nicht verfügbar.');
+            return;
+        }
+
         if (
             $downloadPath === ''
             || str_contains($downloadPath, '..')
@@ -189,7 +209,7 @@ class CustomerOrdersComponent extends Component
             return;
         }
 
-        $safeDownloadName = preg_replace('/[^A-Za-z0-9._-]/', '_', basename((string) ($item->product->digital_filename ?: 'Download'))) ?: 'Download';
+        $safeDownloadName = preg_replace('/[^A-Za-z0-9._-]/', '_', basename($rawDownloadName)) ?: 'Download';
 
         return \Illuminate\Support\Facades\Storage::disk('local')->download(
             $downloadPath,

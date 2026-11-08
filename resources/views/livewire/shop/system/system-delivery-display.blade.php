@@ -84,6 +84,10 @@
     @endif
 
     {{-- Lagerbestand --}}
+    @php
+        $isBackorderProcurement = !empty($deliveryDetails['is_backorder_procurement']);
+        $procurementInfoText = $deliveryDetails['procurement_info_text'] ?? null;
+    @endphp
     @if($product && $product->track_quantity)
         @if($product->quantity > 0)
             <span class="inline-flex items-center gap-1.5 text-green-700 font-medium">
@@ -91,12 +95,12 @@
                   <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                   <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
                 </span>
-                {{ $isService ? 'Plätze verfügbar' : ($product->isPersonalizable() ? 'Rohling auf Lager – bereit zur Veredelung' : 'Auf Lager') }}
+                {{ $isService ? 'Plätze verfügbar' : ($product->isPersonalizable() ? 'Rohling auf Lager, bereit zur Veredelung' : 'Auf Lager') }}
             </span>
         @elseif($product->continue_selling_when_out_of_stock)
-            <span class="inline-flex items-center gap-1.5 text-amber-600 font-medium">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                {{ $isService ? 'Warteliste verfügbar' : 'Verfügbar auf Nachbestellung' }}
+            <span class="inline-flex items-center gap-1.5 text-amber-700 font-semibold bg-amber-50/90 border border-amber-200/80 px-2.5 py-1 rounded-full text-xs">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                {{ $isService ? 'Warteliste verfügbar' : ($deliveryDetails['procurement_badge_label'] ?? 'Auftragsfertigung (Rohling wird auf Bestellung bezogen)') }}
             </span>
         @else
             <span class="inline-flex items-center gap-1.5 text-red-600 font-bold bg-red-50 px-3 py-1 rounded-full border border-red-100 animate-pulse">
@@ -107,21 +111,25 @@
     @endif
 
     {{-- Intelligente Lieferzeit mit Klick-für-Info Logik --}}
-    @if($type === 'physical' && $activeTime)
+    @if($type === 'physical' && ($activeTime || $isBackorderProcurement))
         @php
             $timeColorClass = 'text-green-700';
             $iconColorClass = 'text-green-600';
             $infoBoxClass   = 'bg-green-50 border-green-100 text-green-800';
 
-            if ($activeTime->color === 'yellow') {
-                $timeColorClass = 'text-amber-600';
-                $iconColorClass = 'text-amber-500';
-                $infoBoxClass   = 'bg-amber-50 border-amber-100 text-amber-800';
-            } elseif ($activeTime->color === 'red') {
+            if ($isBackorderProcurement || ($activeTime && $activeTime->color === 'yellow')) {
+                $timeColorClass = 'text-amber-700';
+                $iconColorClass = 'text-amber-600';
+                $infoBoxClass   = 'bg-amber-50 border-amber-200 text-amber-900';
+            } elseif ($activeTime && $activeTime->color === 'red') {
                 $timeColorClass = 'text-red-600';
                 $iconColorClass = 'text-red-500';
                 $infoBoxClass   = 'bg-red-50 border-red-100 text-red-800';
             }
+
+            $effectiveInfoDescription = $isBackorderProcurement
+                ? trim(($procurementInfoText ?? '') . (!empty($activeTime->description) ? ' ' . $activeTime->description : ''))
+                : ($activeTime->description ?? '');
         @endphp
 
         <div x-data="{ showInfo: false }" class="flex flex-col w-full sm:w-auto @if($product && $product->track_quantity) sm:border-l border-gray-200 sm:pl-4 @endif">
@@ -132,17 +140,17 @@
                 <div class="leading-snug flex-1 min-w-0">
                     <span>{{ $deliveryText }}</span>
 
-                    @if(!empty($activeTime->description))
-                        <button @click="showInfo = !showInfo" class="text-[10px] text-gray-400 hover:text-gray-600 underline underline-offset-2 ml-1 font-medium transition-colors focus:outline-none">
+                    @if(!empty($effectiveInfoDescription))
+                        <button type="button" @click="showInfo = !showInfo" class="text-[10px] text-gray-500 hover:text-gray-700 underline underline-offset-2 ml-1 font-medium transition-colors focus:outline-none">
                             <span x-text="showInfo ? '(Info ausblenden)' : '(weitere Infos)'"></span>
                         </button>
                     @endif
                 </div>
             </div>
 
-            @if(!empty($activeTime->description))
+            @if(!empty($effectiveInfoDescription))
                 <div x-show="showInfo" x-transition.opacity style="display: none;" class="mt-3 p-3.5 rounded-xl border text-xs leading-relaxed w-full max-w-md {{ $infoBoxClass }} shadow-sm">
-                    {{ $activeTime->description }}
+                    {{ $effectiveInfoDescription }}
                 </div>
             @endif
         </div>

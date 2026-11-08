@@ -338,6 +338,16 @@ class OrganizerViewModel : ViewModel() {
         }
     }
 
+    fun syncAlarmPackageToPortal(onComplete: ((Boolean, String) -> Unit)? = null) {
+        viewModelScope.launch {
+            repository.syncAlarmPackageToPortal().onSuccess { stamp ->
+                onComplete?.invoke(true, "Paket an /admin/routine synchronisiert ($stamp Uhr)")
+            }.onFailure { err ->
+                onComplete?.invoke(false, "Sync fehlgeschlagen: ${err.localizedMessage ?: "Netzwerkfehler"}")
+            }
+        }
+    }
+
     // --- Subtask Actions ---
     fun addSubtask(parentId: String, title: String) {
         if (title.isBlank()) return

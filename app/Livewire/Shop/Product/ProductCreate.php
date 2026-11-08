@@ -33,6 +33,7 @@ class ProductCreate extends Component
     // --- SCHRITT 1: Basis, Preis & SEO ---
     public $name = '';
     public $type = 'physical'; // NEU: Standardwert
+    public string $collection_line = 'manufaktur'; // 'manufaktur' | 'atelier' | 'voucher' | 'service'
     public $is_personalizable = true; // NEU
     public $three_d_active = true;
     public $short_description = '';
@@ -91,6 +92,11 @@ class ProductCreate extends Component
     // NEU: Für den Digital-Upload
     public $new_digital_file;
 
+    // NEU: Für optionale digitale Begleitdokumente (z. B. Echtheitszertifikat, Pflegehinweise)
+    public $new_digital_documents = [];
+    public string $new_digital_document_title = '';
+    public ?string $digitalDocumentsSavedText = null;
+
     // --- SCHRITT 3: Attribute & Lager ---
     public $productAttributes = [
         // Physisch
@@ -118,6 +124,8 @@ class ProductCreate extends Component
     public $track_quantity = true;
     public $quantity = 0;
     public $continue_selling = false;
+    public $out_of_stock_lead_days_min = '';
+    public $out_of_stock_lead_days_max = '';
 
     // --- Info Texte & Kompakte Rechtshinweise (GPSR, LUCID, CE, LFGB, TextilG) ---
     public $infoTexts = [
@@ -146,6 +154,7 @@ class ProductCreate extends Component
         'track_quantity' => 'Wenn aktiv, wird bei jeder Bestellung der Lagerbestand automatisch reduziert und bei niedrigem Bestand eine Nachbestell-Warnung ausgelöst.',
         'stock_quantity' => 'Aktuell physisch im Lager vorhandene Stückzahl der Rohlinge (bei Varianten ohne eigenen Bestand gilt dieser Eltern-Bestand).',
         'continue_selling' => 'Wenn aktiv, bleibt das Produkt im Shop bestellbar, auch wenn der Lagerbestand rechnerisch auf 0 fällt (z. B. bei kurzfristig nachbestellbaren Rohlingen).',
+        'out_of_stock_lead_days' => 'Zusätzliche Lieferanten-Vorlaufzeit (in Werktagen), die bei Bestand 0 automatisch auf deine Manufaktur-Lieferzeit addiert wird. Bleibt das Feld leer, greift automatisch die hinterlegte Lieferzeit des verknüpften Lieferanten.',
         'unit_economics_overview' => 'Interne Stückkosten-Kalkulation (Unit Economics) für deine reale Netto-Marge in den „Wahren Zahlen“ und im Angebots-Autopiloten.',
         'laser_runtime_minutes' => 'Durchschnittliche Gravur- bzw. Bearbeitungsdauer pro Stück am Laser in Minuten.',
         'electricity_wear_factor' => 'Maschinenstundensatz inkl. Stromverbrauch, Absaugfilter und Laserquellen-Verschleiß pro Minute (in Cent/Min.).',
@@ -198,6 +207,7 @@ class ProductCreate extends Component
     // --- 1-Klick KI-Produkt-Generator Modal ---
     public bool $showQuickAiModal = false;
     public string $quickAiPreset = 'auto';
+    public string $quickAiCollectionLine = 'auto'; // 'auto', 'manufaktur', 'atelier'
     public string $quickAiPersonalizationMode = 'custom_fields'; // 'custom_fields', 'studio', 'standard'
     public string $quickAiCustomFieldsPreset = 'auto'; // 'auto', 'single_name', 'name_date_symbol', 'family_names_4', 'front_back_engraving', 'pet_tag'
     public string $quickAiName = '';
@@ -211,6 +221,8 @@ class ProductCreate extends Component
     public $quickAiWidth = '';
     public $quickAiHeight = '';
     public $quickAiLength = '';
+    public $quickAiLeadDaysMin = '';
+    public $quickAiLeadDaysMax = '';
 
     protected function rules()
     {
@@ -345,6 +357,7 @@ class ProductCreate extends Component
                 $supName = strtolower((string) $sup->name);
                 if (($supSite !== '' && str_contains($supSite, $host))
                     || (str_contains($host, 'gluecksfieber') && str_contains($supName, 'glücksfieber'))
+                    || (str_contains($host, 'silberketten-store') && str_contains($supName, 'silberketten-store'))
                     || (str_contains($host, 'printequipment') && str_contains($supName, 'print equipment'))
                     || (str_contains($host, 'westpack') && str_contains($supName, 'westpack'))
                     || (str_contains($host, 'karton.eu') && str_contains($supName, 'karton'))
@@ -520,7 +533,7 @@ class ProductCreate extends Component
         $this->product->refresh();
         $this->productAttributes = array_merge($this->productAttributes, $this->product->attributes ?? []);
         $freshSettings = is_array($this->product->configurator_settings) ? $this->product->configurator_settings : [];
-        foreach (['excluded_variant_attributes', 'included_variant_attributes', 'addons'] as $syncKey) {
+        foreach (['excluded_variant_attributes', 'included_variant_attributes', 'addons', 'digital_documents'] as $syncKey) {
             if (array_key_exists($syncKey, $freshSettings)) {
                 $this->configSettings[$syncKey] = $freshSettings[$syncKey];
             }
@@ -554,12 +567,17 @@ class ProductCreate extends Component
 
         // Standardwerte für Attribute je nach Typ setzen (optional)
         if ($value === 'digital') {
+            $this->collection_line = 'voucher';
             $this->productAttributes['Auslieferung'] = 'Sofort-Download';
             $this->track_quantity = false; // Bei Digital oft irrelevant
         } elseif ($value === 'service') {
+            $this->collection_line = 'service';
             $this->productAttributes['Ort'] = 'Online';
             $this->track_quantity = true; // Bei Service (Termine) oft relevant
         } else {
+            if (!in_array($this->collection_line, ['manufaktur', 'atelier'], true)) {
+                $this->collection_line = 'manufaktur';
+            }
             $this->productAttributes['Lieferzeit'] = '3-5 Werktage';
             $this->track_quantity = true;
         }
@@ -610,6 +628,7 @@ class ProductCreate extends Component
             'brand' => 'Mein-Seelenfunke',
             'status' => 'draft',
             'type' => 'physical', // Standard
+            'collection_line' => 'manufaktur',
             'is_personalizable' => true,
             'three_d_active' => true,
             'track_quantity' => true,
@@ -705,6 +724,8 @@ class ProductCreate extends Component
         // Basisdaten
         $this->name = $this->product->name;
         $this->type = $this->product->type; // NEU: Typ laden
+        $this->collection_line = $this->product->collection_line
+            ?: ($this->type === 'digital' ? 'voucher' : ($this->type === 'service' ? 'service' : 'manufaktur'));
         $this->is_personalizable = (bool) $this->product->is_personalizable;
         $this->three_d_active = (bool) ($this->product->three_d_active ?? true);
         $this->description = $this->product->description;
@@ -746,6 +767,13 @@ class ProductCreate extends Component
         $this->track_quantity = (bool) $this->product->track_quantity;
         $this->quantity = $this->product->quantity;
         $this->continue_selling = (bool) $this->product->continue_selling_when_out_of_stock;
+        $rawSavedSettings = is_array($this->product->configurator_settings) ? $this->product->configurator_settings : [];
+        $this->out_of_stock_lead_days_min = (isset($rawSavedSettings['out_of_stock_lead_days_min']) && $rawSavedSettings['out_of_stock_lead_days_min'] !== '' && $rawSavedSettings['out_of_stock_lead_days_min'] !== null)
+            ? (string) (int) $rawSavedSettings['out_of_stock_lead_days_min']
+            : '';
+        $this->out_of_stock_lead_days_max = (isset($rawSavedSettings['out_of_stock_lead_days_max']) && $rawSavedSettings['out_of_stock_lead_days_max'] !== '' && $rawSavedSettings['out_of_stock_lead_days_max'] !== null)
+            ? (string) (int) $rawSavedSettings['out_of_stock_lead_days_max']
+            : '';
 
         // Preise
         $this->price_input = $this->product->price > 0
@@ -817,6 +845,10 @@ class ProductCreate extends Component
         $pMode = strtolower(trim((string) ($this->configSettings['personalization_mode'] ?? 'studio')));
         $this->configSettings['personalization_mode'] = in_array($pMode, ['studio', 'custom_fields'], true) ? $pMode : 'studio';
         $this->configSettings['custom_fields'] = $this->product->getCustomFieldsDefinition();
+        $this->configSettings['digital_documents'] = $this->product->getDigitalDocuments();
+        $this->new_digital_documents = [];
+        $this->new_digital_document_title = '';
+        $this->digitalDocumentsSavedText = null;
 
         $this->viewMode = 'edit';
 
@@ -880,6 +912,176 @@ class ProductCreate extends Component
 
             session()->flash('success', 'Produktdatei entfernt.');
         }
+    }
+
+    public function setDigitalDocumentPresetTitle(string $title): void
+    {
+        $this->new_digital_document_title = mb_substr(trim($title), 0, 120);
+    }
+
+    public function updatedNewDigitalDocuments()
+    {
+        if (!isset($this->product) || !$this->product->exists) {
+            return;
+        }
+
+        if (!is_array($this->new_digital_documents)) {
+            $this->new_digital_documents = $this->new_digital_documents ? [$this->new_digital_documents] : [];
+        }
+
+        if (empty($this->new_digital_documents)) {
+            return;
+        }
+
+        $this->validate([
+            'new_digital_documents.*' => 'required|file|mimes:pdf,zip,rar,jpg,jpeg,png,webp|max:51200',
+        ]);
+
+        $folder = 'produkte/products-secure/' . ($this->product->slug ?: 'draft') . '/documents';
+        $allowedExts = ['pdf', 'zip', 'rar', 'jpg', 'jpeg', 'png', 'webp'];
+
+        $settings = is_array($this->product->configurator_settings) ? $this->product->configurator_settings : [];
+        $existingDocs = $this->product->getDigitalDocuments();
+        $customTitle = mb_substr(trim($this->new_digital_document_title), 0, 120);
+        $totalNew = count($this->new_digital_documents);
+
+        foreach (array_values($this->new_digital_documents) as $idx => $file) {
+            $rawOriginalName = basename((string) $file->getClientOriginalName());
+            $ext = strtolower(pathinfo($rawOriginalName, PATHINFO_EXTENSION));
+            $safeExt = in_array($ext, $allowedExts, true) ? $ext : 'pdf';
+            $rawBase = pathinfo($rawOriginalName, PATHINFO_FILENAME);
+            $safeBase = Str::slug($rawBase) ?: 'dokument';
+            $cleanFilename = $safeBase . '.' . $safeExt;
+            $storedFilename = time() . '_' . Str::lower(Str::random(4)) . '_' . $cleanFilename;
+
+            $storedPath = $file->storeAs($folder, $storedFilename, 'local');
+
+            if ($customTitle !== '') {
+                $docTitle = $totalNew > 1 ? ($customTitle . ' (' . ($idx + 1) . ')') : $customTitle;
+            } else {
+                $humanBase = trim(preg_replace('/\s+/', ' ', str_replace(['_', '-'], ' ', $rawBase)));
+                $docTitle = $humanBase !== '' ? $humanBase : 'Begleitdokument';
+            }
+
+            $existingDocs[] = [
+                'id' => 'doc_' . Str::lower(Str::random(10)),
+                'title' => $docTitle,
+                'path' => str_replace('\\', '/', $storedPath),
+                'filename' => $cleanFilename,
+                'extension' => $safeExt,
+                'size_bytes' => max(0, (int) $file->getSize()),
+                'uploaded_at' => now()->format('d.m.Y H:i'),
+            ];
+        }
+
+        $settings['digital_documents'] = array_values($existingDocs);
+        $this->configSettings['digital_documents'] = $settings['digital_documents'];
+        $this->product->configurator_settings = $settings;
+        $this->product->save();
+        $this->product->refresh();
+
+        $this->new_digital_documents = [];
+        $this->new_digital_document_title = '';
+        $this->digitalDocumentsSavedText = 'Gespeichert';
+        session()->flash('success', 'Digitale Dokumente sicher hinterlegt!');
+    }
+
+    public function updateDigitalDocumentTitle(string $docId, string $newTitle): void
+    {
+        if (!isset($this->product) || !$this->product->exists) {
+            return;
+        }
+
+        $cleanTitle = mb_substr(trim($newTitle), 0, 120);
+        if ($cleanTitle === '') {
+            return;
+        }
+
+        $settings = is_array($this->product->configurator_settings) ? $this->product->configurator_settings : [];
+        $docs = $this->product->getDigitalDocuments();
+        $updated = false;
+
+        foreach ($docs as $idx => $doc) {
+            if (($doc['id'] ?? '') === $docId) {
+                $docs[$idx]['title'] = $cleanTitle;
+                $updated = true;
+                break;
+            }
+        }
+
+        if ($updated) {
+            $settings['digital_documents'] = array_values($docs);
+            $this->configSettings['digital_documents'] = $settings['digital_documents'];
+            $this->product->configurator_settings = $settings;
+            $this->product->save();
+            $this->product->refresh();
+            $this->digitalDocumentsSavedText = 'Gespeichert';
+        }
+    }
+
+    public function removeDigitalDocument(string $docId): void
+    {
+        if (!isset($this->product) || !$this->product->exists) {
+            return;
+        }
+
+        $settings = is_array($this->product->configurator_settings) ? $this->product->configurator_settings : [];
+        $docs = $this->product->getDigitalDocuments();
+        $remaining = [];
+
+        foreach ($docs as $doc) {
+            if (($doc['id'] ?? '') === $docId) {
+                $downloadPath = ltrim(str_replace('\\', '/', (string) ($doc['path'] ?? '')), '/');
+                if (
+                    $downloadPath !== ''
+                    && !str_contains($downloadPath, '..')
+                    && !str_contains($downloadPath, "\0")
+                    && (str_starts_with($downloadPath, 'produkte/products-secure/') || str_starts_with($downloadPath, 'products-secure/'))
+                ) {
+                    Storage::disk('local')->delete($downloadPath);
+                }
+                continue;
+            }
+            $remaining[] = $doc;
+        }
+
+        $settings['digital_documents'] = array_values($remaining);
+        $this->configSettings['digital_documents'] = $settings['digital_documents'];
+        $this->product->configurator_settings = $settings;
+        $this->product->save();
+        $this->product->refresh();
+        $this->digitalDocumentsSavedText = 'Gespeichert';
+
+        session()->flash('success', 'Digitales Dokument entfernt.');
+    }
+
+    public function downloadDigitalDocumentAdmin(string $docId)
+    {
+        if (!isset($this->product) || !$this->product->exists) {
+            return null;
+        }
+
+        foreach ($this->product->getDigitalDocuments() as $doc) {
+            if (($doc['id'] ?? '') === $docId) {
+                $filePath = ltrim(str_replace('\\', '/', (string) ($doc['path'] ?? '')), '/');
+                if (
+                    $filePath !== ''
+                    && !str_contains($filePath, '..')
+                    && !str_contains($filePath, "\0")
+                    && (str_starts_with($filePath, 'produkte/products-secure/') || str_starts_with($filePath, 'products-secure/'))
+                    && Storage::disk('local')->exists($filePath)
+                ) {
+                    $ext = strtolower((string) ($doc['extension'] ?? pathinfo($filePath, PATHINFO_EXTENSION) ?: 'pdf'));
+                    $downloadName = (Str::slug((string) ($doc['title'] ?? 'dokument')) ?: 'dokument') . '.' . $ext;
+                    return Storage::disk('local')->download($filePath, $downloadName, [
+                        'X-Content-Type-Options' => 'nosniff',
+                    ]);
+                }
+            }
+        }
+
+        session()->flash('error', 'Die Dokumentdatei konnte auf dem Server nicht gefunden werden.');
+        return null;
     }
 
     public function updateStatus($id, $newStatus)
@@ -962,6 +1164,7 @@ class ProductCreate extends Component
     {
         $this->resetValidation();
         $this->showQuickAiModal = true;
+        $this->quickAiCollectionLine = 'auto';
         $this->quickAiPersonalizationMode = 'custom_fields';
         $this->quickAiCustomFieldsPreset = 'auto';
         $this->applyQuickAiPreset('auto');
@@ -970,6 +1173,14 @@ class ProductCreate extends Component
     public function closeQuickAiModal(): void
     {
         $this->showQuickAiModal = false;
+    }
+
+    public function setQuickAiCollectionLine(string $line): void
+    {
+        if (!in_array($line, ['auto', 'manufaktur', 'atelier'], true)) {
+            $line = 'auto';
+        }
+        $this->quickAiCollectionLine = $line;
     }
 
     public function setQuickAiPersonalizationMode(string $mode): void
@@ -1210,6 +1421,8 @@ class ProductCreate extends Component
             $this->quickAiWidth = '';
             $this->quickAiHeight = '';
             $this->quickAiLength = '';
+            $this->quickAiLeadDaysMin = '';
+            $this->quickAiLeadDaysMax = '';
             return;
         }
 
@@ -1228,6 +1441,9 @@ class ProductCreate extends Component
             $this->quickAiWidth = 15;
             $this->quickAiHeight = 65;
             $this->quickAiLength = 12.0;
+            $supDays = (int) ($sup?->lead_time_land_days ?: 3);
+            $this->quickAiLeadDaysMin = (string) $supDays;
+            $this->quickAiLeadDaysMax = (string) ($supDays + 2);
         } elseif ($presetKey === 'bambus-pen') {
             $sup = \App\Models\Product\ProductSupplier::where('name', 'like', '%HaoYiZF%')->first();
             $this->quickAiName = 'Der Seelen-Schreiber (Bambus-Kugelschreiber)';
@@ -1243,6 +1459,9 @@ class ProductCreate extends Component
             $this->quickAiWidth = 11;
             $this->quickAiHeight = 140;
             $this->quickAiLength = 11.0;
+            $supDays = (int) ($sup?->lead_time_land_days ?: ($sup?->lead_time_air_days ?: 5));
+            $this->quickAiLeadDaysMin = (string) $supDays;
+            $this->quickAiLeadDaysMax = (string) ($supDays + 3);
         } elseif ($presetKey === 'seelen-pfote-hundemarke') {
             $sup = \App\Models\Product\ProductSupplier::where('name', 'like', '%CTHOLD%')->orWhere('name', 'like', '%HaoYiZF%')->first();
             $this->quickAiName = 'Die Seelen-Pfote Edition';
@@ -1258,6 +1477,9 @@ class ProductCreate extends Component
             $this->quickAiWidth = 40;
             $this->quickAiHeight = 22;
             $this->quickAiLength = 1.8;
+            $supDays = (int) ($sup?->lead_time_land_days ?: ($sup?->lead_time_air_days ?: 5));
+            $this->quickAiLeadDaysMin = (string) $supDays;
+            $this->quickAiLeadDaysMax = (string) ($supDays + 3);
         } elseif ($presetKey === 'goldenes-seelen-herz') {
             $sup = \App\Models\Product\ProductSupplier::where('name', 'like', '%Glücksfieber%')->first();
             $this->quickAiName = 'Das Goldene Seelen-Herz';
@@ -1273,6 +1495,9 @@ class ProductCreate extends Component
             $this->quickAiWidth = 22;
             $this->quickAiHeight = 25;
             $this->quickAiLength = 4.0;
+            $supDays = (int) ($sup?->lead_time_land_days ?: 3);
+            $this->quickAiLeadDaysMin = (string) $supDays;
+            $this->quickAiLeadDaysMax = (string) ($supDays + 2);
         } else {
             $sup = \App\Models\Product\ProductSupplier::where('name', 'like', '%HaoYiZF%')->first();
             $this->quickAiName = 'Der Seelen-Talisman Edition';
@@ -1288,6 +1513,9 @@ class ProductCreate extends Component
             $this->quickAiWidth = 28;
             $this->quickAiHeight = 50;
             $this->quickAiLength = 2.2;
+            $supDays = (int) ($sup?->lead_time_land_days ?: ($sup?->lead_time_air_days ?: 5));
+            $this->quickAiLeadDaysMin = (string) $supDays;
+            $this->quickAiLeadDaysMax = (string) ($supDays + 3);
         }
     }
 
@@ -1531,7 +1759,17 @@ class ProductCreate extends Component
 
         // 6. Lieferant anhand der Domain automatisch zuordnen
         $supplier = null;
-        if (str_contains($host, 'temu')) {
+        if (str_contains($host, 'silberketten-store')) {
+            $supplier = \App\Models\Product\ProductSupplier::where('name', 'like', '%Silberketten-Store%')->first();
+        } elseif (str_contains($host, 'fbm-chains') || str_contains($host, 'binder')) {
+            $supplier = \App\Models\Product\ProductSupplier::where('name', 'like', '%Friedrich Binder%')->first();
+        } elseif (str_contains($host, 'maxfroehlich')) {
+            $supplier = \App\Models\Product\ProductSupplier::where('name', 'like', '%Max Fröhlich%')->first();
+        } elseif (str_contains($host, 'kleckow') || str_contains($host, 'schmuckkauf')) {
+            $supplier = \App\Models\Product\ProductSupplier::where('name', 'like', '%Kleckow%')->first();
+        } elseif (str_contains($host, 'materia-schmuck')) {
+            $supplier = \App\Models\Product\ProductSupplier::where('name', 'like', '%MATERIA%')->first();
+        } elseif (str_contains($host, 'temu')) {
             $supplier = \App\Models\Product\ProductSupplier::where('name', 'like', '%HaoYiZF%')
                 ->orWhere('name', 'like', '%Temu%')->first();
         } elseif (str_contains($host, 'heavytool')) {
@@ -1551,8 +1789,36 @@ class ProductCreate extends Component
             $supplier = \App\Models\Product\ProductSupplier::first();
         }
 
+        // 7. Kollektions-Bereich (3-Welten-Weiche: Manufaktur vs. Atelier Echtgold & Silber) automatisch erkennen
+        $isAtelierFineJewelry = str_contains($host, 'silberketten-store')
+            || str_contains($host, 'fbm-chains')
+            || str_contains($host, 'maxfroehlich')
+            || str_contains($host, 'kleckow')
+            || str_contains($host, 'schmuckkauf')
+            || str_contains($host, 'materia-schmuck')
+            || str_contains($host, 'orovivo')
+            || (bool) preg_match('/\b(585|333|375|750|925)\b|echtgold|gelbgold|weissgold|weißgold|sterling|silberarmband|gravurarmband|goldschmuck|silberschmuck/i', $haystack);
+
+        $defaults['collection_line'] = $isAtelierFineJewelry ? 'atelier' : 'manufaktur';
         $defaults['detected_preset'] = $detectedPreset;
         $defaults['supplier_id'] = $supplier?->id;
+
+        // 8. Lieferanten-Vorlaufzeit (Beschaffungszeit bei Bestand 0) intelligent aus Lieferant oder Domain ableiten
+        $supLeadDays = max(0, (int) ($supplier?->lead_time_land_days ?: ($supplier?->lead_time_air_days ?: 0)));
+        if ($supLeadDays > 0) {
+            $defaults['lead_days_min'] = $supLeadDays;
+            $defaults['lead_days_max'] = $supLeadDays + 2;
+        } elseif (str_contains($host, 'temu') || str_contains($host, 'alibaba') || str_contains($host, 'aliexpress')) {
+            $defaults['lead_days_min'] = 5;
+            $defaults['lead_days_max'] = 8;
+        } elseif ($isAtelierFineJewelry) {
+            $defaults['lead_days_min'] = 4;
+            $defaults['lead_days_max'] = 6;
+        } else {
+            $defaults['lead_days_min'] = 3;
+            $defaults['lead_days_max'] = 5;
+        }
+
         $defaults['top_gallery_url'] = !empty($queryParams['top_gallery_url'])
             ? urldecode((string) $queryParams['top_gallery_url'])
             : null;
@@ -1603,6 +1869,12 @@ class ProductCreate extends Component
         }
         if (trim((string) $this->quickAiLength) === '') {
             $this->quickAiLength = $inferred['length'];
+        }
+        if (trim((string) $this->quickAiLeadDaysMin) === '') {
+            $this->quickAiLeadDaysMin = (string) ($inferred['lead_days_min'] ?? 4);
+        }
+        if (trim((string) $this->quickAiLeadDaysMax) === '') {
+            $this->quickAiLeadDaysMax = (string) ($inferred['lead_days_max'] ?? 6);
         }
     }
 
@@ -1678,6 +1950,23 @@ class ProductCreate extends Component
             $configSettings['custom_fields'] = [];
         }
 
+        // Lieferanten-Vorlaufzeit bei Bestand 0 in configurator_settings speichern
+        $leadMin = (trim((string) $this->quickAiLeadDaysMin) !== '' && (int) $this->quickAiLeadDaysMin > 0)
+            ? max(1, (int) $this->quickAiLeadDaysMin)
+            : max(1, (int) ($inferred['lead_days_min'] ?? 4));
+        $leadMax = (trim((string) $this->quickAiLeadDaysMax) !== '' && (int) $this->quickAiLeadDaysMax >= $leadMin)
+            ? (int) $this->quickAiLeadDaysMax
+            : max($leadMin + 1, (int) ($inferred['lead_days_max'] ?? ($leadMin + 2)));
+        $configSettings['out_of_stock_lead_days_min'] = $leadMin;
+        $configSettings['out_of_stock_lead_days_max'] = $leadMax;
+
+        $baseDeliv = \App\Models\Delivery\DeliverySetting::getDeliveryDetails();
+        $manufakturMin = max(1, (int) ($baseDeliv['min_days'] ?? 3));
+        $manufakturMax = max($manufakturMin, (int) ($baseDeliv['max_days'] ?? 5));
+        $effectiveMinDays = ($quantity <= 0) ? ($manufakturMin + $leadMin) : $manufakturMin;
+        $effectiveMaxDays = ($quantity <= 0) ? ($manufakturMax + $leadMax) : $manufakturMax;
+        $effectiveDeliveryAttr = "{$effectiveMinDays}-{$effectiveMaxDays} Werktage";
+
         $previewPath = $threeDActive ? ($refProduct?->preview_image_path ?? 'produkte/products/seelen-talisman/overlay.png') : ($refProduct?->preview_image_path ?? null);
         $modelPath = $threeDActive ? ($refProduct?->three_d_model_path ?? 'produkte/products/seelen-talisman/seelen_talisman_3d.glb') : null;
         $bgPath = $threeDActive ? ($refProduct?->three_d_background_path ?? 'produkte/products/seelen-talisman/header_bg.png') : null;
@@ -1687,6 +1976,7 @@ class ProductCreate extends Component
             'seelen-talisman'           => 'produkte/products/seelen-talisman/seelen-talisman-dimensions.jpg',
             'seelen-anhaenger'          => 'produkte/products/seelen-anhaenger/seelen-anhaenger-dimensions.jpg',
             'goldenes-seelen-herz'      => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-dimensions.jpg',
+            'echtgold-seelen-herz'      => 'produkte/products/echtgold-seelen-herz/echtgold-seelen-herz-dimensions.jpg',
             'seelen-kristall'           => 'produkte/products/seelen-kristall/seelen-kristall-dimensions.jpg',
             'weizenglas-personalisiert' => 'produkte/products/weizenglas-personalisiert/weizenglas-dimensions.jpg',
         ];
@@ -1715,18 +2005,28 @@ class ProductCreate extends Component
             ];
         }
 
-        // Versandart & Verpackung (Luftpolster-Umschlag vs. Versandkarton) automatisch bestimmen
-        $isEnvelope = ($weight <= 100 && !in_array($refSlug, ['seelen-kristall', 'weizenglas-personalisiert'], true));
+        // Kollektions-Bereich (Manufaktur vs. Atelier Echtgold & Silber) bestimmen
+        $resolvedCollectionLine = in_array($this->quickAiCollectionLine, ['manufaktur', 'atelier'], true)
+            ? $this->quickAiCollectionLine
+            : ($inferred['collection_line'] ?? 'manufaktur');
+
+        // Versandart & Verpackung (Luftpolster-Umschlag vs. Westpack-Schmuckbox + versichertes DHL-Paket bei Atelier) automatisch bestimmen
+        $isAtelier = ($resolvedCollectionLine === 'atelier');
+        $isEnvelope = (!$isAtelier && $weight <= 100 && !in_array($refSlug, ['seelen-kristall', 'weizenglas-personalisiert'], true));
         $shippingClass = $isEnvelope ? 'brief' : null;
-        $packagingCostCents = $isEnvelope ? 14 : 60; // 14 Cent (Luftpolster-Versandtüte Karton.eu) bzw. 60 Cent (Karton)
-        $packagingWeightGrams = $isEnvelope ? 15 : ($refSlug === 'weizenglas-personalisiert' ? 120 : 150);
-        $wearFactorCents = $isEnvelope ? 5 : 15;
+        $packagingCostCents = $isAtelier ? 166 : ($isEnvelope ? 14 : 60); // 1,66 € (Westpack Schmuckbox + Karton) | 0,14 € (Luftpolster) | 0,60 € (Karton)
+        $packagingWeightGrams = $isAtelier ? 170 : ($isEnvelope ? 15 : ($refSlug === 'weizenglas-personalisiert' ? 120 : 150));
+        $wearFactorCents = ($isAtelier || !$isEnvelope) ? 15 : 5;
 
         if ($selectedMode === 'standard') {
-            $descriptionText = "{$name}: Fertig veredeltes Unikat aus unserer deutschen Manufaktur Mein-Seelenfunke. Jedes Exemplar ({$width} x {$height} x {$length} mm, ca. {$weight} g) wird per Hochpräzisions-Laser dauerhaft veredelt, handgeprüft und direkt versandfertig an dich geliefert.";
-            $shortDescText = "Handveredeltes Manufaktur-Unikat ({$width} x {$height} mm) mit präziser Lasergravur, sofort bereit zum Kauf.";
+            $descriptionText = "{$name}: Fertig veredeltes Unikat aus unserer deutschen Manufaktur Mein-Seelenfunke. Jedes Exemplar ({$width} x {$height} x {$length} mm, ca. {$weight} g) wird per Hochpräzisions-Laser dauerhaft veredelt, handgeprüft und sicher verpackt an dich geliefert.";
+            $shortDescText = $quantity > 0
+                ? "Handveredeltes Manufaktur-Unikat ({$width} x {$height} mm) mit präziser Lasergravur, direkt ab Lager verfügbar."
+                : "Handveredeltes Manufaktur-Unikat ({$width} x {$height} mm) mit präziser Lasergravur, frisch auf Bestellung in Gifhorn gefertigt.";
             $seoTitleText = "{$name} | Handveredeltes Unikat aus Deutschland | Mein-Seelenfunke";
-            $seoDescText = "{$name} ({$width} x {$height} mm) fertig laserveredelt aus unserer Manufaktur in Gifhorn. Sofort bereit zum Kauf ohne Wartezeit.";
+            $seoDescText = $quantity > 0
+                ? "{$name} ({$width} x {$height} mm) fertig laserveredelt aus unserer Manufaktur in Gifhorn. Direkt ab Lager bestellbar."
+                : "{$name} ({$width} x {$height} mm) fertig laserveredelt aus unserer Manufaktur in Gifhorn. Auftragsfertigung mit {$effectiveDeliveryAttr} Lieferzeit.";
         } elseif ($selectedMode === 'custom_fields') {
             $descriptionText = "{$name}: Individuell in unserer deutschen Manufaktur Mein-Seelenfunke per Hochpräzisions-Laser für dich veredelt. Gib einfach deinen Wunschnamen oder Wunschtext ein und wir fertigen dein persönliches Unikat ({$width} x {$height} x {$length} mm, ca. {$weight} g) millimetergenau und abriebfest.";
             $shortDescText = "Personalisiertes Unikat ({$width} x {$height} mm) mit individueller Wunschgravur aus unserer Manufaktur Mein-Seelenfunke.";
@@ -1743,6 +2043,7 @@ class ProductCreate extends Component
             'name' => $name,
             'slug' => $slug,
             'type' => 'physical',
+            'collection_line' => $resolvedCollectionLine,
             'status' => 'active',
             'is_personalizable' => $isPersonalizable,
             'three_d_active' => $threeDActive,
@@ -1751,14 +2052,14 @@ class ProductCreate extends Component
             'price' => $priceCents,
             'compare_at_price' => null,
             'purchase_price' => $ekCents,
-            'laser_runtime_minutes' => 1,
+            'laser_runtime_minutes' => $isAtelier ? 2 : 1,
             'electricity_wear_factor' => $wearFactorCents,
             'packaging_cost' => $packagingCostCents,
             'marketing_cost_percent' => 10.00,
             'sku' => $sku,
             'product_supplier_id' => $supplierId ?: null,
             'reorder_url' => $url,
-            'brand' => 'Mein-Seelenfunke',
+            'brand' => $isAtelier ? 'Mein-Seelenfunke Atelier' : 'Mein-Seelenfunke',
             'track_quantity' => true,
             'quantity' => max(0, $quantity),
             'continue_selling_when_out_of_stock' => true,
@@ -1779,7 +2080,7 @@ class ProductCreate extends Component
                 'Gewicht' => "ca. {$weight} g",
                 'Veredelung' => 'Präzisions-Lasergravur',
                 'Herkunft' => 'Handveredelt in Deutschland (Laser-Manufaktur Gifhorn)',
-                'Lieferzeit' => '3-5 Werktage',
+                'Lieferzeit' => $effectiveDeliveryAttr,
             ],
             'tier_pricing' => [],
             'seo_title' => $seoTitleText,
@@ -1805,16 +2106,20 @@ class ProductCreate extends Component
         $createdSettings['addons'] = $created->getEffectiveAddons(false);
         $created->updateQuietly(['configurator_settings' => $createdSettings]);
 
-        $catNames = $isEnvelope
-            ? ['Metall & Alu', 'Schmuck & Anhänger', 'Bestseller']
-            : ['Glas & Kristall', 'Geschenksets', 'Bestseller'];
+        $catNames = $isAtelier
+            ? ['Atelier Echtgold & Silber']
+            : ($isEnvelope
+                ? ['Metall & Alu', 'Schmuck & Anhänger', 'Bestseller']
+                : ['Glas & Kristall', 'Geschenksets', 'Bestseller']);
         $catIds = \App\Models\Product\ProductCategory::whereIn('name', $catNames)->pluck('id');
         $created->categories()->sync($catIds);
-        $created->tierPrices()->createMany([
-            ['qty' => 3, 'percent' => 5],
-            ['qty' => 5, 'percent' => 10],
-            ['qty' => 10, 'percent' => 15],
-        ]);
+        if (!$isAtelier) {
+            $created->tierPrices()->createMany([
+                ['qty' => 3, 'percent' => 5],
+                ['qty' => 5, 'percent' => 10],
+                ['qty' => 10, 'percent' => 15],
+            ]);
+        }
 
         // Automatische Pflege der Verpackungsseite (/admin/product-packaging & LUCID inkl. Katalog-Verknüpfung)
         $this->syncDefaultProductPackaging($created);
@@ -2047,6 +2352,11 @@ class ProductCreate extends Component
         // 1. Basisdaten
         $this->product->name = $this->name;
         $this->product->type = $this->type; // Typ speichern
+        $this->product->collection_line = $this->type === 'digital'
+            ? 'voucher'
+            : ($this->type === 'service'
+                ? 'service'
+                : (in_array($this->collection_line, ['manufaktur', 'atelier'], true) ? $this->collection_line : 'manufaktur'));
         $this->product->is_personalizable = (bool) $this->is_personalizable;
         $this->product->three_d_active = (bool) $this->three_d_active;
         $this->product->description = $this->description;
@@ -2133,7 +2443,7 @@ class ProductCreate extends Component
             $latestDbSettings = json_decode($latestDbSettings, true) ?: [];
         }
         if (is_array($latestDbSettings)) {
-            foreach (['excluded_variant_attributes', 'included_variant_attributes', 'addons'] as $syncKey) {
+            foreach (['excluded_variant_attributes', 'included_variant_attributes', 'addons', 'digital_documents'] as $syncKey) {
                 if (array_key_exists($syncKey, $latestDbSettings)) {
                     $this->configSettings[$syncKey] = $latestDbSettings[$syncKey];
                 }
@@ -2164,6 +2474,24 @@ class ProductCreate extends Component
             }
         }
         $this->configSettings['custom_fields'] = $normalizedCustomFields;
+
+        // Lieferanten-Vorlaufzeit bei Bestand 0 (Überverkauf) sauber speichern oder bereinigen
+        $leadMin = ($this->out_of_stock_lead_days_min !== '' && $this->out_of_stock_lead_days_min !== null && (int) $this->out_of_stock_lead_days_min > 0)
+            ? max(1, (int) $this->out_of_stock_lead_days_min)
+            : null;
+        $leadMax = ($this->out_of_stock_lead_days_max !== '' && $this->out_of_stock_lead_days_max !== null && (int) $this->out_of_stock_lead_days_max > 0)
+            ? max(1, (int) $this->out_of_stock_lead_days_max)
+            : null;
+        if ($leadMin !== null || $leadMax !== null) {
+            $resolvedMin = $leadMin ?? max(1, $leadMax - 2);
+            $resolvedMax = ($leadMax !== null && $leadMax >= $resolvedMin) ? $leadMax : ($resolvedMin + 2);
+            $this->configSettings['out_of_stock_lead_days_min'] = $resolvedMin;
+            $this->configSettings['out_of_stock_lead_days_max'] = $resolvedMax;
+            $this->out_of_stock_lead_days_min = (string) $resolvedMin;
+            $this->out_of_stock_lead_days_max = (string) $resolvedMax;
+        } else {
+            unset($this->configSettings['out_of_stock_lead_days_min'], $this->configSettings['out_of_stock_lead_days_max']);
+        }
 
         $this->product->configurator_settings = $this->configSettings;
         if ($this->type === 'physical') {
@@ -2833,6 +3161,10 @@ class ProductCreate extends Component
             $query->where('track_quantity', true)->where('quantity', '<', $lowThreshold);
         } elseif ($this->sortBy === 'filter_physical') {
             $query->where('type', 'physical');
+        } elseif ($this->sortBy === 'filter_manufaktur') {
+            $query->where('type', 'physical')->where('collection_line', 'manufaktur');
+        } elseif ($this->sortBy === 'filter_atelier') {
+            $query->where('type', 'physical')->where('collection_line', 'atelier');
         } elseif ($this->sortBy === 'filter_digital') {
             $query->where('type', 'digital');
         }

@@ -22,9 +22,39 @@ class UserSeeder extends Seeder
         $admin = Admin::firstOrCreate(
             ['email' => 'kontakt@mein-seelenfunke.de'],
             [
+                'id' => '2122795e-da08-484f-9696-a58d11070163',
                 'first_name' => 'Alina',
                 'last_name' => 'Steinhauer',
                 'password' => Hash::make('SeeleSeele1993+++'),
+            ]
+        );
+
+        // Persistente Sanctum-Tokens für Funkenwerk Windows Desktop & Funkenwerk Android App sicherstellen
+        \Illuminate\Support\Facades\DB::table('personal_access_tokens')->updateOrInsert(
+            ['id' => 1],
+            [
+                'tokenable_type' => 'admin',
+                'tokenable_id' => $admin->id,
+                'name' => 'Funkenwerk-PC',
+                'token' => 'fd8be2c9f98468f921e04a407c8c0cfeb77ebb0ac9fee9ce6e8accb2bdbd7378',
+                'abilities' => '["*"]',
+                'last_used_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+
+        \Illuminate\Support\Facades\DB::table('personal_access_tokens')->updateOrInsert(
+            ['id' => 2],
+            [
+                'tokenable_type' => 'admin',
+                'tokenable_id' => $admin->id,
+                'name' => 'FunkiApp-admin',
+                'token' => '707d5e9d5eaa9950c8598bc33248a4b35b049b1108f9cf67c3346719f794ad4a',
+                'abilities' => '["*"]',
+                'last_used_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
             ]
         );
 

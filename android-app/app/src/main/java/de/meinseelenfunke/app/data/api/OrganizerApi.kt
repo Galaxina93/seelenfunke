@@ -1,6 +1,10 @@
 package de.meinseelenfunke.app.data.api
 
 import com.google.gson.annotations.SerializedName
+import de.meinseelenfunke.app.util.SmartAlarmItem
+import de.meinseelenfunke.app.util.SmartPlugDevice
+import de.meinseelenfunke.app.util.TimerPresetItem
+import de.meinseelenfunke.app.util.WakeUpLogEntry
 import okhttp3.MultipartBody
 import retrofit2.http.DELETE
 import retrofit2.http.Field
@@ -99,6 +103,22 @@ data class ShoppingItemsResponse(val success: Boolean, val data: List<Management
 data class ShoppingItemDetailResponse(val success: Boolean, val data: ManagementShoppingItem)
 data class CalendarEventsResponse(val success: Boolean, val data: List<CalendarEvent>)
 
+data class AlarmSyncPackagePayload(
+    @SerializedName("last_synced_at") val lastSyncedAt: String? = null,
+    @SerializedName("device_name") val deviceName: String? = null,
+    @SerializedName("active_alarm_time") val activeAlarmTime: String? = null,
+    @SerializedName("active_alarm_label") val activeAlarmLabel: String? = null,
+    val alarms: List<SmartAlarmItem>? = null,
+    val timers: List<TimerPresetItem>? = null,
+    @SerializedName("smart_plugs") val smartPlugs: List<SmartPlugDevice>? = null,
+    @SerializedName("wake_up_logs") val wakeUpLogs: Map<String, WakeUpLogEntry>? = null
+)
+
+data class AlarmSyncPackageResponse(
+    val success: Boolean,
+    val data: AlarmSyncPackagePayload?
+)
+
 interface OrganizerApi {
     // --- Tasks ---
     @GET("funki/tasks/lists")
@@ -192,6 +212,20 @@ interface OrganizerApi {
 
     @DELETE("funki/routine/steps/{stepId}")
     suspend fun deleteRoutineStep(@Path("stepId") stepId: String): SimpleSuccessResponse
+
+    @GET("funki/routine/alarm-sync")
+    suspend fun getAlarmSyncPackage(): AlarmSyncPackageResponse
+
+    @FormUrlEncoded
+    @POST("funki/routine/alarm-sync")
+    suspend fun syncAlarmPackage(
+        @Field("alarms_json") alarmsJson: String,
+        @Field("timers_json") timersJson: String,
+        @Field("smart_plugs_json") smartPlugsJson: String,
+        @Field("wake_up_logs_json") wakeUpLogsJson: String,
+        @Field("active_alarm_time") activeAlarmTime: String,
+        @Field("device_name") deviceName: String
+    ): AlarmSyncPackageResponse
 
     // --- Shopping ---
     @GET("funki/shopping/items")

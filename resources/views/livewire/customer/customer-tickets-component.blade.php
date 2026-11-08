@@ -71,7 +71,7 @@
                         <tbody class="divide-y divide-gray-100 dark:divide-gray-800/50">
                         @foreach($tickets as $t)
                             @php $unread = $t->messages->where('sender_type', '!=', 'customer')->where('is_read_by_customer', false)->count(); @endphp
-                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors group cursor-pointer" wire:click="setMode('chat', '{{ $t->id }}')">
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors group cursor-pointer" @click="window.dispatchEvent(new CustomEvent('clear-ticket-badge'))" wire:click="setMode('chat', '{{ $t->id }}')">
                                 <td class="px-6 py-5 pl-8">
                                     <div class="flex items-start gap-4">
                                         @if($unread > 0) <span class="flex w-3 h-3 mt-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)] shrink-0" title="Neue Nachricht!"></span> @endif

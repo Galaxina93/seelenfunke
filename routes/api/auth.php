@@ -105,11 +105,13 @@ Route::post('/login', function (Request $request) {
 
             \App\Services\System\SystemSecurityService::recordLoginAttempt($credentials['email'], $request->ip(), true, 'api');
 
-            // Nur alte Mobile-App-Tokens desselben Typs ersetzen (Funkenwerk-PC Desktop-Tokens bleiben dauerhaft bestehen!)
-            $user->tokens()->where('name', 'FunkiApp-' . $guard)->delete();
+            // Nur alte Tokens desselben Gerätetyps ersetzen (Funkenwerk-Desktop & Android-App stören sich gegenseitig nicht!)
+            $rawDevice = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $request->input('device_name', ''));
+            $tokenName = $rawDevice !== '' ? ($rawDevice . '-' . $guard) : ('FunkiApp-' . $guard);
+            $user->tokens()->where('name', $tokenName)->delete();
 
             // Token erstellen
-            $token = $user->createToken('FunkiApp-' . $guard)->plainTextToken;
+            $token = $user->createToken($tokenName)->plainTextToken;
 
             return response()->json([
                 'status' => 'success',

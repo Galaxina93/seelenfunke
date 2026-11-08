@@ -72,3 +72,15 @@ sequenceDiagram
     Service-->>UI: Transferticket (Ticket-ID)
     UI-->>Admin: Zeige Status-Protokoll & Ticket-ID im Live-Terminal
 ```
+
+---
+
+## 5. Kanzlei-Portal: Aufgaben & Beleg-Rückfragen
+
+Zur Vermeidung zeitaufwändiger E-Mail-Ketten und teurer Kanzlei-Suchzeiten existiert im Steuerberater-Cockpit ([TaxAdvisorDashboard](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Employee/TaxAdvisor/TaxAdvisorDashboard.php)) der Tab **Aufgaben & Rückfragen**:
+
+1. **Native Kopplung an `ManagementTask`:** Alle Kanzlei-Aufgaben werden in der Systemliste `Kanzlei & Steuern` geführt.
+2. **Kommandozentrale:** Offene Rückfragen erscheinen für die Inhaberin direkt auf der zentralen To-Do-Liste auf `/admin/dashboard`.
+3. **Asynchroner Dialog:** Kanzlei und Mandantin können zu jeder Rückfrage Antworten mit Zeitstempel hinterlegen und Belege/Dokumente direkt anhängen.
+4. **Rollen-Isolation:** Das Kanzlei-Cockpit filtert strikt auf die Liste `Kanzlei & Steuern`. Betriebsinterne Aufgaben oder Kundendaten sind für die Kanzlei vollständig unzugänglich.
+

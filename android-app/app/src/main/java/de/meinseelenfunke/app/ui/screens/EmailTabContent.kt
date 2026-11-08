@@ -1,10 +1,14 @@
 package de.meinseelenfunke.app.ui.screens
 
+import android.annotation.SuppressLint
 import android.net.Uri
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,6 +19,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -23,35 +29,33 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.text.HtmlCompat
-import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.PopupProperties
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
 import de.meinseelenfunke.app.data.api.EmailAccount
+import de.meinseelenfunke.app.data.api.EmailAttachment
 import de.meinseelenfunke.app.data.api.EmailMessage
+import de.meinseelenfunke.app.data.api.EmailMessageAttachment
 import de.meinseelenfunke.app.ui.theme.AppTheme
-import de.meinseelenfunke.app.ui.theme.GlassWhite10
 import de.meinseelenfunke.app.ui.theme.Gold
-import de.meinseelenfunke.app.ui.theme.Slate300
-import de.meinseelenfunke.app.ui.theme.Slate400
 import de.meinseelenfunke.app.ui.theme.Slate50
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
-import androidx.compose.foundation.BorderStroke
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+
+private val ImportantRed = Color(0xFFEF4444)
+private val ResolvedGreen = Color(0xFF10B981)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,13 +65,19 @@ fun EmailTabContent(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val accounts by viewModel.accounts.collectAsState()
+    val processedSummary by viewModel.processedSummary.collectAsState()
     val messages by viewModel.messages.collectAsState()
     val selectedAccount by viewModel.selectedAccount.collectAsState()
     val selectedFolder by viewModel.selectedFolder.collectAsState()
+    val funnelPriorityFilter by viewModel.funnelPriorityFilter.collectAsState()
+    val funnelCategoryFilter by viewModel.funnelCategoryFilter.collectAsState()
     val selectedMessage by viewModel.selectedMessage.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val unreadOnly by viewModel.unreadOnly.collectAsState()
     val isSending by viewModel.isSending.collectAsState()
+    val isSyncing by viewModel.isSyncing.collectAsState()
+    val isAiSorting by viewModel.isAiSorting.collectAsState()
+    val statusBanner by viewModel.statusBanner.collectAsState()
 
     var showComposeDialog by remember { mutableStateOf(false) }
     var showAccountManagerInline by remember { mutableStateOf(false) }
@@ -76,13 +86,17 @@ fun EmailTabContent(
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var showDeleteFolderDialog by remember { mutableStateOf(false) }
     var folderToDelete by remember { mutableStateOf<Pair<String, String>?>(null) }
-    val context = LocalContext.current
 
+    // Dialog states for Move / Auto-Rule from context menu or reader
+    var messageForMoveDialog by remember { mutableStateOf<EmailMessage?>(null) }
+    var messageForRuleDialog by remember { mutableStateOf<EmailMessage?>(null) }
+
+    val context = LocalContext.current
 
     val accountFolders = selectedAccount?.folders
     val foldersList = remember(accountFolders) {
-        val base = mutableListOf<Triple<String, String, androidx.compose.ui.graphics.vector.ImageVector>>()
-        if (accountFolders != null && accountFolders.isNotEmpty()) {
+        val base = mutableListOf<Triple<String, String, ImageVector>>()
+        if (!accountFolders.isNullOrEmpty()) {
             accountFolders.forEach { (key, label) ->
                 val icon = when (key) {
                     "INBOX" -> Icons.Default.Inbox
@@ -98,23 +112,46 @@ fun EmailTabContent(
         } else {
             base.add(Triple("INBOX", "Posteingang", Icons.Default.Inbox))
             base.add(Triple("Sent", "Gesendet", Icons.Default.Send))
+            base.add(Triple("Drafts", "Entwürfe", Icons.Default.Drafts))
+            base.add(Triple("Junk", "Spam", Icons.Default.Report))
             base.add(Triple("Trash", "Papierkorb", Icons.Default.Delete))
             base.add(Triple("Archive", "Archiv", Icons.Default.Archive))
         }
         base
     }
 
+    val isGlobalFunnelView = selectedFolder == "Processed" || selectedFolder == "GlobalArchive"
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = AppTheme.colors.bgGradient
-                )
-            )
-            .padding(16.dp)
-    ) {
+    // Filter messages locally by priority & category when in Processed / GlobalArchive / Search
+    val filteredMessages = remember(messages, funnelPriorityFilter, funnelCategoryFilter) {
+        messages.filter { msg ->
+            val prioOk = when (funnelPriorityFilter) {
+                "high" -> msg.isImportant
+                "normal" -> !msg.isImportant
+                else -> true
+            }
+            val catOk = if (funnelCategoryFilter == "all") {
+                true
+            } else {
+                msg.category.equals(funnelCategoryFilter, ignoreCase = true)
+            }
+            prioOk && catOk
+        }
+    }
+
+    val categoryCounts = remember(messages) {
+        messages
+            .mapNotNull { it.category?.trim()?.takeIf { c -> c.isNotEmpty() } }
+            .groupingBy { it }
+            .eachCount()
+            .entries
+            .sortedByDescending { it.value }
+    }
+
+    val highCount = remember(messages) { messages.count { it.isImportant } }
+    val normalCount = remember(messages, highCount) { (messages.size - highCount).coerceAtLeast(0) }
+
+    Box(modifier = modifier.fillMaxSize()) {
         if (showComposeDialog) {
             ComposeEmailInline(
                 viewModel = viewModel,
@@ -124,8 +161,18 @@ fun EmailTabContent(
                     viewModel.clearComposeAttachments()
                     showComposeDialog = false
                 },
-                onSend = { to, subject, body ->
-                    viewModel.sendEmail(context, to, subject, body) { success ->
+                onSend = { to, cc, bcc, subject, body, accountId, draftId, forwardedAtts ->
+                    viewModel.sendEmail(
+                        context = context,
+                        to = to,
+                        subject = subject,
+                        body = body,
+                        cc = cc,
+                        bcc = bcc,
+                        accountId = accountId,
+                        draftId = draftId,
+                        forwardedAttachments = forwardedAtts
+                    ) { success ->
                         if (success) {
                             Toast.makeText(context, "E-Mail erfolgreich gesendet!", Toast.LENGTH_SHORT).show()
                             showComposeDialog = false
@@ -162,43 +209,240 @@ fun EmailTabContent(
         } else {
             Column(
                 modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Account Selector & Compose Button Row
+                // 1. Header Bar: Title + KI-Trichter + Sync + Account Settings
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "E-Mail Postfächer",
-                        fontSize = 18.sp,
+                        text = "E-Mail & KI-Trichter",
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
                         color = Gold
                     )
 
-                    IconButton(
-                        onClick = { showAccountManagerInline = true },
-                        modifier = Modifier
-                            .background(Gold, shape = CircleShape)
-                            .size(40.dp)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Postfächer verwalten",
-                            tint = SpaceBlack
-                        )
+                        // ✨ KI-Trichter Button
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Gold.copy(alpha = 0.16f))
+                                .border(1.dp, Gold, RoundedCornerShape(8.dp))
+                                .clickable(enabled = !isAiSorting) { viewModel.runAiSort() }
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                if (isAiSorting) {
+                                    CircularProgressIndicator(
+                                        color = Gold,
+                                        strokeWidth = 2.dp,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = "KI-Trichter",
+                                        tint = Gold,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                                Text(
+                                    text = if (isAiSorting) "Prüft..." else "KI-Trichter",
+                                    color = Gold,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        // ↻ IMAP Sync Button
+                        IconButton(
+                            onClick = { viewModel.syncEmails() },
+                            enabled = !isSyncing,
+                            modifier = Modifier
+                                .background(AppTheme.colors.glassSurface, shape = RoundedCornerShape(8.dp))
+                                .border(1.dp, AppTheme.colors.glassBorder, shape = RoundedCornerShape(8.dp))
+                                .size(34.dp)
+                        ) {
+                            if (isSyncing) {
+                                CircularProgressIndicator(
+                                    color = Gold,
+                                    strokeWidth = 2.dp,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Sync,
+                                    contentDescription = "Synchronisieren",
+                                    tint = AppTheme.colors.textPrimary,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
+                        }
+
+                        // ⚙ Postfächer verwalten
+                        IconButton(
+                            onClick = { showAccountManagerInline = true },
+                            modifier = Modifier
+                                .background(AppTheme.colors.glassSurface, shape = RoundedCornerShape(8.dp))
+                                .border(1.dp, AppTheme.colors.glassBorder, shape = RoundedCornerShape(8.dp))
+                                .size(34.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Postfächer verwalten",
+                                tint = Gold,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
                     }
                 }
 
-                // Accounts List / Chips
+                // Optional Feedback Banner
+                AnimatedVisibility(visible = !statusBanner.isNullOrBlank()) {
+                    statusBanner?.let { bannerText ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Gold.copy(alpha = 0.14f))
+                                .border(1.dp, Gold.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = bannerText,
+                                color = AppTheme.colors.textPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Schließen",
+                                tint = AppTheme.colors.textMuted,
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .clickable { viewModel.clearStatusBanner() }
+                            )
+                        }
+                    }
+                }
+
+                // 2. Global Funnel Views (✨ Verarbeitet & 📦 Archiv) + Account Selector Chips
                 if (accounts.isNotEmpty()) {
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
                     ) {
+                        // ✨ Verarbeitet (Global KI-Trichter)
+                        item {
+                            val isProcessedSelected = selectedFolder == "Processed"
+                            val badgeCount = if (processedSummary.importantCount > 0) {
+                                processedSummary.importantCount
+                            } else {
+                                processedSummary.totalCount
+                            }
+                            val hasImportant = processedSummary.importantCount > 0
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(if (isProcessedSelected) Gold else AppTheme.colors.cardBackground)
+                                    .border(
+                                        1.dp,
+                                        if (isProcessedSelected) Gold else if (hasImportant) ImportantRed.copy(alpha = 0.7f) else AppTheme.colors.cardBorder,
+                                        RoundedCornerShape(18.dp)
+                                    )
+                                    .clickable { viewModel.selectGlobalProcessed() }
+                                    .padding(horizontal = 11.dp, vertical = 6.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Text(
+                                        text = "✨ Verarbeitet",
+                                        color = if (isProcessedSelected) SpaceBlack else AppTheme.colors.textPrimary,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    if (badgeCount > 0) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(CircleShape)
+                                                .background(
+                                                    when {
+                                                        hasImportant -> ImportantRed
+                                                        isProcessedSelected -> SpaceBlack
+                                                        else -> Gold
+                                                    }
+                                                )
+                                                .padding(horizontal = 6.dp, vertical = 1.dp)
+                                        ) {
+                                            Text(
+                                                text = badgeCount.toString(),
+                                                color = if (hasImportant) Color.White else if (isProcessedSelected) Gold else SpaceBlack,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 📦 Global Archiv
+                        item {
+                            val isArchiveSelected = selectedFolder == "GlobalArchive"
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(if (isArchiveSelected) Gold else AppTheme.colors.cardBackground)
+                                    .border(
+                                        1.dp,
+                                        if (isArchiveSelected) Gold else AppTheme.colors.cardBorder,
+                                        RoundedCornerShape(18.dp)
+                                    )
+                                    .clickable { viewModel.selectGlobalArchive() }
+                                    .padding(horizontal = 11.dp, vertical = 6.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Text(
+                                        text = "📦 Archiv",
+                                        color = if (isArchiveSelected) SpaceBlack else AppTheme.colors.textPrimary,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    if (processedSummary.archivedCount > 0) {
+                                        Text(
+                                            text = "(${processedSummary.archivedCount})",
+                                            color = if (isArchiveSelected) SpaceBlack.copy(alpha = 0.75f) else AppTheme.colors.textMuted,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Account Chips
                         items(accounts) { account ->
-                            val isSelected = account.id == selectedAccount?.id
+                            val isSelected = !isGlobalFunnelView && account.id == selectedAccount?.id
                             AccountChip(
                                 account = account,
                                 isSelected = isSelected,
@@ -224,106 +468,211 @@ fun EmailTabContent(
                             colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack),
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Konto einrichten", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
 
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    LazyRow(
-                        modifier = Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                // 3. Account Folders Row (when an account is active)
+                if (!isGlobalFunnelView && selectedAccount != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(foldersList) { (folderKey, label, icon) ->
-                            val isSelected = selectedFolder == folderKey
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) Gold else AppTheme.colors.glassSurface)
-                                    .border(1.dp, if (isSelected) Gold else AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
-                                    .clickable { viewModel.selectFolder(folderKey) }
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = icon,
-                                        contentDescription = label,
-                                        tint = if (isSelected) SpaceBlack else AppTheme.colors.textSecondary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Text(
-                                        text = label,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) SpaceBlack else AppTheme.colors.textPrimary,
-                                        maxLines = 1
-                                    )
-                                    
-                                    val isBaseFolder = folderKey in listOf("INBOX", "Sent", "Trash", "Archive", "Drafts", "Junk")
-                                    if (!isBaseFolder) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = "Ordner löschen",
-                                            tint = if (isSelected) SpaceBlack.copy(alpha = 0.6f) else AppTheme.colors.textMuted,
-                                            modifier = Modifier
-                                                .size(14.dp)
-                                                .clickable {
-                                                    folderToDelete = Pair(folderKey, label)
-                                                    showDeleteFolderDialog = true
-                                                }
+                        LazyRow(
+                            modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            items(foldersList) { (folderKey, label, icon) ->
+                                val isSelected = selectedFolder == folderKey
+                                val unreadInFolder = selectedAccount?.counts?.get(folderKey) ?: 0
+                                val totalInFolder = selectedAccount?.totalCounts?.get(folderKey) ?: 0
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSelected) Gold else AppTheme.colors.glassSurface)
+                                        .border(
+                                            1.dp,
+                                            if (isSelected) Gold else AppTheme.colors.glassBorder,
+                                            RoundedCornerShape(8.dp)
                                         )
+                                        .clickable { viewModel.selectFolder(folderKey) }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = label,
+                                            tint = if (isSelected) SpaceBlack else AppTheme.colors.textSecondary,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = label,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelected) SpaceBlack else AppTheme.colors.textPrimary,
+                                            maxLines = 1
+                                        )
+                                        if (unreadInFolder > 0) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(CircleShape)
+                                                    .background(if (isSelected) SpaceBlack else Gold)
+                                                    .padding(horizontal = 5.dp, vertical = 1.dp)
+                                            ) {
+                                                Text(
+                                                    text = unreadInFolder.toString(),
+                                                    color = if (isSelected) Gold else SpaceBlack,
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        } else if (totalInFolder > 0) {
+                                            Text(
+                                                text = "($totalInFolder)",
+                                                color = if (isSelected) SpaceBlack.copy(alpha = 0.7f) else AppTheme.colors.textMuted,
+                                                fontSize = 10.sp
+                                            )
+                                        }
+
+                                        val isBaseFolder = folderKey in listOf("INBOX", "Sent", "Trash", "Archive", "Drafts", "Junk")
+                                        if (!isBaseFolder) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Ordner löschen",
+                                                tint = if (isSelected) SpaceBlack.copy(alpha = 0.6f) else AppTheme.colors.textMuted,
+                                                modifier = Modifier
+                                                    .size(13.dp)
+                                                    .clickable {
+                                                        folderToDelete = Pair(folderKey, label)
+                                                        showDeleteFolderDialog = true
+                                                    }
+                                            )
+                                        }
                                     }
                                 }
                             }
-
                         }
-                    }
 
-                    if (selectedAccount != null) {
                         IconButton(
                             onClick = { showCreateFolderDialog = true },
                             modifier = Modifier
                                 .background(AppTheme.colors.glassSurface, shape = RoundedCornerShape(8.dp))
                                 .border(1.dp, AppTheme.colors.glassBorder, shape = RoundedCornerShape(8.dp))
-                                .size(36.dp)
+                                .size(32.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.CreateNewFolder,
                                 contentDescription = "Ordner erstellen",
                                 tint = Gold,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(17.dp)
                             )
                         }
                     }
                 }
 
-                // Search Bar & Filter Row
+                // 4. KI-Trichter Priority & Category Filter Pills (shown in Processed / GlobalArchive or when categories exist)
+                if (isGlobalFunnelView || highCount > 0 || categoryCounts.isNotEmpty()) {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        // Alle
+                        item {
+                            val active = funnelPriorityFilter == "all" && funnelCategoryFilter == "all"
+                            FunnelFilterChip(
+                                label = "Alle (${messages.size})",
+                                isSelected = active,
+                                accentColor = Gold,
+                                onClick = {
+                                    viewModel.setFunnelPriorityFilter("all")
+                                    viewModel.setFunnelCategoryFilter("all")
+                                }
+                            )
+                        }
+                        // 🔴 Wichtig
+                        item {
+                            val active = funnelPriorityFilter == "high"
+                            FunnelFilterChip(
+                                label = "🔴 Wichtig ($highCount)",
+                                isSelected = active,
+                                accentColor = ImportantRed,
+                                onClick = {
+                                    viewModel.setFunnelPriorityFilter(if (active) "all" else "high")
+                                }
+                            )
+                        }
+                        // ⚪ Normal
+                        item {
+                            val active = funnelPriorityFilter == "normal"
+                            FunnelFilterChip(
+                                label = "⚪ Normal ($normalCount)",
+                                isSelected = active,
+                                accentColor = Gold,
+                                onClick = {
+                                    viewModel.setFunnelPriorityFilter(if (active) "all" else "normal")
+                                }
+                            )
+                        }
+                        // Categories
+                        items(categoryCounts) { (catName, count) ->
+                            val active = funnelCategoryFilter.equals(catName, ignoreCase = true)
+                            FunnelFilterChip(
+                                label = "🏷 $catName ($count)",
+                                isSelected = active,
+                                accentColor = Gold,
+                                onClick = {
+                                    viewModel.setFunnelCategoryFilter(if (active) "all" else catName)
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // 5. Search Bar & Unread Toggle
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { viewModel.setSearchQuery(it) },
-                        placeholder = { Text("E-Mails suchen...", color = AppTheme.colors.textMuted, fontSize = 13.sp) },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Suchen", tint = AppTheme.colors.textMuted) },
+                        placeholder = {
+                            Text(
+                                "E-Mails durchsuchen...",
+                                color = AppTheme.colors.textMuted,
+                                fontSize = 12.sp
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = "Suchen",
+                                tint = AppTheme.colors.textMuted,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Suche löschen",
+                                        tint = AppTheme.colors.textMuted,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        },
+                        singleLine = true,
                         modifier = Modifier.weight(1f),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Gold,
@@ -336,23 +685,41 @@ fun EmailTabContent(
                         shape = RoundedCornerShape(10.dp)
                     )
 
-                    // Unread Only Switch / Button
-                    IconButton(
-                        onClick = { viewModel.setUnreadOnly(!unreadOnly) },
+                    // Unread Only Button
+                    Box(
                         modifier = Modifier
-                            .background(if (unreadOnly) Gold else AppTheme.colors.glassSurface, shape = RoundedCornerShape(10.dp))
-                            .border(1.dp, if (unreadOnly) Gold else AppTheme.colors.glassBorder, shape = RoundedCornerShape(10.dp))
-                            .size(48.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (unreadOnly) Gold else AppTheme.colors.glassSurface)
+                            .border(
+                                1.dp,
+                                if (unreadOnly) Gold else AppTheme.colors.glassBorder,
+                                RoundedCornerShape(10.dp)
+                            )
+                            .clickable { viewModel.setUnreadOnly(!unreadOnly) }
+                            .padding(horizontal = 10.dp, vertical = 12.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = if (unreadOnly) Icons.Default.Mail else Icons.Default.Drafts,
-                            contentDescription = "Ungelesene filtern",
-                            tint = if (unreadOnly) SpaceBlack else AppTheme.colors.textSecondary
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (unreadOnly) Icons.Default.MarkEmailUnread else Icons.Default.MailOutline,
+                                contentDescription = "Ungelesene filtern",
+                                tint = if (unreadOnly) SpaceBlack else AppTheme.colors.textSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Ungelesen",
+                                color = if (unreadOnly) SpaceBlack else AppTheme.colors.textSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
 
-                // Main Email List Area
+                // 6. Main Email List Area
                 when (uiState) {
                     is EmailUiState.Loading -> {
                         Box(
@@ -377,21 +744,21 @@ fun EmailTabContent(
                             ) {
                                 Text(
                                     text = (uiState as EmailUiState.Error).message,
-                                    color = Color.Red,
+                                    color = ImportantRed,
                                     textAlign = TextAlign.Center,
-                                    fontSize = 14.sp
+                                    fontSize = 13.sp
                                 )
                                 Button(
                                     onClick = { viewModel.loadAccountsAndMessages() },
                                     colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack)
                                 ) {
-                                    Text("Erneut versuchen")
+                                    Text("Erneut versuchen", fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
                     }
                     is EmailUiState.Success -> {
-                        if (messages.isEmpty()) {
+                        if (filteredMessages.isEmpty()) {
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
@@ -399,9 +766,9 @@ fun EmailTabContent(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "Keine E-Mails gefunden.",
+                                    text = "Keine E-Mails in dieser Ansicht.",
                                     color = AppTheme.colors.textMuted,
-                                    fontSize = 14.sp
+                                    fontSize = 13.sp
                                 )
                             }
                         } else {
@@ -411,14 +778,41 @@ fun EmailTabContent(
                                     .fillMaxWidth(),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                items(messages) { message ->
+                                items(filteredMessages, key = { it.id }) { message ->
                                     EmailMessageRow(
                                         message = message,
-                                        onClick = { viewModel.selectMessage(message) }
+                                        showAccountBadge = isGlobalFunnelView,
+                                        onClick = {
+                                            if (message.folder == "Drafts") {
+                                                viewModel.prepareComposeEditDraft(message)
+                                                showComposeDialog = true
+                                            } else {
+                                                viewModel.selectMessage(message)
+                                            }
+                                        },
+                                        onResolveImportant = { makeImportant ->
+                                            viewModel.resolveMessageImportance(message, makeImportant)
+                                        },
+                                        onToggleRead = { viewModel.toggleMessageRead(message) },
+                                        onReply = {
+                                            viewModel.prepareComposeReply(message)
+                                            showComposeDialog = true
+                                        },
+                                        onForward = {
+                                            viewModel.prepareComposeForward(message)
+                                            showComposeDialog = true
+                                        },
+                                        onCreateTask = { viewModel.createTaskFromMail(message) },
+                                        onSaveContact = { viewModel.createContactFromMail(message) },
+                                        onArchive = { viewModel.moveMessage(message, "Archive") },
+                                        onMoveRequest = { messageForMoveDialog = message },
+                                        onRuleRequest = { messageForRuleDialog = message },
+                                        onMarkSpam = { viewModel.moveMessage(message, "Junk") },
+                                        onDelete = { viewModel.deleteMessage(message) }
                                     )
                                 }
                                 item {
-                                    Spacer(modifier = Modifier.height(80.dp))
+                                    Spacer(modifier = Modifier.height(76.dp))
                                 }
                             }
                         }
@@ -426,14 +820,17 @@ fun EmailTabContent(
                 }
             }
 
-            // Floating Action Button to compose mail
+            // Floating Action Button to compose new email
             FloatingActionButton(
-                onClick = { showComposeDialog = true },
+                onClick = {
+                    viewModel.prepareComposeNew()
+                    showComposeDialog = true
+                },
                 containerColor = Gold,
                 contentColor = SpaceBlack,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(bottom = 16.dp, end = 16.dp)
+                    .padding(bottom = 12.dp, end = 8.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Edit,
@@ -442,28 +839,145 @@ fun EmailTabContent(
             }
         }
 
-        // Message Detail Sheet / Dialog
+        // Full-Screen Message Detail Dialog
         selectedMessage?.let { msg ->
             EmailDetailDialog(
                 message = msg,
                 currentFolder = selectedFolder,
-                availableFolders = foldersList,
-                onDismiss = { viewModel.selectAccount(selectedAccount ?: return@EmailDetailDialog) },
+                onDismiss = { viewModel.clearSelectedMessage() },
                 onDelete = {
                     viewModel.deleteMessage(msg)
+                    viewModel.clearSelectedMessage()
                 },
                 onToggleUnread = {
                     viewModel.toggleMessageRead(msg)
                 },
                 onReply = {
-                    viewModel.selectAccount(selectedAccount ?: return@EmailDetailDialog)
+                    viewModel.clearSelectedMessage()
+                    viewModel.prepareComposeReply(msg)
+                    showComposeDialog = true
+                },
+                onForward = {
+                    viewModel.clearSelectedMessage()
+                    viewModel.prepareComposeForward(msg)
+                    showComposeDialog = true
+                },
+                onEditDraft = {
+                    viewModel.clearSelectedMessage()
+                    viewModel.prepareComposeEditDraft(msg)
                     showComposeDialog = true
                 },
                 onArchive = {
                     viewModel.moveMessage(msg, "Archive")
+                    viewModel.clearSelectedMessage()
                 },
-                onMoveFolder = { targetFolder ->
-                    viewModel.moveMessage(msg, targetFolder)
+                onResolveImportant = { makeImportant ->
+                    viewModel.resolveMessageImportance(msg, makeImportant)
+                },
+                onCreateTask = {
+                    viewModel.createTaskFromMail(msg)
+                },
+                onSaveContact = {
+                    viewModel.createContactFromMail(msg)
+                },
+                onMoveRequest = {
+                    messageForMoveDialog = msg
+                },
+                onRuleRequest = {
+                    messageForRuleDialog = msg
+                },
+                onMarkSpam = {
+                    viewModel.moveMessage(msg, "Junk")
+                    viewModel.clearSelectedMessage()
+                },
+                onDownloadAttachment = { att ->
+                    viewModel.downloadAndOpenAttachment(context, att)
+                }
+            )
+        }
+
+        // Move to Folder Picker Dialog
+        messageForMoveDialog?.let { targetMsg ->
+            AlertDialog(
+                onDismissRequest = { messageForMoveDialog = null },
+                containerColor = AppTheme.colors.cardBackground,
+                shape = RoundedCornerShape(16.dp),
+                title = {
+                    Text("E-Mail verschieben nach", color = Gold, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        foldersList.forEach { (key, label, icon) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(AppTheme.colors.glassSurface)
+                                    .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        viewModel.moveMessage(targetMsg, key)
+                                        messageForMoveDialog = null
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(icon, contentDescription = null, tint = Gold, modifier = Modifier.size(18.dp))
+                                Text(label, color = AppTheme.colors.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { messageForMoveDialog = null }) {
+                        Text("Abbrechen", color = AppTheme.colors.textSecondary)
+                    }
+                }
+            )
+        }
+
+        // Sender Auto-Rule Folder Picker Dialog
+        messageForRuleDialog?.let { targetMsg ->
+            AlertDialog(
+                onDismissRequest = { messageForRuleDialog = null },
+                containerColor = AppTheme.colors.cardBackground,
+                shape = RoundedCornerShape(16.dp),
+                title = {
+                    Text("Absender-Regel erstellen", color = Gold, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "Künftige & bestehende Mails von '${targetMsg.fromEmail ?: targetMsg.from}' automatisch verschieben nach:",
+                            color = AppTheme.colors.textSecondary,
+                            fontSize = 12.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        foldersList.forEach { (key, label, icon) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(AppTheme.colors.glassSurface)
+                                    .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        viewModel.createSenderRule(targetMsg, key, label)
+                                        messageForRuleDialog = null
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(icon, contentDescription = null, tint = Gold, modifier = Modifier.size(18.dp))
+                                Text(label, color = AppTheme.colors.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { messageForRuleDialog = null }) {
+                        Text("Abbrechen", color = AppTheme.colors.textSecondary)
+                    }
                 }
             )
         }
@@ -540,7 +1054,11 @@ fun EmailTabContent(
                         Text("Ordner löschen", color = Gold, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     },
                     text = {
-                        Text("Möchtest du den Ordner '$label' wirklich löschen? Alle E-Mails darin werden in den Posteingang (INBOX) verschoben.", color = AppTheme.colors.textSecondary, fontSize = 14.sp)
+                        Text(
+                            "Möchtest du den Ordner '$label' wirklich löschen? Alle E-Mails darin werden in den Posteingang (INBOX) verschoben.",
+                            color = AppTheme.colors.textSecondary,
+                            fontSize = 14.sp
+                        )
                     },
                     confirmButton = {
                         Button(
@@ -557,7 +1075,7 @@ fun EmailTabContent(
                                 }
                             },
                             enabled = !isDeletingFolder,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.8f), contentColor = Slate50)
+                            colors = ButtonDefaults.buttonColors(containerColor = ImportantRed, contentColor = Slate50)
                         ) {
                             if (isDeletingFolder) {
                                 CircularProgressIndicator(color = Slate50, modifier = Modifier.size(18.dp))
@@ -574,9 +1092,35 @@ fun EmailTabContent(
                 )
             }
         }
+    }
+}
 
-
-        // Old modal dialog removed, now handled inline
+@Composable
+private fun FunnelFilterChip(
+    label: String,
+    isSelected: Boolean,
+    accentColor: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isSelected) accentColor.copy(alpha = 0.22f) else AppTheme.colors.glassSurface)
+            .border(
+                1.dp,
+                if (isSelected) accentColor else AppTheme.colors.glassBorder,
+                RoundedCornerShape(14.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = if (isSelected) accentColor else AppTheme.colors.textSecondary,
+            fontSize = 11.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+        )
     }
 }
 
@@ -588,21 +1132,21 @@ fun AccountChip(
 ) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(if (isSelected) Gold else AppTheme.colors.cardBackground)
-            .border(1.dp, if (isSelected) Gold else AppTheme.colors.cardBorder, RoundedCornerShape(20.dp))
+            .border(1.dp, if (isSelected) Gold else AppTheme.colors.cardBorder, RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 6.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
         ) {
             Text(
                 text = account.email,
                 color = if (isSelected) SpaceBlack else AppTheme.colors.textPrimary,
-                fontSize = 13.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold
             )
             if (account.unreadCount > 0) {
@@ -610,7 +1154,7 @@ fun AccountChip(
                     modifier = Modifier
                         .clip(CircleShape)
                         .background(if (isSelected) SpaceBlack else Gold)
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .padding(horizontal = 6.dp, vertical = 1.dp)
                 ) {
                     Text(
                         text = account.unreadCount.toString(),
@@ -627,71 +1171,831 @@ fun AccountChip(
 @Composable
 fun EmailMessageRow(
     message: EmailMessage,
-    onClick: () -> Unit
+    showAccountBadge: Boolean = false,
+    onClick: () -> Unit,
+    onResolveImportant: (Boolean) -> Unit,
+    onToggleRead: () -> Unit,
+    onReply: () -> Unit,
+    onForward: () -> Unit,
+    onCreateTask: () -> Unit,
+    onSaveContact: () -> Unit,
+    onArchive: () -> Unit,
+    onMoveRequest: () -> Unit,
+    onRuleRequest: () -> Unit,
+    onMarkSpam: () -> Unit,
+    onDelete: () -> Unit
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
+    val isUnread = !message.isRead
+    val isImportant = message.isImportant
+    val isDraft = message.folder == "Drafts"
+    val cleanSubject = remember(message.subject) { EmailTextSanitizer.repairSubject(message.subject) }
+    val cleanSender = remember(message.fromName, message.fromEmail, message.toEmail, isDraft) {
+        if (isDraft) {
+            "An: ${(message.toEmail ?: "").ifBlank { "(Kein Empfänger)" }}"
+        } else {
+            EmailTextSanitizer.cleanSenderName(message.fromName, message.fromEmail)
+        }
+    }
+    val snippet = remember(message.body, message.htmlBody, message.subject) {
+        EmailTextSanitizer.getPlainSnippet(message)
+    }
+    val shortDate = remember(message.receivedAt) {
+        EmailTextSanitizer.formatShortDate(message.receivedAt)
+    }
+
+    val borderColor = when {
+        isImportant -> ImportantRed.copy(alpha = 0.7f)
+        isUnread -> Gold.copy(alpha = 0.65f)
+        else -> AppTheme.colors.cardBorder
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
-        border = BorderStroke(1.dp, AppTheme.colors.cardBorder)
+        border = BorderStroke(1.dp, borderColor),
+        shape = RoundedCornerShape(12.dp)
     ) {
         Column(
-            modifier = Modifier.padding(12.dp)
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
+            // Row 1: Unread Dot + Sender/Draft + AI Sparkle + Date + 3-Dot Context Menu
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    if (!message.isRead) {
+                    if (isUnread) {
                         Box(
                             modifier = Modifier
                                 .size(8.dp)
-                                .background(Gold, shape = CircleShape)
+                                .background(if (isImportant) ImportantRed else Gold, shape = CircleShape)
                         )
                     }
+                    if (isDraft) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Gold.copy(alpha = 0.2f))
+                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                        ) {
+                            Text("ENTWURF", color = Gold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                     Text(
-                        text = message.from,
-                        color = if (message.isRead) AppTheme.colors.textSecondary else AppTheme.colors.textPrimary,
-                        fontWeight = if (message.isRead) FontWeight.Normal else FontWeight.Bold,
-                        fontSize = 14.sp,
+                        text = cleanSender,
+                        color = if (isUnread) AppTheme.colors.textPrimary else AppTheme.colors.textSecondary,
+                        fontWeight = if (isUnread) FontWeight.Bold else FontWeight.SemiBold,
+                        fontSize = 13.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Text(
-                    text = formatEmailDate(message.receivedAt),
-                    color = AppTheme.colors.textMuted,
-                    fontSize = 11.sp
-                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (message.aiStatus == "analyzed") {
+                        Text(text = "✨", fontSize = 10.sp)
+                    }
+                    if (!message.attachments.isNullOrEmpty()) {
+                        Icon(
+                            imageVector = Icons.Default.AttachFile,
+                            contentDescription = "Anhang",
+                            tint = Gold,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                    Text(
+                        text = shortDate,
+                        color = if (isUnread) Gold else AppTheme.colors.textMuted,
+                        fontSize = 11.sp,
+                        fontWeight = if (isUnread) FontWeight.Bold else FontWeight.Normal
+                    )
+
+                    Box {
+                        IconButton(
+                            onClick = { showMenu = true },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "Aktionen",
+                                tint = AppTheme.colors.textMuted,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false },
+                            modifier = Modifier
+                                .background(AppTheme.colors.cardBackground)
+                                .border(1.dp, Gold.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        if (isDraft) "📝 Entwurf weiterbearbeiten" else "📖 E-Mail öffnen",
+                                        color = AppTheme.colors.textPrimary,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onClick()
+                                }
+                            )
+                            if (isImportant) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            "✓ Aufgabe erledigt (Archivieren)",
+                                            color = ResolvedGreen,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    },
+                                    onClick = {
+                                        showMenu = false
+                                        onResolveImportant(false)
+                                    }
+                                )
+                            } else {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            "🔴 Als Wichtig markieren (Trichter)",
+                                            color = ImportantRed,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    },
+                                    onClick = {
+                                        showMenu = false
+                                        onResolveImportant(true)
+                                    }
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        if (message.isRead) "✉ Als ungelesen markieren" else "✉ Als gelesen markieren",
+                                        color = AppTheme.colors.textPrimary,
+                                        fontSize = 13.sp
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onToggleRead()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("↩ Antworten", color = AppTheme.colors.textPrimary, fontSize = 13.sp) },
+                                onClick = {
+                                    showMenu = false
+                                    onReply()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("↪ Weiterleiten", color = AppTheme.colors.textPrimary, fontSize = 13.sp) },
+                                onClick = {
+                                    showMenu = false
+                                    onForward()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("📋 Als Aufgabe (To-Do) anlegen", color = Gold, fontSize = 13.sp) },
+                                onClick = {
+                                    showMenu = false
+                                    onCreateTask()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("👤 Absender als Kontakt speichern", color = AppTheme.colors.textPrimary, fontSize = 13.sp) },
+                                onClick = {
+                                    showMenu = false
+                                    onSaveContact()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("📦 Ins Archiv verschieben", color = AppTheme.colors.textPrimary, fontSize = 13.sp) },
+                                onClick = {
+                                    showMenu = false
+                                    onArchive()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("📁 Verschieben nach...", color = AppTheme.colors.textPrimary, fontSize = 13.sp) },
+                                onClick = {
+                                    showMenu = false
+                                    onMoveRequest()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("⚡ Absender-Regel (Auto-Ordner)...", color = AppTheme.colors.textPrimary, fontSize = 13.sp) },
+                                onClick = {
+                                    showMenu = false
+                                    onRuleRequest()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("🛡 Als Spam markieren (Junk)", color = ImportantRed, fontSize = 13.sp) },
+                                onClick = {
+                                    showMenu = false
+                                    onMarkSpam()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("🗑 Löschen", color = ImportantRed, fontSize = 13.sp, fontWeight = FontWeight.Bold) },
+                                onClick = {
+                                    showMenu = false
+                                    onDelete()
+                                }
+                            )
+                        }
+                    }
+                }
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
-
+            // Row 2: Repaired Subject
             Text(
-                text = message.subject.orEmpty().ifBlank { "(Kein Betreff)" },
-                color = if (message.isRead) AppTheme.colors.textSecondary else AppTheme.colors.textPrimary,
-                fontWeight = if (message.isRead) FontWeight.Normal else FontWeight.Bold,
+                text = cleanSubject,
+                color = if (isUnread) AppTheme.colors.textPrimary else AppTheme.colors.textSecondary,
+                fontWeight = if (isUnread) FontWeight.Bold else FontWeight.Medium,
                 fontSize = 13.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Spacer(modifier = Modifier.height(2.dp))
-
-            Text(
-                text = (message.body ?: message.htmlBody ?: "").trim().take(100),
-                color = AppTheme.colors.textMuted,
-                fontSize = 12.sp,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+
+            // Row 3: Badges (WICHTIG, Category, Account)
+            val hasBadges = isImportant || !message.category.isNullOrBlank() || (showAccountBadge && !message.accountEmail.isNullOrBlank())
+            if (hasBadges) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 2.dp)
+                ) {
+                    if (isImportant) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(5.dp))
+                                .background(ImportantRed.copy(alpha = 0.16f))
+                                .border(1.dp, ImportantRed.copy(alpha = 0.5f), RoundedCornerShape(5.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("🔴 WICHTIG", color = ImportantRed, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    if (!message.category.isNullOrBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(5.dp))
+                                .background(Gold.copy(alpha = 0.14f))
+                                .border(1.dp, Gold.copy(alpha = 0.4f), RoundedCornerShape(5.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("🏷 ${message.category}", color = Gold, fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    if (showAccountBadge && !message.accountEmail.isNullOrBlank()) {
+                        Text(
+                            text = message.accountEmail,
+                            color = AppTheme.colors.textMuted,
+                            fontSize = 9.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
+            // Row 4: Inline ActionHint + "✓ Erledigt" Button for Important Mails
+            if (isImportant || !message.actionHint.isNullOrBlank()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 2.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(ImportantRed.copy(alpha = 0.10f))
+                        .border(1.dp, ImportantRed.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 8.dp, vertical = 5.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "👉 ${message.actionHint?.takeIf { it.isNotBlank() } ?: "Wichtige E-Mail"}",
+                        color = AppTheme.colors.textPrimary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (isImportant) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(ResolvedGreen.copy(alpha = 0.2f))
+                                .border(1.dp, ResolvedGreen, RoundedCornerShape(6.dp))
+                                .clickable { onResolveImportant(false) }
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = "✓ Erledigt",
+                                color = ResolvedGreen,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Row 5: Clean Plain-Text Snippet
+            if (snippet.isNotBlank()) {
+                Text(
+                    text = snippet,
+                    color = AppTheme.colors.textMuted,
+                    fontSize = 11.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+fun EmailDetailDialog(
+    message: EmailMessage,
+    currentFolder: String,
+    onDismiss: () -> Unit,
+    onDelete: () -> Unit,
+    onToggleUnread: () -> Unit,
+    onReply: () -> Unit,
+    onForward: () -> Unit,
+    onEditDraft: () -> Unit,
+    onArchive: () -> Unit,
+    onResolveImportant: (Boolean) -> Unit,
+    onCreateTask: () -> Unit,
+    onSaveContact: () -> Unit,
+    onMoveRequest: () -> Unit,
+    onRuleRequest: () -> Unit,
+    onMarkSpam: () -> Unit,
+    onDownloadAttachment: (EmailMessageAttachment) -> Unit
+) {
+    var showHtmlView by remember(message.id) { mutableStateOf(false) }
+    var showMoreMenu by remember { mutableStateOf(false) }
+
+    val cleanSubject = remember(message.subject) { EmailTextSanitizer.repairSubject(message.subject) }
+    val cleanBody = remember(message.body, message.htmlBody) {
+        EmailTextSanitizer.formatCleanEmailBody(message.body, message.htmlBody)
+    }
+    val hasHtml = !message.htmlBody.isNullOrBlank()
+    val attachments = message.attachments ?: emptyList()
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 10.dp, vertical = 16.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(AppTheme.colors.cardBackground)
+                .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp))
+        ) {
+            // Top Action Bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(AppTheme.colors.glassSurface)
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Zurück", tint = AppTheme.colors.textPrimary)
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (message.folder == "Drafts") {
+                        IconButton(onClick = onEditDraft) {
+                            Icon(Icons.Default.Edit, contentDescription = "Entwurf bearbeiten", tint = Gold)
+                        }
+                    } else {
+                        IconButton(onClick = onReply) {
+                            Icon(Icons.Default.Reply, contentDescription = "Antworten", tint = Gold)
+                        }
+                        IconButton(onClick = onForward) {
+                            Icon(Icons.Default.Forward, contentDescription = "Weiterleiten", tint = AppTheme.colors.textPrimary)
+                        }
+                    }
+
+                    IconButton(onClick = onToggleUnread) {
+                        Icon(
+                            imageVector = if (message.isRead) Icons.Default.MarkEmailUnread else Icons.Default.MarkEmailRead,
+                            contentDescription = "Gelesen/Ungelesen",
+                            tint = AppTheme.colors.textPrimary
+                        )
+                    }
+
+                    if (currentFolder != "Archive" && currentFolder != "GlobalArchive") {
+                        IconButton(onClick = onArchive) {
+                            Icon(Icons.Default.Archive, contentDescription = "Archivieren", tint = AppTheme.colors.textPrimary)
+                        }
+                    }
+
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Default.Delete, contentDescription = "Löschen", tint = ImportantRed)
+                    }
+
+                    Box {
+                        IconButton(onClick = { showMoreMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Mehr", tint = AppTheme.colors.textPrimary)
+                        }
+                        DropdownMenu(
+                            expanded = showMoreMenu,
+                            onDismissRequest = { showMoreMenu = false },
+                            modifier = Modifier
+                                .background(AppTheme.colors.cardBackground)
+                                .border(1.dp, Gold.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("📋 Als Aufgabe (To-Do) anlegen", color = Gold, fontSize = 13.sp, fontWeight = FontWeight.Bold) },
+                                onClick = {
+                                    showMoreMenu = false
+                                    onCreateTask()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("👤 Absender als Kontakt speichern", color = AppTheme.colors.textPrimary, fontSize = 13.sp) },
+                                onClick = {
+                                    showMoreMenu = false
+                                    onSaveContact()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("📁 Verschieben nach...", color = AppTheme.colors.textPrimary, fontSize = 13.sp) },
+                                onClick = {
+                                    showMoreMenu = false
+                                    onMoveRequest()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("⚡ Absender-Regel (Auto-Ordner)...", color = AppTheme.colors.textPrimary, fontSize = 13.sp) },
+                                onClick = {
+                                    showMoreMenu = false
+                                    onRuleRequest()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("🛡 Als Spam markieren (Junk)", color = ImportantRed, fontSize = 13.sp) },
+                                onClick = {
+                                    showMoreMenu = false
+                                    onMarkSpam()
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Scrollable Detail Content
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Subject
+                Text(
+                    text = cleanSubject,
+                    color = Gold,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
+                )
+
+                // Badges + Importance Toggle Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (message.isImportant) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(ImportantRed.copy(alpha = 0.16f))
+                                    .border(1.dp, ImportantRed, RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                            ) {
+                                Text("🔴 WICHTIG", color = ImportantRed, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        if (!message.category.isNullOrBlank()) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Gold.copy(alpha = 0.15f))
+                                    .border(1.dp, Gold.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                            ) {
+                                Text("🏷 ${message.category}", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+
+                    if (message.isImportant) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(ResolvedGreen.copy(alpha = 0.18f))
+                                .border(1.dp, ResolvedGreen, RoundedCornerShape(6.dp))
+                                .clickable { onResolveImportant(false) }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text("✓ Aufgabe erledigt", color = ResolvedGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(AppTheme.colors.glassSurface)
+                                .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(6.dp))
+                                .clickable { onResolveImportant(true) }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text("🔴 Als Wichtig markieren", color = AppTheme.colors.textSecondary, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+
+                // KI Action-Hint Box
+                if (!message.actionHint.isNullOrBlank()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(ImportantRed.copy(alpha = 0.10f))
+                            .border(1.dp, ImportantRed.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                            .padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "👉 ${message.actionHint}",
+                            color = AppTheme.colors.textPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                // Sender / Recipient / Date Metadata Box
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(AppTheme.colors.glassSurface)
+                        .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(10.dp))
+                        .padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text(
+                        text = "Von: ${message.from}",
+                        color = AppTheme.colors.textPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "An: ${message.to}",
+                        color = AppTheme.colors.textSecondary,
+                        fontSize = 11.sp
+                    )
+                    if (!message.ccEmail.isNullOrBlank()) {
+                        Text(
+                            text = "CC: ${message.ccEmail}",
+                            color = AppTheme.colors.textSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                    Text(
+                        text = "Datum: ${EmailTextSanitizer.formatFullDate(message.receivedAt)}",
+                        color = AppTheme.colors.textMuted,
+                        fontSize = 11.sp
+                    )
+                }
+
+                // Attachments Section
+                if (attachments.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(AppTheme.colors.glassSurface)
+                            .border(1.dp, Gold.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                            .padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "📎 Anhänge (${attachments.size})",
+                            color = Gold,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        attachments.forEach { att ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(AppTheme.colors.cardBackground)
+                                    .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(8.dp))
+                                    .clickable { onDownloadAttachment(att) }
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.InsertDriveFile,
+                                        contentDescription = null,
+                                        tint = Gold,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Column {
+                                        Text(
+                                            text = att.filename,
+                                            color = AppTheme.colors.textPrimary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = EmailTextSanitizer.formatAttachmentSize(att.size),
+                                            color = AppTheme.colors.textMuted,
+                                            fontSize = 10.sp
+                                        )
+                                    }
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.OpenInNew,
+                                    contentDescription = "Öffnen",
+                                    tint = Gold,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Toggle between Clean Structured Text and Original HTML WebView
+                if (hasHtml) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (showHtmlView) Gold else AppTheme.colors.glassSurface)
+                                .border(1.dp, if (showHtmlView) Gold else AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
+                                .clickable { showHtmlView = !showHtmlView }
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Text(
+                                text = if (showHtmlView) "📄 Bereinigter Text" else "🌐 Original HTML-Ansicht",
+                                color = if (showHtmlView) SpaceBlack else AppTheme.colors.textSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                // Email Body Content
+                if (showHtmlView && hasHtml) {
+                    val rawHtml = message.htmlBody ?: ""
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 300.dp, max = 900.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(10.dp))
+                    ) {
+                        AndroidView(
+                            factory = { ctx ->
+                                WebView(ctx).apply {
+                                    webViewClient = WebViewClient()
+                                    settings.javaScriptEnabled = false
+                                    settings.loadsImagesAutomatically = true
+                                    settings.useWideViewPort = true
+                                    settings.loadWithOverviewMode = true
+                                }
+                            },
+                            update = { webView ->
+                                val wrappedHtml = """
+                                    <!DOCTYPE html>
+                                    <html>
+                                    <head>
+                                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                                    <style>
+                                        body { font-family: sans-serif; word-wrap: break-word; margin: 12px; color: #0F172A; background: #FFFFFF; }
+                                        img { max-width: 100%; height: auto; }
+                                        table { max-width: 100% !important; }
+                                    </style>
+                                    </head>
+                                    <body>$rawHtml</body>
+                                    </html>
+                                """.trimIndent()
+                                webView.loadDataWithBaseURL(null, wrappedHtml, "text/html", "UTF-8", null)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                } else {
+                    SelectionContainer {
+                        Text(
+                            text = cleanBody,
+                            color = AppTheme.colors.textPrimary,
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+
+            // Bottom Quick Action Bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(AppTheme.colors.glassSurface)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = onReply,
+                    colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(vertical = 8.dp)
+                ) {
+                    Icon(Icons.Default.Reply, contentDescription = null, modifier = Modifier.size(15.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Antworten", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+
+                OutlinedButton(
+                    onClick = onForward,
+                    border = BorderStroke(1.dp, AppTheme.colors.glassBorder),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(vertical = 8.dp)
+                ) {
+                    Icon(Icons.Default.Forward, contentDescription = null, tint = AppTheme.colors.textPrimary, modifier = Modifier.size(15.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Weiterleiten", color = AppTheme.colors.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+
+                OutlinedButton(
+                    onClick = onCreateTask,
+                    border = BorderStroke(1.dp, Gold.copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                ) {
+                    Text("📋 To-Do", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 }
@@ -703,16 +2007,37 @@ fun ComposeEmailInline(
     fromAccount: EmailAccount?,
     isSending: Boolean,
     onDismiss: () -> Unit,
-    onSend: (to: String, subject: String, body: String) -> Unit
+    onSend: (
+        to: String,
+        cc: String?,
+        bcc: String?,
+        subject: String,
+        body: String,
+        accountId: String?,
+        draftId: String?,
+        forwardedAttachments: List<EmailAttachment>
+    ) -> Unit
 ) {
-    var to by remember { mutableStateOf("") }
-    var subject by remember { mutableStateOf("") }
-    var body by remember { mutableStateOf("") }
+    val prefill by viewModel.composePrefill.collectAsState()
+    val accounts by viewModel.accounts.collectAsState()
+    val composeAttachments by viewModel.composeAttachments.collectAsState()
+    val recipientSuggestions by viewModel.recipientSuggestions.collectAsState()
+
+    var selectedAccountId by remember(prefill, fromAccount) {
+        mutableStateOf(prefill.accountId ?: fromAccount?.id ?: accounts.firstOrNull()?.id)
+    }
+    var to by remember(prefill) { mutableStateOf(prefill.to) }
+    var cc by remember(prefill) { mutableStateOf(prefill.cc) }
+    var bcc by remember(prefill) { mutableStateOf(prefill.bcc) }
+    var showCcBcc by remember(prefill) { mutableStateOf(prefill.cc.isNotBlank() || prefill.bcc.isNotBlank()) }
+    var subject by remember(prefill) { mutableStateOf(prefill.subject) }
+    var body by remember(prefill) { mutableStateOf(prefill.body) }
+    var forwardedAttachments by remember(prefill) { mutableStateOf(prefill.forwardedAttachments) }
     var toFocus by remember { mutableStateOf(false) }
+    var showAccountDropdown by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
-    val composeAttachments by viewModel.composeAttachments.collectAsState()
-    val contacts by viewModel.contacts.collectAsState()
+    val activeSenderAccount = accounts.find { it.id == selectedAccountId } ?: fromAccount
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
@@ -722,30 +2047,36 @@ fun ComposeEmailInline(
         }
     }
 
-    val filteredContacts = remember(to, contacts) {
-        val query = to.trim()
-        if (query.isEmpty()) {
-            contacts.filter { !it.email.isNullOrBlank() }
+    val filteredRecipients = remember(to, recipientSuggestions) {
+        val lastToken = to.substringAfterLast(",").substringAfterLast(";").trim()
+        if (lastToken.isEmpty()) {
+            recipientSuggestions.take(8)
         } else {
-            contacts.filter { contact ->
-                !contact.email.isNullOrBlank() && (
-                    contact.firstName.contains(query, ignoreCase = true) ||
-                    (contact.lastName?.contains(query, ignoreCase = true) == true) ||
-                    (contact.nickname?.contains(query, ignoreCase = true) == true) ||
-                    contact.email.contains(query, ignoreCase = true)
-                )
-            }
+            recipientSuggestions.filter {
+                it.email.contains(lastToken, ignoreCase = true) ||
+                    it.name.contains(lastToken, ignoreCase = true)
+            }.take(8)
         }
     }
 
-    val showDropdown = toFocus && filteredContacts.isNotEmpty()
+    val showDropdown = toFocus && filteredRecipients.isNotEmpty()
+
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = Gold,
+        unfocusedBorderColor = AppTheme.colors.inputBorder,
+        focusedTextColor = AppTheme.colors.textPrimary,
+        unfocusedTextColor = AppTheme.colors.textPrimary,
+        focusedContainerColor = AppTheme.colors.inputBackground,
+        unfocusedContainerColor = AppTheme.colors.inputBackground
+    )
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(AppTheme.colors.cardBackground, shape = RoundedCornerShape(16.dp))
             .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp))
-            .padding(16.dp)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // Header
         Row(
@@ -754,51 +2085,138 @@ fun ComposeEmailInline(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Neue E-Mail verfassen",
+                text = prefill.title,
                 color = Gold,
                 fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
+                fontSize = 17.sp
             )
-            IconButton(onClick = onDismiss, enabled = !isSending) {
-                Icon(Icons.Default.Close, contentDescription = "Verwerfen", tint = AppTheme.colors.textSecondary)
+            IconButton(onClick = onDismiss, enabled = !isSending, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.Close, contentDescription = "Schließen", tint = AppTheme.colors.textSecondary)
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Sender Info
+        // Sender Selector + CC/BCC Toggle + Attach File
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Von: ${fromAccount?.email ?: ""}",
-                color = AppTheme.colors.textSecondary,
-                fontSize = 13.sp
-            )
+            Box(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(AppTheme.colors.glassSurface)
+                        .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
+                        .clickable { if (accounts.size > 1) showAccountDropdown = true }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Von: ${activeSenderAccount?.email ?: ""}",
+                        color = AppTheme.colors.textPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (accounts.size > 1) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowDropDown,
+                            contentDescription = null,
+                            tint = Gold,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+                DropdownMenu(
+                    expanded = showAccountDropdown,
+                    onDismissRequest = { showAccountDropdown = false },
+                    modifier = Modifier
+                        .background(AppTheme.colors.cardBackground)
+                        .border(1.dp, Gold, RoundedCornerShape(8.dp))
+                ) {
+                    accounts.forEach { acc ->
+                        DropdownMenuItem(
+                            text = { Text(acc.email, color = AppTheme.colors.textPrimary, fontSize = 13.sp) },
+                            onClick = {
+                                selectedAccountId = acc.id
+                                showAccountDropdown = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.width(6.dp))
+
+            // CC/BCC Button
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (showCcBcc) Gold.copy(alpha = 0.2f) else AppTheme.colors.glassSurface)
+                    .border(1.dp, if (showCcBcc) Gold else AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
+                    .clickable { showCcBcc = !showCcBcc }
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+            ) {
+                Text("CC/BCC", color = if (showCcBcc) Gold else AppTheme.colors.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(modifier = Modifier.width(6.dp))
 
             IconButton(
                 onClick = { filePickerLauncher.launch("*/*") },
-                modifier = Modifier.size(36.dp)
+                modifier = Modifier
+                    .background(AppTheme.colors.glassSurface, shape = RoundedCornerShape(8.dp))
+                    .border(1.dp, AppTheme.colors.glassBorder, shape = RoundedCornerShape(8.dp))
+                    .size(32.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.AttachFile,
                     contentDescription = "Datei anhängen",
                     tint = Gold,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(17.dp)
                 )
             }
         }
 
-        // Selected Attachments List
-        if (composeAttachments.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(6.dp))
-            Text("Anhänge:", color = AppTheme.colors.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        // Carried-Over + Newly Picked Attachments
+        if (forwardedAttachments.isNotEmpty() || composeAttachments.isNotEmpty()) {
             LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
+                items(forwardedAttachments) { att ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(AppTheme.colors.glassSurface)
+                            .border(1.dp, Gold.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Default.AttachFile, contentDescription = null, tint = Gold, modifier = Modifier.size(12.dp))
+                        Text(
+                            text = att.filename,
+                            color = AppTheme.colors.textPrimary,
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 120.dp)
+                        )
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Entfernen",
+                            tint = AppTheme.colors.textMuted,
+                            modifier = Modifier
+                                .size(13.dp)
+                                .clickable {
+                                    forwardedAttachments = forwardedAttachments.filterNot { it.id == att.id && it.filename == att.filename }
+                                }
+                        )
+                    }
+                }
                 items(composeAttachments) { uri ->
                     val fileName = getFileName(context, uri)
                     Row(
@@ -810,26 +2228,21 @@ fun ComposeEmailInline(
                             .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.AttachFile,
-                            contentDescription = null,
-                            tint = Gold,
-                            modifier = Modifier.size(12.dp)
-                        )
+                        Icon(Icons.Default.AttachFile, contentDescription = null, tint = Gold, modifier = Modifier.size(12.dp))
                         Text(
                             text = fileName,
                             color = AppTheme.colors.textPrimary,
                             fontSize = 10.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.widthIn(max = 100.dp)
+                            modifier = Modifier.widthIn(max = 120.dp)
                         )
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Entfernen",
                             tint = AppTheme.colors.textMuted,
                             modifier = Modifier
-                                .size(14.dp)
+                                .size(13.dp)
                                 .clickable { viewModel.removeComposeAttachment(uri) }
                         )
                     }
@@ -837,27 +2250,17 @@ fun ComposeEmailInline(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // "An" Field with Dropdown
+        // "An" Field with Autocomplete
         Box(modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 value = to,
                 onValueChange = { to = it },
-                label = { Text("An (Empfänger)", color = AppTheme.colors.textMuted) },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Gold,
-                    unfocusedBorderColor = AppTheme.colors.inputBorder,
-                    focusedTextColor = AppTheme.colors.textPrimary,
-                    unfocusedTextColor = AppTheme.colors.textPrimary,
-                    focusedContainerColor = AppTheme.colors.inputBackground,
-                    unfocusedContainerColor = AppTheme.colors.inputBackground
-                ),
+                label = { Text("An (Empfänger)", color = AppTheme.colors.textMuted, fontSize = 12.sp) },
+                singleLine = true,
+                colors = fieldColors,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .onFocusChanged { focusState ->
-                        toFocus = focusState.isFocused
-                    }
+                    .onFocusChanged { focusState -> toFocus = focusState.isFocused }
             )
 
             DropdownMenu(
@@ -865,30 +2268,23 @@ fun ComposeEmailInline(
                 onDismissRequest = { toFocus = false },
                 properties = PopupProperties(focusable = false),
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .fillMaxWidth(0.9f)
                     .background(AppTheme.colors.cardBackground)
                     .border(1.dp, Gold, RoundedCornerShape(8.dp))
             ) {
-                filteredContacts.forEach { contact ->
-                    val displayName = buildString {
-                        append(contact.firstName)
-                        if (!contact.lastName.isNullOrBlank()) {
-                            append(" ")
-                            append(contact.lastName)
-                        }
-                        if (!contact.nickname.isNullOrBlank()) {
-                            append(" (${contact.nickname})")
-                        }
-                    }
+                filteredRecipients.forEach { rec ->
                     DropdownMenuItem(
                         text = {
                             Column {
-                                Text(displayName, color = AppTheme.colors.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                Text(contact.email ?: "", color = AppTheme.colors.textMuted, fontSize = 12.sp)
+                                if (rec.name.isNotBlank()) {
+                                    Text(rec.name, color = AppTheme.colors.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Text(rec.email, color = Gold, fontSize = 12.sp)
                             }
                         },
                         onClick = {
-                            to = contact.email ?: ""
+                            val prefix = if (to.contains(",")) to.substringBeforeLast(",") + ", " else ""
+                            to = prefix + rec.email
                             toFocus = false
                         }
                     )
@@ -896,50 +2292,74 @@ fun ComposeEmailInline(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        // Optional CC & BCC Fields
+        AnimatedVisibility(visible = showCcBcc) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = cc,
+                    onValueChange = { cc = it },
+                    label = { Text("CC", color = AppTheme.colors.textMuted, fontSize = 12.sp) },
+                    singleLine = true,
+                    colors = fieldColors,
+                    modifier = Modifier.weight(1f)
+                )
+                OutlinedTextField(
+                    value = bcc,
+                    onValueChange = { bcc = it },
+                    label = { Text("BCC", color = AppTheme.colors.textMuted, fontSize = 12.sp) },
+                    singleLine = true,
+                    colors = fieldColors,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
 
         // Subject
         OutlinedTextField(
             value = subject,
             onValueChange = { subject = it },
-            label = { Text("Betreff", color = AppTheme.colors.textMuted) },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Gold,
-                unfocusedBorderColor = AppTheme.colors.inputBorder,
-                focusedTextColor = AppTheme.colors.textPrimary,
-                unfocusedTextColor = AppTheme.colors.textPrimary,
-                focusedContainerColor = AppTheme.colors.inputBackground,
-                unfocusedContainerColor = AppTheme.colors.inputBackground
-            ),
+            label = { Text("Betreff", color = AppTheme.colors.textMuted, fontSize = 12.sp) },
+            singleLine = true,
+            colors = fieldColors,
             modifier = Modifier.fillMaxWidth()
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        // Formatting & Signature Toolbar
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ComposeFormatPill("B") { body += " *Text* " }
+            ComposeFormatPill("I") { body += " _Text_ " }
+            ComposeFormatPill("• Liste") { body += "\n• " }
+            ComposeFormatPill("> Zitat") { body += "\n> " }
+            ComposeFormatPill("✒ Signatur") {
+                val sig = activeSenderAccount?.signature?.takeIf { it.isNotBlank() }
+                    ?: "Mit herzlichen Grüßen\nAlina Steinhauer\nMein-Seelenfunke"
+                val cleanSig = EmailTextSanitizer.stripHtmlToStructuredText(sig).ifBlank { sig }
+                body = body.trimEnd() + "\n\n--\n" + cleanSig
+            }
+        }
 
-        // Body
+        // Body Editor
         OutlinedTextField(
             value = body,
             onValueChange = { body = it },
-            label = { Text("Nachricht", color = AppTheme.colors.textMuted) },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Gold,
-                unfocusedBorderColor = AppTheme.colors.inputBorder,
-                focusedTextColor = AppTheme.colors.textPrimary,
-                unfocusedTextColor = AppTheme.colors.textPrimary,
-                focusedContainerColor = AppTheme.colors.inputBackground,
-                unfocusedContainerColor = AppTheme.colors.inputBackground
-            ),
+            label = { Text("Nachricht", color = AppTheme.colors.textMuted, fontSize = 12.sp) },
+            colors = fieldColors,
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Buttons Row
+        // Bottom Buttons: Cancel, Save Draft, Send
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             TextButton(
@@ -947,23 +2367,75 @@ fun ComposeEmailInline(
                 enabled = !isSending,
                 colors = ButtonDefaults.textButtonColors(contentColor = AppTheme.colors.textSecondary)
             ) {
-                Text("Abbrechen")
+                Text("Abbrechen", fontSize = 12.sp)
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        viewModel.saveDraft(
+                            draftId = prefill.draftId,
+                            accountId = selectedAccountId,
+                            to = to,
+                            cc = cc,
+                            bcc = bcc,
+                            subject = subject,
+                            body = body
+                        ) { saved ->
+                            if (saved) {
+                                Toast.makeText(context, "Entwurf gespeichert.", Toast.LENGTH_SHORT).show()
+                                onDismiss()
+                            }
+                        }
+                    },
+                    enabled = !isSending && (to.isNotBlank() || subject.isNotBlank() || body.isNotBlank()),
+                    border = BorderStroke(1.dp, Gold.copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("💾 Entwurf", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
 
-            Button(
-                onClick = { onSend(to, subject, body) },
-                enabled = !isSending && to.isNotBlank() && subject.isNotBlank() && body.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack)
-            ) {
-                if (isSending) {
-                    CircularProgressIndicator(color = SpaceBlack, modifier = Modifier.size(18.dp))
-                } else {
-                    Text("Senden")
+                Button(
+                    onClick = {
+                        onSend(
+                            to,
+                            cc.takeIf { it.isNotBlank() },
+                            bcc.takeIf { it.isNotBlank() },
+                            subject,
+                            body,
+                            selectedAccountId,
+                            prefill.draftId,
+                            forwardedAttachments
+                        )
+                    },
+                    enabled = !isSending && to.isNotBlank() && subject.isNotBlank() && body.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    if (isSending) {
+                        CircularProgressIndicator(color = SpaceBlack, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text("Senden", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ComposeFormatPill(label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(AppTheme.colors.glassSurface)
+            .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(6.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Text(label, color = AppTheme.colors.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -985,7 +2457,6 @@ fun AccountManagerInline(
             .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp))
             .padding(16.dp)
     ) {
-        // Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1019,7 +2490,9 @@ fun AccountManagerInline(
 
         if (accounts.isEmpty()) {
             Box(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -1031,7 +2504,9 @@ fun AccountManagerInline(
         } else {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.weight(1f).fillMaxWidth()
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
             ) {
                 items(accounts) { account ->
                     Card(
@@ -1073,7 +2548,7 @@ fun AccountManagerInline(
                                         }
                                     }
                                 }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Löschen", tint = Color.Red.copy(alpha = 0.8f))
+                                    Icon(Icons.Default.Delete, contentDescription = "Löschen", tint = ImportantRed)
                                 }
                             }
                         }
@@ -1095,17 +2570,17 @@ fun AddEditAccountInline(
     var email by remember { mutableStateOf(account?.email ?: "") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
-    
+
     var imapHost by remember { mutableStateOf(account?.imapHost ?: "") }
     var imapPort by remember { mutableStateOf(account?.imapPort?.toString() ?: "993") }
     var imapEncryption by remember { mutableStateOf(account?.imapEncryption ?: "ssl") }
     var imapUsername by remember { mutableStateOf(account?.imapUsername ?: "") }
-    
+
     var smtpHost by remember { mutableStateOf(account?.smtpHost ?: "") }
     var smtpPort by remember { mutableStateOf(account?.smtpPort?.toString() ?: "465") }
     var smtpEncryption by remember { mutableStateOf(account?.smtpEncryption ?: "ssl") }
     var smtpUsername by remember { mutableStateOf(account?.smtpUsername ?: "") }
-    
+
     var signature by remember { mutableStateOf(account?.signature ?: "") }
     var isDefault by remember { mutableStateOf(account?.isDefault ?: false) }
     var isCommercial by remember { mutableStateOf(account?.isCommercial ?: true) }
@@ -1161,7 +2636,6 @@ fun AddEditAccountInline(
             .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp))
             .padding(16.dp)
     ) {
-        // Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1211,7 +2685,7 @@ fun AddEditAccountInline(
 
             if (selectedPreset == "Gmail") {
                 Text(
-                    text = "Hinweis: Für Gmail musst du in deinem Google-Konto ein 'App-Passwort' generieren und hier eingeben. Dein normales Passwort funktioniert aus Sicherheitsgründen nicht.",
+                    text = "Hinweis: Für Gmail musst du in deinem Google-Konto ein 'App-Passwort' generieren.",
                     color = Gold,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
@@ -1255,9 +2729,7 @@ fun AddEditAccountInline(
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 trailingIcon = {
-                    val image = if (passwordVisible)
-                        Icons.Filled.Visibility
-                    else Icons.Filled.VisibilityOff
+                    val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
                     val description = if (passwordVisible) "Passwort ausblenden" else "Passwort anzeigen"
                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
                         Icon(imageVector = image, contentDescription = description, tint = Gold)
@@ -1282,7 +2754,7 @@ fun AddEditAccountInline(
                     modifier = Modifier.weight(1f)
                 )
             }
-            
+
             OutlinedTextField(
                 value = imapUsername,
                 onValueChange = { imapUsername = it },
@@ -1309,7 +2781,7 @@ fun AddEditAccountInline(
                     modifier = Modifier.weight(1f)
                 )
             }
-            
+
             OutlinedTextField(
                 value = smtpUsername,
                 onValueChange = { smtpUsername = it },
@@ -1405,7 +2877,7 @@ fun AddEditAccountInline(
     }
 }
 
-private fun getFileName(context: android.content.Context, uri: android.net.Uri): String {
+private fun getFileName(context: android.content.Context, uri: Uri): String {
     var name = ""
     val cursor = context.contentResolver.query(uri, null, null, null, null)
     cursor?.use {
@@ -1420,225 +2892,4 @@ private fun getFileName(context: android.content.Context, uri: android.net.Uri):
         name = uri.lastPathSegment ?: "file"
     }
     return name
-}
-
-@Composable
-fun EmailDetailDialog(
-    message: EmailMessage,
-    currentFolder: String,
-    availableFolders: List<Triple<String, String, androidx.compose.ui.graphics.vector.ImageVector>>,
-    onDismiss: () -> Unit,
-    onDelete: () -> Unit,
-    onToggleUnread: () -> Unit,
-    onReply: () -> Unit,
-    onArchive: () -> Unit,
-    onMoveFolder: (String) -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = AppTheme.colors.cardBackground,
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.fillMaxHeight(0.85f),
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Schließen", tint = AppTheme.colors.textPrimary)
-                }
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = {
-                        onReply()
-                    }) {
-                        Icon(Icons.Default.Reply, contentDescription = "Antworten", tint = AppTheme.colors.textPrimary)
-                    }
-
-                    IconButton(onClick = {
-                        onToggleUnread()
-                        onDismiss()
-                    }) {
-                        Icon(
-                            imageVector = if (message.isRead) Icons.Default.Mail else Icons.Default.Drafts,
-                            contentDescription = if (message.isRead) "Als ungelesen markieren" else "Als gelesen markieren",
-                            tint = AppTheme.colors.textPrimary
-                        )
-                    }
-
-                    // Move Folder dropdown
-                    var showMoveMenu by remember { mutableStateOf(false) }
-                    Box {
-                        IconButton(onClick = { showMoveMenu = true }) {
-                            Icon(Icons.Default.FolderOpen, contentDescription = "Verschieben", tint = AppTheme.colors.textPrimary)
-                        }
-                        DropdownMenu(
-                            expanded = showMoveMenu,
-                            onDismissRequest = { showMoveMenu = false },
-                            modifier = Modifier
-                                .background(AppTheme.colors.cardBackground)
-                                .border(1.dp, Gold, RoundedCornerShape(8.dp))
-                        ) {
-                            availableFolders.forEach { (key, label, icon) ->
-                                if (key != currentFolder) {
-                                    DropdownMenuItem(
-                                        text = {
-                                            Row(
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Icon(icon, contentDescription = null, tint = Gold, modifier = Modifier.size(16.dp))
-                                                Text(label, color = AppTheme.colors.textPrimary, fontSize = 14.sp)
-                                            }
-                                        },
-                                        onClick = {
-                                            showMoveMenu = false
-                                            onMoveFolder(key)
-                                            onDismiss()
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    if (currentFolder != "Archive") {
-                        IconButton(onClick = {
-                            onArchive()
-                            onDismiss()
-                        }) {
-                            Icon(Icons.Default.Archive, contentDescription = "Archivieren", tint = AppTheme.colors.textPrimary)
-                        }
-                    }
-
-                    if (currentFolder != "Trash") {
-                        IconButton(onClick = {
-                            onDelete()
-                            onDismiss()
-                        }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Löschen", tint = AppTheme.colors.textPrimary)
-                        }
-                    }
-                }
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Subject
-                Text(
-                    text = message.subject.orEmpty().ifBlank { "(Kein Betreff)" },
-                    color = Gold,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
-
-                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(AppTheme.colors.cardBorder))
-
-                // Sender, Receiver, Date Details
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = "Von: ${message.from}",
-                        color = AppTheme.colors.textPrimary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = "An: ${message.to}",
-                        color = AppTheme.colors.textSecondary,
-                        fontSize = 11.sp
-                    )
-                    Text(
-                        text = "Datum: ${formatDetailedEmailDate(message.receivedAt)}",
-                        color = AppTheme.colors.textMuted,
-                        fontSize = 11.sp
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(AppTheme.colors.cardBorder))
-
-                // HTML or Plain Text Content
-                val htmlContent = message.htmlBody
-                val textColor = if (AppTheme.colors.isDark) android.graphics.Color.WHITE else android.graphics.Color.parseColor("#0F172A")
-                if (!htmlContent.isNullOrBlank()) {
-                    AndroidView(
-                        factory = { context ->
-                            android.widget.TextView(context).apply {
-                                setTextColor(textColor)
-                                setTextSize(14f)
-                                movementMethod = android.text.method.LinkMovementMethod.getInstance()
-                            }
-                        },
-                        update = { textView ->
-                            textView.setTextColor(textColor)
-                            textView.text = HtmlCompat.fromHtml(htmlContent, HtmlCompat.FROM_HTML_MODE_LEGACY)
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                } else {
-                    Text(
-                        text = message.body ?: "",
-                        color = AppTheme.colors.textPrimary,
-                        fontSize = 14.sp
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss, colors = ButtonDefaults.textButtonColors(contentColor = Gold)) {
-                Text("Fertig")
-            }
-        }
-    )
-}
-
-fun formatEmailDate(dateStr: String?): String {
-    if (dateStr.isNullOrBlank()) return ""
-    return try {
-        // Date formats look like 2026-06-04 18:37:29 or ISO 8601
-        val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.GERMANY).apply {
-            timeZone = java.util.TimeZone.getTimeZone("UTC")
-        }
-        val date = parser.parse(dateStr) ?: Date()
-        val format = SimpleDateFormat("dd.MM.yyyy", Locale.GERMANY)
-        format.format(date)
-    } catch (e: Exception) {
-        try {
-            val parser = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.GERMANY)
-            val date = parser.parse(dateStr) ?: Date()
-            val format = SimpleDateFormat("dd.MM.yyyy", Locale.GERMANY)
-            format.format(date)
-        } catch (ex: Exception) {
-            dateStr
-        }
-    }
-}
-
-fun formatDetailedEmailDate(dateStr: String?): String {
-    if (dateStr.isNullOrBlank()) return ""
-    return try {
-        val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.GERMANY).apply {
-            timeZone = java.util.TimeZone.getTimeZone("UTC")
-        }
-        val date = parser.parse(dateStr) ?: Date()
-        val format = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.GERMANY)
-        format.format(date)
-    } catch (e: Exception) {
-        try {
-            val parser = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.GERMANY)
-            val date = parser.parse(dateStr) ?: Date()
-            val format = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.GERMANY)
-            format.format(date)
-        } catch (ex: Exception) {
-            dateStr
-        }
-    }
 }

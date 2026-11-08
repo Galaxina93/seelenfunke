@@ -258,8 +258,11 @@
                 }
     }"
      x-init="initAdminEcho()"
+      @admin-ticket-badge-update.window="hasUnreadSupport = true"
       @clear-admin-ticket-badge.window="hasUnreadSupport = false"
+     @admin-customerchat-badge-update.window="hasUnreadCustomerChats = true"
      @clear-admin-customerchat-badge.window="hasUnreadCustomerChats = false"
+     @admin-contactreq-badge-update.window="hasUnreadContactReqs = true"
      @clear-admin-contactreq-badge.window="hasUnreadContactReqs = false"
       class="relative w-full min-h-screen flex flex-col">
 

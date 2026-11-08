@@ -408,12 +408,25 @@ class AnalyticsService
         $expressCount = (clone $openQuery)->where('is_express', true)->count();
         $overdueCount = (clone $openQuery)->where('created_at', '<', now()->subHours(48))->count();
 
+        $procurementCount = 0;
         if ($oCount > 0) {
-            $status = ($expressCount > 0 || $overdueCount > 0) ? 'warning' : 'todo';
+            $openOrdersWithItems = (clone $openQuery)->with(['items.product'])->get();
+            foreach ($openOrdersWithItems as $openOrder) {
+                if ($openOrder->hasPendingSupplierProcurement()) {
+                    $procurementCount++;
+                }
+            }
+        }
+
+        if ($oCount > 0) {
+            $status = ($expressCount > 0 || $overdueCount > 0 || $procurementCount > 0) ? 'warning' : 'todo';
             $msg = $oCount . ' unversendet';
             $hints = [];
             if ($expressCount > 0) {
                 $hints[] = "{$expressCount} Express!";
+            }
+            if ($procurementCount > 0) {
+                $hints[] = "{$procurementCount}× Rohling bestellen!";
             }
             if ($overdueCount > 0) {
                 $hints[] = "{$overdueCount} > 48h";
