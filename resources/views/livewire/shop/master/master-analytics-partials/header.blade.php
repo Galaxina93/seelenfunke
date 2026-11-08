@@ -38,7 +38,7 @@
                 <span x-show="!focusMode" style="{{ !$focusMode ? '' : 'display: none;' }}" class="inline-flex items-center shrink-0">
                     <x-heroicon-o-squares-2x2 class="w-4 h-4" />
                 </span>
-                <span x-text="focusMode ? 'Fokus-Modus' : 'Alle Kacheln'">{{ $focusMode ? 'Fokus-Modus' : 'Alle Kacheln' }}</span>
+                <span x-text="focusMode ? 'Alle Kacheln' : 'Fokus-Modus'">{{ $focusMode ? 'Alle Kacheln' : 'Fokus-Modus' }}</span>
             </button>
         </div>
     </div>

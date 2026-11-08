@@ -5153,7 +5153,7 @@
             <!-- MODAL OVERLAY 2: SETTINGS (Tabs: Sounds, Design, API)                 -->
             <!-- ===================================================================== -->
             <Grid x:Name="SettingsModalOverlay" Background="#B3000000" Visibility="Collapsed">
-                <Border Width="590" Background="#161922" BorderBrush="#262A36" BorderThickness="1" CornerRadius="18" Padding="24" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <Border Width="640" Background="#161922" BorderBrush="#262A36" BorderThickness="1" CornerRadius="18" Padding="24" VerticalAlignment="Center" HorizontalAlignment="Center">
                     <StackPanel>
                         <!-- Header -->
                         <Grid Margin="0,0,0,14">
@@ -5301,71 +5301,324 @@
                         <!-- TAB 2: DESIGN & LAYOUT                                          -->
                         <!-- =============================================================== -->
                         <StackPanel x:Name="SettingsPaneDesign" Visibility="Collapsed">
-                            <!-- Darkmode Switch -->
-                            <Border Background="#1D212D" BorderBrush="#2D3346" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="0,0,0,12">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <StackPanel Margin="0,0,14,0">
-                                        <TextBlock Text="Darkmode aktivieren (Dunkles Design)" Foreground="#F9FAFB" FontSize="13.5" FontWeight="Bold"/>
-                                        <TextBlock Text="Schaltet die gesamte Funkenwerk-Oberfläche zwischen dem edlen Dark-Theme und dem hellen Light-Theme um" Foreground="#9CA3AF" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
-                                    </StackPanel>
-                                    <CheckBox x:Name="DarkModeCheck" Grid.Column="1" VerticalAlignment="Center" IsChecked="True" Cursor="Hand" Checked="DarkModeCheck_Changed" Unchecked="DarkModeCheck_Changed">
-                                        <CheckBox.LayoutTransform><ScaleTransform ScaleX="1.25" ScaleY="1.25"/></CheckBox.LayoutTransform>
-                                    </CheckBox>
-                                </Grid>
-                            </Border>
-
-                            <Border Background="#13161F" BorderBrush="#232734" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="0,0,0,12">
+                            <ScrollViewer MaxHeight="520" VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
                                 <StackPanel>
-                                    <TextBlock Text="START-ANSICHT BEIM PROGRAMMSTART" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold" Margin="0,0,0,6"/>
-                                    <ComboBox x:Name="StartupModuleCombo" Padding="10,7" FontSize="13" SelectedIndex="0">
-                                        <ComboBoxItem Content="Zuletzt geöffnetes Modul wiederherstellen" Tag="remember"/>
-                                        <ComboBoxItem Content="Immer mit E-Mail starten" Tag="mail"/>
-                                        <ComboBoxItem Content="Immer mit To Do (Aufgaben) starten" Tag="todo"/>
-                                        <ComboBoxItem Content="Immer mit Musik (Soundplayer) starten" Tag="music"/>
-                                        <ComboBoxItem Content="Immer mit Smart Home starten" Tag="smarthome"/>
-                                        <ComboBoxItem Content="Immer mit Kamera (Studio) starten" Tag="camera"/>
-                                        <ComboBoxItem Content="Immer mit Marketing &amp; Content starten" Tag="marketing"/>
-                                        <ComboBoxItem Content="Immer mit Kalender starten" Tag="calendar"/>
-                                        <ComboBoxItem Content="Immer mit Adressbuch starten" Tag="contacts"/>
-                                    </ComboBox>
-                                </StackPanel>
-                            </Border>
+                                    <!-- Darkmode Switch -->
+                                    <Border Background="#1D212D" BorderBrush="#2D3346" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="0,0,0,12">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                            <StackPanel Margin="0,0,14,0">
+                                                <TextBlock Text="Darkmode aktivieren (Dunkles Design)" Foreground="#F9FAFB" FontSize="13.5" FontWeight="Bold"/>
+                                                <TextBlock Text="Standardmäßig Tiefschwarz (#000000) mit weißer/goldener Schrift – unten für jeden Bereich frei anpassbar" Foreground="#9CA3AF" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                            <CheckBox x:Name="DarkModeCheck" Grid.Column="1" VerticalAlignment="Center" IsChecked="True" Cursor="Hand" Checked="DarkModeCheck_Changed" Unchecked="DarkModeCheck_Changed">
+                                                <CheckBox.LayoutTransform><ScaleTransform ScaleX="1.25" ScaleY="1.25"/></CheckBox.LayoutTransform>
+                                            </CheckBox>
+                                        </Grid>
+                                    </Border>
 
-                            <Border Background="#13161F" BorderBrush="#232734" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="0,0,0,12">
-                                <StackPanel>
-                                    <Grid Margin="0,2,0,10">
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,14,0">
-                                            <TextBlock Text="Kompakte Listenansicht (E-Mail &amp; To Do)" Foreground="#F9FAFB" FontSize="13" FontWeight="SemiBold"/>
-                                            <TextBlock Text="Reduziert Innenabstände der Karten für mehr Einträge auf einen Blick" Foreground="#9CA3AF" FontSize="11" TextWrapping="Wrap"/>
-                                        </StackPanel>
-                                        <CheckBox x:Name="CompactModeCheck" Grid.Column="1" VerticalAlignment="Center" Cursor="Hand"/>
-                                    </Grid>
-                                    <Border Height="1" Background="#1E222D" Margin="0,0,0,10"/>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,14,0">
-                                            <TextBlock Text="Erledigte Aufgaben standardmäßig ausklappen" Foreground="#F9FAFB" FontSize="13" FontWeight="SemiBold"/>
-                                            <TextBlock Text="Zeigt den Bereich 'Erledigt' unter deinen offenen Aufgaben direkt geöffnet an" Foreground="#9CA3AF" FontSize="11" TextWrapping="Wrap"/>
-                                        </StackPanel>
-                                        <CheckBox x:Name="ShowCompletedDefaultCheck" Grid.Column="1" VerticalAlignment="Center" IsChecked="True" Cursor="Hand"/>
-                                    </Grid>
-                                </StackPanel>
-                            </Border>
+                                    <!-- =========================================================== -->
+                                    <!-- PER-NAVIGATION-SPACE BACKGROUND & TEXT COLOR CUSTOMIZER     -->
+                                    <!-- =========================================================== -->
+                                    <Border x:Name="DesignSpaceColorsCard" Background="#13161F" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="0,0,0,12">
+                                        <StackPanel>
+                                            <!-- Card Header + Active Module Label + Reset / Apply-All -->
+                                            <Grid Margin="0,0,0,10">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock Text="BEREICHS-FARBEN (BACKGROUND &amp; TEXT JE NAVIGATIONSPUNKT)" Foreground="#C5A059" FontSize="11" FontWeight="Bold"/>
+                                                    <TextBlock x:Name="DesignSpaceTabActiveLabelTxt" Text="Tab 1: E-Mail (Postfächer &amp; Nachrichten)" Foreground="#F9FAFB" FontSize="12.5" FontWeight="Bold" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Button Click="DesignSpaceResetDefault_Click" Background="#1F2430" Foreground="#D1D5DB" BorderBrush="#382D18" BorderThickness="1" Padding="9,5" Margin="0,0,6,0" Cursor="Hand" FontSize="11" FontWeight="SemiBold" ToolTip="Setzt diesen Bereich auf Standard (#000000 / #FFFFFF) zurück" Content="↺ Standard">
+                                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                    </Button>
+                                                    <Button Click="DesignSpaceApplyToAll_Click" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1" Padding="10,5" Cursor="Hand" FontSize="11" FontWeight="Bold" ToolTip="Überträgt die aktuelle Background- &amp; Text-Farbe auf alle 9 Seiten-Navigationspunkte" Content="✦ Auf alle übertragen">
+                                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                    </Button>
+                                                </StackPanel>
+                                            </Grid>
 
-                            <Border Background="#13161F" BorderBrush="#232734" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="0,0,0,14">
-                                <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
-                                        <TextBlock Text="Kachelübergänge &amp; Spaltenbreiten" Foreground="#F9FAFB" FontSize="13" FontWeight="SemiBold"/>
-                                        <TextBlock Text="Setzt alle per Maus gezogenen Spaltenbreiten auf die optimalen Standardwerte zurück" Foreground="#9CA3AF" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
-                                    </StackPanel>
-                                    <Button Grid.Column="1" Click="ResetLayoutWidths_Click" Background="#1F2430" Foreground="#C5A059" BorderThickness="0" Padding="14,8" VerticalAlignment="Center" Cursor="Hand" FontSize="12" FontWeight="Bold" Content="↺ Zurücksetzen">
-                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
-                                    </Button>
-                                </Grid>
-                            </Border>
+                                            <!-- 9 Mini Icon Tabs (1 for each Left Sidebar Navigation Item) -->
+                                            <UniformGrid Columns="9" Rows="1" Margin="0,0,0,12">
+                                                <!-- Tab 1: E-Mail -->
+                                                <Border x:Name="DesignSpaceTabMail" Background="#26231F" BorderBrush="#C5A059" BorderThickness="1.5" CornerRadius="9" Height="38" Margin="0,0,4,0" Cursor="Hand" MouseLeftButtonUp="DesignSpaceTab_Click" Tag="mail" ToolTip="Tab 1: E-Mail">
+                                                    <Grid>
+                                                        <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <Canvas Width="24" Height="24">
+                                                                <Path x:Name="DesignSpaceTabMailIcon" Fill="Transparent" Stroke="#C5A059" StrokeThickness="2" Data="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                                                            </Canvas>
+                                                        </Viewbox>
+                                                        <Ellipse x:Name="DesignSpaceTabMailDot" Width="6" Height="6" Fill="#000000" Stroke="#C5A059" StrokeThickness="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,4"/>
+                                                    </Grid>
+                                                </Border>
+
+                                                <!-- Tab 2: Adressbuch -->
+                                                <Border x:Name="DesignSpaceTabContacts" Background="#0F1117" BorderBrush="#262A36" BorderThickness="1" CornerRadius="9" Height="38" Margin="2,0,2,0" Cursor="Hand" MouseLeftButtonUp="DesignSpaceTab_Click" Tag="contacts" ToolTip="Tab 2: Adressbuch &amp; Kontakte">
+                                                    <Grid>
+                                                        <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <Canvas Width="24" Height="24">
+                                                                <Path x:Name="DesignSpaceTabContactsIcon" Fill="Transparent" Stroke="#F9FAFB" StrokeThickness="2" Data="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                                                            </Canvas>
+                                                        </Viewbox>
+                                                        <Ellipse x:Name="DesignSpaceTabContactsDot" Width="6" Height="6" Fill="#000000" Stroke="#C5A059" StrokeThickness="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,4"/>
+                                                    </Grid>
+                                                </Border>
+
+                                                <!-- Tab 3: Kalender -->
+                                                <Border x:Name="DesignSpaceTabCalendar" Background="#0F1117" BorderBrush="#262A36" BorderThickness="1" CornerRadius="9" Height="38" Margin="2,0,2,0" Cursor="Hand" MouseLeftButtonUp="DesignSpaceTab_Click" Tag="calendar" ToolTip="Tab 3: Kalender &amp; Termine">
+                                                    <Grid>
+                                                        <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <Canvas Width="24" Height="24">
+                                                                <Path x:Name="DesignSpaceTabCalendarIcon" Fill="Transparent" Stroke="#F9FAFB" StrokeThickness="2" Data="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                                            </Canvas>
+                                                        </Viewbox>
+                                                        <Ellipse x:Name="DesignSpaceTabCalendarDot" Width="6" Height="6" Fill="#000000" Stroke="#C5A059" StrokeThickness="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,4"/>
+                                                    </Grid>
+                                                </Border>
+
+                                                <!-- Tab 4: To Do -->
+                                                <Border x:Name="DesignSpaceTabTodo" Background="#0F1117" BorderBrush="#262A36" BorderThickness="1" CornerRadius="9" Height="38" Margin="2,0,2,0" Cursor="Hand" MouseLeftButtonUp="DesignSpaceTab_Click" Tag="todo" ToolTip="Tab 4: To Do &amp; Aufgaben">
+                                                    <Grid>
+                                                        <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <Canvas Width="24" Height="24">
+                                                                <Path x:Name="DesignSpaceTabTodoIcon" Fill="Transparent" Stroke="#F9FAFB" StrokeThickness="2" Data="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                                                            </Canvas>
+                                                        </Viewbox>
+                                                        <Ellipse x:Name="DesignSpaceTabTodoDot" Width="6" Height="6" Fill="#000000" Stroke="#C5A059" StrokeThickness="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,4"/>
+                                                    </Grid>
+                                                </Border>
+
+                                                <!-- Tab 5: Musik -->
+                                                <Border x:Name="DesignSpaceTabMusic" Background="#0F1117" BorderBrush="#262A36" BorderThickness="1" CornerRadius="9" Height="38" Margin="2,0,2,0" Cursor="Hand" MouseLeftButtonUp="DesignSpaceTab_Click" Tag="music" ToolTip="Tab 5: Musik &amp; Soundplayer">
+                                                    <Grid>
+                                                        <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <Canvas Width="24" Height="24">
+                                                                <Path x:Name="DesignSpaceTabMusicIcon" Fill="Transparent" Stroke="#F9FAFB" StrokeThickness="2" Data="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
+                                                            </Canvas>
+                                                        </Viewbox>
+                                                        <Ellipse x:Name="DesignSpaceTabMusicDot" Width="6" Height="6" Fill="#000000" Stroke="#C5A059" StrokeThickness="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,4"/>
+                                                    </Grid>
+                                                </Border>
+
+                                                <!-- Tab 6: Smart Home -->
+                                                <Border x:Name="DesignSpaceTabSmartHome" Background="#0F1117" BorderBrush="#262A36" BorderThickness="1" CornerRadius="9" Height="38" Margin="2,0,2,0" Cursor="Hand" MouseLeftButtonUp="DesignSpaceTab_Click" Tag="smarthome" ToolTip="Tab 6: Smart Home &amp; IP-Kameras">
+                                                    <Grid>
+                                                        <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <Canvas Width="24" Height="24">
+                                                                <Path x:Name="DesignSpaceTabSmartHomeIcon" Fill="Transparent" Stroke="#F9FAFB" StrokeThickness="2" Data="M3 10.5L12 3l9 7.5M5 9v10a1 1 0 001 1h12a1 1 0 001-1V9M9 20v-6a1 1 0 011-1h4a1 1 0 011 1v6"/>
+                                                            </Canvas>
+                                                        </Viewbox>
+                                                        <Ellipse x:Name="DesignSpaceTabSmartHomeDot" Width="6" Height="6" Fill="#000000" Stroke="#C5A059" StrokeThickness="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,4"/>
+                                                    </Grid>
+                                                </Border>
+
+                                                <!-- Tab 7: Kamera Studio -->
+                                                <Border x:Name="DesignSpaceTabCamera" Background="#0F1117" BorderBrush="#262A36" BorderThickness="1" CornerRadius="9" Height="38" Margin="2,0,2,0" Cursor="Hand" MouseLeftButtonUp="DesignSpaceTab_Click" Tag="camera" ToolTip="Tab 7: Kamera &amp; Streaming Studio">
+                                                    <Grid>
+                                                        <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <Canvas Width="24" Height="24">
+                                                                <Path x:Name="DesignSpaceTabCameraIcon" Fill="Transparent" Stroke="#F9FAFB" StrokeThickness="2" Data="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z M9 12a2 2 0 11-4 0 2 2 0 014 0z"/>
+                                                            </Canvas>
+                                                        </Viewbox>
+                                                        <Ellipse x:Name="DesignSpaceTabCameraDot" Width="6" Height="6" Fill="#000000" Stroke="#C5A059" StrokeThickness="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,4"/>
+                                                    </Grid>
+                                                </Border>
+
+                                                <!-- Tab 8: Marketing -->
+                                                <Border x:Name="DesignSpaceTabMarketing" Background="#0F1117" BorderBrush="#262A36" BorderThickness="1" CornerRadius="9" Height="38" Margin="2,0,2,0" Cursor="Hand" MouseLeftButtonUp="DesignSpaceTab_Click" Tag="marketing" ToolTip="Tab 8: Marketing &amp; Content-Planer">
+                                                    <Grid>
+                                                        <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <Canvas Width="24" Height="24">
+                                                                <Path x:Name="DesignSpaceTabMarketingIcon" Fill="Transparent" Stroke="#F9FAFB" StrokeThickness="2" Data="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                                            </Canvas>
+                                                        </Viewbox>
+                                                        <Ellipse x:Name="DesignSpaceTabMarketingDot" Width="6" Height="6" Fill="#000000" Stroke="#C5A059" StrokeThickness="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,4"/>
+                                                    </Grid>
+                                                </Border>
+
+                                                <!-- Tab 9: Bestellungen / Labeldruck -->
+                                                <Border x:Name="DesignSpaceTabOrders" Background="#0F1117" BorderBrush="#262A36" BorderThickness="1" CornerRadius="9" Height="38" Margin="4,0,0,0" Cursor="Hand" MouseLeftButtonUp="DesignSpaceTab_Click" Tag="orders" ToolTip="Tab 9: Bestellungen &amp; Labeldruck">
+                                                    <Grid>
+                                                        <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <Canvas Width="24" Height="24">
+                                                                <Path x:Name="DesignSpaceTabOrdersIcon" Fill="Transparent" Stroke="#F9FAFB" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Data="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                                                            </Canvas>
+                                                        </Viewbox>
+                                                        <Ellipse x:Name="DesignSpaceTabOrdersDot" Width="6" Height="6" Fill="#000000" Stroke="#C5A059" StrokeThickness="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,4"/>
+                                                    </Grid>
+                                                </Border>
+                                            </UniformGrid>
+
+                                            <!-- ======================================================= -->
+                                            <!-- 1. BACKGROUND FARBE                                     -->
+                                            <!-- ======================================================= -->
+                                            <Border Background="#0F1117" BorderBrush="#232734" BorderThickness="1" CornerRadius="10" Padding="12,10" Margin="0,0,0,10">
+                                                <StackPanel>
+                                                    <Grid Margin="0,0,0,8">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <!-- Swatch + Label -->
+                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <Border x:Name="DesignSpaceBgPreviewSwatch" Width="28" Height="28" CornerRadius="7" Background="#000000" BorderBrush="#C5A059" BorderThickness="1.5" Margin="0,0,10,0"/>
+                                                            <StackPanel VerticalAlignment="Center">
+                                                                <TextBlock Text="Background Farbe:" Foreground="#F9FAFB" FontSize="12.5" FontWeight="Bold"/>
+                                                                <TextBlock Text="Farbcode manuell, Farbpipette oder Farbpalette" Foreground="#9CA3AF" FontSize="10.5"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+
+                                                        <!-- Manual Hex Input + Eyedropper Pipette + Spectrum Picker -->
+                                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <Border Background="#000000" BorderBrush="#382D18" BorderThickness="1" CornerRadius="7" Padding="8,4" Margin="0,0,6,0">
+                                                                <TextBox x:Name="DesignSpaceBgHexBox" Text="#000000" Width="74" Background="Transparent" Foreground="#F9FAFB" CaretBrush="#C5A059" BorderThickness="0" FontSize="12" FontWeight="Bold" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" TextChanged="DesignSpaceBgHexBox_TextChanged" LostFocus="DesignSpaceBgHexBox_LostFocus" KeyDown="DesignSpaceHexBox_KeyDown"/>
+                                                            </Border>
+                                                            <Button Click="DesignSpacePickBgEyedropper_Click" Background="#1F2430" Foreground="#C5A059" BorderBrush="#382D18" BorderThickness="1" Padding="9,5" Margin="0,0,6,0" Cursor="Hand" FontSize="11.5" FontWeight="Bold" ToolTip="Farbpipette: Klicke auf einen beliebigen Punkt auf deinem Bildschirm, um die Farbe aufzunehmen" Content="💧 Pipette">
+                                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                            </Button>
+                                                            <Button Click="DesignSpaceOpenBgSpectrumPopup_Click" Background="#1F2430" Foreground="#F9FAFB" BorderBrush="#382D18" BorderThickness="1" Padding="9,5" Cursor="Hand" FontSize="11.5" FontWeight="SemiBold" ToolTip="Farbspektrum-Regler öffnen" Content="🎨 Regler">
+                                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                            </Button>
+                                                        </StackPanel>
+                                                    </Grid>
+
+                                                    <!-- Vorauswahl Farbpalette (Background) -->
+                                                    <TextBlock Text="VORAUSWAHL FARBPALETTE (BACKGROUND)" Foreground="#9CA3AF" FontSize="9.5" FontWeight="Bold" Margin="0,0,0,5"/>
+                                                    <WrapPanel x:Name="DesignSpaceBgPalettePanel" Orientation="Horizontal"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- ======================================================= -->
+                                            <!-- 2. TEXT FARBE                                           -->
+                                            <!-- ======================================================= -->
+                                            <Border Background="#0F1117" BorderBrush="#232734" BorderThickness="1" CornerRadius="10" Padding="12,10" Margin="0,0,0,6">
+                                                <StackPanel>
+                                                    <Grid Margin="0,0,0,8">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <!-- Swatch + Label -->
+                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <Border x:Name="DesignSpaceFgPreviewSwatch" Width="28" Height="28" CornerRadius="7" Background="#FFFFFF" BorderBrush="#C5A059" BorderThickness="1.5" Margin="0,0,10,0"/>
+                                                            <StackPanel VerticalAlignment="Center">
+                                                                <TextBlock Text="Text Farbe:" Foreground="#F9FAFB" FontSize="12.5" FontWeight="Bold"/>
+                                                                <TextBlock Text="Schrift- &amp; Iconfarbe für diesen Bereich" Foreground="#9CA3AF" FontSize="10.5"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+
+                                                        <!-- Manual Hex Input + Eyedropper Pipette + Spectrum Picker -->
+                                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <Border Background="#000000" BorderBrush="#382D18" BorderThickness="1" CornerRadius="7" Padding="8,4" Margin="0,0,6,0">
+                                                                <TextBox x:Name="DesignSpaceFgHexBox" Text="#FFFFFF" Width="74" Background="Transparent" Foreground="#F9FAFB" CaretBrush="#C5A059" BorderThickness="0" FontSize="12" FontWeight="Bold" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" TextChanged="DesignSpaceFgHexBox_TextChanged" LostFocus="DesignSpaceFgHexBox_LostFocus" KeyDown="DesignSpaceHexBox_KeyDown"/>
+                                                            </Border>
+                                                            <Button Click="DesignSpacePickFgEyedropper_Click" Background="#1F2430" Foreground="#C5A059" BorderBrush="#382D18" BorderThickness="1" Padding="9,5" Margin="0,0,6,0" Cursor="Hand" FontSize="11.5" FontWeight="Bold" ToolTip="Farbpipette: Klicke auf einen beliebigen Punkt auf deinem Bildschirm, um die Textfarbe aufzunehmen" Content="💧 Pipette">
+                                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                            </Button>
+                                                            <Button Click="DesignSpaceOpenFgSpectrumPopup_Click" Background="#1F2430" Foreground="#F9FAFB" BorderBrush="#382D18" BorderThickness="1" Padding="9,5" Cursor="Hand" FontSize="11.5" FontWeight="SemiBold" ToolTip="Farbspektrum-Regler öffnen" Content="🎨 Regler">
+                                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                            </Button>
+                                                        </StackPanel>
+                                                    </Grid>
+
+                                                    <!-- Vorauswahl Farbpalette (Text) -->
+                                                    <TextBlock Text="VORAUSWAHL FARBPALETTE (TEXT)" Foreground="#9CA3AF" FontSize="9.5" FontWeight="Bold" Margin="0,0,0,5"/>
+                                                    <WrapPanel x:Name="DesignSpaceFgPalettePanel" Orientation="Horizontal"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- Inline HSV Color Spectrum Sliders (Toggled by "🎨 Regler") -->
+                                            <Border x:Name="DesignSpaceSpectrumPanel" Background="#0F1117" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="10" Padding="12,9" Margin="0,4,0,0" Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <Grid Margin="0,0,0,6">
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                        <TextBlock x:Name="DesignSpaceSpectrumTargetTitleTxt" Text="🎨 FEINREGLER: BACKGROUND FARBE" Foreground="#C5A059" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <Button Grid.Column="1" Click="DesignSpaceCloseSpectrum_Click" Background="Transparent" Foreground="#9CA3AF" BorderThickness="0" Padding="4,0" Cursor="Hand" FontSize="11" Content="✕"/>
+                                                    </Grid>
+                                                    <Grid Margin="0,0,0,5">
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="75"/><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                                                        <TextBlock Text="Farbton (H):" Foreground="#D1D5DB" FontSize="11" VerticalAlignment="Center"/>
+                                                        <Slider x:Name="DesignSpaceHueSlider" Grid.Column="1" Minimum="0" Maximum="360" Value="0" ValueChanged="DesignSpaceHsvSlider_ValueChanged" Cursor="Hand"/>
+                                                        <TextBlock x:Name="DesignSpaceHueValTxt" Grid.Column="2" Text="0°" Foreground="#C5A059" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                    <Grid Margin="0,0,0,5">
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="75"/><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                                                        <TextBlock Text="Sättigung (S):" Foreground="#D1D5DB" FontSize="11" VerticalAlignment="Center"/>
+                                                        <Slider x:Name="DesignSpaceSatSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="0" ValueChanged="DesignSpaceHsvSlider_ValueChanged" Cursor="Hand"/>
+                                                        <TextBlock x:Name="DesignSpaceSatValTxt" Grid.Column="2" Text="0 %" Foreground="#C5A059" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="75"/><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                                                        <TextBlock Text="Helligkeit (V):" Foreground="#D1D5DB" FontSize="11" VerticalAlignment="Center"/>
+                                                        <Slider x:Name="DesignSpaceValSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="0" ValueChanged="DesignSpaceHsvSlider_ValueChanged" Cursor="Hand"/>
+                                                        <TextBlock x:Name="DesignSpaceValValTxt" Grid.Column="2" Text="0 %" Foreground="#C5A059" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Background="#13161F" BorderBrush="#232734" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="0,0,0,12">
+                                        <StackPanel>
+                                            <TextBlock Text="START-ANSICHT BEIM PROGRAMMSTART" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold" Margin="0,0,0,6"/>
+                                            <ComboBox x:Name="StartupModuleCombo" Padding="10,7" FontSize="13" SelectedIndex="0">
+                                                <ComboBoxItem Content="Zuletzt geöffnetes Modul wiederherstellen" Tag="remember"/>
+                                                <ComboBoxItem Content="Immer mit E-Mail starten" Tag="mail"/>
+                                                <ComboBoxItem Content="Immer mit To Do (Aufgaben) starten" Tag="todo"/>
+                                                <ComboBoxItem Content="Immer mit Musik (Soundplayer) starten" Tag="music"/>
+                                                <ComboBoxItem Content="Immer mit Smart Home starten" Tag="smarthome"/>
+                                                <ComboBoxItem Content="Immer mit Kamera (Studio) starten" Tag="camera"/>
+                                                <ComboBoxItem Content="Immer mit Marketing &amp; Content starten" Tag="marketing"/>
+                                                <ComboBoxItem Content="Immer mit Kalender starten" Tag="calendar"/>
+                                                <ComboBoxItem Content="Immer mit Adressbuch starten" Tag="contacts"/>
+                                            </ComboBox>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Background="#13161F" BorderBrush="#232734" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="0,0,0,12">
+                                        <StackPanel>
+                                            <Grid Margin="0,2,0,10">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <StackPanel Margin="0,0,14,0">
+                                                    <TextBlock Text="Kompakte Listenansicht (E-Mail &amp; To Do)" Foreground="#F9FAFB" FontSize="13" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="Reduziert Innenabstände der Karten für mehr Einträge auf einen Blick" Foreground="#9CA3AF" FontSize="11" TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                                <CheckBox x:Name="CompactModeCheck" Grid.Column="1" VerticalAlignment="Center" Cursor="Hand"/>
+                                            </Grid>
+                                            <Border Height="1" Background="#1E222D" Margin="0,0,0,10"/>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <StackPanel Margin="0,0,14,0">
+                                                    <TextBlock Text="Erledigte Aufgaben standardmäßig ausklappen" Foreground="#F9FAFB" FontSize="13" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="Zeigt den Bereich 'Erledigt' unter deinen offenen Aufgaben direkt geöffnet an" Foreground="#9CA3AF" FontSize="11" TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                                <CheckBox x:Name="ShowCompletedDefaultCheck" Grid.Column="1" VerticalAlignment="Center" IsChecked="True" Cursor="Hand"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Background="#13161F" BorderBrush="#232734" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="0,0,0,14">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                                <TextBlock Text="Kachelübergänge &amp; Spaltenbreiten" Foreground="#F9FAFB" FontSize="13" FontWeight="SemiBold"/>
+                                                <TextBlock Text="Setzt alle per Maus gezogenen Spaltenbreiten auf die optimalen Standardwerte zurück" Foreground="#9CA3AF" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Click="ResetLayoutWidths_Click" Background="#1F2430" Foreground="#C5A059" BorderThickness="0" Padding="14,8" VerticalAlignment="Center" Cursor="Hand" FontSize="12" FontWeight="Bold" Content="↺ Zurücksetzen">
+                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
                         </StackPanel>
 
                         <!-- =============================================================== -->
