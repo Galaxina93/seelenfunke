@@ -30,7 +30,7 @@ class AiAgentEditor extends Component
     public $wake_word = '';
     public $role_description = '';
     public $system_prompt = '';
-    public $model = 'gemini-3.8-flash';
+    public $model = 'gemini-3.5-flash';
     public $temperature = 0.4;
     public $activePreset = null; // Tracks the currently clicked preset button
     public $is_active = true;
@@ -61,11 +61,11 @@ class AiAgentEditor extends Component
     ];
 
     public $availableModels = [
-        'gemini-3.8-flash' => 'Google Gemini 3.8 Flash (Flaggschiff / Empfohlen)',
-        'gemini-3.1-pro' => 'Google Gemini 3.1 Pro (Deep Reasoning, Code & Audit)',
+        'gemini-3.5-flash' => 'Google Gemini 3.5 Flash (Stabil / Empfohlen)',
         'gemini-3.5-flash-lite' => 'Google Gemini 3.5 Flash-Lite (Ultra-Speed)',
-        'gemini-3.5-flash' => 'Google Gemini 3.5 Flash (Standard)',
-        'gemini-2.5-flash' => 'Google Gemini 2.5 Flash (Legacy)'
+        'gemini-3.8-flash' => 'Google Gemini 3.8 Flash (Next-Gen / Auto-Fallback)',
+        'gemini-3.1-pro-preview' => 'Google Gemini 3.1 Pro (Deep Reasoning, Code & Audit)',
+        'gemini-3-flash-preview' => 'Google Gemini 3.0 Flash (Schnell)'
     ];
 
     public $ttsProviders = [
@@ -116,7 +116,7 @@ class AiAgentEditor extends Component
             'license' => 'Google Proprietary',
             'use_cases' => ['Neueste State-of-the-Art Flash Architektur', 'Blitzschnelle Tool-Ausführung & Reaktionszeiten', 'Multimodale Alltags- und Führungsaufgaben']
         ],
-        'gemini-3.1-pro' => [
+        'gemini-3.1-pro-preview' => [
             'type' => 'Chat + Deep Reasoning + Code (Pro Grade)', 
             'capabilities' => 'Text, Bild, Video, Advanced Tool-Calling', 
             'context' => '2.000.000+ Token', 
@@ -137,12 +137,12 @@ class AiAgentEditor extends Component
             'license' => 'Google Proprietary',
             'use_cases' => ['Sehr gute Allround-Performance', 'Schnelle Tool-Ausführung', 'Zuverlässiger Standard-Betrieb']
         ],
-        'gemini-2.5-flash' => [
-            'type' => 'Chat + Vision (Legacy)', 
+        'gemini-3-flash-preview' => [
+            'type' => 'Chat + Vision (Fast)', 
             'capabilities' => 'Text, Bild, Tool-Calling', 
             'context' => '1.000.000 Token', 
             'license' => 'Google Proprietary',
-            'use_cases' => ['Rückwärtskompatibilität']
+            'use_cases' => ['Schnelle Antwortzeiten (~1.2s)', 'Zuverlässige Alternative']
         ]
     ];
 
@@ -220,7 +220,13 @@ class AiAgentEditor extends Component
             $this->wake_word = $agent->wake_word;
             $this->role_description = $agent->role_description;
             $this->system_prompt = $agent->system_prompt;
-            $this->model = $agent->model;
+            $rawModel = (string) ($agent->model ?? 'gemini-3.5-flash');
+            if ($rawModel === 'gemini-3.1-pro') {
+                $rawModel = 'gemini-3.1-pro-preview';
+            } elseif (!array_key_exists($rawModel, $this->availableModels)) {
+                $rawModel = 'gemini-3.5-flash';
+            }
+            $this->model = $rawModel;
             $this->temperature = $agent->temperature;
             $this->is_active = $agent->is_active;
             $this->color = $agent->color ?? 'cyan-500';
@@ -365,7 +371,7 @@ class AiAgentEditor extends Component
         }
 
         if (!array_key_exists((string) $this->model, $this->availableModels)) {
-            $this->model = 'gemini-3.8-flash';
+            $this->model = 'gemini-3.5-flash';
         }
         if (!array_key_exists((string) $this->tts_provider, $this->ttsProviders)) {
             $this->tts_provider = 'gemini_native';
@@ -509,7 +515,7 @@ class AiAgentEditor extends Component
         $agent->wake_word = empty($this->wake_word) ? $this->name : $this->wake_word;
         $agent->role_description = $this->role_description;
         $agent->system_prompt = $this->system_prompt;
-        $agent->model = $this->model ?: 'gemini-3.8-flash';
+        $agent->model = $this->model ?: 'gemini-3.5-flash';
         $agent->temperature = $this->temperature;
         $agent->is_active = $this->is_active;
         $agent->color = $this->color;

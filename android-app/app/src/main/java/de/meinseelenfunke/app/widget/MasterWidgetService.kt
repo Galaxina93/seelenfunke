@@ -77,26 +77,13 @@ class MasterWidgetViewsFactory(
             null
         )
 
-        val gson = Gson()
+        MasterWidgetRamCache.refreshFromPrefsIfChanged(context)
         val result = mutableListOf<MasterWidgetDisplayItem>()
 
         when (activeTab) {
             MasterWidgetProvider.TAB_TASKS -> {
-                val tasksPrefs = context.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
-                val lists: List<ManagementTaskList> = try {
-                    tasksPrefs.getString("task_lists_cache", null)?.let {
-                        gson.fromJson(it, object : TypeToken<List<ManagementTaskList>>() {}.type)
-                    } ?: emptyList()
-                } catch (_: Exception) {
-                    emptyList()
-                }
-                val allTasks: List<ManagementTask> = try {
-                    tasksPrefs.getString("tasks_cache", null)?.let {
-                        gson.fromJson(it, object : TypeToken<List<ManagementTask>>() {}.type)
-                    } ?: emptyList()
-                } catch (_: Exception) {
-                    emptyList()
-                }
+                val lists = MasterWidgetRamCache.taskLists
+                val allTasks = MasterWidgetRamCache.allTasks
 
                 if (selectedListId != null) {
                     val parentTasks = allTasks.filter {
@@ -139,14 +126,7 @@ class MasterWidgetViewsFactory(
             }
 
             MasterWidgetProvider.TAB_CALENDAR -> {
-                val calPrefs = context.getSharedPreferences("calendar_widget_prefs", Context.MODE_PRIVATE)
-                val allEvents: List<CalendarEvent> = try {
-                    calPrefs.getString("calendar_events_cache", null)?.let {
-                        gson.fromJson(it, object : TypeToken<List<CalendarEvent>>() {}.type)
-                    } ?: emptyList()
-                } catch (_: Exception) {
-                    emptyList()
-                }
+                val allEvents = MasterWidgetRamCache.allEvents
                 val todayStr = try { LocalDate.now().toString() } catch (_: Exception) { "" }
                 val upcoming = allEvents.filter { ev ->
                     val startDate = ev.start.take(10)
@@ -159,14 +139,7 @@ class MasterWidgetViewsFactory(
             }
 
             MasterWidgetProvider.TAB_SHOPPING -> {
-                val shopPrefs = context.getSharedPreferences("shopping_widget_prefs", Context.MODE_PRIVATE)
-                val rawItems: List<ManagementShoppingItem> = try {
-                    shopPrefs.getString("shopping_items_cache", null)?.let {
-                        gson.fromJson(it, object : TypeToken<List<ManagementShoppingItem>>() {}.type)
-                    } ?: emptyList()
-                } catch (_: Exception) {
-                    emptyList()
-                }
+                val rawItems = MasterWidgetRamCache.shoppingItems
                 val sorted = rawItems.sortedWith(
                     compareBy<ManagementShoppingItem> { if (it.status == "needed") 0 else 1 }
                         .thenBy { it.name.lowercase(Locale.ROOT) }

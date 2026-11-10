@@ -1,0 +1,9 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="⚡ Funki Start All (4 Tabs)" type="CompoundRunConfigurationType">
+    <toRun name="1. Funki Start (Docker)" type="ShConfigurationType" />
+    <toRun name="2. Funki WebSocket (Reverb)" type="ShConfigurationType" />
+    <toRun name="3. Funki Worker (Queue)" type="ShConfigurationType" />
+    <toRun name="4. NPM Watch (Vite)" type="ShConfigurationType" />
+    <method v="2" />
+  </configuration>
+</component>

@@ -24,12 +24,91 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
+/**
+ * In-memory RAM cache so rapid tab switching in the Master-Hub Widget
+ * performs zero redundant Gson JSON parsing on the UI/Binder thread.
+ */
+object MasterWidgetRamCache {
+    private val gson = Gson()
+
+    @Volatile private var lastTaskListsJson: String? = null
+    @Volatile var taskLists: List<ManagementTaskList> = emptyList()
+        private set
+
+    @Volatile private var lastTasksJson: String? = null
+    @Volatile var allTasks: List<ManagementTask> = emptyList()
+        private set
+
+    @Volatile private var lastEventsJson: String? = null
+    @Volatile var allEvents: List<CalendarEvent> = emptyList()
+        private set
+
+    @Volatile private var lastShoppingJson: String? = null
+    @Volatile var shoppingItems: List<ManagementShoppingItem> = emptyList()
+        private set
+
+    fun refreshFromPrefsIfChanged(context: Context) {
+        val appContext = context.applicationContext
+
+        val tasksPrefs = appContext.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
+        val listsJson = tasksPrefs.getString("task_lists_cache", null)
+        if (listsJson != lastTaskListsJson) {
+            lastTaskListsJson = listsJson
+            taskLists = if (listsJson != null) {
+                try {
+                    gson.fromJson(listsJson, object : TypeToken<List<ManagementTaskList>>() {}.type)
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            } else emptyList()
+        }
+
+        val tasksJson = tasksPrefs.getString("tasks_cache", null)
+        if (tasksJson != lastTasksJson) {
+            lastTasksJson = tasksJson
+            allTasks = if (tasksJson != null) {
+                try {
+                    gson.fromJson(tasksJson, object : TypeToken<List<ManagementTask>>() {}.type)
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            } else emptyList()
+        }
+
+        val calPrefs = appContext.getSharedPreferences("calendar_widget_prefs", Context.MODE_PRIVATE)
+        val eventsJson = calPrefs.getString("calendar_events_cache", null)
+        if (eventsJson != lastEventsJson) {
+            lastEventsJson = eventsJson
+            allEvents = if (eventsJson != null) {
+                try {
+                    gson.fromJson(eventsJson, object : TypeToken<List<CalendarEvent>>() {}.type)
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            } else emptyList()
+        }
+
+        val shopPrefs = appContext.getSharedPreferences("shopping_widget_prefs", Context.MODE_PRIVATE)
+        val shopJson = shopPrefs.getString("shopping_items_cache", null)
+        if (shopJson != lastShoppingJson) {
+            lastShoppingJson = shopJson
+            shoppingItems = if (shopJson != null) {
+                try {
+                    gson.fromJson(shopJson, object : TypeToken<List<ManagementShoppingItem>>() {}.type)
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            } else emptyList()
+        }
+    }
+}
+
 class MasterWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         triggerGlobalSync(context)
         for (appWidgetId in appWidgetIds) {
-            updateAppWidget(context, appWidgetManager, appWidgetId)
+            updateAppWidget(context, appWidgetManager, appWidgetId, isPartialUpdate = false)
         }
         super.onUpdate(context, appWidgetManager, appWidgetIds)
     }
@@ -50,9 +129,12 @@ class MasterWidgetProvider : AppWidgetProvider() {
                 )
                 val targetTab = intent.getIntExtra(EXTRA_TAB_INDEX, TAB_TASKS)
                 if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-                    prefs.edit().putInt("$PREF_ACTIVE_TAB_PREFIX$appWidgetId", targetTab).apply()
-                    updateAppWidget(appContext, appWidgetManager, appWidgetId)
-                    appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.master_widget_list)
+                    val currentTab = prefs.getInt("$PREF_ACTIVE_TAB_PREFIX$appWidgetId", TAB_TASKS)
+                    if (currentTab != targetTab) {
+                        prefs.edit().putInt("$PREF_ACTIVE_TAB_PREFIX$appWidgetId", targetTab).commit()
+                        updateAppWidget(appContext, appWidgetManager, appWidgetId, isPartialUpdate = true)
+                        appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.master_widget_list)
+                    }
                 }
             }
 
@@ -67,8 +149,8 @@ class MasterWidgetProvider : AppWidgetProvider() {
                     prefs.edit()
                         .putString("$PREF_SELECTED_LIST_ID_PREFIX$appWidgetId", listId)
                         .putString("$PREF_SELECTED_LIST_NAME_PREFIX$appWidgetId", listName ?: "Aufgaben")
-                        .apply()
-                    updateAppWidget(appContext, appWidgetManager, appWidgetId)
+                        .commit()
+                    updateAppWidget(appContext, appWidgetManager, appWidgetId, isPartialUpdate = true)
                     appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.master_widget_list)
                 }
             }
@@ -82,8 +164,8 @@ class MasterWidgetProvider : AppWidgetProvider() {
                     prefs.edit()
                         .remove("$PREF_SELECTED_LIST_ID_PREFIX$appWidgetId")
                         .remove("$PREF_SELECTED_LIST_NAME_PREFIX$appWidgetId")
-                        .apply()
-                    updateAppWidget(appContext, appWidgetManager, appWidgetId)
+                        .commit()
+                    updateAppWidget(appContext, appWidgetManager, appWidgetId, isPartialUpdate = true)
                     appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.master_widget_list)
                 }
             }
@@ -101,31 +183,31 @@ class MasterWidgetProvider : AppWidgetProvider() {
                         MusicPlayerManager.playTrack(appContext, target, allTracks)
                     }
                 }
-                updateAllWidgets(appContext)
+                updateAllWidgets(appContext, isPartial = true)
             }
 
             MusicWidgetProvider.ACTION_PLAY_PAUSE -> {
                 MusicPlayerManager.togglePlayPause(appContext)
-                updateAllWidgets(appContext)
+                updateAllWidgets(appContext, isPartial = true)
             }
 
             MusicWidgetProvider.ACTION_NEXT -> {
                 MusicPlayerManager.playNext(appContext)
-                updateAllWidgets(appContext)
+                updateAllWidgets(appContext, isPartial = true)
             }
 
             MusicWidgetProvider.ACTION_PREV -> {
                 MusicPlayerManager.playPrevious(appContext)
-                updateAllWidgets(appContext)
+                updateAllWidgets(appContext, isPartial = true)
             }
 
             MusicWidgetProvider.ACTION_SHUFFLE -> {
                 MusicPlayerManager.toggleShuffle(appContext)
-                updateAllWidgets(appContext)
+                updateAllWidgets(appContext, isPartial = true)
             }
 
             AppWidgetManager.ACTION_APPWIDGET_UPDATE -> {
-                updateAllWidgets(appContext)
+                updateAllWidgets(appContext, isPartial = false)
             }
         }
     }
@@ -142,7 +224,8 @@ class MasterWidgetProvider : AppWidgetProvider() {
                 ServiceLocator.organizerRepository.getTasks()
                 ServiceLocator.organizerRepository.getCalendarEvents()
                 ServiceLocator.organizerRepository.getShoppingItems()
-                updateAllWidgets(appContext)
+                MasterWidgetRamCache.refreshFromPrefsIfChanged(appContext)
+                updateAllWidgets(appContext, isPartial = true)
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
@@ -173,75 +256,51 @@ class MasterWidgetProvider : AppWidgetProvider() {
         const val EXTRA_TRACK_ID = "extra_track_id"
         const val EXTRA_EVENT_DATE = "extra_event_date"
 
-        fun updateAllWidgets(context: Context) {
+        fun updateAllWidgets(context: Context, isPartial: Boolean = true) {
             val appContext = context.applicationContext
             val appWidgetManager = AppWidgetManager.getInstance(appContext)
             val componentName = ComponentName(appContext, MasterWidgetProvider::class.java)
             val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+            if (appWidgetIds.isEmpty()) return
+
+            MasterWidgetRamCache.refreshFromPrefsIfChanged(appContext)
             for (id in appWidgetIds) {
-                updateAppWidget(appContext, appWidgetManager, id)
+                updateAppWidget(appContext, appWidgetManager, id, isPartialUpdate = isPartial)
             }
-            if (appWidgetIds.isNotEmpty()) {
-                appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetIds, R.id.master_widget_list)
-            }
+            appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetIds, R.id.master_widget_list)
         }
 
-        fun updateAppWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
+        fun updateAppWidget(
+            context: Context,
+            appWidgetManager: AppWidgetManager,
+            appWidgetId: Int,
+            isPartialUpdate: Boolean = false
+        ) {
             val appContext = context.applicationContext
             val masterPrefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val activeTab = masterPrefs.getInt("$PREF_ACTIVE_TAB_PREFIX$appWidgetId", TAB_TASKS)
             val selectedListId = masterPrefs.getString("$PREF_SELECTED_LIST_ID_PREFIX$appWidgetId", null)
             val selectedListName = masterPrefs.getString("$PREF_SELECTED_LIST_NAME_PREFIX$appWidgetId", null)
 
-            val gson = Gson()
+            MasterWidgetRamCache.refreshFromPrefsIfChanged(appContext)
+            val taskLists = MasterWidgetRamCache.taskLists
+            val allTasks = MasterWidgetRamCache.allTasks
+            val allEvents = MasterWidgetRamCache.allEvents
+            val shoppingItems = MasterWidgetRamCache.shoppingItems
 
-            // 1. Read cached counts for live badges
-            val tasksPrefs = appContext.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
-            val taskLists: List<ManagementTaskList> = try {
-                tasksPrefs.getString("task_lists_cache", null)?.let {
-                    gson.fromJson(it, object : TypeToken<List<ManagementTaskList>>() {}.type)
-                } ?: emptyList()
-            } catch (_: Exception) {
-                emptyList()
-            }
-            val allTasks: List<ManagementTask> = try {
-                tasksPrefs.getString("tasks_cache", null)?.let {
-                    gson.fromJson(it, object : TypeToken<List<ManagementTask>>() {}.type)
-                } ?: emptyList()
-            } catch (_: Exception) {
-                emptyList()
-            }
             val openTasksCount = allTasks.count { it.parent_id == null && !it.is_completed }
-
-            val calendarPrefs = appContext.getSharedPreferences("calendar_widget_prefs", Context.MODE_PRIVATE)
-            val allEvents: List<CalendarEvent> = try {
-                calendarPrefs.getString("calendar_events_cache", null)?.let {
-                    gson.fromJson(it, object : TypeToken<List<CalendarEvent>>() {}.type)
-                } ?: emptyList()
-            } catch (_: Exception) {
-                emptyList()
-            }
             val todayStr = try { LocalDate.now().toString() } catch (_: Exception) { "" }
             val upcomingEvents = allEvents.filter { ev ->
                 val d = ev.start.take(10)
                 todayStr.isEmpty() || d >= todayStr || (ev.end != null && ev.end.take(10) >= todayStr)
             }
             val todayEventsCount = upcomingEvents.count { it.start.startsWith(todayStr) }
-
-            val shoppingPrefs = appContext.getSharedPreferences("shopping_widget_prefs", Context.MODE_PRIVATE)
-            val shoppingItems: List<ManagementShoppingItem> = try {
-                shoppingPrefs.getString("shopping_items_cache", null)?.let {
-                    gson.fromJson(it, object : TypeToken<List<ManagementShoppingItem>>() {}.type)
-                } ?: emptyList()
-            } catch (_: Exception) {
-                emptyList()
-            }
             val neededShoppingCount = shoppingItems.count { it.status == "needed" }
             val stockedShoppingCount = shoppingItems.count { it.status == "stocked" }
 
             val views = RemoteViews(appContext.packageName, R.layout.widget_master_layout)
 
-            // 2. Style the 4 Icon Tabs + Badges
+            // 1. Style the 4 Icon Tabs + Badges
             val goldColor = 0xFFC5A059.toInt()
             val mutedColor = 0xFF94A3B8.toInt()
 
@@ -282,7 +341,6 @@ class MasterWidgetProvider : AppWidgetProvider() {
             )
             views.setInt(R.id.tab_master_music_icon, "setColorFilter", if (activeTab == TAB_MUSIC) goldColor else mutedColor)
 
-            // Tab Switch Click Intents
             views.setOnClickPendingIntent(
                 R.id.tab_master_tasks,
                 buildTabSwitchPendingIntent(appContext, appWidgetId, TAB_TASKS)
@@ -300,34 +358,38 @@ class MasterWidgetProvider : AppWidgetProvider() {
                 buildTabSwitchPendingIntent(appContext, appWidgetId, TAB_MUSIC)
             )
 
-            // 3. Receipt Scanner & Quick Entry Button ("Beleg erfassen & Schnelleintrag")
+            // 2. Receipt Scanner & Quick Entry Button ("Beleg erfassen & Schnelleintrag")
             val receiptIntent = Intent(appContext, QuickEntryWidgetActivity::class.java).apply {
                 data = Uri.parse("funkenwerk://master/receipt/$appWidgetId")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
-            val receiptPendingIntent = PendingIntent.getActivity(
-                appContext,
-                appWidgetId * 100 + 10,
-                receiptIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            views.setOnClickPendingIntent(
+                R.id.btn_master_receipt,
+                PendingIntent.getActivity(
+                    appContext,
+                    appWidgetId * 100 + 10,
+                    receiptIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
             )
-            views.setOnClickPendingIntent(R.id.btn_master_receipt, receiptPendingIntent)
 
-            // 4. Global Refresh Button
+            // 3. Global Refresh Button
             val refreshIntent = Intent(appContext, MasterWidgetProvider::class.java).apply {
                 action = ACTION_MASTER_REFRESH
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 data = Uri.parse("funkenwerk://master/refresh/$appWidgetId")
             }
-            val refreshPendingIntent = PendingIntent.getBroadcast(
-                appContext,
-                appWidgetId * 100 + 11,
-                refreshIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            views.setOnClickPendingIntent(
+                R.id.btn_master_refresh,
+                PendingIntent.getBroadcast(
+                    appContext,
+                    appWidgetId * 100 + 11,
+                    refreshIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
             )
-            views.setOnClickPendingIntent(R.id.btn_master_refresh, refreshPendingIntent)
 
-            // 5. Configure Subheader, '+' Button, and 'App ↗' Button per Active Tab
+            // 4. Configure Subheader, '+' Button, and 'App ↗' Button per Active Tab
             when (activeTab) {
                 TAB_TASKS -> {
                     views.setViewVisibility(R.id.btn_master_add, View.VISIBLE)
@@ -478,7 +540,7 @@ class MasterWidgetProvider : AppWidgetProvider() {
                 }
             }
 
-            // 6. Configure Persistent Bottom Mini-Player Bar
+            // 5. Configure Persistent Bottom Mini-Player Bar
             val currentTrack = MusicPlayerManager.currentTrack.value
             val isPlaying = MusicPlayerManager.isPlaying.value
             val isShuffle = MusicPlayerManager.isShuffle.value
@@ -500,7 +562,6 @@ class MasterWidgetProvider : AppWidgetProvider() {
                 if (isShuffle) 0xFFC5A059.toInt() else 0x7794A3B8
             )
 
-            // Clicking Mini-Player song title switches to Music Tab (or opens Music in App if already in Music Tab)
             if (activeTab == TAB_MUSIC) {
                 views.setOnClickPendingIntent(
                     R.id.master_mini_player_click_area,
@@ -530,29 +591,35 @@ class MasterWidgetProvider : AppWidgetProvider() {
                 buildMusicActionPendingIntent(appContext, appWidgetId, MusicWidgetProvider.ACTION_SHUFFLE, 23)
             )
 
-            // 7. RemoteViews Adapter + Mutable PendingIntent Template (Android 14-17 BAL compliant via TasksWidgetActionActivity)
-            val serviceIntent = Intent(appContext, MasterWidgetService::class.java).apply {
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                data = Uri.parse("funkenwerk://master/service/$appWidgetId/$activeTab/${selectedListId ?: "all"}")
-            }
-            views.setRemoteAdapter(R.id.master_widget_list, serviceIntent)
-            views.setEmptyView(R.id.master_widget_list, R.id.master_widget_empty_view)
+            // 6. Bind RemoteAdapter ONLY on full initialization (with constant URI per appWidgetId!)
+            // On tab switches (isPartialUpdate = true), use partiallyUpdateAppWidget so the Launcher
+            // never destroys/rebinds the ListView adapter (eliminating all flicker & lag!).
+            if (isPartialUpdate) {
+                appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views)
+            } else {
+                val serviceIntent = Intent(appContext, MasterWidgetService::class.java).apply {
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                    data = Uri.parse("funkenwerk://master/service/$appWidgetId")
+                }
+                views.setRemoteAdapter(R.id.master_widget_list, serviceIntent)
+                views.setEmptyView(R.id.master_widget_list, R.id.master_widget_empty_view)
 
-            val clickIntent = Intent(appContext, TasksWidgetActionActivity::class.java).apply {
-                action = TasksWidgetProvider.ACTION_ITEM_CLICK
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                data = Uri.parse("funkenwerk://master/item_click/$appWidgetId")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-            val clickPendingIntent = PendingIntent.getActivity(
-                appContext,
-                appWidgetId * 100 + 30,
-                clickIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-            )
-            views.setPendingIntentTemplate(R.id.master_widget_list, clickPendingIntent)
+                val clickIntent = Intent(appContext, TasksWidgetActionActivity::class.java).apply {
+                    action = TasksWidgetProvider.ACTION_ITEM_CLICK
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                    data = Uri.parse("funkenwerk://master/item_click/$appWidgetId")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                val clickPendingIntent = PendingIntent.getActivity(
+                    appContext,
+                    appWidgetId * 100 + 30,
+                    clickIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                )
+                views.setPendingIntentTemplate(R.id.master_widget_list, clickPendingIntent)
 
-            appWidgetManager.updateAppWidget(appWidgetId, views)
+                appWidgetManager.updateAppWidget(appWidgetId, views)
+            }
         }
 
         private fun buildTabSwitchPendingIntent(context: Context, appWidgetId: Int, tabIndex: Int): PendingIntent {

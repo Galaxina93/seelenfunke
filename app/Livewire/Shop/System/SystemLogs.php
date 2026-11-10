@@ -155,7 +155,7 @@ class SystemLogs extends Component
                     'role_description' => 'CEO Agent und Hauptkoordinatorin des Seelenfunke Systems.',
                     'system_prompt' => 'Du bist Funkira, die künstliche Intelligenz und CEO des Seelenfunke Systems.',
                     'is_active' => true,
-                    'model' => 'gemini-2.5-flash',
+                    'model' => 'gemini-3.5-flash',
                     'color' => 'cyan-500',
                     'icon' => 'sparkles'
                 ]);
