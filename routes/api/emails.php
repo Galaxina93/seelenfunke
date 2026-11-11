@@ -91,6 +91,8 @@ Route::prefix('funki/emails')->group(function () {
                 }
             }
 
+            $hasPassword = trim((string) $acc->password) !== '';
+
             $result[] = [
                 'id' => $acc->id,
                 'name' => $acc->name,
@@ -106,7 +108,8 @@ Route::prefix('funki/emails')->group(function () {
                 'smtp_encryption' => $acc->smtp_encryption,
                 'is_default' => $acc->is_default,
                 'is_commercial' => $acc->is_commercial,
-                'status' => $acc->status,
+                'has_password' => $hasPassword,
+                'status' => $hasPassword ? ($acc->status ?: 'connected') : 'needs_password',
                 'folders' => $accFolders,
                 'counts' => $folderCounts,
                 'total_counts' => $folderTotals,
@@ -398,7 +401,18 @@ Route::prefix('funki/emails')->group(function () {
         }
 
         if (!$account->smtp_host) {
-            return response()->json(['error' => 'SMTP Konfiguration fehlt'], 400);
+            return response()->json([
+                'error' => "Für {$account->email} ist noch kein Postausgangsserver (SMTP) hinterlegt.",
+                'action_code' => 'MISSING_SMTP_CONFIG',
+                'needs_password' => true,
+                'account_id' => $account->id,
+                'guidance_title' => 'SMTP-Server für dieses Postfach ergänzen',
+                'guidance_steps' => [
+                    "Klicke neben {$account->email} auf das Zahnrad-Symbol (⚙).",
+                    'Trage den Postausgangsserver (z. B. securesmtp.t-online.de, Port 465, SSL) und dein E-Mail-Passwort ein.',
+                    'Klicke auf Speichern & Verbindung prüfen und sende die E-Mail danach ab.',
+                ],
+            ], 422);
         }
 
         if (!\App\Services\System\SystemSecurityService::isSafeMailHost((string) $account->smtp_host)) {
@@ -409,22 +423,49 @@ Route::prefix('funki/emails')->group(function () {
                 ['smtp_host' => $account->smtp_host],
                 'idor_integrity'
             );
-            return response()->json(['error' => 'Ungültiger oder intern gesperrter SMTP-Host.'], 422);
+            return response()->json([
+                'error' => 'Ungültiger oder intern gesperrter SMTP-Host.',
+                'action_code' => 'MISSING_SMTP_CONFIG',
+                'guidance_title' => 'Bitte gültigen öffentlichen SMTP-Server eintragen',
+                'guidance_steps' => [
+                    'Öffne die Postfach-Einstellungen (⚙) und trage den offiziellen SMTP-Server deines Anbieters ein.',
+                ],
+            ], 422);
         }
 
+        $promoteAttachmentPath = function (string $relPath, string $filename, string $bucket = 'drafts', ?int $expectedSize = null): string {
+            $cleanRel = ltrim($relPath, '/');
+            $abs = \App\Mail\CrmOutgoingMailToCustomer::resolveVerifiedAttachmentDiskPath($cleanRel, $expectedSize, $filename);
+            if ($abs === null) {
+                return $cleanRel;
+            }
+            if (\Illuminate\Support\Str::startsWith($cleanRel, 'leitung/crm/mail-attachments/') && \Illuminate\Support\Facades\Storage::disk('local')->exists($cleanRel)) {
+                return $cleanRel;
+            }
+            $safeName = preg_replace('/[^A-Za-z0-9._äöüÄÖÜß\- ]+/u', '_', basename($filename ?: 'anhang.pdf'));
+            $permRel = 'leitung/crm/mail-attachments/' . $bucket . '/' . date('Ymd_His') . '_' . substr(bin2hex(random_bytes(4)), 0, 8) . '_' . $safeName;
+            try {
+                \Illuminate\Support\Facades\Storage::disk('local')->put($permRel, file_get_contents($abs));
+                if (\Illuminate\Support\Facades\Storage::disk('local')->exists($permRel)) {
+                    return $permRel;
+                }
+            } catch (\Throwable) {
+                // fallback to original verified path
+            }
+            return $cleanRel;
+        };
+
         $attachmentDataParams = [];
+        $missingAttachmentNames = [];
         if (!empty($data['attachments']) && is_array($data['attachments'])) {
             foreach ($data['attachments'] as $att) {
                 if (!empty($att['id']) && empty($att['path'])) {
                     $existingAtt = \App\Models\Management\Mail\MailAttachment::find((int) $att['id']);
                     if ($existingAtt && !empty($existingAtt->path)) {
-                        $attachmentDataParams[] = [
-                            'path' => ltrim((string) $existingAtt->path, '/'),
-                            'filename' => basename((string) ($existingAtt->filename ?: 'attachment')),
-                            'mime' => $existingAtt->content_type ?: 'application/octet-stream',
-                            'size' => $existingAtt->size ?: 0
-                        ];
-                        continue;
+                        $att['path'] = $existingAtt->path;
+                        $att['filename'] = $att['filename'] ?? $existingAtt->filename;
+                        $att['mime'] = $att['mime'] ?? $existingAtt->content_type;
+                        $att['size'] = $att['size'] ?? $existingAtt->size;
                     }
                 }
                 $attPath = ltrim((string) ($att['path'] ?? ''), '/');
@@ -440,52 +481,244 @@ Route::prefix('funki/emails')->group(function () {
                         ['path' => $att['path'] ?? null],
                         'idor_integrity'
                     );
-                    return response()->json(['error' => 'Ungültiger Anhang-Pfad.'], 403);
+                    return response()->json([
+                        'error' => 'Ungültiger Anhang-Pfad.',
+                        'action_code' => 'MISSING_ATTACHMENT',
+                        'guidance_title' => 'Anhang bitte neu hinzufügen',
+                        'guidance_steps' => [
+                            'Entferne den Anhang kurz über das ✕-Symbol und ziehe die Datei erneut per Drag & Drop in das Fenster.',
+                        ],
+                    ], 403);
                 }
+
+                $fname = basename((string) ($att['filename'] ?? 'attachment'));
+                $fsize = (int) ($att['size'] ?? 0);
+                $verifiedAbs = \App\Mail\CrmOutgoingMailToCustomer::resolveVerifiedAttachmentDiskPath($attPath, $fsize > 0 ? $fsize : null, $fname);
+                if ($verifiedAbs === null) {
+                    $missingAttachmentNames[] = $fname;
+                } else {
+                    $attPath = $promoteAttachmentPath($attPath, $fname, 'drafts', $fsize > 0 ? $fsize : null);
+                    $fsize = filesize($verifiedAbs) ?: $fsize;
+                }
+
                 $attachmentDataParams[] = [
                     'path' => $attPath,
-                    'filename' => basename((string) ($att['filename'] ?? 'attachment')),
+                    'filename' => $fname,
                     'mime' => $att['mime'] ?? $att['content_type'] ?? 'application/octet-stream',
-                    'size' => $att['size'] ?? 0
+                    'size' => $fsize,
                 ];
             }
         }
 
-        try {
-            Config::set('mail.mailers.dynamic', [
-                'transport' => 'smtp',
-                'host' => trim($account->smtp_host),
-                'port' => trim($account->smtp_port),
-                'encryption' => trim($account->smtp_encryption),
-                'username' => trim($account->smtp_username ?: $account->email),
-                'password' => trim($account->password),
-                'timeout' => null,
-                'local_domain' => env('MAIL_EHLO_DOMAIN'),
-            ]);
-
-            app('mail.manager')->purge('dynamic');
-
-            $signature = "<br><br>" . $account->signature;
-            $bodyHtml = $data['body'] . $signature;
-            $signatureHtml = null;
-
-            $mailable = new \App\Mail\CrmOutgoingMailToCustomer(
-                $data['subject'], $bodyHtml, $signatureHtml, $account->email, $account->name, $attachmentDataParams
+        $saveDraftWithAttachments = function () use ($data, $account, $toList, $ccList, $bccList, $attachmentDataParams) {
+            $plainBody = html_entity_decode(
+                strip_tags(str_replace(['<br>', '<br/>', '<br />', "\r\n", "\r"], "\n", (string) $data['body'])),
+                ENT_QUOTES | ENT_HTML5,
+                'UTF-8'
             );
-
-            $pendingMail = app()->environment('testing')
-                ? Mail::to($toList)
-                : Mail::mailer('dynamic')->to($toList);
-
-            if (!empty($ccList)) {
-                $pendingMail->cc($ccList);
+            $draft = null;
+            if (!empty($data['draft_id'])) {
+                $draft = MailMessage::where('id', (int) $data['draft_id'])->where('folder', 'Drafts')->first();
             }
-            if (!empty($bccList)) {
-                $pendingMail->bcc($bccList);
+            if ($draft) {
+                $draft->update([
+                    'mail_account_id' => $account->id,
+                    'subject' => $data['subject'] ?: '(Kein Betreff)',
+                    'from_name' => $account->name,
+                    'from_email' => $account->email,
+                    'to_email' => implode(', ', $toList),
+                    'cc_email' => !empty($ccList) ? implode(', ', $ccList) : null,
+                    'bcc_email' => !empty($bccList) ? implode(', ', $bccList) : null,
+                    'body_plain' => $plainBody,
+                    'body_html' => nl2br(e($plainBody)),
+                    'is_read' => true,
+                    'is_archived' => false,
+                    'has_attachments' => count($attachmentDataParams) > 0,
+                    'received_at' => now(),
+                ]);
+                \App\Models\Management\Mail\MailAttachment::where('mail_message_id', $draft->id)->delete();
+            } else {
+                $draft = MailMessage::create([
+                    'mail_account_id' => $account->id,
+                    'message_id' => 'draft-' . uniqid('', true),
+                    'folder' => 'Drafts',
+                    'subject' => $data['subject'] ?: '(Kein Betreff)',
+                    'from_name' => $account->name,
+                    'from_email' => $account->email,
+                    'to_email' => implode(', ', $toList),
+                    'cc_email' => !empty($ccList) ? implode(', ', $ccList) : null,
+                    'bcc_email' => !empty($bccList) ? implode(', ', $bccList) : null,
+                    'body_plain' => $plainBody,
+                    'body_html' => nl2br(e($plainBody)),
+                    'is_read' => true,
+                    'is_archived' => false,
+                    'has_attachments' => count($attachmentDataParams) > 0,
+                    'received_at' => now(),
+                ]);
             }
 
-            $pendingMail->send($mailable);
+            foreach ($attachmentDataParams as $att) {
+                \App\Models\Management\Mail\MailAttachment::create([
+                    'mail_message_id' => $draft->id,
+                    'filename' => $att['filename'],
+                    'content_type' => $att['mime'],
+                    'size' => $att['size'],
+                    'path' => $att['path'],
+                ]);
+            }
 
+            return $draft;
+        };
+
+        $buildPasswordGuidanceSteps = function (MailAccount $acc): array {
+            $lower = strtolower((string) $acc->email);
+            if (str_ends_with($lower, '@t-online.de')) {
+                return [
+                    "Klicke direkt auf 'Postfach-Passwort eintragen (⚙)'.",
+                    'Gib dort dein separates T-Online Passwort für E-Mail-Programme ein (nicht das normale Telekom-Kundencenter-Login).',
+                    'Falls noch keines eingerichtet ist: Telekom Kundencenter -> E-Mail-Center -> Einstellungen -> Passwörter -> Passwort für E-Mail-Programme.',
+                    'Klicke auf Speichern & Verbindung prüfen -> danach wird dein Entwurf sofort versendet.',
+                ];
+            }
+            if (str_ends_with($lower, '@gmail.com') || str_ends_with($lower, '@googlemail.com')) {
+                return [
+                    "Klicke direkt auf 'Postfach-Passwort eintragen (⚙)'.",
+                    'Trage dein 16-stelliges Google App-Passwort ein (Google-Konto -> Sicherheit -> 2-Faktor -> App-Passwörter).',
+                    'Klicke auf Speichern & Verbindung prüfen und sende deinen Entwurf ab.',
+                ];
+            }
+            return [
+                "Klicke direkt auf 'Postfach-Passwort eintragen (⚙)'.",
+                "Trage das aktuelle E-Mail-Passwort für {$acc->email} ({$acc->smtp_host}) ein.",
+                'Klicke auf Speichern & Verbindung prüfen und sende deinen Entwurf ab.',
+            ];
+        };
+
+        // Pre-Flight Check A: Missing attachment file on current server (never crash or blame SMTP!)
+        if (!empty($missingAttachmentNames)) {
+            $draft = $saveDraftWithAttachments();
+            $namesStr = implode(', ', $missingAttachmentNames);
+            return response()->json([
+                'error' => "Die Anhang-Datei ({$namesStr}) liegt auf diesem Server nicht mehr im temporären Zwischenspeicher vor.",
+                'action_code' => 'MISSING_ATTACHMENT',
+                'missing_attachments' => $missingAttachmentNames,
+                'needs_password' => false,
+                'account_id' => $account->id,
+                'draft_saved' => true,
+                'draft_id' => $draft->id ?? null,
+                'guidance_title' => "Anhang '{$namesStr}' bitte kurz neu anfügen",
+                'guidance_steps' => [
+                    'Dein kompletter Nachrichtentext, Empfänger und Betreff sind sicher als Entwurf gespeichert.',
+                    "Ziehe die Datei '{$namesStr}' einfach per Drag & Drop von deinem PC erneut in dieses Fenster (oder klicke unten auf Datei anfügen).",
+                    'Klicke anschließend auf Jetzt senden -> der Anhang wird ab sofort dauerhaft gesichert.',
+                ],
+            ], 422);
+        }
+
+        // Pre-Flight Check B: Missing or undecryptable password
+        $decryptedPassword = trim((string) $account->password);
+        if ($decryptedPassword === '') {
+            $draft = $saveDraftWithAttachments();
+            return response()->json([
+                'error' => "Für {$account->email} ist in dieser Umgebung noch kein E-Mail-Passwort gespeichert.",
+                'action_code' => 'NEEDS_PASSWORD',
+                'needs_password' => true,
+                'account_id' => $account->id,
+                'draft_saved' => true,
+                'draft_id' => $draft->id ?? null,
+                'guidance_title' => "Passwort für {$account->email} einmalig hinterlegen",
+                'guidance_steps' => $buildPasswordGuidanceSteps($account),
+            ], 422);
+        }
+
+        // Promote verified attachments into permanent 'sent' bucket before sending
+        foreach ($attachmentDataParams as &$attRef) {
+            $attRef['path'] = $promoteAttachmentPath($attRef['path'], $attRef['filename'], 'sent', (int) ($attRef['size'] ?? 0) ?: null);
+        }
+        unset($attRef);
+
+        $signature = !empty($account->signature) ? ("<br><br>" . $account->signature) : "";
+        $bodyHtml = $data['body'] . $signature;
+        $signatureHtml = null;
+
+        $mailable = new \App\Mail\CrmOutgoingMailToCustomer(
+            $data['subject'], $bodyHtml, $signatureHtml, $account->email, $account->name, $attachmentDataParams
+        );
+
+        // Build primary + auto-healing fallback SMTP transport candidates (465 SSL <-> 587 STARTTLS)
+        $primaryPort = (int) trim((string) $account->smtp_port ?: '465');
+        $primaryEnc = strtolower(trim((string) $account->smtp_encryption ?: ($primaryPort === 465 ? 'ssl' : 'tls')));
+        $smtpCandidates = [
+            ['host' => trim($account->smtp_host), 'port' => $primaryPort, 'enc' => $primaryEnc],
+        ];
+        if ($primaryPort === 465) {
+            $smtpCandidates[] = ['host' => trim($account->smtp_host), 'port' => 587, 'enc' => 'tls'];
+        } elseif ($primaryPort === 587) {
+            $smtpCandidates[] = ['host' => trim($account->smtp_host), 'port' => 465, 'enc' => 'ssl'];
+        }
+
+        $sentOk = false;
+        $lastException = null;
+
+        foreach ($smtpCandidates as $idx => $cand) {
+            try {
+                $candPort = (int) $cand['port'];
+                $candEnc = $cand['enc'];
+                $candScheme = ($candPort === 465 || $candEnc === 'ssl') ? 'smtps' : 'smtp';
+
+                Config::set('mail.mailers.dynamic', [
+                    'transport' => 'smtp',
+                    'scheme' => $candScheme,
+                    'host' => $cand['host'],
+                    'port' => $candPort,
+                    'encryption' => $candEnc === 'none' ? null : $candEnc,
+                    'username' => trim($account->smtp_username ?: $account->email),
+                    'password' => $decryptedPassword,
+                    'timeout' => 15,
+                    'local_domain' => env('MAIL_EHLO_DOMAIN'),
+                ]);
+
+                app('mail.manager')->purge('dynamic');
+
+                $pendingMail = app()->environment('testing')
+                    ? Mail::to($toList)
+                    : Mail::mailer('dynamic')->to($toList);
+
+                if (!empty($ccList)) {
+                    $pendingMail->cc($ccList);
+                }
+                if (!empty($bccList)) {
+                    $pendingMail->bcc($bccList);
+                }
+
+                $pendingMail->send($mailable);
+                $sentOk = true;
+
+                // If fallback port/encryption healed the connection, persist it automatically!
+                if ($idx > 0) {
+                    $account->update([
+                        'smtp_port' => $candPort,
+                        'smtp_encryption' => $candEnc,
+                        'status' => 'connected',
+                    ]);
+                }
+                break;
+            } catch (\Throwable $e) {
+                $lastException = $e;
+                $errMsg = $e->getMessage();
+                // Do NOT retry fallback port on credential/auth errors (avoid locking account with double 535 attempts)
+                if (
+                    str_contains($errMsg, '535')
+                    || stripos($errMsg, 'Authentication') !== false
+                    || stripos($errMsg, 'Invalid login') !== false
+                    || str_starts_with($errMsg, 'MISSING_ATTACHMENT:')
+                ) {
+                    break;
+                }
+            }
+        }
+
+        if ($sentOk) {
             // Save in Sent
             $cleanSentPlain = html_entity_decode(
                 strip_tags(str_replace(['<br>', '<br/>', '<br />', "\r\n", "\r"], "\n", (string) $data['body'])),
@@ -509,7 +742,6 @@ Route::prefix('funki/emails')->group(function () {
                 'received_at' => now()
             ]);
 
-            // Save attachments in the DB for the sent message so they appear in Sent folder
             foreach ($attachmentDataParams as $att) {
                 \App\Models\Management\Mail\MailAttachment::create([
                     'mail_message_id' => $sentMessage->id,
@@ -520,14 +752,12 @@ Route::prefix('funki/emails')->group(function () {
                 ]);
             }
 
-            // If this mail was composed from a draft, remove the draft from Drafts
             if (!empty($data['draft_id'])) {
                 MailMessage::where('id', (int) $data['draft_id'])
                     ->where('folder', 'Drafts')
                     ->delete();
             }
 
-            // Automatically resolve any open "Wichtig" mail from the recipient after replying & move to Archive
             foreach ($toList as $singleTo) {
                 $cleanTo = strtolower(trim((string) $singleTo));
                 if ($cleanTo !== '') {
@@ -550,58 +780,102 @@ Route::prefix('funki/emails')->group(function () {
                 }
             }
 
-            return response()->json(['success' => true]);
-
-        } catch (\Exception $e) {
-            Log::error('API SMTP Sende-Fehler: ' . $e->getMessage());
-
-            // Auto-save as Draft on SMTP failure so no composed text is ever lost
-            $plainBody = strip_tags(str_replace(['<br>', '<br/>', '<br />'], "\n", (string) $data['body']));
-            $draft = null;
-            if (!empty($data['draft_id'])) {
-                $draft = MailMessage::where('id', (int) $data['draft_id'])->where('folder', 'Drafts')->first();
-            }
-            if ($draft) {
-                $draft->update([
-                    'mail_account_id' => $account->id,
-                    'subject' => $data['subject'] ?: '(Kein Betreff)',
-                    'from_name' => $account->name,
-                    'from_email' => $account->email,
-                    'to_email' => implode(', ', $toList),
-                    'cc_email' => !empty($ccList) ? implode(', ', $ccList) : null,
-                    'bcc_email' => !empty($bccList) ? implode(', ', $bccList) : null,
-                    'body_plain' => $plainBody,
-                    'body_html' => nl2br(e($plainBody)),
-                    'is_read' => true,
-                    'is_archived' => false,
-                    'received_at' => now(),
-                ]);
-            } else {
-                $draft = MailMessage::create([
-                    'mail_account_id' => $account->id,
-                    'message_id' => 'draft-' . uniqid('', true),
-                    'folder' => 'Drafts',
-                    'subject' => $data['subject'] ?: '(Kein Betreff)',
-                    'from_name' => $account->name,
-                    'from_email' => $account->email,
-                    'to_email' => implode(', ', $toList),
-                    'cc_email' => !empty($ccList) ? implode(', ', $ccList) : null,
-                    'bcc_email' => !empty($bccList) ? implode(', ', $bccList) : null,
-                    'body_plain' => $plainBody,
-                    'body_html' => nl2br(e($plainBody)),
-                    'is_read' => true,
-                    'is_archived' => false,
-                    'has_attachments' => false,
-                    'received_at' => now(),
-                ]);
-            }
-
             return response()->json([
-                'error' => 'E-Mail konnte nicht gesendet werden. Bitte prüfe die SMTP-Einstellungen. (Nachricht wurde automatisch als Entwurf gespeichert)',
+                'success' => true,
+                'sent_id' => $sentMessage->id,
+                'from_email' => $account->email,
+                'to' => $toList,
+            ]);
+        }
+
+        // Intelligent Structured Failure Classification (Zero Generic Crashes!)
+        $rawMsg = $lastException ? $lastException->getMessage() : 'Unbekannte Rückmeldung';
+        Log::warning("Mail-Versand Hinweis ({$account->email}): {$rawMsg}");
+
+        $draft = $saveDraftWithAttachments();
+
+        if (str_starts_with($rawMsg, 'MISSING_ATTACHMENT:')) {
+            $missingFile = substr($rawMsg, strlen('MISSING_ATTACHMENT:'));
+            return response()->json([
+                'error' => "Die Anhang-Datei '{$missingFile}' muss kurz neu angefügt werden.",
+                'action_code' => 'MISSING_ATTACHMENT',
+                'missing_attachments' => [$missingFile],
+                'needs_password' => false,
+                'account_id' => $account->id,
                 'draft_saved' => true,
                 'draft_id' => $draft->id ?? null,
-            ], 500);
+                'guidance_title' => "Anhang '{$missingFile}' bitte neu hineinziehen",
+                'guidance_steps' => [
+                    'Dein Entwurf ist vollständig gesichert.',
+                    "Ziehe '{$missingFile}' per Drag & Drop erneut in dieses Fenster und klicke auf Jetzt senden.",
+                ],
+            ], 422);
         }
+
+        $isAuthErr = str_contains($rawMsg, '535')
+            || stripos($rawMsg, 'Authentication') !== false
+            || stripos($rawMsg, 'Invalid login') !== false
+            || stripos($rawMsg, 'Username and Password not accepted') !== false;
+
+        if ($isAuthErr) {
+            return response()->json([
+                'error' => "Der Mailserver ({$account->smtp_host}) hat das hinterlegte Passwort für {$account->email} abgelehnt (Code 535).",
+                'action_code' => 'AUTH_REJECTED',
+                'needs_password' => true,
+                'account_id' => $account->id,
+                'draft_saved' => true,
+                'draft_id' => $draft->id ?? null,
+                'guidance_title' => "E-Mail-Passwort für {$account->email} aktualisieren",
+                'guidance_steps' => $buildPasswordGuidanceSteps($account),
+            ], 422);
+        }
+
+        if (str_contains($rawMsg, '552') || stripos($rawMsg, 'size') !== false || stripos($rawMsg, 'too large') !== false) {
+            return response()->json([
+                'error' => 'Die E-Mail überschreitet das Größenlimit des Empfänger-Mailservers.',
+                'action_code' => 'ATTACHMENT_TOO_LARGE',
+                'needs_password' => false,
+                'account_id' => $account->id,
+                'draft_saved' => true,
+                'draft_id' => $draft->id ?? null,
+                'guidance_title' => 'Anhänge für den Mailserver zu groß',
+                'guidance_steps' => [
+                    'Dein Entwurf bleibt vollständig gespeichert.',
+                    'Verkleinere große PDF-/Bilddateien auf unter 15 MB oder teile sie auf zwei E-Mails auf.',
+                ],
+            ], 422);
+        }
+
+        if (preg_match('/\b(550|553|554|501)\b/', $rawMsg)) {
+            return response()->json([
+                'error' => 'Der Mailserver hat die Empfänger- oder Absenderadresse abgewiesen.',
+                'action_code' => 'RECIPIENT_REJECTED',
+                'needs_password' => false,
+                'account_id' => $account->id,
+                'draft_saved' => true,
+                'draft_id' => $draft->id ?? null,
+                'guidance_title' => 'Empfänger-Adresse kurz prüfen',
+                'guidance_steps' => [
+                    'Prüfe die Schreibweise der Empfänger-Adresse im Feld AN / CC / BCC auf Tippfehler.',
+                    "Prüfe unter ⚙, ob als SMTP-Benutzername exakt {$account->email} eingetragen ist.",
+                ],
+            ], 422);
+        }
+
+        return response()->json([
+            'error' => "Der Postausgangsserver {$account->smtp_host} ist momentan nicht erreichbar.",
+            'action_code' => 'NETWORK_UNREACHABLE',
+            'needs_password' => false,
+            'account_id' => $account->id,
+            'draft_saved' => true,
+            'draft_id' => $draft->id ?? null,
+            'guidance_title' => "Keine Netzwerkverbindung zu {$account->smtp_host}",
+            'guidance_steps' => [
+                'Deine E-Mail inkl. aller Anhänge wurde sicher unter Entwürfe gespeichert.',
+                'Prüfe kurz deine Internetverbindung bzw. ob ein VPN/Firewall Port 465 oder 587 blockiert.',
+                "Klicke ansonsten auf ⚙ neben {$account->email} -> Speichern & Verbindung prüfen.",
+            ],
+        ], 422);
     });
 
     // 4b. Save or Update Draft ("Entwürfe")
@@ -614,6 +888,7 @@ Route::prefix('funki/emails')->group(function () {
             'bcc' => 'nullable|string|max:1000',
             'subject' => 'nullable|string|max:255',
             'body' => 'nullable|string|max:200000',
+            'attachments' => 'nullable|array|max:20',
         ]);
 
         $account = null;
@@ -627,6 +902,49 @@ Route::prefix('funki/emails')->group(function () {
             return response()->json(['error' => 'Kein E-Mail-Konto konfiguriert'], 400);
         }
 
+        $draftAttachmentParams = [];
+        if (!empty($data['attachments']) && is_array($data['attachments'])) {
+            foreach ($data['attachments'] as $att) {
+                if (!empty($att['id']) && empty($att['path'])) {
+                    $existingAtt = \App\Models\Management\Mail\MailAttachment::find((int) $att['id']);
+                    if ($existingAtt && !empty($existingAtt->path)) {
+                        $att['path'] = $existingAtt->path;
+                        $att['filename'] = $att['filename'] ?? $existingAtt->filename;
+                        $att['mime'] = $att['mime'] ?? $existingAtt->content_type;
+                        $att['size'] = $att['size'] ?? $existingAtt->size;
+                    }
+                }
+                $attPath = ltrim((string) ($att['path'] ?? ''), '/');
+                if (
+                    !empty($attPath)
+                    && !str_contains($attPath, '..')
+                    && \Illuminate\Support\Str::startsWith($attPath, ['temp/mail-attachments/', 'mail-attachments/', 'crm/', 'leitung/crm/'])
+                ) {
+                    $fname = basename((string) ($att['filename'] ?? 'attachment'));
+                    $fsize = (int) ($att['size'] ?? 0);
+                    $abs = \App\Mail\CrmOutgoingMailToCustomer::resolveVerifiedAttachmentDiskPath($attPath, $fsize > 0 ? $fsize : null, $fname);
+                    if ($abs !== null && !\Illuminate\Support\Str::startsWith($attPath, 'leitung/crm/mail-attachments/')) {
+                        $safeName = preg_replace('/[^A-Za-z0-9._äöüÄÖÜß\- ]+/u', '_', $fname);
+                        $permRel = 'leitung/crm/mail-attachments/drafts/' . date('Ymd_His') . '_' . substr(bin2hex(random_bytes(4)), 0, 8) . '_' . $safeName;
+                        try {
+                            \Illuminate\Support\Facades\Storage::disk('local')->put($permRel, file_get_contents($abs));
+                            if (\Illuminate\Support\Facades\Storage::disk('local')->exists($permRel)) {
+                                $attPath = $permRel;
+                            }
+                        } catch (\Throwable) {
+                            // keep verified path
+                        }
+                    }
+                    $draftAttachmentParams[] = [
+                        'path' => $attPath,
+                        'filename' => $fname,
+                        'mime' => $att['mime'] ?? $att['content_type'] ?? 'application/octet-stream',
+                        'size' => $abs !== null ? (filesize($abs) ?: $fsize) : $fsize,
+                    ];
+                }
+            }
+        }
+
         $to = trim((string) ($data['to'] ?? ''));
         $cc = trim((string) ($data['cc'] ?? ''));
         $bcc = trim((string) ($data['bcc'] ?? ''));
@@ -638,7 +956,7 @@ Route::prefix('funki/emails')->group(function () {
             'UTF-8'
         );
 
-        if ($to === '' && $cc === '' && $bcc === '' && $subject === '' && trim($bodyPlain) === '') {
+        if ($to === '' && $cc === '' && $bcc === '' && $subject === '' && trim($bodyPlain) === '' && empty($draftAttachmentParams)) {
             return response()->json(['success' => false, 'message' => 'Leerer Entwurf ignoriert']);
         }
 
@@ -665,8 +983,12 @@ Route::prefix('funki/emails')->group(function () {
                 'body_html' => $bodyHtml,
                 'is_read' => true,
                 'is_archived' => false,
+                'has_attachments' => !empty($draftAttachmentParams) ? true : $draft->has_attachments,
                 'received_at' => now(),
             ]);
+            if (!empty($draftAttachmentParams)) {
+                \App\Models\Management\Mail\MailAttachment::where('mail_message_id', $draft->id)->delete();
+            }
         } else {
             $draft = MailMessage::create([
                 'mail_account_id' => $account->id,
@@ -682,8 +1004,18 @@ Route::prefix('funki/emails')->group(function () {
                 'body_html' => $bodyHtml,
                 'is_read' => true,
                 'is_archived' => false,
-                'has_attachments' => false,
+                'has_attachments' => count($draftAttachmentParams) > 0,
                 'received_at' => now(),
+            ]);
+        }
+
+        foreach ($draftAttachmentParams as $att) {
+            \App\Models\Management\Mail\MailAttachment::create([
+                'mail_message_id' => $draft->id,
+                'filename' => $att['filename'],
+                'content_type' => $att['mime'],
+                'size' => $att['size'],
+                'path' => $att['path'],
             ]);
         }
 
@@ -862,7 +1194,67 @@ Route::prefix('funki/emails')->group(function () {
             $updateData
         );
 
-        return response()->json(['success' => true, 'data' => $account]);
+        $hasPw = trim((string) $account->password) !== '';
+        $smtpVerified = null;
+        $smtpMessage = null;
+
+        if ($request->boolean('verify_smtp')) {
+            if (!$hasPw) {
+                $smtpVerified = false;
+                $smtpMessage = 'Kein Passwort gespeichert.';
+            } else {
+                try {
+                    $smtpPort = (int) trim((string) $account->smtp_port ?: '465');
+                    $smtpEnc = strtolower(trim((string) $account->smtp_encryption ?: 'ssl'));
+                    $smtpScheme = ($smtpPort === 465 || $smtpEnc === 'ssl') ? 'smtps' : 'smtp';
+
+                    Config::set('mail.mailers.dynamic_test', [
+                        'transport' => 'smtp',
+                        'scheme' => $smtpScheme,
+                        'host' => trim($account->smtp_host),
+                        'port' => $smtpPort,
+                        'encryption' => $smtpEnc === 'none' ? null : $smtpEnc,
+                        'username' => trim($account->smtp_username ?: $account->email),
+                        'password' => trim((string) $account->password),
+                        'timeout' => 12,
+                        'local_domain' => env('MAIL_EHLO_DOMAIN'),
+                    ]);
+                    app('mail.manager')->purge('dynamic_test');
+                    $transport = app('mail.manager')->mailer('dynamic_test')->getSymfonyTransport();
+                    if (method_exists($transport, 'start')) {
+                        $transport->start();
+                    }
+                    if (method_exists($transport, 'stop')) {
+                        $transport->stop();
+                    }
+                    $smtpVerified = true;
+                    $smtpMessage = 'SMTP-Verbindung & Anmeldung erfolgreich geprüft.';
+                } catch (\Throwable $e) {
+                    $smtpVerified = false;
+                    $raw = $e->getMessage();
+                    if (str_contains($raw, '535') || stripos($raw, 'Authentication') !== false) {
+                        $lowerEmail = strtolower((string) $account->email);
+                        if (str_ends_with($lowerEmail, '@t-online.de')) {
+                            $smtpMessage = 'Anmeldung abgelehnt (535). Bitte verwende bei T-Online das separate „Passwort für E-Mail-Programme" aus dem Telekom Kundencenter.';
+                        } elseif (str_ends_with($lowerEmail, '@gmail.com') || str_ends_with($lowerEmail, '@googlemail.com')) {
+                            $smtpMessage = 'Anmeldung abgelehnt (535). Bitte verwende bei Gmail ein 16-stelliges Google App-Passwort.';
+                        } else {
+                            $smtpMessage = 'SMTP-Anmeldung abgelehnt (Code 535): Bitte prüfe Benutzername und Passwort.';
+                        }
+                    } else {
+                        $smtpMessage = 'SMTP-Verbindung fehlgeschlagen: Bitte prüfe Server (' . $account->smtp_host . ':' . $account->smtp_port . ') und Verschlüsselung.';
+                    }
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $account,
+            'has_password' => $hasPw,
+            'smtp_verified' => $smtpVerified,
+            'smtp_message' => $smtpMessage,
+        ]);
     });
 
     // 9. Delete Account
@@ -879,7 +1271,7 @@ Route::prefix('funki/emails')->group(function () {
         ]);
 
         $file = $request->file('file');
-        $path = $file->store('temp/mail-attachments');
+        $path = $file->store('temp/mail-attachments', 'local');
 
         return response()->json([
             'success' => true,
@@ -941,12 +1333,41 @@ Route::prefix('funki/emails')->group(function () {
         return response()->json(['success' => true]);
     });
 
-    // 14. Trigger IMAP Sync
-    Route::post('/sync', function () {
+    // 14. Trigger IMAP Sync (supports synchronous `wait: true` with live metrics + fast background fallback)
+    Route::post('/sync', function (Request $request) {
         try {
+            if ($request->boolean('wait', false)) {
+                @set_time_limit(60);
+                $startedAt = microtime(true);
+                $beforeCount = MailMessage::count();
+
+                \Illuminate\Support\Facades\Artisan::call('crm:fetch-mails');
+
+                $afterCount = MailMessage::count();
+                $newCount = max(0, $afterCount - $beforeCount);
+                $accounts = MailAccount::all();
+                $syncedAccounts = $accounts->filter(fn ($a) => trim((string) $a->password) !== '' && $a->status === 'connected')->count();
+                $failedAccounts = $accounts->filter(fn ($a) => trim((string) $a->password) !== '' && $a->status === 'error')
+                    ->pluck('email')
+                    ->values()
+                    ->all();
+
+                return response()->json([
+                    'success' => true,
+                    'mode' => 'sync',
+                    'new_mails_count' => $newCount,
+                    'synced_accounts' => $syncedAccounts,
+                    'failed_accounts' => $failedAccounts,
+                    'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                    'message' => $newCount > 0
+                        ? ($newCount === 1 ? '1 neue E-Mail abgerufen' : "{$newCount} neue E-Mails abgerufen")
+                        : 'Postfächer aktuell',
+                ]);
+            }
+
             $artisan = escapeshellarg(base_path('artisan'));
             exec("nohup php {$artisan} crm:fetch-mails > /dev/null 2>&1 &");
-            return response()->json(['success' => true, 'message' => 'Synchronisation gestartet']);
+            return response()->json(['success' => true, 'mode' => 'async', 'message' => 'Synchronisation gestartet']);
         } catch (\Throwable $e) {
             return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
         }

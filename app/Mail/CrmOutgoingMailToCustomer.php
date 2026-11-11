@@ -3,12 +3,14 @@
 namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
+use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
-use Illuminate\Mail\Mailables\Address;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class CrmOutgoingMailToCustomer extends Mailable
 {
@@ -26,12 +28,12 @@ class CrmOutgoingMailToCustomer extends Mailable
      */
     public function __construct($subjectLine, $bodyHtml, $signatureHtml, $fromEmail, $fromName, $attachmentFiles = [])
     {
-        $this->subjectLine = $subjectLine;
-        $this->bodyHtml = $bodyHtml;
+        $this->subjectLine = (string) ($subjectLine ?? '');
+        $this->bodyHtml = (string) ($bodyHtml ?? '');
         $this->signatureHtml = $signatureHtml;
-        $this->fromEmail = $fromEmail;
-        $this->fromName = $fromName;
-        $this->attachmentFiles = $attachmentFiles;
+        $this->fromEmail = (string) $fromEmail;
+        $this->fromName = (string) ($fromName ?: $fromEmail);
+        $this->attachmentFiles = is_array($attachmentFiles) ? $attachmentFiles : [];
     }
 
     /**
@@ -56,6 +58,64 @@ class CrmOutgoingMailToCustomer extends Mailable
     }
 
     /**
+     * Resolve an attachment storage path safely to a verified readable absolute path on disk.
+     * Never returns null/missing streams to Symfony Mime (prevents TextPart null crashes).
+     */
+    public static function resolveVerifiedAttachmentDiskPath(string $rawPath, ?int $expectedSize = null, ?string $filename = null): ?string
+    {
+        $path = ltrim($rawPath, '/');
+        if (
+            $path === ''
+            || str_contains($path, '..')
+            || str_contains($path, "\0")
+            || !Str::startsWith($path, ['temp/mail-attachments/', 'leitung/crm/mail-attachments/', 'mail-attachments/', 'crm/', 'leitung/crm/'])
+        ) {
+            return null;
+        }
+
+        foreach (['local', 'public'] as $diskName) {
+            try {
+                $disk = Storage::disk($diskName);
+                if ($disk->exists($path)) {
+                    $abs = $disk->path($path);
+                    if (is_file($abs) && is_readable($abs) && filesize($abs) > 0) {
+                        return $abs;
+                    }
+                }
+            } catch (\Throwable) {
+                // ignore and continue fallback
+            }
+        }
+
+        // Self-healing lookup in permanent mail-attachments if temp file was moved/cleaned
+        if ($filename !== null && trim($filename) !== '') {
+            $safeBase = basename($filename);
+            $crmRoot = storage_path('app/leitung/crm/mail-attachments');
+            if (is_dir($crmRoot)) {
+                try {
+                    $it = new \RecursiveIteratorIterator(
+                        new \RecursiveDirectoryIterator($crmRoot, \FilesystemIterator::SKIP_DOTS)
+                    );
+                    foreach ($it as $fileInfo) {
+                        if (!$fileInfo->isFile()) {
+                            continue;
+                        }
+                        $candName = $fileInfo->getFilename();
+                        $sizeMatches = ($expectedSize === null || $expectedSize <= 0 || $fileInfo->getSize() === $expectedSize);
+                        if ($sizeMatches && ($candName === $safeBase || str_ends_with($candName, '_' . $safeBase))) {
+                            return $fileInfo->getPathname();
+                        }
+                    }
+                } catch (\Throwable) {
+                    // ignore
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Get the attachments for the message.
      *
      * @return array<int, \Illuminate\Mail\Mailables\Attachment>
@@ -65,16 +125,17 @@ class CrmOutgoingMailToCustomer extends Mailable
         $attachments = [];
         foreach ($this->attachmentFiles as $file) {
             $path = ltrim((string) ($file['path'] ?? ''), '/');
-            if (
-                empty($path)
-                || str_contains($path, '..')
-                || !\Illuminate\Support\Str::startsWith($path, ['temp/mail-attachments/', 'leitung/crm/mail-attachments/', 'mail-attachments/', 'crm/'])
-            ) {
-                continue;
+            $filename = basename((string) ($file['filename'] ?? 'attachment'));
+            $expectedSize = isset($file['size']) ? (int) $file['size'] : null;
+
+            $absPath = self::resolveVerifiedAttachmentDiskPath($path, $expectedSize, $filename);
+            if ($absPath === null) {
+                throw new \RuntimeException("MISSING_ATTACHMENT:{$filename}");
             }
-            $attachments[] = \Illuminate\Mail\Mailables\Attachment::fromStorage($path)
-                ->as(basename((string) ($file['filename'] ?? 'attachment')))
-                ->withMime($file['mime'] ?? 'application/octet-stream');
+
+            $attachments[] = Attachment::fromPath($absPath)
+                ->as($filename)
+                ->withMime((string) ($file['mime'] ?? 'application/octet-stream'));
         }
         return $attachments;
     }

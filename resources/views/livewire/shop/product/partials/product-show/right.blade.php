@@ -244,27 +244,49 @@
                 </div>
             </div>
         @else
-            <div id="configurator-workspace-box" class="bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden transition-all w-full min-h-[400px] flex flex-col relative scroll-mt-20">
+            <div id="configurator-workspace-box" class="bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden transition-all w-full {{ $showTemplateSelection ? '' : 'min-h-[400px]' }} flex flex-col relative scroll-mt-20">
 
                 @if($showTemplateSelection)
-                    {{-- 1. STARTBILDSCHIRM: VORLAGE ODER SELBER MACHEN --}}
-                    <div class="flex-1 flex flex-col items-center justify-center p-8 bg-gray-50/50">
-                        <h2 class="text-2xl font-serif font-bold text-gray-900 mb-6 text-center">Wie möchtest du starten?</h2>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-                            <button type="button" wire:click="openTemplatesList" class="bg-white border border-gray-200 p-6 rounded-3xl shadow-sm hover:shadow-xl hover:border-[var(--theme-color-50)] transition-all group text-left flex flex-col items-center text-center">
-                                <div class="w-16 h-16 bg-[var(--theme-color-10)] rounded-full flex items-center justify-center text-[var(--theme-color)] mb-4 group-hover:scale-110 transition-transform">
-                                    <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
+                    {{-- 1. STARTBILDSCHIRM: NEULING -> ANFÄNGER -> PROFI --}}
+                    <div class="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 bg-gray-50/50">
+                        <h2 class="text-xl sm:text-2xl font-serif font-bold text-gray-900 mb-4 text-center">Wie möchtest du starten?</h2>
+                        <div class="grid grid-cols-1 {{ !empty($productTemplates) ? 'md:grid-cols-3' : 'md:grid-cols-2' }} gap-3 sm:gap-4 w-full">
+                            {{-- 1. NEULING: EINFACHE VARIANTE (SYMBOL + TEXT + GALERIE-VORSCHAU) --}}
+                            <button type="button"
+                                    wire:click="startBeginnerConfig"
+                                    class="bg-white border border-gray-200 p-4 rounded-2xl shadow-sm hover:shadow-lg hover:border-emerald-400 transition-all group text-center flex flex-col items-center justify-center cursor-pointer">
+                                <div class="w-11 h-11 bg-emerald-50 border border-emerald-200/80 rounded-full flex items-center justify-center text-emerald-600 mb-2 group-hover:scale-110 transition-transform">
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                                 </div>
-                                <h3 class="text-lg font-bold text-gray-900 mb-2">Vorlage nutzen</h3>
-                                <p class="text-gray-500 text-xs">Wähle aus unseren Vorlagen und passe nur noch die Texte an.</p>
+                                <span class="text-base font-serif font-bold text-gray-900 leading-tight">Neuling</span>
+                                <h3 class="text-[11px] font-normal text-gray-600 mt-0.5 mb-1.5">Einfache Variante</h3>
+                                <p class="text-gray-500 text-[11px] leading-snug">Gib einfach deinen Wunschtext und ein Symbol an.</p>
                             </button>
 
-                            <button type="button" wire:click="startCustomConfig" class="bg-white border border-gray-200 p-6 rounded-3xl shadow-sm hover:shadow-xl hover:border-gray-400 transition-all group text-left flex flex-col items-center text-center">
-                                <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 mb-4 group-hover:scale-110 transition-transform">
-                                    <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                            {{-- 2. ANFÄNGER: VORLAGE NUTZEN (SILBERRAHMEN) --}}
+                            @if(!empty($productTemplates))
+                                <button type="button"
+                                        wire:click="openTemplatesList"
+                                        class="bg-gradient-to-b from-white to-slate-50/60 border-2 border-slate-300 ring-1 ring-slate-200/80 p-4 rounded-2xl shadow-sm hover:shadow-lg hover:border-slate-400 transition-all group text-center flex flex-col items-center justify-center cursor-pointer">
+                                    <div class="w-11 h-11 bg-slate-100 border border-slate-300/80 rounded-full flex items-center justify-center text-slate-600 mb-2 group-hover:scale-110 transition-transform">
+                                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
+                                    </div>
+                                    <span class="text-base font-serif font-bold text-slate-800 leading-tight">Anfänger</span>
+                                    <h3 class="text-[11px] font-normal text-slate-600 mt-0.5 mb-1.5">Vorlage nutzen</h3>
+                                    <p class="text-gray-500 text-[11px] leading-snug">Wähle eine Vorlage aus, um einen ersten Eindruck zu erhalten.</p>
+                                </button>
+                            @endif
+
+                            {{-- 3. PROFI: SELBER KONFIGURIEREN (GOLDRAHMEN) --}}
+                            <button type="button"
+                                    wire:click="startCustomConfig"
+                                    class="bg-gradient-to-b from-white to-[#fdfbf7] border-2 border-[#C5A059] ring-1 ring-[#C5A059]/30 p-4 rounded-2xl shadow-sm hover:shadow-lg hover:border-[#a8823b] transition-all group text-center flex flex-col items-center justify-center cursor-pointer">
+                                <div class="w-11 h-11 bg-[#C5A059]/15 border border-[#C5A059]/40 rounded-full flex items-center justify-center text-[#9a732a] mb-2 group-hover:scale-110 transition-transform">
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                 </div>
-                                <h3 class="text-lg font-bold text-gray-900 mb-2">Selber Konfigurieren</h3>
-                                <p class="text-gray-500 text-xs">Starte mit einem leeren Produkt und werde kreativ.</p>
+                                <span class="text-base font-serif font-bold text-[#8a6520] leading-tight">Profi</span>
+                                <h3 class="text-[11px] font-normal text-gray-600 mt-0.5 mb-1.5">Selber Konfigurieren</h3>
+                                <p class="text-gray-500 text-[11px] leading-snug">Nur für Profis, die alle Details aus ihrem Produkt rausholen wollen. Leerstart.</p>
                             </button>
                         </div>
 
@@ -272,7 +294,7 @@
                             $tutorialConfig = app(\App\Services\ProductConfiguratorService::class)->getTutorialConfig();
                         @endphp
                         @if(!empty($tutorialConfig['enabled']) && !empty($tutorialConfig['exists']) && !empty($tutorialConfig['url']))
-                            <div x-data="{ showTutorial: false }" class="w-full mt-6 pt-6 border-t border-gray-200/80 flex flex-col items-center">
+                            <div x-data="{ showTutorial: false }" class="w-full mt-4 pt-4 border-t border-gray-200/80 flex flex-col items-center">
                                 <button type="button"
                                         @click="showTutorial = !showTutorial"
                                         class="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-2xl border transition-all text-xs font-bold cursor-pointer select-none"

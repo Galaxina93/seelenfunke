@@ -157,8 +157,10 @@ class ProductConfigurator extends Component
             $this->configSettings['allow_logo'] = false;
         }
 
-        $centerX = $this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2);
-        $centerY = $this->configSettings['area_top'] + ($this->configSettings['area_height'] / 2);
+        $coords = $this->getBeginnerPositionCoordinates($this->configSettings);
+        $centerX = $coords['center_x'] ?? ($this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2));
+        $centerY = $coords['center_y'] ?? ($this->configSettings['area_top'] + ($this->configSettings['area_height'] / 2));
+        $studioTextSize = $coords['studio_text_size'] ?? 0.72;
 
         $source = !empty($initialData) ? $initialData : ($this->cartItem ? $this->cartItem->configuration : []);
 
@@ -202,21 +204,17 @@ class ProductConfigurator extends Component
         $hasStudioPayload = !empty($source['texts']) || !empty($source['logos']) || !empty($source['texts_back']) || !empty($source['logos_back']) || !empty($source['snapshot_path']);
         $sourceMode = $source['personalization_mode'] ?? null;
 
-        if (in_array($this->context, ['preview', 'order_edit'], true) && !empty($source)) {
-            if (!empty($this->savedCustomFieldsSnapshot) || $sourceMode === 'custom_fields') {
-                $this->effectivePersonalizationMode = 'custom_fields';
-            } elseif ($hasStudioPayload || $sourceMode === 'studio') {
-                $this->effectivePersonalizationMode = 'studio';
-            } else {
-                $this->effectivePersonalizationMode = $this->product->getPersonalizationMode();
-            }
+        if ($sourceMode === 'custom_fields' || !empty($this->savedCustomFieldsSnapshot)) {
+            $this->effectivePersonalizationMode = 'custom_fields';
+        } elseif ($sourceMode === 'studio' || $hasStudioPayload) {
+            $this->effectivePersonalizationMode = 'studio';
         } else {
             $this->effectivePersonalizationMode = $this->product->getPersonalizationMode();
         }
 
         $savedCustomFieldsById = collect($this->savedCustomFieldsSnapshot)->keyBy('id');
         $savedCustomFieldsByLabel = collect($this->savedCustomFieldsSnapshot)->keyBy(fn($r) => mb_strtolower(trim((string) ($r['label'] ?? ''))));
-        $customFieldsDef = $this->product->getCustomFieldsDefinition();
+        $customFieldsDef = $this->product->getCustomFieldsDefinition($this->isUsingCustomFieldsMode());
 
         $legacyTextAssigned = false;
         foreach ($customFieldsDef as $cfIdx => $cfDef) {
@@ -283,15 +281,28 @@ class ProductConfigurator extends Component
                 'align' => $source['align'] ?? 'center',
                 'x' => $source['text_x'] ?? $centerX,
                 'y' => $source['text_y'] ?? $centerY,
-                'size' => $source['text_size'] ?? 1.0,
+                'size' => $source['text_size'] ?? $studioTextSize,
                 'rotation' => 0
             ];
         } else {
-            if (!$this->isDigital) $this->addText($centerX, $centerY);
+            if (!$this->isDigital && $this->context !== 'preview' && empty($source['logos']) && empty($source['logo_path'])) {
+                $this->addText($centerX, $centerY, $studioTextSize);
+            }
         }
 
         if (isset($source['texts_back']) && is_array($source['texts_back'])) {
             $this->texts_back = $source['texts_back'];
+        }
+
+        if ($this->context === 'preview') {
+            $this->texts = array_values(array_filter(
+                is_array($this->texts) ? $this->texts : [],
+                fn($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== ''
+            ));
+            $this->texts_back = array_values(array_filter(
+                is_array($this->texts_back) ? $this->texts_back : [],
+                fn($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== ''
+            ));
         }
 
         if (isset($source['logos']) && is_array($source['logos'])) {
@@ -336,7 +347,24 @@ class ProductConfigurator extends Component
             }
         }
 
+        $this->texts = array_values(is_array($this->texts) ? $this->texts : []);
+        $this->texts_back = array_values(is_array($this->texts_back) ? $this->texts_back : []);
+        $this->logos = array_values(is_array($this->logos) ? $this->logos : []);
+        $this->logos_back = array_values(is_array($this->logos_back) ? $this->logos_back : []);
+
+        if ($this->isUsingCustomFieldsMode() && $this->product->usesStudioConfigurator()) {
+            $this->syncBeginnerPositionToCanvas($this->context === 'preview');
+        }
+
         $this->calculatePrice();
+    }
+
+    public function hydrate(): void
+    {
+        $this->texts = array_values(is_array($this->texts) ? $this->texts : []);
+        $this->texts_back = array_values(is_array($this->texts_back) ? $this->texts_back : []);
+        $this->logos = array_values(is_array($this->logos) ? $this->logos : []);
+        $this->logos_back = array_values(is_array($this->logos_back) ? $this->logos_back : []);
     }
 
     // NEU: Holt die aktiven (und im Frontend verfügbaren) Varianten für den Dropdown
@@ -374,15 +402,20 @@ class ProductConfigurator extends Component
         ], $this->product->getEffectiveAddons(true));
     }
 
+    public function isUsingCustomFieldsMode(): bool
+    {
+        return ($this->effectivePersonalizationMode ?: $this->product->getPersonalizationMode()) === 'custom_fields';
+    }
+
     #[Computed]
     public function customFieldsDefinition(): array
     {
-        return $this->product->getCustomFieldsDefinition();
+        return $this->product->getCustomFieldsDefinition($this->isUsingCustomFieldsMode());
     }
 
     protected function buildCustomFieldsData(bool $validateRequired = true): array
     {
-        $definitions = $this->product->getCustomFieldsDefinition();
+        $definitions = $this->product->getCustomFieldsDefinition($this->isUsingCustomFieldsMode());
         $result = [];
         $hasErrors = false;
 
@@ -433,8 +466,9 @@ class ProductConfigurator extends Component
                     $cleanVal = $this->sanitizeLaserText($trimmedDate);
                 }
             } else {
-                $cleanVal = $this->sanitizeLaserText($rawVal);
-                $maxLen = max(1, (int) ($cfDef['max_length'] ?? 50));
+                $normalizedRaw = str_replace(["\r\n", "\r"], "\n", $rawVal);
+                $cleanVal = $this->sanitizeLaserText($normalizedRaw);
+                $maxLen = max(1, (int) ($cfDef['max_length'] ?? 80));
                 if (mb_strlen($cleanVal) > $maxLen) {
                     $cleanVal = mb_substr($cleanVal, 0, $maxLen);
                 }
@@ -563,9 +597,11 @@ class ProductConfigurator extends Component
             $displayUnitCents = (int) round($displayUnitCents * (1 + ($taxRate / 100)));
         }
 
+        $fallbackMeta = $this->product->resolveMainImageMeta(null, true);
+
         $variantMeta = $this->variantId
-            ? ($this->product->resolveVariantImageMeta($this->variantId) ?? $this->product->resolveMainImageMeta(null, true))
-            : $this->product->resolveMainImageMeta(null, true);
+            ? ($this->product->resolveVariantImageMeta($this->variantId) ?? $fallbackMeta)
+            : $fallbackMeta;
 
         $this->dispatch('variant-selected',
             variantId: $this->variantId,
@@ -635,6 +671,9 @@ class ProductConfigurator extends Component
 
         if (str_starts_with((string) $propertyName, 'customFieldValues')) {
             $this->resetErrorBag($propertyName);
+            if ($this->isUsingCustomFieldsMode() && $this->product->usesStudioConfigurator()) {
+                $this->syncBeginnerPositionToCanvas();
+            }
             $this->calculatePrice();
         }
 
@@ -839,6 +878,51 @@ class ProductConfigurator extends Component
             $alphaLut[$a] = imagecolorallocatealpha($laserImage, 0, 0, 0, $a);
         }
 
+        // Auf dunklen Oberflächen (z. B. schwarz eloxiertes Aluminium beim Seelenanhänger) legt der Laser
+        // helles Silber-Weiß frei (und die Vorschau nutzt brightness(0) invert(1)).
+        // Damit Halbton-Fotos dort positiv erscheinen (helle Gesichtspartien = silber-weiß, dunkle Schatten = schwarz)
+        // und nicht als Röntgen-Negativ, kehren wir für echte Fotos auf dunklem Untergrund die Gravur-Intensität um.
+        $overlayAnalysis = app(\App\Services\ConfiguratorService::class)->analyzeOverlayImage(
+            $this->configSettings['overlay_image_path'] ?? ($this->product->preview_image_path ?? null),
+            $this->configSettings ?? []
+        );
+        $isDarkSurface = !empty($overlayAnalysis['is_dark_surface']);
+        $isPositivePhotoOnDark = false;
+
+        if ($isDarkSurface) {
+            $totalSampled = 0;
+            $transparentSampled = 0;
+            $opaqueCount = 0;
+            $opaqueLumSum = 0.0;
+            $stepX = max(1, (int) floor($width / 80));
+            $stepY = max(1, (int) floor($height / 80));
+
+            for ($sx = 0; $sx < $width; $sx += $stepX) {
+                for ($sy = 0; $sy < $height; $sy += $stepY) {
+                    $totalSampled++;
+                    $c = imagecolorat($image, $sx, $sy);
+                    $a = ($c >> 24) & 0x7F;
+                    if ($a >= 105) {
+                        $transparentSampled++;
+                    } else {
+                        $opaqueCount++;
+                        $sr = ($c >> 16) & 0xFF;
+                        $sg = ($c >> 8) & 0xFF;
+                        $sb = $c & 0xFF;
+                        $opaqueLumSum += ($sr * 0.299) + ($sg * 0.587) + ($sb * 0.114);
+                    }
+                }
+            }
+
+            $transparentRatio = $totalSampled > 0 ? ($transparentSampled / $totalSampled) : 0.0;
+            $avgOpaqueLum = $opaqueCount > 0 ? ($opaqueLumSum / $opaqueCount) : 128.0;
+            $isBlackSilhouetteCutout = ($transparentRatio > 0.15 && $avgOpaqueLum < 65.0);
+
+            if (!$isBlackSilhouetteCutout) {
+                $isPositivePhotoOnDark = true;
+            }
+        }
+
         for ($x = 0; $x < $width; $x++) {
             for ($y = 0; $y < $height; $y++) {
                 $color = imagecolorat($image, $x, $y);
@@ -853,8 +937,17 @@ class ProductConfigurator extends Component
                 $b = $color & 0xFF;
 
                 $luminance = ($r * 0.299) + ($g * 0.587) + ($b * 0.114);
-                $engravingIntensity = 255 - $luminance;
-                $targetAlpha = 127 - ($engravingIntensity / 2);
+
+                if ($isPositivePhotoOnDark) {
+                    // Positiv-Mapping für dunkle Eloxal-/Schiefer-Oberflächen:
+                    // Helle Bildstellen -> hohe Deckkraft (werden in Vorschau & Laser silber-weiß),
+                    // dunkle Bildstellen -> transparent (schwarzer Untergrund bleibt sichtbar).
+                    $targetAlpha = 124 - (int) round(($luminance / 255.0) * 114);
+                } else {
+                    $engravingIntensity = 255 - $luminance;
+                    $targetAlpha = 127 - ($engravingIntensity / 2);
+                }
+
                 $finalAlpha = (int) max(0, min(127, max($alpha, $targetAlpha)));
 
                 imagesetpixel($laserImage, $x, $y, $alphaLut[$finalAlpha]);
@@ -974,6 +1067,170 @@ class ProductConfigurator extends Component
         ];
     }
 
+    public function saveCroppedLogo(string $oldValue, string $base64Data, ?string $originalValue = null): ?array
+    {
+        if ($this->context === 'preview') {
+            return null;
+        }
+
+        try {
+            $this->rateLimit(30, 60);
+        } catch (TooManyRequestsException $e) {
+            return null;
+        }
+
+        $oldValue = trim($oldValue);
+        $originalValue = $originalValue ? trim($originalValue) : $oldValue;
+
+        if ($oldValue === '' || str_contains($oldValue, '..') || str_contains($oldValue, "\0")) {
+            return null;
+        }
+
+        $isAllowedSource = str_starts_with($oldValue, 'bestellungen/cart-uploads/')
+            || str_starts_with($oldValue, 'vectors/')
+            || in_array($oldValue, $this->uploaded_files ?? [], true);
+
+        if (!$isAllowedSource) {
+            return null;
+        }
+
+        if (strlen($base64Data) > 10 * 1024 * 1024) {
+            return null;
+        }
+
+        $parts = explode(',', $base64Data, 2);
+        $rawBase64 = count($parts) === 2 ? $parts[1] : $parts[0];
+        $decoded = base64_decode($rawBase64, true);
+        if ($decoded === false || strlen($decoded) === 0) {
+            return null;
+        }
+
+        $imageInfo = @getimagesizefromstring($decoded);
+        if (!$imageInfo || !in_array($imageInfo[2], [IMAGETYPE_PNG, IMAGETYPE_JPEG, IMAGETYPE_WEBP], true)) {
+            return null;
+        }
+
+        if ($imageInfo[0] <= 0 || $imageInfo[1] <= 0 || $imageInfo[0] > 10000 || $imageInfo[1] > 10000) {
+            return null;
+        }
+
+        $gdImg = @imagecreatefromstring($decoded);
+        if (!$gdImg) {
+            return null;
+        }
+
+        if (function_exists('imagepalettetotruecolor')) {
+            @imagepalettetotruecolor($gdImg);
+        }
+        imagealphablending($gdImg, false);
+        imagesavealpha($gdImg, true);
+
+        $safeUuid = (string) Str::uuid();
+        $finalPath = 'bestellungen/cart-uploads/' . $safeUuid . '_crop.png';
+        $fullOutPath = Storage::disk('public')->path($finalPath);
+
+        $dir = dirname($fullOutPath);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+        }
+
+        imagepng($gdImg, $fullOutPath, 9);
+        imagedestroy($gdImg);
+
+        if (!is_file($fullOutPath)) {
+            return null;
+        }
+
+        $finalUrl = asset('storage/' . $finalPath);
+        $this->registerSessionOwnedUploads([$finalPath, $originalValue]);
+
+        $foundInUploaded = false;
+        foreach ($this->uploaded_files as $idx => $uf) {
+            if ($uf === $oldValue) {
+                $this->uploaded_files[$idx] = $finalPath;
+                $foundInUploaded = true;
+            }
+        }
+        if (!$foundInUploaded && str_starts_with($finalPath, 'bestellungen/cart-uploads/')) {
+            $this->uploaded_files[] = $finalPath;
+        }
+        $this->uploaded_files = array_values(array_unique($this->uploaded_files));
+
+        // Wenn $oldValue bereits ein Zwischen-Zuschnitt war (und nicht das Originalbild), Zwischen-Datei aufräumen
+        if (
+            $oldValue !== $finalPath
+            && $oldValue !== $originalValue
+            && str_starts_with($oldValue, 'bestellungen/cart-uploads/')
+            && str_ends_with($oldValue, '_crop.png')
+            && Storage::disk('public')->exists($oldValue)
+        ) {
+            Storage::disk('public')->delete($oldValue);
+        }
+
+        return [
+            'value' => $finalPath,
+            'url'   => $finalUrl,
+        ];
+    }
+
+    public function restoreOriginalLogo(string $currentValue, string $originalValue): ?array
+    {
+        if ($this->context === 'preview') {
+            return null;
+        }
+
+        $currentValue = trim($currentValue);
+        $originalValue = trim($originalValue);
+        if ($originalValue === '' || str_contains($originalValue, '..') || str_contains($originalValue, "\0")) {
+            return null;
+        }
+
+        $ownedUploads = session('configurator_owned_uploads', []);
+        if (!is_array($ownedUploads)) {
+            $ownedUploads = [];
+        }
+
+        $isAllowedOriginal = str_starts_with($originalValue, 'vectors/')
+            || (str_starts_with($originalValue, 'bestellungen/cart-uploads/') && (in_array($originalValue, $ownedUploads, true) || in_array($originalValue, $this->uploaded_files ?? [], true)));
+
+        if (!$isAllowedOriginal) {
+            return null;
+        }
+
+        if (str_starts_with($originalValue, 'bestellungen/cart-uploads/') && !Storage::disk('public')->exists($originalValue)) {
+            return null;
+        }
+
+        foreach ($this->uploaded_files as $idx => $uf) {
+            if ($uf === $currentValue) {
+                if (str_starts_with($originalValue, 'bestellungen/cart-uploads/')) {
+                    $this->uploaded_files[$idx] = $originalValue;
+                } else {
+                    unset($this->uploaded_files[$idx]);
+                }
+            }
+        }
+        $this->uploaded_files = array_values(array_unique($this->uploaded_files));
+
+        if (
+            $currentValue !== $originalValue
+            && str_starts_with($currentValue, 'bestellungen/cart-uploads/')
+            && str_ends_with($currentValue, '_crop.png')
+            && Storage::disk('public')->exists($currentValue)
+        ) {
+            Storage::disk('public')->delete($currentValue);
+        }
+
+        $resolvedUrl = str_starts_with($originalValue, 'vectors/')
+            ? app(\App\Services\ProductConfiguratorService::class)->resolveVectorUrl($originalValue)
+            : asset('storage/' . $originalValue);
+
+        return [
+            'value' => $originalValue,
+            'url'   => $resolvedUrl,
+        ];
+    }
+
     protected function validatePdfFile(string $filePath): bool
     {
         if (!file_exists($filePath) || filesize($filePath) === 0) {
@@ -1016,13 +1273,28 @@ class ProductConfigurator extends Component
         return true;
     }
 
-    public function saveWithSnapshot($snapshotData, CartService $cartService)
+    public function saveWithSnapshot($snapshotData, CartService $cartService, ?array $syncedStageState = null)
     {
         if ($this->context === 'preview') return;
 
         if ($this->context !== 'calculator' && !$this->config_confirmed) {
             $this->addError('config_confirmed', 'Bitte setze noch diesen Haken zur Bestätigung deiner Angaben, um fortzufahren.');
             return;
+        }
+
+        if (is_array($syncedStageState)) {
+            if (isset($syncedStageState['texts']) && is_array($syncedStageState['texts'])) {
+                $this->texts = $syncedStageState['texts'];
+            }
+            if (isset($syncedStageState['logos']) && is_array($syncedStageState['logos'])) {
+                $this->logos = $syncedStageState['logos'];
+            }
+            if (isset($syncedStageState['texts_back']) && is_array($syncedStageState['texts_back'])) {
+                $this->texts_back = $syncedStageState['texts_back'];
+            }
+            if (isset($syncedStageState['logos_back']) && is_array($syncedStageState['logos_back'])) {
+                $this->logos_back = $syncedStageState['logos_back'];
+            }
         }
 
         $snapshotPaths = [];
@@ -1093,26 +1365,29 @@ class ProductConfigurator extends Component
         }
 
         $customFieldsData = [];
-        if ($this->product->usesCustomFieldsPersonalization()) {
+        if ($this->isUsingCustomFieldsMode()) {
             $validateReq = !in_array($this->context, ['template_admin', 'calculator'], true);
             $customFieldsData = $this->buildCustomFieldsData($validateReq);
+            if ($this->product->usesStudioConfigurator()) {
+                $this->syncBeginnerPositionToCanvas(true);
+            }
         }
 
         try {
             DB::transaction(function () use ($cartService, $snapshotPath, $customFieldsData) {
-                $cleanTexts = array_map(function ($t) {
+                $cleanTexts = array_values(array_filter(array_map(function ($t) {
                     if (is_array($t) && isset($t['text'])) {
                         $t['text'] = $this->sanitizeLaserText($t['text']);
                     }
                     return $t;
-                }, $this->texts ?? []);
+                }, $this->texts ?? []), fn($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== ''));
 
-                $cleanTextsBack = array_map(function ($t) {
+                $cleanTextsBack = array_values(array_filter(array_map(function ($t) {
                     if (is_array($t) && isset($t['text'])) {
                         $t['text'] = $this->sanitizeLaserText($t['text']);
                     }
                     return $t;
-                }, $this->texts_back ?? []);
+                }, $this->texts_back ?? []), fn($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== ''));
 
                 $sanitizeLogos = function ($logosList) {
                     if (!is_array($logosList)) {
@@ -1150,7 +1425,7 @@ class ProductConfigurator extends Component
                 $mainLogo = !empty($this->logos) ? $this->logos[0]['value'] : null;
                 $mainText = collect($cleanTexts)->firstWhere('text', '!=', '')['text'] ?? '';
 
-                if ($this->product->usesCustomFieldsPersonalization()) {
+                if ($this->isUsingCustomFieldsMode()) {
                     $summaryParts = [];
                     $chosenCustomFont = 'Arial';
                     foreach ($customFieldsData as $cfd) {
@@ -1172,7 +1447,11 @@ class ProductConfigurator extends Component
                     }
                     $mainText = implode(' · ', $summaryParts);
 
-                    if (!empty($customLaserTexts)) {
+                    if ($this->product->usesStudioConfigurator()) {
+                        // Im Neulings-Modus auf Studio-Produkten hat syncBeginnerPositionToCanvas(true) bereits
+                        // die exakte Neulings-Position (Symbol oben mittig in $this->logos, Wunschtext unten mittig in $cleanTexts) gesetzt.
+                        $mainLogo = !empty($this->logos) ? $this->logos[0]['value'] : null;
+                    } elseif (!empty($customLaserTexts)) {
                         $cleanTexts = [[
                             'id' => Str::uuid()->toString(),
                             'text' => implode("\n", $customLaserTexts),
@@ -1186,6 +1465,12 @@ class ProductConfigurator extends Component
                     }
                 }
 
+                $hasBackContent = !empty($this->configSettings['has_back_side']) && (!empty($cleanTextsBack) || !empty($this->logos_back));
+                if (!$hasBackContent) {
+                    $cleanTextsBack = [];
+                    $this->logos_back = [];
+                }
+
                 $finalSnapshotPath = !empty($snapshotPath) ? $snapshotPath : $this->snapshot_path;
                 if (is_array($finalSnapshotPath)) {
                     foreach ($finalSnapshotPath as $k => $p) {
@@ -1193,12 +1478,19 @@ class ProductConfigurator extends Component
                             $finalSnapshotPath[$k] = 'system/' . $p;
                         }
                     }
+                    if (!$hasBackContent && isset($finalSnapshotPath['back'])) {
+                        $orphanBack = $finalSnapshotPath['back'];
+                        if (is_string($orphanBack) && $orphanBack !== '' && Storage::disk('public')->exists($orphanBack)) {
+                            @Storage::disk('public')->delete($orphanBack);
+                        }
+                        unset($finalSnapshotPath['back']);
+                    }
                 } elseif (is_string($finalSnapshotPath) && str_starts_with($finalSnapshotPath, 'snapshots/')) {
                     $finalSnapshotPath = 'system/' . $finalSnapshotPath;
                 }
 
                 $configData = [
-                    'personalization_mode' => $this->product->getPersonalizationMode(),
+                    'personalization_mode' => $this->isUsingCustomFieldsMode() ? 'custom_fields' : $this->product->getPersonalizationMode(),
                     'custom_fields_data' => $customFieldsData,
                     'texts' => $cleanTexts,
                     'logos' => $this->logos,

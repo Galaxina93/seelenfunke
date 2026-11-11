@@ -11,7 +11,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
@@ -294,6 +296,11 @@
                 <action android:name="de.meinseelenfunke.app.action.ALARM_TRIGGER" />
                 <action android:name="de.meinseelenfunke.app.action.ALARM_DISMISS" />
                 <action android:name="de.meinseelenfunke.app.action.ALARM_SNOOZE" />
+                <action android:name="de.meinseelenfunke.app.action.ALARM_DISABLE" />
+                <action android:name="de.meinseelenfunke.app.action.TIMER_TOGGLE" />
+                <action android:name="de.meinseelenfunke.app.action.TIMER_RESET" />
+                <action android:name="de.meinseelenfunke.app.action.TIMER_STOP_SOUND" />
+                <action android:name="de.meinseelenfunke.app.action.TIMER_EXPIRED" />
             </intent-filter>
         </receiver>
 

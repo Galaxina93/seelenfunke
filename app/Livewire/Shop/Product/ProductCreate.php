@@ -97,6 +97,9 @@ class ProductCreate extends Component
     public string $new_digital_document_title = '';
     public ?string $digitalDocumentsSavedText = null;
 
+    // NEU: Für Saison- & Feiertags-Hauptbilder unter "2. Medien"
+    public array $seasonal_media_uploads = [];
+
     // --- SCHRITT 3: Attribute & Lager ---
     public $productAttributes = [
         // Physisch
@@ -2443,7 +2446,7 @@ class ProductCreate extends Component
             $latestDbSettings = json_decode($latestDbSettings, true) ?: [];
         }
         if (is_array($latestDbSettings)) {
-            foreach (['excluded_variant_attributes', 'included_variant_attributes', 'addons', 'digital_documents'] as $syncKey) {
+            foreach (['excluded_variant_attributes', 'included_variant_attributes', 'addons', 'digital_documents', 'seasonal_images'] as $syncKey) {
                 if (array_key_exists($syncKey, $latestDbSettings)) {
                     $this->configSettings[$syncKey] = $latestDbSettings[$syncKey];
                 }
@@ -2624,6 +2627,30 @@ class ProductCreate extends Component
     public function setHoverMedia($index)
     {
         $this->setHoverImage($index);
+    }
+
+    public function setBeginnerImage($index)
+    {
+        $gallery = is_array($this->product->media_gallery) ? $this->product->media_gallery : [];
+        if (isset($gallery[$index]) && is_array($gallery[$index])) {
+            $currentlyBeginner = !empty($gallery[$index]['is_beginner']);
+            foreach ($gallery as $k => $g) {
+                if (is_array($g)) {
+                    $gallery[$k]['is_beginner'] = false;
+                }
+            }
+            if (!$currentlyBeginner) {
+                $gallery[$index]['is_beginner'] = true;
+            }
+            $this->product->media_gallery = array_values($gallery);
+            $this->product->save();
+            $this->product->refresh();
+        }
+    }
+
+    public function setBeginnerMedia($index)
+    {
+        $this->setBeginnerImage($index);
     }
 
     private function resizeAndSaveImage($sourcePath, $destinationPath)
@@ -3065,7 +3092,121 @@ class ProductCreate extends Component
             $settings['auto_seasonal_main_image'] = $next;
             $this->product->configurator_settings = $settings;
             $this->product->save();
+            $this->product->refresh();
         }
+    }
+
+    public function updatedSeasonalMediaUploads($file, $holidayKey): void
+    {
+        if (!isset($this->product) || !$this->product->exists || !$file) {
+            return;
+        }
+
+        $holidayKey = trim((string) $holidayKey);
+        if (!array_key_exists($holidayKey, Product::SEASONAL_HOLIDAY_SLOTS)) {
+            return;
+        }
+
+        $this->validate([
+            "seasonal_media_uploads.{$holidayKey}" => 'image|mimes:jpg,jpeg,png,webp|max:10240',
+        ]);
+
+        $slug = $this->product->slug ?: 'draft';
+        $holidaySlug = Str::slug($holidayKey);
+        $folder = "produkte/products/{$slug}/seasonal";
+        $filename = time() . "_{$slug}-{$holidaySlug}.jpg";
+        $fullPath = "{$folder}/{$filename}";
+
+        $this->resizeAndSaveImage($file->getRealPath(), $fullPath);
+
+        $settings = is_array($this->product->configurator_settings) ? $this->product->configurator_settings : [];
+        if (!isset($settings['seasonal_images']) || !is_array($settings['seasonal_images'])) {
+            $settings['seasonal_images'] = [];
+        }
+
+        // Vorherige eigene Datei aufräumen, falls sie im seasonal-Ordner lag
+        $prevPath = $settings['seasonal_images'][$holidayKey]['path'] ?? null;
+        if (is_string($prevPath) && str_contains($prevPath, '/seasonal/')) {
+            Storage::disk('public')->delete($prevPath);
+        }
+
+        $settings['seasonal_images'][$holidayKey] = [
+            'path' => $fullPath,
+            'is_ai_generated' => true,
+            'updated_at' => now()->toDateTimeString(),
+        ];
+
+        $this->configSettings['seasonal_images'] = $settings['seasonal_images'];
+        $this->product->configurator_settings = $settings;
+        $this->product->save();
+
+        // Synchronisiere auch das Vorschaubild einer ggf. vorhandenen Produktvorlage für diesen Anlass
+        \App\Models\Product\ProductTemplate::where('product_id', $this->product->id)
+            ->whereRaw('LOWER(holiday) = ?', [mb_strtolower($holidayKey)])
+            ->update([
+                'preview_image' => $fullPath,
+                'is_ai_generated' => true,
+            ]);
+
+        $this->product->refresh();
+        unset($this->seasonal_media_uploads[$holidayKey]);
+        session()->flash('success', "Saison-Hauptbild für „{$holidayKey}“ gespeichert!");
+    }
+
+    public function toggleSeasonalImageAiGenerated(string $holidayKey): void
+    {
+        if (!isset($this->product) || !$this->product->exists || !array_key_exists($holidayKey, Product::SEASONAL_HOLIDAY_SLOTS)) {
+            return;
+        }
+
+        $overview = $this->product->getSeasonalMainImagesOverview();
+        $slot = $overview[$holidayKey] ?? null;
+        if (!$slot || empty($slot['path'])) {
+            return;
+        }
+
+        $nextAi = !$slot['is_ai_generated'];
+        $settings = is_array($this->product->configurator_settings) ? $this->product->configurator_settings : [];
+        if (!isset($settings['seasonal_images']) || !is_array($settings['seasonal_images'])) {
+            $settings['seasonal_images'] = [];
+        }
+
+        $settings['seasonal_images'][$holidayKey] = [
+            'path' => $slot['path'],
+            'is_ai_generated' => $nextAi,
+            'updated_at' => now()->toDateTimeString(),
+        ];
+
+        $this->configSettings['seasonal_images'] = $settings['seasonal_images'];
+        $this->product->configurator_settings = $settings;
+        $this->product->save();
+
+        \App\Models\Product\ProductTemplate::where('product_id', $this->product->id)
+            ->whereRaw('LOWER(holiday) = ?', [mb_strtolower($holidayKey)])
+            ->update(['is_ai_generated' => $nextAi]);
+
+        $this->product->refresh();
+    }
+
+    public function removeSeasonalMainImage(string $holidayKey): void
+    {
+        if (!isset($this->product) || !$this->product->exists || !array_key_exists($holidayKey, Product::SEASONAL_HOLIDAY_SLOTS)) {
+            return;
+        }
+
+        $settings = is_array($this->product->configurator_settings) ? $this->product->configurator_settings : [];
+        $prevPath = $settings['seasonal_images'][$holidayKey]['path'] ?? null;
+        if (is_string($prevPath) && str_contains($prevPath, '/seasonal/')) {
+            Storage::disk('public')->delete($prevPath);
+        }
+
+        unset($settings['seasonal_images'][$holidayKey]);
+        $this->configSettings['seasonal_images'] = $settings['seasonal_images'] ?? [];
+        $this->product->configurator_settings = $settings;
+        $this->product->save();
+        $this->product->refresh();
+
+        session()->flash('success', "Eigenes Saisonbild für „{$holidayKey}“ zurückgesetzt.");
     }
 
     public function toggleMediaAiGenerated(int $index): void
@@ -3521,9 +3662,54 @@ class ProductCreate extends Component
 
     public function applyCustomFieldsPreset(string $presetKey): void
     {
-        $this->configSettings['personalization_mode'] = 'custom_fields';
+        if (empty($this->configSettings['personalization_mode'])) {
+            $this->configSettings['personalization_mode'] = 'custom_fields';
+        }
 
-        if ($presetKey === 'single_name') {
+        if ($presetKey === 'symbol_and_text') {
+            $allFonts = array_keys(app(ConfiguratorService::class)->getFonts());
+            $this->configSettings['custom_fields'] = [
+                [
+                    'id'              => 'cf_wunschsymbol',
+                    'label'           => '1. Wunsch-Symbol (oben mittig)',
+                    'type'            => 'select',
+                    'placeholder'     => 'Bitte wählen...',
+                    'info_text'       => 'Wähle ein feines Motiv-Symbol, das wir wie in der Vorschau mittig über deinem Wunschtext gravieren.',
+                    'required'        => true,
+                    'max_length'      => 40,
+                    'options'         => ['Herz ♥', 'Unendlichkeit ∞', 'Stern ★', 'Schutzengel 👼', 'Pfote 🐾', 'Lebensbaum 🌳', 'Kleeblatt 🍀', 'Kein Symbol'],
+                    'options_raw'     => 'Herz ♥, Unendlichkeit ∞, Stern ★, Schutzengel 👼, Pfote 🐾, Lebensbaum 🌳, Kleeblatt 🍀, Kein Symbol',
+                    'surcharge_cents' => 0,
+                    'surcharge_price' => '0.00',
+                ],
+                [
+                    'id'              => 'cf_wunschtext',
+                    'label'           => '2. Dein Wunschtext / Name',
+                    'type'            => 'textarea',
+                    'placeholder'     => "z. B. Für immer\nim Herzen",
+                    'info_text'       => 'Gib hier deinen gewünschten Namen, ein kurzes Datum oder deine Botschaft ein (Zeilenumbruch mit Enter möglich). Wir richten alles millimetergenau mittig für dich aus.',
+                    'required'        => true,
+                    'max_length'      => 80,
+                    'options'         => [],
+                    'options_raw'     => '',
+                    'surcharge_cents' => 0,
+                    'surcharge_price' => '0.00',
+                ],
+                [
+                    'id'              => 'cf_schriftart',
+                    'label'           => '3. Schriftart wählen',
+                    'type'            => 'font',
+                    'placeholder'     => '',
+                    'info_text'       => '',
+                    'required'        => false,
+                    'max_length'      => 60,
+                    'options'         => $allFonts,
+                    'options_raw'     => implode(', ', $allFonts),
+                    'surcharge_cents' => 0,
+                    'surcharge_price' => '0.00',
+                ],
+            ];
+        } elseif ($presetKey === 'single_name') {
             $this->configSettings['custom_fields'] = [
                 [
                     'id'              => 'cf_wunschname',

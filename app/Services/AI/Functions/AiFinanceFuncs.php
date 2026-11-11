@@ -1565,7 +1565,7 @@ trait AiFinanceFuncs
             return null;
         }
 
-        $models = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+        $models = ['gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview', 'gemini-2.5-flash', 'gemini-1.5-flash'];
         $base64 = base64_encode(file_get_contents($absolutePath));
 
         $prompt = "Du bist ein intelligenter Dokumenten- und Vertrags-Analyst für Buchhaltung und Finanzen. Analysiere dieses PDF-Dokument (Vertrag/Beleg) vollständig und strukturiert auf Deutsch.\n"

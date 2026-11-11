@@ -144,7 +144,7 @@ class AiAgentService
         }
 
         return [
-            'model' => $agent->model ?? 'gemini-2.5-flash',
+            'model' => $agent->model ?? 'gemini-3-flash-preview',
             'temperature' => (float) ($agent->temperature ?? 0.4),
             'system_prompt' => \App\Services\AI\AiPromptService::getRichPrompt($agent) . $timeInfo,
             'tools' => empty($filteredSchema) ? null : $filteredSchema,

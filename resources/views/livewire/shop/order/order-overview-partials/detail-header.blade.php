@@ -11,12 +11,27 @@
         <div class="h-8 w-px bg-gray-200 dark:bg-gray-800"></div>
 
         <div>
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
                 <h1 class="text-xl xl:text-2xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">
                     #{{ $this->selectedOrder->order_number }}
                 </h1>
                 @if($this->selectedOrder->is_express)
                     <x-shop.express-info iconClass="w-3.5 h-3.5" class="text-gray-800 dark:text-gray-100 border border-primary/40 text-[9px] font-black px-2.5 py-1 rounded-md uppercase tracking-widest shadow-2xs" />
+                @endif
+
+                @php
+                    $nextInQueue = $this->nextQueueOrder;
+                @endphp
+                @if($nextInQueue)
+                    <button type="button"
+                            wire:click="openDetail('{{ $nextInQueue['id'] }}')"
+                            title="Direkt weiter zu #{{ $nextInQueue['order_number'] }}{{ !empty($nextInQueue['product_name']) ? ' (' . $nextInQueue['product_name'] . ')' : '' }}"
+                            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer {{ !empty($nextInQueue['is_same_product'])
+                                ? 'bg-[var(--theme-color-15)] text-[var(--theme-color)] border-[var(--theme-color-40)] hover:bg-[var(--theme-color)] hover:text-gray-900'
+                                : 'bg-gray-100 dark:bg-gray-950 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-40)] hover:text-gray-900 dark:hover:text-white' }}">
+                        <span>{{ !empty($nextInQueue['is_same_product']) ? 'Nächster gleicher Artikel' : 'Nächster Auftrag' }}</span>
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                    </button>
                 @endif
             </div>
             <p class="text-[10px] font-medium text-gray-500 mt-1 uppercase tracking-widest">

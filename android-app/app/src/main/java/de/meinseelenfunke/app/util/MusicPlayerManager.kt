@@ -100,6 +100,17 @@ object MusicPlayerManager {
     @Volatile
     private var isTransitioningTrack: Boolean = false
 
+    @Volatile
+    private var isDuckedForAlarm: Boolean = false
+
+    fun setAlarmDucking(duck: Boolean) {
+        isDuckedForAlarm = duck
+        val targetVol = if (duck) 0.12f else 1.0f
+        try {
+            mediaPlayer?.setVolume(targetVol, targetVol)
+        } catch (_: Exception) { }
+    }
+
     private val _playlists = MutableStateFlow<List<MusicPlaylistDto>>(emptyList())
     val playlists: StateFlow<List<MusicPlaylistDto>> = _playlists.asStateFlow()
 
@@ -412,6 +423,80 @@ object MusicPlayerManager {
         return getCacheDir(context).listFiles { _, name -> name.endsWith(".m4a") }?.count { it.length() > 10240L } ?: 0
     }
 
+    /**
+     * Returns all available music library tracks for the Alarm Sound Picker.
+     * Automatically loads from local disk cache if MusicPlayerManager hasn't fetched yet.
+     */
+    fun getAvailableTracksForAlarm(context: Context): List<MusicTrackDto> {
+        val appCtx = context.applicationContext
+        val current = _allTracks.value
+        if (current.isNotEmpty()) return current
+        val localPlaylists = loadPlaylistsFromLocalCache(appCtx)
+        if (localPlaylists.isNotEmpty()) {
+            applyPlaylistsToState(appCtx, localPlaylists)
+        }
+        return _allTracks.value
+    }
+
+    /**
+     * Resolves a local .m4a file for an alarm's custom Wecksound:
+     * - "random_music": picks a random valid cached .m4a file from music_cache
+     * - "<trackId>": returns music_cache/<trackId>.m4a if cached (or triggers background download & falls back to random cached track)
+     */
+    fun resolveAlarmTrackFile(context: Context, trackId: String?): File? {
+        if (trackId.isNullOrBlank() || trackId == "standard") return null
+        val appCtx = context.applicationContext
+        val cacheDir = getCacheDir(appCtx)
+
+        if (trackId == "random_music") {
+            val validFiles = cacheDir
+                .listFiles { _, name -> name.endsWith(".m4a") }
+                ?.filter { isValidAudioFile(it) }
+                ?: emptyList()
+            return if (validFiles.isNotEmpty()) validFiles.random() else null
+        }
+
+        val exactFile = File(cacheDir, "$trackId.m4a")
+        if (isValidAudioFile(exactFile)) {
+            return exactFile
+        }
+
+        // If the selected track isn't cached yet, trigger background caching and fall back to any cached song if available
+        cacheTrackForAlarmAsync(appCtx, trackId)
+        val fallbackFiles = cacheDir
+            .listFiles { _, name -> name.endsWith(".m4a") }
+            ?.filter { isValidAudioFile(it) }
+            ?: emptyList()
+        return fallbackFiles.firstOrNull()
+    }
+
+    /**
+     * Ensures that a track selected as custom alarm sound is downloaded into local offline cache immediately.
+     */
+    fun cacheTrackForAlarmAsync(context: Context, trackId: String) {
+        if (trackId.isBlank() || trackId == "standard" || trackId == "random_music") return
+        val appCtx = context.applicationContext
+        if (isTrackCached(appCtx, trackId)) return
+        scope.launch(Dispatchers.IO) {
+            try {
+                val tracks = getAvailableTracksForAlarm(appCtx)
+                val dto = tracks.firstOrNull { it.id == trackId }
+                    ?: MusicTrackDto(
+                        id = trackId,
+                        playlistId = "all",
+                        title = "Wecksound",
+                        artist = "Funkenwerk",
+                        durationSeconds = 0,
+                        fileSize = 0L,
+                        isFavorite = false,
+                        position = 1
+                    )
+                ensureTrackCached(appCtx, dto)
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     private fun acquireWakeLock(context: Context) {
         try {
             if (wakeLock == null) {
@@ -437,7 +522,18 @@ object MusicPlayerManager {
                 val req = audioFocusRequest ?: AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
                     .setAudioAttributes(attrs)
                     .setWillPauseWhenDucked(false)
-                    .setOnAudioFocusChangeListener { /* keep playing unless user explicitly pauses */ }
+                    .setOnAudioFocusChangeListener { focusChange ->
+                        when (focusChange) {
+                            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                                try { mediaPlayer?.setVolume(0.12f, 0.12f) } catch (_: Exception) { }
+                            }
+                            AudioManager.AUDIOFOCUS_GAIN -> {
+                                if (!isDuckedForAlarm) {
+                                    try { mediaPlayer?.setVolume(1.0f, 1.0f) } catch (_: Exception) { }
+                                }
+                            }
+                        }
+                    }
                     .build().also { audioFocusRequest = it }
                 am.requestAudioFocus(req)
             } else {
@@ -465,11 +561,25 @@ object MusicPlayerManager {
         return list.distinct()
     }
 
-    fun selectPlaylist(playlistId: String) {
+    fun selectPlaylist(playlistId: String, context: Context? = null, autoPlayRandom: Boolean = true) {
         _activePlaylistId.value = playlistId
         val filtered = getFilteredTracks()
         if (filtered.isNotEmpty()) {
             currentQueue = filtered
+            if (autoPlayRandom) {
+                val appCtx = context?.applicationContext ?: appContext
+                if (appCtx != null) {
+                    val cachedPool = filtered.filter { isTrackCached(appCtx, it.id) }
+                    val pool = if (cachedPool.isNotEmpty()) cachedPool else filtered
+                    val candidates = if (pool.size > 1 && _currentTrack.value != null) {
+                        pool.filter { it.id != _currentTrack.value?.id }.ifEmpty { pool }
+                    } else {
+                        pool
+                    }
+                    val randomTrack = candidates.random()
+                    playTrack(appCtx, randomTrack, filtered)
+                }
+            }
         }
     }
 
@@ -782,6 +892,8 @@ object MusicPlayerManager {
                 }
 
                 requestAudioFocus(appCtx)
+                val initialVol = if (isDuckedForAlarm) 0.12f else 1.0f
+                mp.setVolume(initialVol, initialVol)
                 mp.start()
 
                 val realDurSec = (mp.duration / 1000).coerceAtLeast(track.durationSeconds).coerceAtLeast(1)

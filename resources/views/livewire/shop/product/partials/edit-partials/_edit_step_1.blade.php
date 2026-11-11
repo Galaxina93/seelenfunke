@@ -302,8 +302,8 @@
                             </div>
                         @endif
 
-                        {{-- FALLS MODUS B (CUSTOM FIELDS): DYNAMISCHER EINGABEFELD-BAUKASTEN --}}
-                        @if($currentPersMode === 'custom_fields')
+                        {{-- DYNAMISCHER EINGABEFELD-BAUKASTEN (Für Neulings-Modus im Studio sowie für reine Schnell-Personalisierung) --}}
+                        @if($is_personalizable)
                             @php
                                 $configuratorFontsMap = app(\App\Services\ConfiguratorService::class)->getFonts();
                             @endphp
@@ -311,19 +311,24 @@
                                 <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-gray-200 dark:border-gray-800">
                                     <div>
                                         <h3 class="text-base sm:text-lg font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                            <span>⚡ Dynamische Eingabefelder für Kunden</span>
+                                            <span>⚡ {{ $currentPersMode === 'studio' ? 'Eingabefelder für Start-Option „Neuling“ (Einfache Variante)' : 'Dynamische Eingabefelder für Kunden' }}</span>
                                             <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">
                                                 {{ count($customFieldsList) }} {{ count($customFieldsList) === 1 ? 'Feld' : 'Felder' }}
                                             </span>
                                         </h3>
                                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                            Erstelle hier die Eingabefelder, die der Kunde direkt auf der Produktseite ausfüllt. Jedes Feld erhält auf Wunsch ein eigenes <strong>!</strong>-Ausrufungszeichen mit deinem Hilfetext.
+                                            Erstelle hier die Eingabefelder (z. B. Wunsch-Symbol + Wunschtext), die der Kunde im Modus <strong>Neuling (Einfache Variante)</strong> direkt ausfüllt.
                                         </p>
                                     </div>
 
                                     {{-- 1-Klick Schnell-Vorlagen --}}
                                     <div class="flex flex-wrap items-center gap-1.5">
                                         <span class="text-[10px] font-black uppercase tracking-wider text-gray-400 mr-1">Schnell-Vorlage:</span>
+                                        <button type="button"
+                                                wire:click="applyCustomFieldsPreset('symbol_and_text')"
+                                                class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-all cursor-pointer">
+                                            Symbol + Text (Neuling)
+                                        </button>
                                         <button type="button"
                                                 wire:click="applyCustomFieldsPreset('single_name')"
                                                 class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-all cursor-pointer">

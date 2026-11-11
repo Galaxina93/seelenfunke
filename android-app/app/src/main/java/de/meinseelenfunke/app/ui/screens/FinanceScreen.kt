@@ -137,7 +137,7 @@ fun FinanceScreen(
         initialPage = 0,
         pageCount = { 2 }
     )
-    var showQuickEntryDialog by remember { mutableStateOf(false) }
+    var showQuickEntryDialog by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(isPageVisible) {
         if (isPageVisible) {
@@ -1672,32 +1672,42 @@ fun QuickEntryForm(
         mimeType: String?
     ) -> Unit
 ) {
-    var title by remember { mutableStateOf("") }
-    var amountText by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf("") }
-    var isBusiness by remember { mutableStateOf(false) }
-    var location by remember { mutableStateOf("") }
+    var title by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    var amountText by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    var selectedCategory by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    var isBusiness by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var location by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
 
     val today = java.time.LocalDate.now().toString()
-    var executionDate by remember { mutableStateOf(today) }
+    var executionDate by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(today) }
 
     // AI Scan options & state
-    var autoScanWithAi by remember { mutableStateOf(true) }
-    var autoSaveOnScan by remember { mutableStateOf(false) }
+    var autoScanWithAi by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(true) }
+    var autoSaveOnScan by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var localIsScanning by remember { mutableStateOf(false) }
-    var aiScanResultNote by remember { mutableStateOf<String?>(null) }
+    var aiScanResultNote by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     var cameraTempUriString by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     
     // File upload details
     var pickedFileUri by remember { mutableStateOf<Uri?>(null) }
-    var pickedFileName by remember { mutableStateOf<String?>(null) }
+    var pickedFileName by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     var pickedFileBytes by remember { mutableStateOf<ByteArray?>(null) }
-    var pickedFileMime by remember { mutableStateOf<String?>(null) }
+    var pickedFileMime by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+
+    val formScope = rememberCoroutineScope()
 
     val triggerAiScan: (ByteArray, String, String) -> Unit = { bytes, name, mime ->
         localIsScanning = true
         aiScanResultNote = null
+        val watchdogJob = formScope.launch {
+            kotlinx.coroutines.delay(45_000)
+            if (localIsScanning) {
+                localIsScanning = false
+                aiScanResultNote = "⚠️ Zeitüberschreitung bei der Beleg-Analyse. Bitte Verbindung prüfen oder manuell eintragen."
+            }
+        }
         onScanReceipt(bytes, name, mime, autoSaveOnScan) { scanData ->
+            watchdogJob.cancel()
             localIsScanning = false
             if (scanData != null) {
                 if (scanData.title.isNotBlank()) title = scanData.title
@@ -1719,7 +1729,7 @@ fun QuickEntryForm(
                 if (scanData.is_business) isBusiness = true
                 aiScanResultNote = "✨ KI-Foto-Analyse: ${scanData.title} | ${scanData.amount_formatted} € (automatisch befüllt)"
             } else {
-                aiScanResultNote = "⚠️ Beleg konnte nicht automatisch erkannt werden."
+                aiScanResultNote = "⚠️ Beleg konnte nicht automatisch erkannt werden. Bitte Felder kurz manuell prüfen."
             }
         }
     }
@@ -1743,53 +1753,60 @@ fun QuickEntryForm(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let {
-            pickedFileUri = it
-            pickedFileMime = contentResolver.getType(it)
-            
-            val cursor = contentResolver.query(it, null, null, null, null)
-            cursor?.use { c ->
-                val nameIndex = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                if (nameIndex != -1 && c.moveToFirst()) {
-                    pickedFileName = c.getString(nameIndex)
-                }
-            }
-            if (pickedFileName == null) {
-                val ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(pickedFileMime)
-                pickedFileName = "beleg_${System.currentTimeMillis()}.$ext"
-            }
-
-            try {
-                val isImage = pickedFileMime?.startsWith("image/") == true
-                var compressedBytes: ByteArray? = null
-                if (isImage) {
-                    compressedBytes = de.meinseelenfunke.app.util.ImageUtils.compressImageUri(context, it)
-                }
-                
-                if (compressedBytes != null) {
-                    pickedFileBytes = compressedBytes
-                    pickedFileMime = "image/jpeg"
-                    val name = pickedFileName ?: "beleg_${System.currentTimeMillis()}.jpg"
-                    pickedFileName = if (name.endsWith(".jpg", ignoreCase = true) || name.endsWith(".jpeg", ignoreCase = true)) {
-                        name
-                    } else {
-                        val dotIndex = name.lastIndexOf('.')
-                        if (dotIndex != -1) {
-                            name.substring(0, dotIndex) + ".jpg"
-                        } else {
-                            "$name.jpg"
+            localIsScanning = true
+            aiScanResultNote = null
+            formScope.launch {
+                try {
+                    val mime = contentResolver.getType(it)
+                    var resolvedName: String? = null
+                    val cursor = contentResolver.query(it, null, null, null, null)
+                    cursor?.use { c ->
+                        val nameIndex = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (nameIndex != -1 && c.moveToFirst()) {
+                            resolvedName = c.getString(nameIndex)
                         }
                     }
-                } else {
-                    contentResolver.openInputStream(it)?.use { input ->
-                        pickedFileBytes = input.readBytes()
+                    if (resolvedName == null) {
+                        val ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: "jpg"
+                        resolvedName = "beleg_${System.currentTimeMillis()}.$ext"
                     }
-                }
 
-                if (autoScanWithAi && pickedFileBytes != null && pickedFileName != null && pickedFileMime != null) {
-                    triggerAiScan(pickedFileBytes!!, pickedFileName!!, pickedFileMime!!)
+                    val isImage = mime?.startsWith("image/") == true
+                    val processedPair = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        val compressed = if (isImage) {
+                            de.meinseelenfunke.app.util.ImageUtils.compressImageUri(context, it)
+                        } else null
+
+                        if (compressed != null) {
+                            val baseName = resolvedName ?: "beleg_${System.currentTimeMillis()}.jpg"
+                            val jpgName = if (baseName.endsWith(".jpg", true) || baseName.endsWith(".jpeg", true)) {
+                                baseName
+                            } else {
+                                val dotIdx = baseName.lastIndexOf('.')
+                                if (dotIdx != -1) baseName.substring(0, dotIdx) + ".jpg" else "$baseName.jpg"
+                            }
+                            Triple(compressed, jpgName, "image/jpeg")
+                        } else {
+                            val rawBytes = contentResolver.openInputStream(it)?.use { input -> input.readBytes() }
+                            Triple(rawBytes, resolvedName ?: "beleg.bin", mime ?: "application/octet-stream")
+                        }
+                    }
+
+                    pickedFileUri = it
+                    pickedFileBytes = processedPair.first
+                    pickedFileName = processedPair.second
+                    pickedFileMime = processedPair.third
+
+                    if (autoScanWithAi && pickedFileBytes != null && pickedFileName != null && pickedFileMime != null) {
+                        triggerAiScan(pickedFileBytes!!, pickedFileName!!, pickedFileMime!!)
+                    } else {
+                        localIsScanning = false
+                    }
+                } catch (e: Exception) {
+                    localIsScanning = false
+                    aiScanResultNote = "⚠️ Datei konnte nicht gelesen werden."
+                    e.printStackTrace()
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
             }
         }
     }
@@ -1801,33 +1818,38 @@ fun QuickEntryForm(
             val uri = cameraTempUriString?.let { Uri.parse(it) }
             if (uri != null) {
                 localIsScanning = true
-                try {
-                    val compressedBytes = de.meinseelenfunke.app.util.ImageUtils.compressImageUri(context, uri)
-                    if (compressedBytes != null) {
-                        pickedFileBytes = compressedBytes
-                        pickedFileMime = "image/jpeg"
-                        pickedFileName = "beleg_kamera_${System.currentTimeMillis()}.jpg"
-                        pickedFileUri = null
-                    } else {
-                        context.contentResolver.openInputStream(uri)?.use { input ->
-                            pickedFileBytes = input.readBytes()
+                aiScanResultNote = null
+                formScope.launch {
+                    try {
+                        val finalBytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            de.meinseelenfunke.app.util.ImageUtils.compressImageUri(context, uri)
+                                ?: context.contentResolver.openInputStream(uri)?.use { input -> input.readBytes() }
                         }
-                        pickedFileMime = "image/jpeg"
-                        pickedFileName = "beleg_kamera_${System.currentTimeMillis()}.jpg"
-                        pickedFileUri = null
-                    }
 
-                    if (autoScanWithAi && pickedFileBytes != null && pickedFileName != null && pickedFileMime != null) {
-                        triggerAiScan(pickedFileBytes!!, pickedFileName!!, pickedFileMime!!)
-                    } else {
+                        if (finalBytes != null && finalBytes.isNotEmpty()) {
+                            pickedFileBytes = finalBytes
+                            pickedFileMime = "image/jpeg"
+                            pickedFileName = "beleg_kamera_${System.currentTimeMillis()}.jpg"
+                            pickedFileUri = null
+
+                            if (autoScanWithAi) {
+                                triggerAiScan(finalBytes, pickedFileName!!, "image/jpeg")
+                            } else {
+                                localIsScanning = false
+                            }
+                        } else {
+                            localIsScanning = false
+                            aiScanResultNote = "⚠️ Kamerabild konnte nicht geladen werden. Bitte erneut versuchen."
+                        }
+                    } catch (e: Exception) {
                         localIsScanning = false
+                        aiScanResultNote = "⚠️ Fehler beim Verarbeiten des Kamerafotos."
+                        e.printStackTrace()
                     }
-                } catch (e: Exception) {
-                    localIsScanning = false
-                    e.printStackTrace()
                 }
             } else {
                 localIsScanning = false
+                aiScanResultNote = "⚠️ Kamerabild-Pfad nicht gefunden. Bitte erneut versuchen."
             }
         } else {
             localIsScanning = false
@@ -2187,7 +2209,13 @@ fun QuickEntryForm(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = onDismiss, enabled = !isUploading && !isAiScanning) {
+                TextButton(
+                    onClick = {
+                        localIsScanning = false
+                        onDismiss()
+                    },
+                    enabled = !isUploading
+                ) {
                     Text("Abbrechen", color = AppTheme.colors.textMuted, fontSize = 13.sp)
                 }
                 Spacer(modifier = Modifier.width(6.dp))

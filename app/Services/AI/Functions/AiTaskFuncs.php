@@ -1106,7 +1106,7 @@ trait AiTaskFuncs
     {
         try {
             $base64 = base64_encode(file_get_contents($absolutePath));
-            $modelName = 'gemini-2.5-flash';
+            $modelName = 'gemini-3-flash-preview';
             
             $payload = [
                 'contents' => [

@@ -726,6 +726,9 @@ use HasFactory, HasUuids, SoftDeletes;
         if (!in_array($type, ['text', 'textarea', 'select', 'font', 'date'], true)) {
             $type = 'text';
         }
+        if ($id === 'cf_wunschtext' && $type === 'text') {
+            $type = 'textarea';
+        }
 
         $placeholder = trim((string) ($field['placeholder'] ?? ''));
         $infoText = trim((string) ($field['info_text'] ?? ''));
@@ -735,6 +738,9 @@ use HasFactory, HasUuids, SoftDeletes;
         $maxLength = isset($field['max_length']) && (int) $field['max_length'] > 0
             ? min(500, max(1, (int) $field['max_length']))
             : $defaultMaxLen;
+        if ($id === 'cf_wunschtext' && $maxLength < 80) {
+            $maxLength = 80;
+        }
 
         // Auswahl-Optionen für 'select' und 'font'
         $options = [];
@@ -827,8 +833,10 @@ use HasFactory, HasUuids, SoftDeletes;
 
     /**
      * Liefert die bereinigte Liste aller definierten Schnell-Personalisierungs-Eingabefelder.
+     * Wenn $fallbackToDefaults = true ist und noch keine eigenen Felder hinterlegt wurden,
+     * wird für den „Neuling“-Startmodus automatisch ein passendes Standard-Set (Wunschtext + Symbol + Schriftart) geliefert.
      */
-    public function getCustomFieldsDefinition(): array
+    public function getCustomFieldsDefinition(bool $fallbackToDefaults = false): array
     {
         $settings = is_array($this->configurator_settings) ? $this->configurator_settings : [];
         $rawFields = isset($settings['custom_fields']) && is_array($settings['custom_fields'])
@@ -841,6 +849,109 @@ use HasFactory, HasUuids, SoftDeletes;
                 continue;
             }
             $norm = self::normalizeCustomFieldItem($field, $idx);
+            if ($norm !== null) {
+                $normalized[] = $norm;
+            }
+        }
+
+        if (empty($normalized) && $fallbackToDefaults && $this->isPersonalizable()) {
+            return $this->getDefaultBeginnerCustomFields();
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Liefert die passenden Standard-Eingabefelder für den „Neuling“-Modus (Einfache Variante: Symbol + Wunschtext),
+     * falls im Produkt noch keine individuellen custom_fields hinterlegt wurden.
+     */
+    public function getDefaultBeginnerCustomFields(): array
+    {
+        $slug = (string) ($this->slug ?? '');
+        $allFonts = array_keys(app(\App\Services\ConfiguratorService::class)->getFonts());
+        $allFontsRaw = implode(', ', $allFonts);
+
+        if ($slug === 'seelen-pfote-hundemarke') {
+            $raw = [
+                [
+                    'id' => 'cf_wunschsymbol',
+                    'label' => '1. Wunsch-Symbol (oben mittig)',
+                    'type' => 'select',
+                    'options_raw' => 'Pfote 🐾, Herz ♥, Stern ★, Krone 👑, Schutzengel 👼, Kein Symbol',
+                    'required' => true,
+                    'max_length' => 40,
+                    'surcharge_price' => '0.00',
+                    'info_text' => 'Wir platzieren dein gewähltes Symbol harmonisch über dem Namen deines Vierbeiners.',
+                ],
+                [
+                    'id' => 'cf_tiername',
+                    'label' => '2. Name des Vierbeiners (Vorderseite)',
+                    'type' => 'text',
+                    'placeholder' => 'z. B. Balu',
+                    'required' => true,
+                    'max_length' => 18,
+                    'surcharge_price' => '0.00',
+                    'info_text' => 'Wird gut lesbar und abriebfest mittig auf der Vorderseite der Marke eingraviert.',
+                ],
+                [
+                    'id' => 'cf_notfallnummer',
+                    'label' => '3. Telefonnummer / Notfall-Info (Optional)',
+                    'type' => 'text',
+                    'placeholder' => 'z. B. +49 170 1234567',
+                    'required' => false,
+                    'max_length' => 26,
+                    'surcharge_price' => '0.00',
+                    'info_text' => 'Optional: Deine Telefonnummer gravieren wir zusätzlich unter den Namen oder auf Wunsch auf die Rückseite.',
+                ],
+                [
+                    'id' => 'cf_schriftart',
+                    'label' => '4. Schriftart wählen',
+                    'type' => 'font',
+                    'options' => $allFonts,
+                    'options_raw' => $allFontsRaw,
+                    'required' => false,
+                    'max_length' => 60,
+                    'surcharge_price' => '0.00',
+                ],
+            ];
+        } else {
+            $raw = [
+                [
+                    'id' => 'cf_wunschsymbol',
+                    'label' => '1. Wunsch-Symbol (oben mittig)',
+                    'type' => 'select',
+                    'options_raw' => 'Herz ♥, Unendlichkeit ∞, Stern ★, Schutzengel 👼, Pfote 🐾, Lebensbaum 🌳, Kleeblatt 🍀, Kein Symbol',
+                    'required' => true,
+                    'max_length' => 40,
+                    'surcharge_price' => '0.00',
+                    'info_text' => 'Wähle ein feines Motiv-Symbol, das wir wie in der Vorschau mittig über deinem Wunschtext gravieren.',
+                ],
+                [
+                    'id' => 'cf_wunschtext',
+                    'label' => '2. Dein Wunschtext / Name',
+                    'type' => 'textarea',
+                    'placeholder' => "z. B. Für immer\nim Herzen",
+                    'required' => true,
+                    'max_length' => 80,
+                    'surcharge_price' => '0.00',
+                    'info_text' => 'Gib hier deinen gewünschten Namen, ein kurzes Datum oder deine Botschaft ein (Zeilenumbruch mit Enter möglich). Wir richten alles millimetergenau mittig für dich aus.',
+                ],
+                [
+                    'id' => 'cf_schriftart',
+                    'label' => '3. Schriftart wählen',
+                    'type' => 'font',
+                    'options' => $allFonts,
+                    'options_raw' => $allFontsRaw,
+                    'required' => false,
+                    'max_length' => 60,
+                    'surcharge_price' => '0.00',
+                ],
+            ];
+        }
+
+        $normalized = [];
+        foreach ($raw as $idx => $item) {
+            $norm = self::normalizeCustomFieldItem($item, $idx);
             if ($norm !== null) {
                 $normalized[] = $norm;
             }
@@ -1723,11 +1834,58 @@ use HasFactory, HasUuids, SoftDeletes;
     }
 
     /**
+     * Die 8 festen System-Anlässe für das „Automatische Saison- & Feiertags-Hauptbild“.
+     */
+    public const SEASONAL_HOLIDAY_SLOTS = [
+        'Weihnachten'  => ['label' => 'Weihnachten',  'hint' => 'Winter / Advent'],
+        'Ostern'       => ['label' => 'Ostern',       'hint' => 'Frühling'],
+        'Hochzeit'     => ['label' => 'Hochzeit',     'hint' => 'Sommer'],
+        'Geburtstag'   => ['label' => 'Geburtstag',   'hint' => 'Ganzjährig'],
+        'Valentinstag' => ['label' => 'Valentinstag', 'hint' => 'Februar'],
+        'Muttertag'    => ['label' => 'Muttertag',    'hint' => 'Mai'],
+        'Vatertag'     => ['label' => 'Vatertag',     'hint' => 'Mai'],
+        'Halloween'    => ['label' => 'Halloween',    'hint' => 'Herbst / Oktober'],
+    ];
+
+    /**
      * Liefert strukturierte Metadaten zum aufgelösten Hauptbild (Pfad, URL, KI-Kennzeichnung, Label).
      */
     public function resolveMainImageMeta(?string $explicitHoliday = null, bool $allowSeasonal = true, array $excludeImagePaths = [], ?\Carbon\CarbonInterface $referenceDate = null): array
     {
         if ($allowSeasonal) {
+            // 0. Prüfe zuerst direkt unter "Medien -> Saison- & Feiertags-Hauptbilder" gepflegte Bilder (configurator_settings['seasonal_images'])
+            if ($explicitHoliday !== null || $this->isAutoSeasonalMainImageEnabled()) {
+                $settings = is_array($this->configurator_settings) ? $this->configurator_settings : [];
+                $customSeasonalMap = isset($settings['seasonal_images']) && is_array($settings['seasonal_images'])
+                    ? $settings['seasonal_images']
+                    : [];
+
+                if (!empty($customSeasonalMap)) {
+                    $candidates = self::resolvePreferredHolidayCandidates($explicitHoliday, $referenceDate);
+                    foreach ($candidates as $candidate) {
+                        $normCandidate = mb_strtolower(trim($candidate));
+                        foreach ($customSeasonalMap as $hKey => $sEntry) {
+                            if (mb_strtolower(trim((string) $hKey)) !== $normCandidate) {
+                                continue;
+                            }
+                            $sPath = is_array($sEntry) ? ($sEntry['path'] ?? null) : (is_string($sEntry) ? $sEntry : null);
+                            if (empty($sPath) || in_array($sPath, $excludeImagePaths, true)) {
+                                continue;
+                            }
+                            $sUrl = ProductTemplate::resolveImageUrl($sPath);
+                            if ($sUrl) {
+                                return [
+                                    'path'            => $sPath,
+                                    'url'             => $sUrl,
+                                    'is_ai_generated' => is_array($sEntry) ? filter_var($sEntry['is_ai_generated'] ?? true, FILTER_VALIDATE_BOOLEAN) : true,
+                                    'label'           => $this->name . ' (' . $hKey . ')',
+                                ];
+                            }
+                        }
+                    }
+                }
+            }
+
             // 1. Prüfe aktive Produktvorlagen (ProductTemplate)
             $seasonalTpl = $this->resolveSeasonalTemplate($explicitHoliday, $excludeImagePaths, null, $referenceDate);
             if ($seasonalTpl && !empty($seasonalTpl->preview_image)) {
@@ -1937,6 +2095,153 @@ use HasFactory, HasUuids, SoftDeletes;
         }
 
         return null;
+    }
+
+    /**
+     * Liefert die Metadaten zum definierten „Neulingsbild“ (media_gallery-Eintrag mit is_beginner = true),
+     * auf das die Produktgalerie im Shop automatisch springt, sobald der Kunde „Neuling (Einfache Variante)“ wählt.
+     *
+     * @return ?array{type: string, path: string, url: ?string, is_ai_generated: bool, label: string}
+     */
+    public function resolveBeginnerMediaMeta(): ?array
+    {
+        if (is_array($this->media_gallery) && count($this->media_gallery) > 0) {
+            foreach ($this->media_gallery as $media) {
+                if (!is_array($media) || empty($media['is_beginner']) || empty($media['path'])) {
+                    continue;
+                }
+
+                $type = (($media['type'] ?? 'image') === 'video') ? 'video' : 'image';
+                $url = ProductTemplate::resolveImageUrl($media['path']);
+                if (!$url) {
+                    continue;
+                }
+
+                return [
+                    'type'            => $type,
+                    'path'            => $media['path'],
+                    'url'             => $url,
+                    'is_ai_generated' => filter_var($media['is_ai_generated'] ?? ($type === 'image'), FILTER_VALIDATE_BOOLEAN),
+                    'label'           => $media['alt'] ?? ($this->name . ' – Neulingsvorschau'),
+                ];
+            }
+        }
+
+        // Fallback: Erste aktive Vorlage oder Hauptbild
+        $seasonalTpl = $this->resolveSeasonalTemplate(null, [], null, null);
+        if ($seasonalTpl && !empty($seasonalTpl->preview_image)) {
+            $url = ProductTemplate::resolveImageUrl($seasonalTpl->preview_image);
+            if ($url) {
+                return [
+                    'type'            => 'image',
+                    'path'            => $seasonalTpl->preview_image,
+                    'url'             => $url,
+                    'is_ai_generated' => (bool) ($seasonalTpl->is_ai_generated ?? true),
+                    'label'           => $this->name . ' – Neulingsvorschau',
+                ];
+            }
+        }
+
+        $mainMeta = $this->resolveMainImageMeta(null, false);
+        if (!empty($mainMeta['url']) && !empty($mainMeta['path'])) {
+            return [
+                'type'            => 'image',
+                'path'            => $mainMeta['path'],
+                'url'             => $mainMeta['url'],
+                'is_ai_generated' => (bool) ($mainMeta['is_ai_generated'] ?? true),
+                'label'           => $this->name . ' – Neulingsvorschau',
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * Liefert die strukturierte Übersicht aller 8 Saison- & Feiertags-Hauptbilder für Schritt 2 ("Medien").
+     * Berücksichtigt sowohl direkt im Produkt hinterlegte Saisonbilder (configurator_settings['seasonal_images'] / media_gallery)
+     * als auch vorhandene Produktvorlagen (ProductTemplate).
+     *
+     * @return array<string, array{holiday: string, label: string, hint: string, path: ?string, url: ?string, is_ai_generated: bool, source: ?string, is_active_today: bool}>
+     */
+    public function getSeasonalMainImagesOverview(): array
+    {
+        $settings = is_array($this->configurator_settings) ? $this->configurator_settings : [];
+        $customSeasonalMap = isset($settings['seasonal_images']) && is_array($settings['seasonal_images'])
+            ? $settings['seasonal_images']
+            : [];
+        $gallery = is_array($this->media_gallery) ? $this->media_gallery : [];
+        $templates = $this->relationLoaded('templates')
+            ? $this->templates
+            : $this->templates()->get();
+
+        $activeMeta = $this->isAutoSeasonalMainImageEnabled()
+            ? $this->resolveMainImageMeta(null, true)
+            : null;
+        $activePathToday = $activeMeta['path'] ?? null;
+
+        $overview = [];
+
+        foreach (self::SEASONAL_HOLIDAY_SLOTS as $holidayKey => $slotMeta) {
+            $normKey = mb_strtolower(trim($holidayKey));
+            $resolvedPath = null;
+            $resolvedIsAi = true;
+            $resolvedSource = null;
+
+            // 1. Direkt gepflegtes Saisonbild in configurator_settings['seasonal_images']
+            foreach ($customSeasonalMap as $cKey => $cEntry) {
+                if (mb_strtolower(trim((string) $cKey)) === $normKey) {
+                    $cPath = is_array($cEntry) ? ($cEntry['path'] ?? null) : (is_string($cEntry) ? $cEntry : null);
+                    if (!empty($cPath)) {
+                        $resolvedPath = $cPath;
+                        $resolvedIsAi = is_array($cEntry) ? filter_var($cEntry['is_ai_generated'] ?? true, FILTER_VALIDATE_BOOLEAN) : true;
+                        $resolvedSource = 'custom';
+                        break;
+                    }
+                }
+            }
+
+            // 2. Aktive Produktvorlage (ProductTemplate)
+            if ($resolvedPath === null) {
+                $matchedTpl = $templates->first(fn($t) => mb_strtolower(trim((string) ($t->holiday ?? ''))) === $normKey && !empty($t->preview_image));
+                if ($matchedTpl) {
+                    $resolvedPath = $matchedTpl->preview_image;
+                    $resolvedIsAi = (bool) ($matchedTpl->is_ai_generated ?? true);
+                    $resolvedSource = 'template';
+                }
+            }
+
+            // 3. Galerie-Eintrag mit holiday-Tag
+            if ($resolvedPath === null) {
+                foreach ($gallery as $media) {
+                    if (!is_array($media) || ($media['type'] ?? 'image') !== 'image' || empty($media['path'])) {
+                        continue;
+                    }
+                    $mediaHoliday = mb_strtolower(trim((string) ($media['holiday'] ?? '')));
+                    $filename = mb_strtolower(basename($media['path']));
+                    if ($mediaHoliday === $normKey || str_contains($filename, '-' . $normKey . '.')) {
+                        $resolvedPath = $media['path'];
+                        $resolvedIsAi = filter_var($media['is_ai_generated'] ?? true, FILTER_VALIDATE_BOOLEAN);
+                        $resolvedSource = 'gallery';
+                        break;
+                    }
+                }
+            }
+
+            $resolvedUrl = $resolvedPath ? ProductTemplate::resolveImageUrl($resolvedPath) : null;
+
+            $overview[$holidayKey] = [
+                'holiday'         => $holidayKey,
+                'label'           => $slotMeta['label'],
+                'hint'            => $slotMeta['hint'],
+                'path'            => $resolvedPath,
+                'url'             => $resolvedUrl,
+                'is_ai_generated' => $resolvedIsAi,
+                'source'          => $resolvedSource,
+                'is_active_today' => ($resolvedPath !== null && $activePathToday !== null && $resolvedPath === $activePathToday),
+            ];
+        }
+
+        return $overview;
     }
 
     /**

@@ -37,6 +37,19 @@
                     @endif
                 </div>
 
+                @if($isItemCustomFields)
+                    <div class="bg-gray-50 dark:bg-gray-950 px-5 sm:px-8 py-4 border-t border-gray-200 dark:border-gray-800 shrink-0">
+                        <button wire:click.prevent="downloadLaserFile('{{ $previewItem->id }}', 'front')"
+                                type="button"
+                                class="w-full flex items-center justify-center gap-2.5 px-4 py-3.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-300 dark:border-gray-700 shadow-sm dark:shadow-inner hover:bg-[var(--theme-color)] hover:text-gray-900 hover:border-[var(--theme-color)] transition-all duration-300 group focus:outline-none cursor-pointer">
+                            <svg class="w-4 h-4 text-[var(--theme-color)] group-hover:text-gray-900 transition-colors shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                            </svg>
+                            <span>xTool Laser-SVG (Vorderseite) herunterladen</span>
+                        </button>
+                    </div>
+                @endif
+
                 @if($fingerprint)
                     <div class="bg-emerald-50 dark:bg-emerald-900/10 px-5 sm:px-8 py-4 border-t border-emerald-200 dark:border-emerald-500/20 flex flex-col sm:flex-row sm:items-center gap-4 shadow-none dark:shadow-inner z-10 shrink-0">
                         <div class="p-2 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 shrink-0 self-start sm:self-auto shadow-none dark:shadow-[0_0_15px_rgba(16,185,129,0.2)]">

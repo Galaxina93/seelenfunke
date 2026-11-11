@@ -1,6 +1,7 @@
 <Window x:Class="Funkenwerk.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Funkenwerk"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="Funkenwerk"
         Icon="pack://application:,,,/funkenwerk.ico"
@@ -139,6 +140,7 @@
             <Setter Property="CaretBrush" Value="#C5A059"/>
             <Setter Property="SelectionBrush" Value="#C5A059"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -151,9 +153,10 @@
                                 CornerRadius="9"
                                 SnapsToDevicePixels="True">
                             <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                           HorizontalScrollBarVisibility="Hidden"
-                                          VerticalScrollBarVisibility="Hidden"/>
+                                          VerticalScrollBarVisibility="{TemplateBinding VerticalScrollBarVisibility}"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -166,6 +169,11 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+            <Style.Triggers>
+                <Trigger Property="AcceptsReturn" Value="True">
+                    <Setter Property="VerticalContentAlignment" Value="Top"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <!-- Global Discord-Inspired ComboBoxItem Style (Rounded Hover Pill + Radio Indicator) -->
@@ -619,6 +627,42 @@
                             </ControlTemplate>
                         </Button.Template>
                     </Button>
+
+                    <!-- 10. Dateiverwaltung (Workspace) -->
+                    <Button x:Name="SpaceFilesBtn" Click="SwitchSpace_Click" Tag="files" ToolTip="Dateiverwaltung"
+                            Background="Transparent" BorderThickness="0" Padding="0" Margin="0,0,0,8" Cursor="Hand">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Grid Width="42" Height="42">
+                                    <Border x:Name="SpaceFilesBg" Background="Transparent" CornerRadius="11"/>
+                                    <Viewbox Width="20" Height="20">
+                                        <Canvas Width="24" Height="24">
+                                            <Path x:Name="SpaceFilesPath" Fill="Transparent" Stroke="#9CA3AF" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                                  Data="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                </Grid>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+
+                    <!-- 11. Funkira KI-Agent (Integrierter PC-Agent) -->
+                    <Button x:Name="SpaceAgentBtn" Click="SwitchSpace_Click" Tag="agent" ToolTip="Funkira KI-Agent (Strg+K)"
+                            Background="Transparent" BorderThickness="0" Padding="0" Margin="0,0,0,8" Cursor="Hand">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Grid Width="42" Height="42">
+                                    <Border x:Name="SpaceAgentBg" Background="Transparent" CornerRadius="11"/>
+                                    <Viewbox Width="20" Height="20">
+                                        <Canvas Width="24" Height="24">
+                                            <Path x:Name="SpaceAgentPath" Fill="Transparent" Stroke="#C5A059" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                                  Data="M12 2L14.4 9.6L22 12L14.4 14.4L12 22L9.6 14.4L2 12L9.6 9.6L12 2Z M19 3v4 M17 5h4"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                </Grid>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
                 </StackPanel>
 
                 <!-- Bottom Icon: Settings -->
@@ -687,10 +731,17 @@
                                 <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
                                 <TextBlock Text="✨ KI" FontSize="11" FontWeight="Bold"/>
                             </Button>
-                            <Button Grid.Column="2" Click="SyncMails_Click" ToolTip="Postfächer synchronisieren (IMAP)"
-                                    Background="#1F2430" Foreground="#D1D5DB" BorderThickness="0" Padding="8,5" Margin="0,0,5,0" Cursor="Hand">
+                            <Button x:Name="MailSyncBtn" Grid.Column="2" Click="SyncMails_Click" ToolTip="Postfächer synchronisieren (IMAP)"
+                                    Background="#1F2430" Foreground="#D1D5DB" BorderBrush="Transparent" BorderThickness="1" Padding="8,5" Margin="0,0,5,0" Cursor="Hand">
                                 <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
-                                <TextBlock Text="↻ Sync" FontSize="11" FontWeight="SemiBold"/>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock x:Name="MailSyncIconTxt" Text="↻" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                                        <TextBlock.RenderTransform>
+                                            <RotateTransform x:Name="MailSyncIconRotate" Angle="0"/>
+                                        </TextBlock.RenderTransform>
+                                    </TextBlock>
+                                    <TextBlock x:Name="MailSyncLabelTxt" Text="Sync" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                                </StackPanel>
                             </Button>
                             <Button Grid.Column="3" Click="OpenCompose_Click" ToolTip="Neue E-Mail verfassen"
                                     Background="#C5A059" Foreground="#111827" BorderThickness="0" Padding="9,5" Cursor="Hand">
@@ -698,6 +749,24 @@
                                 <TextBlock Text="✎ Neu" FontSize="11" FontWeight="Bold"/>
                             </Button>
                         </Grid>
+
+                        <!-- Live IMAP Sync Progress Strip -->
+                        <Border x:Name="MailSyncStatusBar" DockPanel.Dock="Top" Visibility="Collapsed"
+                                Background="#1A1710" BorderBrush="#4D3D1E" BorderThickness="1" CornerRadius="8" Padding="9,6" Margin="0,0,0,10">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Ellipse x:Name="MailSyncStatusDot" Grid.Column="0" Width="6" Height="6" Fill="#C5A059" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                                    <TextBlock x:Name="MailSyncStatusTxt" Grid.Column="1" Text="Synchronisiere Postfächer..." FontSize="11" FontWeight="SemiBold" Foreground="#C5A059" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock x:Name="MailSyncTimerTxt" Grid.Column="2" Text="" FontSize="10.5" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                </Grid>
+                                <ProgressBar x:Name="MailSyncProgressBar" IsIndeterminate="True" Height="2.5" Background="#262A36" Foreground="#C5A059" BorderThickness="0" Margin="0,5,0,0"/>
+                            </StackPanel>
+                        </Border>
 
                         <!-- Bottom Add Custom Folder Bar -->
                         <Border DockPanel.Dock="Bottom" BorderBrush="#1E222D" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,8,0,0">
@@ -1802,12 +1871,12 @@
                                 <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="10"/></Style></Button.Resources>
                             </Button>
 
-                            <!-- Venom Audio-Reactive Focus Mode Wallpaper Button -->
-                            <Button x:Name="MusicEnterFocusModeBtn" Click="EnterMusicVenomFocusMode_Click" Background="#1F090D" Foreground="#EF4444" BorderBrush="#7F1D1D" BorderThickness="1" Padding="12,11" Cursor="Hand" FontSize="12.5" FontWeight="Bold" ToolTip="Ganzes Fenster in audio-reaktive Rot-Schwarz Venom Animation verwandeln">
+                            <!-- Seelenfunke Celestial Audio-Reactive Focus Mode Button (Darkmode & Lightmode aware) -->
+                            <Button x:Name="MusicEnterFocusModeBtn" Click="EnterMusicVenomFocusMode_Click" Background="#1E222D" Foreground="#F9FAFB" BorderBrush="#C5A059" BorderThickness="1" Padding="12,11" Cursor="Hand" FontSize="12.5" FontWeight="Bold" ToolTip="Fokus Modus: Hochwertige Seelenfunke Audio-Rhythmus-Animation im Vollbild starten">
                                 <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="10"/></Style></Button.Resources>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <Ellipse Width="8" Height="8" Fill="#EF4444" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                    <TextBlock Text="Fokus Modus" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="MusicEnterFocusStarTxt" Text="✦" Foreground="#C5A059" FontSize="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="MusicEnterFocusLabelTxt" Text="Fokus Modus" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
                         </StackPanel>
@@ -2596,7 +2665,7 @@
                                             </Grid>
                                         </Border>
                                         <Grid>
-                                            <MediaElement x:Name="CamPreviewMediaElement" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="Uniform" MediaEnded="CamPreviewMedia_MediaEnded"/>
+                                            <MediaElement x:Name="CamPreviewMediaElement" LoadedBehavior="Manual" UnloadedBehavior="Close" Stretch="Uniform" MediaOpened="CamPreviewMedia_MediaOpened" MediaEnded="CamPreviewMedia_MediaEnded" MediaFailed="CamPreviewMedia_MediaFailed"/>
                                             <Image x:Name="CamPreviewSnapshotImage" Stretch="Uniform" Visibility="Collapsed"/>
                                         </Grid>
                                     </DockPanel>
@@ -4874,36 +4943,601 @@
             </Grid>
 
             <!-- ===================================================================== -->
-            <!-- GLOBAL FLOATING MINI-PLAYER BAR (Visible in Mail/Todo while playing)  -->
+            <!-- MODULE 10: DATEIVERWALTUNG (CLEAN FUNKENWERK WORKSPACE - ROOT: files) -->
+            <!-- ===================================================================== -->
+            <Grid x:Name="FilesViewGrid" Visibility="Collapsed" Background="#0F1117"
+                  AllowDrop="True" DragOver="FilesView_DragOver" Drop="FilesView_Drop">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- ROW 0: INFO-KACHELN (4 CLEAN DARKMODE KPI CARDS - CLICKABLE QUICK FILTERS) -->
+                <Grid Grid.Row="0" Margin="22,18,22,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Info-Kachel 1: Gesamtbestand (files) -->
+                    <Border x:Name="FilesInfoCardTotal" Grid.Column="0" Margin="0,0,8,0"
+                            Background="#11131A" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="12" Padding="14,10"
+                            Cursor="Hand" MouseLeftButtonUp="FilesInfoCard_Click" Tag="files">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="HAUPTVERZEICHNIS (FILES)" Foreground="#9CA3AF" FontSize="10" FontWeight="Bold"/>
+                                <TextBlock x:Name="FilesInfoTotalCountTxt" Text="215 Dokumente" Foreground="#F9FAFB" FontSize="16" FontWeight="Bold" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <Border Grid.Column="1" Width="34" Height="34" CornerRadius="9" Background="#26231F" BorderBrush="#242936" BorderThickness="1" VerticalAlignment="Center">
+                                <TextBlock Text="📁" FontSize="15" Foreground="#C5A059" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <!-- Info-Kachel 2: Berufsleben -->
+                    <Border x:Name="FilesInfoCardBeruf" Grid.Column="1" Margin="4,0,8,0"
+                            Background="#11131A" BorderBrush="#232734" BorderThickness="1" CornerRadius="12" Padding="14,10"
+                            Cursor="Hand" MouseLeftButtonUp="FilesInfoCard_Click" Tag="files/Berufsleben">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="BERUFSLEBEN &amp; ÄMTER" Foreground="#9CA3AF" FontSize="10" FontWeight="Bold"/>
+                                <TextBlock x:Name="FilesInfoBerufCountTxt" Text="0 Dateien" Foreground="#F9FAFB" FontSize="16" FontWeight="Bold" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <Border Grid.Column="1" Width="34" Height="34" CornerRadius="9" Background="#26231F" BorderBrush="#242936" BorderThickness="1" VerticalAlignment="Center">
+                                <TextBlock Text="💼" FontSize="15" Foreground="#C5A059" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <!-- Info-Kachel 3: Dokumente & Finanzen -->
+                    <Border x:Name="FilesInfoCardDok" Grid.Column="2" Margin="4,0,8,0"
+                            Background="#11131A" BorderBrush="#232734" BorderThickness="1" CornerRadius="12" Padding="14,10"
+                            Cursor="Hand" MouseLeftButtonUp="FilesInfoCard_Click" Tag="files/Dokumente">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="DOKUMENTE &amp; FINANZEN" Foreground="#9CA3AF" FontSize="10" FontWeight="Bold"/>
+                                <TextBlock x:Name="FilesInfoDokCountTxt" Text="0 Dateien" Foreground="#F9FAFB" FontSize="16" FontWeight="Bold" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <Border Grid.Column="1" Width="34" Height="34" CornerRadius="9" Background="#26231F" BorderBrush="#242936" BorderThickness="1" VerticalAlignment="Center">
+                                <TextBlock Text="📄" FontSize="15" Foreground="#C5A059" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <!-- Info-Kachel 4: Gesundheit & Recht -->
+                    <Border x:Name="FilesInfoCardGesund" Grid.Column="3" Margin="4,0,0,0"
+                            Background="#11131A" BorderBrush="#232734" BorderThickness="1" CornerRadius="12" Padding="14,10"
+                            Cursor="Hand" MouseLeftButtonUp="FilesInfoCard_Click" Tag="files/Gesundheit">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="GESUNDHEIT &amp; SOZIALRECHT" Foreground="#9CA3AF" FontSize="10" FontWeight="Bold"/>
+                                <TextBlock x:Name="FilesInfoGesundCountTxt" Text="0 Dateien" Foreground="#F9FAFB" FontSize="16" FontWeight="Bold" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <Border Grid.Column="1" Width="34" Height="34" CornerRadius="9" Background="#26231F" BorderBrush="#242936" BorderThickness="1" VerticalAlignment="Center">
+                                <TextBlock Text="⚕" FontSize="15" Foreground="#C5A059" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <!-- ROW 1: FULL-WIDTH DYNAMIC & FUZZY SEARCH BAR (DARKMODE INPUT FIELD) -->
+                <Border x:Name="FilesSearchFieldBorder" Grid.Row="1" Margin="22,0,22,10" Background="#11131A" BorderBrush="#232734" BorderThickness="1" CornerRadius="12" Padding="14,9">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="🔍" Foreground="#C5A059" FontSize="14" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBox x:Name="FilesSearchBox" Grid.Column="1"
+                                 Background="Transparent" Foreground="#F9FAFB" CaretBrush="#C5A059"
+                                 BorderThickness="0" Padding="2,3" FontSize="13.5" VerticalContentAlignment="Center"
+                                 TextChanged="FilesSearchBox_TextChanged" KeyDown="FilesSearchBox_KeyDown"/>
+                        <TextBlock x:Name="FilesSearchPlaceholder" Grid.Column="1"
+                                   Text="Dynamische Suche nach Dateinamen, Kategorien, Tags, Inhalt oder Synonymen (z.B. Arbeitsamt, BKK, AU, Steuer, Kamera)..."
+                                   Foreground="#9CA3AF" FontSize="13" VerticalAlignment="Center" Margin="4,0,0,0" IsHitTestVisible="False"/>
+                        <Border x:Name="FilesSearchResultCountBadge" Grid.Column="2" Visibility="Collapsed"
+                                Background="#26231F" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="7" Padding="8,3" Margin="8,0,6,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="FilesSearchResultCountTxt" Text="0 Treffer" Foreground="#C5A059" FontSize="11" FontWeight="Bold"/>
+                        </Border>
+                        <Button x:Name="FilesClearSearchBtn" Grid.Column="3" Click="FilesClearSearch_Click"
+                                Visibility="Collapsed" Background="#26231F" Foreground="#C5A059" BorderBrush="#242936" BorderThickness="1"
+                                Padding="8,2" Cursor="Hand" FontSize="11.5" FontWeight="Bold" Content="✕">
+                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <!-- ROW 2: NAVIGATION & ACTION TOOLBAR (Clean Design, 100% Darkmode) -->
+                <Border Grid.Row="2" Margin="22,0,22,12" Background="#11131A" BorderBrush="#232734" BorderThickness="1" CornerRadius="12" Padding="12,10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Left: Up Button + Root/Main Folder Pills + Current Path Badge -->
+                        <WrapPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button x:Name="FilesGoUpBtn" Click="FilesGoUp_Click"
+                                    Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                                    Width="34" Height="34" Margin="0,0,8,0" Cursor="Hand" ToolTip="Ebene höher"
+                                    FontSize="14" FontWeight="Bold" Content="↑">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
+                            </Button>
+
+                            <Button x:Name="FilesNavRootBtn" Click="FilesQuickFolder_Click" Tag="files"
+                                    Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1"
+                                    Padding="12,6" Margin="0,0,6,0" Cursor="Hand" FontSize="12" FontWeight="Bold" Content="Alle (files)">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
+                            </Button>
+
+                            <Button x:Name="FilesNavBerufBtn" Click="FilesQuickFolder_Click" Tag="files/Berufsleben"
+                                    Background="#181B24" Foreground="#D1D5DB" BorderBrush="#262A36" BorderThickness="1"
+                                    Padding="12,6" Margin="0,0,6,0" Cursor="Hand" FontSize="12" FontWeight="SemiBold" Content="Berufsleben">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
+                            </Button>
+
+                            <Button x:Name="FilesNavDokBtn" Click="FilesQuickFolder_Click" Tag="files/Dokumente"
+                                    Background="#181B24" Foreground="#D1D5DB" BorderBrush="#262A36" BorderThickness="1"
+                                    Padding="12,6" Margin="0,0,6,0" Cursor="Hand" FontSize="12" FontWeight="SemiBold" Content="Dokumente">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
+                            </Button>
+
+                            <Button x:Name="FilesNavGesundBtn" Click="FilesQuickFolder_Click" Tag="files/Gesundheit"
+                                    Background="#181B24" Foreground="#D1D5DB" BorderBrush="#262A36" BorderThickness="1"
+                                    Padding="12,6" Margin="0,0,8,0" Cursor="Hand" FontSize="12" FontWeight="SemiBold" Content="Gesundheit">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
+                            </Button>
+
+                            <Border x:Name="FilesCurrentPathBadge" Background="#181B24" BorderBrush="#232734" BorderThickness="1"
+                                     CornerRadius="8" Padding="10,5" VerticalAlignment="Center">
+                                <TextBlock x:Name="FilesCurrentPathTxt" Text="files" Foreground="#C5A059"
+                                           FontFamily="Consolas" FontSize="11.5" FontWeight="Bold"/>
+                            </Border>
+                        </WrapPanel>
+
+                        <!-- Right: New Folder + Upload + Dateitrichter + Refresh + View Mode Toggle -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <!-- New Folder Input + Button -->
+                            <Border Background="#181B24" BorderBrush="#262A36" BorderThickness="1" CornerRadius="9" Padding="8,0" Height="34" Margin="0,0,6,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="125"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="FilesNewFolderBox" Grid.Column="0"
+                                             Background="Transparent" Foreground="#F9FAFB" CaretBrush="#C5A059"
+                                             BorderThickness="0" FontSize="12" VerticalContentAlignment="Center"
+                                             TextChanged="FilesNewFolderBox_TextChanged" KeyDown="FilesNewFolderBox_KeyDown"/>
+                                    <TextBlock x:Name="FilesNewFolderPlaceholder" Grid.Column="0"
+                                               Text="Neuer Ordner..." Foreground="#9CA3AF" FontSize="11.5"
+                                               VerticalAlignment="Center" Margin="2,0,0,0" IsHitTestVisible="False"/>
+                                    <Button Grid.Column="1" Click="FilesCreateFolder_Click"
+                                            Background="Transparent" Foreground="#C5A059" BorderThickness="0"
+                                            Padding="6,0" Cursor="Hand" ToolTip="Ordner erstellen" FontSize="14" FontWeight="Bold" Content="＋"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Upload Button -->
+                            <Button x:Name="FilesUploadBtn" Click="FilesUpload_Click"
+                                    Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                                    Height="34" Padding="13,0" Margin="0,0,6,0" Cursor="Hand" FontSize="12" FontWeight="Bold" Content="⬆ Hochladen">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
+                            </Button>
+
+                            <!-- Dateitrichter Button (Darkmode Matte Black & Gold Border) -->
+                            <Button x:Name="FilesDateitrichterBtn" Click="FilesRunDateitrichter_Click"
+                                    Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1"
+                                    Height="34" Padding="14,0" Margin="0,0,6,0" Cursor="Hand" FontSize="12" FontWeight="Bold" Content="⚡ Dateitrichter">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
+                            </Button>
+
+                            <!-- Refresh Button -->
+                            <Button Click="FilesRefresh_Click"
+                                    Background="#181B24" Foreground="#D1D5DB" BorderBrush="#262A36" BorderThickness="1"
+                                    Width="34" Height="34" Margin="0,0,8,0" Cursor="Hand" ToolTip="Aktualisieren" FontSize="13" FontWeight="Bold" Content="↻">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
+                            </Button>
+
+                            <!-- View Mode Switcher (Grid vs Table) -->
+                            <Border Background="#181B24" BorderBrush="#262A36" BorderThickness="1" CornerRadius="9" Padding="3" Height="34">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button x:Name="FilesViewGridBtn" Click="FilesSetGridView_Click"
+                                            Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1"
+                                            Width="28" Height="26" Cursor="Hand" ToolTip="Kachelansicht" FontSize="13" FontWeight="Bold" Content="⊞">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                    </Button>
+                                    <Button x:Name="FilesViewTableBtn" Click="FilesSetTableView_Click"
+                                            Background="Transparent" Foreground="#9CA3AF" BorderBrush="Transparent" BorderThickness="1"
+                                            Width="28" Height="26" Margin="2,0,0,0" Cursor="Hand" ToolTip="Listenansicht" FontSize="13" FontWeight="Bold" Content="☰">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- ROW 3: MAIN CONTENT AREA (GRID VIEW / TABLE VIEW / EMPTY STATE) -->
+                <Grid Grid.Row="3" Margin="22,0,22,18">
+                    <!-- 1. Grid View (Kacheln) -->
+                    <ScrollViewer x:Name="FilesGridScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <WrapPanel x:Name="FilesGridWrapPanel" Orientation="Horizontal"/>
+                    </ScrollViewer>
+
+                    <!-- 2. Table View (Schlanke Liste ohne Text-Overload) -->
+                    <Border x:Name="FilesTableContainerBorder" Visibility="Collapsed" Background="#11131A" BorderBrush="#232734" BorderThickness="1" CornerRadius="14">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Border Grid.Row="0" Background="#181B24" BorderBrush="#232734" BorderThickness="0,0,0,1" CornerRadius="14,14,0,0" Padding="18,11">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="3*"/>
+                                        <ColumnDefinition Width="1.4*"/>
+                                        <ColumnDefinition Width="0.8*"/>
+                                        <ColumnDefinition Width="0.7*"/>
+                                        <ColumnDefinition Width="1.0*"/>
+                                        <ColumnDefinition Width="110"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="DOKUMENT / ORDNER" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold"/>
+                                    <TextBlock Grid.Column="1" Text="KATEGORIE" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold"/>
+                                    <TextBlock Grid.Column="2" Text="GRÖSSE" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold"/>
+                                    <TextBlock Grid.Column="3" Text="TYP" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold"/>
+                                    <TextBlock Grid.Column="4" Text="DATUM" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold"/>
+                                    <TextBlock Grid.Column="5" Text="AKTION" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" HorizontalAlignment="Right"/>
+                                </Grid>
+                            </Border>
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                <StackPanel x:Name="FilesTableRowsPanel"/>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+
+                    <!-- 3. Empty State -->
+                    <Border x:Name="FilesEmptyStateBorder" Visibility="Collapsed" Background="#11131A" BorderBrush="#232734" BorderThickness="1" CornerRadius="14">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock Text="📁" FontSize="42" Foreground="#C5A059" HorizontalAlignment="Center" Margin="0,0,0,8" Opacity="0.8"/>
+                            <TextBlock x:Name="FilesEmptyStateTxt" Text="Keine passenden Dokumente gefunden" Foreground="#9CA3AF" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 4. Status Pill (Bottom Left, transient feedback) -->
+                    <Border x:Name="FilesStatusToastBorder" Visibility="Collapsed" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                            Margin="14,0,0,14" Background="#181B24" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="10" Padding="14,8" Panel.ZIndex="45">
+                        <TextBlock x:Name="FilesStatusToastTxt" Text="" Foreground="#F9FAFB" FontSize="12" FontWeight="Bold"/>
+                    </Border>
+                </Grid>
+
+                <!-- ================================================================= -->
+                <!-- IN-WINDOW LIGHTBOX / PREVIEW MODAL (Baustein 1: Lightbox im Fenster) -->
+                <!-- ================================================================= -->
+                <Grid x:Name="FilesPreviewModalOverlay" Grid.RowSpan="4" Background="#D9000000" Visibility="Collapsed" Panel.ZIndex="120"
+                      MouseLeftButtonDown="FilesPreviewBackdrop_MouseLeftButtonDown">
+                    <Border Width="960" Height="700" Background="#11131A" BorderBrush="#C5A059" BorderThickness="1.5" CornerRadius="18"
+                            HorizontalAlignment="Center" VerticalAlignment="Center" MouseLeftButtonDown="FilesPreviewCard_BlockClick">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Lightbox Header -->
+                            <Border Grid.Row="0" Background="#181B24" BorderBrush="#232734" BorderThickness="0,0,0,1" CornerRadius="18,18,0,0" Padding="20,14">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock x:Name="FilesPreviewModalTitleTxt" Text="Dateiname" Foreground="#F9FAFB" FontSize="15" FontWeight="Bold" VerticalAlignment="Center" MaxWidth="460" TextTrimming="CharacterEllipsis"/>
+                                        <Border Background="#26231F" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="6" Padding="8,2" Margin="10,0,0,0" VerticalAlignment="Center">
+                                            <TextBlock x:Name="FilesPreviewModalMetaTxt" Text="PDF · 120 KB" Foreground="#C5A059" FontSize="11" FontWeight="Bold"/>
+                                        </Border>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Click="FilesPreviewOpenNative_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1" Padding="12,7" Margin="0,0,8,0" Cursor="Hand" FontSize="12" FontWeight="Bold" Content="📂 Lokal öffnen">
+                                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                        </Button>
+                                        <Button Click="FilesPreviewDownload_Click" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1" Padding="14,7" Margin="0,0,10,0" Cursor="Hand" FontSize="12" FontWeight="Bold" Content="⬇ Speichern unter">
+                                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                        </Button>
+                                        <Button Click="FilesClosePreviewModal_Click" Style="{StaticResource ModalCloseButtonStyle}" Content="✕"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- Lightbox Content -->
+                            <Grid Grid.Row="1" Margin="18">
+                                <!-- Image Lightbox -->
+                                <Image x:Name="FilesPreviewModalImage" Visibility="Collapsed" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+
+                                <!-- Text / Code / Extracted PDF Full-Text Viewer -->
+                                <Border x:Name="FilesPreviewTextContainer" Visibility="Collapsed" Background="#181B24" BorderBrush="#232734" BorderThickness="1" CornerRadius="12" Padding="14">
+                                    <TextBox x:Name="FilesPreviewModalTextBox" IsReadOnly="True" Background="Transparent" Foreground="#F9FAFB" BorderThickness="0"
+                                             FontFamily="Consolas" FontSize="12.5" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
+                                </Border>
+
+                                <!-- Binary / Video Fallback Card -->
+                                <StackPanel x:Name="FilesPreviewBinaryPanel" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock x:Name="FilesPreviewBinaryIconTxt" Text="📄" FontSize="54" Foreground="#C5A059" HorizontalAlignment="Center" Margin="0,0,0,12"/>
+                                    <TextBlock x:Name="FilesPreviewBinaryNameTxt" Text="Datei" Foreground="#F9FAFB" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,14"/>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                        <Button Click="FilesPreviewOpenNative_Click" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1" Padding="18,10" Margin="0,0,10,0" Cursor="Hand" FontSize="13" FontWeight="Bold" Content="📂 Direkt öffnen">
+                                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="10"/></Style></Button.Resources>
+                                        </Button>
+                                        <Button Click="FilesPreviewDownload_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1" Padding="18,10" Cursor="Hand" FontSize="13" FontWeight="Bold" Content="⬇ Speichern unter">
+                                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="10"/></Style></Button.Resources>
+                                        </Button>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <!-- ================================================================= -->
+                <!-- RENAME MODAL (100% DARKMODE)                                      -->
+                <!-- ================================================================= -->
+                <Grid x:Name="FilesRenameModalOverlay" Grid.RowSpan="4" Background="#B3000000" Visibility="Collapsed" Panel.ZIndex="125">
+                    <Border Width="420" Background="#11131A" BorderBrush="#C5A059" BorderThickness="1.5" CornerRadius="16" Padding="22,18" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,14">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Umbenennen" Foreground="#F9FAFB" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"/>
+                                <Button Grid.Column="1" Click="FilesCloseRenameModal_Click" Style="{StaticResource ModalCloseButtonStyle}" Content="✕"/>
+                            </Grid>
+                            <TextBox x:Name="FilesRenameInputBox" Background="#181B24" Foreground="#F9FAFB" CaretBrush="#C5A059" BorderBrush="#262A36" BorderThickness="1" Padding="12,9" FontSize="13.5" Margin="0,0,0,16" KeyDown="FilesRenameInputBox_KeyDown"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Click="FilesCloseRenameModal_Click" Background="#181B24" Foreground="#D1D5DB" BorderBrush="#262A36" BorderThickness="1" Padding="14,8" Margin="0,0,8,0" Cursor="Hand" FontSize="12" FontWeight="SemiBold" Content="Abbrechen">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                </Button>
+                                <Button Click="FilesConfirmRename_Click" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1" Padding="16,8" Cursor="Hand" FontSize="12" FontWeight="Bold" Content="Speichern">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- ================================================================= -->
+                <!-- MOVE MODAL (100% DARKMODE - NO WHITE SYSTEM COMBOBOX POPUP)        -->
+                <!-- ================================================================= -->
+                <Grid x:Name="FilesMoveModalOverlay" Grid.RowSpan="4" Background="#B3000000" Visibility="Collapsed" Panel.ZIndex="125">
+                    <Border Width="480" Background="#11131A" BorderBrush="#C5A059" BorderThickness="1.5" CornerRadius="16" Padding="22,18" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,14">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Verschieben in..." Foreground="#F9FAFB" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"/>
+                                <Button Grid.Column="1" Click="FilesCloseMoveModal_Click" Style="{StaticResource ModalCloseButtonStyle}" Content="✕"/>
+                            </Grid>
+                            <Border Background="#181B24" BorderBrush="#232734" BorderThickness="1" CornerRadius="10" Height="220" Padding="6" Margin="0,0,0,16">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="FilesMoveTargetListPanel"/>
+                                </ScrollViewer>
+                            </Border>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Click="FilesCloseMoveModal_Click" Background="#181B24" Foreground="#D1D5DB" BorderBrush="#262A36" BorderThickness="1" Padding="14,8" Margin="0,0,8,0" Cursor="Hand" FontSize="12" FontWeight="SemiBold" Content="Abbrechen">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                </Button>
+                                <Button Click="FilesConfirmMove_Click" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1" Padding="16,8" Cursor="Hand" FontSize="12" FontWeight="Bold" Content="Verschieben">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Grid>
+
+            <!-- ===================================================================== -->
+            <!-- MODULE 11: FUNKIRA KI-AGENT (INTEGRIERTER PC- & SEELENFUNKE-AGENT)    -->
+            <!-- ===================================================================== -->
+            <Grid x:Name="AgentViewGrid" Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="270" MinWidth="210" MaxWidth="420"/>
+                    <ColumnDefinition Width="5"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- 11A: Sessions & Schnellbefehle Sidebar -->
+                <Border Grid.Column="0" Background="#13161F" Padding="14,16">
+                    <DockPanel LastChildFill="True">
+                        <Grid DockPanel.Dock="Top" Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="✦ " Foreground="#C5A059" FontSize="15" FontWeight="Bold" VerticalAlignment="Center"/>
+                                <TextBlock Text="Funkira" Foreground="#F9FAFB" FontSize="17" FontWeight="Bold" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <Button Grid.Column="1" Click="AgentNewChat_Click" ToolTip="Neuen Chat starten"
+                                    Background="#C5A059" Foreground="#111827" BorderThickness="0" Padding="10,5" Cursor="Hand">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                <TextBlock Text="+ Neu" FontSize="11" FontWeight="Bold"/>
+                            </Button>
+                        </Grid>
+
+                        <!-- Schnellbefehle (Clean Minimalist Pills without subtexts) -->
+                        <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+                            <Border Height="1" Background="#1E222D" Margin="0,0,0,10"/>
+                            <TextBlock Text="SCHNELLSTEUERUNG" Foreground="#9CA3AF" FontSize="10" FontWeight="Bold" Margin="2,0,0,7"/>
+                            <WrapPanel Orientation="Horizontal">
+                                <Button Click="AgentQuickAction_Click" Tag="Spiel Musik ab" ToolTip="Musikwiedergabe starten"
+                                        Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1" Padding="9,5" Margin="0,0,5,5" Cursor="Hand" FontSize="11" FontWeight="SemiBold" Content="🎵 Play">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                </Button>
+                                <Button Click="AgentQuickAction_Click" Tag="Starte den Fokus-Modus" ToolTip="Seelenfunke Musik Fokus-Modus öffnen"
+                                        Background="#181B24" Foreground="#C5A059" BorderBrush="#382D18" BorderThickness="1" Padding="9,5" Margin="0,0,5,5" Cursor="Hand" FontSize="11" FontWeight="Bold" Content="✦ Fokus">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                </Button>
+                                <Button Click="AgentQuickAction_Click" Tag="Packtisch Warm Licht einschalten" ToolTip="Steckdose Packtisch Warm Licht einschalten"
+                                        Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1" Padding="9,5" Margin="0,0,5,5" Cursor="Hand" FontSize="11" FontWeight="SemiBold" Content="💡 Packtisch AN">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                </Button>
+                                <Button Click="AgentQuickAction_Click" Tag="Alle Lichter ausschalten" ToolTip="Alle Smart-Home-Steckdosen ausschalten"
+                                        Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1" Padding="9,5" Margin="0,0,5,5" Cursor="Hand" FontSize="11" FontWeight="SemiBold" Content="○ Lichter AUS">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                </Button>
+                                <Button Click="AgentQuickAction_Click" Tag="Öffne Funkenwerk PDF" ToolTip="Funkenwerk PDF Editor starten"
+                                        Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1" Padding="9,5" Margin="0,0,5,5" Cursor="Hand" FontSize="11" FontWeight="SemiBold" Content="📄 PDF">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                </Button>
+                                <Button Click="AgentQuickAction_Click" Tag="Was steht heute auf meiner To-Do Liste und im Kalender?" ToolTip="Tagesbriefing abrufen"
+                                        Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1" Padding="9,5" Margin="0,0,5,5" Cursor="Hand" FontSize="11" FontWeight="SemiBold" Content="📋 Briefing">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                </Button>
+                            </WrapPanel>
+                        </StackPanel>
+
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel x:Name="AgentSessionsListPanel" Margin="0,2,2,2"/>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+
+                <GridSplitter Grid.Column="1" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"/>
+
+                <!-- 11B: Main Chat Stream & Input Bar -->
+                <Border Grid.Column="2" Background="#0F1117" Padding="22,16">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Top Header -->
+                        <Border Grid.Row="0" BorderBrush="#1E222D" BorderThickness="0,0,0,1" Padding="0,0,0,12" Margin="0,0,0,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Border Width="32" Height="32" CornerRadius="16" Background="#26231F" BorderBrush="#C5A059" BorderThickness="1" Margin="0,0,10,0">
+                                        <TextBlock Text="✦" Foreground="#C5A059" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <TextBlock x:Name="AgentActiveSessionTitleTxt" Text="Funkira" Foreground="#F9FAFB" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button x:Name="AgentTtsToggleBtn" Click="AgentToggleTts_Click"
+                                            ToolTip="Sprachausgabe (Opt-In) ein-/ausschalten"
+                                            Background="#181B24" Foreground="#9CA3AF" BorderBrush="#262A36" BorderThickness="1"
+                                            Padding="10,5" Cursor="Hand" FontSize="11.5" FontWeight="SemiBold" Content="🔇 Stimme AUS">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Messages Scroll -->
+                        <ScrollViewer x:Name="AgentChatScrollViewer" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,6,0">
+                            <StackPanel x:Name="AgentMessagesPanel" Margin="0,4,0,10"/>
+                        </ScrollViewer>
+
+                        <!-- Bottom Composer -->
+                        <Border Grid.Row="2" Background="#161922" BorderBrush="#2A2F3D" BorderThickness="1" CornerRadius="14" Padding="12,9" Margin="0,10,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock x:Name="AgentPromptPlaceholderTxt" Text="Nachricht oder PC-Befehl an Funkira... (Enter zum Senden)"
+                                               Foreground="#6B7280" FontSize="13.5" Margin="4,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                                    <TextBox x:Name="AgentPromptInputBox" Background="Transparent" Foreground="#F9FAFB" CaretBrush="#C5A059"
+                                             BorderThickness="0" FontSize="13.5" Padding="2,4" MaxHeight="110" TextWrapping="Wrap" AcceptsReturn="False"
+                                             TextChanged="AgentPromptInputBox_TextChanged" PreviewKeyDown="AgentPromptInputBox_PreviewKeyDown"/>
+                                </Grid>
+                                <Button x:Name="AgentSendPromptBtn" Grid.Column="1" Click="AgentSendPrompt_Click"
+                                        ToolTip="Senden (Enter)"
+                                        Background="#C5A059" Foreground="#111827" BorderThickness="0" Padding="16,8" Margin="10,0,0,0"
+                                        Cursor="Hand" FontSize="12.5" FontWeight="Bold" Content="Senden ✦">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="10"/></Style></Button.Resources>
+                                </Button>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- ===================================================================== -->
+            <!-- GLOBAL FLOATING MINI-PLAYER BAR (Compact Icon -> Hover Detail View)   -->
             <!-- ===================================================================== -->
             <Border x:Name="GlobalMiniPlayerBar" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,22,18"
-                    Background="#181B24" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="16" Padding="14,10"
+                    Background="Transparent" BorderThickness="0" Padding="0"
+                    MouseEnter="GlobalMiniPlayerBar_MouseEnter" MouseLeave="GlobalMiniPlayerBar_MouseLeave"
                     Visibility="Collapsed">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Width="34" Height="34" CornerRadius="9" Background="#26231F" Margin="0,0,10,0" Cursor="Hand" MouseLeftButtonUp="MiniPlayerOpenMusic_Click">
-                        <TextBlock Text="🎵" Foreground="#C5A059" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <Grid>
+                    <!-- Compact Default State: Only the Music Icon at the bottom right -->
+                    <Border x:Name="MiniPlayerCompactIconBadge" Width="46" Height="46" CornerRadius="23"
+                            Background="#181B24" BorderBrush="#C5A059" BorderThickness="1.5"
+                            HorizontalAlignment="Right" VerticalAlignment="Bottom" Cursor="Hand"
+                            ToolTip="Musikplayer (Maus darüber bewegen für Details)">
+                        <TextBlock Text="🎵" Foreground="#C5A059" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
-                    <StackPanel VerticalAlignment="Center" Width="175" Margin="0,0,8,0" Cursor="Hand" MouseLeftButtonUp="MiniPlayerOpenMusic_Click">
-                        <TextBlock x:Name="MiniPlayerTitleTxt" Text="Songtitel" Foreground="#F9FAFB" FontSize="12.5" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
-                        <TextBlock x:Name="MiniPlayerArtistTxt" Text="Künstler" Foreground="#C5A059" FontSize="11" TextTrimming="CharacterEllipsis"/>
-                    </StackPanel>
-                    <Button x:Name="MiniPlayerFavBtn" Click="MusicNowPlayingFav_Click" ToolTip="Als Lieblingssong markieren" Background="Transparent" Foreground="#6B7280" BorderThickness="0" Padding="5,4" Cursor="Hand" FontSize="15" Content="♡"/>
-                    <Button Click="MusicPrev_Click" Background="Transparent" Foreground="#D1D5DB" BorderThickness="0" Padding="6,4" Cursor="Hand" FontSize="13" Content="⏮"/>
-                    <Button x:Name="MiniPlayerPlayBtn" Click="MusicPlayPause_Click" Background="#C5A059" Foreground="#111827" BorderThickness="0" Width="32" Height="32" Margin="4,0" Cursor="Hand" FontSize="13" FontWeight="Bold" Content="▶">
-                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="16"/></Style></Button.Resources>
-                    </Button>
-                    <Button Click="MusicNext_Click" Background="Transparent" Foreground="#D1D5DB" BorderThickness="0" Padding="6,4" Cursor="Hand" FontSize="13" Content="⏭"/>
-                    <Button Click="EnterMusicVenomFocusMode_Click" ToolTip="Fokus Modus (Venom Animation)" Background="#1F090D" Foreground="#EF4444" BorderBrush="#7F1D1D" BorderThickness="1" Padding="7,4" Margin="4,0,0,0" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="Fokus">
-                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
-                    </Button>
-                </StackPanel>
+
+                    <!-- Expanded Detail View on Hover -->
+                    <Border x:Name="MiniPlayerExpandedDetailBorder" Background="#181B24" BorderBrush="#C5A059" BorderThickness="1"
+                            CornerRadius="16" Padding="14,10" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Width="34" Height="34" CornerRadius="9" Background="#26231F" Margin="0,0,10,0" Cursor="Hand" MouseLeftButtonUp="MiniPlayerOpenMusic_Click" ToolTip="Zum Musik-Bereich wechseln">
+                                <TextBlock Text="🎵" Foreground="#C5A059" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Width="175" Margin="0,0,8,0" Cursor="Hand" MouseLeftButtonUp="MiniPlayerOpenMusic_Click" ToolTip="Zum Musik-Bereich wechseln">
+                                <TextBlock x:Name="MiniPlayerTitleTxt" Text="Songtitel" Foreground="#F9FAFB" FontSize="12.5" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="MiniPlayerArtistTxt" Text="Künstler" Foreground="#C5A059" FontSize="11" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                            <Button x:Name="MiniPlayerFavBtn" Click="MusicNowPlayingFav_Click" ToolTip="Als Lieblingssong markieren" Background="Transparent" Foreground="#6B7280" BorderThickness="0" Padding="5,4" Cursor="Hand" FontSize="15" Content="♡"/>
+                            <Button Click="MusicPrev_Click" Background="Transparent" Foreground="#D1D5DB" BorderThickness="0" Padding="6,4" Cursor="Hand" FontSize="13" Content="⏮"/>
+                            <Button x:Name="MiniPlayerPlayBtn" Click="MusicPlayPause_Click" Background="#C5A059" Foreground="#111827" BorderThickness="0" Width="32" Height="32" Margin="4,0" Cursor="Hand" FontSize="13" FontWeight="Bold" Content="▶">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="16"/></Style></Button.Resources>
+                            </Button>
+                            <Button Click="MusicNext_Click" Background="Transparent" Foreground="#D1D5DB" BorderThickness="0" Padding="6,4" Cursor="Hand" FontSize="13" Content="⏭"/>
+                            <Button x:Name="MiniPlayerFocusBtn" Click="EnterMusicVenomFocusMode_Click" ToolTip="Fokus Modus starten" Background="#1E222D" Foreground="#F9FAFB" BorderBrush="#C5A059" BorderThickness="1" Padding="8,4" Margin="4,0,0,0" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="✦ Fokus">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+                </Grid>
             </Border>
 
             <!-- ===================================================================== -->
             <!-- MODAL OVERLAY 1: COMPOSE / REPLY E-MAIL (Mein Seelenfunke Parity)     -->
             <!-- ===================================================================== -->
             <Grid x:Name="ComposeModalOverlay" Background="#B3000000" Visibility="Collapsed">
-                <Border Width="760" MaxHeight="810" Background="#161922" BorderBrush="#262A36" BorderThickness="1" CornerRadius="18" Padding="24,20" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <Border x:Name="ComposeModalCard" Width="760" MaxHeight="810" Background="#161922" BorderBrush="#262A36" BorderThickness="1" CornerRadius="18" Padding="24,20" VerticalAlignment="Center" HorizontalAlignment="Center"
+                        AllowDrop="True"
+                        PreviewDragEnter="ComposeModalCard_PreviewDragEnter"
+                        PreviewDragOver="ComposeModalCard_PreviewDragOver"
+                        PreviewDragLeave="ComposeModalCard_PreviewDragLeave"
+                        PreviewDrop="ComposeModalCard_PreviewDrop">
+                    <Grid>
                     <StackPanel>
                         <Grid Margin="0,0,0,14">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -4911,10 +5545,31 @@
                             <Button Grid.Column="1" Click="CloseCompose_Click" Style="{StaticResource ModalCloseButtonStyle}" Content="✕"/>
                         </Grid>
 
+                        <!-- INTELLIGENTER ASSISTENTEN-HINWEIS (STATT FEHLER-POPUP) -->
+                        <Border x:Name="ComposeSmartGuidanceBanner" Visibility="Collapsed" Background="#17140D" BorderBrush="#C5A059" BorderThickness="1.2" CornerRadius="11" Padding="14,11" Margin="0,0,0,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock x:Name="ComposeGuidanceTitleTxt" Text="Hinweis zum Versand" Foreground="#C5A059" FontSize="13" FontWeight="Bold" TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="ComposeGuidanceStepsTxt" Text="" Foreground="#E5E7EB" FontSize="12" Margin="0,5,0,6" LineHeight="18" TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="ComposeGuidanceSavedBadgeTxt" Text="✓ Dein Entwurf &amp; deine Eingaben sind vollständig gesichert." Foreground="#10B981" FontSize="11" FontWeight="SemiBold"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0">
+                                    <Button x:Name="ComposeGuidanceActionBtn" Click="ComposeGuidanceAction_Click" Visibility="Collapsed"
+                                            Background="#C5A059" Foreground="#111827" BorderThickness="0" Padding="12,7" Cursor="Hand" FontSize="11.5" FontWeight="Bold" Content="Jetzt lösen">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
                         <!-- VON POSTFACH -->
                         <StackPanel Margin="0,0,0,10">
                             <TextBlock Text="VON POSTFACH" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,4"/>
-                            <ComboBox x:Name="ComposeAccountCombo" DisplayMemberPath="DisplayLabel" SelectedValuePath="Id" Padding="8,6" FontSize="13"/>
+                            <ComboBox x:Name="ComposeAccountCombo" DisplayMemberPath="DisplayLabel" SelectedValuePath="Id" SelectionChanged="ComposeAccountCombo_SelectionChanged" Padding="8,6" FontSize="13"/>
                         </StackPanel>
 
                         <!-- EMPFÄNGER (AN) + CC/BCC TOGGLE + KACHELN -->
@@ -5096,7 +5751,7 @@
                                     </Button>
                                 </StackPanel>
                             </Grid>
-                            <TextBox x:Name="ComposeBodyInput" Background="#0F1117" Foreground="#F9FAFB" BorderBrush="#262A36" Padding="12" FontSize="13.5" Height="210" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+                            <TextBox x:Name="ComposeBodyInput" Background="#0F1117" Foreground="#F9FAFB" BorderBrush="#262A36" Padding="12,10" FontSize="13.5" Height="210" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top" HorizontalContentAlignment="Left" TextAlignment="Left" VerticalScrollBarVisibility="Auto"/>
                         </StackPanel>
 
                         <!-- ANHÄNGE BEREICH (wie in Mein Seelenfunke) -->
@@ -5124,7 +5779,7 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" Orientation="Horizontal">
-                                <Button x:Name="ComposeAttachFileBtn" Click="AddComposeAttachment_Click" Background="#1F2430" Foreground="#F3F4F6" BorderBrush="#2E3446" BorderThickness="1" Padding="13,9" Margin="0,0,8,0" Cursor="Hand" ToolTip="Datei(en) an diese E-Mail anhängen (max. 20 MB)">
+                                <Button x:Name="ComposeAttachFileBtn" Click="AddComposeAttachment_Click" Background="#1F2430" Foreground="#F3F4F6" BorderBrush="#2E3446" BorderThickness="1" Padding="13,9" Margin="0,0,8,0" Cursor="Hand" ToolTip="Datei(en) auswählen oder per Drag &amp; Drop in dieses Fenster ziehen (max. 20 MB)">
                                     <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="10"/></Style></Button.Resources>
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="📎 " Foreground="#C5A059" FontSize="12.5"/>
@@ -5145,6 +5800,135 @@
                                 </Button>
                             </StackPanel>
                         </Grid>
+                    </StackPanel>
+
+                    <!-- Drag & Drop Attachment Visual Overlay -->
+                    <Border x:Name="ComposeDropOverlayBorder" Visibility="Collapsed" IsHitTestVisible="False"
+                            Background="#E611141C" BorderBrush="#C5A059" BorderThickness="2" CornerRadius="14" Padding="24">
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock Text="📎" FontSize="34" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                            <TextBlock Text="Dateien als Anhang ablegen" Foreground="#C5A059" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Loslassen zum direkten Anhängen an diese E-Mail" Foreground="#D1D5DB" FontSize="12" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- ===================================================================== -->
+            <!-- MODAL OVERLAY 1B: POSTFACH & SMTP PASSWORT KONFIGURIEREN              -->
+            <!-- ===================================================================== -->
+            <Grid x:Name="MailAccountSettingsModalOverlay" Background="#BF000000" Visibility="Collapsed">
+                <Border Width="540" Background="#161922" BorderBrush="#C5A059" BorderThickness="1.2" CornerRadius="18" Padding="24,20" VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <TextBlock x:Name="MailAccModalTitleTxt" Text="Postfach &amp; SMTP" Foreground="#F9FAFB" FontSize="18" FontWeight="Bold" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Click="CloseMailAccountSettings_Click" Style="{StaticResource ModalCloseButtonStyle}" Content="✕"/>
+                        </Grid>
+
+                        <Border x:Name="MailAccProviderHintBorder" Visibility="Collapsed" Background="#1E1A12" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="10" Padding="11,8" Margin="0,0,0,12">
+                            <TextBlock x:Name="MailAccProviderHintTxt" Text="" Foreground="#E5E7EB" FontSize="11.5" TextWrapping="Wrap"/>
+                        </Border>
+
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="E-MAIL-ADRESSE" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,4"/>
+                                <TextBox x:Name="MailAccEmailBox" Padding="10,7" FontSize="13" TextChanged="MailAccEmailBox_TextChanged"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="ABSENDERNAME" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,4"/>
+                                <TextBox x:Name="MailAccNameBox" Padding="10,7" FontSize="13"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <StackPanel Margin="0,0,0,12">
+                            <TextBlock x:Name="MailAccPasswordLabelTxt" Text="E-MAIL-PASSWORT / APP-PASSWORT" Foreground="#C5A059" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,4"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="40"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Background="{DynamicResource ThemeInputBgBrush}" BorderBrush="{DynamicResource ThemeInputBorderBrush}" BorderThickness="1" CornerRadius="9">
+                                    <Grid>
+                                        <PasswordBox x:Name="MailAccPasswordBox" Background="Transparent" Foreground="{DynamicResource ThemeInputFgBrush}" BorderThickness="0" Padding="10,8" FontSize="13.5" PasswordChanged="MailAccPasswordBox_PasswordChanged"/>
+                                        <TextBox x:Name="MailAccPasswordPlainBox" Visibility="Collapsed" Background="Transparent" Foreground="{DynamicResource ThemeInputFgBrush}" BorderThickness="0" Padding="10,7" FontSize="13.5" TextChanged="MailAccPasswordPlainBox_TextChanged"/>
+                                        <TextBlock x:Name="MailAccPasswordSavedHintTxt" Text="✓ Angemeldet" Foreground="#34D399" FontWeight="Bold" FontSize="13" VerticalAlignment="Center" Margin="12,0,0,0" IsHitTestVisible="False" Visibility="Collapsed"/>
+                                    </Grid>
+                                </Border>
+                                <Button x:Name="MailAccPasswordEyeBtn" Grid.Column="1" Click="ToggleMailAccPasswordEye_Click" Margin="6,0,0,0" Background="#1F2430" Foreground="#C5A059" BorderBrush="#2E3446" BorderThickness="1" Cursor="Hand" Content="👁" ToolTip="Passwort ein-/ausblenden">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
+                                </Button>
+                            </Grid>
+                        </StackPanel>
+
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.5*"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="95"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="SMTP-SERVER (AUSGANG)" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,4"/>
+                                <TextBox x:Name="MailAccSmtpHostBox" Padding="10,7" FontSize="12.5"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="PORT" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,4"/>
+                                <TextBox x:Name="MailAccSmtpPortBox" Padding="8,7" FontSize="12.5"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Text="SCHUTZ" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,4"/>
+                                <ComboBox x:Name="MailAccSmtpEncCombo" SelectedIndex="0" Padding="8,6" FontSize="12">
+                                    <ComboBoxItem Content="ssl" Tag="ssl"/>
+                                    <ComboBoxItem Content="tls" Tag="tls"/>
+                                </ComboBox>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.5*"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="95"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="IMAP-SERVER (EINGANG)" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,4"/>
+                                <TextBox x:Name="MailAccImapHostBox" Padding="10,7" FontSize="12.5"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="PORT" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,4"/>
+                                <TextBox x:Name="MailAccImapPortBox" Padding="8,7" FontSize="12.5"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Text="SCHUTZ" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,4"/>
+                                <ComboBox x:Name="MailAccImapEncCombo" SelectedIndex="0" Padding="8,6" FontSize="12">
+                                    <ComboBoxItem Content="ssl" Tag="ssl"/>
+                                    <ComboBoxItem Content="tls" Tag="tls"/>
+                                </ComboBox>
+                            </StackPanel>
+                        </Grid>
+
+                        <Border x:Name="MailAccStatusBorder" Visibility="Collapsed" CornerRadius="9" Padding="10,8" Margin="0,0,0,12" BorderThickness="1">
+                            <TextBlock x:Name="MailAccStatusTxt" Text="" FontSize="12" TextWrapping="Wrap"/>
+                        </Border>
+
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Click="CloseMailAccountSettings_Click" Background="#1F2430" Foreground="#D1D5DB" BorderThickness="0" Padding="15,9" Margin="0,0,10,0" Cursor="Hand" Content="Abbrechen">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="10"/></Style></Button.Resources>
+                            </Button>
+                            <Button x:Name="SaveMailAccountBtn" Click="SaveMailAccountSettings_Click" Background="#C5A059" Foreground="#111827" FontWeight="Bold" BorderThickness="0" Padding="18,9" Cursor="Hand" Content="✓ Prüfen &amp; Speichern">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="10"/></Style></Button.Resources>
+                            </Button>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
             </Grid>
@@ -5342,8 +6126,8 @@
                                                 </StackPanel>
                                             </Grid>
 
-                                            <!-- 9 Mini Icon Tabs (1 for each Left Sidebar Navigation Item) -->
-                                            <UniformGrid Columns="9" Rows="1" Margin="0,0,0,12">
+                                            <!-- 10 Mini Icon Tabs (1 for each Left Sidebar Navigation Item) -->
+                                            <UniformGrid Columns="10" Rows="1" Margin="0,0,0,12">
                                                 <!-- Tab 1: E-Mail -->
                                                 <Border x:Name="DesignSpaceTabMail" Background="#26231F" BorderBrush="#C5A059" BorderThickness="1.5" CornerRadius="9" Height="38" Margin="0,0,4,0" Cursor="Hand" MouseLeftButtonUp="DesignSpaceTab_Click" Tag="mail" ToolTip="Tab 1: E-Mail">
                                                     <Grid>
@@ -5441,7 +6225,7 @@
                                                 </Border>
 
                                                 <!-- Tab 9: Bestellungen / Labeldruck -->
-                                                <Border x:Name="DesignSpaceTabOrders" Background="#0F1117" BorderBrush="#262A36" BorderThickness="1" CornerRadius="9" Height="38" Margin="4,0,0,0" Cursor="Hand" MouseLeftButtonUp="DesignSpaceTab_Click" Tag="orders" ToolTip="Tab 9: Bestellungen &amp; Labeldruck">
+                                                <Border x:Name="DesignSpaceTabOrders" Background="#0F1117" BorderBrush="#262A36" BorderThickness="1" CornerRadius="9" Height="38" Margin="2,0,2,0" Cursor="Hand" MouseLeftButtonUp="DesignSpaceTab_Click" Tag="orders" ToolTip="Tab 9: Bestellungen &amp; Labeldruck">
                                                     <Grid>
                                                         <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                             <Canvas Width="24" Height="24">
@@ -5449,6 +6233,18 @@
                                                             </Canvas>
                                                         </Viewbox>
                                                         <Ellipse x:Name="DesignSpaceTabOrdersDot" Width="6" Height="6" Fill="#000000" Stroke="#C5A059" StrokeThickness="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,4"/>
+                                                    </Grid>
+                                                </Border>
+
+                                                <!-- Tab 10: Dateiverwaltung -->
+                                                <Border x:Name="DesignSpaceTabFiles" Background="#0F1117" BorderBrush="#262A36" BorderThickness="1" CornerRadius="9" Height="38" Margin="4,0,0,0" Cursor="Hand" MouseLeftButtonUp="DesignSpaceTab_Click" Tag="files" ToolTip="Tab 10: Dateiverwaltung">
+                                                    <Grid>
+                                                        <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <Canvas Width="24" Height="24">
+                                                                <Path x:Name="DesignSpaceTabFilesIcon" Fill="Transparent" Stroke="#F9FAFB" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Data="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+                                                            </Canvas>
+                                                        </Viewbox>
+                                                        <Ellipse x:Name="DesignSpaceTabFilesDot" Width="6" Height="6" Fill="#000000" Stroke="#C5A059" StrokeThickness="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,4"/>
                                                     </Grid>
                                                 </Border>
                                             </UniformGrid>
@@ -5579,6 +6375,7 @@
                                                 <ComboBoxItem Content="Immer mit Marketing &amp; Content starten" Tag="marketing"/>
                                                 <ComboBoxItem Content="Immer mit Kalender starten" Tag="calendar"/>
                                                 <ComboBoxItem Content="Immer mit Adressbuch starten" Tag="contacts"/>
+                                                <ComboBoxItem Content="Immer mit Dateiverwaltung starten" Tag="files"/>
                                             </ComboBox>
                                         </StackPanel>
                                     </Border>
@@ -5825,11 +6622,17 @@
                             <Border Background="#13161F" BorderBrush="#232734" BorderThickness="1" CornerRadius="10" Padding="12,10" Margin="0,0,0,12">
                                 <StackPanel>
                                     <CheckBox x:Name="SmartCamMotionCheck" Content="Automatische Videoaufnahme bei Bewegung aktivieren (15s MP4-Clip)" Foreground="#F3F4F6" FontSize="12.5" FontWeight="SemiBold" Margin="0,0,0,8" Cursor="Hand"/>
-                                    <Grid>
+                                    <Grid Margin="0,0,0,10">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="45"/></Grid.ColumnDefinitions>
                                         <TextBlock Text="Empfindlichkeit:" Foreground="#9CA3AF" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                         <Slider x:Name="SmartCamSensSlider" Grid.Column="1" Minimum="10" Maximum="100" Value="65" VerticalAlignment="Center"/>
                                         <TextBlock Grid.Column="2" Text="{Binding ElementName=SmartCamSensSlider, Path=Value, StringFormat={}{0:0}%}" Foreground="#C5A059" FontSize="11.5" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+                                    <Border Height="1" Background="#1E222D" Margin="0,0,0,8"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <CheckBox x:Name="SmartCamInvertPanCheck" Grid.Column="0" Content="PTZ Links/Rechts umkehren" Foreground="#D1D5DB" FontSize="12" IsChecked="True" Cursor="Hand" ToolTip="Kehrt die horizontale Drehrichtung der Kamera um (Standard aktiv für TP-Link Tapo ONVIF)"/>
+                                        <CheckBox x:Name="SmartCamInvertTiltCheck" Grid.Column="1" Content="PTZ Oben/Unten umkehren" Foreground="#D1D5DB" FontSize="12" IsChecked="False" Cursor="Hand" ToolTip="Kehrt die vertikale Neigerichtung um (z. B. bei Überkopf-Deckenmontage)"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -5899,14 +6702,15 @@
         <!-- FULL-WINDOW AUTHENTICATION / LOGIN OVERLAY (Luxury Atelier Video + Magic) -->
         <!-- ========================================================================= -->
         <Grid x:Name="AuthLoginOverlayGrid" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Panel.ZIndex="999" Background="#0B0D12" Visibility="Collapsed" ClipToBounds="True">
-            <!-- Layer 0: High-Res Poster Backdrop (Zero-latency initial frame) -->
-            <Image x:Name="AuthLoginBgPosterImg" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+            <!-- Layer 0: High-Res Poster Backdrop (Zero-latency initial frame matching exact Frame 0) -->
+            <Image x:Name="AuthLoginBgPosterImg" Panel.ZIndex="0" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
 
-            <!-- Layer 1: Epic Slow-Motion Luxury Atelier Video (Slate, Metal, Smoked Glass, Candles & Golden Diamond Crystal "Mein Seelenfunke") -->
-            <MediaElement x:Name="AuthLoginBgVideo" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" IsMuted="True" MediaEnded="AuthLoginBgVideo_MediaEnded"/>
+            <!-- Layer 1A & 1B: Dual-Buffered A/B Seamless Loop Video Players (Zero black frame / decoder flush on loop!) -->
+            <MediaElement x:Name="AuthLoginBgVideo" Panel.ZIndex="2" LoadedBehavior="Manual" UnloadedBehavior="Manual" ScrubbingEnabled="True" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" IsMuted="True" MediaEnded="AuthLoginBgVideo_MediaEnded"/>
+            <MediaElement x:Name="AuthLoginBgVideoB" Panel.ZIndex="1" Opacity="0" LoadedBehavior="Manual" UnloadedBehavior="Manual" ScrubbingEnabled="True" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" IsMuted="True" MediaEnded="AuthLoginBgVideoB_MediaEnded"/>
 
             <!-- Layer 2: Ultra-Subtle Ambient Veil so the Atelier Video shines through crystal clear -->
-            <Border IsHitTestVisible="False">
+            <Border Panel.ZIndex="3" IsHitTestVisible="False">
                 <Border.Background>
                     <RadialGradientBrush Center="0.5,0.5" GradientOrigin="0.5,0.5" RadiusX="0.75" RadiusY="0.75">
                         <GradientStop Color="#22000000" Offset="0.0"/>
@@ -5917,85 +6721,122 @@
             </Border>
 
             <!-- Layer 3: Centered Ultra-Noble Transparent Crystal Login Modal (Main Card #28000000, Smoked Opaque Inputs & Buttons for Crisp Readability) -->
-            <Border x:Name="AuthLoginCardBorder" Width="430" Background="#28000000" BorderBrush="#77C5A059" BorderThickness="1" CornerRadius="20" Padding="32,26" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0">
-                <StackPanel>
-                    <!-- Subtle Translucent Atelier Emblem Line -->
-                    <TextBlock x:Name="AuthHeaderSubtitleTxt" Text="✦   M E I N   S E E L E N F U N K E   ✦" Foreground="#F2FCE7B2" FontSize="10.5" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,16"/>
-
-                    <!-- Environment Selector Pills (Lokal / Stage / Live) - Smoked Dark Glass for Crisp Readability -->
-                    <UniformGrid Columns="3" Margin="0,0,0,16">
-                        <Border x:Name="AuthEnvLocalPill" Background="#A6000000" BorderBrush="#66C5A059" BorderThickness="1" CornerRadius="9" Padding="8,6" Margin="0,0,4,0" Cursor="Hand" MouseLeftButtonUp="AuthEnvPill_Click" Tag="local" ToolTip="http://127.0.0.1/api">
-                            <TextBlock x:Name="AuthEnvLocalTxt" Text="Lokal" Foreground="#E6FFFFFF" FontSize="11.5" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-                        </Border>
-                        <Border x:Name="AuthEnvStagePill" Background="#D91F1708" BorderBrush="#F2C5A059" BorderThickness="1.2" CornerRadius="9" Padding="8,6" Margin="2,0,2,0" Cursor="Hand" MouseLeftButtonUp="AuthEnvPill_Click" Tag="stage" ToolTip="https://stage.mein-seelenfunke.de/api">
-                            <TextBlock x:Name="AuthEnvStageTxt" Text="Stage" Foreground="#FFFCE7B2" FontSize="11.5" FontWeight="Bold" HorizontalAlignment="Center"/>
-                        </Border>
-                        <Border x:Name="AuthEnvLivePill" Background="#A6000000" BorderBrush="#66C5A059" BorderThickness="1" CornerRadius="9" Padding="8,6" Margin="4,0,0,0" Cursor="Hand" MouseLeftButtonUp="AuthEnvPill_Click" Tag="live" ToolTip="https://mein-seelenfunke.de/api">
-                            <TextBlock x:Name="AuthEnvLiveTxt" Text="Live" Foreground="#E6FFFFFF" FontSize="11.5" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-                        </Border>
-                    </UniformGrid>
-
-                    <!-- E-Mail Field (Smoked Obsidian Glass Input) -->
-                    <TextBlock x:Name="AuthEmailLabelTxt" Text="E-MAIL" Foreground="#F2FCE7B2" FontSize="10" FontWeight="Bold" Margin="2,0,0,5"/>
-                    <Border x:Name="AuthEmailInputBorder" Background="#BF000000" BorderBrush="#A6C5A059" BorderThickness="1" CornerRadius="11" Margin="0,0,0,12">
-                        <TextBox x:Name="AuthLoginEmailBox" Background="Transparent" Foreground="#FFFFFFFF" BorderThickness="0" CaretBrush="#C5A059" Padding="13,9" FontSize="13.5" VerticalContentAlignment="Center" KeyDown="AuthLoginInput_KeyDown"/>
-                    </Border>
-
-                    <!-- Password Field (Smoked Obsidian Glass Input + Crisp White Vector Eye Icon) -->
-                    <TextBlock x:Name="AuthPasswordLabelTxt" Text="PASSWORT" Foreground="#F2FCE7B2" FontSize="10" FontWeight="Bold" Margin="2,0,0,5"/>
-                    <Border x:Name="AuthPasswordInputBorder" Background="#BF000000" BorderBrush="#A6C5A059" BorderThickness="1" CornerRadius="11" Margin="0,0,0,12">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <PasswordBox x:Name="AuthLoginPasswordBox" Grid.Column="0" Background="Transparent" Foreground="#FFFFFFFF" BorderThickness="0" CaretBrush="#C5A059" Padding="13,9" FontSize="13.5" VerticalContentAlignment="Center" PasswordChanged="AuthLoginPasswordBox_PasswordChanged" KeyDown="AuthLoginInput_KeyDown"/>
-                            <TextBox x:Name="AuthLoginPasswordVisibleBox" Grid.Column="0" Background="Transparent" Foreground="#FFFFFFFF" BorderThickness="0" CaretBrush="#C5A059" Padding="13,9" FontSize="13.5" VerticalContentAlignment="Center" Visibility="Collapsed" TextChanged="AuthLoginPasswordVisibleBox_TextChanged" KeyDown="AuthLoginInput_KeyDown"/>
-                            <Button x:Name="AuthLoginPasswordEyeBtn" Grid.Column="1" Click="ToggleAuthLoginPasswordVisibility_Click" Background="Transparent" BorderThickness="0" Padding="11,4" Cursor="Hand" ToolTip="Passwort anzeigen / verbergen">
-                                <Viewbox Width="16" Height="16" VerticalAlignment="Center">
-                                    <Canvas Width="24" Height="24">
-                                        <Path x:Name="AuthLoginPasswordEyePath" Fill="Transparent" Stroke="#F2FFFFFF" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                                              Data="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 9a3 3 0 100 6 3 3 0 000-6z"/>
-                                        <Path x:Name="AuthLoginPasswordEyeSlashPath" Fill="Transparent" Stroke="#FFFCE7B2" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Visibility="Collapsed"
-                                              Data="M3 3l18 18"/>
-                                    </Canvas>
-                                </Viewbox>
-                            </Button>
-                        </Grid>
-                    </Border>
-
-                    <!-- Remember Password & Auto-Login Checkbox -->
-                    <CheckBox x:Name="AuthLoginRememberCheck" Content="Passwort merken &amp; automatisch einloggen" Foreground="#F2FFFFFF" FontSize="12" FontWeight="SemiBold" IsChecked="True" Margin="2,0,0,14" Cursor="Hand"/>
-
-                    <!-- Error Feedback Box -->
-                    <Border x:Name="AuthLoginErrorBorder" Background="#CC1A0808" BorderBrush="#CCEF4444" BorderThickness="1" CornerRadius="9" Padding="10,7" Margin="0,0,0,12" Visibility="Collapsed">
-                        <TextBlock x:Name="AuthLoginErrorTxt" Text="" Foreground="#FCA5A5" FontSize="11.5" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                    </Border>
-
-                    <!-- Primary Login Button (Smoked Obsidian-Gold Glass + Noble Gold Text) -->
-                    <Button x:Name="AuthLoginSubmitBtn" Click="AuthLoginSubmitBtn_Click" Background="#D91F1708" BorderBrush="#F2C5A059" BorderThickness="1.2" Foreground="#FFFCE7B2" FontWeight="Bold" FontSize="13.5" Padding="0,11" Cursor="Hand" Content="✦   ANMELDEN   ✦">
-                        <Button.Template>
-                            <ControlTemplate TargetType="Button">
-                                <Border x:Name="BtnBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="11" Padding="{TemplateBinding Padding}">
-                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <ControlTemplate.Triggers>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="BtnBorder" Property="Background" Value="#EB2B200B"/>
-                                        <Setter TargetName="BtnBorder" Property="BorderBrush" Value="#FFC5A059"/>
-                                    </Trigger>
-                                    <Trigger Property="IsPressed" Value="True">
-                                        <Setter TargetName="BtnBorder" Property="Background" Value="#F536280E"/>
-                                    </Trigger>
-                                </ControlTemplate.Triggers>
-                            </ControlTemplate>
-                        </Button.Template>
+            <Border x:Name="AuthLoginCardBorder" Panel.ZIndex="4" Width="430" Background="#28000000" BorderBrush="#77C5A059" BorderThickness="1" CornerRadius="20" Padding="32,26" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0">
+                <Grid>
+                    <!-- Top-Right Minimize Login Card Button -->
+                    <Button x:Name="AuthLoginMinimizeCardBtn" Click="MinimizeAuthLoginCard_Click"
+                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-8,-10,0"
+                            Width="28" Height="28" Background="#80000000" BorderBrush="#66C5A059" BorderThickness="1"
+                            Foreground="#F2FCE7B2" FontSize="12" FontWeight="Bold" Cursor="Hand"
+                            ToolTip="Login-Fenster minimieren (Unten rechts als Login-Icon ablegen)" Content="—">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="14"/></Style></Button.Resources>
                     </Button>
-                </StackPanel>
+
+                    <StackPanel>
+                        <!-- Subtle Translucent Atelier Emblem Line -->
+                        <TextBlock x:Name="AuthHeaderSubtitleTxt" Text="✦   M E I N   S E E L E N F U N K E   ✦" Foreground="#F2FCE7B2" FontSize="10.5" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,16"/>
+
+                        <!-- Environment Selector Pills (Lokal / Stage / Live) - Smoked Dark Glass for Crisp Readability -->
+                        <UniformGrid Columns="3" Margin="0,0,0,16">
+                            <Border x:Name="AuthEnvLocalPill" Background="#A6000000" BorderBrush="#66C5A059" BorderThickness="1" CornerRadius="9" Padding="8,6" Margin="0,0,4,0" Cursor="Hand" MouseLeftButtonUp="AuthEnvPill_Click" Tag="local" ToolTip="http://127.0.0.1/api">
+                                <TextBlock x:Name="AuthEnvLocalTxt" Text="Lokal" Foreground="#E6FFFFFF" FontSize="11.5" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                            </Border>
+                            <Border x:Name="AuthEnvStagePill" Background="#D91F1708" BorderBrush="#F2C5A059" BorderThickness="1.2" CornerRadius="9" Padding="8,6" Margin="2,0,2,0" Cursor="Hand" MouseLeftButtonUp="AuthEnvPill_Click" Tag="stage" ToolTip="https://stage.mein-seelenfunke.de/api">
+                                <TextBlock x:Name="AuthEnvStageTxt" Text="Stage" Foreground="#FFFCE7B2" FontSize="11.5" FontWeight="Bold" HorizontalAlignment="Center"/>
+                            </Border>
+                            <Border x:Name="AuthEnvLivePill" Background="#A6000000" BorderBrush="#66C5A059" BorderThickness="1" CornerRadius="9" Padding="8,6" Margin="4,0,0,0" Cursor="Hand" MouseLeftButtonUp="AuthEnvPill_Click" Tag="live" ToolTip="https://mein-seelenfunke.de/api">
+                                <TextBlock x:Name="AuthEnvLiveTxt" Text="Live" Foreground="#E6FFFFFF" FontSize="11.5" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                            </Border>
+                        </UniformGrid>
+
+                        <!-- E-Mail Field (Smoked Obsidian Glass Input + Sound Effect on Click) -->
+                        <TextBlock x:Name="AuthEmailLabelTxt" Text="E-MAIL" Foreground="#F2FCE7B2" FontSize="10" FontWeight="Bold" Margin="2,0,0,5"/>
+                        <Border x:Name="AuthEmailInputBorder" Background="#BF000000" BorderBrush="#A6C5A059" BorderThickness="1" CornerRadius="11" Margin="0,0,0,12" PreviewMouseLeftButtonDown="AuthLoginInput_PreviewMouseLeftButtonDown">
+                            <TextBox x:Name="AuthLoginEmailBox" Background="Transparent" Foreground="#FFFFFFFF" BorderThickness="0" CaretBrush="#C5A059" Padding="13,9" FontSize="13.5" VerticalContentAlignment="Center" KeyDown="AuthLoginInput_KeyDown" PreviewMouseLeftButtonDown="AuthLoginInput_PreviewMouseLeftButtonDown"/>
+                        </Border>
+
+                        <!-- Password Field (Smoked Obsidian Glass Input + Crisp White Vector Eye Icon + Sound Effect on Click) -->
+                        <TextBlock x:Name="AuthPasswordLabelTxt" Text="PASSWORT" Foreground="#F2FCE7B2" FontSize="10" FontWeight="Bold" Margin="2,0,0,5"/>
+                        <Border x:Name="AuthPasswordInputBorder" Background="#BF000000" BorderBrush="#A6C5A059" BorderThickness="1" CornerRadius="11" Margin="0,0,0,12" PreviewMouseLeftButtonDown="AuthLoginInput_PreviewMouseLeftButtonDown">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <PasswordBox x:Name="AuthLoginPasswordBox" Grid.Column="0" Background="Transparent" Foreground="#FFFFFFFF" BorderThickness="0" CaretBrush="#C5A059" Padding="13,9" FontSize="13.5" VerticalContentAlignment="Center" PasswordChanged="AuthLoginPasswordBox_PasswordChanged" KeyDown="AuthLoginInput_KeyDown" PreviewMouseLeftButtonDown="AuthLoginInput_PreviewMouseLeftButtonDown"/>
+                                <TextBox x:Name="AuthLoginPasswordVisibleBox" Grid.Column="0" Background="Transparent" Foreground="#FFFFFFFF" BorderThickness="0" CaretBrush="#C5A059" Padding="13,9" FontSize="13.5" VerticalContentAlignment="Center" Visibility="Collapsed" TextChanged="AuthLoginPasswordVisibleBox_TextChanged" KeyDown="AuthLoginInput_KeyDown" PreviewMouseLeftButtonDown="AuthLoginInput_PreviewMouseLeftButtonDown"/>
+                                <TextBlock x:Name="AuthLoginConnectedHintTxt" Grid.Column="0" Text="✓ Angemeldet" Foreground="#34D399" FontWeight="Bold" FontSize="13.5" VerticalAlignment="Center" Margin="14,0,0,0" IsHitTestVisible="False" Visibility="Collapsed"/>
+                                <Button x:Name="AuthLoginPasswordEyeBtn" Grid.Column="1" Click="ToggleAuthLoginPasswordVisibility_Click" Background="Transparent" BorderThickness="0" Padding="11,4" Cursor="Hand" ToolTip="Passwort anzeigen / verbergen">
+                                    <Viewbox Width="16" Height="16" VerticalAlignment="Center">
+                                        <Canvas Width="24" Height="24">
+                                            <Path x:Name="AuthLoginPasswordEyePath" Fill="Transparent" Stroke="#F2FFFFFF" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                                  Data="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 9a3 3 0 100 6 3 3 0 000-6z"/>
+                                            <Path x:Name="AuthLoginPasswordEyeSlashPath" Fill="Transparent" Stroke="#FFFCE7B2" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Visibility="Collapsed"
+                                                  Data="M3 3l18 18"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                </Button>
+                            </Grid>
+                        </Border>
+
+                        <!-- Remember Password & Auto-Login Checkbox -->
+                        <CheckBox x:Name="AuthLoginRememberCheck" Content="Passwort merken &amp; automatisch einloggen" Foreground="#F2FFFFFF" FontSize="12" FontWeight="SemiBold" IsChecked="True" Margin="2,0,0,14" Cursor="Hand"/>
+
+                        <!-- Error Feedback Box -->
+                        <Border x:Name="AuthLoginErrorBorder" Background="#CC1A0808" BorderBrush="#CCEF4444" BorderThickness="1" CornerRadius="9" Padding="10,7" Margin="0,0,0,12" Visibility="Collapsed">
+                            <TextBlock x:Name="AuthLoginErrorTxt" Text="" Foreground="#FCA5A5" FontSize="11.5" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                        </Border>
+
+                        <!-- Primary Login Button (Smoked Obsidian-Gold Glass + Noble Gold Text) -->
+                        <Button x:Name="AuthLoginSubmitBtn" Click="AuthLoginSubmitBtn_Click" Background="#D91F1708" BorderBrush="#F2C5A059" BorderThickness="1.2" Foreground="#FFFCE7B2" FontWeight="Bold" FontSize="13.5" Padding="0,11" Cursor="Hand" Content="✦   ANMELDEN   ✦">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="BtnBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="11" Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="BtnBorder" Property="Background" Value="#EB2B200B"/>
+                                            <Setter TargetName="BtnBorder" Property="BorderBrush" Value="#FFC5A059"/>
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
+                                            <Setter TargetName="BtnBorder" Property="Background" Value="#F536280E"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </StackPanel>
+                </Grid>
             </Border>
 
+            <!-- Layer 3B: Minimized Login Icon Button at Bottom-Right (Only visible when Login Card is minimized) -->
+            <Button x:Name="AuthLoginMinimizedRestoreBtn" Panel.ZIndex="4" Click="RestoreAuthLoginCard_Click"
+                    HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,26,22"
+                    Width="48" Height="48" Background="#D9141008" BorderBrush="#F2C5A059" BorderThickness="1.5"
+                    Cursor="Hand" Visibility="Collapsed" ToolTip="Login-Fenster wieder einblenden">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="MinIconBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="24">
+                            <Viewbox Width="22" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Canvas Width="24" Height="24">
+                                    <Path Fill="Transparent" Stroke="#FFFCE7B2" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                          Data="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4 M10 17l5-5-5-5 M15 12H3"/>
+                                </Canvas>
+                            </Viewbox>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="MinIconBorder" Property="Background" Value="#F2261D0C"/>
+                                <Setter TargetName="MinIconBorder" Property="BorderBrush" Value="#FFFDE68A"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+
             <!-- Layer 4: Full-Window "Magie aktivieren" Portal Transition Overlay -->
-            <Grid x:Name="AuthMagicActivationOverlay" Background="#E6070A14" Visibility="Collapsed" IsHitTestVisible="True">
+            <Grid x:Name="AuthMagicActivationOverlay" Panel.ZIndex="5" Background="#E6070A14" Visibility="Collapsed" IsHitTestVisible="True">
                 <!-- Warm Golden Radial Glow -->
                 <Ellipse Width="680" Height="680" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
                     <Ellipse.Fill>
@@ -6076,25 +6917,49 @@
         </Grid>
 
         <!-- ========================================================================= -->
-        <!-- FULL-WINDOW MUSIC FOCUS MODE: RED & BLACK VENOM WALLPAPER ANIMATION       -->
+        <!-- FULL-WINDOW MUSIC FOCUS MODE: SEELENFUNKE CELESTIAL RHYTHM ANIMATION      -->
         <!-- ========================================================================= -->
         <Grid x:Name="MusicVenomFocusOverlay" Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Grid.ColumnSpan="2"
-              Panel.ZIndex="9950" Visibility="Collapsed" Background="#000000" ClipToBounds="True"
+              Panel.ZIndex="9950" Visibility="Collapsed" Background="#030407" ClipToBounds="True"
               MouseEnter="MusicVenomFocusOverlay_MouseEnter"
               MouseMove="MusicVenomFocusOverlay_MouseMove"
               MouseLeave="MusicVenomFocusOverlay_MouseLeave"
               MouseLeftButtonDown="MusicVenomFocusOverlay_MouseLeftButtonDown">
-            <Canvas x:Name="VenomFocusCanvas" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="False"/>
 
-            <!-- Bottom-Right "Fokus beenden" Button (Only visible when mouse is inside the window) -->
-            <Button x:Name="VenomExitFocusBtn" Click="ExitMusicVenomFocusMode_Click"
-                    HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,26,22"
-                    Background="#4D0A0204" Foreground="#CCF9FAFB" BorderBrush="#55EF4444" BorderThickness="1"
-                    Padding="16,9" Cursor="Hand" FontSize="12.5" FontWeight="SemiBold" Opacity="0.62"
+            <!-- Zero-Allocation VSync-Locked (60-240 FPS) GPU Celestial Renderer -->
+            <local:CelestialFocusRenderer x:Name="CelestialFocusHost" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+            <Canvas x:Name="VenomFocusCanvas" Visibility="Collapsed" IsHitTestVisible="False"/>
+
+            <!-- Crisp Static Track HUD (Updated only on track change -> zero per-frame layout overhead!) -->
+            <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center" Width="640" Margin="0,0,0,54" IsHitTestVisible="False">
+                <Border Background="#26C5A059" BorderBrush="#6EC5A059" BorderThickness="1" CornerRadius="12"
+                        Padding="12,4" HorizontalAlignment="Center" Margin="0,0,0,10">
+                    <TextBlock Text="✦   S E E L E N F U N K E   F O K U S   ✦" Foreground="#FDE68A" FontSize="10" FontWeight="Bold"/>
+                </Border>
+                <TextBlock x:Name="FocusTrackTitleTxt" Text="Seelenfunke Klangwelt" Foreground="#F9FAFB"
+                           FontSize="21" FontWeight="Bold" TextAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="FocusTrackArtistTxt" Text="Mein Seelenfunke" Foreground="#C5A059"
+                           FontSize="13.5" FontWeight="SemiBold" TextAlignment="Center" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+
+            <!-- Bottom-Right Hover Controls (Prev / Play-Pause / Next / Fokus beenden) -->
+            <Border x:Name="VenomExitFocusBtn" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,26,22"
+                    Background="#BF0B0D12" BorderBrush="#88C5A059" BorderThickness="1" CornerRadius="12" Padding="8,6"
                     Visibility="Collapsed">
-                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="10"/></Style></Button.Resources>
-                <TextBlock Text="Fokus beenden"/>
-            </Button>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Click="MusicPrev_Click" ToolTip="Vorheriger Titel" Background="Transparent" Foreground="#D1D5DB" BorderThickness="0" Padding="8,4" Cursor="Hand" FontSize="12.5" Content="⏮"/>
+                    <Button x:Name="FocusOverlayPlayPauseBtn" Click="MusicPlayPause_Click" ToolTip="Play / Pause" Background="#26C5A059" Foreground="#FDE68A" BorderBrush="#88C5A059" BorderThickness="1" Width="30" Height="30" Margin="4,0" Cursor="Hand" FontSize="12" FontWeight="Bold" Content="❚❚">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="15"/></Style></Button.Resources>
+                    </Button>
+                    <Button Click="MusicNext_Click" ToolTip="Nächster Titel" Background="Transparent" Foreground="#D1D5DB" BorderThickness="0" Padding="8,4" Margin="0,0,8,0" Cursor="Hand" FontSize="12.5" Content="⏭"/>
+                    <Button Click="ExitMusicVenomFocusMode_Click" ToolTip="Fokus-Modus beenden (Esc oder Doppelklick)"
+                            Background="#261F15" Foreground="#FDE68A" BorderBrush="#88C5A059" BorderThickness="1"
+                            Padding="13,6" Cursor="Hand" FontSize="12" FontWeight="SemiBold">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
+                        <TextBlock Text="✦ Fokus beenden"/>
+                    </Button>
+                </StackPanel>
+            </Border>
         </Grid>
     </Grid>
 </Window>

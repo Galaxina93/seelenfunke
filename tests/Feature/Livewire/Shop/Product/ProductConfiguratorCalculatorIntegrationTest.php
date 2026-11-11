@@ -111,18 +111,48 @@ class ProductConfiguratorCalculatorIntegrationTest extends TestCase
         $dummyBase64Front = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=';
         $dummyBase64Back = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=';
 
-        $component = Livewire::test(ProductConfigurator::class, [
+        // Fall A: Keine Rückseite belegt -> nur Vorderseiten-Snapshot wird gespeichert, Rückseite wird ignoriert
+        $componentNoBack = Livewire::test(ProductConfigurator::class, [
             'product' => $this->product,
             'context' => 'calculator',
             'qty' => 2,
         ]);
 
-        $component->call('saveWithSnapshot', [
+        $componentNoBack->call('saveWithSnapshot', [
             'front' => $dummyBase64Front,
             'back' => $dummyBase64Back,
         ]);
 
-        $component->assertHasNoErrors()
+        $componentNoBack->assertHasNoErrors()
+            ->assertDispatched('calculator-save', function ($event, $params) {
+                $snapshotPath = $params['data']['snapshot_path'] ?? [];
+                return !empty($snapshotPath['front'])
+                    && empty($snapshotPath['back'])
+                    && Storage::disk('public')->exists($snapshotPath['front']);
+            });
+
+        // Fall B: Produkt mit aktivierter & belegter Rückseite -> Vorder- UND Rückseiten-Snapshot werden gespeichert
+        $this->product->update([
+            'configurator_settings' => array_merge($this->product->configurator_settings ?? [], [
+                'has_back_side' => true,
+            ]),
+        ]);
+
+        $componentWithBack = Livewire::test(ProductConfigurator::class, [
+            'product' => $this->product->fresh(),
+            'context' => 'calculator',
+            'qty' => 2,
+        ]);
+
+        $componentWithBack->call('saveWithSnapshot', [
+            'front' => $dummyBase64Front,
+            'back' => $dummyBase64Back,
+        ], [
+            'texts' => [['id' => 'f1', 'text' => 'Vorderseite', 'font' => 'Arial', 'x' => 50, 'y' => 50, 'size' => 1.0]],
+            'texts_back' => [['id' => 'b1', 'text' => 'Rückseite', 'font' => 'Arial', 'x' => 50, 'y' => 50, 'size' => 1.0]],
+        ]);
+
+        $componentWithBack->assertHasNoErrors()
             ->assertDispatched('calculator-save', function ($event, $params) {
                 $snapshotPath = $params['data']['snapshot_path'] ?? [];
                 return !empty($snapshotPath['front'])
@@ -578,6 +608,75 @@ class ProductConfiguratorCalculatorIntegrationTest extends TestCase
         $this->assertSame('', $savedCf->get('cf_back')['value']);
         $this->assertSame(0, $savedCf->get('cf_back')['surcharge_cents']);
     }
+
+    #[Test]
+    public function configurator_allows_removing_last_text_field_and_re_adding_text()
+    {
+        $component = Livewire::test(ProductConfigurator::class, [
+            'product' => $this->product,
+            'context' => 'add',
+            'qty' => 1,
+        ]);
+
+        // Initial existiert 1 leeres Textfeld
+        $this->assertCount(1, $component->get('texts'));
+
+        // Auch das allerletzte Textfeld darf gelöscht werden (für Nur-Foto-Gravuren)
+        $component->call('removeText', 0);
+        $this->assertSame([], $component->get('texts'));
+
+        // Und jederzeit wieder ein neues Textfeld hinzugefügt werden
+        $component->call('addText');
+        $this->assertCount(1, $component->get('texts'));
+    }
+
+    #[Test]
+    public function configurator_saves_and_restores_cropped_logo()
+    {
+        Storage::fake('public');
+
+        $origImg = imagecreatetruecolor(20, 20);
+        imagefill($origImg, 0, 0, imagecolorallocate($origImg, 0, 0, 0));
+        ob_start();
+        imagepng($origImg);
+        $origPng = ob_get_clean();
+        imagedestroy($origImg);
+
+        $origPath = 'bestellungen/cart-uploads/test_orig_photo.png';
+        Storage::disk('public')->put($origPath, $origPng);
+
+        $cropImg = imagecreatetruecolor(10, 10);
+        imagefill($cropImg, 0, 0, imagecolorallocate($cropImg, 0, 0, 0));
+        ob_start();
+        imagepng($cropImg);
+        $cropB64 = 'data:image/png;base64,' . base64_encode(ob_get_clean());
+        imagedestroy($cropImg);
+
+        $component = Livewire::test(ProductConfigurator::class, [
+            'product' => $this->product,
+            'context' => 'add',
+            'qty' => 1,
+            'initialData' => [
+                'files' => [$origPath],
+            ],
+        ]);
+
+        $instance = $component->instance();
+        $res = $instance->saveCroppedLogo($origPath, $cropB64, $origPath);
+
+        $this->assertNotNull($res);
+        $this->assertStringEndsWith('_crop.png', $res['value']);
+        $this->assertTrue(Storage::disk('public')->exists($res['value']));
+        $this->assertTrue(Storage::disk('public')->exists($origPath));
+
+        // Wiederherstellen des Originalbildes löscht den Zwischen-Zuschnitt und stellt Originalpfad wieder her
+        $restored = $instance->restoreOriginalLogo($res['value'], $origPath);
+        $this->assertNotNull($restored);
+        $this->assertSame($origPath, $restored['value']);
+        $this->assertFalse(Storage::disk('public')->exists($res['value']));
+        $this->assertTrue(Storage::disk('public')->exists($origPath));
+    }
 }
+
 
 

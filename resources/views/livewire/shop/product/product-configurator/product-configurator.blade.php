@@ -33,7 +33,8 @@
             $effectiveMode = $this->effectivePersonalizationMode ?? $this->product->getPersonalizationMode();
             $isEffectiveCustomFields = !$isDigital && !$isService && ($this->product->isPersonalizable() || $context === 'preview') && $effectiveMode === 'custom_fields';
             $isEffectiveStudio = !$isDigital && !$isService && ($this->product->isPersonalizable() || $context === 'preview') && $effectiveMode === 'studio';
-            $glbDiskPath = ($isEffectiveStudio && $product->three_d_active && $product->three_d_model_path)
+            $isBeginnerStudioMode = $isEffectiveCustomFields && $this->product->usesStudioConfigurator();
+            $glbDiskPath = (($isEffectiveStudio || $isBeginnerStudioMode) && $product->three_d_active && $product->three_d_model_path)
                 ? storage_path('app/public/' . ltrim($product->three_d_model_path, '/'))
                 : null;
             $resolvedModelUrl = ($glbDiskPath && is_file($glbDiskPath))
@@ -41,8 +42,10 @@
                 : '';
         @endphp
         config: {
-            isPersonalizable: {{ ($this->product->isPersonalizable() || $isEffectiveStudio) ? 'true' : 'false' }},
+            isPersonalizable: {{ ($this->product->isPersonalizable() || $isEffectiveStudio || $isBeginnerStudioMode) ? 'true' : 'false' }},
             personalizationMode: '{{ $effectiveMode }}',
+            isBeginnerMode: {{ $isBeginnerStudioMode ? 'true' : 'false' }},
+            beginnerCoords: @js($this->getBeginnerPositionCoordinates($configSettings ?? [])),
             modelPath: '{{ $resolvedModelUrl }}',
             bgPath: '{{ $this->resolvedBackgroundPath }}',
             fallbackImg: '{{ $this->previewImage }}',
@@ -399,10 +402,10 @@
         </div>
 
         {{-- GESTALTUNGS-LEISTE (direkt im Alpine-Scope des Konfigurators für Produktseite, Warenkorb & Bestell-Bearbeitung) --}}
-        @if($context !== 'preview' && !$isDigital && !$isService && $this->product->usesStudioConfigurator())
+        @if($context !== 'preview' && !$isDigital && !$isService && ($isEffectiveStudio || $isBeginnerStudioMode))
             <div x-show="!isMaximized" class="px-4 sm:px-6 py-2.5 border-b flex flex-wrap justify-between items-center gap-2 shrink-0 {{ $isDark ? 'bg-gray-900/80 border-gray-800' : 'bg-gray-50 border-gray-200' }}">
                 <div class="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-                    <span class="text-sm font-medium mr-0.5 {{ $isDark ? 'text-gray-300' : 'text-gray-600' }}">Gestaltung</span>
+                    <span class="text-sm font-medium mr-0.5 {{ $isDark ? 'text-gray-300' : 'text-gray-600' }}">{{ $isBeginnerStudioMode ? 'Vorschau' : 'Gestaltung' }}</span>
 
                     <button type="button"
                             @click="toggleNotice()"
@@ -437,7 +440,7 @@
                     </button>
                 </div>
 
-                @if($hasProductTemplates)
+                @if($context === 'add')
                     <button type="button" @click="$dispatch('cancel-configurator')" class="text-xs text-gray-500 hover:text-red-500 transition-colors cursor-pointer">
                         Andere Vorlage wählen
                     </button>
@@ -500,12 +503,16 @@
                         </p>
                     </div>
                 </div>
+            @elseif($isBeginnerStudioMode)
+                {{-- Neulings-Modus auf Studio-Produkt: Nicht-manipulative 2D/3D-Live-Vorschau mit fester Neulings-Position (Symbol oben mittig, Text unten mittig) + Eingabefelder --}}
+                @include('livewire.shop.product.product-configurator.partials.preview', ['isDark' => $isDark, 'isBeginnerStudioMode' => true])
+                @include('livewire.shop.product.product-configurator.partials.custom_fields_form', ['isDark' => $isDark, 'isBeginnerStudioMode' => true])
             @elseif($isEffectiveCustomFields)
                 {{-- Schlanke Schnell-Personalisierung über dynamische Eingabefelder (ohne 3D/2D Canvas) --}}
-                @include('livewire.shop.product.product-configurator.partials.custom_fields_form', ['isDark' => $isDark])
+                @include('livewire.shop.product.product-configurator.partials.custom_fields_form', ['isDark' => $isDark, 'isBeginnerStudioMode' => false])
             @elseif(!$isDigital && !$isService)
                 {{-- Physisches Produkt Layout (Studio 2D/3D) --}}
-                @include('livewire.shop.product.product-configurator.partials.preview', ['isDark' => $isDark])
+                @include('livewire.shop.product.product-configurator.partials.preview', ['isDark' => $isDark, 'isBeginnerStudioMode' => false])
                 @include('livewire.shop.product.product-configurator.partials.formluar', ['isDark' => $isDark])
             @elseif($isDigital)
                 {{-- Digitales Produkt Layout --}}

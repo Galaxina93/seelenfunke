@@ -59,7 +59,7 @@ use HasFactory, SoftDeletes;
     protected $fillable = [
         'id', 'code', 'order_item_id', 'initial_value', 'current_balance',
         'recipient_name', 'recipient_email', 'personal_message',
-        'delivery_method', 'is_active', 'valid_until'
+        'delivery_method', 'card_color', 'is_active', 'valid_until'
     ];
 
     protected $casts = [

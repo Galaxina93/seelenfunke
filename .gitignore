@@ -29,7 +29,7 @@ bridge.log
 crash.log
 /funkenwerk/bin/
 /funkenwerk/obj/
-/funkenwerk-video/bin/
-/funkenwerk-video/obj/
+/funkenwerk-*/bin/
+/funkenwerk-*/obj/
 
 

@@ -72,13 +72,15 @@
     {{-- VIEW 1: LISTEN-ANSICHT --}}
     @if(!$selectedOrderId)
 
-        {{-- FUNKI LOGIK: Status ermitteln --}}
+        {{-- FUNKI LOGIK: Status & 1-Satz-Handlungsbefehl ermitteln --}}
         @php
             $prio = $this->priorityOrder;
             $hasPrio = $prio !== null;
+            $directive = $funkiDirective ?? $this->funkiDirective;
+            $resolvedMood = $hasPrio ? ($directive['mood'] ?? ($prio->is_express ? 'alarm' : 'work')) : 'chill';
 
             // Stimmung & Bild setzen
-            if ($hasPrio && $prio->is_express) {
+            if ($resolvedMood === 'alarm') {
                 $mood = 'alarm';
                 $funkiImg = 'orders/bestelli_alarm.webp';
                 $statusText = "PRIORITÄT";
@@ -133,9 +135,8 @@
                     </h2>
 
                     @if($hasPrio)
-                        <p class="text-gray-600 dark:text-gray-400 text-sm sm:text-base mb-6 font-medium leading-relaxed max-w-2xl">
-                            Die wichtigste Aufgabe liegt oben auf: <br class="hidden sm:block">
-                            Bestellung <strong class="text-gray-900 dark:text-white font-bold tracking-wide">#{{ $prio->order_number }}</strong> von <strong class="text-gray-900 dark:text-white font-bold">{{ $prio->customer_name }}</strong>.
+                        <p class="text-gray-600 dark:text-gray-300 text-sm sm:text-base mb-6 font-medium leading-relaxed max-w-3xl">
+                            {!! $directive['action_html'] ?? ('Öffne <strong class="text-gray-900 dark:text-white font-bold">#' . e($prio->order_number) . '</strong> (' . e($prio->customer_name) . ') zur Bearbeitung.') !!}
                         </p>
 
                         <div class="flex flex-col xl:flex-row gap-5 items-stretch">
@@ -153,14 +154,19 @@
 
                                 {{-- Info --}}
                                 <div class="flex-1 flex flex-col justify-center w-full min-w-0">
-                                    <div class="flex flex-wrap items-center justify-center sm:justify-start gap-3 mb-1.5">
+                                    <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2.5 mb-1.5">
                                         <span class="font-bold text-gray-900 dark:text-white text-lg tracking-wide truncate">{{ $prio->order_number }}</span>
                                         @if($prio->is_express)
                                             <x-shop.express-info iconClass="w-3.5 h-3.5" class="border border-primary/40 text-gray-800 dark:text-gray-200 text-[9px] font-black px-2.5 py-1 rounded-md uppercase tracking-wider shadow-2xs" />
                                         @endif
+                                        @if(!empty($directive['badge_label']))
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] truncate max-w-[220px]">
+                                                {{ $directive['badge_label'] }}
+                                            </span>
+                                        @endif
                                     </div>
                                     <div class="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest text-center sm:text-left">
-                                        Bestellt am {{ $prio->created_at->format('d.m. H:i') }} Uhr
+                                        {{ $prio->customer_name }} · {{ $prio->created_at->format('d.m. H:i') }} Uhr
                                     </div>
                                 </div>
 
@@ -337,7 +343,7 @@
                 </button>
 
                 {{-- Reset Button --}}
-                @if($search || $statusFilter || $paymentFilter || $sortField !== 'default_workflow')
+                @if($search || $statusFilter || $paymentFilter || $sortField !== 'default_workflow' || $activeBatchProductId)
                     <button wire:click="resetFilters"
                             class="flex items-center justify-center p-3 text-gray-500 hover:text-red-500 bg-gray-50 dark:bg-gray-950 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-[1.5rem] transition-colors border border-gray-200 dark:border-gray-800 hover:border-red-200 dark:hover:border-red-500/30 shrink-0 shadow-sm dark:shadow-inner"
                             title="Filter zurücksetzen">
@@ -354,13 +360,67 @@
         {{-- ================================================== --}}
         @if($orders->isNotEmpty())
             <div class="mb-12 animate-fade-in-up w-full">
-                <div class="flex items-center gap-3 mb-6 px-2">
-                    <span class="relative flex h-2.5 w-2.5">
-                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--theme-color)] opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-[var(--theme-color)] shadow-sm dark:shadow-[0_0_8px_currentColor]"></span>
-                    </span>
-                    <h2 class="text-xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">Bestellübersicht</h2>
-                    <span class="bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-20)] text-xs font-black px-2.5 py-0.5 rounded-md shadow-sm dark:shadow-[0_0_10px_var(--theme-color-20)]">{{ $orders->total() }}</span>
+                <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-3 mb-5 px-2">
+                    <div class="flex items-center gap-3 shrink-0">
+                        <span class="relative flex h-2.5 w-2.5">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--theme-color)] opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-[var(--theme-color)] shadow-sm dark:shadow-[0_0_8px_currentColor]"></span>
+                        </span>
+                        <h2 class="text-xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">Bestellübersicht</h2>
+                        <span class="bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-20)] text-xs font-black px-2.5 py-0.5 rounded-md shadow-sm dark:shadow-[0_0_10px_var(--theme-color-20)]">{{ $orders->total() }}</span>
+
+                        {{-- ! Info-Tooltip zur Smart-Sortierung (ohne Subtext) --}}
+                        <span class="w-5 h-5 rounded-full bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 text-[10px] font-black inline-flex items-center justify-center cursor-help select-none"
+                              title="Smart-Sortierung: 1. Express & Frist · 2. Sofort fertigbare Aufträge gebündelt nach Artikel & Laser-Setup (spart Umbauzeit am xTool) · 3. Wartende & unbezahlte Aufträge darunter.">
+                            !
+                        </span>
+                    </div>
+
+                    {{-- Kompakte Serien-Fokus-Leiste (nur bei offenen Produktions-Artikeln) --}}
+                    @php
+                        $visibleBatchGroups = collect($batchGroups ?? [])->filter(fn($g) => ($g['open_units_count'] ?? 0) > 0)->values();
+                        $currentFocusPid = $effectiveFocusProductId ?? null;
+                    @endphp
+                    @if($sortField === 'default_workflow' && $visibleBatchGroups->isNotEmpty())
+                        <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+                            <button type="button"
+                                    wire:click="selectBatchProduct('')"
+                                    title="Automatische Serien-Reihenfolge"
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all shrink-0 cursor-pointer {{ !$currentFocusPid
+                                        ? 'bg-[var(--theme-color)] text-gray-900 border-[var(--theme-color)] shadow-sm'
+                                        : 'bg-white dark:bg-gray-900/80 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-40)] hover:text-gray-900 dark:hover:text-white' }}">
+                                <span>⚡</span>
+                                <span>Smart-Serie</span>
+                            </button>
+
+                            @foreach($visibleBatchGroups as $bGroup)
+                                @php
+                                    $isFocusedPill = $currentFocusPid === $bGroup['product_id'];
+                                    $hasReadyUnits = ($bGroup['ready_units_count'] ?? 0) > 0;
+                                @endphp
+                                <button type="button"
+                                        wire:click="selectBatchProduct('{{ $bGroup['product_id'] }}')"
+                                        title="{{ $bGroup['product_name'] }} · {{ $bGroup['setup_label'] }} ({{ $bGroup['ready_units_count'] }}× sofort fertigbar)"
+                                        class="inline-flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-xl text-[11px] font-bold border transition-all shrink-0 cursor-pointer {{ $isFocusedPill
+                                            ? 'bg-[var(--theme-color-15)] text-gray-900 dark:text-white border-[var(--theme-color)] ring-1 ring-[var(--theme-color-40)] shadow-sm'
+                                            : ($hasReadyUnits
+                                                ? 'bg-white dark:bg-gray-900/80 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-40)]'
+                                                : 'bg-gray-50 dark:bg-gray-950/60 text-gray-400 dark:text-gray-500 border-gray-200/70 dark:border-gray-800/70 opacity-75') }}">
+                                    <span class="w-5 h-5 rounded-md bg-gray-100 dark:bg-gray-950 border border-gray-200/70 dark:border-gray-800 overflow-hidden shrink-0 flex items-center justify-center">
+                                        @if(!empty($bGroup['thumb_url']))
+                                            <img src="{{ $bGroup['thumb_url'] }}" alt="{{ $bGroup['product_name'] }}" class="w-full h-full object-cover" loading="lazy">
+                                        @else
+                                            <span class="text-[9px]">📦</span>
+                                        @endif
+                                    </span>
+                                    <span class="truncate max-w-[140px]">{{ $bGroup['product_name'] }}</span>
+                                    <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-black {{ $isFocusedPill ? 'bg-[var(--theme-color)] text-gray-900' : 'bg-gray-100 dark:bg-gray-800 text-[var(--theme-color)]' }}">
+                                        {{ $bGroup['ready_units_count'] > 0 ? $bGroup['ready_units_count'] : $bGroup['open_units_count'] }}×
+                                    </span>
+                                </button>
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
 
                 {{-- Include der ausgelagerten Tabelle --}}

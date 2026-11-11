@@ -200,8 +200,9 @@ fun OrganizerScreen(
     }
 
     LaunchedEffect(isPageVisible) {
-        if (isPageVisible) {
+        while (isPageVisible) {
             viewModel.loadAllOrganizerData(showLoading = false)
+            kotlinx.coroutines.delay(5000L)
         }
     }
     val tabTitles = listOf("Aufgaben", "Kalender", "Routine", "Einkauf", "E-Mail", "Musik", "Wecker")
@@ -343,7 +344,9 @@ fun OrganizerScreen(
                                 TasksTabContent(
                                     taskLists = taskLists,
                                     tasks = tasks,
-                                    onAddTask = { listId, title -> viewModel.addTask(listId, title) },
+                                    onAddTask = { listId, title, priority, relevantFrom ->
+                                        viewModel.addTask(listId, title, priority, relevantFrom)
+                                    },
                                     onToggleTask = { viewModel.toggleTask(it) },
                                     onDeleteTask = { viewModel.deleteTask(it) },
                                     onAddSubtask = { parentId, title -> viewModel.addSubtask(parentId, title) },
@@ -444,7 +447,7 @@ fun OrganizerScreen(
 fun TasksTabContent(
     taskLists: List<ManagementTaskList>,
     tasks: List<ManagementTask>,
-    onAddTask: (listId: String, title: String) -> Unit,
+    onAddTask: (listId: String, title: String, priority: String, relevantFrom: String?) -> Unit,
     onToggleTask: (String) -> Unit,
     onDeleteTask: (String) -> Unit,
     onAddSubtask: (String, String) -> Unit,
@@ -872,8 +875,17 @@ fun TasksTabContent(
                     if (newTaskTitle.isNotBlank()) {
                         Button(
                             onClick = {
-                                val targetId = selectedListId ?: "default"
-                                onAddTask(targetId, newTaskTitle.trim())
+                                val smartIds = setOf("my_day", "important", "planned", "all", "default")
+                                val targetId = if (selectedListId == null || selectedListId in smartIds) {
+                                    taskLists.firstOrNull { it.name.equals("Aufgaben", ignoreCase = true) }?.id
+                                        ?: taskLists.firstOrNull()?.id
+                                        ?: (selectedListId ?: "default")
+                                } else {
+                                    selectedListId!!
+                                }
+                                val newPriority = if (selectedListId == "important") "hoch" else "niedrig"
+                                val newRelevantFrom = if (selectedListId == "my_day" || selectedListId == "planned") todayIso else null
+                                onAddTask(targetId, newTaskTitle.trim(), newPriority, newRelevantFrom)
                                 newTaskTitle = ""
                             },
                             colors = ButtonDefaults.buttonColors(
@@ -2809,19 +2821,44 @@ fun RoutinesTabContent(
 
     var routineToDelete by remember { mutableStateOf<ManagementDayRoutine?>(null) }
 
+    LaunchedEffect(Unit) {
+        de.meinseelenfunke.app.util.FunkenwerkAlarmManager.ensureInitialized(context)
+    }
+    val alarms by de.meinseelenfunke.app.util.FunkenwerkAlarmManager.alarmsFlow.collectAsState()
+    val wakeLogs by de.meinseelenfunke.app.util.FunkenwerkAlarmManager.wakeLogsFlow.collectAsState()
+
+    val firstBaseStartTime = remember(routines) {
+        routines.minByOrNull { it.start_time.take(5) }?.start_time?.take(5) ?: "07:00"
+    }
+    val routineShiftInfo = remember(routines, alarms, wakeLogs) {
+        de.meinseelenfunke.app.util.FunkenwerkAlarmManager.computeTodayRoutineShift(firstBaseStartTime)
+    }
+    val shiftMinutes = routineShiftInfo?.first ?: 0
+    val shiftWakeTime = routineShiftInfo?.second
+
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "MEINE ROUTINEN",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Gold,
-                letterSpacing = 1.sp
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "MEINE ROUTINEN",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Gold,
+                    letterSpacing = 1.sp
+                )
+                if (shiftWakeTime != null) {
+                    Text(
+                        text = "⏰ Getaktet auf Wecker ($shiftWakeTime Uhr)",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF10B981)
+                    )
+                }
+            }
             IconButton(onClick = {
                 editingRoutine = null
                 routineTitle = ""
@@ -2850,7 +2887,13 @@ fun RoutinesTabContent(
         } else {
             routines.forEach { routine ->
                 var expanded by remember { mutableStateOf(false) }
-                val isCurrentlyRunning = isRoutineCurrentlyRunning(routine.start_time, routine.duration_minutes)
+                val baseTimeShort = routine.start_time.take(5)
+                val effectiveStartTime = if (shiftMinutes != 0) {
+                    de.meinseelenfunke.app.util.FunkenwerkAlarmManager.shiftRoutineTimeString(baseTimeShort, shiftMinutes)
+                } else {
+                    baseTimeShort
+                }
+                val isCurrentlyRunning = isRoutineCurrentlyRunning(effectiveStartTime, routine.duration_minutes)
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -2913,9 +2956,13 @@ fun RoutinesTabContent(
                                         }
                                     }
                                     Text(
-                                        text = "Start: ${routine.start_time.take(5)} Uhr • ${routine.duration_minutes} Min.",
+                                        text = if (shiftMinutes != 0 && effectiveStartTime != baseTimeShort) {
+                                            "Start: $effectiveStartTime Uhr (Basis $baseTimeShort) • ${routine.duration_minutes} Min."
+                                        } else {
+                                            "Start: $effectiveStartTime Uhr • ${routine.duration_minutes} Min."
+                                        },
                                         fontSize = 11.sp,
-                                        color = AppTheme.colors.textMuted
+                                        color = if (shiftMinutes != 0) Gold else AppTheme.colors.textMuted
                                     )
                                 }
                             }

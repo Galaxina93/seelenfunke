@@ -1227,10 +1227,10 @@ trait AiAgentsFuncs
         self::$delegationStack[] = $originalAgent->name;
 
         try {
-            // Force use of extremely fast, stable 2.5 flash model for internal delegation
+            // Force use of extremely fast, stable Gemini 3 flash model for internal delegation
             $agent = clone $originalAgent;
             if (str_contains(strtolower($agent->model ?? ''), 'gemini')) {
-                $agent->model = 'gemini-2.5-flash';
+                $agent->model = 'gemini-3-flash-preview';
             }
 
             // Strip communication_ask_agent from the delegated agent to prevent any further sub-delegation

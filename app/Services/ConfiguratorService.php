@@ -98,14 +98,24 @@ class ConfiguratorService
         }
         $hasTransparency = $transparentCorners >= 2;
 
-        // 2. Messe die durchschnittliche Luminanz im zentralen Gravurbereich (30% bis 70%)
+        // 2. Messe die durchschnittliche Luminanz im zentralen Gravurbereich
         $lumSum = 0.0;
         $sampleCount = 0;
         $stepX = max(1, (int) floor($w / 25));
         $stepY = max(1, (int) floor($h / 25));
 
-        for ($x = (int) floor($w * 0.30); $x <= (int) floor($w * 0.70); $x += $stepX) {
-            for ($y = (int) floor($h * 0.30); $y <= (int) floor($h * 0.70); $y += $stepY) {
+        $aLeft = isset($configSettings['area_left']) ? (float) $configSettings['area_left'] : 30.0;
+        $aTop = isset($configSettings['area_top']) ? (float) $configSettings['area_top'] : ($pkgKey === 'seelen-anhaenger' ? 54.2 : 30.0);
+        $aWidth = isset($configSettings['area_width']) ? (float) $configSettings['area_width'] : 40.0;
+        $aHeight = isset($configSettings['area_height']) ? (float) $configSettings['area_height'] : 40.0;
+
+        $xStart = max(0, min($w - 1, (int) floor($w * (($aLeft + $aWidth * 0.25) / 100.0))));
+        $xEnd = max($xStart, min($w - 1, (int) floor($w * (($aLeft + $aWidth * 0.75) / 100.0))));
+        $yStart = max(0, min($h - 1, (int) floor($h * (($aTop + $aHeight * 0.25) / 100.0))));
+        $yEnd = max($yStart, min($h - 1, (int) floor($h * (($aTop + $aHeight * 0.75) / 100.0))));
+
+        for ($x = $xStart; $x <= $xEnd; $x += $stepX) {
+            for ($y = $yStart; $y <= $yEnd; $y += $stepY) {
                 $rgba = @imagecolorsforindex($im, @imagecolorat($im, $x, $y));
                 if (is_array($rgba) && ($rgba['alpha'] ?? 0) < 100) {
                     $lumSum += (0.299 * $rgba['red']) + (0.587 * $rgba['green']) + (0.114 * $rgba['blue']);
@@ -309,6 +319,28 @@ class ConfiguratorService
                 'three_d_model_path'      => 'produkte/products/echtgold-seelen-herz/echtgold_seelen_herz_3d.glb',
                 'default_background_theme'=> 'standard',
                 'material_type'           => 'metal',
+                'area_shape'              => 'custom',
+            ],
+            'id-armband-silber-herz' => [
+                'key'                     => 'id-armband-silber-herz',
+                'name'                    => 'Echtsilber Seelen-Armband Paket (925er Silber & Herz-Durchbruch)',
+                'description'             => 'Transparenter 2D 925er Silber-Gravurplatten Cutout + 3D Manufaktur-Holztisch',
+                'preview_image_path'      => 'produkte/products/id-armband-silber-herz/overlay.png',
+                'three_d_background_path' => 'produkte/products/id-armband-silber-herz/header_bg.png',
+                'three_d_model_path'      => 'produkte/products/id-armband-silber-herz/id_armband_silber_herz_3d.glb',
+                'default_background_theme'=> 'standard',
+                'material_type'           => 'silver',
+                'area_shape'              => 'custom',
+            ],
+            'id-armband-gold-herz' => [
+                'key'                     => 'id-armband-gold-herz',
+                'name'                    => 'Gold-Vermeil Seelen-Armband Paket (925er Silber Gelb vergoldet & Herz)',
+                'description'             => 'Transparenter 2D Gold-Vermeil Gravurplatten Cutout + 3D Manufaktur-Holztisch',
+                'preview_image_path'      => 'produkte/products/id-armband-gold-herz/overlay.png',
+                'three_d_background_path' => 'produkte/products/id-armband-gold-herz/header_bg.png',
+                'three_d_model_path'      => 'produkte/products/id-armband-gold-herz/id_armband_gold_herz_3d.glb',
+                'default_background_theme'=> 'standard',
+                'material_type'           => 'gold',
                 'area_shape'              => 'custom',
             ],
             'custom' => [

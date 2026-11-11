@@ -19,6 +19,7 @@ class MarketingVoucherPurchasePage extends Component
     // Configuration Inputs
     public $amount = 50; // Preset values: 10, 25, 50, 100, custom
     public $customAmount = '';
+    public string $cardColor = 'gold'; // 'gold' (0,00 €) or 'black' (+1,50 €)
     public $recipientName = '';
     public $recipientEmail = '';
     public $personalMessage = '';
@@ -49,6 +50,16 @@ class MarketingVoucherPurchasePage extends Component
         return (int) round($this->selectedAmount * 100);
     }
 
+    public function getCardColorSurchargeCentsProperty(): int
+    {
+        return ($this->cardColor === 'black' && $this->deliveryMethod === 'post') ? 150 : 0;
+    }
+
+    public function getCardColorSurchargeProperty(): float
+    {
+        return $this->cardColorSurchargeCents / 100;
+    }
+
     public function getPostShippingCostProperty()
     {
         return (float) (shop_setting('shipping_cost_voucher', 350) / 100);
@@ -64,7 +75,7 @@ class MarketingVoucherPurchasePage extends Component
 
     public function getFinalTotalProperty()
     {
-        return $this->selectedAmount + $this->shippingCost;
+        return $this->selectedAmount + $this->cardColorSurcharge + $this->shippingCost;
     }
 
     public function getIsStep1ValidProperty(): bool
@@ -86,7 +97,7 @@ class MarketingVoucherPurchasePage extends Component
         $nameLen = mb_strlen(trim((string) $this->recipientName));
         $msgLen = mb_strlen((string) $this->personalMessage);
 
-        return $nameLen >= 2 && $nameLen <= 100 && $msgLen <= 160;
+        return $nameLen >= 2 && $nameLen <= 100 && $msgLen <= 100;
     }
 
     public function getIsStep3ValidProperty(): bool
@@ -130,8 +141,9 @@ class MarketingVoucherPurchasePage extends Component
 
         if ($step === 2) {
             return [
+                'cardColor'       => 'required|in:gold,black',
                 'recipientName'   => 'required|string|min:2|max:100',
-                'personalMessage' => 'nullable|string|max:160',
+                'personalMessage' => 'nullable|string|max:100',
             ];
         }
 
@@ -158,7 +170,7 @@ class MarketingVoucherPurchasePage extends Component
             'recipientName.required'   => 'Bitte gib an, für wen der Gutschein bestimmt ist (Empfänger-Name).',
             'recipientName.min'        => 'Der Name des Empfängers muss mindestens 2 Zeichen lang sein.',
             'recipientName.max'        => 'Der Name darf maximal 100 Zeichen lang sein.',
-            'personalMessage.max'      => 'Die persönliche Grußbotschaft darf maximal 160 Zeichen lang sein.',
+            'personalMessage.max'      => 'Die persönliche Grußbotschaft darf maximal 100 Zeichen lang sein.',
             'deliveryMethod.required'  => 'Bitte wähle eine Versandmethode aus.',
             'deliveryMethod.in'        => 'Ungültige Versandmethode.',
             'recipientEmail.required'  => 'Bitte gib die E-Mail-Adresse ein, an die der Gutschein gesendet werden soll.',
@@ -294,15 +306,18 @@ class MarketingVoucherPurchasePage extends Component
 
         // 2. Prepare Config
         $postSurcharge = $this->deliveryMethod === 'post' ? (int) shop_setting('shipping_cost_voucher', 350) : 0;
+        $normalizedCardColor = $this->cardColor === 'black' ? 'black' : 'gold';
         $config = [
-            'is_gift_voucher'     => true,
-            'amount_cents'        => $this->selectedAmountCents,
-            'recipient_name'      => trim((string) $this->recipientName),
-            'recipient_email'     => $this->deliveryMethod === 'email' ? trim((string) $this->recipientEmail) : null,
-            'personal_message'    => trim((string) $this->personalMessage) !== '' ? trim((string) $this->personalMessage) : null,
-            'delivery_method'     => $this->deliveryMethod,
-            'shipping_surcharge'  => $postSurcharge,
-            'post_shipping_cents' => $postSurcharge,
+            'is_gift_voucher'            => true,
+            'amount_cents'               => $this->selectedAmountCents,
+            'card_color'                 => $normalizedCardColor,
+            'card_color_surcharge_cents' => $this->cardColorSurchargeCents,
+            'recipient_name'             => trim((string) $this->recipientName),
+            'recipient_email'            => $this->deliveryMethod === 'email' ? trim((string) $this->recipientEmail) : null,
+            'personal_message'           => trim((string) $this->personalMessage) !== '' ? trim((string) $this->personalMessage) : null,
+            'delivery_method'            => $this->deliveryMethod,
+            'shipping_surcharge'         => $postSurcharge,
+            'post_shipping_cents'        => $postSurcharge,
         ];
 
         // 3. Add to Cart

@@ -176,7 +176,7 @@ Route::post('/funki/financials/scan-receipt', function (Request $request) {
     }
 
     $request->validate([
-        'file' => 'file|mimes:pdf,jpg,jpeg,png,webp|max:20480',
+        'file' => 'file|mimes:pdf,jpg,jpeg,png,webp,heic,heif|max:20480',
     ]);
 
     $file = $request->file('file');
@@ -193,7 +193,7 @@ Route::post('/funki/financials/scan-receipt', function (Request $request) {
         return response()->json([
             'success' => false,
             'message' => 'Beleg konnte nicht automatisch erkannt werden. Bitte manuell erfassen.'
-        ], 422);
+        ], 200);
     }
 
     if ($autoSave) {

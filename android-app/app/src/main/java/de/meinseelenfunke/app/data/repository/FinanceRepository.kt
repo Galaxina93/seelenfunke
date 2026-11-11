@@ -136,11 +136,131 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
             if (response.success) {
                 Result.success(response)
             } else {
-                Result.failure(Exception(response.message ?: "Beleg-Scan fehlgeschlagen."))
+                val directFallback = tryDirectGeminiReceiptScan(fileBytes, mimeType)
+                if (directFallback != null) {
+                    Result.success(directFallback)
+                } else {
+                    Result.failure(Exception(response.message ?: "Beleg konnte nicht automatisch erkannt werden."))
+                }
             }
         } catch (e: Exception) {
             AppLogger.error(serviceLocator.context, "FinanceRepo", "scanReceipt failed: fileName=$fileName", e)
-            Result.failure(e)
+            val directFallback = tryDirectGeminiReceiptScan(fileBytes, mimeType)
+            if (directFallback != null) {
+                return Result.success(directFallback)
+            }
+            val friendlyMsg = when (e) {
+                is retrofit2.HttpException -> {
+                    val errBody = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null }
+                    val parsedMsg = try {
+                        if (!errBody.isNullOrBlank()) org.json.JSONObject(errBody).optString("message") else null
+                    } catch (_: Exception) { null }
+                    if (!parsedMsg.isNullOrBlank()) parsedMsg else "Beleg-Scan fehlgeschlagen (HTTP ${e.code()})."
+                }
+                is java.net.SocketTimeoutException -> "Zeitüberschreitung beim Beleg-Scan. Bitte Verbindung prüfen."
+                is java.net.ConnectException, is java.net.UnknownHostException -> "Server nicht erreichbar (${serviceLocator.getBaseUrl()}). Bitte WLAN oder Server-Einstellung prüfen."
+                else -> e.localizedMessage ?: "Beleg-Scan fehlgeschlagen."
+            }
+            Result.failure(Exception(friendlyMsg))
+        }
+    }
+
+    private suspend fun tryDirectGeminiReceiptScan(
+        fileBytes: ByteArray,
+        mimeType: String
+    ): de.meinseelenfunke.app.data.api.ReceiptAiScanResponse? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val apiKey = serviceLocator.getGeminiApiKey().trim()
+        if (apiKey.isEmpty()) return@withContext null
+
+        try {
+            val b64 = android.util.Base64.encodeToString(fileBytes, android.util.Base64.NO_WRAP)
+            val today = java.time.LocalDate.now().toString()
+            val prompt = """
+                Analysiere diesen Kassenbon / Beleg und antworte AUSSCHLIESSLICH im JSON-Format:
+                {"merchant":"Händler","description":"Kurzbeschreibung","title":"Händler - Kurzbeschreibung","amount":0.0,"date":"$today","location":"Ort","category":"Werkzeug & Material","is_business":true,"tax_rate":19.0,"invoice_number":""}
+            """.trimIndent()
+
+            val payload = org.json.JSONObject().apply {
+                put("contents", org.json.JSONArray().put(
+                    org.json.JSONObject().put("parts", org.json.JSONArray().apply {
+                        put(org.json.JSONObject().put("text", prompt))
+                        put(org.json.JSONObject().put("inlineData", org.json.JSONObject().apply {
+                            put("mimeType", if (mimeType.isBlank()) "image/jpeg" else mimeType)
+                            put("data", b64)
+                        }))
+                    })
+                ))
+                put("generationConfig", org.json.JSONObject().apply {
+                    put("temperature", 0.1)
+                    put("responseMimeType", "application/json")
+                    put("thinkingConfig", org.json.JSONObject().put("thinkingLevel", "LOW"))
+                })
+            }
+
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+
+            val req = okhttp3.Request.Builder()
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent")
+                .addHeader("x-goog-api-key", apiKey)
+                .post(payload.toString().toRequestBody("application/json".toMediaTypeOrNull()))
+                .build()
+
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@withContext null
+                val bodyStr = resp.body?.string() ?: return@withContext null
+                val root = org.json.JSONObject(bodyStr)
+                val parts = root.optJSONArray("candidates")?.optJSONObject(0)
+                    ?.optJSONObject("content")?.optJSONArray("parts") ?: return@withContext null
+
+                var jsonText: String? = null
+                for (i in 0 until parts.length()) {
+                    val part = parts.optJSONObject(i) ?: continue
+                    if (part.optBoolean("thought", false)) continue
+                    val t = part.optString("text", "")
+                    if (t.isNotBlank()) {
+                        jsonText = t
+                        break
+                    }
+                }
+                if (jsonText.isNullOrBlank()) return@withContext null
+
+                val cleaned = jsonText.replace(Regex("^```(?:json)?\\s*", RegexOption.IGNORE_CASE), "")
+                    .replace(Regex("\\s*```$"), "")
+                    .trim()
+                val parsed = org.json.JSONObject(cleaned)
+                val amountAbs = kotlin.math.abs(parsed.optDouble("amount", 0.0))
+                val merchant = parsed.optString("merchant", "Beleg").trim()
+                val desc = parsed.optString("description", "").trim()
+                val rawTitle = parsed.optString("title", "").trim()
+                val finalTitle = if (rawTitle.isNotBlank()) rawTitle else if (desc.isNotBlank()) "$merchant - $desc" else merchant
+
+                val scanData = de.meinseelenfunke.app.data.api.ReceiptAiScanData(
+                    title = finalTitle,
+                    merchant = merchant,
+                    description = desc,
+                    amount_abs = amountAbs,
+                    amount_formatted = String.format(java.util.Locale.US, "-%.2f", amountAbs),
+                    date = parsed.optString("date", today).ifBlank { today },
+                    location = parsed.optString("location", ""),
+                    category = parsed.optString("category", "Sonstiges").ifBlank { "Sonstiges" },
+                    is_business = parsed.optBoolean("is_business", true),
+                    tax_rate = parsed.optDouble("tax_rate", 19.0),
+                    invoice_number = parsed.optString("invoice_number", "")
+                )
+
+                de.meinseelenfunke.app.data.api.ReceiptAiScanResponse(
+                    success = true,
+                    auto_saved = false,
+                    data = scanData,
+                    entry = null,
+                    message = "Beleg '$finalTitle' erkannt."
+                )
+            }
+        } catch (_: Exception) {
+            null
         }
     }
 

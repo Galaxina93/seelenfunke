@@ -33,7 +33,10 @@ class GeminiTtsService
             return null;
         }
 
-        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent';
+        $models = [
+            'gemini-3.1-flash-tts-preview',
+            'gemini-2.5-flash-preview-tts',
+        ];
 
         $promptText = "Lies folgenden Text freundlich und natürlich vor: " . $text;
 
@@ -59,53 +62,56 @@ class GeminiTtsService
             ]
         ];
 
-        try {
-            $ch = curl_init($url);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Content-Type: application/json',
-                'x-goog-api-key: ' . $apiKey,
-            ]);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
-            curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
-            $response = curl_exec($ch);
-            curl_close($ch);
+        foreach ($models as $model) {
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent";
+            try {
+                $ch = curl_init($url);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Content-Type: application/json',
+                    'x-goog-api-key: ' . $apiKey,
+                ]);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+                curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+                curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+                $response = curl_exec($ch);
+                curl_close($ch);
 
-            $json = json_decode((string) $response, true);
-            if (isset($json['candidates'][0]['content']['parts'][0]['inlineData']['data'])) {
-                $rawBase64 = $json['candidates'][0]['content']['parts'][0]['inlineData']['data'];
-                $pcmData = base64_decode($rawBase64);
+                $json = json_decode((string) $response, true);
+                if (isset($json['candidates'][0]['content']['parts'][0]['inlineData']['data'])) {
+                    $rawBase64 = $json['candidates'][0]['content']['parts'][0]['inlineData']['data'];
+                    $pcmData = base64_decode($rawBase64);
 
-                // Wrap RAW PCM into standard WAV container (24kHz, mono, 16-bit)
-                $numChannels = 1;
-                $sampleRate = 24000;
-                $bitsPerSample = 16;
-                $byteRate = $sampleRate * $numChannels * ($bitsPerSample / 8);
-                $blockAlign = $numChannels * ($bitsPerSample / 8);
-                $subchunk2Size = strlen($pcmData);
-                $chunkSize = 36 + $subchunk2Size;
+                    // Wrap RAW PCM into standard WAV container (24kHz, mono, 16-bit)
+                    $numChannels = 1;
+                    $sampleRate = 24000;
+                    $bitsPerSample = 16;
+                    $byteRate = $sampleRate * $numChannels * ($bitsPerSample / 8);
+                    $blockAlign = $numChannels * ($bitsPerSample / 8);
+                    $subchunk2Size = strlen($pcmData);
+                    $chunkSize = 36 + $subchunk2Size;
 
-                $wavHeader = pack('A4VA4A4VvvVVvvA4V',
-                    'RIFF', $chunkSize, 'WAVE',
-                    'fmt ', 16, 1, $numChannels, $sampleRate, $byteRate, $blockAlign, $bitsPerSample,
-                    'data', $subchunk2Size
-                );
+                    $wavHeader = pack('A4VA4A4VvvVVvvA4V',
+                        'RIFF', $chunkSize, 'WAVE',
+                        'fmt ', 16, 1, $numChannels, $sampleRate, $byteRate, $blockAlign, $bitsPerSample,
+                        'data', $subchunk2Size
+                    );
 
-                $wavBase64 = base64_encode($wavHeader . $pcmData);
-                Cache::put($cacheKey, $wavBase64, 86400);
-                return $wavBase64;
-            } else {
-                Log::warning("GeminiTtsService error response: " . substr((string) $response, 0, 300));
-                return null;
+                    $wavBase64 = base64_encode($wavHeader . $pcmData);
+                    Cache::put($cacheKey, $wavBase64, 86400);
+                    return $wavBase64;
+                } else {
+                    Log::warning("GeminiTtsService ({$model}) error response: " . substr((string) $response, 0, 300));
+                }
+            } catch (\Throwable $e) {
+                $safeMsg = \App\Services\System\SystemErrorLogger::sanitizeSensitiveText($e->getMessage());
+                Log::error("GeminiTtsService ({$model}) exception: " . $safeMsg);
             }
-        } catch (\Throwable $e) {
-            $safeMsg = \App\Services\System\SystemErrorLogger::sanitizeSensitiveText($e->getMessage());
-            Log::error("GeminiTtsService exception: " . $safeMsg);
-            return null;
         }
+
+        return null;
     }
 }

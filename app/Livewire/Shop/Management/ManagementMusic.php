@@ -21,6 +21,7 @@ class ManagementMusic extends Component
     // Active Playlist UUID or Smart View ('favorites', 'most_played', 'all')
     public ?string $activePlaylistId = null;
     public string $searchQuery = '';
+    protected bool $autoPlayRandomOnSync = false;
 
     // New Playlist creation
     public string $newPlaylistName = '';
@@ -49,6 +50,7 @@ class ManagementMusic extends Component
         $this->activePlaylistId = $id;
         $this->searchQuery = '';
         $this->importFeedback = null;
+        $this->autoPlayRandomOnSync = true;
     }
 
     public function createPlaylist(): void
@@ -310,7 +312,13 @@ class ManagementMusic extends Component
             'url' => '/admin/music/stream/' . $t->id,
         ])->values()->all();
 
-        $this->dispatch('music-view-tracks-synced', tracks: $tracksPayload, playlistId: $this->activePlaylistId);
+        $this->dispatch(
+            'music-view-tracks-synced',
+            tracks: $tracksPayload,
+            playlistId: $this->activePlaylistId,
+            autoPlayRandom: $this->autoPlayRandomOnSync
+        );
+        $this->autoPlayRandomOnSync = false;
 
         $activePlaylist = (!in_array($this->activePlaylistId, ['all', 'favorites', 'most_played', null], true))
             ? $playlists->firstWhere('id', $this->activePlaylistId)

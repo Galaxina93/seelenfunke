@@ -44,9 +44,9 @@ class ProductFrontendFilterAreaTest extends TestCase
 
         $component = Livewire::test(ProductFrontendFilterArea::class);
 
-        $component->assertSee('Physisch');
+        $component->assertSee('Manufaktur-Kollektion');
+        $component->assertSee('Holzblock Physisch');
         $component->assertDontSee('Service');
-        $component->assertDontSee('Digital');
     }
 
     #[Test]
@@ -55,7 +55,7 @@ class ProductFrontendFilterAreaTest extends TestCase
         Product::query()->update(['status' => 'archived']);
 
         // Only physical product initially
-        $physical = Product::create([
+        Product::create([
             'name' => 'Holzblock Physisch',
             'slug' => 'holzblock-physisch-' . uniqid(),
             'status' => 'active',
@@ -63,10 +63,7 @@ class ProductFrontendFilterAreaTest extends TestCase
             'price' => 2000,
         ]);
 
-        $component = Livewire::test(ProductFrontendFilterArea::class);
-        $component->assertDontSee('Digital');
-
-        // Add an active digital product
+        // Add an active digital voucher product
         Product::create([
             'name' => 'E-Book Digital',
             'slug' => 'ebook-digital-' . uniqid(),
@@ -76,8 +73,11 @@ class ProductFrontendFilterAreaTest extends TestCase
         ]);
 
         $component = Livewire::test(ProductFrontendFilterArea::class);
-        $component->assertSee('Digital');
-        $component->assertDontSee('Service');
+        $component->assertSee('Geschenkgutscheine');
+        $component->call('setCollectionWorld', 'voucher')
+            ->assertSet('collectionWorld', 'voucher')
+            ->assertSee('E-Book Digital')
+            ->assertDontSee('Holzblock Physisch');
     }
 
     #[Test]
@@ -86,17 +86,19 @@ class ProductFrontendFilterAreaTest extends TestCase
         Product::query()->update(['status' => 'archived']);
 
         Product::create([
-            'name' => 'Beratung Service',
-            'slug' => 'beratung-service-' . uniqid(),
+            'name' => 'Atelier Ring Echtgold',
+            'slug' => 'atelier-ring-echtgold-' . uniqid(),
             'status' => 'active',
-            'type' => 'service',
+            'type' => 'physical',
+            'collection_line' => 'atelier',
             'price' => 5000,
         ]);
 
         $component = Livewire::test(ProductFrontendFilterArea::class);
-        $component->assertSee('Service');
-        $component->assertDontSee('Digital');
-        $component->assertDontSee('Physisch');
+        $component->assertSee('Atelier Echtgold');
+        $component->call('setCollectionWorld', 'atelier')
+            ->assertSet('collectionWorld', 'atelier')
+            ->assertSee('Atelier Ring Echtgold');
     }
 
     #[Test]

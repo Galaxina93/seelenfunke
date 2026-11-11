@@ -30,6 +30,8 @@ namespace Funkenwerk
         public bool MotionRecord { get; set; } = false;
         public int MotionSensitivity { get; set; } = 50;
         public int Position { get; set; } = 0;
+        public bool InvertPan { get; set; } = true;
+        public bool InvertTilt { get; set; } = false;
 
         // Runtime state (not persisted)
         [System.Text.Json.Serialization.JsonIgnore]

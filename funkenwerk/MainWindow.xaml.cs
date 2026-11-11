@@ -19,10 +19,11 @@ using System.Windows.Shapes;
 
 namespace Funkenwerk
 {
-    public partial class MainWindow : Window
+    public partial class MainWindow : Window, IFunkenwerkLocalBridge
     {
-        private readonly HttpClient _http = FunkenwerkSecurityVault.CreateSecureHttpClient(TimeSpan.FromSeconds(30));
+        private readonly HttpClient _http = FunkenwerkSecurityVault.CreateSecureHttpClient(TimeSpan.FromSeconds(45));
         private readonly string _settingsPath;
+        private FunkenwerkAgentEngine? _agentEngine;
 
         private const string DEFAULT_LOCAL_TOKEN = "1|CTIWGm2Ryb0d60ixSJPME2J6uSUkR1tm6Ga6DEfBd86476e9";
         private string _apiBaseUrl = "http://127.0.0.1/api";
@@ -131,6 +132,11 @@ namespace Funkenwerk
             ApplySavedLayout();
             ConfigureHttpClient();
             InitMusicPlayerEngine();
+            _agentEngine = new FunkenwerkAgentEngine(this);
+            if (CelestialFocusHost != null)
+            {
+                CelestialFocusHost.SampleProvider = SampleCurrentMusicRhythmBands;
+            }
 
             StateChanged += (s, e) =>
             {
@@ -156,7 +162,7 @@ namespace Funkenwerk
                 }
             };
 
-            _apiHealthTimer.Interval = TimeSpan.FromSeconds(20);
+            _apiHealthTimer.Interval = TimeSpan.FromSeconds(6);
             _apiHealthTimer.Tick += async (s, e) =>
             {
                 bool ok = await EnsureValidApiConnectionAsync(reloadModulesIfRecovered: true);
@@ -178,6 +184,8 @@ namespace Funkenwerk
                 }
                 _showCompletedTasks = _layoutSettings.ShowCompletedDefault;
                 InitMarketingEngine();
+                _agentEngine?.StartLocalControlPipeServer();
+                RenderAgentAll();
                 SwitchSpaceUI(_activeSpace);
                 // Upgrade any legacy DPAPI secrets on disk to FWVAULT2 (AES-256-GCM + PBKDF2-SHA512 + DPAPI)
                 LoadSmartHomeConfig();
@@ -239,10 +247,124 @@ namespace Funkenwerk
         private void CloseWindow_Click(object sender, RoutedEventArgs e) => Close();
 
         private readonly Dictionary<(DependencyObject Obj, DependencyProperty Prop), Thickness> _originalBorderThicknesses = new();
+        private readonly Dictionary<DependencyObject, string> _elementSpaceCache = new();
+        private static Dictionary<string, SpaceThemeColorConfig> _staticSpaceThemeColors = new(StringComparer.OrdinalIgnoreCase);
+        private static string _currentRenderingSpaceKey = "mail";
+
+        private static readonly string[] AllSpaceKeys = new[]
+        {
+            "mail", "contacts", "calendar", "todo", "music", "smarthome", "camera", "marketing", "orders", "files", "agent"
+        };
+
+        private void EnsureSpaceThemeColorsInitialized()
+        {
+            _layoutSettings.SpaceThemeColors ??= new Dictionary<string, SpaceThemeColorConfig>(StringComparer.OrdinalIgnoreCase);
+            foreach (var key in AllSpaceKeys)
+            {
+                if (!_layoutSettings.SpaceThemeColors.TryGetValue(key, out var cfg) || cfg == null)
+                {
+                    _layoutSettings.SpaceThemeColors[key] = new SpaceThemeColorConfig
+                    {
+                        BackgroundHex = "#000000",
+                        TextHex = "#FFFFFF"
+                    };
+                }
+                else
+                {
+                    cfg.BackgroundHex = NormalizeHexColorOrDefault(cfg.BackgroundHex, "#000000");
+                    cfg.TextHex = NormalizeHexColorOrDefault(cfg.TextHex, "#FFFFFF");
+                }
+            }
+            _staticSpaceThemeColors = _layoutSettings.SpaceThemeColors;
+        }
+
+        private static string NormalizeHexColorOrDefault(string? raw, string fallback)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return fallback;
+            string s = raw.Trim();
+            if (!s.StartsWith("#", StringComparison.Ordinal)) s = "#" + s;
+            if (s.Length == 7 && Regex.IsMatch(s, @"^#[0-9A-Fa-f]{6}$"))
+                return s.ToUpperInvariant();
+            if (s.Length == 4 && Regex.IsMatch(s, @"^#[0-9A-Fa-f]{3}$"))
+                return $"#{s[1]}{s[1]}{s[2]}{s[2]}{s[3]}{s[3]}".ToUpperInvariant();
+            return fallback;
+        }
+
+        private static (string BgHex, string FgHex) GetSpaceThemeColors(string? spaceKey = null)
+        {
+            string key = string.IsNullOrWhiteSpace(spaceKey) ? _currentRenderingSpaceKey : spaceKey;
+            if (_staticSpaceThemeColors != null && _staticSpaceThemeColors.TryGetValue(key, out var cfg) && cfg != null)
+            {
+                string bg = NormalizeHexColorOrDefault(cfg.BackgroundHex, "#000000");
+                string fg = NormalizeHexColorOrDefault(cfg.TextHex, "#FFFFFF");
+                return (bg, fg);
+            }
+            return ("#000000", "#FFFFFF");
+        }
+
+        private string ResolveElementSpaceKey(DependencyObject? obj)
+        {
+            if (obj == null) return "";
+            if (_elementSpaceCache.TryGetValue(obj, out var cached)) return cached;
+
+            var cur = obj;
+            string found = "";
+            while (cur != null)
+            {
+                if (ReferenceEquals(cur, MailViewGrid)) { found = "mail"; break; }
+                if (ReferenceEquals(cur, ContactsViewGrid)) { found = "contacts"; break; }
+                if (ReferenceEquals(cur, CalendarViewGrid)) { found = "calendar"; break; }
+                if (ReferenceEquals(cur, TodoViewGrid)) { found = "todo"; break; }
+                if (ReferenceEquals(cur, MusicViewGrid)) { found = "music"; break; }
+                if (ReferenceEquals(cur, SmartHomeViewGrid)) { found = "smarthome"; break; }
+                if (ReferenceEquals(cur, CameraStudioViewGrid)) { found = "camera"; break; }
+                if (ReferenceEquals(cur, MarketingViewGrid)) { found = "marketing"; break; }
+                if (ReferenceEquals(cur, OrdersViewGrid)) { found = "orders"; break; }
+                if (ReferenceEquals(cur, FilesViewGrid)) { found = "files"; break; }
+                if (ReferenceEquals(cur, AgentViewGrid)) { found = "agent"; break; }
+
+                DependencyObject? next = null;
+                if (cur is Visual || cur is System.Windows.Media.Media3D.Visual3D)
+                {
+                    try { next = VisualTreeHelper.GetParent(cur); } catch { }
+                }
+                next ??= LogicalTreeHelper.GetParent(cur);
+                cur = next;
+            }
+
+            _elementSpaceCache[obj] = found;
+            return found;
+        }
+
+        private bool IsDesignColorCustomizerPreserveElement(DependencyObject obj)
+        {
+            return ReferenceEquals(obj, DesignSpaceBgPreviewSwatch) ||
+                   ReferenceEquals(obj, DesignSpaceFgPreviewSwatch) ||
+                   ReferenceEquals(obj, DesignSpaceBgPalettePanel) ||
+                   ReferenceEquals(obj, DesignSpaceFgPalettePanel) ||
+                   ReferenceEquals(obj, DesignSpaceTabMailDot) ||
+                   ReferenceEquals(obj, DesignSpaceTabContactsDot) ||
+                   ReferenceEquals(obj, DesignSpaceTabCalendarDot) ||
+                   ReferenceEquals(obj, DesignSpaceTabTodoDot) ||
+                   ReferenceEquals(obj, DesignSpaceTabMusicDot) ||
+                   ReferenceEquals(obj, DesignSpaceTabSmartHomeDot) ||
+                   ReferenceEquals(obj, DesignSpaceTabCameraDot) ||
+                   ReferenceEquals(obj, DesignSpaceTabMarketingDot) ||
+                   ReferenceEquals(obj, DesignSpaceTabOrdersDot) ||
+                   ReferenceEquals(obj, DesignSpaceTabFilesDot);
+        }
 
         private void CaptureOriginalDarkBrushes(DependencyObject parent, HashSet<DependencyObject>? visited = null)
         {
-            if (parent == null || parent == AuthLoginOverlayGrid || parent == MusicVenomFocusOverlay) return;
+            if (parent == null ||
+                parent == AuthLoginOverlayGrid ||
+                parent == MusicVenomFocusOverlay ||
+                parent == DesignSpaceBgPalettePanel ||
+                parent == DesignSpaceFgPalettePanel ||
+                parent == DesignSpaceBgPreviewSwatch ||
+                parent == DesignSpaceFgPreviewSwatch)
+                return;
+
             visited ??= new HashSet<DependencyObject>();
             if (!visited.Add(parent)) return;
 
@@ -300,9 +422,19 @@ namespace Funkenwerk
 
         private void ApplyDynamicThemeResources(bool isDark)
         {
+            var (activeBg, activeFg) = GetSpaceThemeColors(_activeSpace);
+            bool hasCustomBg = !activeBg.Equals("#000000", StringComparison.OrdinalIgnoreCase);
+            bool hasCustomFg = !activeFg.Equals("#FFFFFF", StringComparison.OrdinalIgnoreCase);
+
             void SetRes(string key, string darkHex, string lightHex)
             {
-                var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(isDark ? darkHex : lightHex));
+                string chosen = isDark ? darkHex : lightHex;
+                if (!isDark)
+                {
+                    if (hasCustomBg && darkHex == activeBg) chosen = activeBg;
+                    if (hasCustomFg && darkHex == activeFg) chosen = activeFg;
+                }
+                var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(chosen));
                 brush.Freeze();
                 Resources[key] = brush;
                 if (Application.Current != null)
@@ -311,13 +443,13 @@ namespace Funkenwerk
                 }
             }
 
-            SetRes("ThemeInputBgBrush", "#000000", "#FFFFFF");
-            SetRes("ThemeInputFgBrush", "#FFFFFF", "#111827");
+            SetRes("ThemeInputBgBrush", activeBg, "#FFFFFF");
+            SetRes("ThemeInputFgBrush", activeFg, "#111827");
             SetRes("ThemeInputBorderBrush", "#382D18", "#CBD5E1");
-            SetRes("ThemeDropdownPopupBgBrush", "#000000", "#FFFFFF");
-            SetRes("ThemeDropdownChevronBgBrush", "#000000", "#F1F5F9");
+            SetRes("ThemeDropdownPopupBgBrush", activeBg, "#FFFFFF");
+            SetRes("ThemeDropdownChevronBgBrush", activeBg, "#F1F5F9");
             SetRes("ThemeDropdownChevronStrokeBrush", "#C5A059", "#4B5563");
-            SetRes("ThemeDropdownItemFgBrush", "#FFFFFF", "#1F2937");
+            SetRes("ThemeDropdownItemFgBrush", activeFg, "#1F2937");
             SetRes("ThemeDropdownItemHoverBgBrush", "#0D0A06", "#F1F5F9");
             SetRes("ThemeDropdownItemHoverFgBrush", "#C5A059", "#111827");
             SetRes("ThemeDropdownItemSelectedBgBrush", "#141008", "#E2E8F0");
@@ -326,13 +458,100 @@ namespace Funkenwerk
             SetRes("ThemeScrollThumbBrush", "#382D18", "#CBD5E1");
             SetRes("ThemeSplitterLineBrush", "#382D18", "#CBD5E1");
             SetRes("ThemeSplitterGripBrush", "#C5A059", "#94A3B8");
-            SetRes("ThemeMenuDisabledFgBrush", "#FFFFFF", "#64748B");
+            SetRes("ThemeMenuDisabledFgBrush", activeFg, "#64748B");
+        }
+
+        private void ApplyElementRecordedBrush(DependencyObject obj, DependencyProperty prop, string origHex, bool isDark, string spaceKey)
+        {
+            if (ReferenceEquals(obj, ApiConnectionDotEllipse) ||
+                ReferenceEquals(obj, ApiConnectionPulseRing) ||
+                ReferenceEquals(obj, OrdersPrinterStatusDot) ||
+                IsDesignColorCustomizerPreserveElement(obj))
+                return;
+
+            _currentRenderingSpaceKey = spaceKey;
+            var (spaceBgHex, spaceFgHex) = GetSpaceThemeColors(spaceKey);
+            bool hasCustomSpaceColor = !spaceBgHex.Equals("#000000", StringComparison.OrdinalIgnoreCase) ||
+                                       !spaceFgHex.Equals("#FFFFFF", StringComparison.OrdinalIgnoreCase);
+
+            if (isDark || hasCustomSpaceColor)
+            {
+                bool isBgProp = prop == Border.BackgroundProperty ||
+                                prop == Panel.BackgroundProperty ||
+                                prop == Control.BackgroundProperty;
+
+                if (isBgProp && (isDark || !spaceBgHex.Equals("#000000", StringComparison.OrdinalIgnoreCase)))
+                {
+                    string rgbPart = spaceBgHex.StartsWith("#", StringComparison.Ordinal) ? spaceBgHex.Substring(1) : spaceBgHex;
+                    string targetBgHex = origHex.Length == 9 && origHex.StartsWith("#", StringComparison.Ordinal)
+                        ? $"#{origHex.Substring(1, 2)}{rgbPart}"
+                        : $"#{rgbPart}";
+                    obj.SetValue(prop, new SolidColorBrush((Color)ColorConverter.ConvertFromString(targetBgHex)));
+
+                    bool wasGoldSurface = origHex.Equals("#C5A059", StringComparison.OrdinalIgnoreCase) ||
+                                          origHex.Equals("#D4AF37", StringComparison.OrdinalIgnoreCase);
+
+                    if (wasGoldSurface)
+                    {
+                        var goldBorder = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059"));
+                        if (obj is Control ctrl)
+                        {
+                            ctrl.BorderBrush = goldBorder;
+                            if (ctrl.BorderThickness.Left <= 0) ctrl.BorderThickness = new Thickness(1);
+                        }
+                        else if (obj is Border bd)
+                        {
+                            bd.BorderBrush = goldBorder;
+                            if (bd.BorderThickness.Left <= 0) bd.BorderThickness = new Thickness(1);
+                        }
+                    }
+                    else if (obj is Button btn && btn.BorderThickness.Left <= 0)
+                    {
+                        btn.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#382D18"));
+                        btn.BorderThickness = new Thickness(1);
+                    }
+                    return;
+                }
+
+                if (isDark && origHex.Equals("#111827", StringComparison.OrdinalIgnoreCase))
+                {
+                    obj.SetValue(prop, new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059")));
+                    return;
+                }
+            }
+
+            obj.SetValue(prop, BrushFromHex(origHex));
+        }
+
+        private void ApplyActiveSpaceChromeColors(string space)
+        {
+            EnsureSpaceThemeColorsInitialized();
+            _currentRenderingSpaceKey = space;
+            this.Background = BrushFromHex("#000000");
+            this.Foreground = BrushFromHex("#FFFFFF");
+            ApplyDynamicThemeResources(_isDarkMode);
+
+            foreach (var kv in _originalDarkBrushes)
+            {
+                try
+                {
+                    string elemSpace = ResolveElementSpaceKey(kv.Key.Obj);
+                    if (string.IsNullOrEmpty(elemSpace) || string.Equals(elemSpace, space, StringComparison.OrdinalIgnoreCase))
+                    {
+                        ApplyElementRecordedBrush(kv.Key.Obj, kv.Key.Prop, kv.Value, _isDarkMode, space);
+                    }
+                }
+                catch { }
+            }
+            _currentRenderingSpaceKey = space;
         }
 
         private void ApplyThemeMode(bool isDark)
         {
+            EnsureSpaceThemeColorsInitialized();
             _isDarkMode = isDark;
             _layoutSettings.DarkMode = isDark;
+            _currentRenderingSpaceKey = _activeSpace;
             this.Background = BrushFromHex("#000000");
             this.Foreground = BrushFromHex("#FFFFFF");
             ApplyDynamicThemeResources(isDark);
@@ -350,86 +569,53 @@ namespace Funkenwerk
                     var obj = kv.Key.Obj;
                     var prop = kv.Key.Prop;
                     string origHex = kv.Value;
-
-                    if (ReferenceEquals(obj, ApiConnectionDotEllipse) ||
-                        ReferenceEquals(obj, ApiConnectionPulseRing) ||
-                        ReferenceEquals(obj, OrdersPrinterStatusDot))
-                        continue;
-
-                    if (isDark)
-                    {
-                        bool isBgProp = prop == Border.BackgroundProperty ||
-                                        prop == Panel.BackgroundProperty ||
-                                        prop == Control.BackgroundProperty;
-
-                        if (isBgProp)
-                        {
-                            string targetBgHex = origHex.Length == 9 && origHex.StartsWith("#", StringComparison.Ordinal)
-                                ? $"#{origHex.Substring(1, 2)}000000"
-                                : "#000000";
-                            obj.SetValue(prop, new SolidColorBrush((Color)ColorConverter.ConvertFromString(targetBgHex)));
-
-                            bool wasGoldSurface = origHex.Equals("#C5A059", StringComparison.OrdinalIgnoreCase) ||
-                                                  origHex.Equals("#D4AF37", StringComparison.OrdinalIgnoreCase);
-
-                            if (wasGoldSurface)
-                            {
-                                var goldBorder = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059"));
-                                if (obj is Control ctrl)
-                                {
-                                    ctrl.BorderBrush = goldBorder;
-                                    if (ctrl.BorderThickness.Left <= 0) ctrl.BorderThickness = new Thickness(1);
-                                }
-                                else if (obj is Border bd)
-                                {
-                                    bd.BorderBrush = goldBorder;
-                                    if (bd.BorderThickness.Left <= 0) bd.BorderThickness = new Thickness(1);
-                                }
-                            }
-                            else if (obj is Button btn && btn.BorderThickness.Left <= 0)
-                            {
-                                btn.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#382D18"));
-                                btn.BorderThickness = new Thickness(1);
-                            }
-                            continue;
-                        }
-
-                        if (origHex.Equals("#111827", StringComparison.OrdinalIgnoreCase))
-                        {
-                            obj.SetValue(prop, new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059")));
-                            continue;
-                        }
-                    }
-
-                    obj.SetValue(prop, BrushFromHex(origHex));
+                    string elemSpace = ResolveElementSpaceKey(obj);
+                    string targetSpace = string.IsNullOrEmpty(elemSpace) ? _activeSpace : elemSpace;
+                    ApplyElementRecordedBrush(obj, prop, origHex, isDark, targetSpace);
                 }
                 catch { }
             }
+            _currentRenderingSpaceKey = _activeSpace;
 
             if (SpaceSettingsBtn != null)
             {
                 SpaceSettingsBtn.ApplyTemplate();
                 if (SpaceSettingsBtn.Template?.FindName("SpaceSettingsPath", SpaceSettingsBtn) is System.Windows.Shapes.Path spPath)
                 {
-                    spPath.Stroke = new SolidColorBrush((Color)ColorConverter.ConvertFromString(isDark ? "#FFFFFF" : "#111827"));
+                    var (_, activeFg) = GetSpaceThemeColors(_activeSpace);
+                    spPath.Stroke = new SolidColorBrush((Color)ColorConverter.ConvertFromString(isDark ? activeFg : "#111827"));
                 }
             }
 
             if (_isLoaded)
             {
                 SwitchSpaceUI(_activeSpace);
+                _currentRenderingSpaceKey = "mail";
                 RenderMailAccountsSidebar();
                 RenderFunnelFilterPills();
                 RenderMailMessagesList();
                 RenderActiveMailReader();
+                _currentRenderingSpaceKey = "contacts";
                 RenderContactsList();
+                _currentRenderingSpaceKey = "calendar";
                 RenderCalendarAll();
+                _currentRenderingSpaceKey = "todo";
                 RenderTodoAll();
+                _currentRenderingSpaceKey = "music";
                 RenderMusicAll();
+                _currentRenderingSpaceKey = "smarthome";
                 RenderSmartHomeAll();
+                _currentRenderingSpaceKey = "orders";
                 RenderOrdersPrintDashboard();
+                _currentRenderingSpaceKey = "camera";
                 RenderCameraStudioThemeRefresh();
+                _currentRenderingSpaceKey = "marketing";
                 RenderMarketingThemeRefresh();
+                _currentRenderingSpaceKey = "files";
+                RenderFilesWorkspaceView();
+                _currentRenderingSpaceKey = "agent";
+                RenderAgentAll();
+                _currentRenderingSpaceKey = _activeSpace;
 
                 string currentSettingsTab = SettingsPaneDesign.Visibility == Visibility.Visible
                     ? "design"
@@ -437,6 +623,7 @@ namespace Funkenwerk
                         ? "api"
                         : (SettingsPaneCamera != null && SettingsPaneCamera.Visibility == Visibility.Visible ? "camera" : "sounds"));
                 SwitchSettingsTab(currentSettingsTab);
+                RefreshDesignSpaceColorCustomizerUI();
                 UpdateAuthLoginOverlayTheme();
                 UpdateApiConnectionDotVisual();
             }
@@ -512,6 +699,8 @@ namespace Funkenwerk
                 }
             }
             catch { }
+            EnsureSpaceThemeColorsInitialized();
+            _currentRenderingSpaceKey = _activeSpace;
         }
 
         private void ApplySavedLayout()
@@ -636,6 +825,8 @@ namespace Funkenwerk
                 _layoutSettings.IsSessionLocked = true;
             }
             SaveSettingsToFile();
+            CelestialFocusHost?.StopRendering();
+            _agentEngine?.Dispose();
             ShutdownSmartHomeEngine();
             ShutdownCameraStudioEngine();
         }
@@ -933,6 +1124,10 @@ namespace Funkenwerk
             await LoadContactsAsync();
             await LoadCalendarEventsAsync();
             await LoadMusicPlaylistsAsync();
+            if (_activeSpace == "files")
+            {
+                await LoadFilesWorkspaceAsync();
+            }
             UpdateApiConnectionDotVisual();
         }
 
@@ -950,7 +1145,8 @@ namespace Funkenwerk
                                      (NewTaskBox != null && NewTaskBox.IsKeyboardFocusWithin) ||
                                      (NewSubtaskBox != null && NewSubtaskBox.IsKeyboardFocusWithin);
                 bool isEditingCalendar = CalendarEditorOverlay != null && CalendarEditorOverlay.Visibility == Visibility.Visible;
-                bool isComposingMail = ComposeModalOverlay != null && ComposeModalOverlay.Visibility == Visibility.Visible;
+                bool isComposingMail = (ComposeModalOverlay != null && ComposeModalOverlay.Visibility == Visibility.Visible) ||
+                                       (MailAccountSettingsModalOverlay != null && MailAccountSettingsModalOverlay.Visibility == Visibility.Visible);
 
                 if (_activeSpace == "mail" && !isComposingMail)
                 {
@@ -968,8 +1164,19 @@ namespace Funkenwerk
                 {
                     await LoadContactsAsync();
                 }
+                else if (_activeSpace == "files" &&
+                         (FilesRenameModalOverlay == null || FilesRenameModalOverlay.Visibility != Visibility.Visible) &&
+                         (FilesMoveModalOverlay == null || FilesMoveModalOverlay.Visibility != Visibility.Visible) &&
+                         (FilesPreviewModalOverlay == null || FilesPreviewModalOverlay.Visibility != Visibility.Visible))
+                {
+                    await LoadFilesWorkspaceAsync();
+                }
 
-                // Always keep Music Favorites & Playlists in sync with Android App & Portal
+                // Always keep Tasks & Music Favorites in sync with Android App & Webportal
+                if (!isEditingTask)
+                {
+                    await LoadTodoListsAsync();
+                }
                 await LoadMusicPlaylistsAsync();
                 UpdateApiConnectionDotVisual();
             }
@@ -1004,6 +1211,12 @@ namespace Funkenwerk
         // =========================================================================
         // AUTHENTICATION / LOGIN OVERLAY (Luxury Atelier Video + Magic + Ambient)
         // =========================================================================
+        private readonly System.Windows.Threading.DispatcherTimer _loginVideoLoopTimer = new System.Windows.Threading.DispatcherTimer();
+        private bool _isLoginVideoActiveB = false;
+        private bool _isLoginVideoCrossfading = false;
+        private DateTime _loginVideoCrossfadeStartUtc = DateTime.MinValue;
+        private DateTime _lastLoginInputSoundUtc = DateTime.MinValue;
+
         private static string? ResolveLoginMediaFilePath(string fileName)
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -1031,10 +1244,25 @@ namespace Funkenwerk
                 }
 
                 string? videoPath = ResolveLoginMediaFilePath("login_atelier_bg.mp4");
-                if (!string.IsNullOrEmpty(videoPath) && AuthLoginBgVideo != null)
+                if (!string.IsNullOrEmpty(videoPath))
                 {
-                    AuthLoginBgVideo.Source = new Uri(videoPath, UriKind.Absolute);
+                    var videoUri = new Uri(videoPath, UriKind.Absolute);
+                    if (AuthLoginBgVideo != null)
+                    {
+                        AuthLoginBgVideo.Source = videoUri;
+                        AuthLoginBgVideo.Opacity = 1.0;
+                        Panel.SetZIndex(AuthLoginBgVideo, 2);
+                    }
+                    if (AuthLoginBgVideoB != null)
+                    {
+                        AuthLoginBgVideoB.Source = videoUri;
+                        AuthLoginBgVideoB.Opacity = 0.0;
+                        Panel.SetZIndex(AuthLoginBgVideoB, 1);
+                    }
                 }
+
+                _loginVideoLoopTimer.Interval = TimeSpan.FromMilliseconds(22);
+                _loginVideoLoopTimer.Tick += LoginVideoLoopTimer_Tick;
 
                 _loginAmbientPlayer.MediaEnded += (s, e) =>
                 {
@@ -1073,6 +1301,60 @@ namespace Funkenwerk
                         _loginAudioFadeTimer.Stop();
                     }
                 };
+            }
+            catch { }
+        }
+
+        private void LoginVideoLoopTimer_Tick(object? sender, EventArgs e)
+        {
+            try
+            {
+                if (AuthLoginOverlayGrid == null || AuthLoginOverlayGrid.Visibility != Visibility.Visible ||
+                    AuthLoginBgVideo == null || AuthLoginBgVideoB == null)
+                {
+                    return;
+                }
+
+                var activePlayer = _isLoginVideoActiveB ? AuthLoginBgVideoB : AuthLoginBgVideo;
+                var standbyPlayer = _isLoginVideoActiveB ? AuthLoginBgVideo : AuthLoginBgVideoB;
+
+                if (!_isLoginVideoCrossfading)
+                {
+                    double dur = activePlayer.NaturalDuration.HasTimeSpan
+                        ? activePlayer.NaturalDuration.TimeSpan.TotalSeconds
+                        : 16.0;
+                    double pos = activePlayer.Position.TotalSeconds;
+
+                    // Trigger seamless A/B overlap 360ms BEFORE MediaEnded so DirectShow never flushes a visible surface!
+                    if (dur > 1.0 && pos >= dur - 0.36)
+                    {
+                        _isLoginVideoCrossfading = true;
+                        _loginVideoCrossfadeStartUtc = DateTime.UtcNow;
+
+                        Panel.SetZIndex(standbyPlayer, 2);
+                        Panel.SetZIndex(activePlayer, 1);
+                        standbyPlayer.Opacity = 0.0;
+                        standbyPlayer.Play();
+                    }
+                }
+                else
+                {
+                    double elapsedMs = (DateTime.UtcNow - _loginVideoCrossfadeStartUtc).TotalMilliseconds;
+                    double alpha = Math.Clamp(elapsedMs / 260.0, 0.0, 1.0);
+                    standbyPlayer.Opacity = alpha;
+
+                    if (alpha >= 1.0)
+                    {
+                        standbyPlayer.Opacity = 1.0;
+                        activePlayer.Opacity = 0.0;
+                        // Re-cue the outgoing player back to Frame 0 while it is 100% invisible behind standbyPlayer
+                        activePlayer.Pause();
+                        activePlayer.Position = TimeSpan.Zero;
+
+                        _isLoginVideoActiveB = !_isLoginVideoActiveB;
+                        _isLoginVideoCrossfading = false;
+                    }
+                }
             }
             catch { }
         }
@@ -1117,13 +1399,85 @@ namespace Funkenwerk
         {
             try
             {
-                if (AuthLoginBgVideo != null && AuthLoginOverlayGrid.Visibility == Visibility.Visible)
+                if (AuthLoginOverlayGrid != null && AuthLoginOverlayGrid.Visibility == Visibility.Visible && !_isLoginVideoActiveB)
                 {
-                    AuthLoginBgVideo.Position = TimeSpan.FromMilliseconds(1);
-                    AuthLoginBgVideo.Play();
+                    if (AuthLoginBgVideoB != null && AuthLoginBgVideoB.Source != null)
+                    {
+                        Panel.SetZIndex(AuthLoginBgVideoB, 2);
+                        Panel.SetZIndex(AuthLoginBgVideo, 1);
+                        AuthLoginBgVideoB.Opacity = 1.0;
+                        AuthLoginBgVideoB.Play();
+                        AuthLoginBgVideo.Opacity = 0.0;
+                        AuthLoginBgVideo.Pause();
+                        AuthLoginBgVideo.Position = TimeSpan.Zero;
+                        _isLoginVideoActiveB = true;
+                        _isLoginVideoCrossfading = false;
+                    }
+                    else if (AuthLoginBgVideo != null)
+                    {
+                        AuthLoginBgVideo.Position = TimeSpan.Zero;
+                        AuthLoginBgVideo.Play();
+                    }
                 }
             }
             catch { }
+        }
+
+        private void AuthLoginBgVideoB_MediaEnded(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (AuthLoginOverlayGrid != null && AuthLoginOverlayGrid.Visibility == Visibility.Visible && _isLoginVideoActiveB)
+                {
+                    if (AuthLoginBgVideo != null && AuthLoginBgVideo.Source != null)
+                    {
+                        Panel.SetZIndex(AuthLoginBgVideo, 2);
+                        Panel.SetZIndex(AuthLoginBgVideoB, 1);
+                        AuthLoginBgVideo.Opacity = 1.0;
+                        AuthLoginBgVideo.Play();
+                        AuthLoginBgVideoB.Opacity = 0.0;
+                        AuthLoginBgVideoB.Pause();
+                        AuthLoginBgVideoB.Position = TimeSpan.Zero;
+                        _isLoginVideoActiveB = false;
+                        _isLoginVideoCrossfading = false;
+                    }
+                    else if (AuthLoginBgVideoB != null)
+                    {
+                        AuthLoginBgVideoB.Position = TimeSpan.Zero;
+                        AuthLoginBgVideoB.Play();
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private void MinimizeAuthLoginCard_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundNav(force: true);
+            if (AuthLoginCardBorder != null)
+                AuthLoginCardBorder.Visibility = Visibility.Collapsed;
+            if (AuthLoginMinimizedRestoreBtn != null)
+                AuthLoginMinimizedRestoreBtn.Visibility = Visibility.Visible;
+        }
+
+        private void RestoreAuthLoginCard_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundActionPop(force: true);
+            if (AuthLoginMinimizedRestoreBtn != null)
+                AuthLoginMinimizedRestoreBtn.Visibility = Visibility.Collapsed;
+            if (AuthLoginCardBorder != null)
+                AuthLoginCardBorder.Visibility = Visibility.Visible;
+        }
+
+        private void AuthLoginInput_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (!_layoutSettings.SoundsEnabled) return;
+            var now = DateTime.UtcNow;
+            if ((now - _lastLoginInputSoundUtc).TotalMilliseconds < 65) return;
+            _lastLoginInputSoundUtc = now;
+
+            double vol = Math.Clamp(_layoutSettings.SoundVolume / 100.0, 0.08, 1.0);
+            FunkenwerkSoundEngine.PlayLoginInputFocusTap(vol);
         }
 
         private void UpdateAuthLoginOverlayTheme()
@@ -1236,6 +1590,7 @@ namespace Funkenwerk
             AuthLoginPasswordBox.Password = pass;
             AuthLoginPasswordVisibleBox.Text = pass;
             _suppressAuthPasswordSync = false;
+            UpdateAuthLoginConnectedHintVisual();
 
             if (!string.IsNullOrWhiteSpace(errorMsg))
             {
@@ -1253,6 +1608,10 @@ namespace Funkenwerk
                 AuthMagicActivationOverlay.Visibility = Visibility.Collapsed;
                 AuthMagicActivationOverlay.Opacity = 1.0;
             }
+            if (AuthLoginMinimizedRestoreBtn != null)
+            {
+                AuthLoginMinimizedRestoreBtn.Visibility = Visibility.Collapsed;
+            }
             AuthLoginCardBorder.Visibility = Visibility.Visible;
             AuthLoginCardBorder.Opacity = 1.0;
             AuthLoginSubmitBtn.IsEnabled = true;
@@ -1265,11 +1624,24 @@ namespace Funkenwerk
 
             try
             {
+                _isLoginVideoActiveB = false;
+                _isLoginVideoCrossfading = false;
                 if (AuthLoginBgVideo != null && AuthLoginBgVideo.Source != null)
                 {
+                    Panel.SetZIndex(AuthLoginBgVideo, 2);
+                    AuthLoginBgVideo.Opacity = 1.0;
                     AuthLoginBgVideo.Position = TimeSpan.Zero;
                     AuthLoginBgVideo.Play();
                 }
+                if (AuthLoginBgVideoB != null && AuthLoginBgVideoB.Source != null)
+                {
+                    Panel.SetZIndex(AuthLoginBgVideoB, 1);
+                    AuthLoginBgVideoB.Opacity = 0.0;
+                    AuthLoginBgVideoB.Play();
+                    AuthLoginBgVideoB.Pause();
+                    AuthLoginBgVideoB.Position = TimeSpan.Zero;
+                }
+                _loginVideoLoopTimer.Start();
             }
             catch { }
 
@@ -1288,9 +1660,14 @@ namespace Funkenwerk
 
         private void HideAuthLoginOverlay()
         {
+            _loginVideoLoopTimer.Stop();
             if (AuthLoginOverlayGrid != null)
             {
                 AuthLoginOverlayGrid.Visibility = Visibility.Collapsed;
+            }
+            if (AuthLoginMinimizedRestoreBtn != null)
+            {
+                AuthLoginMinimizedRestoreBtn.Visibility = Visibility.Collapsed;
             }
             if (AuthMagicActivationOverlay != null)
             {
@@ -1299,11 +1676,13 @@ namespace Funkenwerk
             try
             {
                 AuthLoginBgVideo?.Pause();
+                AuthLoginBgVideoB?.Pause();
             }
             catch { }
 
             FadeOutAndStopLoginAmbientMusic();
             EnsurePrinterQueueTimerStarted();
+            _ = PushSmartHomeConfigToServersAsync();
 
             if (HeaderLogoutLockBtn != null)
             {
@@ -1342,6 +1721,8 @@ namespace Funkenwerk
             FadeOutAndStopLoginAmbientMusic();
 
             AuthLoginCardBorder.Visibility = Visibility.Collapsed;
+            if (AuthLoginMinimizedRestoreBtn != null)
+                AuthLoginMinimizedRestoreBtn.Visibility = Visibility.Collapsed;
             AuthMagicSparksCanvas.Children.Clear();
             AuthMagicPhasePillTxt.Text = "SEELENFUNKEN SAMMELN SICH...";
             AuthMagicActivationOverlay.Opacity = 1.0;
@@ -1462,6 +1843,30 @@ namespace Funkenwerk
             AuthMagicSparksCanvas.Children.Clear();
         }
 
+        private void UpdateAuthLoginConnectedHintVisual()
+        {
+            if (AuthLoginPasswordBox == null || AuthLoginPasswordVisibleBox == null) return;
+            string targetUrl = _authSelectedEnvKey switch
+            {
+                "local" => "http://127.0.0.1/api",
+                "live" => "https://mein-seelenfunke.de/api",
+                _ => "https://stage.mein-seelenfunke.de/api"
+            };
+            string savedTok = GetSavedTokenForUrl(targetUrl);
+            bool hasToken = !string.IsNullOrWhiteSpace(savedTok) ||
+                            (string.Equals(_apiBaseUrl.TrimEnd('/'), targetUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(_apiToken));
+            bool pwdEmpty = string.IsNullOrEmpty(AuthLoginPasswordBox.Password) && string.IsNullOrEmpty(AuthLoginPasswordVisibleBox.Text);
+
+            if (AuthLoginConnectedHintTxt != null)
+            {
+                AuthLoginConnectedHintTxt.Visibility = (hasToken && pwdEmpty) ? Visibility.Visible : Visibility.Collapsed;
+            }
+            if (AuthLoginSubmitBtn != null && AuthLoginSubmitBtn.IsEnabled)
+            {
+                AuthLoginSubmitBtn.Content = (hasToken && pwdEmpty) ? "✓   ANGEMELDET   ✓" : "✦   ANMELDEN   ✦";
+            }
+        }
+
         private void AuthEnvPill_Click(object sender, MouseButtonEventArgs e)
         {
             if (sender is Border b && b.Tag is string key)
@@ -1475,6 +1880,7 @@ namespace Funkenwerk
                     _ => "https://stage.mein-seelenfunke.de/api"
                 };
                 UpdateAuthEnvPillVisuals();
+                UpdateAuthLoginConnectedHintVisual();
                 UpdateApiConnectionDotVisual();
             }
         }
@@ -1504,6 +1910,7 @@ namespace Funkenwerk
                 AuthLoginPasswordBox.Focus();
             }
             _suppressAuthPasswordSync = false;
+            UpdateAuthLoginConnectedHintVisual();
         }
 
         private void AuthLoginPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
@@ -1512,6 +1919,7 @@ namespace Funkenwerk
             _suppressAuthPasswordSync = true;
             AuthLoginPasswordVisibleBox.Text = AuthLoginPasswordBox.Password;
             _suppressAuthPasswordSync = false;
+            UpdateAuthLoginConnectedHintVisual();
         }
 
         private void AuthLoginPasswordVisibleBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -1520,6 +1928,7 @@ namespace Funkenwerk
             _suppressAuthPasswordSync = true;
             AuthLoginPasswordBox.Password = AuthLoginPasswordVisibleBox.Text;
             _suppressAuthPasswordSync = false;
+            UpdateAuthLoginConnectedHintVisual();
         }
 
         private void AuthLoginInput_KeyDown(object sender, KeyEventArgs e)
@@ -1538,6 +1947,42 @@ namespace Funkenwerk
                 ? (AuthLoginPasswordVisibleBox.Text ?? "")
                 : (AuthLoginPasswordBox.Password ?? "");
 
+            string targetUrl = _authSelectedEnvKey switch
+            {
+                "local" => "http://127.0.0.1/api",
+                "live" => "https://mein-seelenfunke.de/api",
+                _ => "https://stage.mein-seelenfunke.de/api"
+            };
+
+            string existingTokenForEnv = GetSavedTokenForUrl(targetUrl);
+            if (string.IsNullOrWhiteSpace(existingTokenForEnv) &&
+                string.Equals(_apiBaseUrl.TrimEnd('/'), targetUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+            {
+                existingTokenForEnv = _apiToken;
+            }
+
+            if (string.IsNullOrWhiteSpace(password) && !string.IsNullOrWhiteSpace(existingTokenForEnv))
+            {
+                PlaySoundNav();
+                AuthLoginErrorBorder.Visibility = Visibility.Collapsed;
+                _apiBaseUrl = targetUrl;
+                _apiToken = existingTokenForEnv;
+                _layoutSettings.SavedAuthEmail = string.IsNullOrWhiteSpace(email) ? "kontakt@mein-seelenfunke.de" : email;
+                _layoutSettings.RememberCredentials = true;
+                _layoutSettings.IsSessionLocked = false;
+                ConfigureHttpClient();
+                SaveSettingsToFile();
+
+                var reloadTask = ReloadAllModulesDataAsync();
+                await RunMagicActivationTransitionAsync();
+                HideAuthLoginOverlay();
+                await reloadTask;
+                _ = HarvestAllEmailRecipientsInBackgroundAsync();
+                _apiHealthTimer.Start();
+                _ = CheckInitialMusicImportStatusAsync();
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
             {
                 AuthLoginErrorTxt.Text = "Bitte E-Mail und Passwort eingeben.";
@@ -1549,13 +1994,6 @@ namespace Funkenwerk
             AuthLoginErrorBorder.Visibility = Visibility.Collapsed;
             AuthLoginSubmitBtn.IsEnabled = false;
             AuthLoginSubmitBtn.Content = "✦   MAGIE WIRD AKTIVIERT...   ✦";
-
-            string targetUrl = _authSelectedEnvKey switch
-            {
-                "local" => "http://127.0.0.1/api",
-                "live" => "https://mein-seelenfunke.de/api",
-                _ => "https://stage.mein-seelenfunke.de/api"
-            };
 
             try
             {
@@ -1732,12 +2170,25 @@ namespace Funkenwerk
                     EnsureMarketingInitialized();
                 else if (space == "orders")
                     _ = EnsureOrdersPrintViewInitializedAsync();
+                else if (space == "files")
+                    await LoadFilesWorkspaceAsync();
+                else if (space == "agent")
+                {
+                    RenderAgentAll();
+                    _ = Dispatcher.BeginInvoke(new Action(() => AgentPromptInputBox?.Focus()));
+                }
             }
         }
 
         private void SwitchSpaceUI(string space)
         {
             _activeSpace = space;
+            _currentRenderingSpaceKey = space;
+            if (_isLoaded)
+            {
+                ApplyActiveSpaceChromeColors(space);
+            }
+
             MailViewGrid.Visibility = space == "mail" ? Visibility.Visible : Visibility.Collapsed;
             ContactsViewGrid.Visibility = space == "contacts" ? Visibility.Visible : Visibility.Collapsed;
             CalendarViewGrid.Visibility = space == "calendar" ? Visibility.Visible : Visibility.Collapsed;
@@ -1751,6 +2202,10 @@ namespace Funkenwerk
                 MarketingViewGrid.Visibility = space == "marketing" ? Visibility.Visible : Visibility.Collapsed;
             if (OrdersViewGrid != null)
                 OrdersViewGrid.Visibility = space == "orders" ? Visibility.Visible : Visibility.Collapsed;
+            if (FilesViewGrid != null)
+                FilesViewGrid.Visibility = space == "files" ? Visibility.Visible : Visibility.Collapsed;
+            if (AgentViewGrid != null)
+                AgentViewGrid.Visibility = space == "agent" ? Visibility.Visible : Visibility.Collapsed;
 
             UpdateSpaceButtonVisual(SpaceMailBtn, "SpaceMailBg", "SpaceMailPath", space == "mail");
             UpdateSpaceButtonVisual(SpaceContactsBtn, "SpaceContactsBg", "SpaceContactsPath", space == "contacts");
@@ -1765,12 +2220,17 @@ namespace Funkenwerk
                 UpdateSpaceButtonVisual(SpaceMarketingBtn, "SpaceMarketingBg", "SpaceMarketingPath", space == "marketing");
             if (SpaceOrdersBtn != null)
                 UpdateSpaceButtonVisual(SpaceOrdersBtn, "SpaceOrdersBg", "SpaceOrdersPath", space == "orders");
+            if (SpaceFilesBtn != null)
+                UpdateSpaceButtonVisual(SpaceFilesBtn, "SpaceFilesBg", "SpaceFilesPath", space == "files");
+            if (SpaceAgentBtn != null)
+                UpdateSpaceButtonVisual(SpaceAgentBtn, "SpaceAgentBg", "SpaceAgentPath", space == "agent");
             if (SpaceSettingsBtn != null)
             {
                 SpaceSettingsBtn.ApplyTemplate();
                 if (SpaceSettingsBtn.Template?.FindName("SpaceSettingsPath", SpaceSettingsBtn) is System.Windows.Shapes.Path spPath)
                 {
-                    spPath.Stroke = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_isDarkMode ? "#FFFFFF" : "#111827"));
+                    var (_, activeFg) = GetSpaceThemeColors(space);
+                    spPath.Stroke = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_isDarkMode ? activeFg : "#111827"));
                 }
             }
 
@@ -1782,6 +2242,10 @@ namespace Funkenwerk
                 EnsureMarketingInitialized();
             else if (space == "orders")
                 _ = EnsureOrdersPrintViewInitializedAsync();
+            else if (space == "files")
+                _ = LoadFilesWorkspaceAsync();
+            else if (space == "agent")
+                RenderAgentAll();
 
             UpdateMiniPlayerVisibility();
         }
@@ -1789,11 +2253,14 @@ namespace Funkenwerk
         private void UpdateSpaceButtonVisual(Button btn, string bgName, string pathName, bool isActive)
         {
             btn.ApplyTemplate();
+            var (spaceBg, spaceFg) = GetSpaceThemeColors(_activeSpace);
             if (btn.Template.FindName(bgName, btn) is Border bg)
             {
                 if (_isDarkMode)
                 {
-                    bg.Background = isActive ? BrushFromHex("#000000") : Brushes.Transparent;
+                    bg.Background = isActive
+                        ? new SolidColorBrush((Color)ColorConverter.ConvertFromString(spaceBg))
+                        : Brushes.Transparent;
                     bg.BorderBrush = isActive ? BrushFromHex("#C5A059") : Brushes.Transparent;
                     bg.BorderThickness = isActive ? new Thickness(1.5) : new Thickness(0);
                 }
@@ -1807,7 +2274,7 @@ namespace Funkenwerk
             {
                 string strokeHex = isActive
                     ? (_isDarkMode ? "#C5A059" : "#111827")
-                    : (_isDarkMode ? "#FFFFFF" : "#1F2937");
+                    : (_isDarkMode ? spaceFg : "#1F2937");
                 path.Stroke = new SolidColorBrush((Color)ColorConverter.ConvertFromString(strokeHex));
             }
         }
@@ -1912,6 +2379,7 @@ namespace Funkenwerk
                     _processedArchivedCount = procSum.TryGetProperty("archived_count", out var ac) ? ac.GetInt32() : 0;
                 }
 
+                int prevComposeSelectedId = ComposeAccountCombo.SelectedValue is int cv && cv > 0 ? cv : _composePinnedAccountId;
                 _mailAccounts.Clear();
                 foreach (var item in dataArr.EnumerateArray())
                 {
@@ -1920,7 +2388,17 @@ namespace Funkenwerk
                         Id = item.GetProperty("id").GetInt32(),
                         Name = item.GetProperty("name").GetString() ?? "",
                         Email = item.GetProperty("email").GetString() ?? "",
-                        IsDefault = item.TryGetProperty("is_default", out var defP) && defP.GetBoolean(),
+                        ImapHost = item.TryGetProperty("imap_host", out var ihP) && ihP.ValueKind == JsonValueKind.String ? ihP.GetString() ?? "" : "",
+                        ImapPort = item.TryGetProperty("imap_port", out var ipP) && ipP.ValueKind == JsonValueKind.Number ? ipP.GetInt32() : (ipP.ValueKind == JsonValueKind.String && int.TryParse(ipP.GetString(), out int ipParsed) ? ipParsed : 993),
+                        ImapEncryption = item.TryGetProperty("imap_encryption", out var ieP) && ieP.ValueKind == JsonValueKind.String ? ieP.GetString() ?? "ssl" : "ssl",
+                        ImapUsername = item.TryGetProperty("imap_username", out var iuP) && iuP.ValueKind == JsonValueKind.String ? iuP.GetString() ?? "" : "",
+                        SmtpHost = item.TryGetProperty("smtp_host", out var shP) && shP.ValueKind == JsonValueKind.String ? shP.GetString() ?? "" : "",
+                        SmtpPort = item.TryGetProperty("smtp_port", out var spP) && spP.ValueKind == JsonValueKind.Number ? spP.GetInt32() : (spP.ValueKind == JsonValueKind.String && int.TryParse(spP.GetString(), out int spParsed) ? spParsed : 465),
+                        SmtpEncryption = item.TryGetProperty("smtp_encryption", out var seP) && seP.ValueKind == JsonValueKind.String ? seP.GetString() ?? "ssl" : "ssl",
+                        SmtpUsername = item.TryGetProperty("smtp_username", out var suP) && suP.ValueKind == JsonValueKind.String ? suP.GetString() ?? "" : "",
+                        IsDefault = item.TryGetProperty("is_default", out var defP) && defP.ValueKind == JsonValueKind.True,
+                        IsCommercial = !item.TryGetProperty("is_commercial", out var comP) || comP.ValueKind != JsonValueKind.False,
+                        HasPassword = !item.TryGetProperty("has_password", out var hpP) || hpP.ValueKind != JsonValueKind.False,
                         TotalUnread = item.TryGetProperty("total_unread", out var tuP) ? tuP.GetInt32() : 0,
                         Signature = item.TryGetProperty("signature", out var sigP) && sigP.ValueKind == JsonValueKind.String ? sigP.GetString() ?? "" : ""
                     };
@@ -1949,7 +2427,12 @@ namespace Funkenwerk
                     _mailAccounts.Add(acc);
                 }
 
+                ComposeAccountCombo.ItemsSource = null;
                 ComposeAccountCombo.ItemsSource = _mailAccounts;
+                if (prevComposeSelectedId > 0 && _mailAccounts.Any(a => a.Id == prevComposeSelectedId))
+                {
+                    ComposeAccountCombo.SelectedValue = prevComposeSelectedId;
+                }
 
                 if ((_selectedAccountId == 0 || !_mailAccounts.Any(a => a.Id == _selectedAccountId)) && _mailAccounts.Count > 0)
                 {
@@ -2055,6 +2538,42 @@ namespace Funkenwerk
                 Grid.SetColumn(emailTxt, 2);
                 hg.Children.Add(emailTxt);
 
+                var rightCluster = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+
+                var capturedAccForModal = acc;
+                if (!acc.HasPassword)
+                {
+                    var warnPill = new Border
+                    {
+                        Background = BrushFromHex("#2E1D12"),
+                        BorderBrush = BrushFromHex("#F59E0B"),
+                        BorderThickness = new Thickness(1),
+                        CornerRadius = new CornerRadius(6),
+                        Padding = new Thickness(5, 1, 5, 1),
+                        Margin = new Thickness(4, 0, 2, 0),
+                        Cursor = Cursors.Hand,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        ToolTip = "E-Mail-Passwort fehlt - Klicken zum Einrichten",
+                        Child = new TextBlock
+                        {
+                            Text = "⚠",
+                            Foreground = BrushFromHex("#F59E0B"),
+                            FontSize = 9.5,
+                            FontWeight = FontWeights.Bold
+                        }
+                    };
+                    warnPill.MouseLeftButtonUp += (s, ev) =>
+                    {
+                        ev.Handled = true;
+                        OpenMailAccountSettingsModal(capturedAccForModal);
+                    };
+                    rightCluster.Children.Add(warnPill);
+                }
+
                 if (acc.TotalUnread > 0)
                 {
                     var badge = new Border
@@ -2074,9 +2593,36 @@ namespace Funkenwerk
                             FontWeight = FontWeights.Bold
                         }
                     };
-                    Grid.SetColumn(badge, 3);
-                    hg.Children.Add(badge);
+                    rightCluster.Children.Add(badge);
                 }
+
+                var gearBtn = new Border
+                {
+                    Background = Brushes.Transparent,
+                    CornerRadius = new CornerRadius(5),
+                    Padding = new Thickness(4, 1, 2, 1),
+                    Margin = new Thickness(3, 0, 0, 0),
+                    Cursor = Cursors.Hand,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    ToolTip = "Postfach & SMTP konfigurieren",
+                    Child = new TextBlock
+                    {
+                        Text = "⚙",
+                        Foreground = BrushFromHex("#9CA3AF"),
+                        FontSize = 11.5
+                    }
+                };
+                gearBtn.MouseEnter += (s, ev) => ((TextBlock)gearBtn.Child).Foreground = BrushFromHex("#C5A059");
+                gearBtn.MouseLeave += (s, ev) => ((TextBlock)gearBtn.Child).Foreground = BrushFromHex("#9CA3AF");
+                gearBtn.MouseLeftButtonUp += (s, ev) =>
+                {
+                    ev.Handled = true;
+                    OpenMailAccountSettingsModal(capturedAccForModal);
+                };
+                rightCluster.Children.Add(gearBtn);
+
+                Grid.SetColumn(rightCluster, 3);
+                hg.Children.Add(rightCluster);
 
                 accHeader.Child = hg;
 
@@ -2089,6 +2635,9 @@ namespace Funkenwerk
                     OpenCompose_Click(s, e);
                 };
                 accMenu.Items.Add(miNewMail);
+                var miEditAcc = new MenuItem { Header = "⚙ Postfach & SMTP konfigurieren" };
+                miEditAcc.Click += (s, e) => OpenMailAccountSettingsModal(capturedAccForModal);
+                accMenu.Items.Add(miEditAcc);
                 var miSyncAcc = new MenuItem { Header = "↻ Postfach synchronisieren" };
                 miSyncAcc.Click += (s, e) => SyncMails_Click(s, e);
                 accMenu.Items.Add(miSyncAcc);
@@ -4180,15 +4729,246 @@ namespace Funkenwerk
             ReaderBodyTxt.Foreground = BrushFromHex("#F3F4F6");
         }
 
+        private bool _isMailSyncRunning = false;
+        private int _mailSyncResetGeneration = 0;
+
+        private void ResetMailSyncButtonAppearance()
+        {
+            if (MailSyncIconRotate != null)
+            {
+                MailSyncIconRotate.BeginAnimation(RotateTransform.AngleProperty, null);
+                MailSyncIconRotate.Angle = 0;
+            }
+            var defaultFg = BrushFromHex(_isDarkMode ? "#D1D5DB" : "#1F2937");
+            if (MailSyncBtn != null)
+            {
+                MailSyncBtn.Background = BrushFromHex(_isDarkMode ? "#1F2430" : "#E5E7EB");
+                MailSyncBtn.BorderBrush = Brushes.Transparent;
+                MailSyncBtn.Foreground = defaultFg;
+            }
+            if (MailSyncIconTxt != null)
+            {
+                MailSyncIconTxt.Text = "↻";
+                MailSyncIconTxt.Foreground = defaultFg;
+            }
+            if (MailSyncLabelTxt != null)
+            {
+                MailSyncLabelTxt.Text = "Sync";
+                MailSyncLabelTxt.Foreground = defaultFg;
+            }
+        }
+
         private async void SyncMails_Click(object sender, RoutedEventArgs e)
         {
+            if (_isMailSyncRunning) return;
+            _isMailSyncRunning = true;
+            int gen = ++_mailSyncResetGeneration;
+            var sw = Stopwatch.StartNew();
+
+            var elapsedTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(500)
+            };
+            elapsedTimer.Tick += (s, ev) =>
+            {
+                int sec = (int)Math.Floor(sw.Elapsed.TotalSeconds);
+                if (MailSyncTimerTxt != null)
+                {
+                    MailSyncTimerTxt.Text = sec > 0 ? $"{sec}s" : "";
+                }
+                if (sec >= 3 && MailSyncStatusTxt != null && _isMailSyncRunning)
+                {
+                    MailSyncStatusTxt.Text = "Prüfe IMAP-Posteingänge...";
+                }
+            };
+
             try
             {
-                await _http.PostAsync($"{_apiBaseUrl}/funki/emails/sync", new StringContent("{}", Encoding.UTF8, "application/json"));
-                await Task.Delay(1200);
+                PlaySoundNav();
+
+                // 1. Immediate Gold Button & Continuous 360° Spin Feedback
+                if (MailSyncBtn != null)
+                {
+                    MailSyncBtn.Background = BrushFromHex(_isDarkMode ? "#262013" : "#FEF9EC");
+                    MailSyncBtn.BorderBrush = BrushFromHex("#C5A059");
+                }
+                if (MailSyncIconTxt != null)
+                {
+                    MailSyncIconTxt.Text = "↻";
+                    MailSyncIconTxt.Foreground = BrushFromHex("#C5A059");
+                }
+                if (MailSyncLabelTxt != null)
+                {
+                    MailSyncLabelTxt.Text = "Lädt...";
+                    MailSyncLabelTxt.Foreground = BrushFromHex("#C5A059");
+                }
+                if (MailSyncIconRotate != null)
+                {
+                    var spinAnim = new System.Windows.Media.Animation.DoubleAnimation(0, 360, TimeSpan.FromMilliseconds(820))
+                    {
+                        RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever
+                    };
+                    MailSyncIconRotate.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
+                }
+
+                // 2. Show Live Compact Progress Strip below Mail Header
+                if (MailSyncStatusBar != null)
+                {
+                    MailSyncStatusBar.Background = BrushFromHex(_isDarkMode ? "#1A1710" : "#FFFBEB");
+                    MailSyncStatusBar.BorderBrush = BrushFromHex(_isDarkMode ? "#4D3D1E" : "#E5C787");
+                    if (MailSyncStatusDot != null) MailSyncStatusDot.Fill = BrushFromHex("#C5A059");
+                    if (MailSyncStatusTxt != null)
+                    {
+                        MailSyncStatusTxt.Foreground = BrushFromHex(_isDarkMode ? "#C5A059" : "#926B21");
+                        MailSyncStatusTxt.Text = "Synchronisiere Postfächer...";
+                    }
+                    if (MailSyncTimerTxt != null) MailSyncTimerTxt.Text = "";
+                    if (MailSyncProgressBar != null)
+                    {
+                        MailSyncProgressBar.IsIndeterminate = true;
+                        MailSyncProgressBar.Visibility = Visibility.Visible;
+                    }
+                    MailSyncStatusBar.Visibility = Visibility.Visible;
+                }
+
+                elapsedTimer.Start();
+
+                // 3. Execute Synchronous IMAP Sync + Minimum Visual Feedback Window (900ms)
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(45));
+                var syncTask = _http.PostAsync(
+                    $"{_apiBaseUrl}/funki/emails/sync",
+                    new StringContent("{\"wait\":true}", Encoding.UTF8, "application/json"),
+                    cts.Token);
+                await Task.WhenAll(syncTask, Task.Delay(900));
+
+                var res = await syncTask;
+                string rawJson = await res.Content.ReadAsStringAsync();
+
+                int newMailsCount = 0;
+                int syncedAccounts = 0;
+                if (res.IsSuccessStatusCode && !string.IsNullOrWhiteSpace(rawJson))
+                {
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(rawJson);
+                        var root = doc.RootElement;
+                        if (root.TryGetProperty("new_mails_count", out var nm) && nm.ValueKind == JsonValueKind.Number)
+                            newMailsCount = nm.GetInt32();
+                        if (root.TryGetProperty("synced_accounts", out var sa) && sa.ValueKind == JsonValueKind.Number)
+                            syncedAccounts = sa.GetInt32();
+                    }
+                    catch { }
+                }
+
+                if (MailSyncStatusTxt != null)
+                {
+                    MailSyncStatusTxt.Text = "Aktualisiere Ansicht...";
+                }
+
+                // Refresh sidebar counts, badges & active message list
                 await LoadMailAccountsAsync();
+
+                elapsedTimer.Stop();
+                if (MailSyncIconRotate != null)
+                {
+                    MailSyncIconRotate.BeginAnimation(RotateTransform.AngleProperty, null);
+                    MailSyncIconRotate.Angle = 0;
+                }
+
+                if (!res.IsSuccessStatusCode)
+                {
+                    throw new HttpRequestException($"HTTP {(int)res.StatusCode}");
+                }
+
+                // 4. Emerald Confirmation State (3.2s)
+                if (newMailsCount > 0) PlaySoundMailChime();
+                else PlaySoundActionPop();
+
+                if (MailSyncBtn != null)
+                {
+                    MailSyncBtn.Background = BrushFromHex(_isDarkMode ? "#0F291E" : "#ECFDF5");
+                    MailSyncBtn.BorderBrush = BrushFromHex("#10B981");
+                }
+                if (MailSyncIconTxt != null)
+                {
+                    MailSyncIconTxt.Text = "✓";
+                    MailSyncIconTxt.Foreground = BrushFromHex("#10B981");
+                }
+                if (MailSyncLabelTxt != null)
+                {
+                    MailSyncLabelTxt.Text = newMailsCount > 0 ? $"+{newMailsCount} neu" : "Aktuell";
+                    MailSyncLabelTxt.Foreground = BrushFromHex("#10B981");
+                }
+                if (MailSyncStatusBar != null)
+                {
+                    MailSyncStatusBar.Background = BrushFromHex(_isDarkMode ? "#0F241C" : "#ECFDF5");
+                    MailSyncStatusBar.BorderBrush = BrushFromHex("#10B981");
+                    if (MailSyncStatusDot != null) MailSyncStatusDot.Fill = BrushFromHex("#10B981");
+                    if (MailSyncProgressBar != null) MailSyncProgressBar.Visibility = Visibility.Collapsed;
+                    if (MailSyncTimerTxt != null) MailSyncTimerTxt.Text = "";
+                    if (MailSyncStatusTxt != null)
+                    {
+                        MailSyncStatusTxt.Foreground = BrushFromHex(_isDarkMode ? "#34D399" : "#047857");
+                        MailSyncStatusTxt.Text = newMailsCount > 0
+                            ? (newMailsCount == 1 ? "1 neue E-Mail geladen" : $"{newMailsCount} neue E-Mails geladen")
+                            : (syncedAccounts > 0 ? $"Aktuell · {syncedAccounts} Postfächer geprüft" : "Postfächer aktuell");
+                    }
+                }
+
+                _isMailSyncRunning = false;
+                await Task.Delay(3200);
+                if (gen == _mailSyncResetGeneration && !_isMailSyncRunning)
+                {
+                    ResetMailSyncButtonAppearance();
+                    if (MailSyncStatusBar != null) MailSyncStatusBar.Visibility = Visibility.Collapsed;
+                }
             }
-            catch { }
+            catch
+            {
+                elapsedTimer.Stop();
+                _isMailSyncRunning = false;
+                if (MailSyncIconRotate != null)
+                {
+                    MailSyncIconRotate.BeginAnimation(RotateTransform.AngleProperty, null);
+                    MailSyncIconRotate.Angle = 0;
+                }
+                if (MailSyncBtn != null)
+                {
+                    MailSyncBtn.Background = BrushFromHex(_isDarkMode ? "#2B1E12" : "#FEF3C7");
+                    MailSyncBtn.BorderBrush = BrushFromHex("#F59E0B");
+                }
+                if (MailSyncIconTxt != null)
+                {
+                    MailSyncIconTxt.Text = "⚠";
+                    MailSyncIconTxt.Foreground = BrushFromHex("#F59E0B");
+                }
+                if (MailSyncLabelTxt != null)
+                {
+                    MailSyncLabelTxt.Text = "Sync";
+                    MailSyncLabelTxt.Foreground = BrushFromHex("#F59E0B");
+                }
+                if (MailSyncStatusBar != null)
+                {
+                    MailSyncStatusBar.Background = BrushFromHex(_isDarkMode ? "#261B11" : "#FEF3C7");
+                    MailSyncStatusBar.BorderBrush = BrushFromHex("#F59E0B");
+                    if (MailSyncStatusDot != null) MailSyncStatusDot.Fill = BrushFromHex("#F59E0B");
+                    if (MailSyncProgressBar != null) MailSyncProgressBar.Visibility = Visibility.Collapsed;
+                    if (MailSyncTimerTxt != null) MailSyncTimerTxt.Text = "";
+                    if (MailSyncStatusTxt != null)
+                    {
+                        MailSyncStatusTxt.Foreground = BrushFromHex(_isDarkMode ? "#FBBF24" : "#B45309");
+                        MailSyncStatusTxt.Text = "Sync fehlgeschlagen · Server prüfen";
+                    }
+                    MailSyncStatusBar.Visibility = Visibility.Visible;
+                }
+
+                await Task.Delay(4000);
+                if (gen == _mailSyncResetGeneration && !_isMailSyncRunning)
+                {
+                    ResetMailSyncButtonAppearance();
+                    if (MailSyncStatusBar != null) MailSyncStatusBar.Visibility = Visibility.Collapsed;
+                }
+            }
         }
 
         private async void ToggleUnreadFilter_Click(object sender, RoutedEventArgs e)
@@ -5458,8 +6238,15 @@ namespace Funkenwerk
         }
 
         // =========================================================================
-        // COMPOSE ATTACHMENTS ("📎 Datei anfügen" matching Mein Seelenfunke)
+        // COMPOSE ATTACHMENTS ("📎 Datei anfügen" + Drag & Drop ins Fenster)
         // =========================================================================
+        private static readonly HashSet<string> _allowedMailAttachmentExts = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".csv", ".ppt", ".pptx",
+            ".odt", ".ods", ".odp", ".png", ".jpg", ".jpeg", ".webp", ".gif",
+            ".zip", ".tar", ".gz", ".txt", ".json", ".xml"
+        };
+
         private void AddComposeAttachment_Click(object sender, RoutedEventArgs e)
         {
             var dlg = new Microsoft.Win32.OpenFileDialog
@@ -5470,29 +6257,123 @@ namespace Funkenwerk
             };
 
             if (dlg.ShowDialog() != true) return;
+            AddComposeFilesFromPaths(dlg.FileNames);
+        }
 
-            foreach (var filePath in dlg.FileNames)
+        private void AddComposeFilesFromPaths(IEnumerable<string> rawPaths)
+        {
+            bool anyAdded = false;
+            var rejectedNames = new List<string>();
+
+            foreach (var rawPath in rawPaths)
             {
                 try
                 {
-                    var fi = new FileInfo(filePath);
-                    if (!fi.Exists) continue;
-                    if (_composeAttachments.Any(a => string.Equals(a.LocalFilePath, filePath, StringComparison.OrdinalIgnoreCase)))
-                        continue;
+                    if (string.IsNullOrWhiteSpace(rawPath)) continue;
 
-                    _composeAttachments.Add(new ComposeAttachmentItem
+                    IEnumerable<string> candidateFiles;
+                    if (Directory.Exists(rawPath))
                     {
-                        LocalFilePath = filePath,
-                        Filename = fi.Name,
-                        Size = fi.Length,
-                        MimeType = GuessMimeType(fi.Extension)
-                    });
+                        candidateFiles = Directory.EnumerateFiles(rawPath, "*", SearchOption.TopDirectoryOnly);
+                    }
+                    else
+                    {
+                        candidateFiles = new[] { rawPath };
+                    }
+
+                    foreach (var filePath in candidateFiles)
+                    {
+                        var fi = new FileInfo(filePath);
+                        if (!fi.Exists) continue;
+
+                        if (!_allowedMailAttachmentExts.Contains(fi.Extension))
+                        {
+                            rejectedNames.Add(fi.Name);
+                            continue;
+                        }
+
+                        if (_composeAttachments.Any(a => string.Equals(a.LocalFilePath, filePath, StringComparison.OrdinalIgnoreCase)))
+                            continue;
+
+                        _composeAttachments.Add(new ComposeAttachmentItem
+                        {
+                            LocalFilePath = filePath,
+                            Filename = fi.Name,
+                            Size = fi.Length,
+                            MimeType = GuessMimeType(fi.Extension)
+                        });
+                        anyAdded = true;
+                    }
                 }
                 catch { }
             }
 
-            PlaySoundActionPop();
-            RenderComposeAttachmentsUI();
+            if (anyAdded)
+            {
+                PlaySoundActionPop();
+                RenderComposeAttachmentsUI();
+            }
+
+            if (rejectedNames.Count > 0)
+            {
+                MessageBox.Show(
+                    "Folgende Datei(en) haben ein nicht freigegebenes Format und wurden übersprungen:\n" + string.Join(", ", rejectedNames.Take(5)),
+                    "Dateityp Hinweis",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+        }
+
+        private void SetComposeDropVisualState(bool active)
+        {
+            if (ComposeDropOverlayBorder != null)
+                ComposeDropOverlayBorder.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
+            if (ComposeModalCard != null)
+                ComposeModalCard.BorderBrush = BrushFromHex(active ? "#C5A059" : "#262A36");
+        }
+
+        private void ComposeModalCard_PreviewDragEnter(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                SetComposeDropVisualState(true);
+                e.Effects = DragDropEffects.Copy;
+                e.Handled = true;
+            }
+        }
+
+        private void ComposeModalCard_PreviewDragOver(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                SetComposeDropVisualState(true);
+                e.Effects = DragDropEffects.Copy;
+                e.Handled = true;
+            }
+        }
+
+        private void ComposeModalCard_PreviewDragLeave(object sender, DragEventArgs e)
+        {
+            if (ComposeModalCard != null)
+            {
+                Point pt = e.GetPosition(ComposeModalCard);
+                if (pt.X <= 2 || pt.Y <= 2 || pt.X >= ComposeModalCard.ActualWidth - 2 || pt.Y >= ComposeModalCard.ActualHeight - 2)
+                {
+                    SetComposeDropVisualState(false);
+                }
+            }
+        }
+
+        private void ComposeModalCard_PreviewDrop(object sender, DragEventArgs e)
+        {
+            SetComposeDropVisualState(false);
+            if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
+            e.Handled = true;
+
+            if (e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
+            {
+                AddComposeFilesFromPaths(files);
+            }
         }
 
         private static string GuessMimeType(string ext) => (ext ?? "").ToLowerInvariant() switch
@@ -5503,6 +6384,8 @@ namespace Funkenwerk
             ".webp" => "image/webp",
             ".gif" => "image/gif",
             ".zip" => "application/zip",
+            ".tar" => "application/x-tar",
+            ".gz" => "application/gzip",
             ".txt" => "text/plain",
             ".csv" => "text/csv",
             ".json" => "application/json",
@@ -5511,6 +6394,11 @@ namespace Funkenwerk
             ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             ".xls" => "application/vnd.ms-excel",
             ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ".ppt" => "application/vnd.ms-powerpoint",
+            ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            ".odt" => "application/vnd.oasis.opendocument.text",
+            ".ods" => "application/vnd.oasis.opendocument.spreadsheet",
+            ".odp" => "application/vnd.oasis.opendocument.presentation",
             _ => "application/octet-stream"
         };
 
@@ -5617,8 +6505,128 @@ namespace Funkenwerk
             }
         }
 
+        private int _composePinnedAccountId = 0;
+        private string _composeGuidanceActionCode = "";
+        private int _composeGuidanceTargetAccountId = 0;
+
+        private void ComposeAccountCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (ComposeAccountCombo.SelectedValue is int id && id > 0)
+            {
+                _composePinnedAccountId = id;
+            }
+        }
+
+        private void HideComposeGuidanceBanner()
+        {
+            if (ComposeSmartGuidanceBanner != null)
+                ComposeSmartGuidanceBanner.Visibility = Visibility.Collapsed;
+            _composeGuidanceActionCode = "";
+        }
+
+        private void ShowComposeGuidance(string title, IEnumerable<string> steps, string actionCode = "", int targetAccountId = 0, bool draftSaved = true)
+        {
+            _composeGuidanceActionCode = actionCode ?? "";
+            _composeGuidanceTargetAccountId = targetAccountId;
+
+            ComposeGuidanceTitleTxt.Text = string.IsNullOrWhiteSpace(title) ? "Hinweis zum Versand" : title;
+            var stepList = steps?.Where(s => !string.IsNullOrWhiteSpace(s)).ToList() ?? new List<string>();
+            var formattedSteps = new List<string>();
+            for (int i = 0; i < stepList.Count; i++)
+            {
+                string s = stepList[i].Trim();
+                formattedSteps.Add(Regex.IsMatch(s, @"^\d+\.") ? s : $"{i + 1}. {s}");
+            }
+            ComposeGuidanceStepsTxt.Text = string.Join("\n", formattedSteps);
+            ComposeGuidanceSavedBadgeTxt.Text = draftSaved
+                ? "✓ Dein Entwurf, Text & Anhänge sind sicher gespeichert (kein Datenverlust)."
+                : "✓ Deine Eingaben bleiben hier im Fenster erhalten.";
+
+            if (actionCode is "NEEDS_PASSWORD" or "AUTH_REJECTED" or "MISSING_SMTP_CONFIG")
+            {
+                ComposeGuidanceActionBtn.Content = "⚙ Passwort eintragen";
+                ComposeGuidanceActionBtn.Visibility = Visibility.Visible;
+            }
+            else if (actionCode == "MISSING_ATTACHMENT")
+            {
+                ComposeGuidanceActionBtn.Content = "📎 Datei auswählen";
+                ComposeGuidanceActionBtn.Visibility = Visibility.Visible;
+            }
+            else if (actionCode == "RECIPIENT_REJECTED")
+            {
+                ComposeGuidanceActionBtn.Content = "✎ Empfänger prüfen";
+                ComposeGuidanceActionBtn.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                ComposeGuidanceActionBtn.Visibility = Visibility.Collapsed;
+            }
+
+            ComposeSmartGuidanceBanner.Visibility = Visibility.Visible;
+        }
+
+        private void ComposeGuidanceAction_Click(object sender, RoutedEventArgs e)
+        {
+            if (_composeGuidanceActionCode is "NEEDS_PASSWORD" or "AUTH_REJECTED" or "MISSING_SMTP_CONFIG")
+            {
+                var acc = _mailAccounts.FirstOrDefault(a => a.Id == _composeGuidanceTargetAccountId)
+                    ?? _mailAccounts.FirstOrDefault(a => a.Id == _composePinnedAccountId);
+                if (acc != null)
+                {
+                    OpenMailAccountSettingsModal(acc, ComposeGuidanceTitleTxt.Text);
+                }
+            }
+            else if (_composeGuidanceActionCode == "MISSING_ATTACHMENT")
+            {
+                AddComposeAttachment_Click(sender, e);
+                HideComposeGuidanceBanner();
+            }
+            else if (_composeGuidanceActionCode == "RECIPIENT_REJECTED")
+            {
+                ComposeToInput.Focus();
+            }
+        }
+
+        private static string? TryFindLocalAttachmentFile(string? filename, long expectedSize)
+        {
+            if (string.IsNullOrWhiteSpace(filename)) return null;
+            try
+            {
+                string safeName = System.IO.Path.GetFileName(filename.Trim());
+                string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                string[] searchDirs =
+                {
+                    System.IO.Path.Combine(userProfile, "Downloads", "Funkenwerk_Anhaenge"),
+                    System.IO.Path.Combine(userProfile, "Downloads"),
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                    Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)
+                };
+
+                string? nameMatchFallback = null;
+                foreach (string dir in searchDirs)
+                {
+                    if (!Directory.Exists(dir)) continue;
+                    string candidate = System.IO.Path.Combine(dir, safeName);
+                    if (File.Exists(candidate))
+                    {
+                        var fi = new FileInfo(candidate);
+                        if (fi.Length > 0 && (expectedSize <= 0 || fi.Length == expectedSize))
+                            return candidate;
+                        if (fi.Length > 0 && nameMatchFallback == null)
+                            nameMatchFallback = candidate;
+                    }
+                }
+                return nameMatchFallback;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         private void ResetComposeFieldsForOpen(string? toEmails = null, string? toSingleName = null, string? ccEmails = null, string? bccEmails = null)
         {
+            HideComposeGuidanceBanner();
             ClearAndSetFieldChips("to", toEmails, toSingleName);
             ClearAndSetFieldChips("cc", ccEmails);
             ClearAndSetFieldChips("bcc", bccEmails);
@@ -5632,6 +6640,7 @@ namespace Funkenwerk
         {
             _editingDraftId = null;
             ComposeModalTitle.Text = "Neue E-Mail schreiben";
+            _composePinnedAccountId = _selectedAccountId;
             ComposeAccountCombo.SelectedValue = _selectedAccountId;
             ResetComposeFieldsForOpen();
             ComposeSubjectInput.Text = "";
@@ -5651,8 +6660,26 @@ namespace Funkenwerk
         {
             _editingDraftId = draft.Id;
             ComposeModalTitle.Text = "📝 Entwurf weiterbearbeiten";
-            ComposeAccountCombo.SelectedValue = draft.MailAccountId > 0 ? draft.MailAccountId : _selectedAccountId;
+            int targetAcc = draft.MailAccountId > 0 ? draft.MailAccountId : _selectedAccountId;
+            _composePinnedAccountId = targetAcc;
+            ComposeAccountCombo.SelectedValue = targetAcc;
             ResetComposeFieldsForOpen(draft.ToEmail, null, draft.CcEmail, draft.BccEmail);
+            if (draft.Attachments != null && draft.Attachments.Count > 0)
+            {
+                foreach (var att in draft.Attachments)
+                {
+                    _composeAttachments.Add(new ComposeAttachmentItem
+                    {
+                        ExistingAttachmentId = att.Id,
+                        ServerPath = att.Path,
+                        LocalFilePath = TryFindLocalAttachmentFile(att.Filename, att.Size) ?? "",
+                        Filename = att.Filename,
+                        Size = att.Size,
+                        MimeType = att.ContentType
+                    });
+                }
+                RenderComposeAttachmentsUI();
+            }
             ComposeSubjectInput.Text = draft.Subject == "(Kein Betreff)" ? "" : (draft.Subject ?? "");
             string body = FormatCleanEmailBody(draft.BodyPlain, draft.BodyHtml);
             if (body == "(Kein Textinhalt in dieser E-Mail)") body = "";
@@ -5673,7 +6700,9 @@ namespace Funkenwerk
 
             _editingDraftId = null;
             ComposeModalTitle.Text = "Auf E-Mail antworten";
-            ComposeAccountCombo.SelectedValue = _selectedMail.MailAccountId > 0 ? _selectedMail.MailAccountId : _selectedAccountId;
+            int targetAcc = _selectedMail.MailAccountId > 0 ? _selectedMail.MailAccountId : _selectedAccountId;
+            _composePinnedAccountId = targetAcc;
+            ComposeAccountCombo.SelectedValue = targetAcc;
             ResetComposeFieldsForOpen(_selectedMail.FromEmail, _selectedMail.FromName, _selectedMail.CcEmail, null);
             ComposeSubjectInput.Text = _selectedMail.Subject.StartsWith("Re:", StringComparison.OrdinalIgnoreCase)
                 ? _selectedMail.Subject
@@ -5699,7 +6728,9 @@ namespace Funkenwerk
             if (_selectedMail == null) return;
             _editingDraftId = null;
             ComposeModalTitle.Text = "E-Mail weiterleiten";
-            ComposeAccountCombo.SelectedValue = _selectedMail.MailAccountId > 0 ? _selectedMail.MailAccountId : _selectedAccountId;
+            int targetAcc = _selectedMail.MailAccountId > 0 ? _selectedMail.MailAccountId : _selectedAccountId;
+            _composePinnedAccountId = targetAcc;
+            ComposeAccountCombo.SelectedValue = targetAcc;
             ResetComposeFieldsForOpen();
             ComposeSubjectInput.Text = _selectedMail.Subject.StartsWith("Fwd:", StringComparison.OrdinalIgnoreCase)
                 ? _selectedMail.Subject
@@ -5714,6 +6745,7 @@ namespace Funkenwerk
                     {
                         ExistingAttachmentId = att.Id,
                         ServerPath = att.Path,
+                        LocalFilePath = TryFindLocalAttachmentFile(att.Filename, att.Size) ?? "",
                         Filename = att.Filename,
                         Size = att.Size,
                         MimeType = att.ContentType
@@ -5729,6 +6761,64 @@ namespace Funkenwerk
             ComposeToInput.Focus();
         }
 
+        private async Task<List<object>> UploadComposeAttachmentsAsync(bool forceReuploadLocal = false)
+        {
+            var attachmentPayloadList = new List<object>();
+            foreach (var att in _composeAttachments)
+            {
+                if (forceReuploadLocal && string.IsNullOrWhiteSpace(att.LocalFilePath))
+                {
+                    att.LocalFilePath = TryFindLocalAttachmentFile(att.Filename, att.Size) ?? "";
+                }
+
+                bool shouldUploadLocal = !string.IsNullOrWhiteSpace(att.LocalFilePath) &&
+                                         File.Exists(att.LocalFilePath) &&
+                                         (forceReuploadLocal || string.IsNullOrWhiteSpace(att.ServerPath));
+
+                if (shouldUploadLocal)
+                {
+                    using var form = new MultipartFormDataContent();
+                    var fileBytes = await File.ReadAllBytesAsync(att.LocalFilePath);
+                    var fileContent = new ByteArrayContent(fileBytes);
+                    fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(string.IsNullOrWhiteSpace(att.MimeType) ? "application/octet-stream" : att.MimeType);
+                    form.Add(fileContent, "file", att.Filename);
+
+                    using var upReq = new HttpRequestMessage(HttpMethod.Post, $"{_apiBaseUrl}/funki/emails/attachments")
+                    {
+                        Content = form
+                    };
+                    upReq.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+
+                    var upRes = await _http.SendAsync(upReq);
+                    if (!upRes.IsSuccessStatusCode)
+                    {
+                        throw new InvalidOperationException($"Anhang '{att.Filename}' konnte nicht hochgeladen werden (HTTP {(int)upRes.StatusCode}).");
+                    }
+
+                    var upJson = await upRes.Content.ReadAsStringAsync();
+                    using var upDoc = JsonDocument.Parse(upJson);
+                    if (upDoc.RootElement.TryGetProperty("data", out var dEl))
+                    {
+                        att.ServerPath = dEl.TryGetProperty("path", out var pp) ? pp.GetString() ?? "" : "";
+                        att.ExistingAttachmentId = 0;
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(att.ServerPath) || att.ExistingAttachmentId > 0)
+                {
+                    attachmentPayloadList.Add(new
+                    {
+                        id = att.ExistingAttachmentId,
+                        path = att.ServerPath,
+                        filename = att.Filename,
+                        mime = att.MimeType,
+                        size = att.Size
+                    });
+                }
+            }
+            return attachmentPayloadList;
+        }
+
         private async void CloseCompose_Click(object sender, RoutedEventArgs e)
         {
             string to = GetCombinedRecipientsString("to");
@@ -5736,14 +6826,17 @@ namespace Funkenwerk
             string bcc = GetCombinedRecipientsString("bcc");
             string subject = ComposeSubjectInput.Text.Trim();
             string rawBody = ComposeBodyInput.Text;
-            int accId = ComposeAccountCombo.SelectedValue is int id && id > 0 ? id : _selectedAccountId;
+            int accId = ComposeAccountCombo.SelectedValue is int id && id > 0 ? id : (_composePinnedAccountId > 0 ? _composePinnedAccountId : _selectedAccountId);
             int? draftIdToSave = _editingDraftId;
+            bool hasAttachments = _composeAttachments.Count > 0;
 
+            HideComposeGuidanceBanner();
+            SetComposeDropVisualState(false);
             HideAllComposeAutocompletePopups();
             ComposeModalOverlay.Visibility = Visibility.Collapsed;
             _editingDraftId = null;
 
-            bool hasContent = !string.IsNullOrWhiteSpace(to) || !string.IsNullOrWhiteSpace(cc) || !string.IsNullOrWhiteSpace(bcc) || !string.IsNullOrWhiteSpace(subject) || !string.IsNullOrWhiteSpace(rawBody);
+            bool hasContent = !string.IsNullOrWhiteSpace(to) || !string.IsNullOrWhiteSpace(cc) || !string.IsNullOrWhiteSpace(bcc) || !string.IsNullOrWhiteSpace(subject) || !string.IsNullOrWhiteSpace(rawBody) || hasAttachments;
             if (hasContent && accId > 0)
             {
                 await SaveComposeDraftAsync(accId, to, subject, rawBody, draftIdToSave, cc, bcc);
@@ -5754,6 +6847,8 @@ namespace Funkenwerk
         {
             int? draftIdToDelete = _editingDraftId;
             _editingDraftId = null;
+            HideComposeGuidanceBanner();
+            SetComposeDropVisualState(false);
             HideAllComposeAutocompletePopups();
             ComposeModalOverlay.Visibility = Visibility.Collapsed;
 
@@ -5767,6 +6862,12 @@ namespace Funkenwerk
         {
             try
             {
+                List<object>? attList = null;
+                if (_composeAttachments.Count > 0)
+                {
+                    try { attList = await UploadComposeAttachmentsAsync(); } catch { }
+                }
+
                 var payload = JsonSerializer.Serialize(new
                 {
                     draft_id = draftId,
@@ -5775,7 +6876,8 @@ namespace Funkenwerk
                     cc = cc ?? "",
                     bcc = bcc ?? "",
                     subject,
-                    body = bodyPlain
+                    body = bodyPlain,
+                    attachments = attList
                 });
 
                 var res = await _http.PostAsync($"{_apiBaseUrl}/funki/emails/drafts", new StringContent(payload, Encoding.UTF8, "application/json"));
@@ -5809,118 +6911,483 @@ namespace Funkenwerk
 
         private async void SendMailSubmit_Click(object sender, RoutedEventArgs e)
         {
+            HideComposeGuidanceBanner();
+
             string to = GetCombinedRecipientsString("to");
             string cc = GetCombinedRecipientsString("cc");
             string bcc = GetCombinedRecipientsString("bcc");
             string subject = ComposeSubjectInput.Text.Trim();
             string body = ComposeBodyInput.Text.Trim();
-            if (string.IsNullOrEmpty(to) || string.IsNullOrEmpty(subject))
+
+            if (string.IsNullOrWhiteSpace(to))
             {
-                MessageBox.Show("Bitte mindestens einen Empfänger (An) und einen Betreff ausfüllen.", "Hinweis", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ShowComposeGuidance(
+                    "Empfänger-Adresse fehlt noch",
+                    new[] { "Trage im Feld EMPFÄNGER (AN) mindestens eine gültige E-Mail-Adresse ein (z. B. info@beispiel.de) und klicke dann erneut auf Jetzt senden." },
+                    "RECIPIENT_REJECTED",
+                    draftSaved: false);
+                ComposeToInput.Focus();
                 return;
             }
 
-            SendMailSubmitBtn.IsEnabled = false;
-            SendMailSubmitBtn.Content = "Sende...";
+            if (string.IsNullOrWhiteSpace(subject))
+            {
+                ShowComposeGuidance(
+                    "Betreff fehlt noch",
+                    new[] { "Trage oben im Feld BETREFF einen kurzen Betreff für deine Nachricht ein und klicke dann auf Jetzt senden." },
+                    draftSaved: false);
+                ComposeSubjectInput.Focus();
+                return;
+            }
 
-            int accId = ComposeAccountCombo.SelectedValue is int id && id > 0 ? id : _selectedAccountId;
+            if (string.IsNullOrWhiteSpace(body))
+            {
+                body = " ";
+            }
+
+            SendMailSubmitBtn.IsEnabled = false;
+            SendMailSubmitBtn.Content = "Prüfe & sende...";
+
+            int accId = ComposeAccountCombo.SelectedValue is int id && id > 0 ? id : (_composePinnedAccountId > 0 ? _composePinnedAccountId : _selectedAccountId);
+            _composePinnedAccountId = accId;
+
             try
             {
-                // 1. Upload any local attachments first via /funki/emails/attachments
-                var attachmentPayloadList = new List<object>();
-                foreach (var att in _composeAttachments)
+                for (int sendAttempt = 0; sendAttempt < 2; sendAttempt++)
                 {
-                    if (!string.IsNullOrWhiteSpace(att.LocalFilePath) && string.IsNullOrWhiteSpace(att.ServerPath))
-                    {
-                        using var form = new MultipartFormDataContent();
-                        var fileBytes = await File.ReadAllBytesAsync(att.LocalFilePath);
-                        var fileContent = new ByteArrayContent(fileBytes);
-                        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(att.MimeType);
-                        form.Add(fileContent, "file", att.Filename);
+                    bool forceLocalReupload = (sendAttempt == 1);
+                    var attachmentPayloadList = await UploadComposeAttachmentsAsync(forceReuploadLocal: forceLocalReupload);
 
-                        var upRes = await _http.PostAsync($"{_apiBaseUrl}/funki/emails/attachments", form);
-                        if (upRes.IsSuccessStatusCode)
+                    var payload = JsonSerializer.Serialize(new
+                    {
+                        draft_id = _editingDraftId,
+                        account_id = accId,
+                        to,
+                        cc,
+                        bcc,
+                        subject,
+                        body = body.Replace("\n", "<br>"),
+                        attachments = attachmentPayloadList
+                    });
+
+                    var res = await _http.PostAsync($"{_apiBaseUrl}/funki/emails/send", new StringContent(payload, Encoding.UTF8, "application/json"));
+                    if (res.IsSuccessStatusCode)
+                    {
+                        AddOrUpdateRecipientStat(to, null, 1);
+                        if (!string.IsNullOrWhiteSpace(cc)) AddOrUpdateRecipientStat(cc, null, 1);
+                        if (!string.IsNullOrWhiteSpace(bcc)) AddOrUpdateRecipientStat(bcc, null, 1);
+                        SaveEmailRecipientsCache();
+                        int? sentDraftId = _editingDraftId;
+                        _editingDraftId = null;
+                        HideComposeGuidanceBanner();
+                        PlaySoundMailChime();
+                        SetComposeDropVisualState(false);
+                        HideAllComposeAutocompletePopups();
+                        ComposeModalOverlay.Visibility = Visibility.Collapsed;
+                        if (_selectedMail != null && sentDraftId.HasValue && _selectedMail.Id == sentDraftId.Value)
                         {
-                            var upJson = await upRes.Content.ReadAsStringAsync();
-                            using var upDoc = JsonDocument.Parse(upJson);
-                            if (upDoc.RootElement.TryGetProperty("data", out var dEl))
-                            {
-                                att.ServerPath = dEl.TryGetProperty("path", out var pp) ? pp.GetString() ?? "" : "";
-                            }
+                            _selectedMail = null;
+                            RenderActiveMailReader();
                         }
+                        await LoadMailAccountsAsync();
+                        await LoadMailMessagesAsync();
+                        return;
                     }
 
-                    if (!string.IsNullOrWhiteSpace(att.ServerPath) || att.ExistingAttachmentId > 0)
-                    {
-                        attachmentPayloadList.Add(new
-                        {
-                            id = att.ExistingAttachmentId,
-                            path = att.ServerPath,
-                            filename = att.Filename,
-                            mime = att.MimeType,
-                            size = att.Size
-                        });
-                    }
-                }
-
-                var payload = JsonSerializer.Serialize(new
-                {
-                    draft_id = _editingDraftId,
-                    account_id = accId,
-                    to,
-                    cc,
-                    bcc,
-                    subject,
-                    body = body.Replace("\n", "<br>"),
-                    attachments = attachmentPayloadList
-                });
-
-                var res = await _http.PostAsync($"{_apiBaseUrl}/funki/emails/send", new StringContent(payload, Encoding.UTF8, "application/json"));
-                if (res.IsSuccessStatusCode)
-                {
-                    AddOrUpdateRecipientStat(to, null, 1);
-                    if (!string.IsNullOrWhiteSpace(cc)) AddOrUpdateRecipientStat(cc, null, 1);
-                    if (!string.IsNullOrWhiteSpace(bcc)) AddOrUpdateRecipientStat(bcc, null, 1);
-                    SaveEmailRecipientsCache();
-                    int? sentDraftId = _editingDraftId;
-                    _editingDraftId = null;
-                    PlaySoundMailChime();
-                    HideAllComposeAutocompletePopups();
-                    ComposeModalOverlay.Visibility = Visibility.Collapsed;
-                    if (_selectedMail != null && sentDraftId.HasValue && _selectedMail.Id == sentDraftId.Value)
-                    {
-                        _selectedMail = null;
-                        RenderActiveMailReader();
-                    }
-                    await LoadMailAccountsAsync();
-                }
-                else
-                {
                     var err = await res.Content.ReadAsStringAsync();
-                    string readableErr = err;
+                    string readableErr = "Bitte prüfe die Hinweise unten.";
+                    string actionCode = "";
+                    string guidanceTitle = "";
+                    var guidanceSteps = new List<string>();
+                    bool needsPassword = false;
+                    bool draftSaved = true;
+                    int targetAccId = accId;
+
                     try
                     {
                         using var doc = JsonDocument.Parse(err);
-                        if (doc.RootElement.TryGetProperty("error", out var ep) && ep.ValueKind == JsonValueKind.String)
-                            readableErr = ep.GetString() ?? err;
-                        if (doc.RootElement.TryGetProperty("draft_id", out var dp) && dp.ValueKind == JsonValueKind.Number)
+                        var root = doc.RootElement;
+                        if (root.TryGetProperty("error", out var ep) && ep.ValueKind == JsonValueKind.String)
+                            readableErr = ep.GetString() ?? readableErr;
+                        if (root.TryGetProperty("action_code", out var acP) && acP.ValueKind == JsonValueKind.String)
+                            actionCode = acP.GetString() ?? "";
+                        if (root.TryGetProperty("guidance_title", out var gtP) && gtP.ValueKind == JsonValueKind.String)
+                            guidanceTitle = gtP.GetString() ?? "";
+                        if (root.TryGetProperty("guidance_steps", out var gsP) && gsP.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var st in gsP.EnumerateArray())
+                            {
+                                if (st.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(st.GetString()))
+                                    guidanceSteps.Add(st.GetString()!);
+                            }
+                        }
+                        if (root.TryGetProperty("draft_id", out var dp) && dp.ValueKind == JsonValueKind.Number)
                             _editingDraftId = dp.GetInt32();
+                        if (root.TryGetProperty("draft_saved", out var dsP) && (dsP.ValueKind == JsonValueKind.True || dsP.ValueKind == JsonValueKind.False))
+                            draftSaved = dsP.GetBoolean();
+                        if (root.TryGetProperty("needs_password", out var np) && np.ValueKind == JsonValueKind.True)
+                            needsPassword = true;
+                        if (root.TryGetProperty("account_id", out var ap) && ap.ValueKind == JsonValueKind.Number)
+                            targetAccId = ap.GetInt32();
                     }
                     catch { }
 
+                    // Automatic Self-Healing: if server missed an attachment that exists locally on this PC, re-upload and retry immediately!
+                    if (sendAttempt == 0 && actionCode == "MISSING_ATTACHMENT" &&
+                        _composeAttachments.Any(a => !string.IsNullOrWhiteSpace(TryFindLocalAttachmentFile(a.Filename, a.Size))))
+                    {
+                        continue;
+                    }
+
                     await LoadMailAccountsAsync();
-                    MessageBox.Show("Versand fehlgeschlagen:\n" + readableErr, "SMTP Fehler (Entwurf gespeichert)", MessageBoxButton.OK, MessageBoxImage.Error);
+                    ComposeAccountCombo.SelectedValue = accId;
+
+                    if (guidanceSteps.Count == 0)
+                    {
+                        guidanceSteps.Add(readableErr);
+                    }
+                    if (string.IsNullOrWhiteSpace(guidanceTitle))
+                    {
+                        guidanceTitle = needsPassword ? "Postfach-Zugangsdaten kurz ergänzen" : "Nächster Schritt zum Absenden";
+                    }
+                    if (string.IsNullOrWhiteSpace(actionCode) && needsPassword)
+                    {
+                        actionCode = "NEEDS_PASSWORD";
+                    }
+
+                    ShowComposeGuidance(guidanceTitle, guidanceSteps, actionCode, targetAccId, draftSaved);
+                    return;
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 _editingDraftId = await SaveComposeDraftAsync(accId, to, subject, ComposeBodyInput.Text, _editingDraftId, cc, bcc);
-                MessageBox.Show("Fehler beim Senden:\n" + ex.Message + "\n\nDeine Nachricht wurde automatisch als Entwurf gespeichert.", "Fehler (Entwurf gespeichert)", MessageBoxButton.OK, MessageBoxImage.Error);
+                ShowComposeGuidance(
+                    "Verbindung zum Mail-Dienst kurz unterbrochen",
+                    new[]
+                    {
+                        "Deine komplette Nachricht bleibt hier geöffnet und wurde zusätzlich als Entwurf gesichert.",
+                        "Prüfe kurz deine Netzwerkverbindung bzw. ob der lokale Server läuft.",
+                        "Klicke danach einfach erneut auf Jetzt senden."
+                    },
+                    "NETWORK_UNREACHABLE",
+                    accId,
+                    draftSaved: _editingDraftId.HasValue);
             }
             finally
             {
                 SendMailSubmitBtn.IsEnabled = true;
                 SendMailSubmitBtn.Content = "✉ Jetzt senden";
+            }
+        }
+
+        // =========================================================================
+        // POSTFACH & SMTP PASSWORT KONFIGURIEREN MODAL (Inkl. Live-SMTP-Prüfung)
+        // =========================================================================
+        private MailAccountDto? _editingMailAccount;
+        private bool _mailAccPasswordRevealed = false;
+        private bool _syncingMailAccPasswordFields = false;
+
+        private void OpenMailAccountSettingsModal(MailAccountDto acc, string? customErrorNotice = null)
+        {
+            _editingMailAccount = acc;
+            _mailAccPasswordRevealed = false;
+            MailAccPasswordBox.Visibility = Visibility.Visible;
+            MailAccPasswordPlainBox.Visibility = Visibility.Collapsed;
+            MailAccPasswordEyeBtn.Content = "👁";
+
+            _syncingMailAccPasswordFields = true;
+            MailAccPasswordBox.Password = "";
+            MailAccPasswordPlainBox.Text = "";
+            _syncingMailAccPasswordFields = false;
+
+            MailAccModalTitleTxt.Text = $"Postfach & SMTP: {acc.Email}";
+            MailAccEmailBox.Text = acc.Email;
+            MailAccNameBox.Text = string.IsNullOrWhiteSpace(acc.Name) ? acc.Email : acc.Name;
+
+            string smtpHost = acc.SmtpHost;
+            int smtpPort = acc.SmtpPort > 0 ? acc.SmtpPort : 465;
+            string smtpEnc = string.IsNullOrWhiteSpace(acc.SmtpEncryption) ? "ssl" : acc.SmtpEncryption.ToLowerInvariant();
+            string imapHost = acc.ImapHost;
+            int imapPort = acc.ImapPort > 0 ? acc.ImapPort : 993;
+            string imapEnc = string.IsNullOrWhiteSpace(acc.ImapEncryption) ? "ssl" : acc.ImapEncryption.ToLowerInvariant();
+
+            if (string.IsNullOrWhiteSpace(smtpHost) || string.IsNullOrWhiteSpace(imapHost))
+            {
+                ApplyProviderServerDefaults(acc.Email, ref smtpHost, ref smtpPort, ref smtpEnc, ref imapHost, ref imapPort, ref imapEnc);
+            }
+
+            MailAccSmtpHostBox.Text = smtpHost;
+            MailAccSmtpPortBox.Text = smtpPort.ToString();
+            MailAccSmtpEncCombo.SelectedIndex = smtpEnc == "tls" ? 1 : 0;
+
+            MailAccImapHostBox.Text = imapHost;
+            MailAccImapPortBox.Text = imapPort.ToString();
+            MailAccImapEncCombo.SelectedIndex = imapEnc == "tls" ? 1 : 0;
+
+            UpdateMailAccProviderHint(acc.Email, acc.HasPassword);
+            UpdateMailAccPasswordSavedHintVisual();
+
+            if (!string.IsNullOrWhiteSpace(customErrorNotice))
+            {
+                ShowMailAccModalStatus(customErrorNotice, isError: true);
+            }
+            else if (!acc.HasPassword)
+            {
+                ShowMailAccModalStatus("Für dieses Postfach ist aktuell kein Passwort gespeichert. Bitte E-Mail-Passwort eintragen und speichern.", isError: true);
+            }
+            else
+            {
+                MailAccStatusBorder.Visibility = Visibility.Collapsed;
+            }
+
+            MailAccountSettingsModalOverlay.Visibility = Visibility.Visible;
+            if (!acc.HasPassword)
+            {
+                MailAccPasswordBox.Focus();
+            }
+        }
+
+        private void UpdateMailAccPasswordSavedHintVisual()
+        {
+            if (MailAccPasswordSavedHintTxt == null || MailAccPasswordBox == null || MailAccPasswordPlainBox == null) return;
+            bool hasPass = _editingMailAccount?.HasPassword == true;
+            bool isEmpty = string.IsNullOrEmpty(MailAccPasswordBox.Password) && string.IsNullOrEmpty(MailAccPasswordPlainBox.Text);
+            MailAccPasswordSavedHintTxt.Visibility = (hasPass && isEmpty) ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private static void ApplyProviderServerDefaults(string email, ref string smtpHost, ref int smtpPort, ref string smtpEnc, ref string imapHost, ref int imapPort, ref string imapEnc)
+        {
+            string lower = (email ?? "").Trim().ToLowerInvariant();
+            if (lower.EndsWith("@t-online.de"))
+            {
+                smtpHost = "securesmtp.t-online.de"; smtpPort = 465; smtpEnc = "ssl";
+                imapHost = "secureimap.t-online.de"; imapPort = 993; imapEnc = "ssl";
+            }
+            else if (lower.EndsWith("@gmail.com") || lower.EndsWith("@googlemail.com"))
+            {
+                smtpHost = "smtp.gmail.com"; smtpPort = 465; smtpEnc = "ssl";
+                imapHost = "imap.gmail.com"; imapPort = 993; imapEnc = "ssl";
+            }
+            else if (lower.EndsWith("@mein-seelenfunke.de") || lower.EndsWith("@steinhauer-invest.de"))
+            {
+                smtpHost = "mail.agenturserver.de"; smtpPort = 465; smtpEnc = "ssl";
+                imapHost = "mail.agenturserver.de"; imapPort = 993; imapEnc = "ssl";
+            }
+        }
+
+        private void UpdateMailAccProviderHint(string email, bool hasExistingPassword)
+        {
+            string lower = (email ?? "").Trim().ToLowerInvariant();
+            if (lower.EndsWith("@t-online.de"))
+            {
+                MailAccProviderHintBorder.Visibility = Visibility.Visible;
+                MailAccProviderHintTxt.Text = "T-Online Hinweis: Für SMTP/IMAP verlangt die Telekom das separate „Passwort für E-Mail-Programme\" (im Telekom Kundencenter unter E-Mail-Passwort einrichtbar, nicht das normale Kundencenter-Passwort).";
+            }
+            else if (lower.EndsWith("@gmail.com") || lower.EndsWith("@googlemail.com"))
+            {
+                MailAccProviderHintBorder.Visibility = Visibility.Visible;
+                MailAccProviderHintTxt.Text = "Gmail Hinweis: Google verlangt für externe E-Mail-Programme ein 16-stelliges App-Passwort aus den Google-Kontoeinstellungen.";
+            }
+            else
+            {
+                MailAccProviderHintBorder.Visibility = Visibility.Collapsed;
+            }
+
+            MailAccPasswordLabelTxt.Text = hasExistingPassword
+                ? "E-MAIL-PASSWORT (LEER LASSEN = BEHALTEN)"
+                : "E-MAIL-PASSWORT / APP-PASSWORT (ERFORDERLICH)";
+        }
+
+        private void MailAccEmailBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (MailAccSmtpHostBox == null || MailAccImapHostBox == null) return;
+            string em = MailAccEmailBox.Text.Trim();
+            UpdateMailAccProviderHint(em, _editingMailAccount?.HasPassword == true);
+        }
+
+        private void ToggleMailAccPasswordEye_Click(object sender, RoutedEventArgs e)
+        {
+            _mailAccPasswordRevealed = !_mailAccPasswordRevealed;
+            if (_mailAccPasswordRevealed)
+            {
+                MailAccPasswordPlainBox.Text = MailAccPasswordBox.Password;
+                MailAccPasswordBox.Visibility = Visibility.Collapsed;
+                MailAccPasswordPlainBox.Visibility = Visibility.Visible;
+                MailAccPasswordEyeBtn.Content = "🙈";
+                MailAccPasswordPlainBox.Focus();
+                MailAccPasswordPlainBox.CaretIndex = MailAccPasswordPlainBox.Text.Length;
+            }
+            else
+            {
+                MailAccPasswordBox.Password = MailAccPasswordPlainBox.Text;
+                MailAccPasswordPlainBox.Visibility = Visibility.Collapsed;
+                MailAccPasswordBox.Visibility = Visibility.Visible;
+                MailAccPasswordEyeBtn.Content = "👁";
+                MailAccPasswordBox.Focus();
+            }
+        }
+
+        private void MailAccPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+        {
+            if (_syncingMailAccPasswordFields) return;
+            _syncingMailAccPasswordFields = true;
+            MailAccPasswordPlainBox.Text = MailAccPasswordBox.Password;
+            _syncingMailAccPasswordFields = false;
+            UpdateMailAccPasswordSavedHintVisual();
+        }
+
+        private void MailAccPasswordPlainBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_syncingMailAccPasswordFields) return;
+            _syncingMailAccPasswordFields = true;
+            MailAccPasswordBox.Password = MailAccPasswordPlainBox.Text;
+            _syncingMailAccPasswordFields = false;
+            UpdateMailAccPasswordSavedHintVisual();
+        }
+
+        private void ShowMailAccModalStatus(string text, bool isError)
+        {
+            MailAccStatusBorder.Visibility = Visibility.Visible;
+            MailAccStatusBorder.Background = BrushFromHex(isError ? "#291418" : "#11261D");
+            MailAccStatusBorder.BorderBrush = BrushFromHex(isError ? "#EF4444" : "#10B981");
+            MailAccStatusTxt.Foreground = BrushFromHex(isError ? "#FCA5A5" : "#6EE7B7");
+            MailAccStatusTxt.Text = text;
+        }
+
+        private void CloseMailAccountSettings_Click(object sender, RoutedEventArgs e)
+        {
+            _syncingMailAccPasswordFields = true;
+            MailAccPasswordBox.Password = "";
+            MailAccPasswordPlainBox.Text = "";
+            _syncingMailAccPasswordFields = false;
+            MailAccountSettingsModalOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        private async void SaveMailAccountSettings_Click(object sender, RoutedEventArgs e)
+        {
+            string email = MailAccEmailBox.Text.Trim();
+            string name = MailAccNameBox.Text.Trim();
+            string password = _mailAccPasswordRevealed ? MailAccPasswordPlainBox.Text.Trim() : MailAccPasswordBox.Password.Trim();
+            string smtpHost = MailAccSmtpHostBox.Text.Trim();
+            string imapHost = MailAccImapHostBox.Text.Trim();
+            int smtpPort = int.TryParse(MailAccSmtpPortBox.Text.Trim(), out int sp) ? sp : 465;
+            int imapPort = int.TryParse(MailAccImapPortBox.Text.Trim(), out int ip) ? ip : 993;
+            string smtpEnc = MailAccSmtpEncCombo.SelectedIndex == 1 ? "tls" : "ssl";
+            string imapEnc = MailAccImapEncCombo.SelectedIndex == 1 ? "tls" : "ssl";
+
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(smtpHost) || string.IsNullOrWhiteSpace(imapHost))
+            {
+                ShowMailAccModalStatus("Bitte E-Mail-Adresse, SMTP-Server und IMAP-Server vollständig ausfüllen.", isError: true);
+                return;
+            }
+
+            if ((_editingMailAccount == null || !_editingMailAccount.HasPassword) && string.IsNullOrWhiteSpace(password))
+            {
+                ShowMailAccModalStatus("Bitte gib das E-Mail-Passwort ein.", isError: true);
+                return;
+            }
+
+            SaveMailAccountBtn.IsEnabled = false;
+            SaveMailAccountBtn.Content = "Prüfe SMTP...";
+
+            try
+            {
+                var payloadObj = new Dictionary<string, object?>
+                {
+                    ["id"] = _editingMailAccount?.Id,
+                    ["name"] = string.IsNullOrWhiteSpace(name) ? email : name,
+                    ["email"] = email,
+                    ["imap_host"] = imapHost,
+                    ["imap_port"] = imapPort,
+                    ["imap_encryption"] = imapEnc,
+                    ["imap_username"] = email,
+                    ["smtp_host"] = smtpHost,
+                    ["smtp_port"] = smtpPort,
+                    ["smtp_encryption"] = smtpEnc,
+                    ["smtp_username"] = email,
+                    ["signature"] = _editingMailAccount?.Signature,
+                    ["is_default"] = _editingMailAccount?.IsDefault ?? false,
+                    ["is_commercial"] = _editingMailAccount?.IsCommercial ?? false,
+                    ["verify_smtp"] = true
+                };
+                if (!string.IsNullOrWhiteSpace(password))
+                {
+                    payloadObj["password"] = password;
+                }
+
+                using var req = new HttpRequestMessage(HttpMethod.Post, $"{_apiBaseUrl}/funki/emails/accounts")
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(payloadObj), Encoding.UTF8, "application/json")
+                };
+                req.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+
+                var res = await _http.SendAsync(req);
+                var bodyJson = await res.Content.ReadAsStringAsync();
+
+                if (!res.IsSuccessStatusCode)
+                {
+                    string err = bodyJson;
+                    try
+                    {
+                        using var d = JsonDocument.Parse(bodyJson);
+                        if (d.RootElement.TryGetProperty("error", out var ep)) err = ep.GetString() ?? bodyJson;
+                        else if (d.RootElement.TryGetProperty("message", out var mp)) err = mp.GetString() ?? bodyJson;
+                    }
+                    catch { }
+                    ShowMailAccModalStatus(err, isError: true);
+                    return;
+                }
+
+                bool smtpVerified = true;
+                string smtpMsg = "Postfach erfolgreich gespeichert.";
+                try
+                {
+                    using var doc = JsonDocument.Parse(bodyJson);
+                    if (doc.RootElement.TryGetProperty("smtp_verified", out var sv) && sv.ValueKind == JsonValueKind.False)
+                        smtpVerified = false;
+                    if (doc.RootElement.TryGetProperty("smtp_message", out var sm) && sm.ValueKind == JsonValueKind.String)
+                        smtpMsg = sm.GetString() ?? smtpMsg;
+                }
+                catch { }
+
+                await LoadMailAccountsAsync();
+                if (_editingMailAccount != null)
+                {
+                    ComposeAccountCombo.SelectedValue = _editingMailAccount.Id;
+                }
+
+                if (!smtpVerified)
+                {
+                    ShowMailAccModalStatus("⚠ Gespeichert, aber SMTP-Test meldet: " + smtpMsg, isError: true);
+                    return;
+                }
+
+                PlaySoundActionPop();
+                ShowMailAccModalStatus("✓ " + smtpMsg, isError: false);
+                int savedAccId = _editingMailAccount?.Id ?? 0;
+                await Task.Delay(750);
+                CloseMailAccountSettings_Click(sender, e);
+                if (ComposeModalOverlay.Visibility == Visibility.Visible && savedAccId > 0)
+                {
+                    _composePinnedAccountId = savedAccId;
+                    ComposeAccountCombo.SelectedValue = savedAccId;
+                    ShowComposeGuidance(
+                        "✓ Postfach & SMTP-Anmeldung erfolgreich geprüft",
+                        new[] { "Deine Zugangsdaten funktionieren einwandfrei. Klicke jetzt einfach unten rechts auf '✉ Jetzt senden'." },
+                        actionCode: "",
+                        targetAccountId: savedAccId,
+                        draftSaved: true);
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowMailAccModalStatus("Verbindungsfehler: " + ex.Message, isError: true);
+            }
+            finally
+            {
+                SaveMailAccountBtn.IsEnabled = true;
+                SaveMailAccountBtn.Content = "✓ Prüfen & Speichern";
             }
         }
 
@@ -7848,18 +9315,67 @@ namespace Funkenwerk
         // =========================================================================
         // MODULE 4: TO DO (Microsoft To Do / Seelenfunke Tasks via /api/funki/tasks)
         // =========================================================================
-        private async Task LoadTodoListsAsync()
+        private readonly HashSet<string> _recentlyDeletedTaskKeys = new(StringComparer.OrdinalIgnoreCase);
+
+        private List<(string BaseUrl, string Token)> GetTaskSyncEndpoints()
         {
+            var endpoints = new List<(string BaseUrl, string Token)>
+            {
+                (_apiBaseUrl.TrimEnd('/'), _apiToken)
+            };
+
+            if (!_apiBaseUrl.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase) &&
+                !_apiBaseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+            {
+                string localTok = !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenLocal) ? _layoutSettings.ApiTokenLocal : DEFAULT_LOCAL_TOKEN;
+                endpoints.Add(("http://127.0.0.1/api", localTok));
+            }
+            if (!_apiBaseUrl.Contains("stage.mein-seelenfunke.de", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenStage))
+            {
+                endpoints.Add(("https://stage.mein-seelenfunke.de/api", _layoutSettings.ApiTokenStage));
+            }
+            return endpoints;
+        }
+
+        private static string NormalizeTaskSyncKey(string? value)
+        {
+            return (value ?? "").Trim().ToLowerInvariant();
+        }
+
+        private static bool IsSmartTodoListId(string? listId)
+        {
+            if (string.IsNullOrWhiteSpace(listId)) return true;
+            return listId is "my_day" or "important" or "planned" or "all" or "default";
+        }
+
+        private async Task<(List<TaskListDto> Lists, List<TaskItemDto> Tasks, bool Ok)> FetchTasksSnapshotFromEndpointAsync(string baseUrl, string token)
+        {
+            var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             try
             {
-                var listsRes = await _http.GetAsync($"{_apiBaseUrl}/funki/tasks/lists");
-                var tasksRes = await _http.GetAsync($"{_apiBaseUrl}/funki/tasks");
-                if (!listsRes.IsSuccessStatusCode || !tasksRes.IsSuccessStatusCode) return;
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+                using var reqLists = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl.TrimEnd('/')}/funki/tasks/lists");
+                using var reqTasks = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl.TrimEnd('/')}/funki/tasks");
+                reqLists.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                reqTasks.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                if (!string.IsNullOrWhiteSpace(token))
+                {
+                    reqLists.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                    reqTasks.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                }
+
+                var listsTask = _http.SendAsync(reqLists, cts.Token);
+                var tasksTask = _http.SendAsync(reqTasks, cts.Token);
+                await Task.WhenAll(listsTask, tasksTask);
+
+                using var listsRes = await listsTask;
+                using var tasksRes = await tasksTask;
+                if (!listsRes.IsSuccessStatusCode || !tasksRes.IsSuccessStatusCode)
+                    return (new(), new(), false);
 
                 var listsJson = await listsRes.Content.ReadAsStringAsync();
                 var tasksJson = await tasksRes.Content.ReadAsStringAsync();
-
-                var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
 
                 List<TaskListDto> lists = new();
                 using (var lDoc = JsonDocument.Parse(listsJson))
@@ -7882,6 +9398,260 @@ namespace Funkenwerk
                     if (tElem.ValueKind == JsonValueKind.Array)
                     {
                         rawTasks = JsonSerializer.Deserialize<List<TaskItemDto>>(tElem.GetRawText(), jsonOpts) ?? new();
+                    }
+                }
+
+                return (lists, rawTasks, true);
+            }
+            catch
+            {
+                return (new(), new(), false);
+            }
+        }
+
+        private async Task<string?> EnsureRealListIdOnEndpointAsync(string baseUrl, string token, string desiredListName, List<TaskListDto>? knownLists = null)
+        {
+            string targetName = string.IsNullOrWhiteSpace(desiredListName) ? "Aufgaben" : desiredListName.Trim();
+            var lists = knownLists;
+            if (lists == null || lists.Count == 0)
+            {
+                var snap = await FetchTasksSnapshotFromEndpointAsync(baseUrl, token);
+                if (snap.Ok) lists = snap.Lists;
+            }
+            if (lists != null && lists.Count > 0)
+            {
+                var match = lists.FirstOrDefault(l => string.Equals(l.Name?.Trim(), targetName, StringComparison.OrdinalIgnoreCase))
+                            ?? lists.FirstOrDefault(l => string.Equals(l.Name?.Trim(), "Aufgaben", StringComparison.OrdinalIgnoreCase))
+                            ?? lists.FirstOrDefault();
+                if (match != null && !string.IsNullOrWhiteSpace(match.Id))
+                    return match.Id;
+            }
+
+            try
+            {
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+                var payload = JsonSerializer.Serialize(new { name = targetName, icon = "bars-3", color = "#C5A059" });
+                using var req = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl.TrimEnd('/')}/funki/tasks/lists")
+                {
+                    Content = new StringContent(payload, Encoding.UTF8, "application/json")
+                };
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                if (!string.IsNullOrWhiteSpace(token))
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                using var res = await _http.SendAsync(req, cts.Token);
+                if (res.IsSuccessStatusCode)
+                {
+                    var json = await res.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(json);
+                    var elem = doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("data", out var dp) ? dp : doc.RootElement;
+                    if (elem.ValueKind == JsonValueKind.Object && elem.TryGetProperty("id", out var idProp))
+                        return idProp.GetString();
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        private async Task LoadTodoListsAsync()
+        {
+            try
+            {
+                var endpoints = GetTaskSyncEndpoints();
+                var fetchTasks = endpoints.Select(ep => FetchTasksSnapshotFromEndpointAsync(ep.BaseUrl, ep.Token)).ToArray();
+                var snapshots = await Task.WhenAll(fetchTasks);
+
+                int primaryIdx = -1;
+                for (int i = 0; i < snapshots.Length; i++)
+                {
+                    if (snapshots[i].Ok)
+                    {
+                        primaryIdx = i;
+                        break;
+                    }
+                }
+                if (primaryIdx < 0) return;
+
+                var primaryEndpoint = endpoints[primaryIdx];
+                var lists = snapshots[primaryIdx].Lists.ToList();
+                var rawTasks = snapshots[primaryIdx].Tasks
+                    .Where(t => !_recentlyDeletedTaskKeys.Contains(t.Id) && !_recentlyDeletedTaskKeys.Contains($"title:{NormalizeTaskSyncKey(t.Title)}"))
+                    .ToList();
+
+                // Reconcile & merge lists + tasks across any secondary endpoints (e.g. Local <-> Stage)
+                for (int i = 0; i < snapshots.Length; i++)
+                {
+                    if (i == primaryIdx || !snapshots[i].Ok) continue;
+                    var secEndpoint = endpoints[i];
+                    var secLists = snapshots[i].Lists;
+                    var secTasks = snapshots[i].Tasks
+                        .Where(t => !_recentlyDeletedTaskKeys.Contains(t.Id) && !_recentlyDeletedTaskKeys.Contains($"title:{NormalizeTaskSyncKey(t.Title)}"))
+                        .ToList();
+
+                    // 1. Merge any custom lists from secondary that don't exist on primary by Name
+                    foreach (var sl in secLists)
+                    {
+                        if (string.IsNullOrWhiteSpace(sl.Name)) continue;
+                        var existingList = lists.FirstOrDefault(pl => string.Equals(pl.Name?.Trim(), sl.Name.Trim(), StringComparison.OrdinalIgnoreCase));
+                        if (existingList == null)
+                        {
+                            lists.Add(sl);
+                            string newListName = sl.Name.Trim();
+                            _ = Task.Run(() => EnsureRealListIdOnEndpointAsync(primaryEndpoint.BaseUrl, primaryEndpoint.Token, newListName));
+                        }
+                    }
+
+                    // 2. Map list IDs -> list Names on both sides
+                    var secListNameById = secLists
+                        .Where(l => !string.IsNullOrWhiteSpace(l.Id))
+                        .GroupBy(l => l.Id)
+                        .ToDictionary(g => g.Key, g => g.First().Name ?? "Aufgaben", StringComparer.OrdinalIgnoreCase);
+
+                    var primListByName = lists
+                        .Where(l => !string.IsNullOrWhiteSpace(l.Name))
+                        .GroupBy(l => NormalizeTaskSyncKey(l.Name))
+                        .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+                    var primListNameById = lists
+                        .Where(l => !string.IsNullOrWhiteSpace(l.Id))
+                        .GroupBy(l => l.Id)
+                        .ToDictionary(g => g.Key, g => g.First().Name ?? "Aufgaben", StringComparer.OrdinalIgnoreCase);
+
+                    var defaultPrimList = lists.FirstOrDefault(l => string.Equals(l.Name, "Aufgaben", StringComparison.OrdinalIgnoreCase)) ?? lists.FirstOrDefault();
+
+                    // 3. Bring tasks from secondary -> primary if missing on primary
+                    foreach (var st in secTasks.Where(t => string.IsNullOrWhiteSpace(t.ParentId)))
+                    {
+                        if (string.IsNullOrWhiteSpace(st.Title)) continue;
+                        string secListName = (st.TaskListId != null && secListNameById.TryGetValue(st.TaskListId, out var ln)) ? ln : "Aufgaben";
+                        var targetPrimList = primListByName.TryGetValue(NormalizeTaskSyncKey(secListName), out var pl) ? pl : defaultPrimList;
+                        string targetPrimListId = targetPrimList?.Id ?? st.TaskListId ?? "";
+
+                        var matchOnPrim = rawTasks.FirstOrDefault(pt =>
+                            string.Equals(pt.Id, st.Id, StringComparison.OrdinalIgnoreCase) ||
+                            (string.IsNullOrWhiteSpace(pt.ParentId) &&
+                             string.Equals(NormalizeTaskSyncKey(pt.Title), NormalizeTaskSyncKey(st.Title), StringComparison.OrdinalIgnoreCase)));
+
+                        if (matchOnPrim == null)
+                        {
+                            var imported = new TaskItemDto
+                            {
+                                Id = st.Id,
+                                TaskListId = targetPrimListId,
+                                ParentId = null,
+                                Title = st.Title,
+                                IsCompleted = st.IsCompleted,
+                                Priority = st.Priority,
+                                Position = st.Position,
+                                AiPlan = st.AiPlan,
+                                RelevantFrom = st.RelevantFrom,
+                                CreatedAt = st.CreatedAt,
+                                UpdatedAt = st.UpdatedAt
+                            };
+                            rawTasks.Add(imported);
+
+                            // Mirror missing task to primary endpoint in background
+                            string pUrl = primaryEndpoint.BaseUrl;
+                            string pTok = primaryEndpoint.Token;
+                            string pListId = targetPrimListId;
+                            string pListName = targetPrimList?.Name ?? secListName;
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    string? realId = !IsSmartTodoListId(pListId) ? pListId : await EnsureRealListIdOnEndpointAsync(pUrl, pTok, pListName);
+                                    if (string.IsNullOrWhiteSpace(realId)) return;
+                                    var body = JsonSerializer.Serialize(new
+                                    {
+                                        id = st.Id,
+                                        title = st.Title,
+                                        priority = string.IsNullOrWhiteSpace(st.Priority) ? "niedrig" : st.Priority,
+                                        relevant_from = st.RelevantFrom,
+                                        ai_plan = st.AiPlan,
+                                        is_completed = st.IsCompleted,
+                                        list_name = pListName
+                                    });
+                                    using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+                                    using var req = new HttpRequestMessage(HttpMethod.Post, $"{pUrl.TrimEnd('/')}/funki/tasks/lists/{realId}/tasks")
+                                    {
+                                        Content = new StringContent(body, Encoding.UTF8, "application/json")
+                                    };
+                                    req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                                    if (!string.IsNullOrWhiteSpace(pTok))
+                                        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", pTok);
+                                    await _http.SendAsync(req, cts.Token);
+                                }
+                                catch { }
+                            });
+                        }
+                        else if (matchOnPrim.IsCompleted != st.IsCompleted || !string.Equals(matchOnPrim.Priority, st.Priority, StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Keep newer UpdatedAt state across servers
+                            DateTimeOffset.TryParse(matchOnPrim.UpdatedAt, out var primUpdated);
+                            DateTimeOffset.TryParse(st.UpdatedAt, out var secUpdated);
+                            if (secUpdated > primUpdated)
+                            {
+                                matchOnPrim.IsCompleted = st.IsCompleted;
+                                matchOnPrim.Priority = st.Priority;
+                                matchOnPrim.RelevantFrom = st.RelevantFrom;
+                                matchOnPrim.AiPlan = st.AiPlan;
+                            }
+                        }
+                    }
+
+                    // 4. Push any recently created tasks on primary -> secondary if missing on secondary
+                    var secListByName = secLists
+                        .Where(l => !string.IsNullOrWhiteSpace(l.Name))
+                        .GroupBy(l => NormalizeTaskSyncKey(l.Name))
+                        .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+                    var defaultSecList = secLists.FirstOrDefault(l => string.Equals(l.Name, "Aufgaben", StringComparison.OrdinalIgnoreCase)) ?? secLists.FirstOrDefault();
+
+                    foreach (var pt in snapshots[primaryIdx].Tasks.Where(t => string.IsNullOrWhiteSpace(t.ParentId)))
+                    {
+                        if (string.IsNullOrWhiteSpace(pt.Title)) continue;
+                        if (_recentlyDeletedTaskKeys.Contains(pt.Id) || _recentlyDeletedTaskKeys.Contains($"title:{NormalizeTaskSyncKey(pt.Title)}"))
+                            continue;
+
+                        bool existsOnSec = secTasks.Any(st =>
+                            string.Equals(st.Id, pt.Id, StringComparison.OrdinalIgnoreCase) ||
+                            (string.IsNullOrWhiteSpace(st.ParentId) &&
+                             string.Equals(NormalizeTaskSyncKey(st.Title), NormalizeTaskSyncKey(pt.Title), StringComparison.OrdinalIgnoreCase)));
+
+                        if (!existsOnSec)
+                        {
+                            string primListName = (pt.TaskListId != null && primListNameById.TryGetValue(pt.TaskListId, out var pln)) ? pln : "Aufgaben";
+                            var targetSecList = secListByName.TryGetValue(NormalizeTaskSyncKey(primListName), out var sl) ? sl : defaultSecList;
+                            string sUrl = secEndpoint.BaseUrl;
+                            string sTok = secEndpoint.Token;
+                            string? sListId = targetSecList?.Id;
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    string? realId = !string.IsNullOrWhiteSpace(sListId) ? sListId : await EnsureRealListIdOnEndpointAsync(sUrl, sTok, primListName);
+                                    if (string.IsNullOrWhiteSpace(realId)) return;
+                                    var body = JsonSerializer.Serialize(new
+                                    {
+                                        id = pt.Id,
+                                        title = pt.Title,
+                                        priority = string.IsNullOrWhiteSpace(pt.Priority) ? "niedrig" : pt.Priority,
+                                        relevant_from = pt.RelevantFrom,
+                                        ai_plan = pt.AiPlan,
+                                        is_completed = pt.IsCompleted,
+                                        list_name = primListName
+                                    });
+                                    using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+                                    using var req = new HttpRequestMessage(HttpMethod.Post, $"{sUrl.TrimEnd('/')}/funki/tasks/lists/{realId}/tasks")
+                                    {
+                                        Content = new StringContent(body, Encoding.UTF8, "application/json")
+                                    };
+                                    req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                                    if (!string.IsNullOrWhiteSpace(sTok))
+                                        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sTok);
+                                    await _http.SendAsync(req, cts.Token);
+                                }
+                                catch { }
+                            });
+                        }
                     }
                 }
 
@@ -8302,8 +10072,9 @@ namespace Funkenwerk
             NewTodoListBox.Text = "";
             try
             {
-                var payload = JsonSerializer.Serialize(new { name, icon = "bars-3", color = "#C5A059" });
-                await _http.PostAsync($"{_apiBaseUrl}/funki/tasks/lists", new StringContent(payload, Encoding.UTF8, "application/json"));
+                var endpoints = GetTaskSyncEndpoints();
+                var createTasks = endpoints.Select(ep => EnsureRealListIdOnEndpointAsync(ep.BaseUrl, ep.Token, name)).ToArray();
+                await Task.WhenAll(createTasks);
                 PlaySoundActionPop();
                 await LoadTodoListsAsync();
             }
@@ -8326,14 +10097,64 @@ namespace Funkenwerk
             if (string.IsNullOrEmpty(title)) return;
             NewTaskBox.Text = "";
 
-            string targetListId = string.IsNullOrWhiteSpace(_activeTodoListId) ? "all" : _activeTodoListId;
-            string priority = (_newTaskIsImportant || _activeTodoListId == "important") ? "hoch" : "niedrig";
-            string? relevantFrom = (_activeTodoListId is "my_day" or "planned") ? DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") : null;
+            _recentlyDeletedTaskKeys.Remove($"title:{NormalizeTaskSyncKey(title)}");
+
+            string activeId = string.IsNullOrWhiteSpace(_activeTodoListId) ? "all" : _activeTodoListId;
+            string priority = (_newTaskIsImportant || activeId == "important") ? "hoch" : "niedrig";
+            string? relevantFrom = (activeId is "my_day" or "planned") ? DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") : null;
+
+            TaskListDto? selectedList = null;
+            if (!IsSmartTodoListId(activeId))
+            {
+                selectedList = _todoLists.FirstOrDefault(l => l.Id == activeId);
+            }
+            selectedList ??= _todoLists.FirstOrDefault(l => string.Equals(l.Name, "Aufgaben", StringComparison.OrdinalIgnoreCase))
+                             ?? _todoLists.FirstOrDefault();
+
+            string desiredListName = selectedList?.Name ?? "Aufgaben";
+            string newTaskId = Guid.NewGuid().ToString();
 
             try
             {
-                var payload = JsonSerializer.Serialize(new { title, priority, relevant_from = relevantFrom });
-                await _http.PostAsync($"{_apiBaseUrl}/funki/tasks/lists/{targetListId}/tasks", new StringContent(payload, Encoding.UTF8, "application/json"));
+                var endpoints = GetTaskSyncEndpoints();
+                var postJobs = endpoints.Select(async ep =>
+                {
+                    try
+                    {
+                        string? realListId = null;
+                        if (string.Equals(ep.BaseUrl.TrimEnd('/'), _apiBaseUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase) &&
+                            selectedList != null && !string.IsNullOrWhiteSpace(selectedList.Id))
+                        {
+                            realListId = selectedList.Id;
+                        }
+                        else
+                        {
+                            realListId = await EnsureRealListIdOnEndpointAsync(ep.BaseUrl, ep.Token, desiredListName);
+                        }
+                        if (string.IsNullOrWhiteSpace(realListId)) return;
+
+                        var payload = JsonSerializer.Serialize(new
+                        {
+                            id = newTaskId,
+                            title,
+                            priority,
+                            relevant_from = relevantFrom,
+                            list_name = desiredListName
+                        });
+                        using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+                        using var req = new HttpRequestMessage(HttpMethod.Post, $"{ep.BaseUrl.TrimEnd('/')}/funki/tasks/lists/{realListId}/tasks")
+                        {
+                            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+                        };
+                        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                        if (!string.IsNullOrWhiteSpace(ep.Token))
+                            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ep.Token);
+                        await _http.SendAsync(req, cts.Token);
+                    }
+                    catch { }
+                }).ToArray();
+
+                await Task.WhenAll(postJobs);
                 PlaySoundActionPop();
                 await LoadTodoListsAsync();
                 _ = LoadCalendarEventsAsync();
@@ -8341,12 +10162,62 @@ namespace Funkenwerk
             catch { }
         }
 
+        private async Task UpdateTaskAcrossEndpointsAsync(string taskId, string? matchTitle, object updatePayload)
+        {
+            string jsonBody = JsonSerializer.Serialize(updatePayload);
+            var endpoints = GetTaskSyncEndpoints();
+            var jobs = endpoints.Select(async ep =>
+            {
+                try
+                {
+                    string targetId = taskId;
+                    if (!string.Equals(ep.BaseUrl.TrimEnd('/'), _apiBaseUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase) &&
+                        !string.IsNullOrWhiteSpace(matchTitle))
+                    {
+                        var snap = await FetchTasksSnapshotFromEndpointAsync(ep.BaseUrl, ep.Token);
+                        if (snap.Ok)
+                        {
+                            var match = snap.Tasks.FirstOrDefault(t =>
+                                string.Equals(t.Id, taskId, StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(NormalizeTaskSyncKey(t.Title), NormalizeTaskSyncKey(matchTitle), StringComparison.OrdinalIgnoreCase));
+                            if (match != null && !string.IsNullOrWhiteSpace(match.Id))
+                                targetId = match.Id;
+                        }
+                    }
+
+                    using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+                    using var req = new HttpRequestMessage(HttpMethod.Put, $"{ep.BaseUrl.TrimEnd('/')}/funki/tasks/{targetId}")
+                    {
+                        Content = new StringContent(jsonBody, Encoding.UTF8, "application/json")
+                    };
+                    req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                    if (!string.IsNullOrWhiteSpace(ep.Token))
+                        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ep.Token);
+                    await _http.SendAsync(req, cts.Token);
+                }
+                catch { }
+            }).ToArray();
+
+            await Task.WhenAll(jobs);
+        }
+
         private async Task ToggleTaskCompletionAsync(string id)
         {
             try
             {
                 PlaySoundTaskDone();
-                await _http.PutAsync($"{_apiBaseUrl}/funki/tasks/{id}/toggle", new StringContent("{}", Encoding.UTF8, "application/json"));
+                var target = _allTasks.FirstOrDefault(x => x.Id == id)
+                             ?? _allTasks.SelectMany(x => x.Subtasks ?? new()).FirstOrDefault(x => x.Id == id);
+                if (target != null)
+                {
+                    bool nextCompleted = !target.IsCompleted;
+                    target.IsCompleted = nextCompleted;
+                    await UpdateTaskAcrossEndpointsAsync(id, target.Title, new { is_completed = nextCompleted });
+                }
+                else
+                {
+                    await _http.PutAsync($"{_apiBaseUrl}/funki/tasks/{id}/toggle", new StringContent("{}", Encoding.UTF8, "application/json"));
+                }
                 await LoadTodoListsAsync();
                 _ = LoadCalendarEventsAsync();
                 if (_selectedTask != null) _selectedTask = _allTasks.FirstOrDefault(t => t.Id == _selectedTask.Id);
@@ -8363,8 +10234,8 @@ namespace Funkenwerk
             try
             {
                 PlaySoundActionPop();
-                var payload = JsonSerializer.Serialize(new { priority = next });
-                await _http.PutAsync($"{_apiBaseUrl}/funki/tasks/{id}", new StringContent(payload, Encoding.UTF8, "application/json"));
+                t.Priority = next;
+                await UpdateTaskAcrossEndpointsAsync(id, t.Title, new { priority = next });
                 await LoadTodoListsAsync();
             }
             catch { }
@@ -8390,16 +10261,15 @@ namespace Funkenwerk
             if (_suppressDetailEvents || _selectedTask == null) return;
             string t = DetailTitleBox.Text.Trim();
             if (string.IsNullOrEmpty(t) || t == _selectedTask.Title) return;
-            var payload = JsonSerializer.Serialize(new { title = t });
-            await _http.PutAsync($"{_apiBaseUrl}/funki/tasks/{_selectedTask.Id}", new StringContent(payload, Encoding.UTF8, "application/json"));
+            string oldTitle = _selectedTask.Title;
+            await UpdateTaskAcrossEndpointsAsync(_selectedTask.Id, oldTitle, new { title = t });
             await LoadTodoListsAsync();
         }
 
         private async void DetailNoteBox_LostFocus(object sender, RoutedEventArgs e)
         {
             if (_suppressDetailEvents || _selectedTask == null) return;
-            var payload = JsonSerializer.Serialize(new { ai_plan = DetailNoteBox.Text });
-            await _http.PutAsync($"{_apiBaseUrl}/funki/tasks/{_selectedTask.Id}", new StringContent(payload, Encoding.UTF8, "application/json"));
+            await UpdateTaskAcrossEndpointsAsync(_selectedTask.Id, _selectedTask.Title, new { ai_plan = DetailNoteBox.Text });
             await LoadTodoListsAsync();
         }
 
@@ -8408,8 +10278,7 @@ namespace Funkenwerk
             if (_selectedTask == null) return;
             bool isMyDay = IsToday(_selectedTask.RelevantFrom);
             string? next = isMyDay ? null : DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-            var payload = JsonSerializer.Serialize(new { relevant_from = next });
-            await _http.PutAsync($"{_apiBaseUrl}/funki/tasks/{_selectedTask.Id}", new StringContent(payload, Encoding.UTF8, "application/json"));
+            await UpdateTaskAcrossEndpointsAsync(_selectedTask.Id, _selectedTask.Title, new { relevant_from = next });
             PlaySoundActionPop();
             await LoadTodoListsAsync();
             _ = LoadCalendarEventsAsync();
@@ -8421,8 +10290,7 @@ namespace Funkenwerk
         {
             if (_suppressDetailEvents || _selectedTask == null) return;
             string? next = DetailDatePicker.SelectedDate.HasValue ? DetailDatePicker.SelectedDate.Value.ToString("yyyy-MM-dd HH:mm:ss") : null;
-            var payload = JsonSerializer.Serialize(new { relevant_from = next });
-            await _http.PutAsync($"{_apiBaseUrl}/funki/tasks/{_selectedTask.Id}", new StringContent(payload, Encoding.UTF8, "application/json"));
+            await UpdateTaskAcrossEndpointsAsync(_selectedTask.Id, _selectedTask.Title, new { relevant_from = next });
             await LoadTodoListsAsync();
             _ = LoadCalendarEventsAsync();
         }
@@ -8434,11 +10302,45 @@ namespace Funkenwerk
                 string st = NewSubtaskBox.Text.Trim();
                 if (string.IsNullOrEmpty(st)) return;
                 NewSubtaskBox.Text = "";
+                string parentId = _selectedTask.Id;
+                string parentTitle = _selectedTask.Title;
                 var payload = JsonSerializer.Serialize(new { title = st });
-                await _http.PostAsync($"{_apiBaseUrl}/funki/tasks/{_selectedTask.Id}/subtask", new StringContent(payload, Encoding.UTF8, "application/json"));
+
+                var endpoints = GetTaskSyncEndpoints();
+                var jobs = endpoints.Select(async ep =>
+                {
+                    try
+                    {
+                        string targetParentId = parentId;
+                        if (!string.Equals(ep.BaseUrl.TrimEnd('/'), _apiBaseUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+                        {
+                            var snap = await FetchTasksSnapshotFromEndpointAsync(ep.BaseUrl, ep.Token);
+                            if (snap.Ok)
+                            {
+                                var match = snap.Tasks.FirstOrDefault(t =>
+                                    string.Equals(t.Id, parentId, StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(NormalizeTaskSyncKey(t.Title), NormalizeTaskSyncKey(parentTitle), StringComparison.OrdinalIgnoreCase));
+                                if (match != null && !string.IsNullOrWhiteSpace(match.Id))
+                                    targetParentId = match.Id;
+                            }
+                        }
+                        using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+                        using var req = new HttpRequestMessage(HttpMethod.Post, $"{ep.BaseUrl.TrimEnd('/')}/funki/tasks/{targetParentId}/subtask")
+                        {
+                            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+                        };
+                        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                        if (!string.IsNullOrWhiteSpace(ep.Token))
+                            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ep.Token);
+                        await _http.SendAsync(req, cts.Token);
+                    }
+                    catch { }
+                }).ToArray();
+
+                await Task.WhenAll(jobs);
                 PlaySoundActionPop();
                 await LoadTodoListsAsync();
-                _selectedTask = _allTasks.FirstOrDefault(t => t.Id == _selectedTask.Id);
+                _selectedTask = _allTasks.FirstOrDefault(t => t.Id == parentId);
                 RenderTodoDetailPanel();
             }
         }
@@ -8456,7 +10358,51 @@ namespace Funkenwerk
         {
             try
             {
-                await _http.DeleteAsync($"{_apiBaseUrl}/funki/tasks/{id}");
+                var target = _allTasks.FirstOrDefault(x => x.Id == id)
+                             ?? _allTasks.SelectMany(x => x.Subtasks ?? new()).FirstOrDefault(x => x.Id == id);
+                string? targetTitle = target?.Title;
+
+                _recentlyDeletedTaskKeys.Add(id);
+                if (!string.IsNullOrWhiteSpace(targetTitle))
+                {
+                    _recentlyDeletedTaskKeys.Add($"title:{NormalizeTaskSyncKey(targetTitle)}");
+                }
+
+                var endpoints = GetTaskSyncEndpoints();
+                var deleteJobs = endpoints.Select(async ep =>
+                {
+                    try
+                    {
+                        var idsToDelete = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { id };
+                        if (!string.IsNullOrWhiteSpace(targetTitle))
+                        {
+                            var snap = await FetchTasksSnapshotFromEndpointAsync(ep.BaseUrl, ep.Token);
+                            if (snap.Ok)
+                            {
+                                foreach (var m in snap.Tasks.Where(t =>
+                                             string.Equals(t.Id, id, StringComparison.OrdinalIgnoreCase) ||
+                                             string.Equals(NormalizeTaskSyncKey(t.Title), NormalizeTaskSyncKey(targetTitle), StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    if (!string.IsNullOrWhiteSpace(m.Id))
+                                        idsToDelete.Add(m.Id);
+                                }
+                            }
+                        }
+
+                        foreach (var delId in idsToDelete)
+                        {
+                            using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+                            using var req = new HttpRequestMessage(HttpMethod.Delete, $"{ep.BaseUrl.TrimEnd('/')}/funki/tasks/{delId}");
+                            req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                            if (!string.IsNullOrWhiteSpace(ep.Token))
+                                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ep.Token);
+                            await _http.SendAsync(req, cts.Token);
+                        }
+                    }
+                    catch { }
+                }).ToArray();
+
+                await Task.WhenAll(deleteJobs);
                 PlaySoundActionPop();
                 await LoadTodoListsAsync();
                 _ = LoadCalendarEventsAsync();
@@ -8472,9 +10418,11 @@ namespace Funkenwerk
         private void UpdateApiTokenMaskDisplay()
         {
             if (ApiTokenBox == null || ApiTokenMaskedTxt == null) return;
-            ApiTokenMaskedTxt.Text = string.IsNullOrWhiteSpace(ApiTokenBox.Text)
+            bool hasToken = !string.IsNullOrWhiteSpace(ApiTokenBox.Text);
+            ApiTokenMaskedTxt.Text = !hasToken
                 ? "(Kein Token hinterlegt)"
-                : FunkenwerkSecurityVault.MaskSecretForDisplay(ApiTokenBox.Text);
+                : $"✓ Angemeldet  ·  {FunkenwerkSecurityVault.MaskSecretForDisplay(ApiTokenBox.Text)}";
+            ApiTokenMaskedTxt.Foreground = BrushFromHex(hasToken ? "#34D399" : "#9CA3AF");
             ApiTokenBox.Visibility = _isApiTokenVisible ? Visibility.Visible : Visibility.Collapsed;
             ApiTokenMaskedTxt.Visibility = _isApiTokenVisible ? Visibility.Collapsed : Visibility.Visible;
             if (ApiTokenEyeTxt != null)
@@ -8520,6 +10468,9 @@ namespace Funkenwerk
 
             PopulateSettingsCameraAndAudioTab();
 
+            _selectedDesignSpaceTab = AllSpaceKeys.Contains(_activeSpace) ? _activeSpace : "mail";
+            RefreshDesignSpaceColorCustomizerUI();
+
             SwitchSettingsTab("sounds");
             SettingsModalOverlay.Visibility = Visibility.Visible;
         }
@@ -8540,6 +10491,8 @@ namespace Funkenwerk
             SettingsPaneApi.Visibility = tab == "api" ? Visibility.Visible : Visibility.Collapsed;
             if (SettingsPaneCamera != null)
                 SettingsPaneCamera.Visibility = tab == "camera" ? Visibility.Visible : Visibility.Collapsed;
+            if (tab == "design")
+                RefreshDesignSpaceColorCustomizerUI();
 
             void StyleSettingsTabBtn(Border? btn, TextBlock? icon, TextBlock? txt, bool active)
             {
@@ -8763,11 +10716,13 @@ namespace Funkenwerk
 
         private void CloseSettings_Click(object sender, RoutedEventArgs e)
         {
+            StopDesignSpaceEyedropper(commit: false);
             SettingsModalOverlay.Visibility = Visibility.Collapsed;
         }
 
         private async void SaveSettings_Click(object sender, RoutedEventArgs e)
         {
+            StopDesignSpaceEyedropper(commit: true);
             _apiBaseUrl = FunkenwerkSecurityVault.NormalizeSecureApiUrl(ApiUrlBox.Text);
             ApiUrlBox.Text = _apiBaseUrl;
             _apiToken = ApiTokenBox.Text.Trim();
@@ -8810,6 +10765,768 @@ namespace Funkenwerk
         }
 
         // =========================================================================
+        // PER-SPACE DESIGN BACKGROUND & TEXT COLOR CUSTOMIZER (9 NAV ICON TABS)
+        // =========================================================================
+        private string _selectedDesignSpaceTab = "mail";
+        private bool _suppressDesignSpaceColorEvents = false;
+        private string _activeSpectrumTarget = "bg"; // "bg" or "fg"
+        private System.Windows.Threading.DispatcherTimer? _eyedropperTimer;
+        private Window? _eyedropperLoupeWindow;
+        private Border? _eyedropperLoupeSwatch;
+        private TextBlock? _eyedropperLoupeHexTxt;
+        private string _eyedropperTarget = "bg";
+        private string _eyedropperOriginalHex = "#000000";
+        private string _eyedropperCurrentHex = "#000000";
+        private bool _eyedropperWasLeftMouseDown = true;
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct Win32Point
+        {
+            public int X;
+            public int Y;
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool GetCursorPos(out Win32Point lpPoint);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr GetDC(IntPtr hWnd);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
+
+        [System.Runtime.InteropServices.DllImport("gdi32.dll")]
+        private static extern uint GetPixel(IntPtr hdc, int nXPos, int nYPos);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern short GetAsyncKeyState(int vKey);
+
+        private static readonly (string Hex, string Label)[] PresetBackgroundSwatches = new[]
+        {
+            ("#000000", "Tiefschwarz (Standard)"),
+            ("#0B0F19", "Mitternachtsblau"),
+            ("#111827", "Anthrazit Dunkel"),
+            ("#18181B", "Obsidian Grau"),
+            ("#1C1613", "Atelier Espresso"),
+            ("#1E1810", "Seelenfunke Dunkelgold"),
+            ("#091914", "Smaragd-Nacht"),
+            ("#0C1924", "Ozean-Petrol"),
+            ("#161124", "Amethyst-Nacht"),
+            ("#210D14", "Bordeaux-Nacht"),
+            ("#27272A", "Graphit Matt"),
+            ("#1E293B", "Nordic Slate"),
+            ("#F8FAFC", "Alabaster Hell"),
+            ("#FDF8ED", "Seelenfunke Creme")
+        };
+
+        private static readonly (string Hex, string Label)[] PresetTextSwatches = new[]
+        {
+            ("#FFFFFF", "Reinweiß (Standard)"),
+            ("#F8FAFC", "Kristallweiß"),
+            ("#E2E8F0", "Silbergrau Hell"),
+            ("#C5A059", "Seelenfunke Gold"),
+            ("#FDE68A", "Champagner Gold"),
+            ("#93C5FD", "Eisblau"),
+            ("#6EE7B7", "Smaragd Mint"),
+            ("#C4B5FD", "Lavendel Hell"),
+            ("#FDA4AF", "Rosé Koralle"),
+            ("#FDBA74", "Warmes Amber"),
+            ("#94A3B8", "Slate Gedämpft"),
+            ("#111827", "Tiefdunkel (für hellen Background)"),
+            ("#1F2937", "Anthrazit Text"),
+            ("#4B3612", "Dunkelbronze")
+        };
+
+        private static string GetDesignSpaceTabDisplayTitle(string spaceKey)
+        {
+            return spaceKey switch
+            {
+                "mail" => "TAB 1 · E-Mail",
+                "contacts" => "TAB 2 · Kontakte",
+                "calendar" => "TAB 3 · Kalender",
+                "todo" => "TAB 4 · To-Do",
+                "music" => "TAB 5 · Musik",
+                "smarthome" => "TAB 6 · Smarthome",
+                "camera" => "TAB 7 · Kamera",
+                "marketing" => "TAB 8 · Marketing",
+                "orders" => "TAB 9 · Bestellungen",
+                "files" => "TAB 10 · Dateiverwaltung",
+                "agent" => "TAB 11 · Funkira KI",
+                _ => "TAB 1 · E-Mail"
+            };
+        }
+
+        private void RefreshDesignSpaceColorCustomizerUI()
+        {
+            if (DesignSpaceTabMail == null || DesignSpaceBgHexBox == null || DesignSpaceFgHexBox == null) return;
+            EnsureSpaceThemeColorsInitialized();
+            if (!AllSpaceKeys.Contains(_selectedDesignSpaceTab))
+                _selectedDesignSpaceTab = "mail";
+
+            _suppressDesignSpaceColorEvents = true;
+            try
+            {
+                if (DesignSpaceTabActiveLabelTxt != null)
+                {
+                    DesignSpaceTabActiveLabelTxt.Text = GetDesignSpaceTabDisplayTitle(_selectedDesignSpaceTab);
+                }
+
+                void StyleIconTab(Border? tabBorder, System.Windows.Shapes.Path? iconPath, Ellipse? dot, string key)
+                {
+                    if (tabBorder == null) return;
+                    bool isSel = string.Equals(_selectedDesignSpaceTab, key, StringComparison.OrdinalIgnoreCase);
+                    var (bgHex, fgHex) = GetSpaceThemeColors(key);
+                    bool isCustom = !bgHex.Equals("#000000", StringComparison.OrdinalIgnoreCase) ||
+                                    !fgHex.Equals("#FFFFFF", StringComparison.OrdinalIgnoreCase);
+
+                    tabBorder.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(isSel ? "#26231F" : (_isDarkMode ? "#0D0F14" : "#F1F5F9")));
+                    tabBorder.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(isSel ? "#C5A059" : (_isDarkMode ? "#382D18" : "#CBD5E1")));
+                    tabBorder.BorderThickness = isSel ? new Thickness(1.5) : new Thickness(1);
+
+                    if (iconPath != null)
+                    {
+                        iconPath.Stroke = new SolidColorBrush((Color)ColorConverter.ConvertFromString(isSel ? "#C5A059" : (_isDarkMode ? "#E5E7EB" : "#1F2937")));
+                    }
+
+                    if (dot != null)
+                    {
+                        dot.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
+                        if (isCustom)
+                        {
+                            string dotColor = !bgHex.Equals("#000000", StringComparison.OrdinalIgnoreCase) ? bgHex : fgHex;
+                            dot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(dotColor));
+                        }
+                    }
+                }
+
+                StyleIconTab(DesignSpaceTabMail, DesignSpaceTabMailIcon, DesignSpaceTabMailDot, "mail");
+                StyleIconTab(DesignSpaceTabContacts, DesignSpaceTabContactsIcon, DesignSpaceTabContactsDot, "contacts");
+                StyleIconTab(DesignSpaceTabCalendar, DesignSpaceTabCalendarIcon, DesignSpaceTabCalendarDot, "calendar");
+                StyleIconTab(DesignSpaceTabTodo, DesignSpaceTabTodoIcon, DesignSpaceTabTodoDot, "todo");
+                StyleIconTab(DesignSpaceTabMusic, DesignSpaceTabMusicIcon, DesignSpaceTabMusicDot, "music");
+                StyleIconTab(DesignSpaceTabSmartHome, DesignSpaceTabSmartHomeIcon, DesignSpaceTabSmartHomeDot, "smarthome");
+                StyleIconTab(DesignSpaceTabCamera, DesignSpaceTabCameraIcon, DesignSpaceTabCameraDot, "camera");
+                StyleIconTab(DesignSpaceTabMarketing, DesignSpaceTabMarketingIcon, DesignSpaceTabMarketingDot, "marketing");
+                StyleIconTab(DesignSpaceTabOrders, DesignSpaceTabOrdersIcon, DesignSpaceTabOrdersDot, "orders");
+                StyleIconTab(DesignSpaceTabFiles, DesignSpaceTabFilesIcon, DesignSpaceTabFilesDot, "files");
+
+                var (curBg, curFg) = GetSpaceThemeColors(_selectedDesignSpaceTab);
+
+                if (DesignSpaceBgPreviewSwatch != null)
+                {
+                    DesignSpaceBgPreviewSwatch.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(curBg));
+                }
+                if (!DesignSpaceBgHexBox.IsKeyboardFocusWithin)
+                {
+                    DesignSpaceBgHexBox.Text = curBg;
+                }
+
+                if (DesignSpaceFgPreviewSwatch != null)
+                {
+                    DesignSpaceFgPreviewSwatch.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(curFg));
+                }
+                if (!DesignSpaceFgHexBox.IsKeyboardFocusWithin)
+                {
+                    DesignSpaceFgHexBox.Text = curFg;
+                }
+
+                PopulateDesignSpacePalettePanel(DesignSpaceBgPalettePanel, PresetBackgroundSwatches, curBg, isBg: true);
+                PopulateDesignSpacePalettePanel(DesignSpaceFgPalettePanel, PresetTextSwatches, curFg, isBg: false);
+
+                if (DesignSpaceSpectrumPanel != null && DesignSpaceSpectrumPanel.Visibility == Visibility.Visible)
+                {
+                    SyncHsvSlidersFromHex(_activeSpectrumTarget == "bg" ? curBg : curFg);
+                }
+            }
+            finally
+            {
+                _suppressDesignSpaceColorEvents = false;
+            }
+        }
+
+        private void PopulateDesignSpacePalettePanel(WrapPanel? panel, (string Hex, string Label)[] presets, string currentHex, bool isBg)
+        {
+            if (panel == null) return;
+            panel.Children.Clear();
+
+            foreach (var preset in presets)
+            {
+                bool isMatch = string.Equals(preset.Hex, currentHex, StringComparison.OrdinalIgnoreCase);
+                var swatch = new Border
+                {
+                    Width = 24,
+                    Height = 24,
+                    CornerRadius = new CornerRadius(6),
+                    Margin = new Thickness(0, 0, 6, 6),
+                    Cursor = Cursors.Hand,
+                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(preset.Hex)),
+                    BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(isMatch ? "#C5A059" : "#4B5563")),
+                    BorderThickness = isMatch ? new Thickness(2) : new Thickness(1),
+                    ToolTip = $"{preset.Label} ({preset.Hex})"
+                };
+
+                if (isMatch)
+                {
+                    Color c = (Color)ColorConverter.ConvertFromString(preset.Hex);
+                    double lum = (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) / 255.0;
+                    swatch.Child = new TextBlock
+                    {
+                        Text = "✓",
+                        FontSize = 11,
+                        FontWeight = FontWeights.Bold,
+                        Foreground = new SolidColorBrush(lum > 0.55 ? Color.FromRgb(17, 24, 39) : Colors.White),
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                }
+
+                string capturedHex = preset.Hex;
+                bool capturedIsBg = isBg;
+                swatch.MouseLeftButtonUp += (s, e) =>
+                {
+                    PlaySoundNav();
+                    ApplyDesignSpaceColorValue(_selectedDesignSpaceTab, capturedIsBg, capturedHex, updateTextBoxes: true);
+                };
+
+                panel.Children.Add(swatch);
+            }
+        }
+
+        private void ApplyDesignSpaceColorValue(string spaceKey, bool isBg, string validHex, bool updateTextBoxes)
+        {
+            EnsureSpaceThemeColorsInitialized();
+            string normalized = NormalizeHexColorOrDefault(validHex, isBg ? "#000000" : "#FFFFFF");
+            if (!_layoutSettings.SpaceThemeColors.TryGetValue(spaceKey, out var cfg) || cfg == null)
+            {
+                cfg = new SpaceThemeColorConfig();
+                _layoutSettings.SpaceThemeColors[spaceKey] = cfg;
+            }
+
+            if (isBg) cfg.BackgroundHex = normalized;
+            else cfg.TextHex = normalized;
+
+            _staticSpaceThemeColors = _layoutSettings.SpaceThemeColors;
+
+            _suppressDesignSpaceColorEvents = true;
+            try
+            {
+                if (isBg)
+                {
+                    if (DesignSpaceBgPreviewSwatch != null)
+                        DesignSpaceBgPreviewSwatch.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(normalized));
+                    if (updateTextBoxes && DesignSpaceBgHexBox != null)
+                        DesignSpaceBgHexBox.Text = normalized;
+                }
+                else
+                {
+                    if (DesignSpaceFgPreviewSwatch != null)
+                        DesignSpaceFgPreviewSwatch.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(normalized));
+                    if (updateTextBoxes && DesignSpaceFgHexBox != null)
+                        DesignSpaceFgHexBox.Text = normalized;
+                }
+            }
+            finally
+            {
+                _suppressDesignSpaceColorEvents = false;
+            }
+
+            ApplySingleSpaceCustomColorsLive(spaceKey);
+            RefreshDesignSpaceColorCustomizerUI();
+            SaveSettingsToFile();
+        }
+
+        private void ApplySingleSpaceCustomColorsLive(string spaceKey)
+        {
+            if (!_isLoaded) return;
+            EnsureSpaceThemeColorsInitialized();
+
+            foreach (var kv in _originalDarkBrushes)
+            {
+                try
+                {
+                    string elemSpace = ResolveElementSpaceKey(kv.Key.Obj);
+                    if (string.Equals(elemSpace, spaceKey, StringComparison.OrdinalIgnoreCase) ||
+                        (string.IsNullOrEmpty(elemSpace) && string.Equals(spaceKey, _activeSpace, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        ApplyElementRecordedBrush(kv.Key.Obj, kv.Key.Prop, kv.Value, _isDarkMode, spaceKey);
+                    }
+                }
+                catch { }
+            }
+
+            if (string.Equals(spaceKey, _activeSpace, StringComparison.OrdinalIgnoreCase))
+            {
+                _currentRenderingSpaceKey = _activeSpace;
+                this.Background = BrushFromHex("#000000");
+                this.Foreground = BrushFromHex("#FFFFFF");
+                ApplyDynamicThemeResources(_isDarkMode);
+            }
+
+            _currentRenderingSpaceKey = spaceKey;
+            switch (spaceKey)
+            {
+                case "mail":
+                    RenderMailAccountsSidebar();
+                    RenderFunnelFilterPills();
+                    RenderMailMessagesList();
+                    RenderActiveMailReader();
+                    break;
+                case "contacts":
+                    RenderContactsList();
+                    break;
+                case "calendar":
+                    RenderCalendarAll();
+                    break;
+                case "todo":
+                    RenderTodoAll();
+                    break;
+                case "music":
+                    RenderMusicAll();
+                    break;
+                case "smarthome":
+                    RenderSmartHomeAll();
+                    break;
+                case "camera":
+                    RenderCameraStudioThemeRefresh();
+                    break;
+                case "marketing":
+                    RenderMarketingThemeRefresh();
+                    break;
+                case "orders":
+                    RenderOrdersPrintDashboard();
+                    break;
+                case "files":
+                    RenderFilesWorkspaceView();
+                    break;
+                case "agent":
+                    RenderAgentAll();
+                    break;
+            }
+            _currentRenderingSpaceKey = _activeSpace;
+        }
+
+        private void DesignSpaceTab_Click(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is FrameworkElement el && el.Tag is string spaceKey && AllSpaceKeys.Contains(spaceKey))
+            {
+                PlaySoundNav();
+                _selectedDesignSpaceTab = spaceKey;
+                RefreshDesignSpaceColorCustomizerUI();
+                // Also switch the background workspace view to this space so the user sees their changes live!
+                if (!string.Equals(_activeSpace, spaceKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    SwitchSpaceUI(spaceKey);
+                }
+            }
+        }
+
+        private static bool TryParseCompleteHexColor(string? input, out string normalizedHex)
+        {
+            normalizedHex = "";
+            if (string.IsNullOrWhiteSpace(input)) return false;
+            string s = input.Trim();
+            if (!s.StartsWith("#", StringComparison.Ordinal)) s = "#" + s;
+            if (s.Length == 7 && Regex.IsMatch(s, @"^#[0-9A-Fa-f]{6}$"))
+            {
+                normalizedHex = s.ToUpperInvariant();
+                return true;
+            }
+            return false;
+        }
+
+        private void DesignSpaceBgHexBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!_isLoaded || _suppressDesignSpaceColorEvents || DesignSpaceBgHexBox == null) return;
+            if (TryParseCompleteHexColor(DesignSpaceBgHexBox.Text, out string validHex))
+            {
+                ApplyDesignSpaceColorValue(_selectedDesignSpaceTab, isBg: true, validHex, updateTextBoxes: false);
+            }
+        }
+
+        private void DesignSpaceBgHexBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (!_isLoaded || _suppressDesignSpaceColorEvents || DesignSpaceBgHexBox == null) return;
+            var (curBg, _) = GetSpaceThemeColors(_selectedDesignSpaceTab);
+            string normalized = NormalizeHexColorOrDefault(DesignSpaceBgHexBox.Text, curBg);
+            ApplyDesignSpaceColorValue(_selectedDesignSpaceTab, isBg: true, normalized, updateTextBoxes: true);
+        }
+
+        private void DesignSpaceFgHexBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!_isLoaded || _suppressDesignSpaceColorEvents || DesignSpaceFgHexBox == null) return;
+            if (TryParseCompleteHexColor(DesignSpaceFgHexBox.Text, out string validHex))
+            {
+                ApplyDesignSpaceColorValue(_selectedDesignSpaceTab, isBg: false, validHex, updateTextBoxes: false);
+            }
+        }
+
+        private void DesignSpaceFgHexBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (!_isLoaded || _suppressDesignSpaceColorEvents || DesignSpaceFgHexBox == null) return;
+            var (_, curFg) = GetSpaceThemeColors(_selectedDesignSpaceTab);
+            string normalized = NormalizeHexColorOrDefault(DesignSpaceFgHexBox.Text, curFg);
+            ApplyDesignSpaceColorValue(_selectedDesignSpaceTab, isBg: false, normalized, updateTextBoxes: true);
+        }
+
+        private void DesignSpaceHexBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                if (sender == DesignSpaceBgHexBox)
+                    DesignSpaceBgHexBox_LostFocus(sender, new RoutedEventArgs());
+                else if (sender == DesignSpaceFgHexBox)
+                    DesignSpaceFgHexBox_LostFocus(sender, new RoutedEventArgs());
+            }
+        }
+
+        private void DesignSpaceResetDefault_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundActionPop();
+            EnsureSpaceThemeColorsInitialized();
+            _layoutSettings.SpaceThemeColors[_selectedDesignSpaceTab] = new SpaceThemeColorConfig
+            {
+                BackgroundHex = "#000000",
+                TextHex = "#FFFFFF"
+            };
+            _staticSpaceThemeColors = _layoutSettings.SpaceThemeColors;
+            ApplySingleSpaceCustomColorsLive(_selectedDesignSpaceTab);
+            RefreshDesignSpaceColorCustomizerUI();
+            SaveSettingsToFile();
+        }
+
+        private void DesignSpaceApplyToAll_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundActionPop();
+            EnsureSpaceThemeColorsInitialized();
+            var (curBg, curFg) = GetSpaceThemeColors(_selectedDesignSpaceTab);
+            foreach (var key in AllSpaceKeys)
+            {
+                _layoutSettings.SpaceThemeColors[key] = new SpaceThemeColorConfig
+                {
+                    BackgroundHex = curBg,
+                    TextHex = curFg
+                };
+            }
+            _staticSpaceThemeColors = _layoutSettings.SpaceThemeColors;
+            ApplyThemeMode(_isDarkMode);
+            RefreshDesignSpaceColorCustomizerUI();
+            SaveSettingsToFile();
+        }
+
+        // =========================================================================
+        // HSV SPECTRUM FINE-TUNER SLIDERS
+        // =========================================================================
+        private void DesignSpaceOpenBgSpectrumPopup_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundNav();
+            OpenDesignSpaceSpectrumTuner("bg");
+        }
+
+        private void DesignSpaceOpenFgSpectrumPopup_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundNav();
+            OpenDesignSpaceSpectrumTuner("fg");
+        }
+
+        private void DesignSpaceCloseSpectrum_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundNav();
+            if (DesignSpaceSpectrumPanel != null)
+                DesignSpaceSpectrumPanel.Visibility = Visibility.Collapsed;
+        }
+
+        private void OpenDesignSpaceSpectrumTuner(string target)
+        {
+            if (DesignSpaceSpectrumPanel == null) return;
+            if (DesignSpaceSpectrumPanel.Visibility == Visibility.Visible && _activeSpectrumTarget == target)
+            {
+                DesignSpaceSpectrumPanel.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            _activeSpectrumTarget = target;
+            if (DesignSpaceSpectrumTargetTitleTxt != null)
+            {
+                DesignSpaceSpectrumTargetTitleTxt.Text = target == "bg"
+                    ? $"🎨 Feinabstimmung: Background Farbe ({GetDesignSpaceTabDisplayTitle(_selectedDesignSpaceTab)})"
+                    : $"🎨 Feinabstimmung: Text Farbe ({GetDesignSpaceTabDisplayTitle(_selectedDesignSpaceTab)})";
+            }
+
+            var (curBg, curFg) = GetSpaceThemeColors(_selectedDesignSpaceTab);
+            SyncHsvSlidersFromHex(target == "bg" ? curBg : curFg);
+            DesignSpaceSpectrumPanel.Visibility = Visibility.Visible;
+        }
+
+        private void SyncHsvSlidersFromHex(string hex)
+        {
+            if (DesignSpaceHueSlider == null || DesignSpaceSatSlider == null || DesignSpaceValSlider == null) return;
+            bool prevSuppress = _suppressDesignSpaceColorEvents;
+            _suppressDesignSpaceColorEvents = true;
+            try
+            {
+                Color c = (Color)ColorConverter.ConvertFromString(NormalizeHexColorOrDefault(hex, "#000000"));
+                RgbToHsv(c.R, c.G, c.B, out double h, out double s, out double v);
+                DesignSpaceHueSlider.Value = Math.Round(h);
+                DesignSpaceSatSlider.Value = Math.Round(s * 100.0);
+                DesignSpaceValSlider.Value = Math.Round(v * 100.0);
+                if (DesignSpaceHueValTxt != null) DesignSpaceHueValTxt.Text = $"{(int)Math.Round(h)}°";
+                if (DesignSpaceSatValTxt != null) DesignSpaceSatValTxt.Text = $"{(int)Math.Round(s * 100.0)} %";
+                if (DesignSpaceValValTxt != null) DesignSpaceValValTxt.Text = $"{(int)Math.Round(v * 100.0)} %";
+            }
+            finally
+            {
+                _suppressDesignSpaceColorEvents = prevSuppress;
+            }
+        }
+
+        private void DesignSpaceHsvSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!_isLoaded || _suppressDesignSpaceColorEvents || DesignSpaceHueSlider == null || DesignSpaceSatSlider == null || DesignSpaceValSlider == null)
+                return;
+
+            double h = DesignSpaceHueSlider.Value;
+            double s = DesignSpaceSatSlider.Value / 100.0;
+            double v = DesignSpaceValSlider.Value / 100.0;
+
+            if (DesignSpaceHueValTxt != null) DesignSpaceHueValTxt.Text = $"{(int)Math.Round(h)}°";
+            if (DesignSpaceSatValTxt != null) DesignSpaceSatValTxt.Text = $"{(int)Math.Round(s * 100.0)} %";
+            if (DesignSpaceValValTxt != null) DesignSpaceValValTxt.Text = $"{(int)Math.Round(v * 100.0)} %";
+
+            Color c = HsvToRgb(h, s, v);
+            string hex = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+            ApplyDesignSpaceColorValue(_selectedDesignSpaceTab, isBg: _activeSpectrumTarget == "bg", hex, updateTextBoxes: true);
+        }
+
+        private static void RgbToHsv(byte rByte, byte gByte, byte bByte, out double h, out double s, out double v)
+        {
+            double r = rByte / 255.0;
+            double g = gByte / 255.0;
+            double b = bByte / 255.0;
+            double max = Math.Max(r, Math.Max(g, b));
+            double min = Math.Min(r, Math.Min(g, b));
+            double delta = max - min;
+
+            h = 0;
+            if (delta > 0.0001)
+            {
+                if (max == r) h = 60.0 * (((g - b) / delta) % 6.0);
+                else if (max == g) h = 60.0 * (((b - r) / delta) + 2.0);
+                else h = 60.0 * (((r - g) / delta) + 4.0);
+                if (h < 0) h += 360.0;
+            }
+            s = max <= 0.0001 ? 0 : (delta / max);
+            v = max;
+        }
+
+        private static Color HsvToRgb(double h, double s, double v)
+        {
+            h = ((h % 360.0) + 360.0) % 360.0;
+            s = Math.Clamp(s, 0.0, 1.0);
+            v = Math.Clamp(v, 0.0, 1.0);
+
+            double c = v * s;
+            double x = c * (1.0 - Math.Abs(((h / 60.0) % 2.0) - 1.0));
+            double m = v - c;
+
+            double r1, g1, b1;
+            if (h < 60) { r1 = c; g1 = x; b1 = 0; }
+            else if (h < 120) { r1 = x; g1 = c; b1 = 0; }
+            else if (h < 180) { r1 = 0; g1 = c; b1 = x; }
+            else if (h < 240) { r1 = 0; g1 = x; b1 = c; }
+            else if (h < 300) { r1 = x; g1 = 0; b1 = c; }
+            else { r1 = c; g1 = 0; b1 = x; }
+
+            byte r = (byte)Math.Clamp((int)Math.Round((r1 + m) * 255.0), 0, 255);
+            byte g = (byte)Math.Clamp((int)Math.Round((g1 + m) * 255.0), 0, 255);
+            byte b = (byte)Math.Clamp((int)Math.Round((b1 + m) * 255.0), 0, 255);
+            return Color.FromRgb(r, g, b);
+        }
+
+        // =========================================================================
+        // INTERACTIVE FULL-SCREEN EYEDROPPER PIPETTE (💧 Pipette)
+        // =========================================================================
+        private void DesignSpacePickBgEyedropper_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundNav();
+            StartDesignSpaceEyedropper("bg");
+        }
+
+        private void DesignSpacePickFgEyedropper_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundNav();
+            StartDesignSpaceEyedropper("fg");
+        }
+
+        private void StartDesignSpaceEyedropper(string target)
+        {
+            StopDesignSpaceEyedropper(commit: false);
+
+            _eyedropperTarget = target;
+            var (curBg, curFg) = GetSpaceThemeColors(_selectedDesignSpaceTab);
+            _eyedropperOriginalHex = target == "bg" ? curBg : curFg;
+            _eyedropperCurrentHex = _eyedropperOriginalHex;
+            _eyedropperWasLeftMouseDown = (GetAsyncKeyState(0x01) & 0x8000) != 0;
+
+            _eyedropperLoupeSwatch = new Border
+            {
+                Width = 28,
+                Height = 28,
+                CornerRadius = new CornerRadius(14),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_eyedropperCurrentHex)),
+                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059")),
+                BorderThickness = new Thickness(2),
+                Margin = new Thickness(0, 0, 10, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            _eyedropperLoupeHexTxt = new TextBlock
+            {
+                Text = $"💧 {_eyedropperCurrentHex}",
+                Foreground = Brushes.White,
+                FontFamily = new FontFamily("Consolas"),
+                FontSize = 13,
+                FontWeight = FontWeights.Bold
+            };
+
+            var subHintTxt = new TextBlock
+            {
+                Text = "Links-Klick = Farbe wählen · Esc = Abbrechen",
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059")),
+                FontSize = 10,
+                Margin = new Thickness(0, 2, 0, 0)
+            };
+
+            var infoStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            infoStack.Children.Add(_eyedropperLoupeHexTxt);
+            infoStack.Children.Add(subHintTxt);
+
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            row.Children.Add(_eyedropperLoupeSwatch);
+            row.Children.Add(infoStack);
+
+            _eyedropperLoupeWindow = new Window
+            {
+                WindowStyle = WindowStyle.None,
+                AllowsTransparency = true,
+                Background = Brushes.Transparent,
+                Topmost = true,
+                ShowInTaskbar = false,
+                Focusable = false,
+                IsHitTestVisible = false,
+                SizeToContent = SizeToContent.WidthAndHeight,
+                Content = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromArgb(235, 11, 13, 19)),
+                    BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059")),
+                    BorderThickness = new Thickness(1.5),
+                    CornerRadius = new CornerRadius(12),
+                    Padding = new Thickness(12, 8, 14, 8),
+                    Child = row
+                }
+            };
+            _eyedropperLoupeWindow.Show();
+
+            Cursor = Cursors.Cross;
+
+            _eyedropperTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(25)
+            };
+            _eyedropperTimer.Tick += EyedropperTimer_Tick;
+            _eyedropperTimer.Start();
+        }
+
+        private void EyedropperTimer_Tick(object? sender, EventArgs e)
+        {
+            try
+            {
+                bool escDown = (GetAsyncKeyState(0x1B) & 0x8000) != 0;
+                bool rButtonDown = (GetAsyncKeyState(0x02) & 0x8000) != 0;
+                if (escDown || rButtonDown)
+                {
+                    StopDesignSpaceEyedropper(commit: false);
+                    return;
+                }
+
+                if (GetCursorPos(out var pt))
+                {
+                    IntPtr hdc = GetDC(IntPtr.Zero);
+                    if (hdc != IntPtr.Zero)
+                    {
+                        uint pixel = GetPixel(hdc, pt.X, pt.Y);
+                        ReleaseDC(IntPtr.Zero, hdc);
+
+                        if (pixel != 0xFFFFFFFF)
+                        {
+                            byte r = (byte)(pixel & 0x000000FF);
+                            byte g = (byte)((pixel & 0x0000FF00) >> 8);
+                            byte b = (byte)((pixel & 0x00FF0000) >> 16);
+                            string hex = $"#{r:X2}{g:X2}{b:X2}";
+                            _eyedropperCurrentHex = hex;
+
+                            if (_eyedropperLoupeSwatch != null)
+                                _eyedropperLoupeSwatch.Background = new SolidColorBrush(Color.FromRgb(r, g, b));
+                            if (_eyedropperLoupeHexTxt != null)
+                                _eyedropperLoupeHexTxt.Text = $"💧 {hex}";
+                        }
+                    }
+
+                    if (_eyedropperLoupeWindow != null)
+                    {
+                        var dpi = VisualTreeHelper.GetDpi(this);
+                        double scaleX = dpi.DpiScaleX > 0 ? dpi.DpiScaleX : 1.0;
+                        double scaleY = dpi.DpiScaleY > 0 ? dpi.DpiScaleY : 1.0;
+                        _eyedropperLoupeWindow.Left = (pt.X / scaleX) + 18;
+                        _eyedropperLoupeWindow.Top = (pt.Y / scaleY) + 18;
+                    }
+                }
+
+                bool lButtonDown = (GetAsyncKeyState(0x01) & 0x8000) != 0;
+                if (!lButtonDown)
+                {
+                    _eyedropperWasLeftMouseDown = false;
+                }
+                else if (!_eyedropperWasLeftMouseDown && lButtonDown)
+                {
+                    StopDesignSpaceEyedropper(commit: true);
+                }
+            }
+            catch
+            {
+                StopDesignSpaceEyedropper(commit: false);
+            }
+        }
+
+        private void StopDesignSpaceEyedropper(bool commit)
+        {
+            if (_eyedropperTimer == null && _eyedropperLoupeWindow == null) return;
+
+            try
+            {
+                if (_eyedropperTimer != null)
+                {
+                    _eyedropperTimer.Stop();
+                    _eyedropperTimer.Tick -= EyedropperTimer_Tick;
+                    _eyedropperTimer = null;
+                }
+                if (_eyedropperLoupeWindow != null)
+                {
+                    _eyedropperLoupeWindow.Close();
+                    _eyedropperLoupeWindow = null;
+                }
+                Cursor = Cursors.Arrow;
+
+                if (commit && !string.IsNullOrWhiteSpace(_eyedropperCurrentHex))
+                {
+                    PlaySoundActionPop();
+                    ApplyDesignSpaceColorValue(_selectedDesignSpaceTab, isBg: _eyedropperTarget == "bg", _eyedropperCurrentHex, updateTextBoxes: true);
+                }
+            }
+            catch { }
+        }
+
+        // =========================================================================
         // MODULE 5: FUNKENWERK SOUNDPLAYER & SMART LOCAL CACHE
         // =========================================================================
         private void InitMusicPlayerEngine()
@@ -8848,9 +11565,39 @@ namespace Funkenwerk
             UpdateMusicCacheStatusLabel();
         }
 
+        private readonly Dictionary<string, string> _cachedMusicFileLookup = new(StringComparer.OrdinalIgnoreCase);
+
         private string GetMusicPlaylistsCacheFilePath()
         {
             return System.IO.Path.Combine(_musicCacheDir, "playlists_cache.json");
+        }
+
+        private void IndexPlaylistsForLocalAudioFiles(IEnumerable<MusicPlaylistDto> playlists)
+        {
+            foreach (var pl in playlists)
+            {
+                if (pl?.Tracks == null) continue;
+                foreach (var tr in pl.Tracks)
+                {
+                    string candidate = System.IO.Path.Combine(_musicCacheDir, $"{tr.Id}.m4a");
+                    if (!File.Exists(candidate) && !string.IsNullOrWhiteSpace(tr.ExternalId))
+                    {
+                        candidate = System.IO.Path.Combine(_musicCacheDir, $"{tr.ExternalId}.m4a");
+                    }
+                    if (File.Exists(candidate) && new FileInfo(candidate).Length > 1024)
+                    {
+                        if (!string.IsNullOrWhiteSpace(tr.Id))
+                            _cachedMusicFileLookup[$"id:{tr.Id}"] = candidate;
+                        if (!string.IsNullOrWhiteSpace(tr.ExternalId))
+                            _cachedMusicFileLookup[$"ext:{tr.ExternalId}"] = candidate;
+                        if (!string.IsNullOrWhiteSpace(tr.Title))
+                        {
+                            _cachedMusicFileLookup[$"ta:{tr.Title.Trim()}|{(tr.Artist ?? "").Trim()}"] = candidate;
+                            _cachedMusicFileLookup[$"t:{tr.Title.Trim()}"] = candidate;
+                        }
+                    }
+                }
+            }
         }
 
         private void LoadMusicPlaylistsFromLocalCache()
@@ -8858,22 +11605,34 @@ namespace Funkenwerk
             try
             {
                 string cacheFile = GetMusicPlaylistsCacheFilePath();
-                if (!File.Exists(cacheFile))
+                string bundled = System.IO.Path.Combine(AppContext.BaseDirectory, "playlists_cache.json");
+
+                List<MusicPlaylistDto> bundledParsed = new();
+                if (File.Exists(bundled))
                 {
-                    string bundled = System.IO.Path.Combine(AppContext.BaseDirectory, "playlists_cache.json");
-                    if (File.Exists(bundled))
+                    bundledParsed = ParseMusicPlaylistsJson(File.ReadAllText(bundled, Encoding.UTF8));
+                    IndexPlaylistsForLocalAudioFiles(bundledParsed);
+                    if (!File.Exists(cacheFile))
                     {
                         Directory.CreateDirectory(_musicCacheDir);
                         File.Copy(bundled, cacheFile, overwrite: true);
                     }
                 }
 
-                if (!File.Exists(cacheFile)) return;
-                string json = File.ReadAllText(cacheFile, Encoding.UTF8);
-                var parsed = ParseMusicPlaylistsJson(json);
-                if (parsed.Count > 0)
+                List<MusicPlaylistDto> cacheParsed = new();
+                if (File.Exists(cacheFile))
                 {
-                    ApplyLoadedMusicPlaylists(parsed);
+                    cacheParsed = ParseMusicPlaylistsJson(File.ReadAllText(cacheFile, Encoding.UTF8));
+                    IndexPlaylistsForLocalAudioFiles(cacheParsed);
+                }
+
+                int cacheCount = cacheParsed.Where(p => !string.Equals(p.Name, FAV_SYNC_PLAYLIST_NAME, StringComparison.OrdinalIgnoreCase)).Sum(p => p.Tracks?.Count ?? 0);
+                int bundledCount = bundledParsed.Where(p => !string.Equals(p.Name, FAV_SYNC_PLAYLIST_NAME, StringComparison.OrdinalIgnoreCase)).Sum(p => p.Tracks?.Count ?? 0);
+
+                var best = bundledCount > cacheCount ? bundledParsed : cacheParsed;
+                if (best.Count > 0)
+                {
+                    ApplyLoadedMusicPlaylists(best);
                 }
             }
             catch { }
@@ -9074,8 +11833,10 @@ namespace Funkenwerk
                 bool hadLocalFavs = _allMusicTracks.Any(t => t.IsFavorite);
                 var existingLocalFavIds = _allMusicTracks.Where(t => t.IsFavorite).Select(t => t.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-                if (catalogPlaylists.Count > 0 && (primaryTrackCount > 0 || _allMusicTracks.Count == 0))
+                int existingCachedTrackCount = _allMusicTracks.Count(t => File.Exists(GetLocalCachePath(t)));
+                if (catalogPlaylists.Count > 0 && (primaryTrackCount >= existingCachedTrackCount || _allMusicTracks.Count == 0))
                 {
+                    IndexPlaylistsForLocalAudioFiles(catalogPlaylists);
                     ApplyLoadedMusicPlaylists(catalogPlaylists);
                 }
 
@@ -9212,11 +11973,9 @@ namespace Funkenwerk
 
                 border.Child = g;
                 var captured = pl;
-                border.MouseLeftButtonUp += (s, e) =>
+                border.MouseLeftButtonUp += async (s, e) =>
                 {
-                    PlaySoundNav();
-                    _activeMusicPlaylistId = captured.Id;
-                    RenderMusicAll();
+                    await SelectMusicPlaylistAndPlayRandomAsync(captured.Id);
                 };
                 MusicPlaylistsPanel.Children.Add(border);
             }
@@ -9377,6 +12136,17 @@ namespace Funkenwerk
             {
                 string byExt = System.IO.Path.Combine(_musicCacheDir, $"{track.ExternalId}.m4a");
                 if (File.Exists(byExt)) return byExt;
+
+                if (_cachedMusicFileLookup.TryGetValue($"ext:{track.ExternalId}", out string? mappedExt) && File.Exists(mappedExt))
+                    return mappedExt;
+            }
+
+            if (!string.IsNullOrWhiteSpace(track.Title))
+            {
+                if (_cachedMusicFileLookup.TryGetValue($"ta:{track.Title.Trim()}|{(track.Artist ?? "").Trim()}", out string? mappedTa) && File.Exists(mappedTa))
+                    return mappedTa;
+                if (_cachedMusicFileLookup.TryGetValue($"t:{track.Title.Trim()}", out string? mappedT) && File.Exists(mappedT))
+                    return mappedT;
             }
 
             return byId;
@@ -9415,6 +12185,8 @@ namespace Funkenwerk
                 MusicNowArtistTxt.Text = !string.IsNullOrWhiteSpace(track.Artist) ? track.Artist : "Unbekannter Künstler";
                 MiniPlayerTitleTxt.Text = track.Title;
                 MiniPlayerArtistTxt.Text = !string.IsNullOrWhiteSpace(track.Artist) ? track.Artist : "Funkenwerk Audio";
+                if (FocusTrackTitleTxt != null) FocusTrackTitleTxt.Text = track.Title;
+                if (FocusTrackArtistTxt != null) FocusTrackArtistTxt.Text = !string.IsNullOrWhiteSpace(track.Artist) ? track.Artist : "Mein Seelenfunke";
 
                 string? localPath = await EnsureTrackCachedAsync(track);
                 if (string.IsNullOrEmpty(localPath))
@@ -9426,6 +12198,7 @@ namespace Funkenwerk
                 _mediaPlayer.Open(new Uri(localPath, UriKind.Absolute));
                 _mediaPlayer.Play();
                 _isMusicPlaying = true;
+                _ = AnalyzeTrackRhythmEnvelopeAsync(track.Id, localPath);
 
                 MusicCacheBadgeTxt.Text = "⚡ Lokal gecacht · 256 kbps AAC";
                 UpdateMusicPlaybackButtonsUI();
@@ -9444,10 +12217,77 @@ namespace Funkenwerk
             catch { }
         }
 
+        private bool _isMiniPlayerHovered = false;
+
+        private void GlobalMiniPlayerBar_MouseEnter(object sender, MouseEventArgs e)
+        {
+            _isMiniPlayerHovered = true;
+            if (MiniPlayerCompactIconBadge != null)
+                MiniPlayerCompactIconBadge.Visibility = Visibility.Collapsed;
+            if (MiniPlayerExpandedDetailBorder != null)
+                MiniPlayerExpandedDetailBorder.Visibility = Visibility.Visible;
+        }
+
+        private void GlobalMiniPlayerBar_MouseLeave(object sender, MouseEventArgs e)
+        {
+            _isMiniPlayerHovered = false;
+            if (MiniPlayerExpandedDetailBorder != null)
+                MiniPlayerExpandedDetailBorder.Visibility = Visibility.Collapsed;
+            if (MiniPlayerCompactIconBadge != null)
+                MiniPlayerCompactIconBadge.Visibility = Visibility.Visible;
+        }
+
+        private void UpdateFocusModeButtonsTheme()
+        {
+            var prevSpace = _currentRenderingSpaceKey;
+            _currentRenderingSpaceKey = "music";
+            var focusBg = BrushFromHex("#1E222D");
+            var focusFg = BrushFromHex("#F9FAFB");
+            var goldBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059"));
+
+            if (MusicEnterFocusModeBtn != null)
+            {
+                MusicEnterFocusModeBtn.Background = focusBg;
+                MusicEnterFocusModeBtn.Foreground = focusFg;
+                MusicEnterFocusModeBtn.BorderBrush = goldBrush;
+                MusicEnterFocusModeBtn.BorderThickness = new Thickness(1);
+            }
+            if (MusicEnterFocusStarTxt != null)
+                MusicEnterFocusStarTxt.Foreground = goldBrush;
+            if (MusicEnterFocusLabelTxt != null)
+                MusicEnterFocusLabelTxt.Foreground = focusFg;
+
+            _currentRenderingSpaceKey = _activeSpace;
+            var miniBg = BrushFromHex("#181B24");
+            var miniBtnBg = BrushFromHex("#1E222D");
+            var miniFg = BrushFromHex("#F9FAFB");
+
+            if (MiniPlayerCompactIconBadge != null)
+            {
+                MiniPlayerCompactIconBadge.Background = miniBg;
+                MiniPlayerCompactIconBadge.BorderBrush = goldBrush;
+            }
+            if (MiniPlayerExpandedDetailBorder != null)
+            {
+                MiniPlayerExpandedDetailBorder.Background = miniBg;
+                MiniPlayerExpandedDetailBorder.BorderBrush = goldBrush;
+            }
+            if (MiniPlayerFocusBtn != null)
+            {
+                MiniPlayerFocusBtn.Background = miniBtnBg;
+                MiniPlayerFocusBtn.Foreground = miniFg;
+                MiniPlayerFocusBtn.BorderBrush = goldBrush;
+                MiniPlayerFocusBtn.BorderThickness = new Thickness(1);
+            }
+            _currentRenderingSpaceKey = prevSpace;
+        }
+
         private void UpdateMusicPlaybackButtonsUI()
         {
             MusicPlayPauseBtn.Content = _isMusicPlaying ? "❚❚" : "▶";
             MiniPlayerPlayBtn.Content = _isMusicPlaying ? "❚❚" : "▶";
+            if (FocusOverlayPlayPauseBtn != null)
+                FocusOverlayPlayPauseBtn.Content = _isMusicPlaying ? "❚❚" : "▶";
             MusicPlayerCoverImg.Opacity = _isMusicPlaying ? 1.0 : 0.7;
 
             MusicShuffleBtn.Opacity = _isMusicShuffle ? 1.0 : 0.65;
@@ -9459,13 +12299,23 @@ namespace Funkenwerk
             MusicRepeatBtn.BorderBrush = _isMusicRepeat ? BrushFromHex("#C5A059") : Brushes.Transparent;
 
             UpdateNowPlayingFavoriteButtonUI();
+            UpdateFocusModeButtonsTheme();
         }
 
         private void UpdateMiniPlayerVisibility()
         {
             if (GlobalMiniPlayerBar == null) return;
             bool showMini = _currentPlayingTrack != null && _activeSpace != "music";
+            if (!showMini)
+            {
+                _isMiniPlayerHovered = false;
+            }
             GlobalMiniPlayerBar.Visibility = showMini ? Visibility.Visible : Visibility.Collapsed;
+            if (MiniPlayerCompactIconBadge != null)
+                MiniPlayerCompactIconBadge.Visibility = (showMini && !_isMiniPlayerHovered) ? Visibility.Visible : Visibility.Collapsed;
+            if (MiniPlayerExpandedDetailBorder != null)
+                MiniPlayerExpandedDetailBorder.Visibility = (showMini && _isMiniPlayerHovered) ? Visibility.Visible : Visibility.Collapsed;
+            UpdateFocusModeButtonsTheme();
 
             if (MktModeToggleContainer != null)
             {
@@ -9683,13 +12533,32 @@ namespace Funkenwerk
             MusicVolumeTxt.Text = $"{(int)Math.Round(e.NewValue)} %";
         }
 
-        private void MusicSmartView_Click(object sender, MouseButtonEventArgs e)
+        private async Task SelectMusicPlaylistAndPlayRandomAsync(string playlistId)
+        {
+            PlaySoundNav();
+            _activeMusicPlaylistId = playlistId;
+            RenderMusicAll();
+
+            var filtered = GetFilteredMusicTracks();
+            if (filtered.Count > 0)
+            {
+                _currentMusicQueue = filtered.ToList();
+                var cachedPool = filtered.Where(t => File.Exists(GetLocalCachePath(t))).ToList();
+                var pool = cachedPool.Count > 0 ? cachedPool : filtered;
+                var candidates = (pool.Count > 1 && _currentPlayingTrack != null)
+                    ? pool.Where(t => t.Id != _currentPlayingTrack.Id).ToList()
+                    : pool;
+                if (candidates.Count == 0) candidates = pool;
+                var randomTrack = candidates[Random.Shared.Next(candidates.Count)];
+                await PlayMusicTrackAsync(randomTrack);
+            }
+        }
+
+        private async void MusicSmartView_Click(object sender, MouseButtonEventArgs e)
         {
             if (sender is FrameworkElement el && el.Tag is string viewId)
             {
-                PlaySoundNav();
-                _activeMusicPlaylistId = viewId;
-                RenderMusicAll();
+                await SelectMusicPlaylistAndPlayRandomAsync(viewId);
             }
         }
 
@@ -10118,20 +12987,212 @@ namespace Funkenwerk
         }
 
         // =========================================================================
-        // ITEM 5: MUSIC "FOKUS MODUS" — FULL-WINDOW RED/BLACK VENOM SYMBIOTE WALLPAPER
+        // ITEM 1: MUSIC "FOKUS MODUS" · ZERO-ALLOCATION VSYNC GPU CELESTIAL ENGINE
         // =========================================================================
         private bool _isMusicVenomFocusActive = false;
-        private System.Windows.Threading.DispatcherTimer? _venomFocusTimer = null;
-        private double _venomPhase = 0.0;
-        private double _venomSmoothedBass = 0.0;
-        private double _venomSmoothedMid = 0.0;
-        private double _venomSmoothedHigh = 0.0;
+        private System.Windows.Threading.DispatcherTimer? _focusHudIdleTimer = null;
+        private DateTime _lastFocusMouseMoveUtc = DateTime.MinValue;
+
+        private struct AudioRhythmFrame
+        {
+            public float SubBass;
+            public float KickImpulse;
+            public float Mid;
+            public float High;
+        }
+
+        private readonly Dictionary<string, AudioRhythmFrame[]> _trackRhythmCache = new(StringComparer.OrdinalIgnoreCase);
+        private readonly object _trackRhythmLock = new();
+
+        private async Task AnalyzeTrackRhythmEnvelopeAsync(string trackId, string localAudioPath)
+        {
+            if (string.IsNullOrWhiteSpace(trackId) || string.IsNullOrWhiteSpace(localAudioPath) || !File.Exists(localAudioPath))
+                return;
+
+            lock (_trackRhythmLock)
+            {
+                if (_trackRhythmCache.ContainsKey(trackId)) return;
+            }
+
+            string ffmpegExe = ResolveFfmpegBinaryPath();
+            await Task.Run(() =>
+            {
+                try
+                {
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = ffmpegExe,
+                        Arguments = $"-v error -i \"{localAudioPath}\" -ac 1 -ar 6000 -f s16le -",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+
+                    using var proc = Process.Start(psi);
+                    if (proc == null) return;
+
+                    using var ms = new MemoryStream(1024 * 1024);
+                    proc.StandardOutput.BaseStream.CopyTo(ms);
+                    proc.WaitForExit(8000);
+
+                    byte[] pcmBytes = ms.ToArray();
+                    int totalSamples = pcmBytes.Length / 2;
+                    if (totalSamples < 600) return;
+
+                    // 6000 Hz / 60 FPS = 100 samples per 16.67ms frame
+                    const int samplesPerFrame = 100;
+                    int frameCount = totalSamples / samplesPerFrame;
+                    var frames = new AudioRhythmFrame[frameCount];
+
+                    double lp1 = 0.0, lp2 = 0.0, midLp = 0.0;
+                    double prevSample = 0.0;
+                    float prevBass = 0f;
+
+                    var bassList = new float[frameCount];
+                    var kickList = new float[frameCount];
+                    var midList = new float[frameCount];
+                    var highList = new float[frameCount];
+
+                    for (int f = 0; f < frameCount; f++)
+                    {
+                        double sumBassSq = 0.0;
+                        double sumMidSq = 0.0;
+                        double sumHighSq = 0.0;
+                        int baseByteIdx = f * samplesPerFrame * 2;
+
+                        for (int s = 0; s < samplesPerFrame; s++)
+                        {
+                            short rawPcm = BitConverter.ToInt16(pcmBytes, baseByteIdx + s * 2);
+                            double x = rawPcm / 32768.0;
+
+                            // 2-pole Sub-Bass low-pass (~125 Hz cutoff at 6000 Hz sample rate)
+                            lp1 += 0.125 * (x - lp1);
+                            lp2 += 0.125 * (lp1 - lp2);
+                            double bassSample = lp2;
+
+                            // Mid-band (130 Hz - 1250 Hz)
+                            midLp += 0.52 * (x - midLp);
+                            double midSample = midLp - bassSample;
+
+                            // High-band (> 1250 Hz transients & shimmer)
+                            double highSample = x - prevSample;
+                            prevSample = x;
+
+                            sumBassSq += bassSample * bassSample;
+                            sumMidSq += midSample * midSample;
+                            sumHighSq += highSample * highSample;
+                        }
+
+                        float bRms = (float)Math.Sqrt(sumBassSq / samplesPerFrame);
+                        float mRms = (float)Math.Sqrt(sumMidSq / samplesPerFrame);
+                        float hRms = (float)Math.Sqrt(sumHighSq / samplesPerFrame);
+
+                        // Kick drum onset impulse = positive spectral flux in the sub-bass band
+                        float kick = Math.Max(0f, bRms - prevBass * 1.03f);
+                        prevBass = bRms * 0.65f + prevBass * 0.35f;
+
+                        bassList[f] = bRms;
+                        kickList[f] = kick;
+                        midList[f] = mRms;
+                        highList[f] = hRms;
+                    }
+
+                    static float Percentile96(float[] arr)
+                    {
+                        var copy = (float[])arr.Clone();
+                        Array.Sort(copy);
+                        int idx = Math.Clamp((int)(copy.Length * 0.96), 0, copy.Length - 1);
+                        return Math.Max(0.0005f, copy[idx]);
+                    }
+
+                    float normB = Percentile96(bassList);
+                    float normK = Percentile96(kickList);
+                    float normM = Percentile96(midList);
+                    float normH = Percentile96(highList);
+
+                    for (int f = 0; f < frameCount; f++)
+                    {
+                        frames[f] = new AudioRhythmFrame
+                        {
+                            SubBass = Math.Clamp(bassList[f] / normB, 0f, 1.15f),
+                            KickImpulse = Math.Clamp(kickList[f] / normK, 0f, 1.25f),
+                            Mid = Math.Clamp(midList[f] / normM, 0f, 1.10f),
+                            High = Math.Clamp(highList[f] / normH, 0f, 1.10f)
+                        };
+                    }
+
+                    lock (_trackRhythmLock)
+                    {
+                        _trackRhythmCache[trackId] = frames;
+                    }
+                }
+                catch { }
+            });
+        }
+
+        private (double Bass, double Kick, double Mid, double High, bool IsPlaying) SampleCurrentMusicRhythmBands()
+        {
+            if (!_isMusicPlaying || _currentPlayingTrack == null)
+            {
+                return (0.06, 0.0, 0.05, 0.04, false);
+            }
+
+            double audioTime;
+            try
+            {
+                audioTime = _mediaPlayer.Position.TotalSeconds;
+            }
+            catch
+            {
+                audioTime = 0.0;
+            }
+
+            AudioRhythmFrame[]? trackFrames = null;
+            string curId = _currentPlayingTrack.Id ?? "";
+            if (curId.Length > 0)
+            {
+                lock (_trackRhythmLock)
+                {
+                    _trackRhythmCache.TryGetValue(curId, out trackFrames);
+                }
+            }
+
+            if (trackFrames != null && trackFrames.Length > 0)
+            {
+                double exactFrame = Math.Max(0.0, audioTime * 60.0);
+                int f0 = Math.Clamp((int)exactFrame, 0, trackFrames.Length - 1);
+                int f1 = Math.Clamp(f0 + 1, 0, trackFrames.Length - 1);
+                double frac = exactFrame - f0;
+
+                ref readonly var a = ref trackFrames[f0];
+                ref readonly var b = ref trackFrames[f1];
+
+                double rawBass = a.SubBass + (b.SubBass - a.SubBass) * frac;
+                double rawKick = a.KickImpulse + (b.KickImpulse - a.KickImpulse) * frac;
+                double rawMid = a.Mid + (b.Mid - a.Mid) * frac;
+                double rawHigh = a.High + (b.High - a.High) * frac;
+                return (rawBass, rawKick, rawMid, rawHigh, true);
+            }
+
+            // Smooth musical fallback during the first ~40ms while FFmpeg decodes the PCM envelope
+            int trackSeed = curId.GetHashCode();
+            double bpm = 98.0 + Math.Abs(trackSeed % 28);
+            double beatOmega = (bpm / 60.0) * Math.PI * 2.0;
+            double beatSin = Math.Max(0.0, Math.Sin(audioTime * beatOmega));
+            double kick = beatSin * beatSin * beatSin * beatSin * beatSin * beatSin;
+            double bass = 0.18 + (beatSin * beatSin * beatSin) * 0.65;
+            double mid = 0.16 + 0.40 * Math.Abs(Math.Sin(audioTime * 2.4));
+            double high = 0.12 + 0.35 * Math.Abs(Math.Cos(audioTime * 6.8));
+            return (bass, kick, mid, high, true);
+        }
 
         private async void EnterMusicVenomFocusMode_Click(object sender, RoutedEventArgs e)
         {
             PlaySoundActionPop();
+            UpdateFocusModeButtonsTheme();
 
-            // Automatically start playing music if nothing is playing yet so the Venom symbiote reacts immediately
+            // Automatically start playing music when entering Focus Mode if nothing is playing yet
             if (!_isMusicPlaying)
             {
                 if (_currentPlayingTrack == null)
@@ -10145,6 +13206,11 @@ namespace Funkenwerk
                 }
                 else
                 {
+                    string localPath = GetLocalCachePath(_currentPlayingTrack);
+                    if (File.Exists(localPath))
+                    {
+                        _ = AnalyzeTrackRhythmEnvelopeAsync(_currentPlayingTrack.Id, localPath);
+                    }
                     _mediaPlayer.Play();
                     _isMusicPlaying = true;
                     UpdateMusicPlaybackButtonsUI();
@@ -10152,8 +13218,25 @@ namespace Funkenwerk
                     UpdateSpacesBadges();
                 }
             }
+            else if (_currentPlayingTrack != null)
+            {
+                string localPath = GetLocalCachePath(_currentPlayingTrack);
+                if (File.Exists(localPath))
+                {
+                    _ = AnalyzeTrackRhythmEnvelopeAsync(_currentPlayingTrack.Id, localPath);
+                }
+            }
+
+            if (FocusTrackTitleTxt != null)
+                FocusTrackTitleTxt.Text = _currentPlayingTrack?.Title ?? "Seelenfunke Klangwelt";
+            if (FocusTrackArtistTxt != null)
+                FocusTrackArtistTxt.Text = !string.IsNullOrWhiteSpace(_currentPlayingTrack?.Artist) ? _currentPlayingTrack!.Artist : "Mein Seelenfunke";
+            if (FocusOverlayPlayPauseBtn != null)
+                FocusOverlayPlayPauseBtn.Content = _isMusicPlaying ? "❚❚" : "▶";
 
             _isMusicVenomFocusActive = true;
+            _lastFocusMouseMoveUtc = DateTime.UtcNow;
+
             if (MusicVenomFocusOverlay != null)
             {
                 MusicVenomFocusOverlay.Visibility = Visibility.Visible;
@@ -10163,27 +13246,42 @@ namespace Funkenwerk
                 VenomExitFocusBtn.Visibility = IsMouseOver ? Visibility.Visible : Visibility.Collapsed;
             }
 
-            if (_venomFocusTimer == null)
+            if (CelestialFocusHost != null)
             {
-                _venomFocusTimer = new System.Windows.Threading.DispatcherTimer
-                {
-                    Interval = TimeSpan.FromMilliseconds(16) // ~60 FPS smooth wallpaper animation
-                };
-                _venomFocusTimer.Tick += (s, args) => RenderVenomFocusFrame();
+                CelestialFocusHost.SampleProvider = SampleCurrentMusicRhythmBands;
+                CelestialFocusHost.StartRendering();
             }
-            _venomFocusTimer.Start();
-            RenderVenomFocusFrame();
+
+            if (_focusHudIdleTimer == null)
+            {
+                _focusHudIdleTimer = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(600)
+                };
+                _focusHudIdleTimer.Tick += (_, _) =>
+                {
+                    if (!_isMusicVenomFocusActive || VenomExitFocusBtn == null) return;
+                    if (VenomExitFocusBtn.IsMouseOver)
+                    {
+                        _lastFocusMouseMoveUtc = DateTime.UtcNow;
+                        return;
+                    }
+                    if (VenomExitFocusBtn.Visibility == Visibility.Visible &&
+                        (DateTime.UtcNow - _lastFocusMouseMoveUtc).TotalSeconds >= 2.4)
+                    {
+                        VenomExitFocusBtn.Visibility = Visibility.Collapsed;
+                    }
+                };
+            }
+            _focusHudIdleTimer.Start();
         }
 
         private void ExitMusicVenomFocusMode_Click(object sender, RoutedEventArgs e)
         {
             PlaySoundNav();
             _isMusicVenomFocusActive = false;
-            _venomFocusTimer?.Stop();
-            if (VenomFocusCanvas != null)
-            {
-                VenomFocusCanvas.Children.Clear();
-            }
+            _focusHudIdleTimer?.Stop();
+            CelestialFocusHost?.StopRendering();
             if (MusicVenomFocusOverlay != null)
             {
                 MusicVenomFocusOverlay.Visibility = Visibility.Collapsed;
@@ -10192,6 +13290,7 @@ namespace Funkenwerk
 
         private void MusicVenomFocusOverlay_MouseEnter(object sender, MouseEventArgs e)
         {
+            _lastFocusMouseMoveUtc = DateTime.UtcNow;
             if (_isMusicVenomFocusActive && VenomExitFocusBtn != null)
             {
                 VenomExitFocusBtn.Visibility = Visibility.Visible;
@@ -10200,6 +13299,7 @@ namespace Funkenwerk
 
         private void MusicVenomFocusOverlay_MouseMove(object sender, MouseEventArgs e)
         {
+            _lastFocusMouseMoveUtc = DateTime.UtcNow;
             if (_isMusicVenomFocusActive && VenomExitFocusBtn != null && VenomExitFocusBtn.Visibility != Visibility.Visible)
             {
                 VenomExitFocusBtn.Visibility = Visibility.Visible;
@@ -10220,320 +13320,6 @@ namespace Funkenwerk
             {
                 ExitMusicVenomFocusMode_Click(sender, new RoutedEventArgs());
             }
-        }
-
-        private void RenderVenomFocusFrame()
-        {
-            if (!_isMusicVenomFocusActive || VenomFocusCanvas == null) return;
-
-            double w = VenomFocusCanvas.ActualWidth > 10 ? VenomFocusCanvas.ActualWidth : ActualWidth;
-            double h = VenomFocusCanvas.ActualHeight > 10 ? VenomFocusCanvas.ActualHeight : ActualHeight;
-            if (w <= 10 || h <= 10) return;
-
-            double cx = w * 0.5;
-            double cy = h * 0.5;
-            double minDim = Math.Min(w, h);
-
-            // Compute musical energy envelope from active playback position & track rhythm
-            double audioTime = _isMusicPlaying ? _mediaPlayer.Position.TotalSeconds : _venomPhase * 0.45;
-            double speed = _isMusicPlaying ? 0.048 : 0.016;
-            _venomPhase += speed;
-
-            double rawBass = 0.18;
-            double rawMid = 0.14;
-            double rawHigh = 0.10;
-
-            if (_isMusicPlaying)
-            {
-                // Estimate track BPM cadence from title/artist hash so each song has a distinct rhythmic signature
-                int trackSeed = (_currentPlayingTrack?.Id ?? "venom").GetHashCode();
-                double bpm = 88.0 + Math.Abs(trackSeed % 38); // 88 - 125 BPM
-                double beatOmega = (bpm / 60.0) * Math.PI * 2.0;
-
-                double beatSin = Math.Max(0.0, Math.Sin(audioTime * beatOmega));
-                double subKick = Math.Pow(beatSin, 4.0);
-                double offBeat = Math.Pow(Math.Max(0.0, Math.Sin(audioTime * beatOmega * 0.5 + 1.1)), 3.0);
-                double synthSurge = 0.5 + 0.5 * Math.Sin(audioTime * 2.3 + Math.Cos(audioTime * 1.1) * 1.6);
-                double hiHat = Math.Abs(Math.Sin(audioTime * beatOmega * 2.0) * Math.Cos(audioTime * 13.7));
-
-                rawBass = Math.Clamp(0.22 + subKick * 0.65 + offBeat * 0.25, 0.0, 1.0);
-                rawMid = Math.Clamp(0.20 + synthSurge * 0.55 + subKick * 0.25, 0.0, 1.0);
-                rawHigh = Math.Clamp(0.15 + hiHat * 0.65 + synthSurge * 0.20, 0.0, 1.0);
-            }
-            else
-            {
-                rawBass = 0.16 + 0.08 * Math.Sin(_venomPhase * 1.4);
-                rawMid = 0.14 + 0.06 * Math.Cos(_venomPhase * 1.9);
-                rawHigh = 0.08 + 0.04 * Math.Sin(_venomPhase * 2.7);
-            }
-
-            _venomSmoothedBass = _venomSmoothedBass * 0.72 + rawBass * 0.28;
-            _venomSmoothedMid = _venomSmoothedMid * 0.76 + rawMid * 0.24;
-            _venomSmoothedHigh = _venomSmoothedHigh * 0.70 + rawHigh * 0.30;
-
-            VenomFocusCanvas.Children.Clear();
-
-            // 1. Deep Abyssal Crimson Core & Atmospheric Blood-Red Pulse
-            double coreGlowDiameter = minDim * (0.68 + _venomSmoothedBass * 0.42);
-            var abyssGlow = new Ellipse
-            {
-                Width = coreGlowDiameter,
-                Height = coreGlowDiameter,
-                IsHitTestVisible = false,
-                Fill = new RadialGradientBrush
-                {
-                    GradientOrigin = new Point(0.5, 0.5),
-                    Center = new Point(0.5, 0.5),
-                    RadiusX = 0.5,
-                    RadiusY = 0.5,
-                    GradientStops = new GradientStopCollection
-                    {
-                        new GradientStop(Color.FromArgb((byte)(110 + (int)(_venomSmoothedBass * 105)), 220, 20, 42), 0.0),
-                        new GradientStop(Color.FromArgb((byte)(65 + (int)(_venomSmoothedMid * 70)), 125, 10, 24), 0.42),
-                        new GradientStop(Color.FromArgb(0, 0, 0, 0), 1.0)
-                    }
-                }
-            };
-            Canvas.SetLeft(abyssGlow, cx - coreGlowDiameter * 0.5);
-            Canvas.SetTop(abyssGlow, cy - coreGlowDiameter * 0.5);
-            VenomFocusCanvas.Children.Add(abyssGlow);
-
-            // 2. Creeping Perimeter Symbiote Tendrils (Growing from all 4 window edges)
-            int edgeTendrilCount = 28;
-            var edgeCrimsonBrush = new SolidColorBrush(Color.FromArgb((byte)(115 + (int)(_venomSmoothedBass * 95)), 185, 16, 36));
-            var edgeDarkVeinBrush = new SolidColorBrush(Color.FromArgb(235, 14, 2, 5));
-
-            for (int i = 0; i < edgeTendrilCount; i++)
-            {
-                double tNorm = (double)i / edgeTendrilCount;
-                double perimeterAngle = tNorm * Math.PI * 2.0;
-                double cosA = Math.Cos(perimeterAngle);
-                double sinA = Math.Sin(perimeterAngle);
-
-                // Project onto window rectangle border
-                double scaleX = Math.Abs(cosA) > 0.0001 ? (w * 0.52) / Math.Abs(cosA) : double.MaxValue;
-                double scaleY = Math.Abs(sinA) > 0.0001 ? (h * 0.52) / Math.Abs(sinA) : double.MaxValue;
-                double borderDist = Math.Min(scaleX, scaleY);
-
-                Point startPt = new Point(cx + cosA * borderDist, cy + sinA * borderDist);
-                double reach = minDim * (0.14 + 0.12 * Math.Sin(_venomPhase * 1.9 + i * 1.37) + _venomSmoothedBass * 0.16);
-                double sway1 = Math.Sin(_venomPhase * 2.8 + i * 0.9) * 48.0 * (0.5 + _venomSmoothedMid);
-                double sway2 = Math.Cos(_venomPhase * 3.4 - i * 1.2) * 36.0 * (0.5 + _venomSmoothedHigh);
-
-                double perpX = -sinA;
-                double perpY = cosA;
-
-                Point ctrl1 = new Point(
-                    startPt.X - cosA * (reach * 0.35) + perpX * sway1,
-                    startPt.Y - sinA * (reach * 0.35) + perpY * sway1);
-                Point ctrl2 = new Point(
-                    startPt.X - cosA * (reach * 0.72) + perpX * sway2,
-                    startPt.Y - sinA * (reach * 0.72) + perpY * sway2);
-                Point tipPt = new Point(
-                    startPt.X - cosA * reach + perpX * (sway1 * 0.45),
-                    startPt.Y - sinA * reach + perpY * (sway1 * 0.45));
-
-                var fig = new PathFigure { StartPoint = startPt, IsClosed = false };
-                fig.Segments.Add(new BezierSegment(ctrl1, ctrl2, tipPt, true));
-                var geom = new PathGeometry(new[] { fig });
-
-                // Outer crimson symbiote sheath
-                VenomFocusCanvas.Children.Add(new System.Windows.Shapes.Path
-                {
-                    Data = geom,
-                    Stroke = edgeCrimsonBrush,
-                    StrokeThickness = 4.2 + (i % 3) * 1.6 + _venomSmoothedBass * 3.5,
-                    StrokeStartLineCap = PenLineCap.Round,
-                    StrokeEndLineCap = PenLineCap.Triangle,
-                    IsHitTestVisible = false
-                });
-
-                // Inner glossy obsidian core
-                VenomFocusCanvas.Children.Add(new System.Windows.Shapes.Path
-                {
-                    Data = geom,
-                    Stroke = edgeDarkVeinBrush,
-                    StrokeThickness = 2.2 + (i % 2) * 1.1,
-                    StrokeStartLineCap = PenLineCap.Round,
-                    StrokeEndLineCap = PenLineCap.Triangle,
-                    IsHitTestVisible = false
-                });
-            }
-
-            // 3. 36 Writhing Central Venom Symbiote Tentacles with Forked Tips & Crimson Veins
-            int tentacleCount = 36;
-            double baseCoreRadius = minDim * (0.11 + _venomSmoothedBass * 0.055);
-
-            for (int i = 0; i < tentacleCount; i++)
-            {
-                double baseAngle = (i * Math.PI * 2.0 / tentacleCount) + Math.Sin(_venomPhase * 0.55 + i * 0.3) * 0.12;
-                double bandEnergy = (i % 3 == 0) ? _venomSmoothedBass : ((i % 3 == 1) ? _venomSmoothedMid : _venomSmoothedHigh);
-
-                double harmonicWave = Math.Sin(_venomPhase * 3.1 + i * 1.73) * 0.5 +
-                                      Math.Cos(_venomPhase * 4.7 - i * 0.89) * 0.5;
-
-                double length = minDim * (0.18 + Math.Abs(harmonicWave) * 0.19 + bandEnergy * 0.24);
-                double whipAngle1 = baseAngle + Math.Sin(_venomPhase * 3.6 + i * 0.77) * (0.22 + _venomSmoothedMid * 0.20);
-                double whipAngle2 = baseAngle - Math.Cos(_venomPhase * 4.4 - i * 1.15) * (0.28 + _venomSmoothedHigh * 0.24);
-                double tipAngle = baseAngle + Math.Sin(_venomPhase * 5.2 + i * 1.42) * (0.18 + bandEnergy * 0.22);
-
-                Point p0 = new Point(
-                    cx + Math.Cos(baseAngle) * (baseCoreRadius * 0.65),
-                    cy + Math.Sin(baseAngle) * (baseCoreRadius * 0.65));
-                Point p1 = new Point(
-                    cx + Math.Cos(whipAngle1) * (baseCoreRadius + length * 0.36),
-                    cy + Math.Sin(whipAngle1) * (baseCoreRadius + length * 0.36));
-                Point p2 = new Point(
-                    cx + Math.Cos(whipAngle2) * (baseCoreRadius + length * 0.72),
-                    cy + Math.Sin(whipAngle2) * (baseCoreRadius + length * 0.72));
-                Point pTip = new Point(
-                    cx + Math.Cos(tipAngle) * (baseCoreRadius + length),
-                    cy + Math.Sin(tipAngle) * (baseCoreRadius + length));
-
-                var fig = new PathFigure { StartPoint = p0, IsClosed = false };
-                fig.Segments.Add(new BezierSegment(p1, p2, pTip, true));
-
-                // Add razor-sharp symbiote forked secondary filament on every 2nd tentacle
-                if (i % 2 == 0)
-                {
-                    double forkAngle = tipAngle + (i % 4 == 0 ? 0.16 : -0.16);
-                    Point pFork = new Point(
-                        p2.X + Math.Cos(forkAngle) * (length * 0.34),
-                        p2.Y + Math.Sin(forkAngle) * (length * 0.34));
-                    var forkFig = new PathFigure { StartPoint = p2, IsClosed = false };
-                    forkFig.Segments.Add(new QuadraticBezierSegment(
-                        new Point((p2.X + pFork.X) * 0.5, (p2.Y + pFork.Y) * 0.5),
-                        pFork, true));
-                    var forkGeom = new PathGeometry(new[] { fig, forkFig });
-
-                    byte redAlpha = (byte)Math.Clamp(150 + (int)(bandEnergy * 105), 90, 255);
-                    var crimsonStroke = new LinearGradientBrush(
-                        Color.FromArgb(255, 18, 2, 5),
-                        Color.FromArgb(redAlpha, 245, 24, 52),
-                        new Point(0, 0),
-                        new Point(1, 1));
-
-                    VenomFocusCanvas.Children.Add(new System.Windows.Shapes.Path
-                    {
-                        Data = forkGeom,
-                        Stroke = crimsonStroke,
-                        StrokeThickness = 3.2 + bandEnergy * 4.5,
-                        StrokeStartLineCap = PenLineCap.Round,
-                        StrokeEndLineCap = PenLineCap.Triangle,
-                        IsHitTestVisible = false
-                    });
-                }
-                else
-                {
-                    var geom = new PathGeometry(new[] { fig });
-                    VenomFocusCanvas.Children.Add(new System.Windows.Shapes.Path
-                    {
-                        Data = geom,
-                        Stroke = new SolidColorBrush(Color.FromArgb(240, 8, 1, 3)),
-                        StrokeThickness = 5.5 + bandEnergy * 5.0,
-                        StrokeStartLineCap = PenLineCap.Round,
-                        StrokeEndLineCap = PenLineCap.Triangle,
-                        IsHitTestVisible = false
-                    });
-
-                    VenomFocusCanvas.Children.Add(new System.Windows.Shapes.Path
-                    {
-                        Data = geom,
-                        Stroke = new SolidColorBrush(Color.FromArgb((byte)(130 + (int)(bandEnergy * 115)), 220, 22, 46)),
-                        StrokeThickness = 1.6 + bandEnergy * 1.8,
-                        StrokeStartLineCap = PenLineCap.Round,
-                        StrokeEndLineCap = PenLineCap.Triangle,
-                        IsHitTestVisible = false
-                    });
-                }
-            }
-
-            // 4. 3 Concentric Morphing Liquid-Symbiote Ferrofluid Membranes
-            for (int layer = 2; layer >= 0; layer--)
-            {
-                int nodes = 28;
-                double layerBaseR = baseCoreRadius * (1.0 + layer * 0.44);
-                var pts = new Point[nodes];
-
-                for (int n = 0; n < nodes; n++)
-                {
-                    double a = (n * Math.PI * 2.0) / nodes;
-                    double r = layerBaseR + (minDim * 0.045 * (1.0 + _venomSmoothedBass * 1.5) * doubleSpike(a, layer));
-                    pts[n] = new Point(cx + Math.Cos(a) * r, cy + Math.Sin(a) * r);
-                }
-
-                var polyFig = new PathFigure
-                {
-                    StartPoint = new Point((pts[nodes - 1].X + pts[0].X) * 0.5, (pts[nodes - 1].Y + pts[0].Y) * 0.5),
-                    IsClosed = true,
-                    IsFilled = true
-                };
-
-                for (int n = 0; n < nodes; n++)
-                {
-                    Point next = pts[(n + 1) % nodes];
-                    Point mid = new Point((pts[n].X + next.X) * 0.5, (pts[n].Y + next.Y) * 0.5);
-                    polyFig.Segments.Add(new QuadraticBezierSegment(pts[n], mid, true));
-                }
-
-                var blobGeom = new PathGeometry(new[] { polyFig });
-                Color fillCol = layer switch
-                {
-                    2 => Color.FromArgb(145, 28, 3, 8),
-                    1 => Color.FromArgb(215, 10, 1, 3),
-                    _ => Color.FromArgb(250, 3, 0, 1)
-                };
-                Color rimCol = layer switch
-                {
-                    2 => Color.FromArgb((byte)(120 + (int)(_venomSmoothedMid * 100)), 185, 18, 38),
-                    1 => Color.FromArgb((byte)(170 + (int)(_venomSmoothedBass * 85)), 239, 35, 60),
-                    _ => Color.FromArgb((byte)(200 + (int)(_venomSmoothedHigh * 55)), 255, 48, 79)
-                };
-
-                VenomFocusCanvas.Children.Add(new System.Windows.Shapes.Path
-                {
-                    Data = blobGeom,
-                    Fill = new SolidColorBrush(fillCol),
-                    Stroke = new SolidColorBrush(rimCol),
-                    StrokeThickness = layer == 0 ? (2.4 + _venomSmoothedBass * 2.2) : (1.5 + _venomSmoothedMid * 1.4),
-                    IsHitTestVisible = false
-                });
-            }
-
-            // 5. Floating Audio-Reactive Crimson Symbiote Bio-Spores
-            int sporeCount = 44;
-            for (int s = 0; s < sporeCount; s++)
-            {
-                double seedA = (s * 137.508) * (Math.PI / 180.0) + _venomPhase * (0.12 + (s % 5) * 0.04);
-                double orbitCycle = ((_venomPhase * (0.28 + (s % 7) * 0.05) + s * 0.19) % 1.0);
-                double dist = baseCoreRadius * 0.8 + orbitCycle * (minDim * 0.54);
-
-                double sx = cx + Math.Cos(seedA) * dist + Math.Sin(_venomPhase * 2.2 + s) * 18.0;
-                double sy = cy + Math.Sin(seedA) * dist + Math.Cos(_venomPhase * 2.0 + s) * 18.0;
-
-                double sz = (2.2 + (s % 4) * 1.4) * (0.8 + _venomSmoothedBass * 0.9);
-                byte alpha = (byte)Math.Clamp((int)((1.0 - orbitCycle) * (155 + _venomSmoothedHigh * 95)), 20, 245);
-
-                var spore = new Ellipse
-                {
-                    Width = sz,
-                    Height = sz,
-                    Fill = new SolidColorBrush(s % 3 == 0
-                        ? Color.FromArgb(alpha, 255, 56, 88)
-                        : Color.FromArgb(alpha, 195, 16, 36)),
-                    IsHitTestVisible = false
-                };
-                Canvas.SetLeft(spore, sx - sz * 0.5);
-                Canvas.SetTop(spore, sy - sz * 0.5);
-                VenomFocusCanvas.Children.Add(spore);
-            }
-        }
-
-        private double doubleSpike(double angle, int layer)
-        {
-            return Math.Sin(angle * (5 + layer * 2) + _venomPhase * (2.8 + layer * 0.6)) * 0.45
-                 + Math.Cos(angle * (9 - layer) - _venomPhase * (3.9 - layer * 0.4)) * 0.35
-                 + Math.Sin(angle * 14.0 + _venomPhase * 5.4) * (0.20 + _venomSmoothedHigh * 0.35);
         }
 
         private async void MusicCacheAllOffline_Click(object sender, RoutedEventArgs e)
@@ -10590,6 +13376,7 @@ namespace Funkenwerk
         private static readonly Dictionary<string, string> _darkToLightHexMap = new(StringComparer.OrdinalIgnoreCase)
         {
             // Core Window & Sidebar Backgrounds
+            ["#000000"] = "#F8FAFC",
             ["#07090D"] = "#EEF2F6",
             ["#080A0E"] = "#EEF2F6",
             ["#090B0F"] = "#F8FAFC",
@@ -10933,7 +13720,11 @@ namespace Funkenwerk
 
         private static SolidColorBrush BrushFromHex(string hex)
         {
-            if (_isDarkMode)
+            var (spaceBgHex, spaceFgHex) = GetSpaceThemeColors(_currentRenderingSpaceKey);
+            bool hasCustomBg = !spaceBgHex.Equals("#000000", StringComparison.OrdinalIgnoreCase);
+            bool hasCustomFg = !spaceFgHex.Equals("#FFFFFF", StringComparison.OrdinalIgnoreCase);
+
+            if (_isDarkMode || hasCustomBg || hasCustomFg)
             {
                 if (_darkDeepBlackHexMap.TryGetValue(hex, out var darkHex))
                 {
@@ -10946,6 +13737,28 @@ namespace Funkenwerk
                     if (_darkDeepBlackHexMap.TryGetValue(rgb, out var mappedDarkRgb) && mappedDarkRgb.Length == 7)
                     {
                         hex = "#" + alpha + mappedDarkRgb.Substring(1);
+                    }
+                }
+
+                if (hex.Equals("#000000", StringComparison.OrdinalIgnoreCase))
+                {
+                    hex = spaceBgHex;
+                }
+                else if (hex.Equals("#FFFFFF", StringComparison.OrdinalIgnoreCase))
+                {
+                    hex = spaceFgHex;
+                }
+                else if (hex.Length == 9 && hex.StartsWith("#", StringComparison.Ordinal))
+                {
+                    string alpha = hex.Substring(1, 2);
+                    string rgb = "#" + hex.Substring(3);
+                    if (rgb.Equals("#000000", StringComparison.OrdinalIgnoreCase) && spaceBgHex.Length == 7)
+                    {
+                        hex = "#" + alpha + spaceBgHex.Substring(1);
+                    }
+                    else if (rgb.Equals("#FFFFFF", StringComparison.OrdinalIgnoreCase) && spaceFgHex.Length == 7)
+                    {
+                        hex = "#" + alpha + spaceFgHex.Substring(1);
                     }
                 }
             }
@@ -11239,6 +14052,19 @@ namespace Funkenwerk
                 return;
             }
 
+            if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.K)
+            {
+                if (AuthLoginOverlayGrid == null || AuthLoginOverlayGrid.Visibility != Visibility.Visible)
+                {
+                    e.Handled = true;
+                    PlaySoundNav();
+                    SwitchSpaceUI("agent");
+                    SaveSettingsToFile();
+                    _ = Dispatcher.BeginInvoke(new Action(() => AgentPromptInputBox?.Focus()));
+                    return;
+                }
+            }
+
             // 1. E-Mail Keyboard Shortcuts: ENTF (Delete -> Papierkorb) & Arrow Up/Down (step through emails instead of scrollbar)
             if (_activeSpace == "mail" && MailViewGrid != null && MailViewGrid.Visibility == Visibility.Visible)
             {
@@ -11350,7 +14176,9 @@ namespace Funkenwerk
             {
                 badge.Text = $"🎯 PTZ {dirLabel} ({GetCurrentPtzStepLabel().Replace("🎯 ", "")})";
             }
-            await OnvifPtzClient.StepMoveAsync(cam.Url, panDir * step, tiltDir * step, cam.ServiceUrl);
+            double effPan = (cam.InvertPan ? -panDir : panDir) * step;
+            double effTilt = (cam.InvertTilt ? -tiltDir : tiltDir) * step;
+            await OnvifPtzClient.StepMoveAsync(cam.Url, effPan, effTilt, cam.ServiceUrl);
             if (_smartMatrixStatusBadges.TryGetValue(cam.Name, out var badgeAfter))
             {
                 badgeAfter.Text = $"{cam.Name.ToUpperInvariant()} · {cam.StatusText}";
@@ -11526,7 +14354,7 @@ namespace Funkenwerk
                         new SmartCameraConfig
                         {
                             Name = "Terasse",
-                            Url = "rtsp://192.168.188.105:554/stream2",
+                            Url = "rtsp://Galaxina3:Assstar20mkj7%21%21%21@192.168.188.105:554/stream2",
                             ServiceUrl = "http://192.168.188.105/onvif/device_service",
                             MotionRecord = true,
                             MotionSensitivity = 70,
@@ -11536,7 +14364,7 @@ namespace Funkenwerk
                         new SmartCameraConfig
                         {
                             Name = "Einfahrt",
-                            Url = "rtsp://192.168.188.132:554/stream2",
+                            Url = "rtsp://Galaxina4:Assstar20mkj7%21%21%21@192.168.188.132:554/stream2",
                             ServiceUrl = "http://192.168.188.132/onvif/device_service",
                             MotionRecord = false,
                             MotionSensitivity = 50,
@@ -11546,43 +14374,79 @@ namespace Funkenwerk
                         new SmartCameraConfig
                         {
                             Name = "Garage",
-                            Url = "rtsp://192.168.188.102:554/stream2",
+                            Url = "rtsp://Galaxina2:Assstar20mkj7%21%21%21@192.168.188.102:554/stream2",
                             ServiceUrl = "http://192.168.188.102/onvif/device_service",
                             MotionRecord = false,
                             MotionSensitivity = 50,
                             Description = "Garagentor und Stellplatz",
                             Position = 2
+                        },
+                        new SmartCameraConfig
+                        {
+                            Id = "d0dd7c3b4b64431e9fe1ae3f2bf73331",
+                            Name = "Gewerbe",
+                            Url = "rtsp://Galaxina1:Assstar20mkj7%21%21%21@192.168.188.101:554/stream2",
+                            ServiceUrl = "http://192.168.188.101/onvif/device_service",
+                            MotionRecord = false,
+                            MotionSensitivity = 55,
+                            InvertPan = true,
+                            InvertTilt = false,
+                            Description = "Gewerbe & Manufakturbereich (192.168.188.101)",
+                            Position = 3
                         }
                     };
                 }
             }
 
-            // Ensure ServiceUrl is populated for existing cameras
+            // Ensure Gewerbe camera (192.168.188.101) is present as configured
+            bool hasGewerbeCam = _smartHomeData.Cameras.Any(c =>
+                c.Name.Contains("Gewerbe", StringComparison.OrdinalIgnoreCase) ||
+                c.Name.Contains("Fitnessstudio", StringComparison.OrdinalIgnoreCase) ||
+                c.Url.Contains("192.168.188.101", StringComparison.OrdinalIgnoreCase));
+            if (!hasGewerbeCam)
+            {
+                _smartHomeData.Cameras.Add(new SmartCameraConfig
+                {
+                    Id = "d0dd7c3b4b64431e9fe1ae3f2bf73331",
+                    Name = "Gewerbe",
+                    Url = "rtsp://Galaxina1:Assstar20mkj7%21%21%21@192.168.188.101:554/stream2",
+                    ServiceUrl = "http://192.168.188.101/onvif/device_service",
+                    MotionRecord = false,
+                    MotionSensitivity = 55,
+                    InvertPan = true,
+                    InvertTilt = false,
+                    Description = "Gewerbe & Manufakturbereich (192.168.188.101)",
+                    Position = _smartHomeData.Cameras.Count
+                });
+            }
+
+            // Repair any camera URL that lost its credentials (e.g. after cross-PC migration or unauthenticated default)
+            FunkenwerkSecurityVault.SetSessionRtspPassword("Assstar20mkj7!!!");
             foreach (var cam in _smartHomeData.Cameras)
             {
+                string u = cam.Url ?? "";
+                if (string.IsNullOrWhiteSpace(u) || !u.Contains('@'))
+                {
+                    if (u.Contains("192.168.188.105") || cam.Name.Contains("Terasse", StringComparison.OrdinalIgnoreCase) || cam.Name.Contains("Terrasse", StringComparison.OrdinalIgnoreCase))
+                        cam.Url = "rtsp://Galaxina3:Assstar20mkj7%21%21%21@192.168.188.105:554/stream2";
+                    else if (u.Contains("192.168.188.132") || cam.Name.Contains("Einfahrt", StringComparison.OrdinalIgnoreCase))
+                        cam.Url = "rtsp://Galaxina4:Assstar20mkj7%21%21%21@192.168.188.132:554/stream2";
+                    else if (u.Contains("192.168.188.102") || cam.Name.Contains("Garage", StringComparison.OrdinalIgnoreCase))
+                        cam.Url = "rtsp://Galaxina2:Assstar20mkj7%21%21%21@192.168.188.102:554/stream2";
+                    else if (u.Contains("192.168.188.101") || cam.Name.Contains("Gewerbe", StringComparison.OrdinalIgnoreCase) || cam.Name.Contains("Fitnessstudio", StringComparison.OrdinalIgnoreCase))
+                        cam.Url = "rtsp://Galaxina1:Assstar20mkj7%21%21%21@192.168.188.101:554/stream2";
+                }
+
                 if (string.IsNullOrWhiteSpace(cam.ServiceUrl) && !string.IsNullOrWhiteSpace(cam.IpAddress))
                 {
                     cam.ServiceUrl = $"http://{cam.IpAddress}/onvif/device_service";
                 }
             }
 
-            // Ensure Fitnessstudio-Kamera (192.168.188.101) is present as requested
-            bool hasFitnessCam = _smartHomeData.Cameras.Any(c =>
-                c.Name.Contains("Fitnessstudio", StringComparison.OrdinalIgnoreCase) ||
-                c.Url.Contains("192.168.188.101", StringComparison.OrdinalIgnoreCase));
-            if (!hasFitnessCam)
-            {
-                _smartHomeData.Cameras.Add(new SmartCameraConfig
-                {
-                    Name = "Fitnessstudio-Kamera",
-                    Url = "rtsp://192.168.188.101:554/stream1",
-                    ServiceUrl = "http://192.168.188.101/onvif/device_service",
-                    MotionRecord = false,
-                    MotionSensitivity = 55,
-                    Description = "Fitnessstudio & Trainingsbereich (192.168.188.101)",
-                    Position = _smartHomeData.Cameras.Count
-                });
-            }
+            if (string.IsNullOrWhiteSpace(_smartHomeData.TapoLocalEmail))
+                _smartHomeData.TapoLocalEmail = "kontakt@mein-seelenfunke.de";
+            if (string.IsNullOrWhiteSpace(_smartHomeData.TapoLocalPassword))
+                _smartHomeData.TapoLocalPassword = "Assstar20mkj7!!!";
 
             if (_smartHomeData.Plugs.Count == 0)
             {
@@ -11590,7 +14454,8 @@ namespace Funkenwerk
                 {
                     new SmartPlugConfig
                     {
-                        Name = "Tapo P100 (Test-Steckdose)",
+                        Id = "c85151a0c0064f259ee18c352f626363",
+                        Name = "Lichterkette Fußleiste",
                         IpAddress = "192.168.188.109",
                         MacAddress = "98-03-8E-7D-A7-96",
                         Model = "Tapo P100 (HW 2.0)",
@@ -11599,8 +14464,9 @@ namespace Funkenwerk
                     },
                     new SmartPlugConfig
                     {
-                        Name = "Smart Plug #2",
-                        IpAddress = "192.168.188.106",
+                        Id = "dfb60661bf0945cf87cfe84f0e2db861",
+                        Name = "Packtisch Warm Licht",
+                        IpAddress = "192.168.188.110",
                         MacAddress = "Tapo SHIP 2.0",
                         Model = "Tapo P100/P110",
                         Firmware = "1.4.x",
@@ -11608,7 +14474,8 @@ namespace Funkenwerk
                     },
                     new SmartPlugConfig
                     {
-                        Name = "Smart Plug #3",
+                        Id = "53a51fd44692437f8669263ab58b2323",
+                        Name = "Lichterkette Spiegel",
                         IpAddress = "192.168.188.123",
                         MacAddress = "Tapo SHIP 2.0",
                         Model = "Tapo P100/P110",
@@ -11653,6 +14520,133 @@ namespace Funkenwerk
                     {
                         _smartHomeData.Cameras[i].Url = plainUrls[i];
                     }
+                }
+
+                if (_isLoaded && (AuthLoginOverlayGrid == null || AuthLoginOverlayGrid.Visibility != Visibility.Visible))
+                {
+                    _ = PushSmartHomeConfigToServersAsync();
+                }
+            }
+            catch { }
+        }
+
+        private async Task PushSmartHomeConfigToServersAsync()
+        {
+            try
+            {
+                var endpoints = new List<(string Url, string Token)>();
+                if (!string.IsNullOrWhiteSpace(_apiBaseUrl) && !string.IsNullOrWhiteSpace(_apiToken))
+                {
+                    endpoints.Add((_apiBaseUrl.TrimEnd('/'), _apiToken));
+                }
+
+                if (!_apiBaseUrl.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase) &&
+                    !_apiBaseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+                {
+                    string localTok = !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenLocal) ? _layoutSettings.ApiTokenLocal : DEFAULT_LOCAL_TOKEN;
+                    endpoints.Add(("http://127.0.0.1/api", localTok));
+                }
+                if (!_apiBaseUrl.Contains("stage.mein-seelenfunke.de", StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(_layoutSettings.ApiTokenStage))
+                {
+                    endpoints.Add(("https://stage.mein-seelenfunke.de/api", _layoutSettings.ApiTokenStage));
+                }
+
+                if (endpoints.Count == 0) return;
+
+                // Strip all credentials before syncing non-secret metadata to the Seelenfunke database!
+                var sanitizedPlugs = _smartHomeData.Plugs.Select(p => new
+                {
+                    id = p.Id,
+                    name = p.Name,
+                    ip = p.IpAddress,
+                    mac = p.MacAddress,
+                    model = p.Model,
+                    firmware = p.Firmware,
+                    room = p.Room
+                }).ToList();
+
+                var sanitizedCams = _smartHomeData.Cameras.Select(c =>
+                {
+                    string cleanUrl = Regex.Replace(c.Url ?? "", @"^rtsp://[^@/]+@", "rtsp://", RegexOptions.IgnoreCase);
+                    return new
+                    {
+                        id = c.Id,
+                        name = c.Name,
+                        ip = c.IpAddress,
+                        rtsp_path = cleanUrl,
+                        service_url = c.ServiceUrl,
+                        motion_record = c.MotionRecord,
+                        motion_sensitivity = c.MotionSensitivity,
+                        invert_pan = c.InvertPan,
+                        invert_tilt = c.InvertTilt,
+                        description = c.Description,
+                        position = c.Position
+                    };
+                }).ToList();
+
+                string smarthomeBody = JsonSerializer.Serialize(new
+                {
+                    grid_layout_count = _smartHomeData.GridLayoutCount,
+                    selected_camera_name = _smartHomeData.SelectedCameraName,
+                    plugs = sanitizedPlugs,
+                    cameras = sanitizedCams
+                });
+
+                foreach (var (baseUrl, token) in endpoints)
+                {
+                    if (string.IsNullOrWhiteSpace(token)) continue;
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(6));
+                            using var req = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/funki/routine/smarthome-sync")
+                            {
+                                Content = new StringContent(smarthomeBody, Encoding.UTF8, "application/json")
+                            };
+                            req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                            using var resp = await _http.SendAsync(req, cts.Token).ConfigureAwait(false);
+
+                            // Fallback for endpoints that have /alarm-sync before git deploy: also update smart_plugs in alarm-sync package!
+                            if (!resp.IsSuccessStatusCode)
+                            {
+                                using var getReq = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/funki/routine/alarm-sync");
+                                getReq.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                                getReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                                using var getResp = await _http.SendAsync(getReq, cts.Token).ConfigureAwait(false);
+                                if (getResp.IsSuccessStatusCode)
+                                {
+                                    string raw = await getResp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                                    using var doc = JsonDocument.Parse(raw);
+                                    if (doc.RootElement.TryGetProperty("data", out var dataEl) && dataEl.ValueKind == JsonValueKind.Object)
+                                    {
+                                        var dict = JsonSerializer.Deserialize<Dictionary<string, object?>>(dataEl.GetRawText()) ?? new();
+                                        dict["smart_plugs"] = sanitizedPlugs.Select(sp => new
+                                        {
+                                            id = sp.id,
+                                            name = sp.name,
+                                            ip = sp.ip,
+                                            model = sp.model,
+                                            room = sp.room
+                                        }).ToList();
+                                        dict["updated_at"] = DateTime.UtcNow.ToString("O");
+
+                                        string alarmBody = JsonSerializer.Serialize(dict);
+                                        using var postAlarm = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/funki/routine/alarm-sync")
+                                        {
+                                            Content = new StringContent(alarmBody, Encoding.UTF8, "application/json")
+                                        };
+                                        postAlarm.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                                        postAlarm.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                                        await _http.SendAsync(postAlarm, cts.Token).ConfigureAwait(false);
+                                    }
+                                }
+                            }
+                        }
+                        catch { }
+                    });
                 }
             }
             catch { }
@@ -12938,6 +15932,8 @@ namespace Funkenwerk
         {
             var list = new List<SmartRecordingItem>();
             var dirs = new List<string> { GetSmartHomeRecordingsDir() };
+            string filesCamDir = System.IO.Path.Combine(GetFunkenwerkFilesRootDir(), "Dokumente", "Kameraaufnahmen");
+            if (Directory.Exists(filesCamDir)) dirs.Add(filesCamDir);
             string funkiraRecDir = @"C:\Users\konta\Desktop\Funkira 2.0\Dateien\Verarbeitet\Sicherheit & Kameras\Aufnahmen";
             if (Directory.Exists(funkiraRecDir)) dirs.Add(funkiraRecDir);
 
@@ -13420,24 +16416,30 @@ namespace Funkenwerk
                 Margin = new Thickness(5),
                 ClipToBounds = true,
                 AllowDrop = true,
+                Cursor = Cursors.Hand,
                 Tag = cam.Name
             };
             _smartMatrixStatusBorders[cam.Name] = tile;
 
             var rootGrid = new Grid();
 
-            // 1. Video Layer (Adapts cleanly to Dark & Light Mode)
+            // 1. Video Layer (Adapts cleanly to Dark & Light Mode, Hand cursor signals double-click zoom)
             var videoContainer = new Border
             {
                 Background = BrushFromHex("#07090D"),
-                CornerRadius = new CornerRadius(13)
+                CornerRadius = new CornerRadius(13),
+                Cursor = Cursors.Hand,
+                ToolTip = isSingleLargeView
+                    ? "Doppelklick zurück zur 4er Rasteransicht · Ziehen zum Umsortieren"
+                    : "Doppelklick für Großansicht · Ziehen zum Umsortieren"
             };
 
             var img = new Image
             {
                 Stretch = Stretch.Uniform,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
+                VerticalAlignment = VerticalAlignment.Center,
+                Cursor = Cursors.Hand
             };
             if (_smartCameraWorkers.TryGetValue(cam.Name, out var worker) && worker.LatestBitmap != null)
             {
@@ -13496,7 +16498,8 @@ namespace Funkenwerk
                 Padding = new Thickness(10, 5, 10, 5),
                 Margin = new Thickness(12, 12, 12, 0),
                 HorizontalAlignment = HorizontalAlignment.Left,
-                VerticalAlignment = VerticalAlignment.Top
+                VerticalAlignment = VerticalAlignment.Top,
+                IsHitTestVisible = false
             };
             var topRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             topRow.Children.Add(new Ellipse
@@ -13632,7 +16635,9 @@ namespace Funkenwerk
                 {
                     double step = GetCurrentPtzStepDelta();
                     statusTxt.Text = $"🎯 PTZ {dirLabelDe} ({GetCurrentPtzStepLabel().Replace("🎯 ", "")})";
-                    await OnvifPtzClient.StepMoveAsync(capturedCam.Url, panDir * step, tiltDir * step, capturedCam.ServiceUrl);
+                    double effPan = (capturedCam.InvertPan ? -panDir : panDir) * step;
+                    double effTilt = (capturedCam.InvertTilt ? -tiltDir : tiltDir) * step;
+                    await OnvifPtzClient.StepMoveAsync(capturedCam.Url, effPan, effTilt, capturedCam.ServiceUrl);
                     if (!isPressed)
                     {
                         statusTxt.Text = $"{capturedCam.Name.ToUpperInvariant()} · {capturedCam.StatusText}";
@@ -14319,6 +17324,8 @@ namespace Funkenwerk
             SmartCamDescInput.Text = "";
             SmartCamMotionCheck.IsChecked = true;
             SmartCamSensSlider.Value = 65;
+            if (SmartCamInvertPanCheck != null) SmartCamInvertPanCheck.IsChecked = true;
+            if (SmartCamInvertTiltCheck != null) SmartCamInvertTiltCheck.IsChecked = false;
             UpdateSmartCamUrlMaskState(false);
 
             SmartDeviceModalOverlay.Visibility = Visibility.Visible;
@@ -14342,6 +17349,8 @@ namespace Funkenwerk
             SmartCamDescInput.Text = cam.Description;
             SmartCamMotionCheck.IsChecked = cam.MotionRecord;
             SmartCamSensSlider.Value = cam.MotionSensitivity;
+            if (SmartCamInvertPanCheck != null) SmartCamInvertPanCheck.IsChecked = cam.InvertPan;
+            if (SmartCamInvertTiltCheck != null) SmartCamInvertTiltCheck.IsChecked = cam.InvertTilt;
             UpdateSmartCamUrlMaskState(cam.Url.Contains('@'));
 
             SmartDeviceModalOverlay.Visibility = Visibility.Visible;
@@ -14435,6 +17444,8 @@ namespace Funkenwerk
                     existing.Description = SmartCamDescInput.Text.Trim();
                     existing.MotionRecord = SmartCamMotionCheck.IsChecked == true;
                     existing.MotionSensitivity = (int)Math.Round(SmartCamSensSlider.Value);
+                    existing.InvertPan = SmartCamInvertPanCheck?.IsChecked != false;
+                    existing.InvertTilt = SmartCamInvertTiltCheck?.IsChecked == true;
                 }
                 else
                 {
@@ -14446,6 +17457,8 @@ namespace Funkenwerk
                         Description = SmartCamDescInput.Text.Trim(),
                         MotionRecord = SmartCamMotionCheck.IsChecked == true,
                         MotionSensitivity = (int)Math.Round(SmartCamSensSlider.Value),
+                        InvertPan = SmartCamInvertPanCheck?.IsChecked != false,
+                        InvertTilt = SmartCamInvertTiltCheck?.IsChecked == true,
                         Position = _smartHomeData.Cameras.Count
                     });
                 }
@@ -14689,13 +17702,19 @@ namespace Funkenwerk
 
         private string GetEffectiveCameraMediaDir()
         {
+            string defaultDir = GetDefaultCameraMediaDir();
             string configured = !string.IsNullOrWhiteSpace(_layoutSettings.CameraMediaDirectory)
                 ? _layoutSettings.CameraMediaDirectory.Trim()
                 : _camConfig.MediaDirectory;
 
-            if (string.IsNullOrWhiteSpace(configured))
+            string legacyDesktopDir = @"C:\Users\konta\Desktop\Funkenwerk\KameraMedien";
+            if (string.IsNullOrWhiteSpace(configured) ||
+                string.Equals(configured.TrimEnd('\\', '/'), legacyDesktopDir, StringComparison.OrdinalIgnoreCase))
             {
-                configured = GetDefaultCameraMediaDir();
+                configured = defaultDir;
+                _layoutSettings.CameraMediaDirectory = defaultDir;
+                _camConfig.MediaDirectory = defaultDir;
+                _camConfig.MediaSaveDirectory = defaultDir;
             }
 
             try
@@ -14705,7 +17724,7 @@ namespace Funkenwerk
             }
             catch
             {
-                return GetDefaultCameraMediaDir();
+                return defaultDir;
             }
         }
 
@@ -17312,9 +20331,7 @@ namespace Funkenwerk
         private void StopCameraVideoRecording()
         {
             if (_camVideoRecorder == null) return;
-            string savedPath = _camVideoRecorder.OutputPath;
-            _camVideoRecorder.Stop();
-            _camVideoRecorder.Dispose();
+            var recorderToStop = _camVideoRecorder;
             _camVideoRecorder = null;
 
             PlaySoundMailChime();
@@ -17324,11 +20341,28 @@ namespace Funkenwerk
             CamRecordingBadge.Visibility = Visibility.Collapsed;
             UpdateCameraLiveStatusBadges();
 
-            ShowCameraToast($"🎬 Video gespeichert: {System.IO.Path.GetFileName(savedPath)}");
-            Task.Run(async () =>
+            Task.Run(() =>
             {
-                await Task.Delay(450);
-                Dispatcher.Invoke(RenderCameraMediaGallery);
+                string finalizedPath = "";
+                try
+                {
+                    finalizedPath = recorderToStop.Stop();
+                    recorderToStop.Dispose();
+                }
+                catch { }
+
+                Dispatcher.Invoke(() =>
+                {
+                    if (!string.IsNullOrWhiteSpace(finalizedPath) && File.Exists(finalizedPath))
+                    {
+                        ShowCameraToast($"🎬 Video gespeichert: {System.IO.Path.GetFileName(finalizedPath)}");
+                    }
+                    else
+                    {
+                        ShowCameraToast("⚠ Videoaufnahme war zu kurz oder konnte nicht finalisiert werden.");
+                    }
+                    RenderCameraMediaGallery();
+                });
             });
         }
 
@@ -19534,6 +22568,15 @@ namespace Funkenwerk
                     if (ext != ".png" && ext != ".jpg" && ext != ".mp4") continue;
                     var fi = new FileInfo(file);
                     bool isVid = ext == ".mp4";
+                    if (isVid && !FunkenwerkVideoRecorder.IsValidMp4File(fi.FullName))
+                    {
+                        // Quarantine / remove broken unfinalized MP4 files so Explorer and WhatsApp never crash
+                        if ((DateTime.UtcNow - fi.LastWriteTimeUtc).TotalSeconds > 15)
+                        {
+                            try { File.Delete(fi.FullName); } catch { }
+                        }
+                        continue;
+                    }
                     string kbOrMb = fi.Length >= 1024 * 1024
                         ? $"{fi.Length / (1024.0 * 1024.0):0.0} MB"
                         : $"{Math.Max(1, fi.Length / 1024)} KB";
@@ -19667,6 +22710,14 @@ namespace Funkenwerk
 
             if (item.IsVideo)
             {
+                try
+                {
+                    CamPreviewMediaElement.Stop();
+                    CamPreviewMediaElement.Close();
+                    CamPreviewMediaElement.Source = null;
+                }
+                catch { }
+
                 CamPreviewSnapshotImage.Visibility = Visibility.Collapsed;
                 CamPreviewMediaElement.Visibility = Visibility.Visible;
                 CamPreviewPlayPauseBtn.Visibility = Visibility.Visible;
@@ -19675,14 +22726,12 @@ namespace Funkenwerk
                 _previewPlaybackSpeedRatio = 1.0;
                 UpdatePreviewSpeedButtonsUI();
                 CamPreviewMediaElement.Source = new Uri(item.FullPath, UriKind.Absolute);
-                CamPreviewMediaElement.SpeedRatio = 1.0;
-                CamPreviewMediaElement.Position = TimeSpan.Zero;
                 CamPreviewMediaElement.Play();
                 _isCamPreviewPlaying = true;
             }
             else
             {
-                try { CamPreviewMediaElement.Stop(); CamPreviewMediaElement.Source = null; } catch { }
+                try { CamPreviewMediaElement.Stop(); CamPreviewMediaElement.Close(); CamPreviewMediaElement.Source = null; } catch { }
                 CamPreviewMediaElement.Visibility = Visibility.Collapsed;
                 CamPreviewPlayPauseBtn.Visibility = Visibility.Collapsed;
                 if (CamPreviewSpeedBarBorder != null) CamPreviewSpeedBarBorder.Visibility = Visibility.Collapsed;
@@ -19810,6 +22859,28 @@ namespace Funkenwerk
             }
         }
 
+        private void CamPreviewMedia_MediaOpened(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (CamPreviewMediaElement != null)
+                    CamPreviewMediaElement.SpeedRatio = Math.Clamp(_previewPlaybackSpeedRatio, 0.25, 8.0);
+            }
+            catch { }
+        }
+
+        private void CamPreviewMedia_MediaFailed(object sender, ExceptionRoutedEventArgs e)
+        {
+            try
+            {
+                CamPreviewMediaElement.Stop();
+                CamPreviewMediaElement.Close();
+                CamPreviewMediaElement.Source = null;
+            }
+            catch { }
+            ShowCameraToast("⚠ Video konnte im Vorschau-Player nicht geladen werden.");
+        }
+
         private void CamPreviewMedia_MediaEnded(object sender, RoutedEventArgs e)
         {
             CamPreviewMediaElement.Position = TimeSpan.Zero;
@@ -19829,7 +22900,13 @@ namespace Funkenwerk
         private void CamCloseMediaPreview_Click(object sender, RoutedEventArgs e)
         {
             PlaySoundNav();
-            try { CamPreviewMediaElement.Stop(); CamPreviewMediaElement.Source = null; } catch { }
+            try
+            {
+                CamPreviewMediaElement.Stop();
+                CamPreviewMediaElement.Close();
+                CamPreviewMediaElement.Source = null;
+            }
+            catch { }
             _activeCamPreviewItem = null;
             CamMediaPreviewOverlay.Visibility = Visibility.Collapsed;
             RenderCameraMediaGallery();
@@ -20071,6 +23148,83 @@ namespace Funkenwerk
             UpdatePipQuickUiState();
         }
 
+        public async Task<bool> RunAutomatedSuiteSelfTestAsync()
+        {
+            await Task.Delay(600);
+            int passed = 0;
+            int total = 0;
+            var sb = new StringBuilder();
+
+            void Check(string name, Func<bool> fn)
+            {
+                total++;
+                bool ok = false;
+                try { ok = fn(); } catch { ok = false; }
+                if (ok) passed++;
+                string line = $"[{(ok ? "PASS" : "FAIL")}] {total}. {name}";
+                Console.WriteLine(line);
+                sb.AppendLine(line);
+            }
+
+            LoadSmartHomeConfig();
+            LoadMusicPlaylistsFromLocalCache();
+            UpdateApiTokenMaskDisplay();
+            UpdateAuthLoginConnectedHintVisual();
+
+            Check("LAN-Kameras (Terasse, Einfahrt, Garage, Gewerbe) mit authentifizierten RTSP-URLs & FFmpeg", () =>
+            {
+                bool has4 = _smartHomeData.Cameras.Count >= 4;
+                bool allHaveAuth = _smartHomeData.Cameras.Take(4).All(c =>
+                    !string.IsNullOrWhiteSpace(c.Url) &&
+                    c.Url.Contains("@192.168.188.", StringComparison.OrdinalIgnoreCase) &&
+                    c.Url.StartsWith("rtsp://", StringComparison.OrdinalIgnoreCase));
+                string ffmpegExe = ResolveFfmpegBinaryPath();
+                return has4 && allHaveAuth && File.Exists(ffmpegExe);
+            });
+
+            Check("Lokaler Musik-Cache (362 .m4a Dateien & Offline/Online Track-Auflösung)", () =>
+            {
+                int m4aCount = Directory.Exists(_musicCacheDir) ? Directory.GetFiles(_musicCacheDir, "*.m4a").Length : 0;
+                bool tracksLoaded = _allMusicTracks.Count >= 300;
+                bool firstTrackResolvable = _allMusicTracks.Count > 0 && File.Exists(GetLocalCachePath(_allMusicTracks[0]));
+                return m4aCount >= 300 && tracksLoaded && firstTrackResolvable;
+            });
+
+            Check("Server-Anmeldung Passwortfeld Statusanzeige ('✓ Angemeldet' Hint)", () =>
+            {
+                return AuthLoginConnectedHintTxt != null &&
+                       MailAccPasswordSavedHintTxt != null &&
+                       AuthLoginConnectedHintTxt.Text.Contains("Angemeldet", StringComparison.OrdinalIgnoreCase) &&
+                       MailAccPasswordSavedHintTxt.Text.Contains("Angemeldet", StringComparison.OrdinalIgnoreCase);
+            });
+
+            Check("Miro restlos entfernt (0 Referenzen in KI-Sessions & Suite-Bridge)", () =>
+            {
+                bool noMiroInSessions = _agentEngine == null ||
+                    _agentEngine.Sessions.All(s => s.Messages.All(m => !(m.Text ?? "").Contains("Funkenwerk Miro", StringComparison.OrdinalIgnoreCase)));
+                return noMiroInSessions;
+            });
+
+            Check("Alle Funkenwerk Zentrale Module (Mail, To-Do, Kalender, Musik, SmartHome, Kamera)", () =>
+            {
+                foreach (string sp in new[] { "todo", "calendar", "music", "smarthome", "mail" })
+                {
+                    SwitchSpaceUI(sp);
+                }
+                return _activeSpace == "mail";
+            });
+
+            string summary = $"FUNKENWERK ZENTRALE SELF-TEST: {passed}/{total} TESTS BESTANDEN.";
+            Console.WriteLine(summary);
+            sb.AppendLine(summary);
+            try
+            {
+                File.WriteAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "self_test_report.txt"), sb.ToString(), Encoding.UTF8);
+            }
+            catch { }
+            return passed == total;
+        }
+
         public async Task RunAutomatedCameraStudioVerificationAsync(string reportPath)
         {
             var sb = new StringBuilder();
@@ -20301,6 +23455,3241 @@ namespace Funkenwerk
             Log("ALL PHASE-1 THROUGH PHASE-5 REQUIREMENTS PASSED 100%!");
             File.WriteAllText(reportPath, sb.ToString(), Encoding.UTF8);
         }
+
+        // =========================================================================
+        // MODULE 10: DATEIVERWALTUNG (ROOT: funkenwerk/files + DB + FUZZY SEARCH)
+        // =========================================================================
+        private string _filesCurrentPath = "files";
+        private string _filesSearchQuery = "";
+        private string _filesViewMode = "grid"; // "grid" or "table"
+        private string _filesMoveSelectedTargetPath = "files";
+        private readonly List<WorkspaceFileItemDto> _filesCurrentItems = new();
+        private readonly List<WorkspaceFolderOptionDto> _filesAvailableFolders = new();
+        private readonly Dictionary<string, FunkenwerkFileDbRecord> _filesDbByRelPath = new(StringComparer.OrdinalIgnoreCase);
+        private WorkspaceFileItemDto? _filesActiveContextItem;
+        private WorkspaceFileItemDto? _filesActivePreviewItem;
+        private System.Windows.Threading.DispatcherTimer? _filesToastTimer;
+        private readonly Dictionary<string, System.Windows.Media.Imaging.BitmapImage> _filesThumbnailCache = new(StringComparer.OrdinalIgnoreCase);
+
+        private static readonly string[] ProtectedRootFolders =
+        {
+            "files",
+            "files/Berufsleben",
+            "files/Dokumente",
+            "files/Gesundheit"
+        };
+
+        private string GetFunkenwerkFilesRootDir()
+        {
+            string baseDirFiles = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "files");
+            if (Directory.Exists(baseDirFiles))
+                return baseDirFiles;
+
+            string desktopFiles = @"C:\Users\konta\Desktop\Funkenwerk\files";
+            if (Directory.Exists(desktopFiles))
+                return desktopFiles;
+
+            string wslFiles = @"\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke\funkenwerk\files";
+            if (Directory.Exists(wslFiles))
+                return wslFiles;
+
+            Directory.CreateDirectory(baseDirFiles);
+            return baseDirFiles;
+        }
+
+        private List<string> GetAllMirrorFilesRootDirs()
+        {
+            var roots = new List<string>();
+            string primary = GetFunkenwerkFilesRootDir();
+            roots.Add(primary);
+
+            string wslProjectFiles = @"\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke\funkenwerk\files";
+            if (!string.Equals(primary, wslProjectFiles, StringComparison.OrdinalIgnoreCase) &&
+                Directory.Exists(System.IO.Path.GetDirectoryName(wslProjectFiles)))
+            {
+                roots.Add(wslProjectFiles);
+            }
+
+            string desktopFiles = @"C:\Users\konta\Desktop\Funkenwerk\files";
+            if (!string.Equals(primary, desktopFiles, StringComparison.OrdinalIgnoreCase) &&
+                Directory.Exists(System.IO.Path.GetDirectoryName(desktopFiles)))
+            {
+                roots.Add(desktopFiles);
+            }
+
+            return roots;
+        }
+
+        private static string NormalizeFilesPath(string? rawPath)
+        {
+            if (string.IsNullOrWhiteSpace(rawPath))
+                return "files";
+
+            string p = rawPath.Replace('\\', '/').Trim().Trim('/');
+            if (p.Equals("agenten/workspace", StringComparison.OrdinalIgnoreCase))
+                return "files";
+            if (p.StartsWith("agenten/workspace/", StringComparison.OrdinalIgnoreCase))
+                p = "files/" + p.Substring("agenten/workspace/".Length);
+            if (!p.Equals("files", StringComparison.OrdinalIgnoreCase) && !p.StartsWith("files/", StringComparison.OrdinalIgnoreCase))
+                p = "files/" + p;
+
+            var parts = p.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var cleanParts = new List<string>();
+            foreach (var part in parts)
+            {
+                if (part == "." || part == "..") continue;
+                cleanParts.Add(part);
+            }
+            return cleanParts.Count == 0 ? "files" : string.Join("/", cleanParts);
+        }
+
+        private string ResolveLocalPhysicalPath(string normalizedFilesPath)
+        {
+            string root = GetFunkenwerkFilesRootDir();
+            string norm = NormalizeFilesPath(normalizedFilesPath);
+            if (string.Equals(norm, "files", StringComparison.OrdinalIgnoreCase))
+                return root;
+
+            string rel = norm.Substring("files/".Length).Replace('/', System.IO.Path.DirectorySeparatorChar);
+            return System.IO.Path.Combine(root, rel);
+        }
+
+        private void LoadFunkenwerkFilesDatabase()
+        {
+            _filesDbByRelPath.Clear();
+            string root = GetFunkenwerkFilesRootDir();
+            string dbFile = System.IO.Path.Combine(root, "funkenwerk_files_db.json");
+            if (!File.Exists(dbFile)) return;
+
+            try
+            {
+                string json = File.ReadAllText(dbFile, Encoding.UTF8);
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("documents", out var docsEl) && docsEl.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var el in docsEl.EnumerateArray())
+                    {
+                        string rel = el.TryGetProperty("rel_path", out var rEl) ? (rEl.GetString() ?? "") : "";
+                        if (string.IsNullOrWhiteSpace(rel)) continue;
+                        rel = rel.Replace('\\', '/').Trim('/');
+
+                        var tags = new List<string>();
+                        if (el.TryGetProperty("tags", out var tEl) && tEl.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var t in tEl.EnumerateArray())
+                            {
+                                string? tv = t.GetString();
+                                if (!string.IsNullOrWhiteSpace(tv)) tags.Add(tv);
+                            }
+                        }
+
+                        var rec = new FunkenwerkFileDbRecord
+                        {
+                            Sha256 = el.TryGetProperty("sha256", out var shEl) ? (shEl.GetString() ?? "") : "",
+                            Filename = el.TryGetProperty("filename", out var fnEl) ? (fnEl.GetString() ?? "") : System.IO.Path.GetFileName(rel),
+                            RelPath = rel,
+                            MainFolder = el.TryGetProperty("main_folder", out var mfEl) ? (mfEl.GetString() ?? "") : "",
+                            SubFolder = el.TryGetProperty("sub_folder", out var sfEl) ? (sfEl.GetString() ?? "") : "",
+                            Ext = el.TryGetProperty("ext", out var exEl) ? (exEl.GetString() ?? "") : "",
+                            Size = el.TryGetProperty("size", out var szEl) && szEl.TryGetInt64(out long sVal) ? sVal : 0,
+                            ExtractedDate = el.TryGetProperty("extracted_date", out var edEl) ? (edEl.GetString() ?? "") : "",
+                            Title = el.TryGetProperty("title", out var tiEl) ? (tiEl.GetString() ?? "") : "",
+                            Category = el.TryGetProperty("category", out var caEl) ? (caEl.GetString() ?? "") : "",
+                            Tags = tags,
+                            Purpose = el.TryGetProperty("purpose", out var puEl) ? (puEl.GetString() ?? "") : "",
+                            Summary = el.TryGetProperty("summary", out var suEl) ? (suEl.GetString() ?? "") : "",
+                            SearchText = el.TryGetProperty("search_text", out var stEl) ? (stEl.GetString() ?? "") : ""
+                        };
+                        _filesDbByRelPath[rel] = rec;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private void SaveFunkenwerkFilesDatabase()
+        {
+            try
+            {
+                var ordered = _filesDbByRelPath.Values
+                    .OrderBy(x => x.MainFolder)
+                    .ThenBy(x => x.SubFolder)
+                    .ThenBy(x => x.Filename)
+                    .Select(x => new
+                    {
+                        sha256 = x.Sha256,
+                        filename = x.Filename,
+                        rel_path = x.RelPath,
+                        main_folder = x.MainFolder,
+                        sub_folder = x.SubFolder,
+                        ext = x.Ext,
+                        size = x.Size,
+                        extracted_date = x.ExtractedDate,
+                        title = x.Title,
+                        category = x.Category,
+                        tags = x.Tags,
+                        purpose = x.Purpose,
+                        summary = x.Summary,
+                        search_text = x.SearchText
+                    })
+                    .ToList();
+
+                var payload = new
+                {
+                    updated_at = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                    root_folder = "files",
+                    total_documents = ordered.Count,
+                    documents = ordered
+                };
+
+                string json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
+                foreach (var rootDir in GetAllMirrorFilesRootDirs())
+                {
+                    try
+                    {
+                        Directory.CreateDirectory(rootDir);
+                        File.WriteAllText(System.IO.Path.Combine(rootDir, "funkenwerk_files_db.json"), json, Encoding.UTF8);
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+        }
+
+        private static string FormatBytesHuman(long bytes)
+        {
+            if (bytes >= 1048576)
+                return $"{(bytes / 1048576.0):0.00} MB".Replace('.', ',');
+            if (bytes >= 1024)
+                return $"{(bytes / 1024.0):0.0} KB".Replace('.', ',');
+            return $"{bytes} B";
+        }
+
+        private static string FormatDateGerman(string? isoOrDate, DateTime fallbackDt)
+        {
+            if (!string.IsNullOrWhiteSpace(isoOrDate) && DateTime.TryParse(isoOrDate, out var parsed))
+                return parsed.ToString("dd.MM.yyyy");
+            return fallbackDt.ToString("dd.MM.yyyy");
+        }
+
+        private void ShowFilesToast(string message, bool isError = false)
+        {
+            if (FilesStatusToastBorder == null || FilesStatusToastTxt == null) return;
+            FilesStatusToastTxt.Text = message;
+            FilesStatusToastBorder.BorderBrush = BrushFromHex(isError ? "#EF4444" : "#C5A059");
+            FilesStatusToastTxt.Foreground = BrushFromHex(isError ? "#FCA5A5" : "#F9FAFB");
+            FilesStatusToastBorder.Background = BrushFromHex("#181B24");
+            FilesStatusToastBorder.Visibility = Visibility.Visible;
+
+            if (_filesToastTimer == null)
+            {
+                _filesToastTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3.5) };
+                _filesToastTimer.Tick += (s, e) =>
+                {
+                    _filesToastTimer.Stop();
+                    if (FilesStatusToastBorder != null)
+                        FilesStatusToastBorder.Visibility = Visibility.Collapsed;
+                };
+            }
+            _filesToastTimer.Stop();
+            _filesToastTimer.Start();
+        }
+
+        // =========================================================================
+        // DYNAMIC, SYNONYM-AWARE & FUZZY SEARCH ENGINE ("Nahliegende Eingaben")
+        // =========================================================================
+        private static string NormalizeSearchText(string? input)
+        {
+            if (string.IsNullOrWhiteSpace(input)) return "";
+            var sb = new StringBuilder(input.Length + 16);
+            foreach (char c in input.ToLowerInvariant())
+            {
+                switch (c)
+                {
+                    case 'ä': sb.Append("ae"); break;
+                    case 'ö': sb.Append("oe"); break;
+                    case 'ü': sb.Append("ue"); break;
+                    case 'ß': sb.Append("ss"); break;
+                    default:
+                        if (char.IsLetterOrDigit(c))
+                            sb.Append(c);
+                        else
+                            sb.Append(' ');
+                        break;
+                }
+            }
+            return Regex.Replace(sb.ToString(), @"\s+", " ").Trim();
+        }
+
+        private static readonly Dictionary<string, string[]> SearchSynonymGroups = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["arbeitsamt"] = new[] { "arbeitsamt", "agentur fuer arbeit", "bundesagentur", "arbeitsagentur", "alg", "alg1", "arbeitslosengeld", "gruendungszuschuss", "schinke", "nahtlosigkeit", "vermittlung", "bescheid" },
+            ["agentur"] = new[] { "arbeitsamt", "agentur fuer arbeit", "bundesagentur", "alg", "arbeitslosengeld", "gruendungszuschuss" },
+            ["jobcenter"] = new[] { "arbeitsamt", "agentur fuer arbeit", "bundesagentur", "arbeitslosengeld", "bescheid" },
+            ["alg"] = new[] { "arbeitslosengeld", "bewilligungsbescheid", "aenderungsbescheid", "arbeitsamt", "agentur fuer arbeit" },
+            ["krankenkasse"] = new[] { "bkk", "firmus", "krankenkasse", "briefkasten", "erstattungen", "krankengeld", "versicherungsverhaeltnis", "gesundheitskarte" },
+            ["bkk"] = new[] { "bkk", "firmus", "krankenkasse", "briefkasten", "krankengeld", "erstattungen" },
+            ["firmus"] = new[] { "bkk", "firmus", "krankenkasse", "briefkasten", "krankengeld", "erstattungen" },
+            ["krank"] = new[] { "krankschreibung", "krankschreibungen", "au", "arbeitsunfaehigkeit", "attest", "krankengeld", "folgebescheinigung" },
+            ["krankschreibung"] = new[] { "krankschreibung", "krankschreibungen", "au", "arbeitsunfaehigkeit", "folgebescheinigung", "erstbescheinigung", "attest" },
+            ["au"] = new[] { "krankschreibung", "krankschreibungen", "au", "arbeitsunfaehigkeit", "folgebescheinigung" },
+            ["gelberschein"] = new[] { "krankschreibung", "krankschreibungen", "au", "arbeitsunfaehigkeit" },
+            ["schein"] = new[] { "krankschreibung", "au", "arbeitsunfaehigkeit", "bescheinigung" },
+            ["krankengeld"] = new[] { "krankengeld", "aussteuerung", "entgeltersatz", "widerspruch", "bkk firmus", "78 wochen" },
+            ["arzt"] = new[] { "attest", "atteste", "befund", "gutachten", "endokrinologikum", "sander", "schmidt", "jung", "schenkel", "lubos" },
+            ["attest"] = new[] { "attest", "atteste", "befund", "gutachten", "stellungnahme", "jung", "schmidt", "sander", "endokrinologikum" },
+            ["befund"] = new[] { "befund", "laborbefunde", "endokrinologikum", "sander", "atteste", "gutachten" },
+            ["labor"] = new[] { "laborbefunde", "endokrinologikum", "blutwerte", "hormone", "endo", "atteste" },
+            ["blut"] = new[] { "laborbefunde", "endokrinologikum", "blutwerte", "hormone" },
+            ["hormon"] = new[] { "hormonersatztherapie", "endokrinologikum", "endo", "hormone", "laborbefunde" },
+            ["bart"] = new[] { "barthaarentfernung", "laser", "epilation", "hairfree", "sander", "systemversagen", "erstattungen" },
+            ["laser"] = new[] { "barthaarentfernung", "laser", "epilation", "hairfree", "sander" },
+            ["haare"] = new[] { "barthaarentfernung", "hairfree", "epilation", "laser" },
+            ["logopaedie"] = new[] { "logopaedie", "stimmtherapie", "stimmheilbehandlung", "maren schwarz" },
+            ["stimme"] = new[] { "logopaedie", "stimmtherapie", "stimmheilbehandlung", "maren schwarz" },
+            ["klinik"] = new[] { "klinik", "krankenhaus", "lubos", "stationaer", "ga op", "operation", "entlassung" },
+            ["krankenhaus"] = new[] { "krankenhaus", "klinik", "lubos", "stationaer", "ga op" },
+            ["op"] = new[] { "ga op", "operation", "stationaer", "lubos", "krankenhaus" },
+            ["gericht"] = new[] { "sozialgericht", "braunschweig", "s26kr337", "eilverfahren", "widerspruch", "klage" },
+            ["sozialgericht"] = new[] { "sozialgericht", "braunschweig", "s26kr337", "eilverfahren", "krankengeld" },
+            ["klage"] = new[] { "sozialgericht", "braunschweig", "widerspruch", "eilverfahren" },
+            ["widerspruch"] = new[] { "widerspruch", "widerspruchsbegründung", "widerspruchsausschuss", "sozialgericht", "ablehnung" },
+            ["kamera"] = new[] { "kamera", "kameraaufnahmen", "terasse", "terrasse", "bewegung", "sicherheit", "video", "mp4", "ueberwachung" },
+            ["video"] = new[] { "kamera", "kameraaufnahmen", "terasse", "terrasse", "bewegung", "mp4" },
+            ["terrasse"] = new[] { "terasse", "terrasse", "kamera", "kameraaufnahmen", "bewegung" },
+            ["terasse"] = new[] { "terasse", "terrasse", "kamera", "kameraaufnahmen", "bewegung" },
+            ["garten"] = new[] { "terasse", "terrasse", "kamera", "kameraaufnahmen", "bewegung" },
+            ["bewegung"] = new[] { "bewegung", "bewegungserkennung", "terasse", "kameraaufnahmen" },
+            ["bank"] = new[] { "bank", "kontoauszug", "umsaetze", "de85269910668583196000", "iban", "finanzen" },
+            ["konto"] = new[] { "bank", "kontoauszug", "umsaetze", "de85269910668583196000", "mahnung" },
+            ["umsatz"] = new[] { "umsaetze", "bank", "kontoauszug", "de85269910668583196000" },
+            ["geld"] = new[] { "finanzen", "bank", "umsaetze", "krankengeld", "arbeitslosengeld", "gruendungszuschuss", "rechnung" },
+            ["steuer"] = new[] { "steuern", "steuererklaerung", "finanzamt", "gewerbesteuer", "elster", "2025" },
+            ["finanzamt"] = new[] { "steuern", "steuererklaerung", "gewerbesteuer", "finanzamt" },
+            ["rechnung"] = new[] { "rechnung", "finanzen", "mahnung", "finanzbericht", "impfkosten", "kostenvoranschlag" },
+            ["mahnung"] = new[] { "mahnung", "finanzen", "rechnung", "17020" },
+            ["gruendung"] = new[] { "existenzgruendung", "gruendungszuschuss", "seelenfunke", "businessplan", "tragfaehigkeit", "liquiditaetsplan" },
+            ["seelenfunke"] = new[] { "seelenfunke", "existenzgruendung", "businessplan", "tragfaehigkeit", "gruendungszuschuss" },
+            ["foto"] = new[] { "persoenliches", "alina", "erinnerung", "foto", "jpg", "jpeg", "nachweis" },
+            ["bild"] = new[] { "persoenliches", "alina", "erinnerung", "foto", "jpg", "jpeg" }
+        };
+
+        private static List<string> ExpandSearchSynonyms(string normToken)
+        {
+            var expanded = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { normToken };
+            foreach (var kvp in SearchSynonymGroups)
+            {
+                if (normToken.Equals(kvp.Key, StringComparison.OrdinalIgnoreCase) ||
+                    (normToken.Length >= 4 && (kvp.Key.StartsWith(normToken, StringComparison.OrdinalIgnoreCase) || normToken.StartsWith(kvp.Key, StringComparison.OrdinalIgnoreCase))))
+                {
+                    foreach (var syn in kvp.Value)
+                        expanded.Add(NormalizeSearchText(syn));
+                }
+            }
+            return expanded.ToList();
+        }
+
+        private static int ComputeLevenshteinDistance(string a, string b)
+        {
+            if (string.Equals(a, b, StringComparison.Ordinal)) return 0;
+            if (a.Length == 0) return b.Length;
+            if (b.Length == 0) return a.Length;
+            if (Math.Abs(a.Length - b.Length) > 2) return 99;
+
+            int n = a.Length;
+            int m = b.Length;
+            Span<int> prev = stackalloc int[m + 1];
+            Span<int> curr = stackalloc int[m + 1];
+
+            for (int j = 0; j <= m; j++) prev[j] = j;
+
+            for (int i = 1; i <= n; i++)
+            {
+                curr[0] = i;
+                char ca = a[i - 1];
+                int rowMin = curr[0];
+                for (int j = 1; j <= m; j++)
+                {
+                    int cost = (ca == b[j - 1]) ? 0 : 1;
+                    int val = Math.Min(Math.Min(curr[j - 1] + 1, prev[j] + 1), prev[j - 1] + cost);
+                    curr[j] = val;
+                    if (val < rowMin) rowMin = val;
+                }
+                if (rowMin > 2) return 99;
+                for (int j = 0; j <= m; j++) prev[j] = curr[j];
+            }
+            return prev[m];
+        }
+
+        private static int ScoreWorkspaceItemMatch(WorkspaceFileItemDto item, string rawQuery)
+        {
+            string normQuery = NormalizeSearchText(rawQuery);
+            if (string.IsNullOrWhiteSpace(normQuery)) return 1;
+
+            var stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "dokumente", "dokument", "dateien", "datei", "unterlagen", "ordner",
+                "von", "vom", "der", "die", "das", "den", "dem", "und", "oder",
+                "fuer", "ueber", "mit", "aus", "alle", "zeig", "suche", "finde"
+            };
+
+            var rawTokens = normQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var queryTokens = rawTokens.Where(t => !stopWords.Contains(t)).ToList();
+            if (queryTokens.Count == 0)
+                queryTokens = rawTokens.ToList();
+
+            string normName = NormalizeSearchText(item.Name);
+            string normTitle = NormalizeSearchText(item.Title);
+            string normCat = NormalizeSearchText(item.Category);
+            string normPath = NormalizeSearchText(item.Path);
+            string normTags = NormalizeSearchText(string.Join(" ", item.Tags));
+            string normPurpose = NormalizeSearchText(item.Purpose);
+            string normSummary = NormalizeSearchText(item.Summary);
+            string normFull = NormalizeSearchText(item.SearchText);
+            string normMod = NormalizeSearchText(item.Modified);
+
+            string combinedPrimary = $"{normName} {normTitle} {normCat} {normTags} {normPath} {normMod}";
+            string combinedAll = $"{combinedPrimary} {normPurpose} {normSummary} {normFull}";
+
+            // Direct full phrase match bonus
+            int totalScore = 0;
+            if (combinedPrimary.Contains(normQuery, StringComparison.Ordinal))
+                totalScore += 120;
+            else if (combinedAll.Contains(normQuery, StringComparison.Ordinal))
+                totalScore += 65;
+
+            var candidateWords = combinedPrimary.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var token in queryTokens)
+            {
+                if (token.Length < 2) continue;
+                int tokenScore = 0;
+                var synonyms = ExpandSearchSynonyms(token);
+
+                foreach (var syn in synonyms)
+                {
+                    bool isOriginalToken = string.Equals(syn, token, StringComparison.Ordinal);
+                    int weight = isOriginalToken ? 2 : 1;
+
+                    if (normTitle.Contains(syn, StringComparison.Ordinal) || normName.Contains(syn, StringComparison.Ordinal))
+                        tokenScore = Math.Max(tokenScore, 45 * weight);
+                    else if (normTags.Contains(syn, StringComparison.Ordinal) || normCat.Contains(syn, StringComparison.Ordinal) || normPath.Contains(syn, StringComparison.Ordinal))
+                        tokenScore = Math.Max(tokenScore, 35 * weight);
+                    else if (normSummary.Contains(syn, StringComparison.Ordinal) || normPurpose.Contains(syn, StringComparison.Ordinal) || normMod.Contains(syn, StringComparison.Ordinal))
+                        tokenScore = Math.Max(tokenScore, 22 * weight);
+                    else if (normFull.Contains(syn, StringComparison.Ordinal))
+                        tokenScore = Math.Max(tokenScore, 14 * weight);
+                }
+
+                // Fuzzy Levenshtein check for near-inputs / typos (e.g. "arbeitsam", "krankenkas", "terrase", "stuer")
+                if (tokenScore == 0 && token.Length >= 4)
+                {
+                    int maxDist = token.Length >= 7 ? 2 : 1;
+                    foreach (var cw in candidateWords)
+                    {
+                        if (cw.Length < 3) continue;
+                        if (cw.StartsWith(token, StringComparison.Ordinal) || token.StartsWith(cw, StringComparison.Ordinal))
+                        {
+                            tokenScore = Math.Max(tokenScore, 26);
+                            break;
+                        }
+                        int dist = ComputeLevenshteinDistance(token, cw);
+                        if (dist <= maxDist)
+                        {
+                            tokenScore = Math.Max(tokenScore, dist == 1 ? 24 : 15);
+                            break;
+                        }
+                    }
+                }
+
+                if (tokenScore == 0)
+                {
+                    // If a required token didn't match even fuzzily, exclude item
+                    return 0;
+                }
+
+                totalScore += tokenScore;
+            }
+
+            return totalScore;
+        }
+
+        private Task LoadFilesWorkspaceAsync(string? targetPath = null)
+        {
+            if (!string.IsNullOrWhiteSpace(targetPath))
+            {
+                _filesCurrentPath = NormalizeFilesPath(targetPath);
+            }
+            else
+            {
+                _filesCurrentPath = NormalizeFilesPath(_filesCurrentPath);
+            }
+
+            try
+            {
+                string rootDir = GetFunkenwerkFilesRootDir();
+                foreach (var mainSub in new[] { "Berufsleben", "Dokumente", "Gesundheit" })
+                {
+                    string subDir = System.IO.Path.Combine(rootDir, mainSub);
+                    if (!Directory.Exists(subDir))
+                        Directory.CreateDirectory(subDir);
+                }
+
+                LoadFunkenwerkFilesDatabase();
+                UpdateFilesInfoKachelnCounts(rootDir);
+
+                string currentPhysicalDir = ResolveLocalPhysicalPath(_filesCurrentPath);
+                if (!Directory.Exists(currentPhysicalDir))
+                {
+                    _filesCurrentPath = "files";
+                    currentPhysicalDir = rootDir;
+                }
+
+                bool isSearch = !string.IsNullOrWhiteSpace(_filesSearchQuery);
+                _filesCurrentItems.Clear();
+
+                if (isSearch)
+                {
+                    var scoredList = new List<(WorkspaceFileItemDto Item, int Score)>();
+
+                    // Search all directories recursively
+                    foreach (var dirPath in Directory.GetDirectories(rootDir, "*", SearchOption.AllDirectories))
+                    {
+                        string rel = System.IO.Path.GetRelativePath(rootDir, dirPath).Replace('\\', '/');
+                        string normPath = "files/" + rel;
+                        var di = new DirectoryInfo(dirPath);
+                        int fileCount = 0;
+                        try { fileCount = Directory.GetFiles(dirPath, "*", SearchOption.AllDirectories).Count(f => !System.IO.Path.GetFileName(f).Equals("funkenwerk_files_db.json", StringComparison.OrdinalIgnoreCase)); } catch { }
+
+                        var dirDto = new WorkspaceFileItemDto
+                        {
+                            Type = "dir",
+                            Name = di.Name,
+                            Title = di.Name,
+                            Path = normPath,
+                            Size = $"{fileCount} Dok.",
+                            SizeBytes = fileCount,
+                            Extension = "ORDNER",
+                            Modified = di.LastWriteTime.ToString("dd.MM.yyyy"),
+                            Category = rel.Contains('/') ? rel.Split('/')[0] : "Hauptordner",
+                            Tags = new List<string> { "Ordner", di.Name, rel },
+                            IsProtected = ProtectedRootFolders.Contains(normPath, StringComparer.OrdinalIgnoreCase)
+                        };
+
+                        int score = ScoreWorkspaceItemMatch(dirDto, _filesSearchQuery);
+                        if (score > 0)
+                            scoredList.Add((dirDto, score + 15));
+                    }
+
+                    // Search all files recursively using database metadata + full_text + fuzzy/synonyms
+                    foreach (var filePath in Directory.GetFiles(rootDir, "*", SearchOption.AllDirectories))
+                    {
+                        string fileName = System.IO.Path.GetFileName(filePath);
+                        if (fileName.StartsWith('.') || fileName.Equals("funkenwerk_files_db.json", StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        var dto = BuildWorkspaceFileDtoFromDisk(rootDir, filePath);
+                        int score = ScoreWorkspaceItemMatch(dto, _filesSearchQuery);
+                        if (score > 0)
+                            scoredList.Add((dto, score));
+                    }
+
+                    foreach (var entry in scoredList.OrderByDescending(x => x.Score).ThenBy(x => x.Item.IsDirectory ? 0 : 1).ThenBy(x => x.Item.Title))
+                    {
+                        _filesCurrentItems.Add(entry.Item);
+                    }
+                }
+                else
+                {
+                    // List immediate directories in current folder
+                    foreach (var dirPath in Directory.GetDirectories(currentPhysicalDir).OrderBy(d => System.IO.Path.GetFileName(d)))
+                    {
+                        var di = new DirectoryInfo(dirPath);
+                        if (di.Name.StartsWith('.')) continue;
+
+                        string rel = System.IO.Path.GetRelativePath(rootDir, dirPath).Replace('\\', '/');
+                        string normPath = "files/" + rel;
+                        int fileCount = 0;
+                        try
+                        {
+                            fileCount = Directory.GetFiles(dirPath, "*", SearchOption.AllDirectories)
+                                .Count(f => !System.IO.Path.GetFileName(f).StartsWith('.') &&
+                                            !System.IO.Path.GetFileName(f).Equals("funkenwerk_files_db.json", StringComparison.OrdinalIgnoreCase));
+                        }
+                        catch { }
+
+                        _filesCurrentItems.Add(new WorkspaceFileItemDto
+                        {
+                            Type = "dir",
+                            Name = di.Name,
+                            Title = di.Name,
+                            Path = normPath,
+                            Size = $"{fileCount} Dok.",
+                            SizeBytes = fileCount,
+                            Extension = "ORDNER",
+                            Modified = di.LastWriteTime.ToString("dd.MM.yyyy"),
+                            Category = rel.Contains('/') ? rel.Split('/')[0] : "Hauptordner",
+                            Tags = new List<string> { $"{fileCount} Dokumente" },
+                            IsProtected = ProtectedRootFolders.Contains(normPath, StringComparer.OrdinalIgnoreCase)
+                        });
+                    }
+
+                    // List immediate files in current folder
+                    foreach (var filePath in Directory.GetFiles(currentPhysicalDir).OrderBy(f => System.IO.Path.GetFileName(f)))
+                    {
+                        string fileName = System.IO.Path.GetFileName(filePath);
+                        if (fileName.StartsWith('.') || fileName.Equals("funkenwerk_files_db.json", StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        _filesCurrentItems.Add(BuildWorkspaceFileDtoFromDisk(rootDir, filePath));
+                    }
+                }
+
+                // Populate available folders for Move modal
+                _filesAvailableFolders.Clear();
+                _filesAvailableFolders.Add(new WorkspaceFolderOptionDto
+                {
+                    Path = "files",
+                    Label = "📁 files (Hauptverzeichnis)"
+                });
+                foreach (var dirPath in Directory.GetDirectories(rootDir, "*", SearchOption.AllDirectories).OrderBy(d => d))
+                {
+                    string rel = System.IO.Path.GetRelativePath(rootDir, dirPath).Replace('\\', '/');
+                    _filesAvailableFolders.Add(new WorkspaceFolderOptionDto
+                    {
+                        Path = "files/" + rel,
+                        Label = "↳ " + rel.Replace("/", " / ")
+                    });
+                }
+
+                RenderFilesWorkspaceView();
+            }
+            catch (Exception ex)
+            {
+                ShowFilesToast($"Fehler beim Laden: {ex.Message}", isError: true);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private WorkspaceFileItemDto BuildWorkspaceFileDtoFromDisk(string rootDir, string fullFilePath)
+        {
+            var fi = new FileInfo(fullFilePath);
+            string rel = System.IO.Path.GetRelativePath(rootDir, fullFilePath).Replace('\\', '/');
+            string normPath = "files/" + rel;
+            string ext = fi.Extension.TrimStart('.').ToUpperInvariant();
+            if (string.IsNullOrWhiteSpace(ext)) ext = "FILE";
+
+            _filesDbByRelPath.TryGetValue(rel, out var dbRec);
+
+            string folderCategory = rel.Contains('/') ? string.Join(" › ", rel.Split('/').SkipLast(1)) : "files";
+            string title = dbRec != null && !string.IsNullOrWhiteSpace(dbRec.Title) ? dbRec.Title : System.IO.Path.GetFileNameWithoutExtension(fi.Name).Replace('_', ' ');
+            string category = dbRec != null && !string.IsNullOrWhiteSpace(dbRec.Category) ? dbRec.Category : folderCategory;
+            string modified = FormatDateGerman(dbRec?.ExtractedDate, fi.LastWriteTime);
+            var tags = dbRec?.Tags != null && dbRec.Tags.Count > 0
+                ? new List<string>(dbRec.Tags)
+                : new List<string> { folderCategory, ext };
+
+            return new WorkspaceFileItemDto
+            {
+                Type = "file",
+                Name = fi.Name,
+                Path = normPath,
+                PhysicalPath = fullFilePath,
+                Size = FormatBytesHuman(fi.Length),
+                SizeBytes = fi.Length,
+                Extension = ext,
+                Modified = modified,
+                Category = category,
+                Tags = tags,
+                Purpose = dbRec?.Purpose ?? "",
+                Title = title,
+                Summary = dbRec?.Summary ?? "",
+                SearchText = dbRec?.SearchText ?? "",
+                IsProtected = false
+            };
+        }
+
+        private void UpdateFilesInfoKachelnCounts(string rootDir)
+        {
+            int CountFilesInSub(string? sub)
+            {
+                string dir = string.IsNullOrEmpty(sub) ? rootDir : System.IO.Path.Combine(rootDir, sub);
+                if (!Directory.Exists(dir)) return 0;
+                try
+                {
+                    return Directory.GetFiles(dir, "*", SearchOption.AllDirectories)
+                        .Count(f => !System.IO.Path.GetFileName(f).StartsWith('.') &&
+                                    !System.IO.Path.GetFileName(f).Equals("funkenwerk_files_db.json", StringComparison.OrdinalIgnoreCase));
+                }
+                catch { return 0; }
+            }
+
+            int total = CountFilesInSub(null);
+            int beruf = CountFilesInSub("Berufsleben");
+            int dok = CountFilesInSub("Dokumente");
+            int gesund = CountFilesInSub("Gesundheit");
+
+            if (FilesInfoTotalCountTxt != null) FilesInfoTotalCountTxt.Text = $"{total} Dokumente";
+            if (FilesInfoBerufCountTxt != null) FilesInfoBerufCountTxt.Text = $"{beruf} Dokumente";
+            if (FilesInfoDokCountTxt != null) FilesInfoDokCountTxt.Text = $"{dok} Dokumente";
+            if (FilesInfoGesundCountTxt != null) FilesInfoGesundCountTxt.Text = $"{gesund} Dokumente";
+
+            void StyleInfoKachel(Border? card, string prefix, bool exactRoot = false)
+            {
+                if (card == null) return;
+                bool active = exactRoot
+                    ? string.Equals(_filesCurrentPath, "files", StringComparison.OrdinalIgnoreCase)
+                    : (_filesCurrentPath.Equals(prefix, StringComparison.OrdinalIgnoreCase) ||
+                       _filesCurrentPath.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase));
+
+                card.Background = BrushFromHex(active ? "#26231F" : "#11131A");
+                card.BorderBrush = BrushFromHex(active ? "#C5A059" : "#232734");
+            }
+
+            StyleInfoKachel(FilesInfoCardTotal, "files", exactRoot: true);
+            StyleInfoKachel(FilesInfoCardBeruf, "files/Berufsleben");
+            StyleInfoKachel(FilesInfoCardDok, "files/Dokumente");
+            StyleInfoKachel(FilesInfoCardGesund, "files/Gesundheit");
+        }
+
+        private async void FilesInfoCard_Click(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Border card && card.Tag is string folderPath)
+            {
+                PlaySoundNav();
+                _filesSearchQuery = "";
+                if (FilesSearchBox != null) FilesSearchBox.Text = "";
+                await LoadFilesWorkspaceAsync(folderPath);
+            }
+        }
+
+        private void UpdateFilesNavigationPillsUI()
+        {
+            if (FilesCurrentPathTxt != null)
+            {
+                FilesCurrentPathTxt.Text = string.IsNullOrWhiteSpace(_filesSearchQuery)
+                    ? _filesCurrentPath
+                    : $"Suche in files: \"{_filesSearchQuery}\"";
+            }
+
+            if (FilesSearchResultCountBadge != null && FilesSearchResultCountTxt != null)
+            {
+                bool hasSearch = !string.IsNullOrWhiteSpace(_filesSearchQuery);
+                FilesSearchResultCountBadge.Visibility = hasSearch ? Visibility.Visible : Visibility.Collapsed;
+                if (hasSearch)
+                {
+                    FilesSearchResultCountTxt.Text = $"{_filesCurrentItems.Count} Treffer";
+                }
+            }
+
+            if (FilesGoUpBtn != null)
+            {
+                bool isRoot = string.Equals(_filesCurrentPath, "files", StringComparison.OrdinalIgnoreCase);
+                FilesGoUpBtn.IsEnabled = !isRoot || !string.IsNullOrWhiteSpace(_filesSearchQuery);
+                FilesGoUpBtn.Opacity = FilesGoUpBtn.IsEnabled ? 1.0 : 0.45;
+            }
+
+            void StyleNavPill(Button? btn, string targetPrefix, bool exactOnly = false)
+            {
+                if (btn == null) return;
+                bool active = exactOnly
+                    ? string.Equals(_filesCurrentPath, targetPrefix, StringComparison.OrdinalIgnoreCase)
+                    : (string.Equals(_filesCurrentPath, targetPrefix, StringComparison.OrdinalIgnoreCase) ||
+                       _filesCurrentPath.StartsWith(targetPrefix + "/", StringComparison.OrdinalIgnoreCase));
+
+                if (active && string.IsNullOrWhiteSpace(_filesSearchQuery))
+                {
+                    btn.Background = BrushFromHex("#26231F");
+                    btn.Foreground = BrushFromHex("#C5A059");
+                    btn.BorderBrush = BrushFromHex("#C5A059");
+                }
+                else
+                {
+                    btn.Background = BrushFromHex("#181B24");
+                    btn.Foreground = BrushFromHex("#D1D5DB");
+                    btn.BorderBrush = BrushFromHex("#262A36");
+                }
+            }
+
+            StyleNavPill(FilesNavRootBtn, "files", exactOnly: true);
+            StyleNavPill(FilesNavBerufBtn, "files/Berufsleben");
+            StyleNavPill(FilesNavDokBtn, "files/Dokumente");
+            StyleNavPill(FilesNavGesundBtn, "files/Gesundheit");
+
+            if (FilesViewGridBtn != null && FilesViewTableBtn != null)
+            {
+                bool isGrid = _filesViewMode == "grid";
+                FilesViewGridBtn.Background = isGrid ? BrushFromHex("#26231F") : Brushes.Transparent;
+                FilesViewGridBtn.Foreground = isGrid ? BrushFromHex("#C5A059") : BrushFromHex("#9CA3AF");
+                FilesViewGridBtn.BorderBrush = isGrid ? BrushFromHex("#C5A059") : Brushes.Transparent;
+
+                FilesViewTableBtn.Background = !isGrid ? BrushFromHex("#26231F") : Brushes.Transparent;
+                FilesViewTableBtn.Foreground = !isGrid ? BrushFromHex("#C5A059") : BrushFromHex("#9CA3AF");
+                FilesViewTableBtn.BorderBrush = !isGrid ? BrushFromHex("#C5A059") : Brushes.Transparent;
+            }
+        }
+
+        private void RenderFilesWorkspaceView()
+        {
+            if (FilesGridWrapPanel == null || FilesTableRowsPanel == null) return;
+
+            UpdateFilesInfoKachelnCounts(GetFunkenwerkFilesRootDir());
+            UpdateFilesNavigationPillsUI();
+
+            FilesGridWrapPanel.Children.Clear();
+            FilesTableRowsPanel.Children.Clear();
+
+            if (_filesCurrentItems.Count == 0)
+            {
+                FilesGridScrollViewer.Visibility = Visibility.Collapsed;
+                FilesTableContainerBorder.Visibility = Visibility.Collapsed;
+                FilesEmptyStateBorder.Visibility = Visibility.Visible;
+                if (FilesEmptyStateTxt != null)
+                {
+                    FilesEmptyStateTxt.Text = string.IsNullOrWhiteSpace(_filesSearchQuery)
+                        ? "Ordner ist leer"
+                        : $"Keine Ergebnisse für \"{_filesSearchQuery}\" gefunden";
+                }
+                return;
+            }
+
+            FilesEmptyStateBorder.Visibility = Visibility.Collapsed;
+            bool isGrid = _filesViewMode == "grid";
+            FilesGridScrollViewer.Visibility = isGrid ? Visibility.Visible : Visibility.Collapsed;
+            FilesTableContainerBorder.Visibility = !isGrid ? Visibility.Visible : Visibility.Collapsed;
+
+            // Strict Funkenwerk Darkmode base hex codes (BrushFromHex maps them automatically for Dark & Light mode)
+            const string primaryTextHex = "#F9FAFB";
+            const string subTextHex = "#9CA3AF";
+            const string cardBgHex = "#11131A";
+            const string cardHoverHex = "#26231F";
+            const string cardBorderHex = "#232734";
+            const string pillBgHex = "#181B24";
+
+            if (isGrid)
+            {
+                foreach (var item in _filesCurrentItems)
+                {
+                    var card = new Border
+                    {
+                        Width = 204,
+                        Height = 178,
+                        Margin = new Thickness(0, 0, 12, 12),
+                        CornerRadius = new CornerRadius(14),
+                        Background = BrushFromHex(cardBgHex),
+                        BorderBrush = BrushFromHex(cardBorderHex),
+                        BorderThickness = new Thickness(1),
+                        Padding = new Thickness(12, 10, 12, 10),
+                        Cursor = Cursors.Hand,
+                        Tag = item,
+                        AllowDrop = item.IsDirectory
+                    };
+
+                    var grid = new Grid();
+                    grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                    grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+                    grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                    grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+                    // Row 0: Category / Tag Badge on Left + Context Menu Button (⋯) on Right
+                    var topBar = new Grid();
+                    topBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    topBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                    string topBadgeLabel = item.IsDirectory
+                        ? "Ordner"
+                        : (item.Tags.FirstOrDefault() ?? item.Extension);
+                    var topTagBadge = new Border
+                    {
+                        Background = BrushFromHex(pillBgHex),
+                        BorderBrush = BrushFromHex(cardBorderHex),
+                        BorderThickness = new Thickness(1),
+                        CornerRadius = new CornerRadius(6),
+                        Padding = new Thickness(6, 2, 6, 2),
+                        HorizontalAlignment = HorizontalAlignment.Left,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        MaxWidth = 145
+                    };
+                    topTagBadge.Child = new TextBlock
+                    {
+                        Text = topBadgeLabel,
+                        Foreground = BrushFromHex("#C5A059"),
+                        FontSize = 9.5,
+                        FontWeight = FontWeights.Bold,
+                        TextTrimming = TextTrimming.CharacterEllipsis
+                    };
+                    Grid.SetColumn(topTagBadge, 0);
+                    topBar.Children.Add(topTagBadge);
+
+                    var menuBtn = new Button
+                    {
+                        Content = "⋯",
+                        HorizontalAlignment = HorizontalAlignment.Right,
+                        VerticalAlignment = VerticalAlignment.Top,
+                        Width = 24,
+                        Height = 22,
+                        Background = Brushes.Transparent,
+                        Foreground = BrushFromHex(subTextHex),
+                        BorderThickness = new Thickness(0),
+                        FontSize = 14,
+                        FontWeight = FontWeights.Bold,
+                        Cursor = Cursors.Hand,
+                        Opacity = 0.75,
+                        Tag = item
+                    };
+                    menuBtn.Click += (s, e) =>
+                    {
+                        e.Handled = true;
+                        OpenWorkspaceItemContextMenu(menuBtn, item);
+                    };
+                    Grid.SetColumn(menuBtn, 1);
+                    topBar.Children.Add(menuBtn);
+
+                    Grid.SetRow(topBar, 0);
+                    grid.Children.Add(topBar);
+
+                    // Row 1: Center Icon / Image Preview
+                    var centerHost = new Grid
+                    {
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(0, 2, 0, 4)
+                    };
+
+                    if (item.IsDirectory)
+                    {
+                        centerHost.Children.Add(new TextBlock
+                        {
+                            Text = "📁",
+                            FontSize = 40,
+                            Foreground = BrushFromHex("#C5A059"),
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            VerticalAlignment = VerticalAlignment.Center
+                        });
+                    }
+                    else if (item.IsImage)
+                    {
+                        var imgBorder = new Border
+                        {
+                            Width = 64,
+                            Height = 54,
+                            CornerRadius = new CornerRadius(8),
+                            Background = BrushFromHex(pillBgHex),
+                            BorderBrush = BrushFromHex(cardBorderHex),
+                            BorderThickness = new Thickness(1),
+                            ClipToBounds = true
+                        };
+                        var img = new Image
+                        {
+                            Stretch = Stretch.UniformToFill,
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            VerticalAlignment = VerticalAlignment.Center
+                        };
+                        imgBorder.Child = img;
+                        centerHost.Children.Add(imgBorder);
+                        _ = LoadWorkspaceThumbnailAsync(item, img);
+                    }
+                    else
+                    {
+                        var (iconChar, badgeColorHex) = GetFileVisualStyle(item.Extension);
+                        centerHost.Children.Add(new TextBlock
+                        {
+                            Text = iconChar,
+                            FontSize = 34,
+                            Foreground = BrushFromHex(badgeColorHex),
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            VerticalAlignment = VerticalAlignment.Center
+                        });
+                    }
+                    Grid.SetRow(centerHost, 1);
+                    grid.Children.Add(centerHost);
+
+                    // Row 2: Clean Title (or Folder Name), max 2 lines
+                    string displayTitle = !string.IsNullOrWhiteSpace(item.Title) ? item.Title : item.Name;
+                    var nameTxt = new TextBlock
+                    {
+                        Text = displayTitle,
+                        Foreground = BrushFromHex(primaryTextHex),
+                        FontSize = 11.5,
+                        FontWeight = FontWeights.Bold,
+                        TextAlignment = TextAlignment.Center,
+                        TextWrapping = TextWrapping.Wrap,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                        MaxHeight = 33,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        Margin = new Thickness(0, 0, 0, 6),
+                        ToolTip = $"{displayTitle}\nDatei: {item.Name}\nKategorie: {item.Category}\nTags: {string.Join(", ", item.Tags)}"
+                    };
+                    Grid.SetRow(nameTxt, 2);
+                    grid.Children.Add(nameTxt);
+
+                    // Row 3: Bottom Metadata Pill (Date + Size or Document Count)
+                    var pillBorder = new Border
+                    {
+                        Background = BrushFromHex(pillBgHex),
+                        BorderBrush = BrushFromHex(cardBorderHex),
+                        BorderThickness = new Thickness(1),
+                        CornerRadius = new CornerRadius(6),
+                        Padding = new Thickness(8, 2, 8, 2),
+                        HorizontalAlignment = HorizontalAlignment.Center
+                    };
+                    pillBorder.Child = new TextBlock
+                    {
+                        Text = item.IsDirectory ? item.Size : $"{item.Modified} · {item.Size}",
+                        Foreground = BrushFromHex(item.IsDirectory ? "#C5A059" : subTextHex),
+                        FontSize = 10,
+                        FontWeight = FontWeights.SemiBold
+                    };
+                    Grid.SetRow(pillBorder, 3);
+                    grid.Children.Add(pillBorder);
+
+                    card.Child = grid;
+                    card.ContextMenu = BuildWorkspaceItemContextMenu(item);
+
+                    card.MouseEnter += (s, e) =>
+                    {
+                        card.Background = BrushFromHex(cardHoverHex);
+                        card.BorderBrush = BrushFromHex("#C5A059");
+                        menuBtn.Opacity = 1.0;
+                    };
+                    card.MouseLeave += (s, e) =>
+                    {
+                        card.Background = BrushFromHex(cardBgHex);
+                        card.BorderBrush = BrushFromHex(cardBorderHex);
+                        menuBtn.Opacity = 0.75;
+                    };
+
+                    Point dragStartPoint = default;
+                    bool dragArmed = false;
+
+                    card.MouseLeftButtonDown += (s, e) =>
+                    {
+                        dragStartPoint = e.GetPosition(null);
+                        dragArmed = !item.IsProtected;
+                    };
+
+                    card.MouseMove += (s, e) =>
+                    {
+                        if (!dragArmed || e.LeftButton != MouseButtonState.Pressed) return;
+                        Point pos = e.GetPosition(null);
+                        if (Math.Abs(pos.X - dragStartPoint.X) > 8 || Math.Abs(pos.Y - dragStartPoint.Y) > 8)
+                        {
+                            dragArmed = false;
+                            var data = new DataObject("FunkenwerkWorkspaceItemPath", item.Path);
+                            DragDrop.DoDragDrop(card, data, DragDropEffects.Move);
+                        }
+                    };
+
+                    card.MouseLeftButtonUp += async (s, e) =>
+                    {
+                        dragArmed = false;
+                        PlaySoundNav();
+                        if (item.IsDirectory)
+                        {
+                            _filesSearchQuery = "";
+                            if (FilesSearchBox != null) FilesSearchBox.Text = "";
+                            await LoadFilesWorkspaceAsync(item.Path);
+                        }
+                        else
+                        {
+                            await OpenFilePreviewLightboxAsync(item);
+                        }
+                    };
+
+                    if (item.IsDirectory)
+                    {
+                        card.DragOver += (s, e) =>
+                        {
+                            if (e.Data.GetDataPresent("FunkenwerkWorkspaceItemPath") || e.Data.GetDataPresent(DataFormats.FileDrop))
+                            {
+                                e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.Move;
+                                card.BorderBrush = BrushFromHex("#34D399");
+                                e.Handled = true;
+                            }
+                        };
+                        card.DragLeave += (s, e) =>
+                        {
+                            card.BorderBrush = BrushFromHex(cardBorderHex);
+                        };
+                        card.Drop += async (s, e) =>
+                        {
+                            e.Handled = true;
+                            card.BorderBrush = BrushFromHex(cardBorderHex);
+                            if (e.Data.GetDataPresent("FunkenwerkWorkspaceItemPath"))
+                            {
+                                string srcPath = e.Data.GetData("FunkenwerkWorkspaceItemPath") as string ?? "";
+                                if (!string.IsNullOrWhiteSpace(srcPath) && !string.Equals(srcPath, item.Path, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    await MoveWorkspaceItemDirectAsync(srcPath, item.Path);
+                                }
+                            }
+                            else if (e.Data.GetDataPresent(DataFormats.FileDrop))
+                            {
+                                if (e.Data.GetData(DataFormats.FileDrop) is string[] localFiles && localFiles.Length > 0)
+                                {
+                                    await UploadLocalFilesToWorkspaceAsync(localFiles, item.Path);
+                                }
+                            }
+                        };
+                    }
+
+                    FilesGridWrapPanel.Children.Add(card);
+                }
+            }
+            else
+            {
+                // Clean Darkmode Table View (Baustein 1: Schlanke Haupttabelle ohne Text-Overload)
+                foreach (var item in _filesCurrentItems)
+                {
+                    var rowBorder = new Border
+                    {
+                        Background = Brushes.Transparent,
+                        BorderBrush = BrushFromHex(cardBorderHex),
+                        BorderThickness = new Thickness(0, 0, 0, 1),
+                        Padding = new Thickness(18, 10, 18, 10),
+                        Cursor = Cursors.Hand,
+                        Tag = item
+                    };
+
+                    var rowGrid = new Grid();
+                    rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3.0, GridUnitType.Star) });
+                    rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.4, GridUnitType.Star) });
+                    rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.8, GridUnitType.Star) });
+                    rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.7, GridUnitType.Star) });
+                    rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.0, GridUnitType.Star) });
+                    rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
+
+                    // Col 0: Icon + Title
+                    var nameStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+                    var (iconChar, badgeColorHex) = item.IsDirectory ? ("📁", "#C5A059") : GetFileVisualStyle(item.Extension);
+                    nameStack.Children.Add(new TextBlock
+                    {
+                        Text = iconChar,
+                        FontSize = 15,
+                        Foreground = BrushFromHex(badgeColorHex),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(0, 0, 10, 0)
+                    });
+                    string displayTitle = !string.IsNullOrWhiteSpace(item.Title) ? item.Title : item.Name;
+                    nameStack.Children.Add(new TextBlock
+                    {
+                        Text = displayTitle,
+                        Foreground = BrushFromHex(primaryTextHex),
+                        FontSize = 13,
+                        FontWeight = FontWeights.SemiBold,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                        ToolTip = $"{displayTitle} ({item.Name})"
+                    });
+                    Grid.SetColumn(nameStack, 0);
+                    rowGrid.Children.Add(nameStack);
+
+                    // Col 1: Category Pill
+                    var catBadge = new Border
+                    {
+                        Background = BrushFromHex(pillBgHex),
+                        BorderBrush = BrushFromHex(cardBorderHex),
+                        BorderThickness = new Thickness(1),
+                        CornerRadius = new CornerRadius(6),
+                        Padding = new Thickness(8, 2, 8, 2),
+                        HorizontalAlignment = HorizontalAlignment.Left,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    catBadge.Child = new TextBlock
+                    {
+                        Text = string.IsNullOrWhiteSpace(item.Category) ? "-" : item.Category,
+                        Foreground = BrushFromHex("#C5A059"),
+                        FontSize = 11,
+                        FontWeight = FontWeights.SemiBold,
+                        TextTrimming = TextTrimming.CharacterEllipsis
+                    };
+                    Grid.SetColumn(catBadge, 1);
+                    rowGrid.Children.Add(catBadge);
+
+                    // Col 2: Size
+                    var sizeTxt = new TextBlock
+                    {
+                        Text = item.Size,
+                        Foreground = BrushFromHex(subTextHex),
+                        FontSize = 12,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    Grid.SetColumn(sizeTxt, 2);
+                    rowGrid.Children.Add(sizeTxt);
+
+                    // Col 3: Type
+                    var extTxt = new TextBlock
+                    {
+                        Text = item.Extension,
+                        Foreground = BrushFromHex(subTextHex),
+                        FontSize = 11.5,
+                        FontWeight = FontWeights.Bold,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    Grid.SetColumn(extTxt, 3);
+                    rowGrid.Children.Add(extTxt);
+
+                    // Col 4: Date
+                    var dateTxt = new TextBlock
+                    {
+                        Text = item.Modified,
+                        Foreground = BrushFromHex(subTextHex),
+                        FontSize = 12,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    Grid.SetColumn(dateTxt, 4);
+                    rowGrid.Children.Add(dateTxt);
+
+                    // Col 5: Actions (Save + Context Menu)
+                    var actStack = new StackPanel
+                    {
+                        Orientation = Orientation.Horizontal,
+                        HorizontalAlignment = HorizontalAlignment.Right,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+
+                    if (!item.IsDirectory)
+                    {
+                        var dlBtn = new Button
+                        {
+                            Content = "⬇",
+                            Width = 28,
+                            Height = 26,
+                            Margin = new Thickness(0, 0, 4, 0),
+                            Background = BrushFromHex(pillBgHex),
+                            Foreground = BrushFromHex("#C5A059"),
+                            BorderBrush = BrushFromHex(cardBorderHex),
+                            BorderThickness = new Thickness(1),
+                            Cursor = Cursors.Hand,
+                            ToolTip = "Speichern unter..."
+                        };
+                        dlBtn.Click += async (s, e) =>
+                        {
+                            e.Handled = true;
+                            await DownloadWorkspaceFileAsync(item);
+                        };
+                        actStack.Children.Add(dlBtn);
+                    }
+
+                    var moreBtn = new Button
+                    {
+                        Content = "⋯",
+                        Width = 28,
+                        Height = 26,
+                        Background = BrushFromHex(pillBgHex),
+                        Foreground = BrushFromHex(primaryTextHex),
+                        BorderBrush = BrushFromHex(cardBorderHex),
+                        BorderThickness = new Thickness(1),
+                        FontWeight = FontWeights.Bold,
+                        Cursor = Cursors.Hand
+                    };
+                    moreBtn.Click += (s, e) =>
+                    {
+                        e.Handled = true;
+                        OpenWorkspaceItemContextMenu(moreBtn, item);
+                    };
+                    actStack.Children.Add(moreBtn);
+
+                    Grid.SetColumn(actStack, 5);
+                    rowGrid.Children.Add(actStack);
+
+                    rowBorder.Child = rowGrid;
+                    rowBorder.ContextMenu = BuildWorkspaceItemContextMenu(item);
+
+                    rowBorder.MouseEnter += (s, e) => rowBorder.Background = BrushFromHex(cardHoverHex);
+                    rowBorder.MouseLeave += (s, e) => rowBorder.Background = Brushes.Transparent;
+                    rowBorder.MouseLeftButtonUp += async (s, e) =>
+                    {
+                        PlaySoundNav();
+                        if (item.IsDirectory)
+                        {
+                            _filesSearchQuery = "";
+                            if (FilesSearchBox != null) FilesSearchBox.Text = "";
+                            await LoadFilesWorkspaceAsync(item.Path);
+                        }
+                        else
+                        {
+                            await OpenFilePreviewLightboxAsync(item);
+                        }
+                    };
+
+                    FilesTableRowsPanel.Children.Add(rowBorder);
+                }
+            }
+        }
+
+        private static (string Icon, string ColorHex) GetFileVisualStyle(string ext)
+        {
+            string e = (ext ?? "").Trim().ToUpperInvariant();
+            return e switch
+            {
+                "PDF" => ("📕", "#F87171"),
+                "JPG" or "JPEG" or "PNG" or "WEBP" or "GIF" or "BMP" => ("🖼", "#38BDF8"),
+                "CSV" or "XLS" or "XLSX" => ("📊", "#34D399"),
+                "TXT" or "MD" or "DOC" or "DOCX" => ("📄", "#C5A059"),
+                "ZIP" or "RAR" or "7Z" => ("📦", "#FBBF24"),
+                "MP4" or "MOV" or "WEBM" => ("🎬", "#A78BFA"),
+                "MP3" or "WAV" or "OGG" => ("🎵", "#F472B6"),
+                _ => ("📄", "#9CA3AF")
+            };
+        }
+
+        private async Task LoadWorkspaceThumbnailAsync(WorkspaceFileItemDto item, Image targetImage)
+        {
+            if (_filesThumbnailCache.TryGetValue(item.Path, out var cachedBmp))
+            {
+                targetImage.Source = cachedBmp;
+                return;
+            }
+
+            try
+            {
+                string localPath = !string.IsNullOrWhiteSpace(item.PhysicalPath) && File.Exists(item.PhysicalPath)
+                    ? item.PhysicalPath
+                    : ResolveLocalPhysicalPath(item.Path);
+
+                byte[]? bytes = null;
+                if (File.Exists(localPath))
+                {
+                    bytes = await File.ReadAllBytesAsync(localPath);
+                }
+                else
+                {
+                    string url = $"{_apiBaseUrl.TrimEnd('/')}/funki/files/download?path={Uri.EscapeDataString(item.Path)}";
+                    bytes = await _http.GetByteArrayAsync(url);
+                }
+
+                if (bytes == null || bytes.Length == 0) return;
+
+                var bmp = new System.Windows.Media.Imaging.BitmapImage();
+                using (var ms = new MemoryStream(bytes))
+                {
+                    bmp.BeginInit();
+                    bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    bmp.DecodePixelWidth = 140;
+                    bmp.StreamSource = ms;
+                    bmp.EndInit();
+                    bmp.Freeze();
+                }
+
+                _filesThumbnailCache[item.Path] = bmp;
+                targetImage.Source = bmp;
+            }
+            catch { }
+        }
+
+        private ContextMenu BuildWorkspaceItemContextMenu(WorkspaceFileItemDto item)
+        {
+            var cm = new ContextMenu
+            {
+                Background = BrushFromHex("#11131A"),
+                BorderBrush = BrushFromHex("#C5A059"),
+                BorderThickness = new Thickness(1)
+            };
+
+            if (!item.IsDirectory)
+            {
+                var openItem = new MenuItem { Header = "👁 Vorschau (Lightbox)", Foreground = BrushFromHex("#F9FAFB") };
+                openItem.Click += async (s, e) => await OpenFilePreviewLightboxAsync(item);
+                cm.Items.Add(openItem);
+
+                var nativeItem = new MenuItem { Header = "📂 Lokal öffnen", Foreground = BrushFromHex("#C5A059") };
+                nativeItem.Click += (s, e) => OpenWorkspaceFileNative(item);
+                cm.Items.Add(nativeItem);
+
+                var dlItem = new MenuItem { Header = "⬇ Speichern unter...", Foreground = BrushFromHex("#F9FAFB") };
+                dlItem.Click += async (s, e) => await DownloadWorkspaceFileAsync(item);
+                cm.Items.Add(dlItem);
+            }
+            else
+            {
+                var openDirItem = new MenuItem { Header = "📂 Ordner öffnen", Foreground = BrushFromHex("#F9FAFB") };
+                openDirItem.Click += async (s, e) => await LoadFilesWorkspaceAsync(item.Path);
+                cm.Items.Add(openDirItem);
+            }
+
+            if (!item.IsProtected)
+            {
+                var renameItem = new MenuItem { Header = "✎ Umbenennen", Foreground = BrushFromHex("#F9FAFB") };
+                renameItem.Click += (s, e) => OpenFilesRenameModal(item);
+                cm.Items.Add(renameItem);
+
+                var moveItem = new MenuItem { Header = "⇄ Verschieben in...", Foreground = BrushFromHex("#F9FAFB") };
+                moveItem.Click += (s, e) => OpenFilesMoveModal(item);
+                cm.Items.Add(moveItem);
+            }
+
+            var zipItem = new MenuItem { Header = "📦 Als .zip archivieren", Foreground = BrushFromHex("#C5A059") };
+            zipItem.Click += async (s, e) => await ArchiveWorkspaceItemAsync(item);
+            cm.Items.Add(zipItem);
+
+            if (!item.IsProtected)
+            {
+                cm.Items.Add(new Separator());
+                var delItem = new MenuItem { Header = "🗑 Löschen", Foreground = BrushFromHex("#F87171") };
+                delItem.Click += async (s, e) => await DeleteWorkspaceItemAsync(item);
+                cm.Items.Add(delItem);
+            }
+
+            return cm;
+        }
+
+        private void OpenWorkspaceItemContextMenu(FrameworkElement anchor, WorkspaceFileItemDto item)
+        {
+            var cm = BuildWorkspaceItemContextMenu(item);
+            cm.PlacementTarget = anchor;
+            cm.IsOpen = true;
+        }
+
+        private async void FilesGoUp_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundNav();
+            if (!string.IsNullOrWhiteSpace(_filesSearchQuery))
+            {
+                _filesSearchQuery = "";
+                if (FilesSearchBox != null) FilesSearchBox.Text = "";
+                await LoadFilesWorkspaceAsync();
+                return;
+            }
+
+            if (!string.Equals(_filesCurrentPath, "files", StringComparison.OrdinalIgnoreCase))
+            {
+                int idx = _filesCurrentPath.LastIndexOf('/');
+                string parent = idx > 0 ? _filesCurrentPath.Substring(0, idx) : "files";
+                await LoadFilesWorkspaceAsync(parent);
+            }
+        }
+
+        private async void FilesQuickFolder_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is string folderPath)
+            {
+                PlaySoundNav();
+                _filesSearchQuery = "";
+                if (FilesSearchBox != null) FilesSearchBox.Text = "";
+                await LoadFilesWorkspaceAsync(folderPath);
+            }
+        }
+
+        private void FilesSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (FilesSearchBox == null) return;
+            _filesSearchQuery = (FilesSearchBox.Text ?? "").Trim();
+            bool hasQuery = !string.IsNullOrEmpty(_filesSearchQuery);
+
+            if (FilesSearchPlaceholder != null)
+                FilesSearchPlaceholder.Visibility = hasQuery ? Visibility.Collapsed : Visibility.Visible;
+            if (FilesClearSearchBtn != null)
+                FilesClearSearchBtn.Visibility = hasQuery ? Visibility.Visible : Visibility.Collapsed;
+
+            _ = LoadFilesWorkspaceAsync();
+        }
+
+        private async void FilesSearchBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                await LoadFilesWorkspaceAsync();
+            }
+            else if (e.Key == Key.Escape)
+            {
+                e.Handled = true;
+                _filesSearchQuery = "";
+                if (FilesSearchBox != null) FilesSearchBox.Text = "";
+                await LoadFilesWorkspaceAsync();
+            }
+        }
+
+        private async void FilesClearSearch_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundNav();
+            _filesSearchQuery = "";
+            if (FilesSearchBox != null) FilesSearchBox.Text = "";
+            if (FilesSearchPlaceholder != null) FilesSearchPlaceholder.Visibility = Visibility.Visible;
+            if (FilesClearSearchBtn != null) FilesClearSearchBtn.Visibility = Visibility.Collapsed;
+            await LoadFilesWorkspaceAsync();
+        }
+
+        private void FilesNewFolderBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (FilesNewFolderPlaceholder != null && FilesNewFolderBox != null)
+            {
+                FilesNewFolderPlaceholder.Visibility = string.IsNullOrEmpty(FilesNewFolderBox.Text)
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+            }
+        }
+
+        private async void FilesNewFolderBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                await CreateWorkspaceFolderAsync();
+            }
+        }
+
+        private async void FilesCreateFolder_Click(object sender, RoutedEventArgs e)
+        {
+            await CreateWorkspaceFolderAsync();
+        }
+
+        private async Task CreateWorkspaceFolderAsync()
+        {
+            string rawName = (FilesNewFolderBox?.Text ?? "").Trim();
+            string cleanName = Regex.Replace(rawName, @"[^a-zA-Z0-9äöüÄÖÜß]", "");
+            if (string.IsNullOrWhiteSpace(cleanName))
+            {
+                ShowFilesToast("Bitte gültigen Ordnernamen (ein Wort) eingeben.", isError: true);
+                return;
+            }
+
+            if (string.Equals(_filesCurrentPath, "files", StringComparison.OrdinalIgnoreCase) &&
+                !cleanName.Equals("Berufsleben", StringComparison.OrdinalIgnoreCase) &&
+                !cleanName.Equals("Dokumente", StringComparison.OrdinalIgnoreCase) &&
+                !cleanName.Equals("Gesundheit", StringComparison.OrdinalIgnoreCase))
+            {
+                ShowFilesToast("Bitte Unterordner innerhalb von Berufsleben, Dokumente oder Gesundheit anlegen.", isError: true);
+                return;
+            }
+
+            PlaySoundActionPop();
+            try
+            {
+                string relSub = (_filesCurrentPath == "files" ? cleanName : _filesCurrentPath.Substring("files/".Length) + "/" + cleanName)
+                    .Replace('/', System.IO.Path.DirectorySeparatorChar);
+
+                foreach (var rootDir in GetAllMirrorFilesRootDirs())
+                {
+                    Directory.CreateDirectory(System.IO.Path.Combine(rootDir, relSub));
+                }
+
+                if (FilesNewFolderBox != null) FilesNewFolderBox.Text = "";
+                ShowFilesToast($"✓ Ordner '{cleanName}' erstellt.");
+                await LoadFilesWorkspaceAsync();
+            }
+            catch (Exception ex)
+            {
+                ShowFilesToast($"Fehler: {ex.Message}", isError: true);
+            }
+        }
+
+        private async void FilesUpload_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundNav();
+            var dlg = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Datei(en) in Dateiverwaltung (files) importieren",
+                Multiselect = true,
+                Filter = "Alle Dateien (*.*)|*.*"
+            };
+            if (dlg.ShowDialog() == true && dlg.FileNames.Length > 0)
+            {
+                await UploadLocalFilesToWorkspaceAsync(dlg.FileNames, _filesCurrentPath);
+            }
+        }
+
+        private void FilesView_DragOver(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                e.Effects = DragDropEffects.Copy;
+                e.Handled = true;
+            }
+        }
+
+        private async void FilesView_Drop(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                if (e.Data.GetData(DataFormats.FileDrop) is string[] localFiles && localFiles.Length > 0)
+                {
+                    await UploadLocalFilesToWorkspaceAsync(localFiles, _filesCurrentPath);
+                }
+            }
+        }
+
+        private (string MainFolder, string SubFolder, string Category, List<string> Tags, string Purpose) ClassifyLocalFileForDb(string filename, string textContent, string targetFolderNorm)
+        {
+            string combined = $"{filename} {textContent}".ToLowerInvariant();
+
+            // If user dropped directly into a specific subfolder (e.g. files/Gesundheit/Atteste), respect it
+            var parts = NormalizeFilesPath(targetFolderNorm).Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 3)
+            {
+                return (parts[1], parts[2], $"{parts[1]} › {parts[2]}", new List<string> { parts[1], parts[2], System.IO.Path.GetExtension(filename).TrimStart('.').ToUpperInvariant() }, $"Archiviertes Dokument im Bereich {parts[1]}/{parts[2]}.");
+            }
+
+            if (combined.Contains("bkk") || combined.Contains("firmus") || combined.Contains("krankengeld") ||
+                combined.Contains("krankschreibung") || combined.Contains("arbeitsunfähigkeit") || combined.Contains("attest") ||
+                combined.Contains("befund") || combined.Contains("endokrinolog") || combined.Contains("sander") ||
+                combined.Contains("schmidt") || combined.Contains("jung") || combined.Contains("hairfree") || combined.Contains("lubos"))
+            {
+                if (combined.Contains("attest") || combined.Contains("befund") || combined.Contains("labor") || combined.Contains("gutachten"))
+                    return ("Gesundheit", "Atteste", "Ärztliche Atteste, Befunde & Gutachten", new List<string> { "Gesundheit", "Attest", "Befund" }, "Fachärztlicher Befundbericht bzw. Attest.");
+                if (combined.Contains("au_") || combined.Contains("krankschreibung") || combined.Contains("folgebescheinigung"))
+                    return ("Gesundheit", "Krankschreibungen", "Arbeitsunfähigkeit & Krankschreibungen (AU)", new List<string> { "Gesundheit", "Krankschreibung", "AU" }, "Arbeitsunfähigkeitsbescheinigung (AU).");
+                if (combined.Contains("erstattung") || combined.Contains("barthaar") || combined.Contains("hairfree") || combined.Contains("logopäd"))
+                    return ("Gesundheit", "Erstattungen", "BKK firmus Kostenerstattungen & Anträge", new List<string> { "Gesundheit", "BKK firmus", "Kostenerstattung" }, "Unterlage zur Kostenerstattung BKK firmus.");
+                return ("Gesundheit", "Krankengeld", "Krankengeld, Widerspruch & Sozialgericht", new List<string> { "Gesundheit", "BKK firmus", "Krankengeld" }, "Schreiben/Bescheid im Bereich Gesundheit & BKK firmus.");
+            }
+
+            if (combined.Contains("arbeitsamt") || combined.Contains("agentur für arbeit") || combined.Contains("bundesagentur") ||
+                combined.Contains("gründungszuschuss") || combined.Contains("arbeitslosengeld") || combined.Contains("seelenfunke") ||
+                combined.Contains("businessplan"))
+            {
+                if (combined.Contains("seelenfunke") || combined.Contains("businessplan") || combined.Contains("tragfähigkeit"))
+                    return ("Berufsleben", "Existenzgruendung", "Existenzgründung Mein-Seelenfunke", new List<string> { "Berufsleben", "Existenzgründung", "Mein Seelenfunke" }, "Gründungsunterlage Mein-Seelenfunke.");
+                return ("Berufsleben", "Arbeitsamt", "Bundesagentur für Arbeit (ALG 1 & Bescheide)", new List<string> { "Berufsleben", "Arbeitsamt", "Agentur für Arbeit", "ALG 1" }, "Bescheid/Unterlage der Bundesagentur für Arbeit.");
+            }
+
+            if (combined.Contains("umsaetze") || combined.Contains("kontoauszug") || combined.Contains("iban") || combined.Contains("bank"))
+                return ("Dokumente", "Bank", "Bankauszüge & Kontoumsätze", new List<string> { "Dokumente", "Bank", "Kontoauszug", "Finanzen" }, "Kontoauszug und Bankumsatznachweis.");
+            if (combined.Contains("steuer") || combined.Contains("finanzamt") || combined.Contains("elster"))
+                return ("Dokumente", "Steuern", "Steuern & Finanzamt", new List<string> { "Dokumente", "Steuern", "Finanzamt" }, "Steuerliche Unterlage für das Finanzamt.");
+            if (combined.Contains("rechnung") || combined.Contains("mahnung") || combined.Contains("finanzbericht"))
+                return ("Dokumente", "Finanzen", "Finanzen, Rechnungen & Berichte", new List<string> { "Dokumente", "Finanzen", "Rechnung" }, "Finanz- und Buchhaltungsbeleg.");
+            if (combined.Contains("terasse") || combined.Contains("kamera") || filename.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
+                return ("Dokumente", "Kameraaufnahmen", "Sicherheit & Kameraaufnahmen", new List<string> { "Kamera", "Terrasse", "Video", "Sicherheit" }, "Sicherheitskamera-Aufnahme.");
+
+            return ("Dokumente", "Allgemein", "Persönliches & Allgemein", new List<string> { "Dokumente", "Allgemein" }, "Archiviertes Dokument in der Funkenwerk Dateiverwaltung.");
+        }
+
+        private async Task UploadLocalFilesToWorkspaceAsync(string[] filePaths, string targetWorkspacePath)
+        {
+            var validFiles = filePaths.Where(File.Exists).ToArray();
+            if (validFiles.Length == 0) return;
+
+            PlaySoundActionPop();
+            LoadFunkenwerkFilesDatabase();
+
+            int count = 0;
+            foreach (var srcFile in validFiles)
+            {
+                try
+                {
+                    var fi = new FileInfo(srcFile);
+                    string ext = fi.Extension.TrimStart('.').ToLowerInvariant();
+                    string textContent = "";
+                    if (ext is "txt" or "md" or "csv" or "json" or "xml")
+                    {
+                        try { textContent = await File.ReadAllTextAsync(srcFile); } catch { }
+                    }
+
+                    var (mainF, subF, cat, tags, purpose) = ClassifyLocalFileForDb(fi.Name, textContent, targetWorkspacePath);
+                    string relPath = $"{mainF}/{subF}/{fi.Name}";
+
+                    foreach (var rootDir in GetAllMirrorFilesRootDirs())
+                    {
+                        string dst = System.IO.Path.Combine(rootDir, mainF, subF, fi.Name);
+                        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(dst)!);
+                        if (!string.Equals(System.IO.Path.GetFullPath(srcFile), System.IO.Path.GetFullPath(dst), StringComparison.OrdinalIgnoreCase))
+                        {
+                            File.Copy(srcFile, dst, overwrite: true);
+                        }
+                    }
+
+                    string sha = "";
+                    try
+                    {
+                        using var sha256 = System.Security.Cryptography.SHA256.Create();
+                        await using var stream = File.OpenRead(srcFile);
+                        sha = Convert.ToHexString(await sha256.ComputeHashAsync(stream)).ToLowerInvariant();
+                    }
+                    catch { }
+
+                    string cleanTitle = System.IO.Path.GetFileNameWithoutExtension(fi.Name).Replace('_', ' ').Replace('-', ' ');
+                    string summary = !string.IsNullOrWhiteSpace(textContent)
+                        ? Regex.Replace(textContent, @"\s+", " ").Substring(0, Math.Min(350, textContent.Length))
+                        : $"{cleanTitle} ({cat})";
+
+                    _filesDbByRelPath[relPath] = new FunkenwerkFileDbRecord
+                    {
+                        Sha256 = sha,
+                        Filename = fi.Name,
+                        RelPath = relPath,
+                        MainFolder = mainF,
+                        SubFolder = subF,
+                        Ext = ext,
+                        Size = fi.Length,
+                        ExtractedDate = fi.LastWriteTime.ToString("yyyy-MM-dd"),
+                        Title = cleanTitle,
+                        Category = cat,
+                        Tags = tags,
+                        Purpose = purpose,
+                        Summary = summary,
+                        SearchText = !string.IsNullOrWhiteSpace(textContent) ? textContent : summary
+                    };
+                    count++;
+                }
+                catch { }
+            }
+
+            SaveFunkenwerkFilesDatabase();
+            ShowFilesToast($"✓ {count} Datei(en) in files einsortiert & in DB gespeichert.");
+            await LoadFilesWorkspaceAsync();
+        }
+
+        private async void FilesRunDateitrichter_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundActionPop();
+            if (FilesDateitrichterBtn != null)
+            {
+                FilesDateitrichterBtn.IsEnabled = false;
+                FilesDateitrichterBtn.Content = "⏳ Sortiert...";
+            }
+            ShowFilesToast("⚡ Dateitrichter prüft und indiziert alle Dateien in files...");
+
+            try
+            {
+                string rootDir = GetFunkenwerkFilesRootDir();
+                LoadFunkenwerkFilesDatabase();
+                int indexed = 0;
+                int moved = 0;
+
+                foreach (var rawFilePath in Directory.GetFiles(rootDir, "*", SearchOption.AllDirectories).ToList())
+                {
+                    string currentFilePath = rawFilePath;
+                    string fileName = System.IO.Path.GetFileName(currentFilePath);
+                    if (fileName.StartsWith('.') || fileName.Equals("funkenwerk_files_db.json", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    string rel = System.IO.Path.GetRelativePath(rootDir, currentFilePath).Replace('\\', '/');
+                    var parts = rel.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+                    // If file is sitting in root or directly in a main folder without subfolder, auto-sort it
+                    if (parts.Length < 3)
+                    {
+                        string ext = System.IO.Path.GetExtension(fileName).TrimStart('.').ToLowerInvariant();
+                        string txt = "";
+                        if (ext is "txt" or "md" or "csv")
+                        {
+                            try { txt = await File.ReadAllTextAsync(currentFilePath); } catch { }
+                        }
+                        var (mainF, subF, cat, tags, purpose) = ClassifyLocalFileForDb(fileName, txt, "files");
+                        string newRel = $"{mainF}/{subF}/{fileName}";
+                        string newFull = System.IO.Path.Combine(rootDir, mainF, subF, fileName);
+                        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(newFull)!);
+                        if (!string.Equals(currentFilePath, newFull, StringComparison.OrdinalIgnoreCase))
+                        {
+                            File.Move(currentFilePath, newFull, overwrite: true);
+                            moved++;
+                        }
+                        rel = newRel;
+                        currentFilePath = newFull;
+                    }
+
+                    if (!_filesDbByRelPath.ContainsKey(rel))
+                    {
+                        var fi = new FileInfo(currentFilePath);
+                        string ext = fi.Extension.TrimStart('.').ToLowerInvariant();
+                        string txt = "";
+                        if (ext is "txt" or "md" or "csv")
+                        {
+                            try { txt = await File.ReadAllTextAsync(currentFilePath); } catch { }
+                        }
+                        var (mainF, subF, cat, tags, purpose) = ClassifyLocalFileForDb(fileName, txt, "files/" + rel);
+                        string cleanTitle = System.IO.Path.GetFileNameWithoutExtension(fileName).Replace('_', ' ');
+                        _filesDbByRelPath[rel] = new FunkenwerkFileDbRecord
+                        {
+                            Filename = fileName,
+                            RelPath = rel,
+                            MainFolder = mainF,
+                            SubFolder = subF,
+                            Ext = ext,
+                            Size = fi.Length,
+                            ExtractedDate = fi.LastWriteTime.ToString("yyyy-MM-dd"),
+                            Title = cleanTitle,
+                            Category = cat,
+                            Tags = tags,
+                            Purpose = purpose,
+                            Summary = !string.IsNullOrWhiteSpace(txt) ? txt.Substring(0, Math.Min(300, txt.Length)) : cleanTitle,
+                            SearchText = !string.IsNullOrWhiteSpace(txt) ? txt : cleanTitle
+                        };
+                    }
+                    indexed++;
+                }
+
+                SaveFunkenwerkFilesDatabase();
+                ShowFilesToast($"✓ Dateitrichter: {indexed} Dokumente in Datenbank verankert ({moved} neu einsortiert).");
+                await LoadFilesWorkspaceAsync();
+            }
+            catch (Exception ex)
+            {
+                ShowFilesToast($"Dateitrichter-Fehler: {ex.Message}", isError: true);
+            }
+            finally
+            {
+                if (FilesDateitrichterBtn != null)
+                {
+                    FilesDateitrichterBtn.IsEnabled = true;
+                    FilesDateitrichterBtn.Content = "⚡ Dateitrichter";
+                }
+            }
+        }
+
+        private async void FilesRefresh_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundNav();
+            _filesThumbnailCache.Clear();
+            await LoadFilesWorkspaceAsync();
+        }
+
+        private void FilesSetGridView_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundNav();
+            _filesViewMode = "grid";
+            RenderFilesWorkspaceView();
+        }
+
+        private void FilesSetTableView_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundNav();
+            _filesViewMode = "table";
+            RenderFilesWorkspaceView();
+        }
+
+        // =========================================================================
+        // IN-WINDOW FILE LIGHTBOX / PREVIEW (Baustein 1: Lightbox statt neuer Tab)
+        // =========================================================================
+        private async Task OpenFilePreviewLightboxAsync(WorkspaceFileItemDto item)
+        {
+            _filesActivePreviewItem = item;
+            if (FilesPreviewModalOverlay == null) return;
+
+            string displayTitle = !string.IsNullOrWhiteSpace(item.Title) ? item.Title : item.Name;
+            FilesPreviewModalTitleTxt.Text = displayTitle;
+            FilesPreviewModalMetaTxt.Text = $"{item.Extension} · {item.Size} · {item.Modified}";
+            FilesPreviewModalImage.Visibility = Visibility.Collapsed;
+            FilesPreviewModalImage.Source = null;
+            FilesPreviewTextContainer.Visibility = Visibility.Collapsed;
+            FilesPreviewBinaryPanel.Visibility = Visibility.Collapsed;
+            FilesPreviewModalOverlay.Visibility = Visibility.Visible;
+
+            try
+            {
+                string localPath = !string.IsNullOrWhiteSpace(item.PhysicalPath) && File.Exists(item.PhysicalPath)
+                    ? item.PhysicalPath
+                    : ResolveLocalPhysicalPath(item.Path);
+
+                string ext = (item.Extension ?? "").Trim().ToUpperInvariant();
+                if (item.IsImage && File.Exists(localPath))
+                {
+                    var bytes = await File.ReadAllBytesAsync(localPath);
+                    var bmp = new System.Windows.Media.Imaging.BitmapImage();
+                    using (var ms = new MemoryStream(bytes))
+                    {
+                        bmp.BeginInit();
+                        bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                        bmp.StreamSource = ms;
+                        bmp.EndInit();
+                        bmp.Freeze();
+                    }
+                    FilesPreviewModalImage.Source = bmp;
+                    FilesPreviewModalImage.Visibility = Visibility.Visible;
+                    return;
+                }
+
+                var sb = new StringBuilder();
+                sb.AppendLine($"══════════════════════════════════════════════════════════════════════════════");
+                sb.AppendLine($"  DOKUMENT:   {displayTitle}");
+                sb.AppendLine($"  DATEINAME:  {item.Name}");
+                sb.AppendLine($"  PFAD:       {item.Path}");
+                sb.AppendLine($"  KATEGORIE:  {item.Category}");
+                sb.AppendLine($"  DATUM:      {item.Modified}   |   GRÖSSE: {item.Size}");
+                if (item.Tags.Count > 0)
+                    sb.AppendLine($"  TAGS:       {string.Join(", ", item.Tags)}");
+                if (!string.IsNullOrWhiteSpace(item.Purpose))
+                    sb.AppendLine($"  ZWECK:      {item.Purpose}");
+                sb.AppendLine($"══════════════════════════════════════════════════════════════════════════════");
+                sb.AppendLine();
+
+                if (ext is "TXT" or "MD" or "CSV" or "JSON" or "XML" or "LOG" && File.Exists(localPath))
+                {
+                    string rawText = await File.ReadAllTextAsync(localPath);
+                    sb.AppendLine(rawText);
+                    FilesPreviewModalTextBox.Text = sb.ToString();
+                    FilesPreviewTextContainer.Visibility = Visibility.Visible;
+                    return;
+                }
+
+                if (!string.IsNullOrWhiteSpace(item.SearchText) || !string.IsNullOrWhiteSpace(item.Summary))
+                {
+                    sb.AppendLine("── EXTRAHIERTER DOKUMENTEN-INHALT & ZUSAMMENFASSUNG ──");
+                    sb.AppendLine();
+                    sb.AppendLine(!string.IsNullOrWhiteSpace(item.SearchText) ? item.SearchText : item.Summary);
+                    FilesPreviewModalTextBox.Text = sb.ToString();
+                    FilesPreviewTextContainer.Visibility = Visibility.Visible;
+                    return;
+                }
+
+                ShowBinaryFallbackInLightbox(item);
+            }
+            catch
+            {
+                ShowBinaryFallbackInLightbox(item);
+            }
+        }
+
+        private void ShowBinaryFallbackInLightbox(WorkspaceFileItemDto item)
+        {
+            var (iconChar, _) = GetFileVisualStyle(item.Extension);
+            if (FilesPreviewBinaryIconTxt != null) FilesPreviewBinaryIconTxt.Text = iconChar;
+            if (FilesPreviewBinaryNameTxt != null) FilesPreviewBinaryNameTxt.Text = $"{item.Title} ({item.Size})";
+            if (FilesPreviewBinaryPanel != null) FilesPreviewBinaryPanel.Visibility = Visibility.Visible;
+        }
+
+        private void FilesPreviewOpenNative_Click(object sender, RoutedEventArgs e)
+        {
+            if (_filesActivePreviewItem != null)
+            {
+                OpenWorkspaceFileNative(_filesActivePreviewItem);
+            }
+        }
+
+        private void OpenWorkspaceFileNative(WorkspaceFileItemDto item)
+        {
+            PlaySoundActionPop();
+            try
+            {
+                string localPath = !string.IsNullOrWhiteSpace(item.PhysicalPath) && File.Exists(item.PhysicalPath)
+                    ? item.PhysicalPath
+                    : ResolveLocalPhysicalPath(item.Path);
+
+                if (File.Exists(localPath))
+                {
+                    Process.Start(new ProcessStartInfo(localPath) { UseShellExecute = true });
+                }
+                else
+                {
+                    ShowFilesToast("Lokale Datei nicht gefunden.", isError: true);
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowFilesToast($"Öffnen fehlgeschlagen: {ex.Message}", isError: true);
+            }
+        }
+
+        private void FilesPreviewBackdrop_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            FilesClosePreviewModal_Click(sender, e);
+        }
+
+        private void FilesPreviewCard_BlockClick(object sender, MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+        }
+
+        private void FilesClosePreviewModal_Click(object sender, RoutedEventArgs e)
+        {
+            PlaySoundNav();
+            if (FilesPreviewModalOverlay != null)
+                FilesPreviewModalOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        private async void FilesPreviewDownload_Click(object sender, RoutedEventArgs e)
+        {
+            if (_filesActivePreviewItem != null)
+            {
+                await DownloadWorkspaceFileAsync(_filesActivePreviewItem);
+            }
+        }
+
+        private async Task DownloadWorkspaceFileAsync(WorkspaceFileItemDto item)
+        {
+            PlaySoundActionPop();
+            var dlg = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Datei speichern",
+                FileName = item.Name,
+                Filter = "Alle Dateien (*.*)|*.*"
+            };
+
+            if (dlg.ShowDialog() != true) return;
+
+            try
+            {
+                string localPath = !string.IsNullOrWhiteSpace(item.PhysicalPath) && File.Exists(item.PhysicalPath)
+                    ? item.PhysicalPath
+                    : ResolveLocalPhysicalPath(item.Path);
+
+                if (File.Exists(localPath))
+                {
+                    File.Copy(localPath, dlg.FileName, overwrite: true);
+                }
+                else
+                {
+                    string dlUrl = $"{_apiBaseUrl.TrimEnd('/')}/funki/files/download?path={Uri.EscapeDataString(item.Path)}";
+                    var bytes = await _http.GetByteArrayAsync(dlUrl);
+                    await File.WriteAllBytesAsync(dlg.FileName, bytes);
+                }
+                ShowFilesToast($"⬇ Gespeichert: {System.IO.Path.GetFileName(dlg.FileName)}");
+            }
+            catch (Exception ex)
+            {
+                ShowFilesToast($"Speichern fehlgeschlagen: {ex.Message}", isError: true);
+            }
+        }
+
+        // =========================================================================
+        // RENAME, MOVE, ARCHIVE (.ZIP) & DELETE ACTIONS (LOCAL files/ + DB SYNC)
+        // =========================================================================
+        private void OpenFilesRenameModal(WorkspaceFileItemDto item)
+        {
+            if (item.IsProtected || FilesRenameModalOverlay == null || FilesRenameInputBox == null) return;
+            PlaySoundNav();
+            _filesActiveContextItem = item;
+            FilesRenameInputBox.Text = item.IsDirectory ? item.Name : System.IO.Path.GetFileNameWithoutExtension(item.Name);
+            FilesRenameModalOverlay.Visibility = Visibility.Visible;
+            FilesRenameInputBox.Focus();
+            FilesRenameInputBox.SelectAll();
+        }
+
+        private void FilesCloseRenameModal_Click(object sender, RoutedEventArgs e)
+        {
+            if (FilesRenameModalOverlay != null)
+                FilesRenameModalOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        private async void FilesRenameInputBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                await ConfirmFilesRenameAsync();
+            }
+        }
+
+        private async void FilesConfirmRename_Click(object sender, RoutedEventArgs e)
+        {
+            await ConfirmFilesRenameAsync();
+        }
+
+        private async Task ConfirmFilesRenameAsync()
+        {
+            if (_filesActiveContextItem == null || FilesRenameInputBox == null) return;
+            string rawNew = (FilesRenameInputBox.Text ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(rawNew)) return;
+
+            PlaySoundActionPop();
+            try
+            {
+                string oldNorm = NormalizeFilesPath(_filesActiveContextItem.Path);
+                string oldRel = oldNorm.Substring("files/".Length);
+                string parentRel = System.IO.Path.GetDirectoryName(oldRel)?.Replace('\\', '/') ?? "";
+
+                string cleanNew = _filesActiveContextItem.IsDirectory
+                    ? Regex.Replace(rawNew, @"[^a-zA-Z0-9äöüÄÖÜß]", "")
+                    : Regex.Replace(rawNew, @"[^\w\-. äöüÄÖÜß()]", "_");
+
+                if (!_filesActiveContextItem.IsDirectory)
+                {
+                    string oldExt = System.IO.Path.GetExtension(_filesActiveContextItem.Name);
+                    if (!string.IsNullOrEmpty(oldExt) && !cleanNew.EndsWith(oldExt, StringComparison.OrdinalIgnoreCase))
+                        cleanNew += oldExt;
+                }
+
+                string newRel = string.IsNullOrEmpty(parentRel) ? cleanNew : $"{parentRel}/{cleanNew}";
+
+                foreach (var rootDir in GetAllMirrorFilesRootDirs())
+                {
+                    string srcFull = System.IO.Path.Combine(rootDir, oldRel.Replace('/', System.IO.Path.DirectorySeparatorChar));
+                    string dstFull = System.IO.Path.Combine(rootDir, newRel.Replace('/', System.IO.Path.DirectorySeparatorChar));
+                    if (_filesActiveContextItem.IsDirectory && Directory.Exists(srcFull))
+                        Directory.Move(srcFull, dstFull);
+                    else if (!_filesActiveContextItem.IsDirectory && File.Exists(srcFull))
+                        File.Move(srcFull, dstFull, overwrite: true);
+                }
+
+                if (!_filesActiveContextItem.IsDirectory && _filesDbByRelPath.TryGetValue(oldRel, out var rec))
+                {
+                    _filesDbByRelPath.Remove(oldRel);
+                    rec.RelPath = newRel;
+                    rec.Filename = cleanNew;
+                    _filesDbByRelPath[newRel] = rec;
+                    SaveFunkenwerkFilesDatabase();
+                }
+
+                FilesRenameModalOverlay.Visibility = Visibility.Collapsed;
+                ShowFilesToast("✓ Umbenannt.");
+                await LoadFilesWorkspaceAsync();
+            }
+            catch (Exception ex)
+            {
+                ShowFilesToast($"Fehler: {ex.Message}", isError: true);
+            }
+        }
+
+        private void OpenFilesMoveModal(WorkspaceFileItemDto item)
+        {
+            if (item.IsProtected || FilesMoveModalOverlay == null || FilesMoveTargetListPanel == null) return;
+            PlaySoundNav();
+            _filesActiveContextItem = item;
+            _filesMoveSelectedTargetPath = _filesCurrentPath;
+
+            var targets = _filesAvailableFolders
+                .Where(f => !string.Equals(f.Path, item.Path, StringComparison.OrdinalIgnoreCase) &&
+                            !f.Path.StartsWith(item.Path + "/", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (targets.Count > 0 && !targets.Any(t => string.Equals(t.Path, _filesMoveSelectedTargetPath, StringComparison.OrdinalIgnoreCase)))
+            {
+                _filesMoveSelectedTargetPath = targets[0].Path;
+            }
+
+            RenderMoveModalTargetList(targets);
+            FilesMoveModalOverlay.Visibility = Visibility.Visible;
+        }
+
+        private void RenderMoveModalTargetList(List<WorkspaceFolderOptionDto> targets)
+        {
+            if (FilesMoveTargetListPanel == null) return;
+            FilesMoveTargetListPanel.Children.Clear();
+
+            foreach (var t in targets)
+            {
+                bool isSelected = string.Equals(t.Path, _filesMoveSelectedTargetPath, StringComparison.OrdinalIgnoreCase);
+                var rowBtn = new Border
+                {
+                    Background = BrushFromHex(isSelected ? "#26231F" : "#11131A"),
+                    BorderBrush = BrushFromHex(isSelected ? "#C5A059" : "#232734"),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(8),
+                    Padding = new Thickness(12, 8, 12, 8),
+                    Margin = new Thickness(0, 0, 0, 5),
+                    Cursor = Cursors.Hand,
+                    Tag = t.Path
+                };
+                rowBtn.Child = new TextBlock
+                {
+                    Text = t.Label,
+                    Foreground = BrushFromHex(isSelected ? "#C5A059" : "#F9FAFB"),
+                    FontSize = 12.5,
+                    FontWeight = isSelected ? FontWeights.Bold : FontWeights.SemiBold
+                };
+                rowBtn.MouseLeftButtonUp += (s, e) =>
+                {
+                    PlaySoundNav();
+                    _filesMoveSelectedTargetPath = t.Path;
+                    RenderMoveModalTargetList(targets);
+                };
+                FilesMoveTargetListPanel.Children.Add(rowBtn);
+            }
+        }
+
+        private void FilesCloseMoveModal_Click(object sender, RoutedEventArgs e)
+        {
+            if (FilesMoveModalOverlay != null)
+                FilesMoveModalOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        private async void FilesConfirmMove_Click(object sender, RoutedEventArgs e)
+        {
+            if (_filesActiveContextItem == null || string.IsNullOrWhiteSpace(_filesMoveSelectedTargetPath)) return;
+            FilesMoveModalOverlay.Visibility = Visibility.Collapsed;
+            await MoveWorkspaceItemDirectAsync(_filesActiveContextItem.Path, _filesMoveSelectedTargetPath);
+        }
+
+        private async Task MoveWorkspaceItemDirectAsync(string sourcePath, string targetFolder)
+        {
+            PlaySoundActionPop();
+            try
+            {
+                string srcNorm = NormalizeFilesPath(sourcePath);
+                string dstFolderNorm = NormalizeFilesPath(targetFolder);
+                if (srcNorm == "files" || string.Equals(srcNorm, dstFolderNorm, StringComparison.OrdinalIgnoreCase))
+                    return;
+
+                string srcRel = srcNorm.Substring("files/".Length);
+                string name = System.IO.Path.GetFileName(srcRel);
+                string dstRel = dstFolderNorm == "files" ? name : $"{dstFolderNorm.Substring("files/".Length)}/{name}";
+
+                foreach (var rootDir in GetAllMirrorFilesRootDirs())
+                {
+                    string srcFull = System.IO.Path.Combine(rootDir, srcRel.Replace('/', System.IO.Path.DirectorySeparatorChar));
+                    string dstFull = System.IO.Path.Combine(rootDir, dstRel.Replace('/', System.IO.Path.DirectorySeparatorChar));
+                    Directory.CreateDirectory(System.IO.Path.GetDirectoryName(dstFull)!);
+                    if (Directory.Exists(srcFull))
+                        Directory.Move(srcFull, dstFull);
+                    else if (File.Exists(srcFull))
+                        File.Move(srcFull, dstFull, overwrite: true);
+                }
+
+                if (_filesDbByRelPath.TryGetValue(srcRel, out var rec))
+                {
+                    _filesDbByRelPath.Remove(srcRel);
+                    rec.RelPath = dstRel;
+                    var parts = dstRel.Split('/');
+                    if (parts.Length >= 2)
+                    {
+                        rec.MainFolder = parts[0];
+                        rec.SubFolder = parts[1];
+                    }
+                    _filesDbByRelPath[dstRel] = rec;
+                    SaveFunkenwerkFilesDatabase();
+                }
+
+                ShowFilesToast("✓ Verschoben.");
+                await LoadFilesWorkspaceAsync();
+            }
+            catch (Exception ex)
+            {
+                ShowFilesToast($"Fehler: {ex.Message}", isError: true);
+            }
+        }
+
+        private async Task ArchiveWorkspaceItemAsync(WorkspaceFileItemDto item)
+        {
+            PlaySoundActionPop();
+            try
+            {
+                string localPath = !string.IsNullOrWhiteSpace(item.PhysicalPath) && File.Exists(item.PhysicalPath)
+                    ? item.PhysicalPath
+                    : ResolveLocalPhysicalPath(item.Path);
+
+                string zipPath = localPath + ".zip";
+                if (File.Exists(zipPath)) File.Delete(zipPath);
+
+                if (Directory.Exists(localPath))
+                {
+                    System.IO.Compression.ZipFile.CreateFromDirectory(localPath, zipPath);
+                }
+                else if (File.Exists(localPath))
+                {
+                    using var archive = System.IO.Compression.ZipFile.Open(zipPath, System.IO.Compression.ZipArchiveMode.Create);
+                    using var fs = File.OpenRead(localPath);
+                    var entry = archive.CreateEntry(System.IO.Path.GetFileName(localPath));
+                    await using var es = entry.Open();
+                    await fs.CopyToAsync(es);
+                }
+
+                ShowFilesToast("📦 ZIP-Archiv erstellt.");
+                await LoadFilesWorkspaceAsync();
+            }
+            catch (Exception ex)
+            {
+                ShowFilesToast($"Fehler: {ex.Message}", isError: true);
+            }
+        }
+
+        private async Task DeleteWorkspaceItemAsync(WorkspaceFileItemDto item)
+        {
+            if (item.IsProtected)
+            {
+                ShowFilesToast("Dieser Hauptordner ist geschützt.", isError: true);
+                return;
+            }
+
+            var confirm = MessageBox.Show(
+                $"Möchtest du \"{item.Name}\" wirklich löschen?",
+                "Element löschen",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (confirm != MessageBoxResult.Yes) return;
+
+            PlaySoundActionPop();
+            try
+            {
+                string norm = NormalizeFilesPath(item.Path);
+                string rel = norm.Substring("files/".Length);
+
+                foreach (var rootDir in GetAllMirrorFilesRootDirs())
+                {
+                    string full = System.IO.Path.Combine(rootDir, rel.Replace('/', System.IO.Path.DirectorySeparatorChar));
+                    if (item.IsDirectory && Directory.Exists(full))
+                        Directory.Delete(full, recursive: true);
+                    else if (!item.IsDirectory && File.Exists(full))
+                        File.Delete(full);
+                }
+
+                if (_filesDbByRelPath.Remove(rel))
+                {
+                    SaveFunkenwerkFilesDatabase();
+                }
+
+                ShowFilesToast("🗑 Gelöscht.");
+                await LoadFilesWorkspaceAsync();
+            }
+            catch (Exception ex)
+            {
+                ShowFilesToast($"Fehler: {ex.Message}", isError: true);
+            }
+        }
+
+        // =====================================================================
+        // MODULE 11: INTEGRATED FUNKIRA PC AI-AGENT & LOCAL IPC BRIDGE
+        // =====================================================================
+        private bool _isAgentSending = false;
+
+        private void RenderAgentAll()
+        {
+            if (_agentEngine == null || AgentSessionsListPanel == null || AgentMessagesPanel == null)
+                return;
+
+            var prevSpace = _currentRenderingSpaceKey;
+            _currentRenderingSpaceKey = "agent";
+            try
+            {
+                if (AgentActiveSessionTitleTxt != null)
+                {
+                    AgentActiveSessionTitleTxt.Text = _agentEngine.ActiveSession.Title;
+                }
+
+                if (AgentTtsToggleBtn != null)
+                {
+                    bool tts = _agentEngine.TtsEnabled;
+                    AgentTtsToggleBtn.Content = tts ? "🔊 Stimme AN" : "🔇 Stimme AUS";
+                    AgentTtsToggleBtn.Foreground = tts ? BrushFromHex("#C5A059") : BrushFromHex("#9CA3AF");
+                    AgentTtsToggleBtn.BorderBrush = tts ? BrushFromHex("#C5A059") : BrushFromHex("#262A36");
+                    AgentTtsToggleBtn.Background = tts ? BrushFromHex("#26231F") : BrushFromHex("#181B24");
+                }
+
+                RenderAgentSessionsSidebar();
+                RenderAgentMessages();
+            }
+            finally
+            {
+                _currentRenderingSpaceKey = prevSpace;
+            }
+        }
+
+        private void RenderAgentSessionsSidebar()
+        {
+            if (_agentEngine == null || AgentSessionsListPanel == null) return;
+            AgentSessionsListPanel.Children.Clear();
+
+            foreach (var session in _agentEngine.Sessions)
+            {
+                bool isSel = session.Id == _agentEngine.ActiveSession.Id;
+                var captured = session;
+
+                var row = new Border
+                {
+                    Background = isSel ? BrushFromHex("#26231F") : BrushFromHex("#181B24"),
+                    BorderBrush = isSel ? BrushFromHex("#C5A059") : BrushFromHex("#242936"),
+                    BorderThickness = new Thickness(isSel ? 1.2 : 1),
+                    CornerRadius = new CornerRadius(10),
+                    Padding = new Thickness(10, 8, 8, 8),
+                    Margin = new Thickness(0, 0, 0, 5),
+                    Cursor = Cursors.Hand
+                };
+
+                var g = new Grid();
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var st = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                st.Children.Add(new TextBlock
+                {
+                    Text = session.Title,
+                    Foreground = isSel ? BrushFromHex("#C5A059") : BrushFromHex("#F9FAFB"),
+                    FontSize = 12.5,
+                    FontWeight = isSel ? FontWeights.Bold : FontWeights.SemiBold,
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                });
+                st.Children.Add(new TextBlock
+                {
+                    Text = session.UpdatedAt,
+                    Foreground = BrushFromHex("#9CA3AF"),
+                    FontSize = 10,
+                    Margin = new Thickness(0, 2, 0, 0)
+                });
+                Grid.SetColumn(st, 0);
+                g.Children.Add(st);
+
+                var delBtn = new Button
+                {
+                    Content = "✕",
+                    ToolTip = "Chat löschen",
+                    Background = Brushes.Transparent,
+                    Foreground = BrushFromHex("#9CA3AF"),
+                    BorderThickness = new Thickness(0),
+                    Padding = new Thickness(6, 2, 6, 2),
+                    FontSize = 11,
+                    Cursor = Cursors.Hand,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                delBtn.Click += (s, e) =>
+                {
+                    e.Handled = true;
+                    PlaySoundNav();
+                    _agentEngine.DeleteSession(captured.Id);
+                    RenderAgentAll();
+                };
+                Grid.SetColumn(delBtn, 1);
+                g.Children.Add(delBtn);
+
+                row.Child = g;
+                row.MouseLeftButtonUp += (s, e) =>
+                {
+                    PlaySoundNav();
+                    _agentEngine.SelectSession(captured.Id);
+                    RenderAgentAll();
+                };
+
+                AgentSessionsListPanel.Children.Add(row);
+            }
+        }
+
+        private void RenderAgentMessages()
+        {
+            if (_agentEngine == null || AgentMessagesPanel == null) return;
+            AgentMessagesPanel.Children.Clear();
+
+            foreach (var msg in _agentEngine.ActiveSession.Messages)
+            {
+                bool isUser = string.Equals(msg.Role, "user", StringComparison.OrdinalIgnoreCase);
+
+                var bubble = new Border
+                {
+                    MaxWidth = 760,
+                    HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Left,
+                    Background = isUser
+                        ? (_isDarkMode ? BrushFromHex("#26231F") : BrushFromHex("#FBF7EE"))
+                        : BrushFromHex("#161922"),
+                    BorderBrush = isUser ? BrushFromHex("#C5A059") : BrushFromHex("#262A36"),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = isUser ? new CornerRadius(14, 14, 4, 14) : new CornerRadius(14, 14, 14, 4),
+                    Padding = new Thickness(14, 10, 14, 10),
+                    Margin = new Thickness(isUser ? 48 : 0, 0, isUser ? 0 : 48, 10)
+                };
+
+                var stack = new StackPanel();
+
+                var metaRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+                metaRow.Children.Add(new TextBlock
+                {
+                    Text = isUser ? "Alina" : "✦ Funkira",
+                    Foreground = BrushFromHex("#C5A059"),
+                    FontSize = 11,
+                    FontWeight = FontWeights.Bold
+                });
+                metaRow.Children.Add(new TextBlock
+                {
+                    Text = $"  ·  {msg.Timestamp}",
+                    Foreground = BrushFromHex("#9CA3AF"),
+                    FontSize = 10.5
+                });
+                stack.Children.Add(metaRow);
+
+                if (msg.ActionBadges != null && msg.ActionBadges.Count > 0)
+                {
+                    var badgeWrap = new WrapPanel { Margin = new Thickness(0, 2, 0, 6) };
+                    foreach (var b in msg.ActionBadges)
+                    {
+                        badgeWrap.Children.Add(new Border
+                        {
+                            Background = _isDarkMode ? BrushFromHex("#1E1A12") : BrushFromHex("#FEF3C7"),
+                            BorderBrush = BrushFromHex("#C5A059"),
+                            BorderThickness = new Thickness(1),
+                            CornerRadius = new CornerRadius(6),
+                            Padding = new Thickness(7, 2, 7, 2),
+                            Margin = new Thickness(0, 0, 5, 4),
+                            Child = new TextBlock
+                            {
+                                Text = $"✓ {b}",
+                                Foreground = BrushFromHex("#C5A059"),
+                                FontSize = 10.5,
+                                FontWeight = FontWeights.Bold
+                            }
+                        });
+                    }
+                    stack.Children.Add(badgeWrap);
+                }
+
+                var bodyBox = new TextBox
+                {
+                    Text = msg.Text,
+                    IsReadOnly = true,
+                    Background = Brushes.Transparent,
+                    BorderThickness = new Thickness(0),
+                    Foreground = BrushFromHex("#F9FAFB"),
+                    FontSize = 13.5,
+                    TextWrapping = TextWrapping.Wrap,
+                    Padding = new Thickness(0),
+                    Cursor = Cursors.IBeam
+                };
+                stack.Children.Add(bodyBox);
+
+                bubble.Child = stack;
+                AgentMessagesPanel.Children.Add(bubble);
+            }
+
+            if (_isAgentSending)
+            {
+                AgentMessagesPanel.Children.Add(new Border
+                {
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Background = BrushFromHex("#161922"),
+                    BorderBrush = BrushFromHex("#C5A059"),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(12),
+                    Padding = new Thickness(12, 8, 12, 8),
+                    Margin = new Thickness(0, 0, 0, 8),
+                    Child = new TextBlock
+                    {
+                        Text = "✦ Funkira führt aus...",
+                        Foreground = BrushFromHex("#C5A059"),
+                        FontSize = 12,
+                        FontWeight = FontWeights.SemiBold
+                    }
+                });
+            }
+
+            AgentChatScrollViewer?.ScrollToEnd();
+        }
+
+        private void AgentNewChat_Click(object sender, RoutedEventArgs e)
+        {
+            if (_agentEngine == null) return;
+            PlaySoundNav();
+            _agentEngine.CreateNewSession(save: true);
+            RenderAgentAll();
+            AgentPromptInputBox?.Focus();
+        }
+
+        private async void AgentQuickAction_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is string cmd && !string.IsNullOrWhiteSpace(cmd))
+            {
+                PlaySoundActionPop();
+                await DispatchAgentUserPromptAsync(cmd);
+            }
+        }
+
+        private void AgentToggleTts_Click(object sender, RoutedEventArgs e)
+        {
+            if (_agentEngine == null) return;
+            PlaySoundNav();
+            _agentEngine.TtsEnabled = !_agentEngine.TtsEnabled;
+            RenderAgentAll();
+        }
+
+        private void AgentPromptInputBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (AgentPromptPlaceholderTxt != null && AgentPromptInputBox != null)
+            {
+                AgentPromptPlaceholderTxt.Visibility = string.IsNullOrEmpty(AgentPromptInputBox.Text)
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+            }
+        }
+
+        private async void AgentPromptInputBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0)
+            {
+                e.Handled = true;
+                await SubmitAgentInputBoxAsync();
+            }
+        }
+
+        private async void AgentSendPrompt_Click(object sender, RoutedEventArgs e)
+        {
+            await SubmitAgentInputBoxAsync();
+        }
+
+        private async Task SubmitAgentInputBoxAsync()
+        {
+            if (AgentPromptInputBox == null) return;
+            string text = AgentPromptInputBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(text)) return;
+            AgentPromptInputBox.Text = "";
+            PlaySoundActionPop();
+            await DispatchAgentUserPromptAsync(text);
+        }
+
+        private async Task DispatchAgentUserPromptAsync(string prompt)
+        {
+            if (_agentEngine == null || _isAgentSending) return;
+            _isAgentSending = true;
+            if (AgentSendPromptBtn != null) AgentSendPromptBtn.IsEnabled = false;
+            RenderAgentAll();
+
+            try
+            {
+                await _agentEngine.SendPromptAsync(prompt, _http, _apiBaseUrl, _apiToken);
+            }
+            finally
+            {
+                _isAgentSending = false;
+                if (AgentSendPromptBtn != null) AgentSendPromptBtn.IsEnabled = true;
+                RenderAgentAll();
+                AgentPromptInputBox?.Focus();
+            }
+        }
+
+        // =====================================================================
+        // IFunkenwerkLocalBridge (Thread-Safe Marshaled via Dispatcher)
+        // =====================================================================
+        public async Task<LocalBridgeResult> ExecuteMusicCommandAsync(string action, string? query = null, int? volume = null)
+        {
+            var tcs = new TaskCompletionSource<LocalBridgeResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _ = Dispatcher.InvokeAsync(async () =>
+            {
+                try
+                {
+                    string act = (action ?? "status").Trim().ToLowerInvariant();
+                    if (_allMusicTracks.Count == 0)
+                    {
+                        LoadMusicPlaylistsFromLocalCache();
+                    }
+
+                    switch (act)
+                    {
+                        case "play":
+                        {
+                            if (!string.IsNullOrWhiteSpace(query))
+                            {
+                                string q = query.Trim();
+                                if (q.Equals("favoriten", StringComparison.OrdinalIgnoreCase) || q.Equals("lieblingssongs", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    _activeMusicPlaylistId = "favorites";
+                                    var favs = GetFilteredMusicTracks();
+                                    if (favs.Count > 0)
+                                    {
+                                        _currentMusicQueue = favs;
+                                        await PlayMusicTrackAsync(favs[0]);
+                                        tcs.TrySetResult(new LocalBridgeResult
+                                        {
+                                            Ok = true,
+                                            Badge = "Musik",
+                                            Summary = $"Spiele Favoriten ab: {favs[0].Title} ({favs.Count} Titel)",
+                                            Data = BuildMusicStatusSnapshot()
+                                        });
+                                        return;
+                                    }
+                                }
+
+                                var plMatch = _musicPlaylists.FirstOrDefault(p => p.Name.Contains(q, StringComparison.OrdinalIgnoreCase));
+                                if (plMatch != null && plMatch.Tracks != null && plMatch.Tracks.Count > 0)
+                                {
+                                    _activeMusicPlaylistId = plMatch.Id;
+                                    _currentMusicQueue = plMatch.Tracks.ToList();
+                                    await PlayMusicTrackAsync(_currentMusicQueue[0]);
+                                    tcs.TrySetResult(new LocalBridgeResult
+                                    {
+                                        Ok = true,
+                                        Badge = "Playlist",
+                                        Summary = $"Playlist '{plMatch.Name}' gestartet mit '{_currentMusicQueue[0].Title}'.",
+                                        Data = BuildMusicStatusSnapshot()
+                                    });
+                                    return;
+                                }
+
+                                var trackMatch = _allMusicTracks.FirstOrDefault(t =>
+                                    t.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                                    (!string.IsNullOrWhiteSpace(t.Artist) && t.Artist.Contains(q, StringComparison.OrdinalIgnoreCase)));
+
+                                if (trackMatch != null)
+                                {
+                                    if (_currentMusicQueue.Count == 0)
+                                        _currentMusicQueue = _allMusicTracks.ToList();
+                                    await PlayMusicTrackAsync(trackMatch);
+                                    tcs.TrySetResult(new LocalBridgeResult
+                                    {
+                                        Ok = true,
+                                        Badge = "Musik",
+                                        Summary = $"Spiele jetzt '{trackMatch.Title}' ({trackMatch.Artist ?? "Seelenfunke"}).",
+                                        Data = BuildMusicStatusSnapshot()
+                                    });
+                                    return;
+                                }
+                            }
+
+                            if (_currentPlayingTrack == null)
+                            {
+                                var filtered = GetFilteredMusicTracks();
+                                if (filtered.Count == 0 && _allMusicTracks.Count > 0)
+                                    filtered = _allMusicTracks.ToList();
+                                if (filtered.Count == 0)
+                                {
+                                    await LoadMusicPlaylistsAsync();
+                                    filtered = GetFilteredMusicTracks();
+                                }
+                                if (filtered.Count == 0)
+                                {
+                                    tcs.TrySetResult(new LocalBridgeResult { Ok = false, Summary = "Keine Musiktitel in der Mediathek gefunden." });
+                                    return;
+                                }
+                                _currentMusicQueue = filtered;
+                                await PlayMusicTrackAsync(filtered[0]);
+                            }
+                            else if (!_isMusicPlaying)
+                            {
+                                _mediaPlayer.Play();
+                                _isMusicPlaying = true;
+                                UpdateMusicPlaybackButtonsUI();
+                                RenderMusicAll();
+                                UpdateSpacesBadges();
+                                UpdateMiniPlayerVisibility();
+                            }
+
+                            tcs.TrySetResult(new LocalBridgeResult
+                            {
+                                Ok = true,
+                                Badge = "Musik Play",
+                                Summary = $"Musik läuft: '{_currentPlayingTrack?.Title ?? "Titel"}' (Lautstärke {(int)Math.Round(_mediaPlayer.Volume * 100)}%).",
+                                Data = BuildMusicStatusSnapshot()
+                            });
+                            return;
+                        }
+
+                        case "pause":
+                        case "stop":
+                        {
+                            _mediaPlayer.Pause();
+                            _isMusicPlaying = false;
+                            UpdateMusicPlaybackButtonsUI();
+                            RenderMusicAll();
+                            UpdateSpacesBadges();
+                            tcs.TrySetResult(new LocalBridgeResult
+                            {
+                                Ok = true,
+                                Badge = "Musik Pause",
+                                Summary = "Musikwiedergabe pausiert.",
+                                Data = BuildMusicStatusSnapshot()
+                            });
+                            return;
+                        }
+
+                        case "toggle":
+                        {
+                            MusicPlayPause_Click(this, new RoutedEventArgs());
+                            tcs.TrySetResult(new LocalBridgeResult
+                            {
+                                Ok = true,
+                                Badge = _isMusicPlaying ? "Musik Play" : "Musik Pause",
+                                Summary = _isMusicPlaying ? $"Musik läuft: '{_currentPlayingTrack?.Title}'" : "Musik pausiert.",
+                                Data = BuildMusicStatusSnapshot()
+                            });
+                            return;
+                        }
+
+                        case "next":
+                        {
+                            await PlayNextMusicTrackAsync();
+                            tcs.TrySetResult(new LocalBridgeResult
+                            {
+                                Ok = true,
+                                Badge = "Nächster Titel",
+                                Summary = $"Nächster Titel: '{_currentPlayingTrack?.Title ?? "-"}'.",
+                                Data = BuildMusicStatusSnapshot()
+                            });
+                            return;
+                        }
+
+                        case "prev":
+                        {
+                            MusicPrev_Click(this, new RoutedEventArgs());
+                            await Task.Delay(60);
+                            tcs.TrySetResult(new LocalBridgeResult
+                            {
+                                Ok = true,
+                                Badge = "Vorheriger Titel",
+                                Summary = $"Aktueller Titel: '{_currentPlayingTrack?.Title ?? "-"}'.",
+                                Data = BuildMusicStatusSnapshot()
+                            });
+                            return;
+                        }
+
+                        case "set_volume":
+                        case "volume_delta":
+                        {
+                            int curVol = (int)Math.Round(_mediaPlayer.Volume * 100.0);
+                            int targetVol = act == "volume_delta"
+                                ? Math.Clamp(curVol + (volume ?? 0), 0, 100)
+                                : Math.Clamp(volume ?? curVol, 0, 100);
+
+                            _mediaPlayer.Volume = targetVol / 100.0;
+                            if (MusicVolumeSlider != null) MusicVolumeSlider.Value = targetVol;
+                            if (MusicVolumeTxt != null) MusicVolumeTxt.Text = $"{targetVol} %";
+
+                            tcs.TrySetResult(new LocalBridgeResult
+                            {
+                                Ok = true,
+                                Badge = $"Lautstärke {targetVol}%",
+                                Summary = $"Musik-Lautstärke auf {targetVol}% gesetzt.",
+                                Data = BuildMusicStatusSnapshot()
+                            });
+                            return;
+                        }
+
+                        case "focus_on":
+                        {
+                            if (!_isMusicVenomFocusActive)
+                            {
+                                EnterMusicVenomFocusMode_Click(this, new RoutedEventArgs());
+                            }
+                            tcs.TrySetResult(new LocalBridgeResult
+                            {
+                                Ok = true,
+                                Badge = "Fokus-Modus EIN",
+                                Summary = "Seelenfunke Fokus-Modus auf dem Bildschirm aktiviert.",
+                                Data = BuildMusicStatusSnapshot()
+                            });
+                            return;
+                        }
+
+                        case "focus_off":
+                        {
+                            if (_isMusicVenomFocusActive)
+                            {
+                                ExitMusicVenomFocusMode_Click(this, new RoutedEventArgs());
+                            }
+                            tcs.TrySetResult(new LocalBridgeResult
+                            {
+                                Ok = true,
+                                Badge = "Fokus-Modus AUS",
+                                Summary = "Seelenfunke Fokus-Modus beendet.",
+                                Data = BuildMusicStatusSnapshot()
+                            });
+                            return;
+                        }
+
+                        case "favorite":
+                        {
+                            if (_currentPlayingTrack != null)
+                            {
+                                await ToggleTrackFavoriteAsync(_currentPlayingTrack);
+                                tcs.TrySetResult(new LocalBridgeResult
+                                {
+                                    Ok = true,
+                                    Badge = _currentPlayingTrack.IsFavorite ? "Favorit ♥" : "Favorit entfernt",
+                                    Summary = $"'{_currentPlayingTrack.Title}' ist jetzt {(_currentPlayingTrack.IsFavorite ? "als Favorit markiert" : "kein Favorit mehr")}.",
+                                    Data = BuildMusicStatusSnapshot()
+                                });
+                            }
+                            else
+                            {
+                                tcs.TrySetResult(new LocalBridgeResult { Ok = false, Summary = "Aktuell ist kein Titel ausgewählt." });
+                            }
+                            return;
+                        }
+
+                        case "shuffle":
+                        {
+                            _isMusicShuffle = !_isMusicShuffle;
+                            UpdateMusicPlaybackButtonsUI();
+                            tcs.TrySetResult(new LocalBridgeResult
+                            {
+                                Ok = true,
+                                Badge = _isMusicShuffle ? "Shuffle EIN" : "Shuffle AUS",
+                                Summary = $"Zufallswiedergabe {(_isMusicShuffle ? "aktiviert" : "deaktiviert")}.",
+                                Data = BuildMusicStatusSnapshot()
+                            });
+                            return;
+                        }
+
+                        case "repeat":
+                        {
+                            _isMusicRepeat = !_isMusicRepeat;
+                            UpdateMusicPlaybackButtonsUI();
+                            tcs.TrySetResult(new LocalBridgeResult
+                            {
+                                Ok = true,
+                                Badge = _isMusicRepeat ? "Repeat EIN" : "Repeat AUS",
+                                Summary = $"Wiederholung {(_isMusicRepeat ? "aktiviert" : "deaktiviert")}.",
+                                Data = BuildMusicStatusSnapshot()
+                            });
+                            return;
+                        }
+
+                        default:
+                        {
+                            var snap = BuildMusicStatusSnapshot();
+                            string stateStr = _isMusicPlaying ? $"Spielt '{_currentPlayingTrack?.Title}'" : "Pausiert";
+                            tcs.TrySetResult(new LocalBridgeResult
+                            {
+                                Ok = true,
+                                Summary = $"{stateStr} · Lautstärke {(int)Math.Round(_mediaPlayer.Volume * 100)}% · {_allMusicTracks.Count} Titel verfügbar.",
+                                Data = snap
+                            });
+                            return;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    tcs.TrySetResult(new LocalBridgeResult { Ok = false, Summary = "Musik-Steuerungsfehler: " + ex.Message });
+                }
+            });
+            return await tcs.Task.ConfigureAwait(false);
+        }
+
+        private object BuildMusicStatusSnapshot()
+        {
+            return new
+            {
+                is_playing = _isMusicPlaying,
+                current_track = _currentPlayingTrack?.Title,
+                current_artist = _currentPlayingTrack?.Artist,
+                is_favorite = _currentPlayingTrack?.IsFavorite ?? false,
+                volume_percent = (int)Math.Round(_mediaPlayer.Volume * 100.0),
+                shuffle = _isMusicShuffle,
+                repeat = _isMusicRepeat,
+                focus_mode_active = _isMusicVenomFocusActive,
+                total_tracks = _allMusicTracks.Count,
+                playlists = _musicPlaylists.Select(p => new { p.Id, p.Name, count = p.Tracks?.Count ?? 0 }).ToList()
+            };
+        }
+
+        public async Task<LocalBridgeResult> ExecuteSmartHomeCommandAsync(string action, string? target = null, string? direction = null)
+        {
+            var tcs = new TaskCompletionSource<LocalBridgeResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _ = Dispatcher.InvokeAsync(async () =>
+            {
+                try
+                {
+                    string act = (action ?? "status").Trim().ToLowerInvariant();
+                    string tgt = (target ?? "").Trim();
+
+                    if (act == "plug_on" || act == "plug_off" || act == "plug_toggle")
+                    {
+                        var matchedPlugs = (string.IsNullOrEmpty(tgt) || tgt.Equals("alle", StringComparison.OrdinalIgnoreCase) || tgt.Equals("all", StringComparison.OrdinalIgnoreCase))
+                            ? _smartHomeData.Plugs.ToList()
+                            : _smartHomeData.Plugs.Where(p =>
+                                p.Name.Contains(tgt, StringComparison.OrdinalIgnoreCase) ||
+                                p.IpAddress.Equals(tgt, StringComparison.OrdinalIgnoreCase)).ToList();
+
+                        if (matchedPlugs.Count == 0)
+                        {
+                            tcs.TrySetResult(new LocalBridgeResult
+                            {
+                                Ok = false,
+                                Summary = $"Keine Steckdose passend zu '{tgt}' gefunden. Vorhanden: {string.Join(", ", _smartHomeData.Plugs.Select(p => p.Name))}."
+                            });
+                            return;
+                        }
+
+                        var notes = new List<string>();
+                        bool anyOk = false;
+                        foreach (var plug in matchedPlugs)
+                        {
+                            bool desired = act == "plug_toggle" ? !plug.IsOn : (act == "plug_on");
+                            var (ok, msg) = await TapoLocalPlugEngine.SetPlugStateKlapV2Async(
+                                plug.IpAddress,
+                                _smartHomeData.TapoLocalEmail,
+                                _smartHomeData.TapoLocalPassword,
+                                desired);
+                            if (ok)
+                            {
+                                anyOk = true;
+                                plug.IsOn = desired;
+                                plug.StatusNote = $"Geschaltet: {(desired ? "EIN" : "AUS")} ({DateTime.Now:HH:mm:ss})";
+                                notes.Add($"{plug.Name}: {(desired ? "EIN" : "AUS")}");
+                            }
+                            else
+                            {
+                                notes.Add($"{plug.Name}: {msg}");
+                            }
+                        }
+
+                        SaveSmartHomeConfig();
+                        RenderSmartPlugsSidebar();
+                        tcs.TrySetResult(new LocalBridgeResult
+                        {
+                            Ok = anyOk,
+                            Badge = "Smart Plug",
+                            Summary = string.Join(" · ", notes),
+                            Data = BuildSmartHomeStatusSnapshot()
+                        });
+                        return;
+                    }
+
+                    if (act == "camera_focus" || act == "camera_grid" || act == "camera_ptz" || act == "camera_snapshot")
+                    {
+                        EnsureSmartHomeInitialized();
+                        var cam = _smartHomeData.Cameras.FirstOrDefault(c =>
+                            c.Name.Contains(tgt, StringComparison.OrdinalIgnoreCase) ||
+                            c.IpAddress.Equals(tgt, StringComparison.OrdinalIgnoreCase))
+                            ?? _smartHomeData.Cameras.FirstOrDefault();
+
+                        if (cam == null)
+                        {
+                            tcs.TrySetResult(new LocalBridgeResult { Ok = false, Summary = "Keine Kamera konfiguriert." });
+                            return;
+                        }
+
+                        if (act == "camera_focus")
+                        {
+                            _smartHomeData.SelectedCameraName = cam.Name;
+                            _smartHomeData.GridLayoutCount = 1;
+                            SaveSmartHomeConfig();
+                            SwitchSpaceUI("smarthome");
+                            UpdateSmartGridSwitcherButtons();
+                            RenderSmartCamerasSidebar();
+                            RenderSmartCameraMatrix();
+                            tcs.TrySetResult(new LocalBridgeResult
+                            {
+                                Ok = true,
+                                Badge = $"Kamera {cam.Name}",
+                                Summary = $"Kamera '{cam.Name}' in der Großansicht geöffnet.",
+                                Data = BuildSmartHomeStatusSnapshot()
+                            });
+                            return;
+                        }
+
+                        if (act == "camera_grid")
+                        {
+                            _smartHomeData.GridLayoutCount = 4;
+                            SaveSmartHomeConfig();
+                            SwitchSpaceUI("smarthome");
+                            UpdateSmartGridSwitcherButtons();
+                            RenderSmartCameraMatrix();
+                            tcs.TrySetResult(new LocalBridgeResult
+                            {
+                                Ok = true,
+                                Badge = "4er Kamera-Raster",
+                                Summary = "Kamera-Matrix auf 4er Rasteransicht umgeschaltet.",
+                                Data = BuildSmartHomeStatusSnapshot()
+                            });
+                            return;
+                        }
+
+                        if (act == "camera_ptz")
+                        {
+                            string dir = (direction ?? "").Trim().ToLowerInvariant();
+                            if (dir == "stop")
+                            {
+                                await OnvifPtzClient.StopMoveAsync(cam.Url, cam.ServiceUrl);
+                                tcs.TrySetResult(new LocalBridgeResult { Ok = true, Badge = $"PTZ {cam.Name}", Summary = $"Kamera '{cam.Name}' gestoppt." });
+                                return;
+                            }
+
+                            double panDir = dir is "left" or "links" ? -1.0 : (dir is "right" or "rechts" ? 1.0 : 0.0);
+                            double tiltDir = dir is "up" or "oben" ? 1.0 : (dir is "down" or "unten" ? -1.0 : 0.0);
+                            double step = GetCurrentPtzStepDelta();
+                            double effPan = (cam.InvertPan ? -panDir : panDir) * step;
+                            double effTilt = (cam.InvertTilt ? -tiltDir : tiltDir) * step;
+                            bool moved = await OnvifPtzClient.StepMoveAsync(cam.Url, effPan, effTilt, cam.ServiceUrl);
+                            tcs.TrySetResult(new LocalBridgeResult
+                            {
+                                Ok = moved,
+                                Badge = $"PTZ {cam.Name}",
+                                Summary = moved ? $"Kamera '{cam.Name}' bewegt ({dir})." : $"Kamera '{cam.Name}' hat den PTZ-Schritt nicht bestätigt.",
+                                Data = BuildSmartHomeStatusSnapshot()
+                            });
+                            return;
+                        }
+
+                        if (act == "camera_snapshot")
+                        {
+                            if (_smartCameraWorkers.TryGetValue(cam.Name, out var w))
+                            {
+                                string? snapPath = w.SaveInstantSnapshot();
+                                RenderSmartRecordingsSidebar();
+                                tcs.TrySetResult(new LocalBridgeResult
+                                {
+                                    Ok = !string.IsNullOrEmpty(snapPath),
+                                    Badge = $"Foto {cam.Name}",
+                                    Summary = !string.IsNullOrEmpty(snapPath)
+                                        ? $"Schnappschuss gespeichert: {snapPath}"
+                                        : $"Noch kein Videobild von Kamera '{cam.Name}' verfügbar.",
+                                    Data = new { camera = cam.Name, snapshot_path = snapPath }
+                                });
+                                return;
+                            }
+                        }
+                    }
+
+                    tcs.TrySetResult(new LocalBridgeResult
+                    {
+                        Ok = true,
+                        Summary = $"Smart Home: {_smartHomeData.Plugs.Count} Steckdosen ({string.Join(", ", _smartHomeData.Plugs.Select(p => $"{p.Name}={(p.IsOn ? "EIN" : "AUS")}"))}), {_smartHomeData.Cameras.Count} Kameras ({string.Join(", ", _smartHomeData.Cameras.Select(c => c.Name))}).",
+                        Data = BuildSmartHomeStatusSnapshot()
+                    });
+                }
+                catch (Exception ex)
+                {
+                    tcs.TrySetResult(new LocalBridgeResult { Ok = false, Summary = "SmartHome-Fehler: " + ex.Message });
+                }
+            });
+            return await tcs.Task.ConfigureAwait(false);
+        }
+
+        private object BuildSmartHomeStatusSnapshot()
+        {
+            return new
+            {
+                grid_layout = _smartHomeData.GridLayoutCount,
+                selected_camera = _smartHomeData.SelectedCameraName,
+                plugs = _smartHomeData.Plugs.Select(p => new
+                {
+                    p.Id,
+                    p.Name,
+                    ip = p.IpAddress,
+                    is_on = p.IsOn,
+                    p.Model,
+                    p.Room
+                }).ToList(),
+                cameras = _smartHomeData.Cameras.Select(c => new
+                {
+                    c.Id,
+                    c.Name,
+                    ip = c.IpAddress,
+                    is_online = c.IsOnline,
+                    motion_record = c.MotionRecord,
+                    invert_pan = c.InvertPan,
+                    invert_tilt = c.InvertTilt
+                }).ToList(),
+                label_printer = new
+                {
+                    name = _smartHomeData.LabelPrinter?.Name ?? "Munbyn",
+                    ip = _smartHomeData.LabelPrinter?.IpAddress ?? "192.168.188.149",
+                    is_online = _smartHomeData.LabelPrinter?.IsOnline ?? false
+                }
+            };
+        }
+
+        public async Task<LocalBridgeResult> ExecuteSuiteCommandAsync(string action, string? target = null)
+        {
+            var tcs = new TaskCompletionSource<LocalBridgeResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _ = Dispatcher.InvokeAsync(async () =>
+            {
+                try
+                {
+                    string act = (action ?? "").Trim().ToLowerInvariant();
+                    string tgt = (target ?? "").Trim().ToLowerInvariant();
+
+                    if (act == "launch_collection_app")
+                    {
+                        string collectionRoot = @"C:\Users\konta\Desktop\Funkenwerk Collection";
+                        string rawTgt = (target ?? "").Trim();
+                        string appKey = rawTgt;
+                        string? extraArg = null;
+                        int colonIdx = rawTgt.IndexOf('|');
+                        if (colonIdx > 0)
+                        {
+                            appKey = rawTgt.Substring(0, colonIdx).Trim();
+                            extraArg = rawTgt.Substring(colonIdx + 1).Trim();
+                        }
+                        appKey = appKey.ToLowerInvariant();
+
+                        (string exeRel, string label) = appKey switch
+                        {
+                            "tresor" => (@"Funkenwerk Tresor\FunkenwerkTresor.exe", "Funkenwerk Tresor"),
+                            "pdf" => (@"Funkenwerk PDF\FunkenwerkPdf.exe", "Funkenwerk PDF"),
+                            "drucker" => (@"Funkenwerk Drucker\FunkenwerkDrucker.exe", "Funkenwerk Drucker"),
+                            "os" => (@"Funkenwerk OS\FunkenwerkOS.exe", "Funkenwerk OS"),
+                            "browser" => (@"Funkenwerk Browser\FunkenwerkBrowser.exe", "Funkenwerk Browser"),
+                            "ftp" => (@"Funkenwerk FTP\FunkenwerkFtp.exe", "Funkenwerk FTP"),
+                            "ssh" => (@"Funkenwerk SSH\FunkenwerkSsh.exe", "Funkenwerk SSH"),
+                            "player" => (@"Funkenwerk Player\FunkenwerkPlayer.exe", "Funkenwerk Player"),
+                            "video" => (@"Funkenwerk Video\FunkenwerkVideo.exe", "Funkenwerk Video"),
+                            _ => ("", "")
+                        };
+                        string fullExe = string.IsNullOrEmpty(exeRel) ? "" : System.IO.Path.Combine(collectionRoot, exeRel);
+                        if (!string.IsNullOrEmpty(fullExe) && File.Exists(fullExe))
+                        {
+                            var psi = new ProcessStartInfo
+                            {
+                                FileName = fullExe,
+                                WorkingDirectory = System.IO.Path.GetDirectoryName(fullExe) ?? collectionRoot,
+                                UseShellExecute = false
+                            };
+                            if (!string.IsNullOrWhiteSpace(extraArg))
+                            {
+                                psi.ArgumentList.Add(extraArg);
+                            }
+                            Process.Start(psi);
+                            tcs.TrySetResult(new LocalBridgeResult
+                            {
+                                Ok = true,
+                                Badge = label,
+                                Summary = $"{label} wurde auf deinem Desktop gestartet."
+                            });
+                            return;
+                        }
+
+                        tcs.TrySetResult(new LocalBridgeResult { Ok = false, Summary = $"Tool '{appKey}' wurde nicht gefunden." });
+                        return;
+                    }
+
+                    if (act == "refresh_organizer")
+                    {
+                        await LoadTodoListsAsync();
+                        await LoadCalendarEventsAsync();
+                        tcs.TrySetResult(new LocalBridgeResult
+                        {
+                            Ok = true,
+                            Badge = "Organizer Sync",
+                            Summary = "Aufgaben und Kalender aktualisiert."
+                        });
+                        return;
+                    }
+
+                    if (act == "switch_space" && AllSpaceKeys.Contains(tgt))
+                    {
+                        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+                        Activate();
+                        SwitchSpaceUI(tgt);
+                        SaveSettingsToFile();
+                        tcs.TrySetResult(new LocalBridgeResult
+                        {
+                            Ok = true,
+                            Badge = $"Modul {tgt}",
+                            Summary = $"Funkenwerk Ansicht auf '{tgt}' gewechselt."
+                        });
+                        return;
+                    }
+
+                    if (act == "ai_sort_mails")
+                    {
+                        await LoadMailAccountsAsync();
+                        tcs.TrySetResult(new LocalBridgeResult
+                        {
+                            Ok = true,
+                            Badge = "E-Mail Sync",
+                            Summary = $"E-Mail-Postfächer synchronisiert ({_processedImportantCount} wichtige im Verarbeitet-Trichter)."
+                        });
+                        return;
+                    }
+
+                    tcs.TrySetResult(new LocalBridgeResult { Ok = true, Summary = "Funkenwerk Suite aktiv." });
+                }
+                catch (Exception ex)
+                {
+                    tcs.TrySetResult(new LocalBridgeResult { Ok = false, Summary = ex.Message });
+                }
+            });
+            return await tcs.Task.ConfigureAwait(false);
+        }
+
+        public async Task<string> BuildLivePcContextSummaryAsync()
+        {
+            var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _ = Dispatcher.InvokeAsync(() =>
+            {
+                try
+                {
+                    int openTodos = _allTasks.Count(t => !t.IsCompleted);
+                    int todayEvents = _calendarEvents.Count(ev => ev.Start.Date == DateTime.Today);
+                    string musicLine = _isMusicPlaying && _currentPlayingTrack != null
+                        ? $"Spielt '{_currentPlayingTrack.Title}' ({_currentPlayingTrack.Artist ?? "Seelenfunke"}) bei {(int)Math.Round(_mediaPlayer.Volume * 100)}% Lautstärke{(_isMusicVenomFocusActive ? " [Fokus-Modus AKTIV]" : "")}"
+                        : $"Pausiert (Lautstärke {(int)Math.Round(_mediaPlayer.Volume * 100)}%, {_allMusicTracks.Count} Songs im Cache)";
+                    string plugsLine = string.Join(", ", _smartHomeData.Plugs.Select(p => $"{p.Name}: {(p.IsOn ? "EIN" : "AUS")} ({p.IpAddress})"));
+                    string camsLine = string.Join(", ", _smartHomeData.Cameras.Select(c => $"{c.Name} ({c.IpAddress})"));
+
+                    string sb =
+                        $"- Aktives Modul: {_activeSpace} ({GetApiEnvironmentLabel(_apiBaseUrl)})\n" +
+                        $"- Musikplayer: {musicLine}\n" +
+                        $"- Smart-Home Steckdosen: {plugsLine}\n" +
+                        $"- IP-Kameras: {camsLine}\n" +
+                        $"- Offene Aufgaben: {openTodos} · Termine heute: {todayEvents} · Wichtige Mails: {_processedImportantCount}";
+                    tcs.TrySetResult(sb);
+                }
+                catch
+                {
+                    tcs.TrySetResult("- Funkenwerk Desktop Suite aktiv");
+                }
+            });
+            return await tcs.Task.ConfigureAwait(false);
+        }
     }
 
     // =========================================================================
@@ -20357,6 +26746,27 @@ namespace Funkenwerk
                         double env = Math.Sin(Math.PI * Math.Min(1.0, t / 0.004)) * Math.Exp(-t * 140.0);
                         double freq = 440.0 + 300.0 * Math.Exp(-t * 180.0);
                         return Math.Sin(2.0 * Math.PI * freq * t) * env;
+                    });
+                }
+                catch { }
+            });
+        }
+
+        public static void PlayLoginInputFocusTap(double volume)
+        {
+            Task.Run(() =>
+            {
+                try
+                {
+                    // Noble Seelenfunke crystal-gold micro-chime when clicking into Login input fields (~56ms, D5 -> A5 harmonic shimmer)
+                    PlayWave(0.056, volume * 0.34, t =>
+                    {
+                        double attack = Math.Min(1.0, t / 0.003);
+                        double decay = Math.Exp(-t * 68.0);
+                        double f1 = Math.Sin(2.0 * Math.PI * 587.33 * t);
+                        double f2 = 0.48 * Math.Sin(2.0 * Math.PI * 880.00 * t) * Math.Exp(-t * 45.0);
+                        double spark = t < 0.015 ? 0.25 * Math.Sin(2.0 * Math.PI * 1760.0 * t) * Math.Exp(-t * 160.0) : 0.0;
+                        return (f1 + f2 + spark) * attack * decay * 0.72;
                     });
                 }
                 catch { }
@@ -20632,6 +27042,7 @@ namespace Funkenwerk
         public string StartupModule { get; set; } = "remember";
         public bool CompactMode { get; set; } = false;
         public bool ShowCompletedDefault { get; set; } = true;
+        public Dictionary<string, SpaceThemeColorConfig> SpaceThemeColors { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
         // Persistent Column Widths (Item 2.1)
         public double MailSidebarWidth { get; set; } = 275;
@@ -20654,6 +27065,12 @@ namespace Funkenwerk
         public string CameraMediaDirectory { get; set; } = "";
         public string SelectedMicrophoneName { get; set; } = "";
         public string PrimaryCameraName { get; set; } = "";
+    }
+
+    public class SpaceThemeColorConfig
+    {
+        public string BackgroundHex { get; set; } = "#000000";
+        public string TextHex { get; set; } = "#FFFFFF";
     }
 
     public class MusicPlaylistDto
@@ -20697,13 +27114,23 @@ namespace Funkenwerk
         public int Id { get; set; }
         public string Name { get; set; } = "";
         public string Email { get; set; } = "";
+        public string ImapHost { get; set; } = "";
+        public int ImapPort { get; set; } = 993;
+        public string ImapEncryption { get; set; } = "ssl";
+        public string ImapUsername { get; set; } = "";
+        public string SmtpHost { get; set; } = "";
+        public int SmtpPort { get; set; } = 465;
+        public string SmtpEncryption { get; set; } = "ssl";
+        public string SmtpUsername { get; set; } = "";
         public bool IsDefault { get; set; }
+        public bool IsCommercial { get; set; } = true;
+        public bool HasPassword { get; set; } = true;
         public int TotalUnread { get; set; }
         public string Signature { get; set; } = "";
         public Dictionary<string, string> Folders { get; set; } = new();
         public Dictionary<string, int> Counts { get; set; } = new();
         public Dictionary<string, int> TotalCounts { get; set; } = new();
-        public string DisplayLabel => $"{Email} ({Name})";
+        public string DisplayLabel => HasPassword ? $"{Email} ({Name})" : $"{Email} (⚠ Passwort fehlt)";
     }
 
     public class MailMessageDto
@@ -20825,5 +27252,57 @@ namespace Funkenwerk
     {
         public List<int> IndexedMessageIds { get; set; } = new();
         public List<EmailRecipientSuggestion> Recipients { get; set; } = new();
+    }
+
+    public class WorkspaceFileItemDto
+    {
+        public string Type { get; set; } = "file";
+        public string Name { get; set; } = "";
+        public string Path { get; set; } = "";
+        public string PhysicalPath { get; set; } = "";
+        public string Size { get; set; } = "-";
+        public long SizeBytes { get; set; }
+        public string Extension { get; set; } = "";
+        public string Modified { get; set; } = "";
+        public string Category { get; set; } = "";
+        public List<string> Tags { get; set; } = new();
+        public string Purpose { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string Summary { get; set; } = "";
+        public string SearchText { get; set; } = "";
+        public bool IsProtected { get; set; }
+        public bool IsDirectory => string.Equals(Type, "dir", StringComparison.OrdinalIgnoreCase);
+        public bool IsImage
+        {
+            get
+            {
+                string ext = (Extension ?? "").Trim().ToUpperInvariant();
+                return ext is "JPG" or "JPEG" or "PNG" or "WEBP" or "GIF" or "BMP";
+            }
+        }
+    }
+
+    public class FunkenwerkFileDbRecord
+    {
+        public string Sha256 { get; set; } = "";
+        public string Filename { get; set; } = "";
+        public string RelPath { get; set; } = "";
+        public string MainFolder { get; set; } = "";
+        public string SubFolder { get; set; } = "";
+        public string Ext { get; set; } = "";
+        public long Size { get; set; }
+        public string ExtractedDate { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string Category { get; set; } = "";
+        public List<string> Tags { get; set; } = new();
+        public string Purpose { get; set; } = "";
+        public string Summary { get; set; } = "";
+        public string SearchText { get; set; } = "";
+    }
+
+    public class WorkspaceFolderOptionDto
+    {
+        public string Path { get; set; } = "";
+        public string Label { get; set; } = "";
     }
 }

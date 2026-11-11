@@ -1,0 +1,283 @@
+<Window x:Class="FunkenwerkPlayer.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Funkenwerk Player"
+        Icon="funkenwerk_player.ico"
+        Width="1180" Height="720"
+        MinWidth="760" MinHeight="480"
+        WindowStartupLocation="CenterScreen"
+        Background="#0F1117"
+        Foreground="#F9FAFB"
+        FontFamily="Segoe UI"
+        AllowDrop="True"
+        DragOver="Window_DragOver"
+        Drop="Window_Drop"
+        KeyDown="Window_KeyDown"
+        MouseMove="Window_MouseMove"
+        MouseWheel="Window_MouseWheel">
+
+    <Grid x:Name="RootGrid" Background="#000000">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ================================================================= -->
+        <!-- ROW 0: TOP BAR                                                    -->
+        <!-- ================================================================= -->
+        <Border x:Name="TopHudBar" Grid.Row="0" Background="#11131A" BorderBrush="#232734" BorderThickness="0,0,0,1" Padding="18,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Brand -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
+                    <Ellipse Width="10" Height="10" Fill="#C5A059" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <TextBlock Text="FUNKENWERK PLAYER" FontSize="13.5" FontWeight="Bold" Foreground="#C5A059" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Active Media Title + Badge -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
+                    <TextBlock x:Name="CurrentTitleTxt" Text="Bereit" FontSize="13" FontWeight="SemiBold" Foreground="#F9FAFB"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="460"/>
+                    <Border x:Name="MediaFormatBadge" Visibility="Collapsed" Background="#26231F" BorderBrush="#C5A059" BorderThickness="1"
+                            CornerRadius="6" Padding="7,2" Margin="10,0,0,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="MediaFormatBadgeTxt" Text="MP4" Foreground="#C5A059" FontSize="10.5" FontWeight="Bold"/>
+                    </Border>
+                </StackPanel>
+
+                <!-- Top Actions -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Click="OpenFile_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                            Padding="11,5" Margin="0,0,7,0" Cursor="Hand" FontSize="11.5" FontWeight="SemiBold" Content="＋ Öffnen">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                    </Button>
+                    <Button x:Name="DefaultPlayerBtn" Click="SetDefaultPlayer_Click" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1"
+                            Padding="11,5" Margin="0,0,7,0" Cursor="Hand" FontSize="11.5" FontWeight="Bold" Content="★ Standard-Player">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                    </Button>
+                    <Button x:Name="PlaylistToggleBtn" Click="TogglePlaylist_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                            Padding="11,5" Margin="0,0,7,0" Cursor="Hand" FontSize="11.5" FontWeight="SemiBold" Content="☰ Playlist (0)">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                    </Button>
+                    <Button x:Name="ThemeToggleBtn" Click="ThemeToggle_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                            Padding="10,5" Cursor="Hand" FontSize="11.5" FontWeight="SemiBold" Content="🌙">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ================================================================= -->
+        <!-- ROW 1: VIDEO / AUDIO STAGE + OPTIONAL PLAYLIST DRAWER             -->
+        <!-- ================================================================= -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Main Media Surface -->
+            <Grid x:Name="VideoStageGrid" Grid.Column="0" Background="#000000" ClipToBounds="True"
+                  MouseLeftButtonDown="VideoStage_MouseLeftButtonDown">
+
+                <!-- Video Output -->
+                <MediaElement x:Name="PlayerMediaElement"
+                              LoadedBehavior="Manual"
+                              UnloadedBehavior="Stop"
+                              Stretch="Uniform"
+                              ScrubbingEnabled="True"
+                              MediaOpened="PlayerMediaElement_MediaOpened"
+                              MediaEnded="PlayerMediaElement_MediaEnded"
+                              MediaFailed="PlayerMediaElement_MediaFailed"/>
+
+                <!-- Audio Visualizer Canvas (Visible when playing MP3/WAV/FLAC) -->
+                <Border x:Name="AudioVisualizerOverlay" Visibility="Collapsed" Background="#07090D">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <TextBlock Text="🎵" FontSize="44" HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                        <TextBlock x:Name="AudioTrackTitleTxt" Text="Audio Track" Foreground="#F9FAFB" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,18"/>
+                        <StackPanel x:Name="AudioBarsPanel" Orientation="Horizontal" Height="90" HorizontalAlignment="Center" VerticalAlignment="Bottom"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Empty State / Drop Target -->
+                <Border x:Name="EmptyStateOverlay" Background="#07090D" Cursor="Hand" MouseLeftButtonDown="EmptyState_MouseLeftButtonDown">
+                    <Border VerticalAlignment="Center" HorizontalAlignment="Center"
+                            Background="#11131A" BorderBrush="#232734" BorderThickness="1.5" CornerRadius="16" Padding="38,28">
+                        <StackPanel HorizontalAlignment="Center">
+                            <Border Width="64" Height="64" CornerRadius="16" Background="#26231F" BorderBrush="#C5A059" BorderThickness="1.5" HorizontalAlignment="Center" Margin="0,0,0,14">
+                                <TextBlock Text="▶" FontSize="26" Foreground="#C5A059" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="3,0,0,0"/>
+                            </Border>
+                            <TextBlock Text="FUNKENWERK PLAYER" Foreground="#F9FAFB" FontSize="17" FontWeight="Bold" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Video- oder Audiodatei hierher ziehen oder klicken zum Öffnen" Foreground="#9CA3AF" FontSize="12.5" HorizontalAlignment="Center" Margin="0,6,0,16"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Button Click="OpenFile_Click" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1"
+                                        Padding="16,8" Margin="0,0,10,0" Cursor="Hand" FontSize="12.5" FontWeight="Bold" Content="📂 Datei auswählen">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
+                                </Button>
+                                <Button Click="OpenLatestDesktopVideo_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                                        Padding="16,8" Cursor="Hand" FontSize="12.5" FontWeight="SemiBold" Content="⚡ Letztes Desktop-Video">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Border>
+
+                <!-- On-Screen Display (OSD) Pill Top-Right (Volume, Speed, Loop, Snapshot) -->
+                <Border x:Name="OsdToastBorder" Visibility="Collapsed" IsHitTestVisible="False"
+                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,20,24,0"
+                        Background="#D911131A" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="10" Padding="14,8">
+                    <TextBlock x:Name="OsdToastTxt" Text="🔊 80%" Foreground="#C5A059" FontSize="13.5" FontWeight="Bold"/>
+                </Border>
+            </Grid>
+
+            <!-- Collapsible Playlist Sidebar -->
+            <Border x:Name="PlaylistDrawerBorder" Grid.Column="1" Width="310" Visibility="Collapsed"
+                    Background="#11131A" BorderBrush="#232734" BorderThickness="1,0,0,0" Padding="14">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="WIEDERGABELISTE" Foreground="#C5A059" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button Click="OpenFile_Click" Background="#181B24" Foreground="#C5A059" BorderBrush="#262A36" BorderThickness="1"
+                                    Padding="8,3" Margin="0,0,5,0" Cursor="Hand" FontSize="11" FontWeight="Bold" Content="＋">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                            </Button>
+                            <Button Click="ClearPlaylist_Click" Background="#181B24" Foreground="#F87171" BorderBrush="#262A36" BorderThickness="1"
+                                    Padding="8,3" Cursor="Hand" FontSize="11" FontWeight="Bold" Content="🗑">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="PlaylistItemsStack"/>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================================================================= -->
+        <!-- ROW 2: BOTTOM TRANSPORT & PRO MEDIA CONTROLS                      -->
+        <!-- ================================================================= -->
+        <Border x:Name="BottomHudBar" Grid.Row="2" Background="#11131A" BorderBrush="#232734" BorderThickness="0,1,0,0" Padding="18,10,18,12">
+            <StackPanel>
+                <!-- Interactive Timeline Seek Slider -->
+                <Grid Margin="0,0,0,8">
+                    <Slider x:Name="TimelineSlider"
+                            Minimum="0" Maximum="100" Value="0"
+                            IsMoveToPointEnabled="True"
+                            Cursor="Hand"
+                            PreviewMouseLeftButtonDown="TimelineSlider_PreviewMouseLeftButtonDown"
+                            PreviewMouseLeftButtonUp="TimelineSlider_PreviewMouseLeftButtonUp"
+                            ValueChanged="TimelineSlider_ValueChanged"/>
+                </Grid>
+
+                <!-- Transport & Utility Controls -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Left: Time + A-B / Loop / Speed -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="TimeElapsedTxt" Text="00:00" Foreground="#F9FAFB" FontSize="12.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Text=" / " Foreground="#9CA3AF" FontSize="12.5" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="TimeTotalTxt" Text="00:00" Foreground="#9CA3AF" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,14,0"/>
+
+                        <Button x:Name="LoopBtn" Click="LoopToggle_Click" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1"
+                                Padding="9,4" Margin="0,0,6,0" Cursor="Hand" FontSize="11" FontWeight="Bold" ToolTip="Endlosschleife (L)" Content="🔁 Loop An">
+                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                        </Button>
+
+                        <Button x:Name="SpeedBtn" Click="SpeedCycle_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                                Padding="9,4" Margin="0,0,6,0" Cursor="Hand" FontSize="11" FontWeight="Bold" ToolTip="Geschwindigkeit" Content="1.0x">
+                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                        </Button>
+
+                        <Button x:Name="AbLoopBtn" Click="AbLoop_Click" Background="#181B24" Foreground="#D1D5DB" BorderBrush="#262A36" BorderThickness="1"
+                                Padding="9,4" Cursor="Hand" FontSize="11" FontWeight="SemiBold" ToolTip="A-B Abschnitt wiederholen" Content="A↔B">
+                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Center: Main Play / Pause / Skip / Frame-Step Transport -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Button Click="PrevTrack_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                                Width="36" Height="34" Margin="0,0,6,0" Cursor="Hand" FontSize="12" FontWeight="Bold" ToolTip="Vorherige Datei (P)" Content="⏮">
+                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                        </Button>
+
+                        <Button Click="SkipBackward_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                                Padding="10,0" Height="34" Margin="0,0,6,0" Cursor="Hand" FontSize="11.5" FontWeight="Bold" ToolTip="5 Sekunden zurück (←)" Content="-5s">
+                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                        </Button>
+
+                        <Button x:Name="PlayPauseBtn" Click="PlayPause_Click" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1.5"
+                                Width="54" Height="38" Margin="0,0,6,0" Cursor="Hand" FontSize="15" FontWeight="Bold" ToolTip="Wiedergabe / Pause (Leertaste)" Content="▶">
+                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="10"/></Style></Button.Resources>
+                        </Button>
+
+                        <Button Click="SkipForward_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                                Padding="10,0" Height="34" Margin="0,0,6,0" Cursor="Hand" FontSize="11.5" FontWeight="Bold" ToolTip="5 Sekunden vor (→)" Content="+5s">
+                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                        </Button>
+
+                        <Button Click="NextTrack_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                                Width="36" Height="34" Margin="0,0,6,0" Cursor="Hand" FontSize="12" FontWeight="Bold" ToolTip="Nächste Datei (N)" Content="⏭">
+                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                        </Button>
+
+                        <Button Click="Stop_Click" Background="#181B24" Foreground="#D1D5DB" BorderBrush="#262A36" BorderThickness="1"
+                                Width="36" Height="34" Cursor="Hand" FontSize="12" FontWeight="Bold" ToolTip="Stopp" Content="⏹">
+                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Right: Volume + Aspect/Zoom + Snapshot + Fullscreen -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Button x:Name="MuteBtn" Click="Mute_Click" Background="Transparent" Foreground="#F9FAFB" BorderThickness="0"
+                                Padding="6,4" Cursor="Hand" FontSize="13" FontWeight="Bold" VerticalAlignment="Center" ToolTip="Stumm (M)" Content="🔊"/>
+
+                        <Slider x:Name="VolumeSlider" Width="88" Minimum="0" Maximum="100" Value="85"
+                                IsMoveToPointEnabled="True" VerticalAlignment="Center" Cursor="Hand"
+                                ValueChanged="VolumeSlider_ValueChanged"/>
+
+                        <TextBlock x:Name="VolumePercentTxt" Text="85%" Width="34" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold"
+                                   VerticalAlignment="Center" Margin="5,0,10,0"/>
+
+                        <Button x:Name="AspectBtn" Click="AspectToggle_Click" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                                Padding="9,4" Margin="0,0,6,0" Cursor="Hand" FontSize="11" FontWeight="SemiBold" ToolTip="Bildformat (Einpassen / Ausfüllen)" Content="Einpassen">
+                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                        </Button>
+
+                        <Button Click="Snapshot_Click" Background="#181B24" Foreground="#C5A059" BorderBrush="#262A36" BorderThickness="1"
+                                Width="34" Height="30" Margin="0,0,6,0" Cursor="Hand" FontSize="12" ToolTip="Frame-Screenshot auf Desktop speichern (S)" Content="📷">
+                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                        </Button>
+
+                        <Button x:Name="FullscreenBtn" Click="Fullscreen_Click" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1"
+                                Width="34" Height="30" Cursor="Hand" FontSize="13" FontWeight="Bold" ToolTip="Vollbild (F11 / Doppelklick)" Content="⛶">
+                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

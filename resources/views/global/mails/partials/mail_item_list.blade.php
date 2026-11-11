@@ -13,13 +13,15 @@
         @if(!str_contains(strtolower($item['name']), 'versand') && !str_contains(strtolower($item['name']), 'express'))
             @php
                 $conf = $item['config'] ?? $item['configuration'] ?? [];
+                $hasMailBackContent = collect($conf['texts_back'] ?? [])->contains(fn($t) => is_array($t) && trim((string)($t['text'] ?? '')) !== '')
+                    || !empty($conf['logos_back']);
                 
                 // Image Paths extrahieren
                 $imgPaths = [];
                 if (isset($conf['snapshot_path'])) {
                     if (is_array($conf['snapshot_path'])) {
                         if (isset($conf['snapshot_path']['front'])) $imgPaths['front'] = $conf['snapshot_path']['front'];
-                        if (isset($conf['snapshot_path']['back'])) $imgPaths['back'] = $conf['snapshot_path']['back'];
+                        if ($hasMailBackContent && isset($conf['snapshot_path']['back'])) $imgPaths['back'] = $conf['snapshot_path']['back'];
                     } elseif (is_string($conf['snapshot_path'])) {
                         $imgPaths['front'] = $conf['snapshot_path'];
                     }

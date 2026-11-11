@@ -291,7 +291,7 @@ class DateitrichterService
             return null;
         }
 
-        $models = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+        $models = ['gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview', 'gemini-2.5-flash', 'gemini-1.5-flash'];
         $base64 = base64_encode(file_get_contents($fullPath));
 
         $prompt = "Du bist ein intelligenter Dokumenten-Analyst für Verwaltung, Behörden, Medizin und Recht. Analysiere dieses Dokument vollständig und transkribiere den gesamten Inhalt strukturiert auf Deutsch. Erfasse alle Absender (z.B. BKK firmus, Agentur für Arbeit), Empfänger, Datumsangaben, Aktenzeichen, Diagnosen, Paragraphen, Beträge und Kernaussagen.";

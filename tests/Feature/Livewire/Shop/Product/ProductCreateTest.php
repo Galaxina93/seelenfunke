@@ -595,4 +595,294 @@ class ProductCreateTest extends TestCase
         ]);
         $this->assertSame('2026-08-14', $editConfigurator->get('customFieldValues.cf_date'));
     }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_supports_three_step_start_selection_neuling_anfaenger_profi_and_beginner_gallery_jump(): void
+    {
+        $product = Product::create([
+            'name' => 'Der Seelen-Starttest',
+            'slug' => 'seelen-starttest',
+            'sku' => 'START-3-01',
+            'status' => 'active',
+            'type' => 'physical',
+            'price' => 2990,
+            'is_personalizable' => true,
+            'three_d_active' => true,
+            'completion_step' => 4,
+            'media_gallery' => [
+                ['type' => 'image', 'path' => 'produkte/test/main-normal.jpg', 'is_main' => true, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true],
+                ['type' => 'image', 'path' => 'produkte/test/neuling-preview.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => true, 'is_ai_generated' => true],
+            ],
+            'configurator_settings' => [
+                'personalization_mode' => 'studio',
+            ],
+        ]);
+
+        \App\Models\Product\ProductTemplate::create([
+            'product_id' => $product->id,
+            'name' => 'Weihnachts-Vorlage',
+            'holiday' => 'Weihnachten',
+            'is_active' => true,
+            'configuration' => ['texts' => [['id' => 't1', 'text' => 'Frohes Fest', 'font' => 'Cinzel', 'x' => 50, 'y' => 50, 'size' => 1.0]]],
+        ]);
+
+        // 1. Mount ProductShow: must show 3 start options (Neuling -> Anfänger -> Profi)
+        $showComp = Livewire::test(\App\Livewire\Shop\Product\ProductShow::class, ['product' => $product])
+            ->assertSet('showTemplateSelection', true)
+            ->assertSee('Wie möchtest du starten?')
+            ->assertSee('Neuling')
+            ->assertSee('Einfache Variante')
+            ->assertSee('Anfänger')
+            ->assertSee('Vorlage nutzen')
+            ->assertSee('Profi')
+            ->assertSee('Selber Konfigurieren');
+
+        // 2. Click "Neuling" -> switches to custom_fields mode (with live 2D/3D read-only preview)
+        $showComp->call('startBeginnerConfig')
+            ->assertSet('showTemplateSelection', false)
+            ->assertSet('currentConfig.personalization_mode', 'custom_fields');
+
+        // 3. Cancel returns to 3-tile selection
+        $showComp->call('cancelConfig')
+            ->assertSet('showTemplateSelection', true);
+
+        // 4. Click "Profi" -> opens Studio configurator
+        $showComp->call('startCustomConfig')
+            ->assertSet('showTemplateSelection', false)
+            ->assertSet('currentConfig.personalization_mode', 'studio');
+
+        // 5. Mount ProductConfigurator in "Neuling" mode on this Studio product -> live 2D/3D Neulings-Position
+        $beginnerConf = Livewire::test(\App\Livewire\Shop\Product\ProductConfigurator\ProductConfigurator::class, [
+            'product' => $product,
+            'initialData' => ['personalization_mode' => 'custom_fields'],
+            'context' => 'add',
+        ]);
+
+        $this->assertSame('custom_fields', $beginnerConf->get('effectivePersonalizationMode'));
+        $this->assertTrue($beginnerConf->instance()->isUsingCustomFieldsMode());
+        $coords = $beginnerConf->instance()->getBeginnerPositionCoordinates();
+        $this->assertLessThan($coords['text_y'], $coords['symbol_y']);
+
+        $beginnerConf
+            ->set('customFieldValues.cf_wunschsymbol', 'Herz ♥')
+            ->set('customFieldValues.cf_wunschtext', 'Für Mama')
+            ->set('customFieldValues.cf_schriftart', 'Great Vibes')
+            ->set('config_confirmed', true)
+            ->call('save');
+
+        $cart = app(\App\Services\CartService::class)->getCart();
+        $cartItem = $cart->items()->where('product_id', $product->id)->first();
+        $this->assertNotNull($cartItem);
+        $this->assertSame('custom_fields', $cartItem->configuration['personalization_mode'] ?? null);
+
+        $cfById = collect($cartItem->configuration['custom_fields_data'] ?? [])->keyBy('id');
+        $this->assertSame('Herz ♥', $cfById['cf_wunschsymbol']['value'] ?? null);
+        $this->assertSame('Für Mama', $cfById['cf_wunschtext']['value'] ?? null);
+        $this->assertSame('Great Vibes', $cfById['cf_schriftart']['value'] ?? null);
+
+        // Live 2D/3D canvas elements (symbol top-center + text bottom-center) must be persisted for 3D preview & xTool SVG export
+        $this->assertSame('vectors/Liebe/herz.svg', $cartItem->configuration['logos'][0]['value'] ?? null);
+        $this->assertEquals($coords['symbol_x'], $cartItem->configuration['logos'][0]['x'] ?? null);
+        $this->assertEquals($coords['symbol_y'], $cartItem->configuration['logos'][0]['y'] ?? null);
+        $this->assertSame('Für Mama', $cartItem->configuration['texts'][0]['text'] ?? null);
+        $this->assertSame('Great Vibes', $cartItem->configuration['texts'][0]['font'] ?? null);
+        $this->assertEquals($coords['text_x'], $cartItem->configuration['texts'][0]['x'] ?? null);
+        $this->assertEquals($coords['text_y'], $cartItem->configuration['texts'][0]['y'] ?? null);
+
+        // 6. Verify xTool Laser-SVG export for Neuling (custom_fields) orders (even if logos was empty on an older order)
+        $order = \App\Models\Order\OrderOrder::create([
+            'order_number' => 'ORD-2026-TESTSVG',
+            'status' => 'pending',
+            'payment_status' => 'paid',
+            'email' => 'alina@example.com',
+            'billing_address' => ['first_name' => 'Alina', 'last_name' => 'Steinhauer'],
+            'shipping_address' => ['first_name' => 'Alina', 'last_name' => 'Steinhauer'],
+            'subtotal_price' => 2990,
+            'tax_amount' => 477,
+            'shipping_price' => 0,
+            'total_price' => 2990,
+        ]);
+
+        $orderItem = \App\Models\Order\OrderOrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'quantity' => 1,
+            'unit_price' => 2990,
+            'total_price' => 2990,
+            'tax_rate' => 19.0,
+            'configuration' => [
+                'personalization_mode' => 'custom_fields',
+                'custom_fields_data' => [
+                    ['id' => 'cf_wunschsymbol', 'label' => '1. Wunsch-Symbol (oben mittig)', 'type' => 'select', 'value' => 'Unendlichkeit ∞'],
+                    ['id' => 'cf_wunschtext', 'label' => '2. Dein Wunschtext / Name', 'type' => 'text', 'value' => 'Alina ist so toll'],
+                    ['id' => 'cf_schriftart', 'label' => '3. Schriftart wählen', 'type' => 'font', 'value' => 'Dancing Script'],
+                ],
+                'texts' => [['id' => 'cf_summary', 'text' => "Unendlichkeit ∞\nAlina ist so toll", 'font' => 'Dancing Script']],
+                'logos' => [],
+            ],
+        ]);
+
+        $svgResponse = app(\App\Services\Export\FileDownloadService::class)->downloadLaserSvg($orderItem->id, 'order', 'front');
+        $this->assertNotNull($svgResponse);
+        ob_start();
+        $svgResponse->sendContent();
+        $svgContent = (string) ob_get_clean();
+        $this->assertStringContainsString('<svg', $svgContent);
+        $this->assertStringContainsString('Alina ist so toll', $svgContent);
+        $this->assertStringContainsString('Dancing Script', $svgContent);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_manages_beginner_image_and_seasonal_main_images_in_product_editor_step_2(): void
+    {
+        Storage::fake('public');
+
+        $product = Product::create([
+            'name' => 'Medien- & Saison-Test',
+            'slug' => 'medien-saison-test',
+            'sku' => 'MEDIA-SEAS-01',
+            'status' => 'active',
+            'type' => 'physical',
+            'price' => 3490,
+            'is_personalizable' => true,
+            'completion_step' => 4,
+            'media_gallery' => [
+                ['type' => 'image', 'path' => 'produkte/media-test/img-1.jpg', 'is_main' => true, 'is_hover' => false, 'is_beginner' => true, 'is_ai_generated' => true],
+                ['type' => 'image', 'path' => 'produkte/media-test/img-2.jpg', 'is_main' => false, 'is_hover' => true, 'is_beginner' => false, 'is_ai_generated' => true],
+            ],
+            'configurator_settings' => [
+                'auto_seasonal_main_image' => true,
+            ],
+        ]);
+
+        $component = Livewire::test(ProductCreate::class)
+            ->call('edit', $product->id)
+            ->set('currentStep', 2);
+
+        // 1. Switch Neulingsbild to index 1
+        $component->call('setBeginnerImage', 1);
+        $fresh = $product->fresh();
+        $this->assertFalse((bool) ($fresh->media_gallery[0]['is_beginner'] ?? false));
+        $this->assertTrue((bool) ($fresh->media_gallery[1]['is_beginner'] ?? false));
+        $this->assertSame('produkte/media-test/img-2.jpg', $fresh->resolveBeginnerMediaMeta()['path']);
+
+        // 2. Verify all 8 seasonal slots in overview
+        $overview = $fresh->getSeasonalMainImagesOverview();
+        $this->assertCount(8, $overview);
+        $this->assertArrayHasKey('Weihnachten', $overview);
+        $this->assertArrayHasKey('Valentinstag', $overview);
+
+        // 3. Upload custom seasonal main image for Weihnachten in Step 2
+        $seasonalFile = UploadedFile::fake()->image('weihnachten-hauptbild.jpg', 800, 800);
+        $component->set('seasonal_media_uploads.Weihnachten', $seasonalFile);
+
+        $freshAfterUpload = $product->fresh();
+        $customSeasonalPath = $freshAfterUpload->configurator_settings['seasonal_images']['Weihnachten']['path'] ?? null;
+        $this->assertNotNull($customSeasonalPath);
+        Storage::disk('public')->assertExists($customSeasonalPath);
+
+        $resolvedXmas = $freshAfterUpload->resolveMainImageMeta('Weihnachten', true);
+        $this->assertSame($customSeasonalPath, $resolvedXmas['path']);
+        $this->assertTrue($resolvedXmas['is_ai_generated']);
+
+        // 4. Toggle AI flag and remove custom seasonal image
+        $component->call('toggleSeasonalImageAiGenerated', 'Weihnachten');
+        $this->assertFalse((bool) ($product->fresh()->configurator_settings['seasonal_images']['Weihnachten']['is_ai_generated'] ?? true));
+
+        $component->call('removeSeasonalMainImage', 'Weihnachten');
+        $this->assertArrayNotHasKey('Weihnachten', $product->fresh()->configurator_settings['seasonal_images'] ?? []);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_maps_all_beginner_symbols_accurately_formats_talisman_studio_text_and_supports_multiline_wunschtext(): void
+    {
+        $talisman = Product::create([
+            'name' => 'Der Seelen-Talisman',
+            'slug' => 'seelen-talisman',
+            'sku' => 'TALISMAN-TEST-01',
+            'status' => 'active',
+            'type' => 'physical',
+            'price' => 3490,
+            'is_personalizable' => true,
+            'completion_step' => 4,
+            'configurator_settings' => [
+                'personalization_mode' => 'studio',
+                'template_package' => 'seelen-talisman',
+                'area_shape' => 'custom',
+                'area_left' => 34,
+                'area_top' => 45,
+                'area_width' => 32,
+                'area_height' => 44,
+                'custom_points' => [
+                    ['x' => 34.5, 'y' => 54.0],
+                    ['x' => 65.5, 'y' => 54.0],
+                    ['x' => 65.5, 'y' => 83.0],
+                    ['x' => 34.5, 'y' => 83.0],
+                ],
+            ],
+        ]);
+
+        // 1. Profi-Modus Leerstart auf Der Seelen-Talisman: Textfeld ist mittig (50, 66) und kompakt (size 0.58 statt 1.0)
+        $profiComp = Livewire::test(\App\Livewire\Shop\Product\ProductConfigurator\ProductConfigurator::class, [
+            'product' => $talisman,
+            'context' => 'add',
+            'initialData' => ['personalization_mode' => 'studio'],
+        ]);
+
+        $texts = $profiComp->get('texts');
+        $this->assertCount(1, $texts);
+        $this->assertSame('', $texts[0]['text']);
+        $this->assertEquals(50.0, $texts[0]['x']);
+        $this->assertEquals(66.0, $texts[0]['y']);
+        $this->assertEquals(0.58, $texts[0]['size']);
+
+        // 2. Alle Wunschsymbole im Neulings-Modus prüfen (Kleeblatt != Smiley, Schutzengel != Schild, etc.)
+        $beginnerComp = Livewire::test(\App\Livewire\Shop\Product\ProductConfigurator\ProductConfigurator::class, [
+            'product' => $talisman,
+            'context' => 'add',
+            'initialData' => ['personalization_mode' => 'custom_fields'],
+        ]);
+
+        $expectedSymbolMap = [
+            'Herz ♥'          => 'vectors/Liebe/herz.svg',
+            'Pfote 🐾'        => 'vectors/Tiere/pfotenabdruck.svg',
+            'Unendlichkeit ∞' => 'vectors/Liebe/unendlichkeit.svg',
+            'Stern ★'         => 'vectors/Symbole/stern.svg',
+            'Schutzengel 👼'  => 'vectors/Symbole/schutzengel.svg',
+            'Lebensbaum 🌳'   => 'vectors/Natur/lebensbaum.svg',
+            'Kleeblatt 🍀'    => 'vectors/Symbole/kleeblatt.svg',
+            'Krone 👑'        => 'vectors/Symbole/krone.svg',
+            'Anker ⚓'         => 'vectors/Symbole/anker.svg',
+        ];
+
+        foreach ($expectedSymbolMap as $label => $expectedVectorVal) {
+            $beginnerComp->set('customFieldValues.cf_wunschsymbol', $label);
+            $logos = $beginnerComp->get('logos');
+            $this->assertSame($expectedVectorVal, $logos[0]['value'] ?? null, "Symbol {$label} resolved to wrong SVG.");
+
+            $relFile = ltrim(substr($expectedVectorVal, strlen('vectors/')), '/');
+            $publicSvgPath = public_path('shop/product/configurator/vectors/' . $relFile);
+            $this->assertFileExists($publicSvgPath, "Vector file missing for {$label}: {$publicSvgPath}");
+        }
+
+        // 3. Mehrzeiliger Wunschtext (mit manuellen Zeilenumbrüchen \n) im Neulings-Modus
+        $beginnerComp
+            ->set('customFieldValues.cf_wunschsymbol', 'Kleeblatt 🍀')
+            ->set('customFieldValues.cf_wunschtext', "Für immer\nim Herzen")
+            ->set('customFieldValues.cf_schriftart', 'Dancing Script')
+            ->set('config_confirmed', true)
+            ->call('save', app(\App\Services\CartService::class));
+
+        $beginnerTexts = $beginnerComp->get('texts');
+        $this->assertSame("Für immer\nim Herzen", $beginnerTexts[0]['text'] ?? null);
+        // Bei 2 Zeilen wird die Textgröße harmonisch skaliert (0.74 * 0.90 = 0.67)
+        $this->assertEquals(0.67, $beginnerTexts[0]['size'] ?? null);
+
+        $cart = app(\App\Services\CartService::class)->getCart();
+        $cartItem = $cart->items()->where('product_id', $talisman->id)->latest()->first();
+        $this->assertNotNull($cartItem);
+        $this->assertSame("Für immer\nim Herzen", $cartItem->configuration['texts'][0]['text'] ?? null);
+        $this->assertSame('vectors/Symbole/kleeblatt.svg', $cartItem->configuration['logos'][0]['value'] ?? null);
+    }
 }

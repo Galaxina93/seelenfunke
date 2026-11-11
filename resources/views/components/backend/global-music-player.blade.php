@@ -421,7 +421,7 @@
                         } catch (e) {}
                     },
 
-                    syncViewTracks(newTracks) {
+                    syncViewTracks(newTracks, autoPlayRandom = false) {
                         if (!Array.isArray(newTracks)) return;
                         this.viewTracks = newTracks;
 
@@ -439,6 +439,21 @@
                                 updatedInQueue.artist = updatedInView.artist;
                                 updatedInQueue.cover = updatedInView.cover;
                             }
+                        }
+
+                        if (autoPlayRandom && newTracks.length > 0) {
+                            this.tracks = [...newTracks];
+                            let rndIdx = Math.floor(Math.random() * newTracks.length);
+                            if (newTracks.length > 1 && this.currentTrack) {
+                                const otherIndices = newTracks
+                                    .map((t, i) => t.id !== this.currentTrack.id ? i : -1)
+                                    .filter(i => i !== -1);
+                                if (otherIndices.length > 0) {
+                                    rndIdx = otherIndices[Math.floor(Math.random() * otherIndices.length)];
+                                }
+                            }
+                            this.playIndex(rndIdx);
+                            return;
                         }
 
                         // Only replace active queue if user hasn't started an active playback session
@@ -804,12 +819,12 @@
                         }
                         return [];
                     },
-                    onViewTracksSynced(newTracks) {
+                    onViewTracksSynced(newTracks, autoPlayRandom = false) {
                         if (!this.store) return;
                         if (Array.isArray(newTracks)) {
-                            this.store.syncViewTracks(newTracks);
+                            this.store.syncViewTracks(newTracks, Boolean(autoPlayRandom));
                         } else {
-                            this.store.syncViewTracks(this.readViewTracksFromDom());
+                            this.store.syncViewTracks(this.readViewTracksFromDom(), Boolean(autoPlayRandom));
                         }
                     },
                     playTrackById(id) {

@@ -203,9 +203,11 @@
                                                     
                                                     $imgPaths = [];
                                                     if ($config && isset($config['snapshot_path'])) {
+                                                        $hasInvBackContent = collect($config['texts_back'] ?? [])->contains(fn($t) => is_array($t) && trim((string)($t['text'] ?? '')) !== '')
+                                                            || !empty($config['logos_back']);
                                                         if (is_array($config['snapshot_path'])) {
                                                             if (isset($config['snapshot_path']['front'])) $imgPaths['front'] = $config['snapshot_path']['front'];
-                                                            if (isset($config['snapshot_path']['back'])) $imgPaths['back'] = $config['snapshot_path']['back'];
+                                                            if ($hasInvBackContent && isset($config['snapshot_path']['back'])) $imgPaths['back'] = $config['snapshot_path']['back'];
                                                         } elseif (is_string($config['snapshot_path'])) {
                                                             $imgPaths['front'] = $config['snapshot_path'];
                                                         }

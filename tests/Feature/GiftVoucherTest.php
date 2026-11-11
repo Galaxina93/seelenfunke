@@ -332,7 +332,7 @@ class GiftVoucherTest extends TestCase
             ->set('recipientName', 'Jane Doe')
             ->set('recipientEmail', 'jane@example.com')
             ->set('deliveryMethod', 'email')
-            ->set('personalMessage', str_repeat('A', 161))
+            ->set('personalMessage', str_repeat('A', 101))
             ->call('addToCart')
             ->assertHasErrors(['personalMessage' => 'max']);
     }
@@ -377,7 +377,7 @@ class GiftVoucherTest extends TestCase
                 'amount_cents' => 5000,
                 'recipient_name' => 'Jane Doe',
                 'recipient_email' => 'jane@example.com',
-                'personal_message' => str_repeat('X', 200), // Exceeds 160 characters
+                'personal_message' => str_repeat('X', 200), // Exceeds 100 characters
                 'delivery_method' => 'email'
             ]
         ]);
@@ -386,8 +386,8 @@ class GiftVoucherTest extends TestCase
 
         $voucher = MarketingGiftVoucher::where('order_item_id', $item->id)->first();
         $this->assertNotNull($voucher);
-        $this->assertEquals(160, strlen($voucher->personal_message));
-        $this->assertEquals(str_repeat('X', 160), $voucher->personal_message);
+        $this->assertEquals(100, strlen($voucher->personal_message));
+        $this->assertEquals(str_repeat('X', 100), $voucher->personal_message);
     }
 
     #[Test]
@@ -828,5 +828,36 @@ class GiftVoucherTest extends TestCase
 
         $response = $this->get(route('customer.gift-voucher.download', $voucher));
         $response->assertStatus(403);
+    }
+
+    #[Test]
+    public function it_applies_black_edition_surcharge_only_for_postal_voucher_delivery()
+    {
+        Product::create([
+            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'name' => 'Geschenkgutschein',
+            'slug' => 'geschenkgutschein',
+            'price' => 5000,
+            'status' => 'active',
+            'type' => 'digital',
+        ]);
+
+        $component = \Livewire\Livewire::test(\App\Livewire\Shop\Marketing\MarketingVoucherPurchasePage::class)
+            ->set('amount', 50)
+            ->set('recipientName', 'Alina')
+            ->set('deliveryMethod', 'email')
+            ->set('cardColor', 'black');
+
+        // Bei digitalem Versand per E-Mail darf trotz 'black' kein Aufpreis entstehen
+        $this->assertSame(0, $component->instance()->cardColorSurchargeCents);
+
+        // Bei Postversand + Black Edition: +1,50 € (150 Cent) Aufpreis
+        $component->set('deliveryMethod', 'post')
+            ->set('cardColor', 'black');
+        $this->assertSame(150, $component->instance()->cardColorSurchargeCents);
+
+        // Wechsel zurück auf E-Mail setzt Design-Aufpreis sofort wieder auf 0
+        $component->set('deliveryMethod', 'email');
+        $this->assertSame(0, $component->instance()->cardColorSurchargeCents);
     }
 }

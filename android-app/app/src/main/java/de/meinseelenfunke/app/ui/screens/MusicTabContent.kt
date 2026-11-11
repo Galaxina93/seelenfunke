@@ -286,7 +286,7 @@ fun MusicTabContent() {
                 PlaylistChip(
                     label = "♪ Alle (${allTracks.size})",
                     selected = activePlaylistId == "all",
-                    onClick = { MusicPlayerManager.selectPlaylist("all") }
+                    onClick = { MusicPlayerManager.selectPlaylist("all", context, autoPlayRandom = true) }
                 )
             }
             item {
@@ -294,14 +294,14 @@ fun MusicTabContent() {
                 PlaylistChip(
                     label = "★ Favoriten ($favCount)",
                     selected = activePlaylistId == "favorites",
-                    onClick = { MusicPlayerManager.selectPlaylist("favorites") }
+                    onClick = { MusicPlayerManager.selectPlaylist("favorites", context, autoPlayRandom = true) }
                 )
             }
             items(playlists) { pl ->
                 PlaylistChip(
                     label = "♪ ${pl.name} (${pl.tracks.size})",
                     selected = activePlaylistId == pl.id,
-                    onClick = { MusicPlayerManager.selectPlaylist(pl.id) }
+                    onClick = { MusicPlayerManager.selectPlaylist(pl.id, context, autoPlayRandom = true) }
                 )
             }
         }

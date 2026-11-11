@@ -23,7 +23,7 @@
     }
 @endphp
 
-<div class="px-4 sm:px-6 pt-5 pb-6 max-w-2xl mx-auto w-full space-y-5">
+<div :class="isMaximized ? 'configurator-studio-form custom-scrollbar px-4 sm:px-6 pt-5 pb-6 space-y-5' : 'px-4 sm:px-6 pt-5 pb-6 max-w-2xl mx-auto w-full space-y-5'">
     @if($context === 'preview')
         {{-- READ-ONLY VORSCHAU FÜR BESTELLHISTORIE / ADMIN (INKL. 1-KLICK COPY) --}}
         @php
@@ -132,7 +132,21 @@
             @endif
         </div>
     @else
-        {{-- INTERAKTIVES KUNDEN-FORMULAR (SCHNELL-PERSONALISIERUNG) --}}
+        {{-- INTERAKTIVES KUNDEN-FORMULAR (SCHNELL-PERSONALISIERUNG / NEULING-MODUS) --}}
+        @if(($context ?? 'add') === 'add' && $this->product->usesStudioConfigurator())
+            <div class="flex items-center justify-between gap-2 pb-1">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    ⚡ Modus: Neuling (Einfache Variante)
+                </span>
+                <button type="button"
+                        @click="$dispatch('cancel-configurator')"
+                        class="inline-flex items-center gap-1 text-xs font-bold text-gray-500 hover:text-gray-900 transition-colors cursor-pointer">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                    <span>Andere Start-Option wählen</span>
+                </button>
+            </div>
+        @endif
+
         <div class="p-5 sm:p-6 rounded-3xl border {{ $isDark ? 'bg-gray-900/90 border-gray-800' : 'bg-gray-50/80 border-gray-200/90' }} shadow-xs space-y-5">
             <div class="flex items-start justify-between gap-3 pb-3.5 border-b {{ $isDark ? 'border-gray-800' : 'border-gray-200' }}">
                 <div>
@@ -153,7 +167,7 @@
                     Gib deine Gravurwünsche einfach unten im Bemerkungsfeld an.
                 </div>
             @else
-                <div class="space-y-4">
+                <div data-custom-fields-container="true" class="space-y-4">
                     @foreach($customFieldsDef as $cfIdx => $cfDef)
                         @php
                             $cfId        = $cfDef['id'];
@@ -181,7 +195,8 @@
                         @endphp
 
                         <div wire:key="frontend-cf-{{ $cfId }}"
-                             x-data="{ showInfo: false, charCount: {{ mb_strlen($currentVal) }} }"
+                             x-data="{ showInfo: false, charCount: 0 }"
+                             x-init="const inp = $el.querySelector('[data-custom-field-id]'); if (inp) charCount = (inp.value || '').length;"
                              class="p-4 rounded-2xl border transition-all {{ $isDark ? 'bg-gray-950/90 border-gray-800 focus-within:border-primary' : 'bg-white border-gray-200/90 focus-within:border-primary shadow-2xs' }} space-y-2">
 
                             {{-- Label + Pflichtfeld + !-Ausrufungszeichen + Aufpreis --}}
@@ -249,6 +264,10 @@
                                     $activeFontCss = $fontsMap[$activeFontName] ?? 'Arial, sans-serif';
                                 @endphp
                                 <div x-data="{ openFontDropdown: false }" class="space-y-2.5 relative">
+                                    <input type="hidden"
+                                           data-custom-field-id="{{ $cfId }}"
+                                           data-custom-field-type="font"
+                                           value="{{ $activeFontName }}">
                                     {{-- Visueller Schriftarten-Wähler (echte Konfigurator-Schriften, Standard: Arial) --}}
                                     <button type="button"
                                             id="cf-input-{{ $cfId }}"
@@ -280,7 +299,7 @@
                                                 $isSelectedFont = ($activeFontName === $optFont);
                                             @endphp
                                             <button type="button"
-                                                    @click="$wire.set('customFieldValues.{{ $cfId }}', @js($optFont)); openFontDropdown = false"
+                                                    @click="const fIn = $el.closest('[wire\\:key]')?.querySelector('input[data-custom-field-type=font]'); if (fIn) fIn.value = @js($optFont); if (typeof syncBeginnerInputsToStage === 'function') syncBeginnerInputsToStage(false, @js($optFont)); $wire.set('customFieldValues.{{ $cfId }}', @js($optFont)); openFontDropdown = false"
                                                     class="px-3 py-2.5 rounded-xl border text-left transition-all flex items-center justify-between gap-2 cursor-pointer {{ $isSelectedFont ? 'bg-primary/15 border-primary text-primary font-bold' : ($isDark ? 'bg-gray-950/60 border-gray-800 text-gray-200 hover:border-gray-700' : 'bg-gray-50/70 border-gray-100 text-gray-900 hover:border-gray-300') }}">
                                                 <div class="min-w-0">
                                                     <div class="text-base sm:text-lg truncate leading-snug" style="font-family: {!! $optCss !!};">
@@ -297,22 +316,30 @@
                                         @endforeach
                                     </div>
 
-                                    {{-- Live-Schriftbild-Vorschau des eingegebenen Wunschnamens --}}
-                                    <div class="px-4 py-3 rounded-xl border text-center {{ $isDark ? 'bg-gray-900/60 border-gray-800/80' : 'bg-amber-50/40 border-amber-200/60' }}">
-                                        <div class="text-[9px] font-black uppercase tracking-widest {{ $isDark ? 'text-gray-500' : 'text-gray-400' }} mb-1">
-                                            Schriftbild-Vorschau ({{ $activeFontName }})
+                                    @if(empty($isBeginnerStudioMode))
+                                        {{-- Live-Schriftbild-Vorschau des eingegebenen Wunschnamens (bei Produkten ohne 2D/3D-Vorschau) --}}
+                                        <div class="px-4 py-3 rounded-xl border text-center {{ $isDark ? 'bg-gray-900/60 border-gray-800/80' : 'bg-amber-50/40 border-amber-200/60' }}">
+                                            <div class="text-[9px] font-black uppercase tracking-widest {{ $isDark ? 'text-gray-500' : 'text-gray-400' }} mb-1">
+                                                Schriftbild-Vorschau ({{ $activeFontName }})
+                                            </div>
+                                            <div class="text-xl sm:text-2xl {{ $isDark ? 'text-amber-200' : 'text-gray-900' }} break-words whitespace-pre-line leading-relaxed py-0.5"
+                                                 style="font-family: {!! $activeFontCss !!};">
+                                                {{ $livePreviewSampleText }}
+                                            </div>
                                         </div>
-                                        <div class="text-xl sm:text-2xl {{ $isDark ? 'text-amber-200' : 'text-gray-900' }} break-words leading-relaxed py-0.5"
-                                             style="font-family: {!! $activeFontCss !!};">
-                                            {{ $livePreviewSampleText }}
-                                        </div>
-                                    </div>
+                                    @endif
                                 </div>
                             @elseif($cfType === 'select')
+                                @php
+                                    $isSymbolSelect = str_contains(mb_strtolower($cfLabel), 'symbol') || str_contains(mb_strtolower($cfId), 'symbol');
+                                @endphp
                                 <div class="relative">
                                     <select id="cf-input-{{ $cfId }}"
                                             data-custom-field-id="{{ $cfId }}"
+                                            data-custom-field-type="select"
+                                            data-custom-field-role="{{ $isSymbolSelect ? 'symbol' : 'select' }}"
                                             @disabled($isLockedSurchargeField)
+                                            @change="if (typeof syncBeginnerInputsToStage === 'function') syncBeginnerInputsToStage()"
                                             wire:model.live="customFieldValues.{{ $cfId }}"
                                             class="w-full rounded-xl border px-3.5 py-3 text-sm font-medium transition-all outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary appearance-none {{ $isLockedSurchargeField ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer' }} {{ $isDark ? 'bg-gray-900 border-gray-800 text-white' : 'bg-gray-50/70 border-gray-200 text-gray-900 focus:bg-white' }}">
                                         @if(!$cfRequired)
@@ -326,31 +353,50 @@
                                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" /></svg>
                                     </div>
                                 </div>
-                            @elseif($cfType === 'textarea')
+                            @elseif($cfType === 'textarea' || (!empty($isBeginnerStudioMode) && $cfType === 'text'))
                                 <textarea id="cf-input-{{ $cfId }}"
                                           data-custom-field-id="{{ $cfId }}"
-                                          rows="3"
+                                          data-custom-field-type="textarea"
+                                          data-custom-field-placeholder="{{ $cfHolder }}"
+                                          data-custom-field-required="{{ $cfRequired ? '1' : '0' }}"
+                                          rows="{{ !empty($isBeginnerStudioMode) ? 2 : 3 }}"
                                           maxlength="{{ $cfMaxLen }}"
                                           @disabled($isLockedSurchargeField)
-                                          @input="charCount = $event.target.value.length"
-                                          wire:model.live.debounce.300ms="customFieldValues.{{ $cfId }}"
-                                          placeholder="{{ $isLockedSurchargeField ? 'Nicht Teil dieser Bestellung' : ($cfHolder ?: 'Deine Wunschgravur eingeben...') }}"
-                                          class="w-full rounded-xl border px-3.5 py-2.5 text-sm font-medium transition-all outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none {{ $isLockedSurchargeField ? 'opacity-50 cursor-not-allowed' : '' }} {{ $isDark ? 'bg-gray-900 border-gray-800 text-white placeholder-gray-600' : 'bg-gray-50/70 border-gray-200 text-gray-900 placeholder-gray-400 focus:bg-white' }}"></textarea>
+                                          @input="charCount = $event.target.value.length; if (typeof syncBeginnerInputsToStage === 'function') syncBeginnerInputsToStage()"
+                                          @if(!empty($isBeginnerStudioMode) && $cfSurcharge === 0)
+                                              wire:model.blur="customFieldValues.{{ $cfId }}"
+                                          @else
+                                              wire:model.live.debounce.300ms="customFieldValues.{{ $cfId }}"
+                                          @endif
+                                          placeholder="{{ $isLockedSurchargeField ? 'Nicht Teil dieser Bestellung' : ($cfHolder ?: 'Deine Wunschgravur eingeben (Enter für neue Zeile)...') }}"
+                                          class="w-full rounded-xl border px-3.5 py-2.5 text-sm font-medium transition-all outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-y {{ $isLockedSurchargeField ? 'opacity-50 cursor-not-allowed' : '' }} {{ $isDark ? 'bg-gray-900 border-gray-800 text-white placeholder-gray-600' : 'bg-gray-50/70 border-gray-200 text-gray-900 placeholder-gray-400 focus:bg-white' }}"></textarea>
                             @elseif($cfType === 'date')
                                 <input id="cf-input-{{ $cfId }}"
                                        data-custom-field-id="{{ $cfId }}"
+                                       data-custom-field-type="date"
+                                       data-custom-field-placeholder="{{ $cfHolder }}"
+                                       data-custom-field-required="{{ $cfRequired ? '1' : '0' }}"
                                        type="date"
                                        @disabled($isLockedSurchargeField)
+                                       @input="if (typeof syncBeginnerInputsToStage === 'function') syncBeginnerInputsToStage()"
+                                       @change="if (typeof syncBeginnerInputsToStage === 'function') syncBeginnerInputsToStage()"
                                        wire:model.live="customFieldValues.{{ $cfId }}"
                                        class="w-full rounded-xl border px-3.5 py-2.5 text-sm font-medium transition-all outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary {{ $isLockedSurchargeField ? 'opacity-50 cursor-not-allowed' : '' }} {{ $isDark ? 'bg-gray-900 border-gray-800 text-white' : 'bg-gray-50/70 border-gray-200 text-gray-900 focus:bg-white' }}">
                             @else
                                 <input id="cf-input-{{ $cfId }}"
                                        data-custom-field-id="{{ $cfId }}"
+                                       data-custom-field-type="text"
+                                       data-custom-field-placeholder="{{ $cfHolder }}"
+                                       data-custom-field-required="{{ $cfRequired ? '1' : '0' }}"
                                        type="text"
                                        maxlength="{{ $cfMaxLen }}"
                                        @disabled($isLockedSurchargeField)
-                                       @input="charCount = $event.target.value.length"
-                                       wire:model.live.debounce.300ms="customFieldValues.{{ $cfId }}"
+                                       @input="charCount = $event.target.value.length; if (typeof syncBeginnerInputsToStage === 'function') syncBeginnerInputsToStage()"
+                                       @if(!empty($isBeginnerStudioMode) && $cfSurcharge === 0)
+                                           wire:model.blur="customFieldValues.{{ $cfId }}"
+                                       @else
+                                           wire:model.live.debounce.300ms="customFieldValues.{{ $cfId }}"
+                                       @endif
                                        placeholder="{{ $isLockedSurchargeField ? 'Nicht Teil dieser Bestellung' : ($cfHolder ?: 'Deine Eingabe...') }}"
                                        class="w-full rounded-xl border px-3.5 py-2.5 text-sm font-medium transition-all outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary {{ $isLockedSurchargeField ? 'opacity-50 cursor-not-allowed' : '' }} {{ $isDark ? 'bg-gray-950 border-gray-800 text-white placeholder-gray-600' : 'bg-gray-50/70 border-gray-200 text-gray-900 placeholder-gray-400 focus:bg-white' }}">
                             @endif

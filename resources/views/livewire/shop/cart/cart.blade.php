@@ -218,6 +218,15 @@
 
                                             <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-1.5 text-xs font-medium">
                                                 @if(!empty($item->configuration['is_gift_voucher']))
+                                                    @if(($item->configuration['card_color'] ?? 'gold') === 'black')
+                                                        <span class="text-white inline-flex items-center gap-1.5 bg-gray-900 border border-gray-700 px-2.5 py-1 rounded-lg font-bold">
+                                                            <span>🖤 Schwarze Edition{{ ($item->configuration['delivery_method'] ?? 'email') === 'post' ? ' (+ 1,50 € Metallkarte)' : ' (PDF Gratis)' }}</span>
+                                                        </span>
+                                                    @else
+                                                        <span class="text-primary inline-flex items-center gap-1.5 bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-lg font-bold">
+                                                            <span>✨ Gold-Edition (Inklusive)</span>
+                                                        </span>
+                                                    @endif
                                                     @if(($item->configuration['delivery_method'] ?? 'email') === 'post')
                                                         <span class="text-amber-800 inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg font-bold">
                                                             <span>✉️ Per Post im Umschlag (+&nbsp;{{ number_format(((int) ($item->configuration['post_shipping_cents'] ?? shop_setting('shipping_cost_voucher', 350))) / 100, 2, ',', '.') }}&nbsp;€ Versand)</span>

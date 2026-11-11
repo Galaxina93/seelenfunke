@@ -43,7 +43,75 @@ activeSide: 'front',
 
 isDraggingPoint: null,
 isDraggingMirroredPoint: null,
+showPolygonHandles: true,
+showBeginnerPositionPreview: false,
 isInitialized: false,
+
+getBeginnerDefaultCoords() {
+let s = this.configSettings || {};
+let minX = 25, maxX = 75, minY = 25, maxY = 75;
+if (s.area_shape === 'custom' && Array.isArray(s.custom_points) && s.custom_points.length >= 3) {
+let xs = s.custom_points.map(p => parseFloat(p.x ?? 50));
+let ys = s.custom_points.map(p => parseFloat(p.y ?? 50));
+minX = Math.min(...xs); maxX = Math.max(...xs);
+minY = Math.min(...ys); maxY = Math.max(...ys);
+} else {
+minX = parseFloat(s.area_left ?? 25);
+minY = parseFloat(s.area_top ?? 25);
+maxX = minX + parseFloat(s.area_width ?? 50);
+maxY = minY + parseFloat(s.area_height ?? 50);
+}
+let w = Math.max(8, maxX - minX);
+let h = Math.max(8, maxY - minY);
+let cx = +(minX + w / 2).toFixed(2);
+let defs = {
+symbol_x: cx,
+symbol_y: +(minY + h * 0.36).toFixed(2),
+symbol_size: +(Math.max(32, Math.min(110, Math.min(w, h) * 1.15))).toFixed(1),
+text_x: cx,
+text_y: +(minY + h * 0.64).toFixed(2),
+text_size: 0.85
+};
+let pkg = String(s.template_package || '{{ $product?->slug ?? '' }}');
+if (pkg === 'seelen-anhaenger') {
+defs = { symbol_x: 50, symbol_y: 65.5, symbol_size: 38, text_x: 50, text_y: 76, text_size: 0.72 };
+} else if (pkg === 'seelen-pfote-hundemarke') {
+defs = { symbol_x: 41, symbol_y: 44.5, symbol_size: 34, text_x: 41, text_y: 54.5, text_size: 0.70 };
+} else if (pkg === 'seelen-talisman') {
+defs = { symbol_x: 50, symbol_y: 56, symbol_size: 46, text_x: 50, text_y: 73, text_size: 0.74 };
+} else if (pkg === 'goldenes-seelen-herz' || pkg === 'echtgold-seelen-herz') {
+defs = { symbol_x: 50, symbol_y: 49, symbol_size: 42, text_x: 50, text_y: 61.5, text_size: 0.82 };
+} else if (pkg === 'id-armband-silber-herz' || pkg === 'id-armband-gold-herz') {
+defs = { symbol_x: 57, symbol_y: 46.5, symbol_size: 22, text_x: 57, text_y: 53, text_size: 0.56 };
+} else if (pkg === 'seelen-kristall') {
+defs = { symbol_x: 50, symbol_y: 35, symbol_size: 80, text_x: 50, text_y: 58, text_size: 1.20 };
+} else if (pkg === 'weizenglas-personalisiert') {
+defs = { symbol_x: 50, symbol_y: 35, symbol_size: 72, text_x: 50, text_y: 55, text_size: 1.05 };
+}
+return defs;
+},
+
+ensureBeginnerCoordsInitialized() {
+if (!this.configSettings) return;
+let defs = this.getBeginnerDefaultCoords();
+if (this.configSettings.beginner_symbol_x === undefined || this.configSettings.beginner_symbol_x === null || this.configSettings.beginner_symbol_x === '') this.configSettings.beginner_symbol_x = defs.symbol_x;
+if (this.configSettings.beginner_symbol_y === undefined || this.configSettings.beginner_symbol_y === null || this.configSettings.beginner_symbol_y === '') this.configSettings.beginner_symbol_y = defs.symbol_y;
+if (this.configSettings.beginner_symbol_size === undefined || this.configSettings.beginner_symbol_size === null || this.configSettings.beginner_symbol_size === '') this.configSettings.beginner_symbol_size = defs.symbol_size;
+if (this.configSettings.beginner_text_x === undefined || this.configSettings.beginner_text_x === null || this.configSettings.beginner_text_x === '') this.configSettings.beginner_text_x = defs.text_x;
+if (this.configSettings.beginner_text_y === undefined || this.configSettings.beginner_text_y === null || this.configSettings.beginner_text_y === '') this.configSettings.beginner_text_y = defs.text_y;
+if (this.configSettings.beginner_text_size === undefined || this.configSettings.beginner_text_size === null || this.configSettings.beginner_text_size === '') this.configSettings.beginner_text_size = defs.text_size;
+},
+
+resetBeginnerPosition() {
+let defs = this.getBeginnerDefaultCoords();
+this.configSettings.beginner_symbol_x = defs.symbol_x;
+this.configSettings.beginner_symbol_y = defs.symbol_y;
+this.configSettings.beginner_symbol_size = defs.symbol_size;
+this.configSettings.beginner_text_x = defs.text_x;
+this.configSettings.beginner_text_y = defs.text_y;
+this.configSettings.beginner_text_size = defs.text_size;
+this.updateTexture();
+},
 
 getEngine() {
 if (!window._adminThreeEngine) {
@@ -113,6 +181,8 @@ this.configSettings.custom_points = [{x:20,y:20}, {x:80,y:20}, {x:80,y:80}, {x:2
 
 if (typeof this.configSettings.material_type === 'undefined') this.configSettings.material_type = 'glass';
 if (typeof this.configSettings.overlay_type === 'undefined') this.configSettings.overlay_type = 'cylinder';
+
+this.ensureBeginnerCoordsInitialized();
 
 this.$watch('configSettings.overlay_type', () => {
 if (this.isInitialized) this.updateOverlayGeometry();
@@ -742,6 +812,32 @@ pts.splice(halfIndex, 0, {x: 80, y: 50}, {x: 20, y: 50});
 pts.push({x: 50, y: 50});
 }
 this.configSettings.custom_points = pts;
+this.updateTexture();
+},
+
+smoothPolygonContour() {
+let pts = JSON.parse(JSON.stringify(this.configSettings.custom_points || [])).filter(p => p && isFinite(p.x) && isFinite(p.y));
+if (pts.length < 4) return;
+const n = pts.length;
+const smoothed = [];
+for (let i = 0; i < n; i++) {
+const pPrev = pts[(i - 1 + n) % n];
+const pCurr = pts[i];
+const pNext = pts[(i + 1) % n];
+const v1x = pCurr.x - pPrev.x, v1y = pCurr.y - pPrev.y;
+const v2x = pNext.x - pCurr.x, v2y = pNext.y - pCurr.y;
+const l1 = Math.hypot(v1x, v1y), l2 = Math.hypot(v2x, v2y);
+const cosA = (l1 > 0.001 && l2 > 0.001) ? ((v1x * v2x + v1y * v2y) / (l1 * l2)) : 1;
+if (cosA < 0.55) {
+smoothed.push({ x: parseFloat(Number(pCurr.x).toFixed(2)), y: parseFloat(Number(pCurr.y).toFixed(2)) });
+} else {
+smoothed.push({
+x: parseFloat((0.25 * pPrev.x + 0.5 * pCurr.x + 0.25 * pNext.x).toFixed(2)),
+y: parseFloat((0.25 * pPrev.y + 0.5 * pCurr.y + 0.25 * pNext.y).toFixed(2))
+});
+}
+}
+this.configSettings.custom_points = smoothed;
 this.updateTexture();
 },
 

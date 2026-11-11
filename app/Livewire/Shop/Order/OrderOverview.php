@@ -28,9 +28,14 @@ class OrderOverview extends Component
     public $statusFilter = '';
     public $paymentFilter = '';
 
-    // Standard: Custom Workflow (Offene oben, Express oben, Erledigte unten)
+    // Standard: Custom Workflow (Offene oben, Express oben, Artikel-Serien gebündelt, Erledigte unten)
     public $sortField = 'default_workflow';
     public $sortDirection = 'asc';
+
+    // Aktiver Laser-/Fertigungs-Fokus (merkt sich automatisch den zuletzt gelaserten oder per Klick gewählten Artikel)
+    public ?string $activeBatchProductId = null;
+
+    protected ?array $cachedSmartQueue = null;
 
     // --- STATE FÜR DETAIL-ANSICHT ---
     #[\Livewire\Attributes\Locked]
@@ -112,70 +117,141 @@ class OrderOverview extends Component
         }
     }
 
-    // Reset aller Filter auf Standard
-    public function resetFilters()
+    public function mount(): void
     {
-        $this->reset(['search', 'statusFilter', 'paymentFilter', 'sortField', 'sortDirection']);
+        $sessionFocus = session('orders_active_batch_product_id');
+        if (is_string($sessionFocus) && $sessionFocus !== '') {
+            $this->activeBatchProductId = $sessionFocus;
+        }
+    }
+
+    private function invalidateSmartQueueCache(): void
+    {
+        $this->cachedSmartQueue = null;
+    }
+
+    private function rememberActiveBatchProduct(?string $productId): void
+    {
+        $clean = trim((string) $productId);
+        if ($clean === '') {
+            return;
+        }
+        $this->activeBatchProductId = $clean;
+        session(['orders_active_batch_product_id' => $clean]);
+        $this->invalidateSmartQueueCache();
+    }
+
+    public function selectBatchProduct(?string $productId = null): void
+    {
+        $clean = trim((string) $productId);
+        if ($clean === '' || $this->activeBatchProductId === $clean) {
+            $this->activeBatchProductId = null;
+            session()->forget('orders_active_batch_product_id');
+        } else {
+            $this->activeBatchProductId = $clean;
+            session(['orders_active_batch_product_id' => $clean]);
+        }
+
+        $this->invalidateSmartQueueCache();
         $this->resetPage();
     }
 
-    // --- COMPUTED: PRIORITÄTS-ORDER (Für Funki Header) ---
+    // Reset aller Filter auf Standard
+    public function resetFilters()
+    {
+        $this->reset(['search', 'statusFilter', 'paymentFilter', 'sortField', 'sortDirection', 'activeBatchProductId']);
+        session()->forget('orders_active_batch_product_id');
+        $this->invalidateSmartQueueCache();
+        $this->resetPage();
+    }
+
+    /**
+     * Liefert die gecachte Smart-Fertigungs-Warteschlange für den aktuellen Request.
+     */
+    protected function getSmartQueueData(): array
+    {
+        if ($this->cachedSmartQueue !== null) {
+            return $this->cachedSmartQueue;
+        }
+
+        $openOrders = OrderOrder::query()
+            ->with(['items.product.supplier', 'shipments'])
+            ->whereIn('status', ['pending', 'processing'])
+            ->get();
+
+        $service = app(\App\Services\Order\OrderProductionBatchService::class);
+        $this->cachedSmartQueue = $service->buildSmartQueue($openOrders, $this->activeBatchProductId);
+
+        // Sobald der letzte Artikel einer Serie abgearbeitet wurde, veralteten Fokus automatisch bereinigen
+        if ($this->activeBatchProductId !== null && $this->cachedSmartQueue['effective_focus_product_id'] === null) {
+            $this->activeBatchProductId = null;
+            session()->forget('orders_active_batch_product_id');
+        }
+
+        return $this->cachedSmartQueue;
+    }
+
+    // --- COMPUTED: PRIORITÄTS-ORDER & FUNKI-HANDLUNGSBEFEHL ---
     public function getPriorityOrderProperty()
     {
-        // Holt genau EINE Order, die am wichtigsten ist
-        return OrderOrder::query()
-            ->with(['items.product.supplier'])
-            ->whereIn('status', ['pending', 'processing']) // Nur offene
-            ->orderByRaw("CASE WHEN status IN ('completed', 'cancelled', 'refunded') THEN 1 ELSE 0 END ASC")
-            ->orderBy('is_express', 'desc') // Express zuerst
+        return $this->getSmartQueueData()['priority_order'];
+    }
 
-            ->orderBy('created_at', 'asc') // Älteste zuerst (FIFO)
-            ->first();
+    public function getFunkiDirectiveProperty(): array
+    {
+        return $this->getSmartQueueData()['funki_directive'];
     }
 
     public function getPriorityOrderTipProperty()
     {
-        $prio = $this->priority_order;
-        if (!$prio) return '';
+        return (string) ($this->getSmartQueueData()['funki_directive']['tip_html'] ?? '');
+    }
 
-        $missingItems = [];
-        $isOnlyStandard = true;
+    public function getBatchGroupsProperty(): array
+    {
+        return $this->getSmartQueueData()['batch_groups'];
+    }
 
-        foreach ($prio->items as $item) {
-            if ($item->product) {
-                if ($item->product->isPersonalizable()) {
-                    $isOnlyStandard = false;
-                }
-                
-                if ($prio->is_express && $item->product->track_quantity) {
-                    if ($item->quantity > $item->product->quantity && !$item->product->continue_selling_when_out_of_stock) {
-                        $missingItems[] = $item->product->name;
-                    }
-                }
-            }
+    public function getEffectiveFocusProductIdProperty(): ?string
+    {
+        return $this->getSmartQueueData()['effective_focus_product_id'];
+    }
+
+    public function getNextQueueOrderProperty(): ?array
+    {
+        if (!$this->selectedOrderId) {
+            return null;
         }
 
-        $standardMessage = '';
-        if ($prio->isOnlyDigital()) {
-            $standardMessage = '<div class="mt-3 bg-blue-950 p-3 rounded-xl border border-blue-800 shadow-inner"><span class="text-blue-400 font-black text-sm tracking-widest block mb-1">⚡ DIGITALE BEREITSTELLUNG:</span> <span class="text-white font-bold block">Ausschließlich digitale Produkte! Die Auslieferung erfolgt vollautomatisch nach Zahlungseingang über das Kundenkonto. Keine physische Bearbeitung nötig.</span></div>';
-        } elseif ($isOnlyStandard) {
-            $standardMessage = '<div class="mt-3 bg-[var(--theme-color-10)] p-3 rounded-xl border border-[var(--theme-color-30)] shadow-inner"><span class="text-[var(--theme-color)] font-black text-sm tracking-widest block mb-1">⚡ SCHNELLE NUMMER:</span> <span class="text-white font-bold block">Ausschließlich Lagerware! Keine Personalisierung/Laser-Arbeit nötig. Einfach aus dem Regal nehmen, verpacken, Label drauf und ab die Post!</span></div>';
+        $queue = $this->getSmartQueueData();
+        $rankedOrders = $queue['ranked_orders'];
+        $analyses = $queue['analyses'];
+        $focusPid = $queue['effective_focus_product_id'];
+
+        $currentAnalysis = $analyses[(string) $this->selectedOrderId] ?? null;
+        $referenceProductIds = $focusPid
+            ? [$focusPid]
+            : ($currentAnalysis['actionable_product_ids'] ?? []);
+
+        $nextOrder = $rankedOrders->first(fn (OrderOrder $o) => (string) $o->id !== (string) $this->selectedOrderId);
+        if (!$nextOrder) {
+            return null;
         }
 
-        if ($prio->hasPendingSupplierProcurement()) {
-            $pendingCount = $prio->getPendingSupplierProcurementItems()->count();
-            $standardMessage .= '<div class="mt-3 bg-amber-950/90 p-3 rounded-xl border border-amber-500/40 shadow-inner"><span class="text-amber-400 font-black text-sm tracking-widest block mb-1">📦 ROHLING NACHBESTELLEN:</span> <span class="text-white font-bold block">Für ' . $pendingCount . ' Position(en) muss zuerst der Rohling beim Lieferanten bestellt werden (Auftragsfertigung). Öffne die Bestellung für den direkten 1-Klick-Kauflink!</span></div>';
-        }
+        $nextAnalysis = $analyses[(string) $nextOrder->id] ?? [];
+        $nextProductIds = $nextAnalysis['actionable_product_ids'] ?? [];
+        $sharedPids = array_values(array_intersect($referenceProductIds, $nextProductIds));
+        $isSameProduct = !empty($sharedPids);
 
-        if ($prio->is_express) {
-            if (count($missingItems) > 0) {
-                return '<span class="text-red-400 font-bold">Lagerbestand Kritisch!</span> ' . count($missingItems) . ' Artikel für diesen Express-Versand fehlen physisch. Bitte sofort prüfen!' . $standardMessage;
-            }
+        $nextItemName = $nextAnalysis['recommended_item']['product_name'] ?? null;
 
-            return '<span class="text-emerald-400 font-bold">Lagerbestand gesichert!</span> Dieser Express-Versand ist komplett auf Lager und kann sofort abgewickelt werden.' . $standardMessage;
-        }
-
-        return 'Dies ist der älteste offene Auftrag im System. Arbeite ihn zügig ab, um die Wartezeiten gering zu halten.' . $standardMessage;
+        return [
+            'id' => (string) $nextOrder->id,
+            'order_number' => (string) $nextOrder->order_number,
+            'is_express' => (bool) $nextOrder->is_express,
+            'is_same_product' => $isSameProduct,
+            'product_name' => $nextItemName,
+        ];
     }
 
     // --- ACTIONS: SORTIERUNG ---
@@ -211,7 +287,18 @@ class OrderOverview extends Component
             $this->cancellationReason = $this->selectedOrder->cancellation_reason ?? '';
 
             if ($this->selectedOrder->items->isNotEmpty()) {
-                $this->selectedOrderItemId = $this->selectedOrder->items->first()->id;
+                // Bevorzuge im Preview automatisch den aktuell fokussierten Serien-Artikel (oder die erste noch offene Position)
+                $focusPid = $this->effectiveFocusProductId ?: $this->activeBatchProductId;
+                $preferredItem = null;
+                if ($focusPid) {
+                    $preferredItem = $this->selectedOrder->items->first(
+                        fn ($i) => !$i->is_completed && (string) $i->product_id === (string) $focusPid
+                    );
+                }
+                if (!$preferredItem) {
+                    $preferredItem = $this->selectedOrder->items->first(fn ($i) => !$i->is_completed);
+                }
+                $this->selectedOrderItemId = ($preferredItem ?: $this->selectedOrder->items->first())->id;
             }
         }
     }
@@ -309,6 +396,7 @@ class OrderOverview extends Component
                         session()->flash('success', 'Bestelldetails aktualisiert.');
                     }
                 }
+                $this->invalidateSmartQueueCache();
             });
         } catch (\Illuminate\Validation\ValidationException $e) {
             throw $e;
@@ -355,6 +443,7 @@ class OrderOverview extends Component
                     $this->status = $newStatus;
                     $this->selectedOrder->refresh();
                 }
+                $this->invalidateSmartQueueCache();
                 session()->flash('success', "Status aktualisiert.");
             });
         } catch (\Exception $e) {
@@ -365,14 +454,20 @@ class OrderOverview extends Component
 
     public function toggleItemCompletion($itemId)
     {
-        $item = OrderOrderItem::find($itemId);
+        $item = OrderOrderItem::with('product')->find($itemId);
         if ($item && $this->selectedOrder && $item->order_id == $this->selectedOrder->id) {
             $newStatus = !$item->is_completed;
             $item->update([
                 'is_completed' => $newStatus,
                 'completed_quantity' => $newStatus ? $item->quantity : 0
             ]);
+            if ($newStatus && !empty($item->product_id) && ($item->product?->type ?? 'physical') !== 'digital') {
+                $this->rememberActiveBatchProduct((string) $item->product_id);
+            } else {
+                $this->invalidateSmartQueueCache();
+            }
             $this->selectedOrder->refresh();
+            $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
         }
     }
 
@@ -382,6 +477,7 @@ class OrderOverview extends Component
         if ($item && $this->selectedOrder && $item->order_id == $this->selectedOrder->id) {
             $newState = !$item->isSupplierOrderPlaced();
             $item->markSupplierOrdered($newState);
+            $this->invalidateSmartQueueCache();
             $this->selectedOrder->refresh();
             $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
             session()->flash('success', $newState ? 'Rohling als beim Lieferanten bestellt markiert.' : 'Lieferanten-Bestellstatus zurückgesetzt.');
@@ -390,7 +486,7 @@ class OrderOverview extends Component
 
     public function incrementCompletedQuantity($itemId)
     {
-        $item = OrderOrderItem::find($itemId);
+        $item = OrderOrderItem::with('product')->find($itemId);
         if ($item && $this->selectedOrder && $item->order_id == $this->selectedOrder->id) {
             if ($item->completed_quantity < $item->quantity) {
                 $newQty = $item->completed_quantity + 1;
@@ -398,20 +494,32 @@ class OrderOverview extends Component
                     'completed_quantity' => $newQty,
                     'is_completed' => ($newQty >= $item->quantity)
                 ]);
+                if (!empty($item->product_id) && ($item->product?->type ?? 'physical') !== 'digital') {
+                    $this->rememberActiveBatchProduct((string) $item->product_id);
+                } else {
+                    $this->invalidateSmartQueueCache();
+                }
                 $this->selectedOrder->refresh();
+                $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
             }
         }
     }
 
     public function setAllCompletedQuantity($itemId)
     {
-        $item = OrderOrderItem::find($itemId);
+        $item = OrderOrderItem::with('product')->find($itemId);
         if ($item && $this->selectedOrder && $item->order_id == $this->selectedOrder->id) {
             $item->update([
                 'completed_quantity' => $item->quantity,
                 'is_completed' => true
             ]);
+            if (!empty($item->product_id) && ($item->product?->type ?? 'physical') !== 'digital') {
+                $this->rememberActiveBatchProduct((string) $item->product_id);
+            } else {
+                $this->invalidateSmartQueueCache();
+            }
             $this->selectedOrder->refresh();
+            $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
         }
     }
 
@@ -425,7 +533,9 @@ class OrderOverview extends Component
                     'completed_quantity' => $newQty,
                     'is_completed' => false // sobald eins fehlt, ist nicht mehr full-completed
                 ]);
+                $this->invalidateSmartQueueCache();
                 $this->selectedOrder->refresh();
+                $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
             }
         }
     }
@@ -451,6 +561,7 @@ class OrderOverview extends Component
                         $this->status = 'shipped';
                         $this->selectedOrder->refresh();
                     }
+                    $this->invalidateSmartQueueCache();
                 });
             } catch (\Exception $e) {
                 $this->logAdminOrderError('confirm_shipment', $e, ['order_id' => $order->id]);
@@ -580,6 +691,7 @@ class OrderOverview extends Component
                     $this->selectedOrder->refresh();
                 }
 
+                $this->invalidateSmartQueueCache();
                 session()->flash('success', 'Nachbesserung erfolgreich angefordert! ' . ($this->photoIssueSendMail ? 'Kunde wurde per E-Mail benachrichtigt.' : ''));
             });
         } catch (\Exception $e) {
@@ -601,6 +713,7 @@ class OrderOverview extends Component
             $config['photo_issue']['resolved_at'] = now()->toDateTimeString();
             $item->update(['configuration' => $config]);
 
+            $this->invalidateSmartQueueCache();
             if ($this->selectedOrder) {
                 $this->selectedOrder->refresh();
             }
@@ -628,6 +741,7 @@ class OrderOverview extends Component
                         $this->payment_status = 'paid';
                         $this->selectedOrder->refresh();
                     }
+                    $this->invalidateSmartQueueCache();
                 });
             } catch (\Exception $e) {
                 $this->logAdminOrderError('mark_as_paid', $e, ['order_id' => $order->id]);
@@ -652,6 +766,7 @@ class OrderOverview extends Component
             try {
                 DB::transaction(function () use ($order) {
                     $order->delete();
+                    $this->invalidateSmartQueueCache();
                     $this->closeDetail();
                     session()->flash('success', 'Bestellung gelöscht.');
                 });
@@ -775,8 +890,10 @@ class OrderOverview extends Component
             // Automatisch den Order-Status auf "versendet" setzen, 
             // damit das Live-Tracking (check-delivery-status) einhaken kann.
             $order->update(['status' => 'shipped']);
+            $this->invalidateSmartQueueCache();
 
             if ($this->selectedOrder && $this->selectedOrder->id == $this->dhlModalOrderId) {
+                $this->status = 'shipped';
                 $this->selectedOrder->refresh();
             }
             // Direkt automatisch an Funkenwerk übergeben
@@ -1051,6 +1168,11 @@ class OrderOverview extends Component
         return $exportService->downloadLaserSvg($itemId, $side);
     }
 
+    public function downloadLaserPngFile($itemId, $side, \App\Services\Export\FileDownloadService $exportService)
+    {
+        return $exportService->downloadLaserPng($itemId, $side);
+    }
+
     // --- RENDER ---
 
     public function render()
@@ -1059,11 +1181,13 @@ class OrderOverview extends Component
         if ($this->selectedOrderId && $this->selectedOrder) {
             return view('livewire.shop.order.order-overview', [
                 'orders' => collect(),
-                'stats' => []
+                'stats' => [],
+                'nextQueueOrder' => $this->nextQueueOrder,
             ]);
         }
 
         // B) Listen-Modus (Single Table)
+        $smartQueue = $this->getSmartQueueData();
         $query = $this->buildBaseQuery();
 
         // 4. Statistiken (Immer aktuell, basierend auf Gesamt-DB)
@@ -1093,6 +1217,10 @@ class OrderOverview extends Component
             'orders' => $orders,
             'stats' => $stats,
             'printableLabelsCount' => $printableLabelsCount,
+            'batchGroups' => $smartQueue['batch_groups'] ?? [],
+            'effectiveFocusProductId' => $smartQueue['effective_focus_product_id'] ?? null,
+            'funkiDirective' => $smartQueue['funki_directive'] ?? null,
+            'smartAnalyses' => $smartQueue['analyses'] ?? [],
         ]);
     }
 
@@ -1131,22 +1259,31 @@ class OrderOverview extends Component
     }
 
     /**
-     * WORKFLOW SORTIERUNG:
-     * 1. Status: Offene zuerst (0), Erledigte unten (1)
-     * 2. Typ: Express zuerst (DESC)
-     * 3. Alter: Älteste Aufträge zuerst (FIFO, ASC)
+     * SMART-WORKFLOW SORTIERUNG:
+     * 1. Status-Stufe: Offene Aufträge (0) vor Versendet (1) vor Abgeschlossen/Storniert (2)
+     * 2. Smart-Fertigungs-Score für offene Aufträge (Express -> Sofort laserbare Artikel-Serie -> Wartend)
+     * 3. Fallback für versendete/abgeschlossene Aufträge (Express DESC, Datum ASC)
      */
     private function applyWorkflowSort($query)
     {
-        // 1. Gruppierung: Wichtiges oben (Pending/Processing/Shipped), Rest unten
-        $query->orderByRaw("CASE WHEN status IN ('completed', 'cancelled', 'refunded') THEN 1 ELSE 0 END ASC");
+        // 1. Gruppierung: Offene Fertigungsaufträge ganz oben, Versendet in der Mitte, Erledigte unten
+        $query->orderByRaw("CASE WHEN status IN ('pending', 'processing') THEN 0 WHEN status = 'shipped' THEN 1 ELSE 2 END ASC");
 
-        // 2. Express vor Standard
+        // 2. Smart-Reihenfolge der offenen Bestellungen (inkl. Artikel-Batching & aktivem Laser-Fokus)
+        $rankedIds = $this->getSmartQueueData()['ranked_ids'] ?? [];
+        if (!empty($rankedIds)) {
+            $whenClauses = [];
+            $bindings = [];
+            foreach (array_values($rankedIds) as $index => $orderId) {
+                $whenClauses[] = 'WHEN ? THEN ' . (int) $index;
+                $bindings[] = (string) $orderId;
+            }
+            $caseSql = 'CASE order_orders.id ' . implode(' ', $whenClauses) . ' ELSE 999999 END ASC';
+            $query->orderByRaw($caseSql, $bindings);
+        }
+
+        // 3. Express vor Standard & FIFO für nicht-offene Aufträge
         $query->orderBy('is_express', 'desc');
-
-
-
-        // 4. Datum: Älteste zuerst (FIFO)
         $query->orderBy('created_at', 'asc');
     }
 

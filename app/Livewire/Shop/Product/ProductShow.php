@@ -29,7 +29,7 @@ class ProductShow extends Component
         // Telemetrie: Seitenaufruf Konfigurator
         ProductTrackingService::trackConfiguratorView($this->product->id);
 
-        // Vorlagen-Startauswahl nur anzeigen, wenn das Produkt den interaktiven 2D/3D Studio-Konfigurator nutzt
+        // Startauswahl ("Neuling -> Anfänger -> Profi") anzeigen, wenn das Produkt den interaktiven 2D/3D Studio-Konfigurator nutzt
         if ($this->product->usesStudioConfigurator()) {
             $templates = ProductTemplate::where('product_id', $this->product->id)->where('is_active', true)->get();
 
@@ -45,10 +45,22 @@ class ProductShow extends Component
                         return;
                     }
                 }
-
-                $this->showTemplateSelection = true;
             }
+
+            $this->showTemplateSelection = true;
         }
+    }
+
+    public function startBeginnerConfig()
+    {
+        ProductTrackingService::trackModeChosen($this->product->id, 'beginner');
+        $this->showTemplateSelection = false;
+        $this->showTemplatesList = false;
+        $this->currentConfig = [
+            'personalization_mode' => 'custom_fields',
+        ];
+
+        $this->dispatch('scroll-to-config-stage');
     }
 
     public function openTemplatesList()
@@ -64,7 +76,22 @@ class ProductShow extends Component
         ProductTrackingService::trackModeChosen($this->product->id, 'custom');
         $this->showTemplateSelection = false;
         $this->showTemplatesList = false;
-        $this->currentConfig = [];
+        $this->currentConfig = [
+            'personalization_mode' => 'studio',
+        ];
+
+        $mainMeta = $this->product->resolveMainMediaMeta(null, $this->product->isAutoSeasonalMainImageEnabled());
+        if (!empty($mainMeta['url']) && ($mainMeta['type'] ?? 'image') === 'image') {
+            $this->dispatch('variant-selected',
+                variantId: null,
+                variantName: null,
+                formattedPrice: null,
+                imageUrl: $mainMeta['url'],
+                imageIsAi: (bool) ($mainMeta['is_ai_generated'] ?? true),
+                imageLabel: $mainMeta['label'] ?? $this->product->name
+            );
+        }
+
         $this->dispatch('scroll-to-config-stage');
     }
 
@@ -119,10 +146,23 @@ class ProductShow extends Component
     public function cancelConfig()
     {
         ProductTrackingService::trackConfiguratorAbandoned($this->product->id, ['action' => 'canceled_to_templates']);
-        if (!empty($this->productTemplates)) {
+        if ($this->product->usesStudioConfigurator() || !empty($this->productTemplates)) {
             $this->currentConfig = [];
             $this->showTemplateSelection = true;
             $this->showTemplatesList = false;
+
+            $mainMeta = $this->product->resolveMainMediaMeta(null, $this->product->isAutoSeasonalMainImageEnabled());
+            if (!empty($mainMeta['url']) && ($mainMeta['type'] ?? 'image') === 'image') {
+                $this->dispatch('variant-selected',
+                    variantId: null,
+                    variantName: null,
+                    formattedPrice: null,
+                    imageUrl: $mainMeta['url'],
+                    imageIsAi: (bool) ($mainMeta['is_ai_generated'] ?? true),
+                    imageLabel: $mainMeta['label'] ?? $this->product->name
+                );
+            }
+
             $this->dispatch('scroll-to-config');
         }
     }

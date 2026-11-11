@@ -127,7 +127,7 @@ class ReceiptAiScannerService
                 return self::mockResponseForTests();
             }
 
-            $content = file_get_contents($path);
+            [$content, $mime] = self::prepareOptimalVisionPayload($path, $mime);
             $base64 = base64_encode($content);
 
             // Kategorien für Prompt vorbereiten
@@ -187,28 +187,51 @@ PROMPT;
                 ]
             ];
 
-            $models = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+            $modelConfigs = [
+                'gemini-3-flash-preview' => [
+                    'temperature' => 0.1,
+                    'responseMimeType' => 'application/json',
+                    'thinkingConfig' => ['thinkingLevel' => 'LOW'],
+                ],
+                'gemini-3.1-flash-lite-preview' => [
+                    'temperature' => 0.1,
+                    'responseMimeType' => 'application/json',
+                ],
+            ];
 
-            foreach ($models as $model) {
+            foreach ($modelConfigs as $model => $genConfig) {
                 try {
+                    $modelPayload = $payload;
+                    $modelPayload['generationConfig'] = $genConfig;
+
                     $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent";
-                    $response = Http::timeout(40)
+                    $response = Http::connectTimeout(6)
+                        ->timeout(22)
                         ->withHeaders(['x-goog-api-key' => $apiKey])
-                        ->post($url, $payload);
+                        ->post($url, $modelPayload);
 
                     if ($response->successful()) {
                         $resData = $response->json();
-                        $text = $resData['candidates'][0]['content']['parts'][0]['text'] ?? null;
+                        $parts = $resData['candidates'][0]['content']['parts'] ?? [];
+                        $candidateTexts = [];
 
-                        if (!empty($text)) {
-                            // Bereinige Markdown Code-Blöcke
-                            $cleaned = preg_replace('/^```(?:json)?\s*/i', '', trim($text));
-                            $cleaned = preg_replace('/\s*```$/', '', $cleaned);
-                            $cleaned = trim($cleaned);
+                        if (is_array($parts)) {
+                            foreach ($parts as $part) {
+                                if (!is_array($part) || !empty($part['thought'])) {
+                                    continue;
+                                }
+                                if (!empty($part['text']) && is_string($part['text'])) {
+                                    $candidateTexts[] = $part['text'];
+                                }
+                            }
+                            if (empty($candidateTexts) && !empty($parts[0]['text']) && is_string($parts[0]['text'])) {
+                                $candidateTexts[] = $parts[0]['text'];
+                            }
+                        }
 
-                            $json = json_decode($cleaned, true);
-
-                            if (json_last_error() === JSON_ERROR_NONE && is_array($json)) {
+                        foreach ($candidateTexts as $text) {
+                            $json = self::extractJsonArrayFromText($text);
+                            if (is_array($json)) {
                                 return self::normalizeResult($json);
                             }
                         }
@@ -226,6 +249,117 @@ PROMPT;
             Log::error("ReceiptAiScannerService unexpected error: " . $e->getMessage());
             return null;
         }
+    }
+
+    /**
+     * Optimiert große Kamerafotos (EXIF-Drehung + Skalierung auf max. 1600px + JPEG-Kompression),
+     * damit der Base64-Payload an Gemini Vision minimal und schnell bleibt.
+     *
+     * @return array{0: string, 1: string} [$binaryContent, $mimeType]
+     */
+    protected static function prepareOptimalVisionPayload(string $path, string $mime): array
+    {
+        $rawContent = (string) file_get_contents($path);
+        if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true) || !function_exists('imagecreatefromstring')) {
+            return [$rawContent, $mime];
+        }
+
+        try {
+            $orientation = 1;
+            if ($mime === 'image/jpeg' && function_exists('exif_read_data')) {
+                $exif = @exif_read_data($path);
+                if (is_array($exif) && !empty($exif['Orientation'])) {
+                    $orientation = (int) $exif['Orientation'];
+                }
+            }
+
+            $info = @getimagesizefromstring($rawContent);
+            $width = is_array($info) ? (int) ($info[0] ?? 0) : 0;
+            $height = is_array($info) ? (int) ($info[1] ?? 0) : 0;
+            $maxDim = 1600;
+
+            $needsResize = ($width > $maxDim || $height > $maxDim);
+            $needsRotate = in_array($orientation, [3, 6, 8], true);
+            $needsRecompress = strlen($rawContent) > 650 * 1024;
+
+            if (!$needsResize && !$needsRotate && !$needsRecompress) {
+                return [$rawContent, $mime];
+            }
+
+            $src = @imagecreatefromstring($rawContent);
+            if ($src === false) {
+                return [$rawContent, $mime];
+            }
+
+            if ($needsRotate && function_exists('imagerotate')) {
+                $angle = match ($orientation) {
+                    3 => 180,
+                    6 => -90,
+                    8 => 90,
+                    default => 0,
+                };
+                if ($angle !== 0) {
+                    $rotated = @imagerotate($src, $angle, 0);
+                    if ($rotated !== false) {
+                        imagedestroy($src);
+                        $src = $rotated;
+                        $width = imagesx($src);
+                        $height = imagesy($src);
+                    }
+                }
+            }
+
+            if ($width > $maxDim || $height > $maxDim) {
+                $scale = min($maxDim / max(1, $width), $maxDim / max(1, $height));
+                $targetW = max(1, (int) round($width * $scale));
+                $targetH = max(1, (int) round($height * $scale));
+                $dst = imagecreatetruecolor($targetW, $targetH);
+                if ($dst !== false) {
+                    $white = imagecolorallocate($dst, 255, 255, 255);
+                    imagefill($dst, 0, 0, $white);
+                    imagecopyresampled($dst, $src, 0, 0, 0, 0, $targetW, $targetH, $width, $height);
+                    imagedestroy($src);
+                    $src = $dst;
+                }
+            }
+
+            ob_start();
+            imagejpeg($src, null, 82);
+            $jpegBytes = ob_get_clean();
+            imagedestroy($src);
+
+            if (is_string($jpegBytes) && strlen($jpegBytes) > 100) {
+                return [$jpegBytes, 'image/jpeg'];
+            }
+        } catch (\Throwable $e) {
+            // Bei Bildverarbeitungsfehlern sicher auf Rohdaten zurückfallen
+        }
+
+        return [$rawContent, $mime];
+    }
+
+    /**
+     * Extrahiert robust ein JSON-Objekt aus der Modellantwort (auch bei Markdown-Fences oder Begleittext).
+     */
+    protected static function extractJsonArrayFromText(string $text): ?array
+    {
+        $cleaned = preg_replace('/^```(?:json)?\s*/i', '', trim($text));
+        $cleaned = preg_replace('/\s*```$/', '', (string) $cleaned);
+        $cleaned = trim((string) $cleaned);
+
+        $decoded = json_decode($cleaned, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            return $decoded;
+        }
+
+        if (preg_match('/\{[\s\S]*\}/', $text, $matches)) {
+            $fallbackDecoded = json_decode($matches[0], true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($fallbackDecoded)) {
+                return $fallbackDecoded;
+            }
+        }
+
+        return null;
     }
 
     /**

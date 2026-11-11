@@ -89,8 +89,8 @@ Die gesamte Gutschein-Logik ist durch eine automatisierte Testsuite in `tests/Fe
 | `it_prevents_duplicate_vouchers_upon_double_fulfillment` | Verhindert doppelte Gutscheine durch Race Conditions. | **PASS** |
 | `it_handles_partial_redemption` | Prüft korrekte Guthabenminderung bei Teileinlösung. | **PASS** |
 | `it_handles_full_redemption` | Prüft automatische Deaktivierung bei vollständiger Einlösung. | **PASS** |
-| `it_fails_validation_on_purchase_page_if_message_exceeds_160_chars` | Validiert Längenbeschränkung der Grußbotschaft. | **PASS** |
-| `it_truncates_personal_message_to_160_chars_on_order_fulfillment` | Schneidet Botschaften bei Datenbankspeicherung ab. | **PASS** |
+| `it_fails_validation_on_purchase_page_if_message_exceeds_160_chars` | Validiert Längenbeschränkung der Grußbotschaft (max. 100 Zeichen). | **PASS** |
+| `it_truncates_personal_message_to_160_chars_on_order_fulfillment` | Schneidet Botschaften bei Datenbankspeicherung nach 100 Zeichen ab. | **PASS** |
 | `it_does_not_apply_promotional_coupons_to_gift_vouchers` | Verhindert Rabattierung von Geschenkgutscheinen. | **PASS** |
 | `it_checks_voucher_balance_successfully_when_valid` | Prüft den Live-Guthabenprüfer. | **PASS** |
 | `it_fails_to_check_balance_if_invalid_or_expired` | Simuliert abgelaufene/ungültige Gutscheine im Prüfer. | **PASS** |
@@ -170,3 +170,9 @@ Der Administrator kann über ein elegantes, 4-spaltiges Grid im passenden Gold/A
 
 ### 9.4 Qualitätssicherung (Livewire Dashboard Tests)
 Die Dashboard-Steuerung und Filterlogik sind in `tests/Feature/Livewire/Shop/Marketing/MarketingVoucherTest.php` durch den Test `it_can_filter_and_sort_sold_gift_vouchers_with_realtime_stats` abgesichert. Der Test prüft die korrekte Filterung aller obigen Felder, die Sortierung, das Zurücksetzen und die korrekte Berechnung der Statistiken.
+
+### 9.5 Karten-Design-Auswahl in Schritt 2 & 3 (Gold-Edition vs. Schwarze Edition + 1,50 € bei Postversand)
+- **Auswahl in Schritt 2 (`02. Personalisierung`) & Schritt 3 (`03. Versandmethode`):** Kunden können zwischen **Gold-Edition (Inklusive / 0,00 €)** (`card_color = 'gold'`) und **Schwarze Edition** (`card_color = 'black'`) wählen.
+- **Fairer Aufpreis nur bei physischer Metallkarte (`delivery_method === 'post'`):** Entscheidet sich der Kunde für den digitalen Versand per E-Mail (PDF), ist auch die Schwarze Edition **kostenlos (0,00 € Aufpreis)**. Erst bei Wahl des **Postversands** (echte lasergravierte schwarze Metallkarte im edlen Umschlag) wird der Material-/Gravur-Aufschlag von `+ 1,50 €` (`150` Cents) berechnet.
+- **Echtzeit-Live-Vorschau & PDF/Laser-SVG:** Die Live-Vorschau links sowie das generierte A4-PDF (`marketing-gift-voucher.blade.php`) wechseln dynamisch zwischen Champagner-Gold und Mattschwarz mit Silber-Weiß-Kontrast. Der 86×54mm Laser-SVG-Download benennt die Datei eindeutig (`Laser-Gutschein-SCHWARZ-86x54mm-{CODE}.svg` bzw. `Laser-Gutschein-GOLD-86x54mm-{CODE}.svg`).
+- **Buchhalterische Trennung (§ 3 Abs. 14 UStG):** Bei Wahl der Schwarzen Metallkarte per Post erhöht `CartService::calculateTierPrice` den Zahlbetrag um `150` Cents (`+ 1,50 €`), während `OrderOrder::completePayment` für das einlösbare Gutschein-Guthaben (`initial_value` / `current_balance` auf `MarketingGiftVoucher`) strikt den reinen Gutscheinwert (`amount_cents`) gutschreibt.

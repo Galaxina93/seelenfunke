@@ -12,6 +12,7 @@ class BootReceiver : BroadcastReceiver() {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
             Log.d("BootReceiver", "Boot completed. Rescheduling all calendar & smart alarms from cache...")
             CalendarAlarmScheduler.rescheduleAlarmsFromCache(context)
+            FunkenwerkAlarmManager.ensureInitialized(context)
             FunkenwerkAlarmManager.scheduleAllActiveAlarms(context)
         }
     }

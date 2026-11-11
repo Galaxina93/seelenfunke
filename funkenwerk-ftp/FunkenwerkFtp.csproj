@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>FunkenwerkFtp</AssemblyName>
+    <RootNamespace>FunkenwerkFtp</RootNamespace>
+    <ApplicationTitle>Funkenwerk FTP</ApplicationTitle>
+    <Product>Funkenwerk FTP</Product>
+    <Company>Mein-Seelenfunke</Company>
+    <Version>1.0.0</Version>
+    <ApplicationIcon>funkenwerk_ftp.ico</ApplicationIcon>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SSH.NET" Version="2026.0.0" />
+    <PackageReference Include="FluentFTP" Version="51.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="funkenwerk_ftp.ico" />
+    <Resource Include="funkenwerk_ftp.png" />
+    <None Include="funkenwerk_ftp.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

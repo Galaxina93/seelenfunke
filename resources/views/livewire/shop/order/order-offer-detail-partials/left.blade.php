@@ -187,6 +187,15 @@
                                             </span>
                                         @endif
                                         @if(!empty($conf['is_gift_voucher']))
+                                            @if(($conf['card_color'] ?? 'gold') === 'black')
+                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-gray-900 text-white border border-gray-700 shadow-sm">
+                                                    🖤 {{ ($conf['delivery_method'] ?? 'email') === 'post' ? 'Schwarze Karte (+ 1,50 €)' : 'Schwarze Edition (PDF)' }}
+                                                </span>
+                                            @else
+                                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/40 shadow-sm">
+                                                    ✨ Gold-Karte
+                                                </span>
+                                            @endif
                                             @if(($conf['delivery_method'] ?? 'email') === 'post')
                                                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-sm">
                                                     ✉️ Per Post im Umschlag (+ 3,50 €)
@@ -350,12 +359,18 @@
             </div>
         </div>
 
-        {{-- 4. HINTERLEGTE DATEIEN & DOWNLOADS (ZUGEKLAPPT) (Nur für Studio-Produkte, Gutscheine oder wenn Dateien vorliegen) --}}
+        {{-- 4. HINTERLEGTE DATEIEN & DOWNLOADS (ZUGEKLAPPT) (Für Studio-Produkte, Schnell-Gravur, Gutscheine oder wenn Dateien vorliegen) --}}
         @php
             $isPreviewCustomFields = $previewItem && (
                 (($previewItem->configuration['personalization_mode'] ?? null) === 'custom_fields')
                 || !empty($previewItem->configuration['custom_fields_data'])
             );
+            $customFieldsClean = $previewItem ? array_filter($previewItem->configuration['custom_fields_data'] ?? [], function ($cfd) {
+                if (!is_array($cfd)) return false;
+                $v = trim((string) ($cfd['value'] ?? ''));
+                return $v !== '' && ($cfd['type'] ?? 'text') !== 'font' && !in_array(mb_strtolower($v), ['kein symbol', 'keine', 'nein', '-'], true);
+            }) : [];
+            $hasCustomFieldsContent = $isPreviewCustomFields && !empty($customFieldsClean);
             $hasAnyPreviewFiles = $previewItem && (
                 !empty($previewItem->configuration['files'])
                 || !empty($previewItem->configuration['logo_storage_path'])
@@ -364,6 +379,7 @@
             );
             $showFilesSection = $previewItem && (
                 $hasAnyPreviewFiles
+                || $hasCustomFieldsContent
                 || (!$isPreviewCustomFields && (!isset($previewItem->product) || $previewItem->product->isPersonalizable() !== false))
             );
         @endphp
@@ -391,6 +407,11 @@
                         $files = $previewItem ? ($previewItem->configuration['files'] ?? []) : [];
                         $logoPath = $previewItem ? ($previewItem->configuration['logo_storage_path'] ?? null) : null;
                         $snapshotPath = $previewItem ? ($previewItem->configuration['snapshot_path'] ?? null) : null;
+                        $backTextsCleanForFiles = $previewItem
+                            ? array_filter($previewItem->configuration['texts_back'] ?? [], fn($t) => is_array($t) && trim((string)($t['text'] ?? '')) !== '')
+                            : [];
+                        $hasBackLogoForFiles = $previewItem && !$isPreviewCustomFields && !empty($previewItem->configuration['logos_back']);
+                        $hasBackContentForFiles = !$isPreviewCustomFields && (!empty($backTextsCleanForFiles) || $hasBackLogoForFiles);
                         
                         $allFiles = [];
 
@@ -440,6 +461,9 @@
                         if(!empty($snapshotPath)) {
                             if (is_array($snapshotPath)) {
                                 foreach($snapshotPath as $side => $s) {
+                                    if ($side === 'back' && !$hasBackContentForFiles) {
+                                        continue;
+                                    }
                                     $label = 'Sicherung (' . ($side === 'front' ? 'Vorderseite' : ($side === 'back' ? 'Rückseite' : ucfirst($side))) . ')';
                                     array_unshift($allFiles, [
                                         'label' => $label,
@@ -649,34 +673,57 @@
                 </div>
             </div>
 
-            {{-- xTool Download (Nur für Studio 2D/3D mit Canvas-Koordinaten) --}}
+            {{-- xTool Download (Für Studio 2D/3D & Schnell-Gravur / Neuling) --}}
             @php
-                $hasFront = !$isPreviewCustomFields && (!empty($previewItem->configuration['texts']) || !empty($previewItem->configuration['logos']));
-                $hasBack = !$isPreviewCustomFields && (!empty($previewItem->configuration['texts_back']) || !empty($previewItem->configuration['logos_back']));
+                $frontTextsClean = array_filter($previewItem->configuration['texts'] ?? [], fn($t) => trim((string)($t['text'] ?? '')) !== '');
+                $backTextsClean = array_filter($previewItem->configuration['texts_back'] ?? [], fn($t) => trim((string)($t['text'] ?? '')) !== '');
+                $hasFrontLogo = !$isPreviewCustomFields && (!empty($previewItem->configuration['logos']) || !empty($previewItem->configuration['logo_storage_path']));
+                $hasBackLogo = !$isPreviewCustomFields && !empty($previewItem->configuration['logos_back']);
+                $hasFront = (!empty($frontTextsClean) || $hasFrontLogo || $hasCustomFieldsContent);
+                $hasBack = !$isPreviewCustomFields && (!empty($backTextsClean) || $hasBackLogo);
             @endphp
 
             @if($hasFront || $hasBack)
                 <div class="bg-gray-50 dark:bg-gray-950 px-6 py-5 border-t border-gray-200 dark:border-gray-800">
                     <div class="flex flex-col gap-3">
                         @if($hasFront)
-                            <button wire:click.prevent="downloadLaserFile('{{ $previewItem->id }}', 'front')" class="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-300 dark:border-gray-700 shadow-sm dark:shadow-inner hover:bg-[var(--theme-color)] hover:text-gray-900 hover:border-[var(--theme-color)] transition-all duration-300 group focus:outline-none">
-                                <svg class="w-5 h-5 text-[var(--theme-color)] group-hover:text-gray-900 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                                </svg>
-                                xTool Laser-Datei laden (VORDERSEITE)
-                            </button>
+                            <div class="grid grid-cols-1 {{ $hasFrontLogo ? 'sm:grid-cols-2' : '' }} gap-2.5">
+                                <button wire:click.prevent="downloadLaserFile('{{ $previewItem->id }}', 'front')" class="w-full flex items-center justify-center gap-2.5 px-4 py-3.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-300 dark:border-gray-700 shadow-sm dark:shadow-inner hover:bg-[var(--theme-color)] hover:text-gray-900 hover:border-[var(--theme-color)] transition-all duration-300 group focus:outline-none cursor-pointer">
+                                    <svg class="w-4 h-4 text-[var(--theme-color)] group-hover:text-gray-900 transition-colors shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                                    </svg>
+                                    <span>xTool Laser-SVG (Vorderseite)</span>
+                                </button>
+                                @if($hasFrontLogo)
+                                    <button wire:click.prevent="downloadLaserPngFile('{{ $previewItem->id }}', 'front')" class="w-full flex items-center justify-center gap-2.5 px-4 py-3.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-300 dark:border-gray-700 shadow-sm dark:shadow-inner hover:bg-[var(--theme-color)] hover:text-gray-900 hover:border-[var(--theme-color)] transition-all duration-300 group focus:outline-none cursor-pointer">
+                                        <svg class="w-4 h-4 text-[var(--theme-color)] group-hover:text-gray-900 transition-colors shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                        </svg>
+                                        <span>Kontur-PNG (Vorderseite)</span>
+                                    </button>
+                                @endif
+                            </div>
                         @endif
 
                         @if($hasBack)
-                            <button wire:click.prevent="downloadLaserFile('{{ $previewItem->id }}', 'back')" class="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-300 dark:border-gray-700 shadow-sm dark:shadow-inner hover:bg-[var(--theme-color)] hover:text-gray-900 hover:border-[var(--theme-color)] transition-all duration-300 group focus:outline-none">
-                                <svg class="w-5 h-5 text-[var(--theme-color)] group-hover:text-gray-900 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                                </svg>
-                                xTool Laser-Datei laden (RÜCKSEITE)
-                            </button>
+                            <div class="grid grid-cols-1 {{ $hasBackLogo ? 'sm:grid-cols-2' : '' }} gap-2.5">
+                                <button wire:click.prevent="downloadLaserFile('{{ $previewItem->id }}', 'back')" class="w-full flex items-center justify-center gap-2.5 px-4 py-3.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-300 dark:border-gray-700 shadow-sm dark:shadow-inner hover:bg-[var(--theme-color)] hover:text-gray-900 hover:border-[var(--theme-color)] transition-all duration-300 group focus:outline-none cursor-pointer">
+                                    <svg class="w-4 h-4 text-[var(--theme-color)] group-hover:text-gray-900 transition-colors shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                                    </svg>
+                                    <span>xTool Laser-SVG (Rückseite)</span>
+                                </button>
+                                @if($hasBackLogo)
+                                    <button wire:click.prevent="downloadLaserPngFile('{{ $previewItem->id }}', 'back')" class="w-full flex items-center justify-center gap-2.5 px-4 py-3.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-300 dark:border-gray-700 shadow-sm dark:shadow-inner hover:bg-[var(--theme-color)] hover:text-gray-900 hover:border-[var(--theme-color)] transition-all duration-300 group focus:outline-none cursor-pointer">
+                                        <svg class="w-4 h-4 text-[var(--theme-color)] group-hover:text-gray-900 transition-colors shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                        </svg>
+                                        <span>Kontur-PNG (Rückseite)</span>
+                                    </button>
+                                @endif
+                            </div>
                         @endif
                     </div>
-                    <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500 mt-3 text-center leading-relaxed max-w-sm mx-auto">Generiert automatisch maßstabsgetreue SVG Dateien für XCS.</p>
                 </div>
             @endif
         </div>

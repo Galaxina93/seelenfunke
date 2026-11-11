@@ -164,6 +164,10 @@ class ProductFrontendFilterArea extends Component
             ->pluck('type')
             ->toArray();
 
+        if ($this->filterType !== 'all' && !in_array($this->filterType, $availableTypes, true)) {
+            $this->filterType = 'all';
+        }
+
         $activeWorld = $this->collectionWorld;
 
         // Dynamisches Laden der Kategorien, die in der aktuell gewählten Kollektions-Welt aktive Produkte enthalten

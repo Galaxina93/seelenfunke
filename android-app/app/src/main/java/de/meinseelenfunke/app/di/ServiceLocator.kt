@@ -309,8 +309,9 @@ object ServiceLocator {
             }
 
             val okHttpClient = OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(45, TimeUnit.SECONDS)
                 .addInterceptor(loggingInterceptor)
                 .addInterceptor { chain ->
                     val original = chain.request()
@@ -322,7 +323,25 @@ object ServiceLocator {
                     }
                     
                     requestBuilder.header("Accept", "application/json")
-                    val response = chain.proceed(requestBuilder.build())
+                    val builtRequest = requestBuilder.build()
+
+                    val response = try {
+                        chain.proceed(builtRequest)
+                    } catch (e: java.io.IOException) {
+                        // Automatischer Unterwegs-Fallback: Wenn die lokale Heim-WLAN-IP (192.168.188.119)
+                        // unterwegs (z. B. im Baumarkt über Mobilfunk) nicht erreichbar ist, automatisch über Stage versuchen
+                        val host = builtRequest.url.host
+                        if (host == "192.168.188.119" && (e is java.net.ConnectException || e is java.net.SocketTimeoutException || e is java.net.NoRouteToHostException)) {
+                            val stageUrl = builtRequest.url.newBuilder()
+                                .scheme("https")
+                                .host("stage.mein-seelenfunke.de")
+                                .port(443)
+                                .build()
+                            chain.proceed(builtRequest.newBuilder().url(stageUrl).build())
+                        } else {
+                            throw e
+                        }
+                    }
                     
                     if (response.code == 401) {
                         clearAuthToken()

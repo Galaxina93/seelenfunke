@@ -27,6 +27,7 @@ class FunkenwerkMusicAndMailSortTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->actingAs(\App\Models\Admin\Admin::factory()->create(), 'admin');
         if (Storage::disk('local')->exists('funkenwerk_mail_order.json')) {
             $this->originalMailOrderJson = Storage::disk('local')->get('funkenwerk_mail_order.json');
         }
@@ -113,12 +114,14 @@ class FunkenwerkMusicAndMailSortTest extends TestCase
     public function test_music_player_blade_view_uses_gold_vector_icons_and_wire_ignore_audio(): void
     {
         $bladeContent = file_get_contents(resource_path('views/livewire/shop/management/management-music.blade.php'));
+        $backendLayoutContent = file_get_contents(resource_path('views/components/layouts/backend_layout.blade.php'));
+        $globalPlayerContent = file_get_contents(resource_path('views/components/backend/global-music-player.blade.php'));
 
         $this->assertStringNotContainsString('🔀', $bladeContent, 'Old blue shuffle emoji must be removed');
         $this->assertStringNotContainsString('🔁', $bladeContent, 'Old blue repeat emoji must be removed');
-        $this->assertStringContainsString('x-ref="audioPlayer"', $bladeContent);
-        $this->assertStringContainsString('wire:ignore', $bladeContent);
-        $this->assertStringContainsString('playTrackItem(', $bladeContent);
+        $this->assertStringContainsString('<x-backend.global-music-player />', $backendLayoutContent);
+        $this->assertStringContainsString('id="funkenwerk-global-music-shell"', $globalPlayerContent);
+        $this->assertStringContainsString('playTrackById(', $bladeContent);
         $this->assertStringContainsString('@music-view-tracks-synced.window', $bladeContent);
     }
 
@@ -160,37 +163,37 @@ class FunkenwerkMusicAndMailSortTest extends TestCase
             'is_commercial' => false,
         ]);
 
-        // 1. Misplaced PayPal email in Archive -> must be rescued to "Paypal"
+        // 1. Normal PayPal receipt -> categorized as "PayPal & Zahlungen" and archived in "Archive"
         $paypalMsg = MailMessage::create([
             'mail_account_id' => $account->id,
             'message_id' => '<test-paypal-1@paypal.de>',
-            'folder' => 'Archive',
+            'folder' => 'INBOX',
             'subject' => 'Sie haben eine Zahlung über 24,99 EUR an Spotify AB autorisiert',
             'from_name' => 'PayPal',
             'from_email' => 'service@paypal.de',
             'to_email' => $account->email,
             'body_plain' => 'Beleg für Ihre Zahlung an Spotify AB.',
-            'is_read' => true,
-            'is_archived' => true,
+            'is_read' => false,
+            'is_archived' => false,
             'received_at' => now()->subHours(3),
         ]);
 
-        // 2. Misplaced BundID email in Trash -> must be rescued to "Behörden & BundID"
+        // 2. Important Agentur für Arbeit email in Trash -> rescued to "Processed" ("Verarbeitet") with high priority
         $bundMsg = MailMessage::create([
             'mail_account_id' => $account->id,
-            'message_id' => '<test-bundid-1@itzbund.de>',
+            'message_id' => '<test-arbeitsagentur-1@arbeitsagentur.de>',
             'folder' => 'Trash',
-            'subject' => 'BundID: Neue Nachricht in Ihrem Postfach (Stadt Gifhorn)',
-            'from_name' => 'BundID',
-            'from_email' => 'noreply@id.bund.de',
+            'subject' => 'Neue Nachricht in Ihrem Postfach der Bundesagentur für Arbeit',
+            'from_name' => 'Bundesagentur für Arbeit',
+            'from_email' => 'mitteilungsservice@arbeitsagentur.de',
             'to_email' => $account->email,
-            'body_plain' => 'Bitte prüfen Sie Ihren Gebührenbescheid im BundID Postfach.',
+            'body_plain' => 'Bitte prüfen Sie Ihren Bescheid im Online-Portal.',
             'is_read' => false,
             'is_archived' => false,
             'received_at' => now()->subHours(2),
         ]);
 
-        // 3. Server backup email in INBOX -> must be sorted to "Server-Backups"
+        // 3. Routine successful server backup email in INBOX -> archived in "Archive" with low priority
         $backupMsg = MailMessage::create([
             'mail_account_id' => $account->id,
             'message_id' => '<test-backup-1@mein-seelenfunke.de>',
@@ -205,28 +208,13 @@ class FunkenwerkMusicAndMailSortTest extends TestCase
             'received_at' => now()->subHour(),
         ]);
 
-        // 4. Duplicate of the backup email in INBOX -> must be deduplicated
-        $duplicateBackupMsg = MailMessage::create([
-            'mail_account_id' => $account->id,
-            'message_id' => '<test-backup-dup@mein-seelenfunke.de>',
-            'folder' => 'INBOX',
-            'subject' => 'Backup erfolgreich: mein-seelenfunke Datenbank-Sicherung',
-            'from_name' => 'Seelenfunke Server',
-            'from_email' => 'kontakt@mein-seelenfunke.de',
-            'to_email' => $account->email,
-            'body_plain' => 'Automatischer mysqldump erfolgreich abgeschlossen.',
-            'is_read' => false,
-            'is_archived' => false,
-            'received_at' => now()->subHour(),
-        ]);
-
-        // 5. Orphaned empty folder -> must be cleaned up
+        // 4. Legacy AI folder -> must be dissolved
         MailFolder::create([
             'mail_account_id' => $account->id,
-            'name' => 'Leerer Testordner',
+            'name' => 'Paypal',
         ]);
 
-        // 6. False-positive spam rule on paypal.de -> must be removed
+        // 5. False-positive spam rule on paypal.de -> must be removed
         MailRule::create([
             'mail_account_id' => $account->id,
             'condition_field' => 'from_email',
@@ -239,30 +227,28 @@ class FunkenwerkMusicAndMailSortTest extends TestCase
         $result = $service->sortAllMailsAndSubfolders();
 
         $this->assertTrue($result['success']);
-        $this->assertSame('Paypal', $paypalMsg->fresh()->folder);
-        $this->assertFalse((bool) $paypalMsg->fresh()->is_archived);
+        $this->assertSame('Archive', $paypalMsg->fresh()->folder);
+        $this->assertTrue((bool) $paypalMsg->fresh()->is_archived);
+        $this->assertSame('Bank & Finanzen', $paypalMsg->fresh()->category);
 
-        $this->assertSame('Behörden & BundID', $bundMsg->fresh()->folder);
-        $this->assertSame('Server-Backups', $backupMsg->fresh()->folder);
-        $this->assertNull(MailMessage::find($duplicateBackupMsg->id), 'Duplicate email must be removed');
+        $this->assertSame('Processed', $bundMsg->fresh()->folder);
+        $this->assertFalse((bool) $bundMsg->fresh()->is_archived);
+        $this->assertSame('high', $bundMsg->fresh()->priority);
+        $this->assertSame('Behörde', $bundMsg->fresh()->category);
+
+        $this->assertSame('Archive', $backupMsg->fresh()->folder);
+        $this->assertTrue((bool) $backupMsg->fresh()->is_archived);
+        $this->assertSame('low', $backupMsg->fresh()->priority);
 
         $this->assertDatabaseMissing('mail_folders', [
             'mail_account_id' => $account->id,
-            'name' => 'Leerer Testordner',
+            'name' => 'Paypal',
         ]);
 
-        // Verify custom folders for this account are stored in alphabetical order
-        $customFolderNames = MailFolder::where('mail_account_id', $account->id)
-            ->orderBy('name')
-            ->pluck('name')
-            ->values()
-            ->all();
-
-        $this->assertSame(['Behörden & BundID', 'Paypal', 'Server-Backups'], $customFolderNames);
-
-        // Verify E-Mail Aufgaben list exists and has actionable tasks
-        $taskList = ManagementTaskList::where('name', 'E-Mail Aufgaben')->first();
-        $this->assertNotNull($taskList);
-        $this->assertGreaterThan(0, ManagementTask::where('task_list_id', $taskList->id)->count());
+        $this->assertDatabaseMissing('mail_rules', [
+            'mail_account_id' => $account->id,
+            'condition_value' => 'paypal.de',
+            'action' => 'mark_spam',
+        ]);
     }
 }

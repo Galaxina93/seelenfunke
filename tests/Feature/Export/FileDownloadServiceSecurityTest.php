@@ -108,7 +108,7 @@ class FileDownloadServiceSecurityTest extends TestCase
         Auth::guard('admin')->login($admin);
         $response = $service->downloadLaserSvg($item->id);
         $this->assertEquals('image/svg+xml', $response->headers->get('Content-Type'));
-        $this->assertEquals("default-src 'none'; sandbox", $response->headers->get('Content-Security-Policy'));
+        $this->assertEquals("default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'; sandbox", $response->headers->get('Content-Security-Policy'));
         $this->assertEquals('nosniff', $response->headers->get('X-Content-Type-Options'));
     }
 

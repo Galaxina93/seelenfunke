@@ -40,7 +40,7 @@ Route::prefix('funki/routine')->group(function () {
                     'schedule_text' => 'Jeden Tag',
                     'days_of_week' => [1, 2, 3, 4, 5, 6, 7],
                     'is_enabled' => true,
-                    'smart_plug_ips' => ['192.168.188.109', '192.168.188.106'],
+                    'smart_plug_ips' => ['192.168.188.109', '192.168.188.110'],
                     'trigger_plug_on_ring' => true,
                     'ai_briefing_enabled' => true,
                     'sync_with_routine' => true,
@@ -67,22 +67,280 @@ Route::prefix('funki/routine')->group(function () {
                 ['id' => 'timer_30', 'label' => 'Timer: 30 Min.', 'duration_seconds' => 1800],
             ],
             'smart_plugs' => [
-                ['name' => 'Tapo P100 (Test-Steckdose)', 'ip' => '192.168.188.109', 'room' => 'Heimnetz'],
-                ['name' => 'Smart Plug #2', 'ip' => '192.168.188.106', 'room' => 'Heimnetz'],
-                ['name' => 'Smart Plug #3', 'ip' => '192.168.188.123', 'room' => 'Heimnetz'],
+                [
+                    'id' => 'c85151a0c0064f259ee18c352f626363',
+                    'name' => 'Lichterkette Fußleiste',
+                    'ip' => '192.168.188.109',
+                    'mac' => '98-03-8E-7D-A7-96',
+                    'model' => 'Tapo P100 (HW 2.0)',
+                    'firmware' => '1.4.6 Build 260617 Rel.064743',
+                    'room' => 'easy-AP · Heimnetz',
+                ],
+                [
+                    'id' => 'dfb60661bf0945cf87cfe84f0e2db861',
+                    'name' => 'Packtisch Warm Licht',
+                    'ip' => '192.168.188.110',
+                    'mac' => 'Tapo SHIP 2.0',
+                    'model' => 'Tapo P100/P110',
+                    'firmware' => '1.4.x',
+                    'room' => 'easy-AP · Heimnetz',
+                ],
+                [
+                    'id' => '53a51fd44692437f8669263ab58b2323',
+                    'name' => 'Lichterkette Spiegel',
+                    'ip' => '192.168.188.123',
+                    'mac' => 'Tapo SHIP 2.0',
+                    'model' => 'Tapo P100/P110',
+                    'firmware' => '1.4.x',
+                    'room' => 'easy-AP · Heimnetz',
+                ],
             ],
             'wake_up_logs' => [],
         ];
     };
 
+    $defaultSmartHomeConfig = function () use ($defaultAlarmPackage): array {
+        return [
+            'updated_at' => null,
+            'grid_layout_count' => 4,
+            'selected_camera_name' => 'Terasse',
+            'plugs' => $defaultAlarmPackage()['smart_plugs'],
+            'cameras' => [
+                [
+                    'id' => '433ccbb85a0a42b18304153cf95e3c7e',
+                    'name' => 'Terasse',
+                    'ip' => '192.168.188.105',
+                    'stream_path' => '/stream2',
+                    'service_url' => 'http://192.168.188.105/onvif/device_service',
+                    'device_model' => 'Tapo C520WS',
+                    'description' => 'Terrasse und Gartenbereich',
+                    'motion_record' => true,
+                    'motion_sensitivity' => 70,
+                    'position' => 0,
+                    'invert_pan' => true,
+                    'invert_tilt' => false,
+                ],
+                [
+                    'id' => 'c336115ddb5744ba9befa67cd668fbbc',
+                    'name' => 'Einfahrt',
+                    'ip' => '192.168.188.132',
+                    'stream_path' => '/stream2',
+                    'service_url' => 'http://192.168.188.132/onvif/device_service',
+                    'device_model' => 'Tapo C520WS',
+                    'description' => 'Hofeinfahrt und Eingangsbereich',
+                    'motion_record' => false,
+                    'motion_sensitivity' => 50,
+                    'position' => 1,
+                    'invert_pan' => true,
+                    'invert_tilt' => false,
+                ],
+                [
+                    'id' => '89314360083541a38f9e591453b5202a',
+                    'name' => 'Garage',
+                    'ip' => '192.168.188.102',
+                    'stream_path' => '/stream2',
+                    'service_url' => 'http://192.168.188.102/onvif/device_service',
+                    'device_model' => 'Tapo C210',
+                    'description' => 'Garagentor und Stellplatz',
+                    'motion_record' => false,
+                    'motion_sensitivity' => 50,
+                    'position' => 2,
+                    'invert_pan' => true,
+                    'invert_tilt' => false,
+                ],
+                [
+                    'id' => 'd0dd7c3b4b64431e9fe1ae3f2bf73331',
+                    'name' => 'Gewerbe',
+                    'ip' => '192.168.188.101',
+                    'stream_path' => '/stream1',
+                    'service_url' => 'http://192.168.188.101/onvif/device_service',
+                    'device_model' => 'Tapo C210',
+                    'description' => 'Gewerbe & Manufaktur (192.168.188.101)',
+                    'motion_record' => false,
+                    'motion_sensitivity' => 55,
+                    'position' => 3,
+                    'invert_pan' => true,
+                    'invert_tilt' => false,
+                ],
+            ],
+            'label_printer' => [
+                'name' => 'MUNBYN ITPP941AP',
+                'ip' => '192.168.188.149',
+                'hostname' => 'ITPP941AP.fritz.box',
+                'mac' => 'F0:23:AE:7D:51:35',
+                'serial_number' => '941AP261000423',
+                'firmware' => '1.2.4',
+                'ipp_port' => 631,
+                'raw_port' => 9100,
+                'auto_print_shop_jobs' => true,
+                'preferred_protocol' => 'IPP',
+            ],
+        ];
+    };
+
+    Route::get('/smarthome-sync', function () use ($defaultSmartHomeConfig) {
+        $raw = SystemSetting::where('key', 'funki_smarthome_config')->value('value');
+        $decoded = is_string($raw) ? json_decode($raw, true) : null;
+        $cfg = is_array($decoded) ? array_merge($defaultSmartHomeConfig(), $decoded) : $defaultSmartHomeConfig();
+
+        return response()->json([
+            'success' => true,
+            'data' => $cfg,
+        ]);
+    });
+
+    Route::post('/smarthome-sync', function (Request $request) use ($defaultSmartHomeConfig, $defaultAlarmPackage) {
+        $raw = SystemSetting::where('key', 'funki_smarthome_config')->value('value');
+        $existing = is_string($raw) ? json_decode($raw, true) : null;
+        $cfg = is_array($existing) ? array_merge($defaultSmartHomeConfig(), $existing) : $defaultSmartHomeConfig();
+
+        if ($request->filled('grid_layout_count')) {
+            $cfg['grid_layout_count'] = max(1, min(8, (int) $request->input('grid_layout_count')));
+        }
+        if ($request->filled('selected_camera_name')) {
+            $cfg['selected_camera_name'] = substr(trim((string) $request->input('selected_camera_name')), 0, 80);
+        }
+
+        $plugsInput = $request->input('plugs', $request->input('smart_plugs'));
+        if (is_string($plugsInput)) {
+            $plugsInput = json_decode($plugsInput, true);
+        }
+        if (is_array($plugsInput)) {
+            $sanitizedPlugs = [];
+            foreach ($plugsInput as $p) {
+                if (!is_array($p)) {
+                    continue;
+                }
+                $name = substr(trim((string) ($p['name'] ?? $p['Name'] ?? '')), 0, 120);
+                $ip = substr(trim((string) ($p['ip'] ?? $p['IpAddress'] ?? '')), 0, 45);
+                if ($name === '' || $ip === '') {
+                    continue;
+                }
+                $sanitizedPlugs[] = [
+                    'id' => substr(trim((string) ($p['id'] ?? $p['Id'] ?? Str::uuid()->getHex())), 0, 64),
+                    'name' => $name,
+                    'ip' => $ip,
+                    'mac' => substr(trim((string) ($p['mac'] ?? $p['MacAddress'] ?? '')), 0, 48),
+                    'model' => substr(trim((string) ($p['model'] ?? $p['Model'] ?? 'Tapo P100')), 0, 80),
+                    'firmware' => substr(trim((string) ($p['firmware'] ?? $p['Firmware'] ?? '')), 0, 80),
+                    'room' => substr(trim((string) ($p['room'] ?? $p['Room'] ?? 'Heimnetz')), 0, 80),
+                ];
+            }
+            if (!empty($sanitizedPlugs)) {
+                $cfg['plugs'] = $sanitizedPlugs;
+            }
+        }
+
+        $camsInput = $request->input('cameras');
+        if (is_string($camsInput)) {
+            $camsInput = json_decode($camsInput, true);
+        }
+        if (is_array($camsInput)) {
+            $sanitizedCams = [];
+            foreach ($camsInput as $idx => $c) {
+                if (!is_array($c)) {
+                    continue;
+                }
+                $name = substr(trim((string) ($c['name'] ?? $c['Name'] ?? '')), 0, 80);
+                if ($name === '') {
+                    continue;
+                }
+                // Never store RTSP credentials in DB: extract clean IP & stream path only
+                $ip = substr(trim((string) ($c['ip'] ?? $c['IpAddress'] ?? '')), 0, 45);
+                $streamPath = substr(trim((string) ($c['stream_path'] ?? '/stream2')), 0, 64);
+                if ($ip === '' && !empty($c['url'])) {
+                    $rawUrl = (string) $c['url'];
+                    if (preg_match('/@([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)/', $rawUrl, $m)) {
+                        $ip = $m[1];
+                    } elseif (is_string(parse_url($rawUrl, PHP_URL_HOST))) {
+                        $ip = (string) parse_url($rawUrl, PHP_URL_HOST);
+                    }
+                    $parsedPath = parse_url($rawUrl, PHP_URL_PATH);
+                    if (is_string($parsedPath) && $parsedPath !== '') {
+                        $streamPath = $parsedPath;
+                    }
+                }
+                $sanitizedCams[] = [
+                    'id' => substr(trim((string) ($c['id'] ?? $c['Id'] ?? Str::uuid()->getHex())), 0, 64),
+                    'name' => $name,
+                    'ip' => $ip,
+                    'stream_path' => $streamPath,
+                    'service_url' => substr(trim((string) ($c['service_url'] ?? $c['ServiceUrl'] ?? ($ip !== '' ? "http://{$ip}/onvif/device_service" : ''))), 0, 160),
+                    'device_model' => substr(trim((string) ($c['device_model'] ?? $c['DeviceModel'] ?? 'IP-Kamera')), 0, 80),
+                    'description' => substr(trim((string) ($c['description'] ?? $c['Description'] ?? '')), 0, 200),
+                    'motion_record' => (bool) ($c['motion_record'] ?? $c['MotionRecord'] ?? false),
+                    'motion_sensitivity' => max(1, min(100, (int) ($c['motion_sensitivity'] ?? $c['MotionSensitivity'] ?? 50))),
+                    'position' => (int) ($c['position'] ?? $c['Position'] ?? $idx),
+                    'invert_pan' => (bool) ($c['invert_pan'] ?? $c['InvertPan'] ?? true),
+                    'invert_tilt' => (bool) ($c['invert_tilt'] ?? $c['InvertTilt'] ?? false),
+                ];
+            }
+            if (!empty($sanitizedCams)) {
+                $cfg['cameras'] = $sanitizedCams;
+            }
+        }
+
+        if (is_array($request->input('label_printer'))) {
+            $lp = $request->input('label_printer');
+            $cfg['label_printer'] = array_merge($cfg['label_printer'] ?? [], [
+                'name' => substr(trim((string) ($lp['name'] ?? $lp['Name'] ?? 'MUNBYN ITPP941AP')), 0, 80),
+                'ip' => substr(trim((string) ($lp['ip'] ?? $lp['IpAddress'] ?? '192.168.188.149')), 0, 45),
+                'auto_print_shop_jobs' => (bool) ($lp['auto_print_shop_jobs'] ?? $lp['AutoPrintShopJobs'] ?? true),
+                'preferred_protocol' => substr(trim((string) ($lp['preferred_protocol'] ?? $lp['PreferredProtocol'] ?? 'IPP')), 0, 16),
+            ]);
+        }
+
+        $cfg['updated_at'] = Carbon::now()->toIso8601String();
+
+        SystemSetting::updateOrCreate(
+            ['key' => 'funki_smarthome_config'],
+            ['value' => json_encode($cfg, JSON_UNESCAPED_UNICODE)]
+        );
+
+        // Keep funki_alarm_sync_package.smart_plugs synchronized automatically
+        $rawAlarm = SystemSetting::where('key', 'funki_alarm_sync_package')->value('value');
+        $existingAlarm = is_string($rawAlarm) ? json_decode($rawAlarm, true) : null;
+        $alarmPkg = is_array($existingAlarm) ? array_merge($defaultAlarmPackage(), $existingAlarm) : $defaultAlarmPackage();
+        $alarmPkg['smart_plugs'] = $cfg['plugs'];
+        SystemSetting::updateOrCreate(
+            ['key' => 'funki_alarm_sync_package'],
+            ['value' => json_encode($alarmPkg, JSON_UNESCAPED_UNICODE)]
+        );
+
+        return response()->json([
+            'success' => true,
+            'data' => $cfg,
+        ]);
+    });
+
     Route::get('/alarm-sync', function () use ($defaultAlarmPackage) {
         $raw = SystemSetting::where('key', 'funki_alarm_sync_package')->value('value');
         $decoded = is_string($raw) ? json_decode($raw, true) : null;
         $pkg = is_array($decoded) ? array_merge($defaultAlarmPackage(), $decoded) : $defaultAlarmPackage();
+        $pkg['funkira_voice'] = 'Aoede';
+        $pkg['gemini_tts_key'] = (string) (config('services.gemini.key') ?: config('services.gemini.api_key') ?: env('GEMINI_API_KEY', ''));
 
         return response()->json([
             'success' => true,
             'data' => $pkg,
+        ]);
+    });
+
+    Route::match(['get', 'post'], '/morning-briefing-tts', function (Request $request) {
+        $text = trim((string) $request->input('text', ''));
+        $voice = trim((string) $request->input('voice', 'Aoede')) ?: 'Aoede';
+        if ($text === '') {
+            $timeStr = Carbon::now('Europe/Berlin')->format('H:i');
+            $text = "Guten Morgen Alina! Es ist {$timeStr} Uhr. Dein Seelenfunke Fokus-Start Wecker ist aktiv. Starte entspannt und erfolgreich in deinen Tag!";
+        }
+
+        $wavBase64 = \App\Services\AI\GeminiTtsService::synthesizeWav($text, $voice);
+
+        return response()->json([
+            'success' => is_string($wavBase64) && $wavBase64 !== '',
+            'voice' => $voice,
+            'text' => $text,
+            'audio_base64' => $wavBase64,
         ]);
     });
 
@@ -181,6 +439,9 @@ Route::prefix('funki/routine')->group(function () {
             ['key' => 'funki_alarm_sync_package'],
             ['value' => json_encode($pkg, JSON_UNESCAPED_UNICODE)]
         );
+
+        $pkg['funkira_voice'] = 'Aoede';
+        $pkg['gemini_tts_key'] = (string) (config('services.gemini.key') ?: config('services.gemini.api_key') ?: env('GEMINI_API_KEY', ''));
 
         return response()->json([
             'success' => true,

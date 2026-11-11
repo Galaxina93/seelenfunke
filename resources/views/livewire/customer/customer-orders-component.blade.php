@@ -763,9 +763,15 @@
                                         $allSnapshots = [];
                                         foreach($selectedOrder->items as $item) {
                                             if (!empty($item->configuration['snapshot_path'])) {
+                                                $itemHasBackContent = collect($item->configuration['texts_back'] ?? [])->contains(fn($t) => is_array($t) && trim((string)($t['text'] ?? '')) !== '')
+                                                    || !empty($item->configuration['logos_back']);
                                                 $paths = is_array($item->configuration['snapshot_path'])
                                                     ? $item->configuration['snapshot_path']
                                                      : ['Konfiguration' => $item->configuration['snapshot_path']];
+
+                                                if (is_array($paths) && !$itemHasBackContent) {
+                                                    unset($paths['back']);
+                                                }
 
                                                 foreach($paths as $side => $path) {
                                                     $label = count($paths) > 1

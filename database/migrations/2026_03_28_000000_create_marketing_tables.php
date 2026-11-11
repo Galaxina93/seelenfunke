@@ -136,6 +136,7 @@ return new class extends Migration
             $table->string('recipient_email')->nullable();
             $table->text('personal_message')->nullable();
             $table->string('delivery_method')->default('email'); // 'email' or 'post'
+            $table->string('card_color', 20)->default('gold'); // 'gold' or 'black'
             $table->boolean('is_active')->default(true);
             $table->timestamp('valid_until')->nullable();
             $table->softDeletes();

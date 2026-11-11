@@ -49,21 +49,20 @@ class ProductAssetSeeder extends Seeder
         $talismanGlb = $this->buildSingleTexturedGlb($talismanMesh, $talismanPngBytes, 'SeelenTalisman');
         file_put_contents($talismanDir . '/seelen_talisman_3d.glb', $talismanGlb);
 
-        // 2. Die Seelen-Pfote: 2D-Overlays + 3D-GLB-Mesh
+        // 2. Die Seelen-Pfote (Goldfarbener Edelstahl-Knochenanhänger 40x22x1,8 mm mit 5-teiligem Pfoten-Durchbruch unten rechts)
         $pfoteDir = $publicProductsPath . '/seelen-pfote-hundemarke';
         File::ensureDirectoryExists($pfoteDir);
         $this->ensureHeaderBackground($publicProductsPath, $pfoteDir);
 
         $pfoteOverlayPath = $pfoteDir . '/overlay.png';
-        if (!file_exists($pfoteOverlayPath)) {
-            $this->renderFallbackPfoteOverlay($pfoteOverlayPath);
-        }
-        $this->ensureSeasonalOverlays($pfoteDir);
+        $this->renderPfoteGoldOverlay($pfoteOverlayPath);
+        $this->ensureSeasonalOverlays($pfoteDir, true);
 
         $pfotePngBytes = file_get_contents($pfoteOverlayPath);
         $pfoteMesh = $this->buildPfote3DMesh();
         $pfoteGlb = $this->buildSingleTexturedGlb($pfoteMesh, $pfotePngBytes, 'SeelenPfote');
         file_put_contents($pfoteDir . '/seelen_pfote_3d.glb', $pfoteGlb);
+        $this->ensurePfoteGoldGalleryAndTemplates($publicProductsPath, $pfoteDir);
 
         // 3. Das Goldene Seelen-Herz (Glücksfieber 14k Edelstahl-Herz mit Collierschlaufe, 25x22x4 mm)
         $goldHerzDir = $publicProductsPath . '/goldenes-seelen-herz';
@@ -127,8 +126,18 @@ class ProductAssetSeeder extends Seeder
         foreach (['seelen-kristall', 'seelen-anhaenger', 'weizenglas-personalisiert'] as $slug) {
             $dir = $publicProductsPath . '/' . $slug;
             if (is_dir($dir) && file_exists($dir . '/overlay.png')) {
-                $this->ensureSeasonalOverlays($dir);
+                $this->ensureSeasonalOverlays($dir, $slug === 'seelen-anhaenger');
             }
+        }
+
+        // 4b. Der Seelenanhänger: 1:1 zum 800x800 Echtfoto-Overlay deckungsgleiches 3D-GLB-Mesh erzeugen
+        $anhaengerDir = $publicProductsPath . '/seelen-anhaenger';
+        $anhaengerOverlayPath = $anhaengerDir . '/overlay.png';
+        if (is_file($anhaengerOverlayPath)) {
+            $anhaengerPngBytes = file_get_contents($anhaengerOverlayPath);
+            $anhaengerMesh = $this->buildSeelenAnhaenger3DMesh();
+            $anhaengerGlb = $this->buildSingleTexturedGlb($anhaengerMesh, $anhaengerPngBytes, 'SeelenAnhaenger');
+            file_put_contents($anhaengerDir . '/seelenanhaenger_3d_.glb', $anhaengerGlb);
         }
 
         // 5. Technische Maßblätter (*-dimensions.jpg) für alle physischen Produkte sicherstellen
@@ -136,6 +145,162 @@ class ProductAssetSeeder extends Seeder
 
         // 6. Alle Lifestyle-/Hoverbilder (*-lifestyle.jpg) web-optimiert & komprimiert (800x800 Progressive JPEG) halten
         $this->optimizeLifestyleHoverImages($publicProductsPath);
+
+        // 7. Wunschsymbole für den Neulings-Modus & Konfigurator-Symbolbibliothek sicherstellen (Kleeblatt, Schutzengel, Lebensbaum, Krone, Anker)
+        $this->ensureLaserSymbolVectors();
+    }
+
+    /**
+     * Stellt sicher, dass die echten, lasertauglichen (rein gefüllten, XCS-kompatiblen) Vektor-Symbole
+     * für Kleeblatt, Schutzengel, Lebensbaum, Krone und Anker in Storage, Public und manifest.json existieren.
+     */
+    private function ensureLaserSymbolVectors(): void
+    {
+        $vectors = [
+            'Symbole/kleeblatt.svg' => <<<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="#000000">
+  <path fill="#000000" d="M 28.5 25.5 C 21 23, 8 18, 9 11 C 9.8 6.5, 14.5 6.5, 17 10 C 13.5 7.5, 13.5 2.8, 18 2 C 25 1, 30 14, 28.5 25.5 Z"/>
+  <path fill="#000000" d="M 31.5 25.5 C 39 23, 52 18, 51 11 C 50.2 6.5, 45.5 6.5, 43 10 C 46.5 7.5, 46.5 2.8, 42 2 C 35 1, 30 14, 31.5 25.5 Z"/>
+  <path fill="#000000" d="M 28.5 28.5 C 21 31, 8 36, 9 43 C 9.8 47.5, 14.5 47.5, 17 44 C 13.5 46.5, 13.5 51.2, 18 52 C 25 53, 30 40, 28.5 28.5 Z"/>
+  <path fill="#000000" d="M 31.5 28.5 C 39 31, 52 36, 51 43 C 50.2 47.5, 45.5 47.5, 43 44 C 46.5 46.5, 46.5 51.2, 42 52 C 35 53, 30 40, 31.5 28.5 Z"/>
+  <circle fill="#000000" cx="30" cy="27" r="3.2"/>
+  <path fill="#000000" d="M 28.8 29 C 29 41, 33 52, 41.5 61.5 C 42.5 62.5, 45 60.5, 43.8 59 C 36.2 50.5, 32.5 40.5, 31.5 29 Z"/>
+</svg>
+SVG,
+            'Symbole/schutzengel.svg' => <<<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="#000000">
+  <path fill="#000000" fill-rule="evenodd" d="M 32 3 C 24.5 3, 20 5.2, 20 8 C 20 10.8, 24.5 13, 32 13 C 39.5 13, 44 10.8, 44 8 C 44 5.2, 39.5 3, 32 3 Z M 32 5.6 C 37.2 5.6, 40.5 6.7, 40.5 8 C 40.5 9.3, 37.2 10.4, 32 10.4 C 26.8 10.4, 23.5 9.3, 23.5 8 C 23.5 6.7, 26.8 5.6, 32 5.6 Z"/>
+  <circle fill="#000000" cx="32" cy="20" r="5.5"/>
+  <path fill="#000000" d="M 25.5 26 C 18 19, 6 16, 3 22 C 1.5 25, 5 28.5, 9.5 29.5 C 5 30.5, 3.5 34, 6.5 36.5 C 9 38.5, 13.5 38.5, 16.5 38 C 12.5 40, 12 43.5, 15.5 45 C 19.5 46.5, 24.5 42, 26.5 36 Z"/>
+  <path fill="#000000" d="M 38.5 26 C 46 19, 58 16, 61 22 C 62.5 25, 59 28.5, 54.5 29.5 C 59 30.5, 60.5 34, 57.5 36.5 C 55 38.5, 50.5 38.5, 47.5 38 C 51.5 40, 52 43.5, 48.5 45 C 44.5 46.5, 39.5 42, 37.5 36 Z"/>
+  <path fill="#000000" d="M 27 27.5 C 29 26.2, 35 26.2, 37 27.5 L 43.5 57 C 44 59.5, 42 61, 39.5 61 L 24.5 61 C 22 61, 20 59.5, 20.5 57 Z"/>
+</svg>
+SVG,
+            'Natur/lebensbaum.svg' => <<<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="#000000">
+  <path fill="#000000" fill-rule="evenodd" d="M 32 2 C 15.4 2, 2 15.4, 2 32 C 2 48.6, 15.4 62, 32 62 C 48.6 62, 62 48.6, 62 32 C 62 15.4, 48.6 2, 32 2 Z M 32 6 C 46.4 6, 58 17.6, 58 32 C 58 46.4, 46.4 58, 32 58 C 17.6 58, 6 46.4, 6 32 C 6 17.6, 17.6 6, 32 6 Z"/>
+  <path fill="#000000" d="M 29.5 48 C 29.8 41, 29.8 35, 29 30 C 25 26, 19 23, 15 19 L 17.5 16.8 C 21.5 20.5, 26.5 23.5, 30 26.5 C 30.5 21, 28 15, 25 11 L 28 9.5 C 30.8 14, 32 19, 32 24 C 32 19, 33.2 14, 36 9.5 L 39 11 C 36 15, 33.5 21, 34 26.5 C 37.5 23.5, 42.5 20.5, 46.5 16.8 L 49 19 C 45 23, 39 26, 35 30 C 34.2 35, 34.2 41, 34.5 48 C 38 51, 43 53.5, 47 55 L 45.5 57.5 C 40.5 55.5, 36 53, 33 50.5 L 33 57 L 31 57 L 31 50.5 C 28 53, 23.5 55.5, 18.5 57.5 L 17 55 C 21 53.5, 26 51, 29.5 48 Z"/>
+  <circle fill="#000000" cx="32" cy="12" r="4.2"/>
+  <circle fill="#000000" cx="22" cy="14" r="4.0"/>
+  <circle fill="#000000" cx="42" cy="14" r="4.0"/>
+  <circle fill="#000000" cx="15" cy="21" r="4.2"/>
+  <circle fill="#000000" cx="49" cy="21" r="4.2"/>
+  <circle fill="#000000" cx="25" cy="22" r="3.6"/>
+  <circle fill="#000000" cx="39" cy="22" r="3.6"/>
+  <circle fill="#000000" cx="13" cy="29" r="3.5"/>
+  <circle fill="#000000" cx="51" cy="29" r="3.5"/>
+</svg>
+SVG,
+            'Symbole/krone.svg' => <<<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="#000000">
+  <circle fill="#000000" cx="8" cy="20" r="3.2"/>
+  <circle fill="#000000" cx="20" cy="14" r="3.2"/>
+  <circle fill="#000000" cx="32" cy="10" r="3.6"/>
+  <circle fill="#000000" cx="44" cy="14" r="3.2"/>
+  <circle fill="#000000" cx="56" cy="20" r="3.2"/>
+  <path fill="#000000" d="M 9 24 L 18 35 L 20.5 18 L 27 33 L 32 14.5 L 37 33 L 43.5 18 L 46 35 L 55 24 L 51 46 L 13 46 Z"/>
+  <rect fill="#000000" x="12" y="49" width="40" height="6" rx="2.5"/>
+</svg>
+SVG,
+            'Symbole/anker.svg' => <<<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="#000000">
+  <path fill="#000000" fill-rule="evenodd" d="M 32 4 C 27.6 4, 24 7.6, 24 12 C 24 15.6, 26.4 18.7, 29.7 19.7 L 29.7 24 L 20 24 C 18.6 24, 17.5 25.1, 17.5 26.5 C 17.5 27.9, 18.6 29, 20 29 L 29.7 29 L 29.7 51.5 C 22.5 50.4, 16.8 45.2, 15.2 38.2 L 19 39.2 L 12.5 30.5 L 7 39.8 L 10.6 38.7 C 12.6 48.8, 21.3 56.5, 32 56.5 C 42.7 56.5, 51.4 48.8, 53.4 38.7 L 57 39.8 L 51.5 30.5 L 45 39.2 L 48.8 38.2 C 47.2 45.2, 41.5 50.4, 34.3 51.5 L 34.3 29 L 44 29 C 45.4 29, 46.5 27.9, 46.5 26.5 C 46.5 25.1, 45.4 24, 44 24 L 34.3 24 L 34.3 19.7 C 37.6 18.7, 40 15.6, 40 12 C 40 7.6, 36.4 4, 32 4 Z M 32 8 C 34.2 8, 36 9.8, 36 12 C 36 14.2, 34.2 16, 32 16 C 29.8 16, 28 14.2, 28 12 C 28 9.8, 29.8 8, 32 8 Z"/>
+</svg>
+SVG,
+        ];
+
+        $storageRoot = storage_path('app/public/produkte/configurator/vectors');
+        $publicRoot = public_path('shop/product/configurator/vectors');
+
+        foreach ($vectors as $relPath => $svgContent) {
+            foreach ([$storageRoot, $publicRoot] as $root) {
+                $targetPath = $root . '/' . $relPath;
+                File::ensureDirectoryExists(dirname($targetPath));
+                file_put_contents($targetPath, trim($svgContent) . "\n");
+            }
+        }
+
+        try {
+            app(\App\Services\ProductConfiguratorService::class)->ensureVectorsInitialized();
+        } catch (\Throwable $e) {
+            // Ignorieren falls Service während frühen Migrationsläufen noch nicht initialisiert werden kann
+        }
+    }
+
+    /**
+     * Erzeugt das exakt zum 800x800 Echtfoto-Overlay (`seelen-anhaenger/overlay.png`) deckungsgleiche
+     * 3D-Mesh für Den Seelenanhänger (Herz-Korpus y=418..772, Drehwirbel-Kette y=225..445, Spaltring y=28..256).
+     * Da min(y)+max(y) = 28+772 = 800 und min(x)+max(x) = 207+593 = 800 gilt, liegt die Bounding-Box-Mitte
+     * exakt bei (400, 400), sodass 2D-Overlay und 3D-Ansicht zu 100,0 % deckungsgleich sind.
+     */
+    private function buildSeelenAnhaenger3DMesh(): array
+    {
+        $positions = [];
+        $normals = [];
+        $uvs = [];
+        $indices = [];
+
+        $innerPct = [
+            [50.0, 59.45], [51.13, 58.73], [52.23, 58.01], [53.34, 57.29], [54.54, 56.57], [55.82, 55.84],
+            [57.26, 55.12], [58.83, 54.52], [60.42, 54.19], [62.68, 54.48], [64.54, 55.02], [66.13, 55.74],
+            [67.49, 56.57], [68.67, 57.6], [69.63, 58.73], [70.38, 59.97], [70.95, 61.31], [71.41, 62.75],
+            [71.7, 64.3], [71.86, 65.85], [71.86, 67.39], [71.66, 68.94], [71.35, 70.59], [70.87, 72.34],
+            [70.21, 74.1], [69.35, 75.95], [68.31, 77.81], [67.12, 79.67], [65.72, 81.52], [64.07, 83.38],
+            [62.27, 85.23], [60.21, 87.09], [57.94, 88.95], [55.57, 90.7], [53.47, 92.25], [51.55, 93.55],
+            [50.0, 94.52], [48.45, 93.55], [46.53, 92.25], [44.43, 90.7], [42.06, 88.95], [39.79, 87.09],
+            [37.73, 85.23], [35.93, 83.38], [34.28, 81.52], [32.88, 79.67], [31.68, 77.81], [30.65, 75.95],
+            [29.79, 74.1], [29.13, 72.34], [28.65, 70.59], [28.34, 68.94], [28.14, 67.39], [28.14, 65.85],
+            [28.3, 64.3], [28.59, 62.75], [29.04, 61.31], [29.62, 59.97], [30.37, 58.73], [31.33, 57.6],
+            [32.51, 56.57], [33.87, 55.74], [35.46, 55.02], [37.32, 54.48], [39.58, 54.19], [41.17, 54.52],
+            [42.74, 55.12], [44.18, 55.84], [45.46, 56.57], [46.66, 57.29], [47.77, 58.01], [48.87, 58.73],
+        ];
+
+        $innerPx = array_map(static fn(array $p): array => [$p[0] * 8.0, $p[1] * 8.0], $innerPct);
+        $n = count($innerPx);
+        $heartOuter = [];
+        for ($i = 0; $i < $n; $i++) {
+            $prev = $innerPx[($i - 1 + $n) % $n];
+            $curr = $innerPx[$i];
+            $next = $innerPx[($i + 1) % $n];
+            $dx = $next[0] - $prev[0];
+            $dy = $next[1] - $prev[1];
+            $len = hypot($dx, $dy) ?: 1.0;
+            // Im Uhrzeigersinn zeigt (dy, -dx) nach außen
+            $nx = $dy / $len;
+            $ny = -$dx / $len;
+            $ox = $curr[0] + $nx * 16.0;
+            $oy = $curr[1] + $ny * 15.8;
+            if ($i === 0) {
+                $ox = 400.0;
+                $oy = 445.0;
+            } elseif ($i === 36) {
+                $ox = 400.0;
+                $oy = 772.0;
+            }
+            $heartOuter[] = [max(207.0, min(593.0, $ox)), max(418.0, min(772.0, $oy))];
+        }
+
+        // 1. Massiver Herz-Korpus (zHalf = 0.032)
+        $this->extrudePixelContour($heartOuter, null, [400.0, 595.0], 0.032, $positions, $normals, $uvs, $indices, 1.5);
+
+        // 2. Drehwirbel-Kette & Verbindungsglieder (x = 376..424, y = 225..452)
+        $chainPts = [
+            [376.0, 225.0], [424.0, 225.0], [425.0, 338.0], [424.0, 452.0], [376.0, 452.0], [375.0, 338.0],
+        ];
+        $this->extrudePixelContour($chainPts, null, [400.0, 338.0], 0.026, $positions, $normals, $uvs, $indices, 1.0);
+
+        // 3. Oberer Spaltring (cx=407.0, cy=142.0, rxOut=120.0, ryOut=114.0 -> min(y)=28.0, max(y)=256.0)
+        $ringSteps = 72;
+        $ringOuter = [];
+        $ringInner = [];
+        for ($i = 0; $i < $ringSteps; $i++) {
+            $a = ($i / $ringSteps) * M_PI * 2.0;
+            $ringOuter[] = [407.0 + 120.0 * cos($a), 142.0 + 114.0 * sin($a)];
+            $ringInner[] = [407.0 + 93.0 * cos($a), 142.0 + 84.0 * sin($a)];
+        }
+        $this->extrudePixelContour($ringOuter, $ringInner, [407.0, 142.0], 0.028, $positions, $normals, $uvs, $indices, 1.2);
+
+        return compact('positions', 'normals', 'uvs', 'indices');
     }
 
     /**
@@ -533,7 +698,80 @@ class ProductAssetSeeder extends Seeder
     }
 
     /**
-     * Erzeugt das exakt zum 2D-Overlay (800x800) deckungsgleiche 3D-Mesh für Die Seelen-Pfote.
+     * Liefert die exakt nach dem realen Gold-Rohling (40 x 22 mm) vermessene, um (400, 400) zentrierte
+     * 800x800 Außenkontur der Seelen-Pfote (X = 80.0 .. 720.0, Y = 238.0 .. 562.0 => min+max = 800).
+     */
+    private function getPfoteOuterPoints(int $stepsPerSegment = 18): array
+    {
+        $pts = [];
+        $sampleCubic = static function (array $p0, array $p1, array $p2, array $p3, int $steps) use (&$pts): void {
+            for ($i = 1; $i <= $steps; $i++) {
+                $t = $i / $steps;
+                $mt = 1.0 - $t;
+                $x = $mt * $mt * $mt * $p0[0] + 3.0 * $mt * $mt * $t * $p1[0] + 3.0 * $mt * $t * $t * $p2[0] + $t * $t * $t * $p3[0];
+                $y = $mt * $mt * $mt * $p0[1] + 3.0 * $mt * $mt * $t * $p1[1] + 3.0 * $mt * $t * $t * $p2[1] + $t * $t * $t * $p3[1];
+                $pts[] = [$x, $y];
+            }
+        };
+
+        $pts[] = [342.0, 282.0];
+        $sampleCubic([342.0, 282.0], [358.0, 282.0], [364.0, 238.0], [400.0, 238.0], 14);
+        $sampleCubic([400.0, 238.0], [436.0, 238.0], [442.0, 282.0], [458.0, 282.0], 14);
+        $pts[] = [516.0, 282.0];
+        $sampleCubic([516.0, 282.0], [552.0, 282.0], [574.0, 238.0], [618.0, 238.0], $stepsPerSegment);
+        $sampleCubic([618.0, 238.0], [676.0, 238.0], [720.0, 274.0], [720.0, 326.0], $stepsPerSegment);
+        $sampleCubic([720.0, 326.0], [720.0, 366.0], [704.5, 384.0], [704.5, 400.0], 14);
+        $sampleCubic([704.5, 400.0], [704.5, 416.0], [720.0, 434.0], [720.0, 474.0], 14);
+        $sampleCubic([720.0, 474.0], [720.0, 526.0], [676.0, 562.0], [618.0, 562.0], $stepsPerSegment);
+        $sampleCubic([618.0, 562.0], [574.0, 562.0], [552.0, 518.0], [516.0, 518.0], $stepsPerSegment);
+        $pts[] = [284.0, 518.0];
+        $sampleCubic([284.0, 518.0], [248.0, 518.0], [226.0, 562.0], [182.0, 562.0], $stepsPerSegment);
+        $sampleCubic([182.0, 562.0], [124.0, 562.0], [80.0, 526.0], [80.0, 474.0], $stepsPerSegment);
+        $sampleCubic([80.0, 474.0], [80.0, 434.0], [95.5, 416.0], [95.5, 400.0], 14);
+        $sampleCubic([95.5, 400.0], [95.5, 384.0], [80.0, 366.0], [80.0, 326.0], 14);
+        $sampleCubic([80.0, 326.0], [80.0, 274.0], [124.0, 238.0], [182.0, 238.0], $stepsPerSegment);
+        $sampleCubic([182.0, 238.0], [226.0, 238.0], [248.0, 282.0], [284.0, 282.0], $stepsPerSegment);
+
+        return $pts;
+    }
+
+    /**
+     * Liefert die 2D-Konturpunkte des nieren-/herzförmigen Hauptballens unten rechts (exakt nach Foto-Vorlage).
+     */
+    private function getPfoteMainPadPoints(int $steps = 48): array
+    {
+        $padCx = 634.8;
+        $padCy = 478.9;
+        $pts = [];
+        for ($i = 0; $i < $steps; $i++) {
+            $theta = ($i / $steps) * 2.0 * M_PI;
+            $delta = $theta - (M_PI / 4.0);
+            $r = 25.5
+                - 3.2 * cos($delta)
+                - 1.2 * cos(2.0 * $delta)
+                - 6.8 * cos(3.0 * $delta)
+                + 2.0 * cos(4.0 * $delta);
+            $pts[] = [$padCx + $r * cos($theta), $padCy + $r * sin($theta)];
+        }
+
+        return $pts;
+    }
+
+    /**
+     * Liefert die 4 ovalen Zehenballen-Durchbrüche [cx, cy, rx, ry, deg] im unteren rechten Knochen-Bogen.
+     */
+    private function getPfoteToeDefinitions(): array
+    {
+        return [
+            [581.9, 489.9, 13.6, 9.6, 4.0],
+            [575.3, 452.0, 14.2, 11.2, 30.0],
+            [608.1, 419.9, 14.2, 11.2, 60.0],
+            [645.7, 426.7, 13.6, 9.6, 86.0],
+        ];
+    }
+
+    /**
+     * Erzeugt das exakt zum 2D-Overlay (800x800) deckungsgleiche 3D-Mesh für Die Seelen-Pfote (inkl. 3D-Pfoten-Durchbruch).
      */
     private function buildPfote3DMesh(): array
     {
@@ -542,43 +780,16 @@ class ProductAssetSeeder extends Seeder
         $uvs = [];
         $indices = [];
 
-        $bonePts = [];
-        $sampleCubic = static function (array $p0, array $p1, array $p2, array $p3, int $steps = 14) use (&$bonePts): void {
-            for ($i = 1; $i <= $steps; $i++) {
-                $t = $i / $steps;
-                $mt = 1.0 - $t;
-                $x = $mt * $mt * $mt * $p0[0] + 3.0 * $mt * $mt * $t * $p1[0] + 3.0 * $mt * $t * $t * $p2[0] + $t * $t * $t * $p3[0];
-                $y = $mt * $mt * $mt * $p0[1] + 3.0 * $mt * $mt * $t * $p1[1] + 3.0 * $mt * $t * $t * $p2[1] + $t * $t * $t * $p3[1];
-                $bonePts[] = [$x, $y];
-            }
-        };
-
-        $bonePts[] = [357.0, 290.0];
-        $sampleCubic([357.0, 290.0], [360.0, 250.0], [377.0, 225.0], [400.0, 225.0], 10);
-        $sampleCubic([400.0, 225.0], [423.0, 225.0], [440.0, 250.0], [443.0, 290.0], 10);
-        $bonePts[] = [530.0, 290.0];
-        $sampleCubic([530.0, 290.0], [572.0, 290.0], [592.0, 225.0], [646.0, 225.0]);
-        $sampleCubic([646.0, 225.0], [696.0, 225.0], [720.0, 268.0], [720.0, 318.0]);
-        $sampleCubic([720.0, 318.0], [720.0, 362.0], [696.0, 385.0], [684.0, 400.0]);
-        $sampleCubic([684.0, 400.0], [696.0, 415.0], [720.0, 438.0], [720.0, 482.0]);
-        $sampleCubic([720.0, 482.0], [720.0, 532.0], [696.0, 575.0], [646.0, 575.0]);
-        $sampleCubic([646.0, 575.0], [592.0, 575.0], [572.0, 510.0], [530.0, 510.0]);
-        $bonePts[] = [270.0, 510.0];
-        $sampleCubic([270.0, 510.0], [228.0, 510.0], [208.0, 575.0], [154.0, 575.0]);
-        $sampleCubic([154.0, 575.0], [104.0, 575.0], [80.0, 532.0], [80.0, 482.0]);
-        $sampleCubic([80.0, 482.0], [80.0, 438.0], [104.0, 415.0], [116.0, 400.0]);
-        $sampleCubic([116.0, 400.0], [104.0, 385.0], [80.0, 362.0], [80.0, 318.0]);
-        $sampleCubic([80.0, 318.0], [80.0, 268.0], [104.0, 225.0], [154.0, 225.0]);
-        $sampleCubic([154.0, 225.0], [208.0, 225.0], [228.0, 290.0], [270.0, 290.0]);
-
+        $bonePts = $this->getPfoteOuterPoints(16);
         $this->extrudePixelContour($bonePts, null, [400.0, 400.0], 0.032, $positions, $normals, $uvs, $indices);
 
-        // 3D-Innenwände für das obere Ösen-Loch und die 5 Pfoten-Durchbrüche
-        $addHoleWallRing = static function (array $pts, float $zHalf = 0.032) use (&$positions, &$normals, &$uvs, &$indices): void {
+        // 3D-Innenwände + 3D-Fasenringe für das obere Ösen-Loch und die 5 Pfoten-Durchbrüche unten rechts
+        $addHoleWallAndBevel = static function (array $pts, float $cx, float $cy, float $zHalf = 0.032) use (&$positions, &$normals, &$uvs, &$indices): void {
             $toX = static fn(float $px): float => ($px - 400.0) / 360.0;
             $toY = static fn(float $py): float => (400.0 - $py) / 360.0;
-            $toU = static fn(float $px): float => $px / 800.0;
-            $toV = static fn(float $py): float => $py / 800.0;
+            // Opaque gold UV coordinate on overlay.png (300, 400) so inner walls are always solid gold
+            $uGold = 300.0 / 800.0;
+            $vGold = 400.0 / 800.0;
             $m = count($pts);
             for ($i = 0; $i < $m; $i++) {
                 $next = ($i + 1) % $m;
@@ -587,8 +798,16 @@ class ProductAssetSeeder extends Seeder
                 $dx = $toX($x1) - $toX($x0);
                 $dy = $toY($y1) - $toY($y0);
                 $len = hypot($dx, $dy) ?: 1.0;
-                $nx = -$dy / $len;
-                $ny = $dx / $len;
+                // Inward-pointing normal towards hole center
+                $nx = $dy / $len;
+                $ny = -$dx / $len;
+                $midX = ($x0 + $x1) * 0.5;
+                $midY = ($y0 + $y1) * 0.5;
+                if (($nx * (($cx - $midX) / 360.0) + $ny * (($midY - $cy) / 360.0)) < 0.0) {
+                    $nx = -$nx;
+                    $ny = -$ny;
+                }
+
                 $vBase = intdiv(count($positions), 3);
                 array_push(
                     $positions,
@@ -600,12 +819,12 @@ class ProductAssetSeeder extends Seeder
                 for ($k = 0; $k < 4; $k++) {
                     array_push($normals, $nx, $ny, 0.0);
                 }
-                array_push($uvs, $toU(400.0), $toV(400.0), $toU(400.0), $toV(400.0), $toU(400.0), $toV(400.0), $toU(400.0), $toV(400.0));
+                array_push($uvs, $uGold, $vGold, $uGold, $vGold, $uGold, $vGold, $uGold, $vGold);
                 array_push($indices, $vBase, $vBase + 1, $vBase + 2, $vBase, $vBase + 2, $vBase + 3);
             }
         };
 
-        $makeOvalPts = static function (float $cx, float $cy, float $rx, float $ry, float $deg, int $steps = 20): array {
+        $makeOvalPts = static function (float $cx, float $cy, float $rx, float $ry, float $deg, int $steps = 24): array {
             $rad = deg2rad($deg);
             $cos = cos($rad);
             $sin = sin($rad);
@@ -619,12 +838,14 @@ class ProductAssetSeeder extends Seeder
             return $arr;
         };
 
-        $addHoleWallRing($makeOvalPts(400.0, 270.0, 21.0, 21.0, 0.0, 28));
-        $addHoleWallRing($makeOvalPts(612.0, 488.0, 20.0, 17.0, -35.0, 24));
-        $addHoleWallRing($makeOvalPts(573.0, 493.0, 10.5, 7.8, -28.0, 16));
-        $addHoleWallRing($makeOvalPts(572.0, 466.0, 11.0, 8.2, -32.0, 16));
-        $addHoleWallRing($makeOvalPts(592.0, 446.0, 11.0, 8.2, -36.0, 16));
-        $addHoleWallRing($makeOvalPts(619.0, 448.0, 10.5, 7.8, -40.0, 16));
+        // 1. Top eyelet hole
+        $addHoleWallAndBevel($makeOvalPts(400.0, 279.0, 23.5, 23.5, 0.0, 32), 400.0, 279.0);
+        // 2. Kidney-shaped main paw pad (bottom-right)
+        $addHoleWallAndBevel($this->getPfoteMainPadPoints(48), 634.8, 478.9);
+        // 3. Four oval toe pads (bottom-right)
+        foreach ($this->getPfoteToeDefinitions() as [$tcx, $tcy, $trx, $try, $tdeg]) {
+            $addHoleWallAndBevel($makeOvalPts($tcx, $tcy, $trx, $try, $tdeg, 24), $tcx, $tcy);
+        }
 
         return compact('positions', 'normals', 'uvs', 'indices');
     }
@@ -701,6 +922,8 @@ class ProductAssetSeeder extends Seeder
             'materials' => [[
                 'name' => 'PolishedGoldMetal',
                 'doubleSided' => true,
+                'alphaMode' => 'MASK',
+                'alphaCutoff' => 0.35,
                 'pbrMetallicRoughness' => [
                     'baseColorFactor' => [1.0, 1.0, 1.0, 1.0],
                     'baseColorTexture' => ['index' => 0],
@@ -789,29 +1012,585 @@ class ProductAssetSeeder extends Seeder
     }
 
     /**
-     * Fallback-Renderer in reinem PHP-GD, falls overlay.png für die Seelen-Pfote auf einem frischen System fehlt.
+     * Rendert das fotorealistische 800x800 Gold-Edelstahl-Overlay für Die Seelen-Pfote (40 x 22 x 1,8 mm)
+     * mit 4x4-Subpixel-Scanline-Supersampling, 3D-Gold-Fase und 100 % transparentem Ösen- & Pfoten-Durchbruch.
      */
-    private function renderFallbackPfoteOverlay(string $targetPath): void
+    private function renderPfoteGoldOverlay(string $targetPath): void
     {
         if (!extension_loaded('gd')) {
             return;
         }
-        $im = imagecreatetruecolor(800, 800);
+
+        $w = 800;
+        $h = 800;
+        $outerPts = $this->getPfoteOuterPoints(22);
+        $nPts = count($outerPts);
+
+        $subSteps = 4;
+        $rowIntervals = [];
+        for ($sy = 0; $sy < $h * $subSteps; $sy++) {
+            $py = ($sy + 0.5) / $subSteps;
+            if ($py < 235.0 || $py > 565.0) {
+                $rowIntervals[$sy] = [];
+                continue;
+            }
+            $xs = [];
+            for ($i = 0; $i < $nPts; $i++) {
+                $j = ($i + 1) % $nPts;
+                $y0 = $outerPts[$i][1];
+                $y1 = $outerPts[$j][1];
+                if (($y0 <= $py && $y1 > $py) || ($y1 <= $py && $y0 > $py)) {
+                    $t = ($py - $y0) / ($y1 - $y0);
+                    $xs[] = $outerPts[$i][0] + $t * ($outerPts[$j][0] - $outerPts[$i][0]);
+                }
+            }
+            sort($xs);
+            $pairs = [];
+            for ($k = 0; $k + 1 < count($xs); $k += 2) {
+                $pairs[] = [$xs[$k], $xs[$k + 1]];
+            }
+            $rowIntervals[$sy] = $pairs;
+        }
+
+        $toes = [];
+        foreach ($this->getPfoteToeDefinitions() as [$tcx, $tcy, $trx, $try, $tdeg]) {
+            $rad = deg2rad($tdeg);
+            $toes[] = [$tcx, $tcy, $trx, $try, cos($rad), sin($rad)];
+        }
+
+        $holeSignedDistance = static function (float $px, float $py) use ($toes): float {
+            // 1. Top eyelet hole (400, 279, r = 23.5)
+            $dEye = hypot($px - 400.0, $py - 279.0) - 23.5;
+            $minD = $dEye;
+
+            if ($px > 545.0 && $py > 390.0) {
+                // 2. Kidney-shaped main paw pad (634.8, 478.9)
+                $dx = $px - 634.8;
+                $dy = $py - 478.9;
+                $dist = hypot($dx, $dy);
+                $theta = atan2($dy, $dx);
+                $delta = $theta - (M_PI / 4.0);
+                $rPad = 25.5
+                    - 3.2 * cos($delta)
+                    - 1.2 * cos(2.0 * $delta)
+                    - 6.8 * cos(3.0 * $delta)
+                    + 2.0 * cos(4.0 * $delta);
+                $dPad = $dist - $rPad;
+                if ($dPad < $minD) {
+                    $minD = $dPad;
+                }
+
+                // 3. Four oval toe pads
+                foreach ($toes as [$cx, $cy, $rx, $ry, $cosA, $sinA]) {
+                    $tx = $px - $cx;
+                    $ty = $py - $cy;
+                    $lx = $tx * $cosA + $ty * $sinA;
+                    $ly = -$tx * $sinA + $ty * $cosA;
+                    $norm = hypot($lx / $rx, $ly / $ry);
+                    $dToe = ($norm - 1.0) * (($rx + $ry) * 0.5);
+                    if ($dToe < $minD) {
+                        $minD = $dToe;
+                    }
+                }
+            }
+
+            return $minD;
+        };
+
+        $subOffsets = [0.125, 0.375, 0.625, 0.875];
+        $im = imagecreatetruecolor($w, $h);
         imagealphablending($im, false);
         imagesavealpha($im, true);
         $trans = imagecolorallocatealpha($im, 0, 0, 0, 127);
         imagefill($im, 0, 0, $trans);
 
-        $silver = imagecolorallocatealpha($im, 228, 233, 240, 0);
-        imagefilledrectangle($im, 240, 290, 560, 510, $silver);
-        imagefilledellipse($im, 165, 310, 170, 170, $silver);
-        imagefilledellipse($im, 165, 490, 170, 170, $silver);
-        imagefilledellipse($im, 635, 310, 170, 170, $silver);
-        imagefilledellipse($im, 635, 490, 170, 170, $silver);
-        imagefilledellipse($im, 400, 270, 86, 86, $silver);
-        imagefilledellipse($im, 400, 270, 42, 42, $trans);
+        for ($y = 235; $y <= 565; $y++) {
+            for ($x = 76; $x <= 724; $x++) {
+                $dHoleCenter = $holeSignedDistance($x + 0.5, $y + 0.5);
+                $cov = 0;
+                $minOuterHoriz = 999.0;
+
+                for ($sj = 0; $sj < 4; $sj++) {
+                    $sy = $y * 4 + $sj;
+                    $pairs = $rowIntervals[$sy] ?? [];
+                    if (!$pairs) {
+                        continue;
+                    }
+                    $py = $y + $subOffsets[$sj];
+                    for ($si = 0; $si < 4; $si++) {
+                        $px = $x + $subOffsets[$si];
+                        $inOuter = false;
+                        foreach ($pairs as [$x0, $x1]) {
+                            if ($px >= $x0 && $px <= $x1) {
+                                $inOuter = true;
+                                $dH = min($px - $x0, $x1 - $px);
+                                if ($dH < $minOuterHoriz) {
+                                    $minOuterHoriz = $dH;
+                                }
+                                break;
+                            }
+                        }
+                        if ($inOuter && $holeSignedDistance($px, $py) > 0.0) {
+                            $cov++;
+                        }
+                    }
+                }
+
+                if ($cov === 0) {
+                    continue;
+                }
+
+                $minVertDist = 999.0;
+                for ($dy = -9; $dy <= 9; $dy++) {
+                    $checkSy = ($y + $dy) * 4 + 2;
+                    $pairs = $rowIntervals[$checkSy] ?? [];
+                    $insideCheck = false;
+                    foreach ($pairs as [$x0, $x1]) {
+                        if (($x + 0.5) >= $x0 && ($x + 0.5) <= $x1) {
+                            $insideCheck = true;
+                            break;
+                        }
+                    }
+                    if (!$insideCheck) {
+                        $minVertDist = min($minVertDist, (float) abs($dy));
+                    }
+                }
+
+                $dOuter = min($minOuterHoriz, $minVertDist);
+                $dEdge = min($dOuter, max(0.0, $dHoleCenter));
+
+                $nx = ($x - 400.0) / 320.0;
+                $ny = ($y - 400.0) / 162.0;
+
+                // Warmes, hochglanzpoliertes 14k Gold-Edelstahl-Finish mit sanften Studio-Spiegelungen (gemäß Bild 1 & Bild 2)
+                $grad = 0.54 - 0.16 * $nx - 0.18 * $ny;
+                $sheen1 = exp(-pow(($nx * 0.65 + $ny * 0.75 + 0.12) / 0.36, 2)) * 0.24;
+                $sheen2 = exp(-pow(($nx * 0.75 - $ny * 0.45 - 0.38) / 0.28, 2)) * 0.12;
+                $darkBand = exp(-pow(($nx * 0.55 + $ny * 0.80 - 0.32) / 0.30, 2)) * 0.10;
+                $val = max(0.0, min(1.0, $grad + $sheen1 + $sheen2 - $darkBand));
+
+                $r = 194.0 + $val * 54.0;
+                $g = 152.0 + $val * 60.0;
+                $b = 70.0 + $val * 52.0;
+
+                if ($dEdge < 8.5) {
+                    $t = $dEdge / 8.5;
+                    $smooth = $t * $t * (3.0 - 2.0 * $t);
+                    $isTopLit = ($dHoleCenter < $dOuter) ? ($y > 279 && $y > 455) : ($ny < -0.15 || $nx < -0.55);
+                    if ($t < 0.36) {
+                        $darkFactor = 0.36 + 0.64 * ($t / 0.36);
+                        $r *= $darkFactor;
+                        $g *= $darkFactor;
+                        $b *= $darkFactor;
+                    } elseif ($t < 0.78) {
+                        $bevelBoost = $isTopLit ? 1.13 : 0.84;
+                        $mix = sin((($t - 0.36) / 0.42) * M_PI);
+                        $r = $r * (1.0 - 0.45 * $mix) + min(255.0, $r * $bevelBoost) * (0.45 * $mix);
+                        $g = $g * (1.0 - 0.45 * $mix) + min(242.0, $g * $bevelBoost) * (0.45 * $mix);
+                        $b = $b * (1.0 - 0.45 * $mix) + min(155.0, $b * $bevelBoost) * (0.45 * $mix);
+                    } else {
+                        $r = $r * $smooth + ($r * 0.96) * (1.0 - $smooth);
+                    }
+                }
+
+                $gdAlpha = (int) round(127.0 * (1.0 - ($cov / 16.0)));
+                $gdAlpha = max(0, min(127, $gdAlpha));
+                $col = imagecolorallocatealpha(
+                    $im,
+                    (int) max(0, min(255, round($r))),
+                    (int) max(0, min(255, round($g))),
+                    (int) max(0, min(255, round($b))),
+                    $gdAlpha
+                );
+                imagesetpixel($im, $x, $y, $col);
+            }
+        }
 
         imagepng($im, $targetPath, 9);
+        imagedestroy($im);
+    }
+
+    /**
+     * Stellt sicher, dass alle Produktbilder (main, back, lifestyle) und die 8 Vorlagenbilder
+     * von Die Seelen-Pfote im authentischen 14k Gold-Finish vorliegen.
+     */
+    private function ensurePfoteGoldGalleryAndTemplates(string $publicProductsPath, string $pfoteDir): void
+    {
+        if (!extension_loaded('gd')) {
+            return;
+        }
+
+        $this->convertPfoteSceneToGold($pfoteDir . '/seelen-pfote-main.jpg', 'closeup');
+        $this->convertPfoteSceneToGold($pfoteDir . '/seelen-pfote-back.jpg', 'closeup');
+        $this->convertPfoteSceneToGold($pfoteDir . '/seelen-pfote-lifestyle.jpg', 'lifestyle');
+
+        $tplDir = dirname($publicProductsPath) . '/product-templates';
+        foreach (['weihnachten', 'ostern', 'hochzeit', 'geburtstag', 'valentinstag', 'halloween', 'muttertag', 'vatertag'] as $hSlug) {
+            $tplPath = $tplDir . '/seelen-pfote-hundemarke-' . $hSlug . '.jpg';
+            if (file_exists($tplPath)) {
+                $this->convertPfoteSceneToGold($tplPath, 'closeup');
+            }
+        }
+    }
+
+    /**
+     * Färbt den silbernen Knochenanhänger & Spaltring in bestehenden Produkt-/Vorlagen-Szenenfotos
+     * selektiv in warmes, hochglanzpoliertes 14k Gold um (ohne Hintergrund, Holz, Schnee, Blüten oder Gravur zu verfälschen).
+     */
+    private function convertPfoteSceneToGold(string $filePath, string $mode = 'closeup'): void
+    {
+        if (!file_exists($filePath)) {
+            return;
+        }
+        $im = @imagecreatefromjpeg($filePath);
+        if (!$im) {
+            return;
+        }
+        $w = imagesx($im);
+        $h = imagesy($im);
+        $fname = basename($filePath);
+
+        // Prüfen, ob das Foto bereits auf Gold umgestellt wurde
+        $sampleX = ($mode === 'lifestyle') ? (int) ($w * 0.47) : (int) ($w * 0.35);
+        $sampleY = ($mode === 'lifestyle') ? (int) ($h * 0.76) : (int) ($h * 0.45);
+        $rgbSample = imagecolorat($im, $sampleX, $sampleY);
+        $rs = ($rgbSample >> 16) & 0xFF;
+        $bs = $rgbSample & 0xFF;
+        if (($rs - $bs) > 45) {
+            imagedestroy($im);
+            return;
+        }
+
+        $coreMask = new \SplFixedArray($w * $h);
+        $visited = new \SplFixedArray($w * $h);
+
+        $isStanding = str_contains($fname, 'hochzeit') || str_contains($fname, 'valentin');
+        $isFlatLay = str_contains($fname, 'ostern') || str_contains($fname, 'geburtstag') || str_contains($fname, 'muttertag');
+        $isStudioAngle = str_contains($fname, 'main') || str_contains($fname, 'back') || str_contains($fname, 'weihnachten') || str_contains($fname, 'halloween');
+
+        $inBoneReflectionZone = static function (float $nx, float $ny) use ($isStanding, $isStudioAngle, $isFlatLay): bool {
+            if ($isStudioAngle) {
+                $dLeft = pow(($nx - 0.228) / 0.094, 2) + pow(($ny - 0.628) / 0.102, 2);
+                $dRight = pow(($nx - 0.736) / 0.098, 2) + pow(($ny - 0.692) / 0.108, 2);
+                $inShaft = ($nx >= 0.28 && $nx <= 0.66 && $ny >= 0.60 && $ny <= 0.688 + ($nx - 0.28) * 0.11);
+                return ($dLeft <= 1.0 || $dRight <= 1.0 || $inShaft);
+            }
+            if ($isStanding) {
+                $dTopLeft = pow(($nx - 0.235) / 0.114, 2) + pow(($ny - 0.458) / 0.125, 2);
+                $dBotLeft = pow(($nx - 0.246) / 0.116, 2) + pow(($ny - 0.648) / 0.132, 2);
+                $dBotRight = pow(($nx - 0.768) / 0.114, 2) + pow(($ny - 0.602) / 0.126, 2);
+                $shaftBotY = 0.695 - (($nx - 0.32) / 0.36) * 0.043;
+                $inShaft = ($nx >= 0.30 && $nx <= 0.70 && $ny >= 0.50 && $ny <= $shaftBotY);
+                return ($dTopLeft <= 1.0 || $dBotLeft <= 1.0 || $dBotRight <= 1.0 || $inShaft);
+            }
+            if ($isFlatLay) {
+                $dTopRight = pow(($nx - 0.715) / 0.095, 2) + pow(($ny - 0.350) / 0.082, 2);
+                return ($dTopRight <= 1.0);
+            }
+            return false;
+        };
+
+        $isSilverCore = static function (int $x, int $y, int $r, int $g, int $b) use ($w, $h, $mode, $inBoneReflectionZone, $isFlatLay): bool {
+            $nx = $x / $w;
+            $ny = $y / $h;
+            if ($mode === 'lifestyle') {
+                if ($nx < 0.435 || $nx > 0.618 || $ny < 0.705 || $ny > 0.850) {
+                    return false;
+                }
+            } else {
+                if ($nx < 0.095 || $nx > 0.915 || $ny < 0.175 || $ny > 0.805) {
+                    return false;
+                }
+                if ($ny < 0.285 && ($nx < 0.41 || $nx > 0.61)) {
+                    return false;
+                }
+            }
+
+            $chroma = max($r, $g, $b) - min($r, $g, $b);
+            $lum = 0.299 * $r + 0.587 * $g + 0.114 * $b;
+
+            if ($mode !== 'lifestyle' && $ny < 0.415 && $nx >= 0.41 && $nx <= 0.605) {
+                return ($lum >= 70.0 && $chroma <= 36 && ($r - $b) <= 30);
+            }
+            if ($lum >= 152.0 && $chroma <= 30 && ($r - $b) <= 26 && ($g - $r) <= 12) {
+                return true;
+            }
+            if ($mode !== 'lifestyle' && $inBoneReflectionZone($nx, $ny)) {
+                if ($isFlatLay) {
+                    return ($lum >= 148.0 && ($r - $b) <= 45 && ($g - $r) <= 10);
+                }
+                if ($lum >= 58.0 && ($g - $r) <= 10) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        if ($isStudioAngle) {
+            for ($py = (int) ($h * 0.18); $py <= (int) ($h * 0.41); $py++) {
+                $ny = $py / $h;
+                for ($px = (int) ($w * 0.44); $px <= (int) ($w * 0.605); $px++) {
+                    $nx = $px / $w;
+                    $rOuter = hypot(($nx - 0.528) / 0.076, ($ny - 0.296) / 0.116);
+                    $rInner = hypot(($nx - 0.532) / 0.033, ($ny - 0.296) / 0.068);
+                    if ($rOuter <= 1.0 && $rInner >= 1.0) {
+                        $rgb = imagecolorat($im, $px, $py);
+                        $r = ($rgb >> 16) & 0xFF;
+                        $g = ($rgb >> 8) & 0xFF;
+                        $b = $rgb & 0xFF;
+                        $chroma = max($r, $g, $b) - min($r, $g, $b);
+                        $lum = 0.299 * $r + 0.587 * $g + 0.114 * $b;
+                        if ($lum >= 65.0 && $chroma <= 32 && ($r - $b) <= 26) {
+                            $coreMask[$py * $w + $px] = 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        $queue = new \SplQueue();
+        $seeds = ($mode === 'lifestyle')
+            ? [[0.47, 0.76], [0.53, 0.78], [0.58, 0.81], [0.47, 0.81], [0.53, 0.74]]
+            : [
+                [0.25, 0.42], [0.35, 0.45], [0.50, 0.45], [0.65, 0.48], [0.75, 0.45],
+                [0.22, 0.58], [0.45, 0.60], [0.65, 0.60], [0.78, 0.58],
+                [0.50, 0.36], [0.50, 0.64], [0.18, 0.45], [0.18, 0.50], [0.22, 0.68], [0.74, 0.74],
+                [0.475, 0.28], [0.575, 0.28], [0.50, 0.20], [0.47, 0.24], [0.58, 0.25], [0.48, 0.33], [0.55, 0.33],
+            ];
+
+        foreach ($seeds as [$sx, $sy]) {
+            $px = (int) round($sx * $w);
+            $py = (int) round($sy * $h);
+            for ($dy = -4; $dy <= 4; $dy += 2) {
+                for ($dx = -4; $dx <= 4; $dx += 2) {
+                    $qx = $px + $dx;
+                    $qy = $py + $dy;
+                    $idx = $qy * $w + $qx;
+                    if (!$visited[$idx]) {
+                        $rgb = imagecolorat($im, $qx, $qy);
+                        $r = ($rgb >> 16) & 0xFF;
+                        $g = ($rgb >> 8) & 0xFF;
+                        $b = $rgb & 0xFF;
+                        if ($isSilverCore($qx, $qy, $r, $g, $b)) {
+                            $visited[$idx] = 1;
+                            $coreMask[$idx] = 1;
+                            $queue->enqueue([$qx, $qy]);
+                        }
+                    }
+                }
+            }
+        }
+
+        $dirs = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]];
+        while (!$queue->isEmpty()) {
+            [$cx, $cy] = $queue->dequeue();
+            foreach ($dirs as [$dx, $dy]) {
+                $nx = $cx + $dx;
+                $ny = $cy + $dy;
+                if ($nx < 0 || $nx >= $w || $ny < 0 || $ny >= $h) {
+                    continue;
+                }
+                $nIdx = $ny * $w + $nx;
+                if ($visited[$nIdx]) {
+                    continue;
+                }
+                $visited[$nIdx] = 1;
+
+                $rgb = imagecolorat($im, $nx, $ny);
+                $nr = ($rgb >> 16) & 0xFF;
+                $ng = ($rgb >> 8) & 0xFF;
+                $nb = $rgb & 0xFF;
+                if ($isSilverCore($nx, $ny, $nr, $ng, $nb)) {
+                    $coreMask[$nIdx] = 1;
+                    $queue->enqueue([$nx, $ny]);
+                }
+            }
+        }
+
+        $extVisited = new \SplFixedArray($w * $h);
+        $extQueue = new \SplQueue();
+        $addExtSeed = static function (int $sx, int $sy, bool $forceClearCore = false) use ($w, $h, &$coreMask, &$extVisited, $extQueue): void {
+            if ($sx < 0 || $sx >= $w || $sy < 0 || $sy >= $h) {
+                return;
+            }
+            $idx = $sy * $w + $sx;
+            if ($forceClearCore) {
+                $coreMask[$idx] = 0;
+            }
+            if (!$coreMask[$idx] && !$extVisited[$idx]) {
+                $extVisited[$idx] = 1;
+                $extQueue->enqueue([$sx, $sy]);
+            }
+        };
+        for ($x = 0; $x < $w; $x += 2) {
+            $addExtSeed($x, 0);
+            $addExtSeed($x, $h - 1);
+        }
+        for ($y = 0; $y < $h; $y += 2) {
+            $addExtSeed(0, $y);
+            $addExtSeed($w - 1, $y);
+        }
+
+        if ($mode === 'lifestyle') {
+            $addExtSeed((int) ($w * 0.528), (int) ($h * 0.745), true);
+            $addExtSeed((int) ($w * 0.583), (int) ($h * 0.772), true);
+        } else {
+            $pawBoxes = [];
+            if ($fname === 'seelen-pfote-back.jpg') {
+                $pawBoxes[] = [0.168, 0.545, 0.292, 0.688];
+            } elseif ($isStudioAngle) {
+                $pawBoxes[] = [0.678, 0.608, 0.808, 0.758];
+            } elseif ($isStanding) {
+                $pawBoxes[] = [0.728, 0.532, 0.852, 0.675];
+            } elseif ($isFlatLay) {
+                $pawBoxes[] = [0.738, 0.440, 0.862, 0.555];
+            } else {
+                $pawBoxes[] = [0.742, 0.552, 0.858, 0.695];
+            }
+            foreach ($pawBoxes as [$bx0, $by0, $bx1, $by1]) {
+                for ($py = (int) ($by0 * $h); $py <= (int) ($by1 * $h); $py++) {
+                    for ($px = (int) ($bx0 * $w); $px <= (int) ($bx1 * $w); $px++) {
+                        $rgb = imagecolorat($im, $px, $py);
+                        $r = ($rgb >> 16) & 0xFF;
+                        $g = ($rgb >> 8) & 0xFF;
+                        $b = $rgb & 0xFF;
+                        $lum = 0.299 * $r + 0.587 * $g + 0.114 * $b;
+                        $chroma = max($r, $g, $b) - min($r, $g, $b);
+                        if ($lum < 135.0 || $chroma > 28) {
+                            $coreMask[$py * $w + $px] = 0;
+                            $addExtSeed($px, $py);
+                        }
+                    }
+                }
+            }
+            $addExtSeed((int) ($w * 0.495), (int) ($h * 0.395));
+            $addExtSeed((int) ($w * 0.450), (int) ($h * 0.385));
+            $addExtSeed((int) ($w * 0.515), (int) ($h * 0.365));
+            $addExtSeed((int) ($w * 0.530), (int) ($h * 0.295));
+        }
+
+        while (!$extQueue->isEmpty()) {
+            [$cx, $cy] = $extQueue->dequeue();
+            foreach ([[-1, 0], [1, 0], [0, -1], [0, 1]] as [$dx, $dy]) {
+                $nx = $cx + $dx;
+                $ny = $cy + $dy;
+                if ($nx < 0 || $nx >= $w || $ny < 0 || $ny >= $h) {
+                    continue;
+                }
+                $nIdx = $ny * $w + $nx;
+                if (!$coreMask[$nIdx] && !$extVisited[$nIdx]) {
+                    $extVisited[$nIdx] = 1;
+                    $extQueue->enqueue([$nx, $ny]);
+                }
+            }
+        }
+
+        for ($i = 0, $n = $w * $h; $i < $n; $i++) {
+            if (!$extVisited[$i]) {
+                $coreMask[$i] = 1;
+            }
+        }
+
+        $dilated = clone $coreMask;
+        $radius = ($mode === 'lifestyle') ? 2 : 5;
+        for ($step = 0; $step < $radius; $step++) {
+            $next = clone $dilated;
+            for ($y = 1; $y < $h - 1; $y++) {
+                $row = $y * $w;
+                for ($x = 1; $x < $w - 1; $x++) {
+                    $idx = $row + $x;
+                    if ($dilated[$idx]) {
+                        continue;
+                    }
+                    if ($dilated[$idx - 1] || $dilated[$idx + 1] || $dilated[$idx - $w] || $dilated[$idx + $w]) {
+                        $rgb = imagecolorat($im, $x, $y);
+                        $r = ($rgb >> 16) & 0xFF;
+                        $g = ($rgb >> 8) & 0xFF;
+                        $b = $rgb & 0xFF;
+                        $lum = 0.299 * $r + 0.587 * $g + 0.114 * $b;
+                        if (($r - $g) < 30 && ($g - $r) < 12 && (($r - $b) < 38 || $lum > 145)) {
+                            $next[$idx] = 1;
+                        }
+                    }
+                }
+            }
+            $dilated = $next;
+        }
+
+        $mask = array_fill(0, $w * $h, 0.0);
+        for ($i = 0, $n = $w * $h; $i < $n; $i++) {
+            if ($dilated[$i]) {
+                $mask[$i] = 1.0;
+            }
+        }
+        for ($pass = 0; $pass < 2; $pass++) {
+            $nextMask = $mask;
+            for ($y = 1; $y < $h - 1; $y++) {
+                $row = $y * $w;
+                for ($x = 1; $x < $w - 1; $x++) {
+                    $idx = $row + $x;
+                    $sum = $mask[$idx - $w - 1] + $mask[$idx - $w] + $mask[$idx - $w + 1]
+                         + $mask[$idx - 1]      + $mask[$idx]      + $mask[$idx + 1]
+                         + $mask[$idx + $w - 1] + $mask[$idx + $w] + $mask[$idx + $w + 1];
+                    $nextMask[$idx] = $sum / 9.0;
+                }
+            }
+            $mask = $nextMask;
+        }
+
+        for ($y = 0; $y < $h; $y++) {
+            $row = $y * $w;
+            for ($x = 0; $x < $w; $x++) {
+                $m = $mask[$row + $x];
+                if ($m <= 0.01) {
+                    continue;
+                }
+
+                $rgb = imagecolorat($im, $x, $y);
+                $r = ($rgb >> 16) & 0xFF;
+                $g = ($rgb >> 8) & 0xFF;
+                $b = $rgb & 0xFF;
+
+                $lum = (0.299 * $r + 0.587 * $g + 0.114 * $b) / 255.0;
+
+                if ($lum < 0.25) {
+                    $t = $lum / 0.25;
+                    $gr = 24.0 + $t * (115.0 - 24.0);
+                    $gg = 19.0 + $t * (84.0 - 19.0);
+                    $gb = 14.0 + $t * (32.0 - 14.0);
+                } elseif ($lum < 0.55) {
+                    $t = ($lum - 0.25) / 0.30;
+                    $gr = 115.0 + $t * (198.0 - 115.0);
+                    $gg = 84.0 + $t * (154.0 - 84.0);
+                    $gb = 32.0 + $t * (68.0 - 32.0);
+                } elseif ($lum < 0.85) {
+                    $t = ($lum - 0.55) / 0.30;
+                    $gr = 198.0 + $t * (236.0 - 198.0);
+                    $gg = 154.0 + $t * (196.0 - 154.0);
+                    $gb = 68.0 + $t * (104.0 - 68.0);
+                } else {
+                    $t = ($lum - 0.85) / 0.15;
+                    $gr = 236.0 + $t * (250.0 - 236.0);
+                    $gg = 196.0 + $t * (219.0 - 196.0);
+                    $gb = 104.0 + $t * (138.0 - 104.0);
+                }
+
+                $origDr = $r - ($lum * 255.0);
+                $origDg = $g - ($lum * 255.0);
+                $origDb = $b - ($lum * 255.0);
+                $gr += $origDr * 0.14;
+                $gg += $origDg * 0.14;
+                $gb += $origDb * 0.10;
+
+                $fr = (int) round(max(0, min(255, $r * (1.0 - $m) + $gr * $m)));
+                $fg = (int) round(max(0, min(255, $g * (1.0 - $m) + $gg * $m)));
+                $fb = (int) round(max(0, min(255, $b * (1.0 - $m) + $gb * $m)));
+
+                imagesetpixel($im, $x, $y, ($fr << 16) | ($fg << 8) | $fb);
+            }
+        }
+
+        imagejpeg($im, $filePath, 92);
         imagedestroy($im);
     }
 
@@ -2038,20 +2817,21 @@ class ProductAssetSeeder extends Seeder
             [
                 'slug' => 'seelen-anhaenger',
                 'outFileName' => 'seelen-anhaenger-dimensions.jpg',
-                'title' => 'Der Seelenanhänger – Maße & Details',
+                'title' => 'Der Seelenanhänger: Maße & Details',
                 'subtitle' => 'Herz-Schlüsselanhänger aus eloxiertem Aluminium mit Hochglanz-Metallrahmen',
                 'overlayTop' => 185,
                 'horizArrows' => [
-                    ['x1' => 266, 'x2' => 758, 'y' => 735, 'dashedYFrom1' => 390, 'dashedYFrom2' => 390, 'labelPos' => 'below', 'label' => 'Herz-Breite: 45 mm (4,5 cm)'],
+                    ['x1' => 378, 'x2' => 646, 'y' => 745, 'dashedYFrom1' => 556, 'dashedYFrom2' => 556, 'labelPos' => 'below', 'label' => 'Herz-Breite: 45 mm (4,5 cm)'],
                 ],
                 'vertArrows' => [
-                    ['y1' => 225, 'y2' => 692, 'x' => 868, 'dashedXFrom1' => 615, 'dashedXFrom2' => 512, 'label' => 'Höhe: 40 mm'],
+                    ['y1' => 479, 'y2' => 725, 'x' => 215, 'dashedXFrom1' => 445, 'dashedXFrom2' => 512, 'label' => 'Herz-Höhe: 40 mm'],
+                    ['y1' => 207, 'y2' => 725, 'x' => 815, 'dashedXFrom1' => 517, 'dashedXFrom2' => 512, 'label' => 'Gesamtlänge: 90 mm'],
                 ],
                 'callouts' => [
-                    ['x' => 512, 'y' => 510, 'tx' => 190, 'ty' => 635, 'label' => 'Gravurfeld: 36 × 32 mm'],
+                    ['x' => 512, 'y' => 602, 'tx' => 225, 'ty' => 360, 'label' => 'Gravurfeld: 38 × 35 mm'],
                 ],
                 'specs' => [
-                    ['label' => 'Abmessungen', 'value' => '45 × 40 mm', 'sub' => 'inkl. massivem Spaltring'],
+                    ['label' => 'Abmessungen', 'value' => '45 × 40 mm', 'sub' => 'inkl. Drehwirbel & Spaltring'],
                     ['label' => 'Materialstärke', 'value' => '2,3 mm', 'sub' => 'Formstabil & handschmeichelnd'],
                     ['label' => 'Gewicht', 'value' => 'ca. 19 g', 'sub' => 'Angenehm am Schlüsselbund'],
                     ['label' => 'Gravur', 'value' => 'Beidseitig', 'sub' => 'Vorder- & Rückseite inklusive'],
@@ -2104,22 +2884,22 @@ class ProductAssetSeeder extends Seeder
             [
                 'slug' => 'seelen-pfote-hundemarke',
                 'outFileName' => 'seelen-pfote-dimensions.jpg',
-                'title' => 'Die Seelen-Pfote – Maße & Details',
-                'subtitle' => 'Hochglanzpolierte Edelstahl-Hundemarke mit ausgestanztem Pfotenabdruck',
+                'title' => 'Die Seelen-Pfote: Maße & Details',
+                'subtitle' => 'Hochglanzpolierte Edelstahl-Hundemarke in edlem Gold-Finish mit ausgestanztem Pfotenabdruck',
                 'overlayTop' => 185,
                 'horizArrows' => [
                     ['x1' => 288, 'x2' => 736, 'y' => 265, 'dashedYFrom1' => 385, 'dashedYFrom2' => 385, 'labelPos' => 'above', 'label' => 'Breite: 40 mm (1,57 in)'],
                 ],
                 'vertArrows' => [
-                    ['y1' => 342, 'y2' => 588, 'x' => 165, 'dashedXFrom1' => 340, 'dashedXFrom2' => 340, 'label' => 'Höhe: 22 mm (0,87 in)'],
+                    ['y1' => 352, 'y2' => 578, 'x' => 165, 'dashedXFrom1' => 359, 'dashedXFrom2' => 359, 'label' => 'Höhe: 22 mm (0,87 in)'],
                 ],
                 'callouts' => [
-                    ['x' => 425, 'y' => 485, 'tx' => 330, 'ty' => 690, 'label' => 'Beidseitige Laser-Gravurzone'],
-                    ['x' => 660, 'y' => 525, 'tx' => 720, 'ty' => 690, 'label' => 'Echter Pfoten-Durchbruch'],
+                    ['x' => 425, 'y' => 465, 'tx' => 330, 'ty' => 690, 'label' => 'Beidseitige Laser-Gravurzone'],
+                    ['x' => 676, 'y' => 520, 'tx' => 720, 'ty' => 690, 'label' => 'Echter Pfoten-Durchbruch'],
                 ],
                 'specs' => [
                     ['label' => 'Knochen-Maß', 'value' => '40 × 22 mm', 'sub' => '1,57 × 0,87 in (inkl. Öse)'],
-                    ['label' => 'Materialstärke', 'value' => '1,8 mm', 'sub' => 'Rostfreier Edelstahl'],
+                    ['label' => 'Material & Finish', 'value' => '1,8 mm Gold', 'sub' => 'Edelstahl (Gold-Finish)'],
                     ['label' => 'Gewicht', 'value' => 'ca. 12 g (0,43 oz)', 'sub' => 'Rostfrei, wasser- & kratzfest'],
                     ['label' => 'Gravur', 'value' => 'Beidseitig', 'sub' => 'Name vorn + Notfall-Nr. hinten'],
                 ],
@@ -2220,7 +3000,7 @@ class ProductAssetSeeder extends Seeder
 
         foreach ($sheets as $cfg) {
             $outPath = $publicProductsPath . '/' . $cfg['slug'] . '/' . $cfg['outFileName'];
-            if (!file_exists($outPath) || $force || in_array($cfg['slug'], ['goldenes-seelen-herz', 'echtgold-seelen-herz', 'id-armband-silber-herz', 'id-armband-gold-herz'], true)) {
+            if (!file_exists($outPath) || $force || in_array($cfg['slug'], ['seelen-anhaenger', 'seelen-pfote-hundemarke', 'goldenes-seelen-herz', 'echtgold-seelen-herz', 'id-armband-silber-herz', 'id-armband-gold-herz'], true)) {
                 $this->renderDimensionSheetWithGd($publicProductsPath, $cfg);
             }
         }

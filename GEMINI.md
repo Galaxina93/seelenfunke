@@ -34,6 +34,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
    - **Shop-Frontend & Kunden-Modals = Immer Light-Mode:** Shop-Frontend (inkl. Konfigurator-Tutorial, Lightbox, Linktree `/links`, Produkt-Extras) immer im freundlichen, hellen **Light-Mode** halten (kein Darkmode-Switch, keine dunklen Boxen im Frontend).
    - **Schwarz-Gold (`#C5A059`) & Matt statt Glow/Lila/Amber:** Keine künstlichen KI-Glow-Effekte. Bei Produkt-Extras/Vorteilen niemals gelbe `bg-amber`-Boxen oder lila Häkchen nutzen, sondern cleanen Hintergrund + goldenen Haken (`✓` in `#C5A059`) + exakt **3 kurze Vorteile**.
    - **Admin-Backend & Funkenwerk (Windows/Android):** Strikte Nutzung von `var(--theme-color)` (`-10` bis `-50`) der Abteilung sowie **100 % konsistenter Light- & Dark-Mode** (`bg-white dark:bg-gray-900/80`, `text-gray-900 dark:text-white`, weiße Icons im Darkmode, angepasste Scrollbars/Tabs, Passwortfelder immer mit Auge-Icon).
+   - **Funkenwerk Darkmode-Gesetz (Deep Black & Matt-Gold):** In allen Funkenwerk-Ansichten (inkl. Dateiverwaltung, Eingabefeldern, Suchleisten, Info-Kacheln, Tabellen, Modals und Buttons) gilt im Darkmode zwingend Deep-Black (`#000000` bzw. Basis-Hex `#181B24` / `#11131A` / `#26231F` über `BrushFromHex`), matte dunkelgoldene Rahmen (`#382D18` / `#242936` bzw. `#C5A059` bei aktivem Fokus/Hover) und klare weiße/goldene Schrift (`#FFFFFF` / `#C5A059`). Niemals grell-gelbe Vollflächen-Buttons oder ungemappte helle Hintergründe im Darkmode verwenden!
 3. **Arbeitsmodus („Erst konzeptionieren“ vs. „Klare Mitgründer-Entscheidung“):**
    - **Neue System-Features & Umbauten:** Erst kurz & knackig konzeptionieren, ehrlichen unternehmerischen Mehrwert nennen und auf das explizite **„Go“** warten.
    - **Einkaufs-, Verpackungs-, Lieferanten- & Versicherungsfragen:** Nicht mit 10 Optionen überfordern, sondern als Mitgründer-Experte **eine** klare, wirtschaftlich durchgerechnete Empfehlung mit exaktem Produkt/Link und Start-Bestellmenge geben.
@@ -55,7 +56,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
    - Urheberrechts-Freistellungs-Checkbox bei Kunden-Uploads; keine geschützten Drittmarken; Lieferländer im Checkout strikt an aktive Lieferzonen (`LogisticsShippingZone`) koppeln.
    - Rollen `influencer` und `tax_advisor` strikt über `EnsureEmployeeRole` / `EmployeeRoleIsolationHook` / `AiAuthHelper` isolieren; kritische Livewire-Properties mit `#[Locked]` schützen.
 9. **Funkenwerk Desktop Suite (`funkenwerk/`) & Android App (`android-app/`):**
-   - Vereint Mail (Thunderbird-Ersatz mit KI-Trichter & „Verarbeitet“-Ordner), To-Do, Kalender, Kontakte, Musikplayer, Smarthome (ONVIF/RTSP-Kameras), Kamera-Studio (OBS-Szenen + `Deep-Live-Cam` + Virtual Cam) und Marketing-Content-Planer in **einer** App (Sync via REST-API).
+   - Vereint Mail (Thunderbird-Ersatz mit KI-Trichter & „Verarbeitet“-Ordner), Dateiverwaltung (Hauptverzeichnis `funkenwerk/files/` + Datenbank-Indexierung `AiWorkspaceDocument` & `funkenwerk_files_db.json` mit dynamischer unscharfer/Synonym-Suche), To-Do, Kalender, Kontakte, Musikplayer, Smarthome (ONVIF/RTSP-Kameras), Kamera-Studio (OBS-Szenen + `Deep-Live-Cam` + Virtual Cam) und Marketing-Content-Planer in **einer** App (Sync via REST-API).
 10. **Verbindliche Pflege der `Abschlussberichte/` & Verzeichnis-Reinigung:**
     - Vor und nach Aufgaben `Abschlussberichte/README.md` sowie die Fachberichte in `Abschlussberichte/<Abteilung>/`, `Workflows/` und `Konzepte/` prüfen/aktualisieren. Keine losen Test-Skripte im Projekt-Root (`Workflow_Verzeichnis_Reinigung.md`).
     - Nach neuen Models/Livewire/Controllern/Services/Seedern `php artisan ai:generate-map` ausführen (synchronisiert automatisch `ai_map.md` und diese `GEMINI.md`).
@@ -64,7 +65,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 
 <!-- AI_MAP_START -->
 # Seelenfunke System-Architektur & AI Map (`ai_map.md`)
-> Generiert via `php artisan ai:generate-map` (2026-11-08 22:27)
+> Generiert via `php artisan ai:generate-map` (2026-11-11 13:38)
 
 ## 1. Ökosystem-Pfade & Umgebungen
 - **Hauptportal (`Mein-Seelenfunke`)**: Win-UNC `\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke` | WSL `/home/ubuntuxina/meine-projekte/seelenfunke` (Docker PHP: `mein_php_server`) | Lokal `http://127.0.0.1` (`http://seelenfunke.test`) | Stage `https://stage.mein-seelenfunke.de` | Live `https://mein-seelenfunke.de`
@@ -171,6 +172,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 - **Management**: `MailAiSortService`
 - **Marketing**: `HolidayOfferAutopilotService, InfluencerService`
 - **Navigation**: `BackendNavigationService`
+- **Order**: `OrderProductionBatchService`
 - **Root**: `AccountingEInvoiceParserService, AccountingXmlInvoiceService, AnalyticsService, BankApiService, CartFileCleanupService, CartService, ConfiguratorService, DhlService, ElsterEricService, FinancialService, FirebaseService, GoogleReviewsService, HerzensprojektService, InvoiceService, PriceCalcService, ProductConfiguratorService, ProductTrackingService, ReferralService, ShippingCalculatorService, StealthCrawlerService, WishlistService`
 - **Storage**: `GlbOptimizerService`
 - **System**: `FunkenwerkPrintService, SystemBlueprintService, SystemErrorLogger, SystemSecurityService`

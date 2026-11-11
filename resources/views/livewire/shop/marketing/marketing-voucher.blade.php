@@ -589,13 +589,27 @@
                                 </div>
                             </td>
                             <td class="px-6 py-5">
-                                <span @class([
-                                    'inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold border',
-                                    'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' => $gv->delivery_method === 'email',
-                                    'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' => $gv->delivery_method === 'post',
-                                ])>
-                                    {{ $gv->delivery_method === 'email' ? '📧 E-Mail' : '✉️ Post' }}
-                                </span>
+                                @php
+                                    $gvCardColor = ($gv->card_color ?? ($gv->orderItem->configuration['card_color'] ?? 'gold')) === 'black' ? 'black' : 'gold';
+                                @endphp
+                                <div class="flex flex-wrap items-center gap-1.5">
+                                    <span @class([
+                                        'inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold border',
+                                        'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' => $gv->delivery_method === 'email',
+                                        'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' => $gv->delivery_method === 'post',
+                                    ])>
+                                        {{ $gv->delivery_method === 'email' ? '📧 E-Mail' : '✉️ Post' }}
+                                    </span>
+                                    @if($gvCardColor === 'black')
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-gray-900 text-white border border-gray-700">
+                                            🖤 Schwarz{{ $gv->delivery_method === 'post' ? ' (+1,50 €)' : '' }}
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                                            ✨ Gold
+                                        </span>
+                                    @endif
+                                </div>
                             </td>
                             <td class="px-6 py-5">
                                 <div class="flex flex-col gap-0.5">

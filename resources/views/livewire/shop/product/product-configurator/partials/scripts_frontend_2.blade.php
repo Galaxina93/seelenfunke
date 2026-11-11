@@ -496,6 +496,7 @@
 
         renderBothCanvases(textsFront, logosFront, textsBack, logosBack, fontMap) {
             if(!this.isReady) return;
+            this._latestRenderArgs = [textsFront, logosFront, textsBack, logosBack, fontMap];
 
             const drawToCtx = (ctx, canvas, texts, logos, textureObj) => {
                 if(!ctx) return;
@@ -517,8 +518,33 @@
                     } else if(shape === 'circle') {
                         c.ellipse(x + w/2, y + h/2, w/2, h/2, 0, 0, Math.PI * 2);
                     } else if(shape === 'custom') {
-                        let pts = this.config.custom_points;
-                        if(pts && pts.length > 0) {
+                        let rawPts = Array.isArray(this.config.custom_points) ? this.config.custom_points.filter(p => p && isFinite(p.x) && isFinite(p.y)) : [];
+                        if(rawPts.length > 0) {
+                            let pts = rawPts.map(p => ({ x: Number(p.x), y: Number(p.y) }));
+                            if (pts.length >= 3) {
+                                for (let pass = 0; pass < 2; pass++) {
+                                    const next = [];
+                                    const n = pts.length;
+                                    for (let i = 0; i < n; i++) {
+                                        const pPrev = pts[(i - 1 + n) % n];
+                                        const pCurr = pts[i];
+                                        const pNext = pts[(i + 1) % n];
+                                        const v1x = pCurr.x - pPrev.x, v1y = pCurr.y - pPrev.y;
+                                        const v2x = pNext.x - pCurr.x, v2y = pNext.y - pCurr.y;
+                                        const l1 = Math.hypot(v1x, v1y), l2 = Math.hypot(v2x, v2y);
+                                        const cosA = (l1 > 0.001 && l2 > 0.001) ? ((v1x * v2x + v1y * v2y) / (l1 * l2)) : 1;
+                                        if (cosA < 0.55) {
+                                            next.push(pCurr);
+                                        } else {
+                                            const t1 = l1 > 0.001 ? Math.min(0.25, 1.2 / l1) : 0.25;
+                                            const t2 = l2 > 0.001 ? Math.min(0.25, 1.2 / l2) : 0.25;
+                                            next.push({ x: (1 - t1) * pCurr.x + t1 * pPrev.x, y: (1 - t1) * pCurr.y + t1 * pPrev.y });
+                                            next.push({ x: (1 - t2) * pCurr.x + t2 * pNext.x, y: (1 - t2) * pCurr.y + t2 * pNext.y });
+                                        }
+                                    }
+                                    pts = next;
+                                }
+                            }
                             pts.forEach((p, i) => {
                                 let px = (p.x || 0) / 100 * cw;
                                 let py = (p.y || 0) / 100 * cw;
@@ -564,9 +590,11 @@
                 };
 
                 const drawQueue = [];
+                const safeLogos = Array.isArray(logos) ? logos : (logos && typeof logos === 'object' ? Object.values(logos) : []);
+                const safeTexts = Array.isArray(texts) ? texts : (texts && typeof texts === 'object' ? Object.values(texts) : []);
 
-                if(logos) {
-                    logos.forEach((logo, idx) => {
+                if(safeLogos.length > 0) {
+                    safeLogos.forEach((logo, idx) => {
                         if (!logo || !logo.url) return;
                         const z = (typeof logo.zIndex === 'number' && !isNaN(logo.zIndex)) ? logo.zIndex : (10 + idx);
                         const cached = this._logoImageCache ? this._logoImageCache.get(logo.url) : null;
@@ -584,8 +612,9 @@
                             }
                             img.onload = () => {
                                 if (this._disposed) return;
-                                // Nach erstem Laden einmal komplett in korrekter Ebenen-Reihenfolge neu zeichnen
-                                this.renderBothCanvases(textsFront, logosFront, textsBack, logosBack, fontMap);
+                                // Nach erstem Laden einmal komplett mit den aktuellsten Argumenten neu zeichnen
+                                const latestArgs = this._latestRenderArgs || [textsFront, logosFront, textsBack, logosBack, fontMap];
+                                this.renderBothCanvases(...latestArgs);
                             };
                             img.onerror = () => {
                                 if (this._logoImageCache) this._logoImageCache.delete(logo.url);
@@ -595,10 +624,10 @@
                     });
                 }
 
-                if(texts) {
-                    texts.forEach((item, idx) => {
+                if(safeTexts.length > 0) {
+                    safeTexts.forEach((item, idx) => {
                         if(!item || !item.text) return;
-                        const z = (typeof item.zIndex === 'number' && !isNaN(item.zIndex)) ? item.zIndex : (20 + idx);
+                        const z = (typeof item.zIndex === 'number' && !isNaN(item.zIndex)) ? item.zIndex : (30 + idx);
                         drawQueue.push({
                             z,
                             draw: () => {
@@ -640,7 +669,17 @@
 
                                 const yOffset = fontSize * 0.12;
 
+                                if (safeLogos.length > 0) {
+                                    ctx.lineJoin = 'round';
+                                    ctx.lineCap = 'round';
+                                    ctx.lineWidth = Math.max(2, fontSize * 0.12);
+                                    ctx.strokeStyle = isLightMetal ? 'rgba(255,252,240,0.85)' : 'rgba(15,23,42,0.85)';
+                                }
+
                                 lines.forEach(line => {
+                                    if (safeLogos.length > 0) {
+                                        ctx.strokeText(line, 0, startY + yOffset);
+                                    }
                                     ctx.fillText(line, 0, startY + yOffset);
                                     startY += lineHeight;
                                 });

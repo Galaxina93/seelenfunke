@@ -27,18 +27,38 @@ Route::prefix('funki/tasks')->group(function () {
 
     Route::post('/lists', function (Request $request) {
         $data = $request->validate([
+            'id' => 'nullable|string|max:64',
             'name' => 'required|string|max:100',
             'icon' => 'nullable|string|max:50',
             'color' => 'nullable|string|max:20',
         ]);
 
+        if (!empty($data['id'])) {
+            $existingById = ManagementTaskList::find($data['id']);
+            if ($existingById) {
+                $existingById->open_count = $existingById->tasks()->where('is_completed', false)->whereNull('parent_id')->where('is_archived', false)->count();
+                $existingById->completed_count = $existingById->tasks()->where('is_completed', true)->whereNull('parent_id')->where('is_archived', false)->count();
+                return response()->json(['success' => true, 'data' => $existingById]);
+            }
+        }
+
+        $existingByName = ManagementTaskList::where('is_archived', false)
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($data['name']))])
+            ->first();
+        if ($existingByName) {
+            $existingByName->open_count = $existingByName->tasks()->where('is_completed', false)->whereNull('parent_id')->where('is_archived', false)->count();
+            $existingByName->completed_count = $existingByName->tasks()->where('is_completed', true)->whereNull('parent_id')->where('is_archived', false)->count();
+            return response()->json(['success' => true, 'data' => $existingByName]);
+        }
+
         $maxPos = (int) ManagementTaskList::max('position');
         $list = ManagementTaskList::create([
-            'id' => (string) Str::uuid(),
-            'name' => $data['name'],
+            'id' => !empty($data['id']) ? $data['id'] : (string) Str::uuid(),
+            'name' => trim($data['name']),
             'icon' => $data['icon'] ?? 'list-bullet',
             'color' => $data['color'] ?? '#818CF8',
             'position' => $maxPos + 1,
+            'is_archived' => false,
         ]);
         $list->open_count = 0;
         $list->completed_count = 0;
@@ -75,12 +95,15 @@ Route::prefix('funki/tasks')->group(function () {
 
     // --- TASKS ---
     Route::get('/', function () {
-        $tasks = ManagementTask::orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
+        $tasks = ManagementTask::with('list')
+            ->where('is_archived', false)
+            ->orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
             ->orderBy('position')
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(function($task) {
                 $task->title = $task->title ?? 'Ohne Titel';
+                $task->list_name = $task->list ? $task->list->name : 'Aufgaben';
                 $parentTitle = null;
                 if($task->parent_id) {
                     $parent = ManagementTask::find($task->parent_id);
@@ -95,28 +118,45 @@ Route::prefix('funki/tasks')->group(function () {
 
     Route::post('/lists/{listId}/tasks', function (Request $request, $listId) {
         $data = $request->validate([
+            'id' => 'nullable|string|max:64',
             'title' => 'required|string|max:255',
             'priority' => 'nullable|in:niedrig,mittel,hoch',
             'relevant_from' => 'nullable|date',
             'ai_plan' => 'nullable|string',
+            'list_name' => 'nullable|string|max:100',
+            'is_completed' => 'nullable|boolean',
         ]);
 
-        // Support smart list aliases ("my_day", "important", "planned", "all", "default")
+        // Support smart list aliases ("my_day", "important", "planned", "all", "default") and cross-server list fallback
         $targetList = null;
-        if (in_array($listId, ['my_day', 'important', 'planned', 'all', 'default'], true)) {
+        if (!in_array($listId, ['my_day', 'important', 'planned', 'all', 'default'], true)) {
+            $targetList = ManagementTaskList::find($listId);
+        }
+        if (!$targetList && !empty($data['list_name'])) {
+            $targetList = ManagementTaskList::where('is_archived', false)
+                ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($data['list_name']))])
+                ->first();
+        }
+        if (!$targetList) {
             $targetList = ManagementTaskList::where('name', 'Aufgaben')->first()
-                ?? ManagementTaskList::orderBy('position', 'asc')->orderBy('created_at', 'asc')->first();
+                ?? ManagementTaskList::where('is_archived', false)->orderBy('position', 'asc')->orderBy('created_at', 'asc')->first();
             if (!$targetList) {
                 $targetList = ManagementTaskList::create([
                     'id' => (string) Str::uuid(),
-                    'name' => 'Aufgaben',
+                    'name' => !empty($data['list_name']) ? trim($data['list_name']) : 'Aufgaben',
                     'icon' => 'home',
                     'color' => '#818CF8',
                     'position' => 1,
+                    'is_archived' => false,
                 ]);
             }
-        } else {
-            $targetList = ManagementTaskList::findOrFail($listId);
+        }
+
+        if (!empty($data['id'])) {
+            $existingById = ManagementTask::find($data['id']);
+            if ($existingById) {
+                return response()->json(['success' => true, 'data' => $existingById]);
+            }
         }
 
         $priority = $data['priority'] ?? ($listId === 'important' ? 'hoch' : 'niedrig');
@@ -127,15 +167,20 @@ Route::prefix('funki/tasks')->group(function () {
             $relevantFrom = \Carbon\Carbon::today();
         }
 
+        $maxPos = (int) ManagementTask::where('task_list_id', $targetList->id)->whereNull('parent_id')->max('position');
+
         $task = ManagementTask::create([
-            'id' => (string) Str::uuid(),
+            'id' => !empty($data['id']) ? $data['id'] : (string) Str::uuid(),
             'task_list_id' => $targetList->id,
             'parent_id' => null,
-            'title' => $data['title'],
+            'title' => trim($data['title']),
             'priority' => $priority,
             'relevant_from' => $relevantFrom,
             'ai_plan' => $data['ai_plan'] ?? null,
-            'is_completed' => false,
+            'is_completed' => (bool) ($data['is_completed'] ?? false),
+            'is_archived' => false,
+            'position' => $maxPos + 1,
+            'file_paths' => [],
         ]);
 
         return response()->json(['success' => true, 'data' => $task]);
@@ -173,13 +218,18 @@ Route::prefix('funki/tasks')->group(function () {
     Route::post('/{id}/subtask', function (Request $request, $id) {
         $data = $request->validate(['title' => 'required|string']);
         $task = ManagementTask::findOrFail($id);
+        $maxPos = (int) ManagementTask::where('parent_id', $task->id)->max('position');
 
         $subtask = ManagementTask::create([
-            'id' => Str::uuid(),
+            'id' => (string) Str::uuid(),
             'task_list_id' => $task->task_list_id,
             'parent_id' => $task->id,
-            'title' => $data['title'],
-            'priority' => 'niedrig'
+            'title' => trim($data['title']),
+            'priority' => 'niedrig',
+            'is_completed' => false,
+            'is_archived' => false,
+            'position' => $maxPos + 1,
+            'file_paths' => [],
         ]);
         return response()->json(['success' => true, 'data' => $subtask]);
     });

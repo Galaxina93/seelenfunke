@@ -1,0 +1,293 @@
+<Window x:Class="FunkenwerkPdf.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Funkenwerk PDF"
+        Icon="funkenwerk_pdf.ico"
+        Width="1180" Height="760"
+        MinWidth="560" MinHeight="440"
+        WindowStartupLocation="CenterScreen"
+        Background="#0F1117"
+        Foreground="#F9FAFB"
+        FontFamily="Segoe UI"
+        AllowDrop="True"
+        PreviewDragOver="Window_PreviewDragOver"
+        PreviewDrop="Window_PreviewDrop"
+        PreviewMouseWheel="Window_PreviewMouseWheel"
+        KeyDown="Window_KeyDown">
+
+    <Grid x:Name="RootGrid" Background="#0F1117">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="30"/>
+        </Grid.RowDefinitions>
+
+        <!-- ================================================================= -->
+        <!-- ROW 0: ADAPTIVE RESPONSIVE TOOLBAR (DESKTOP, LAPTOP & SPLIT-VIEW) -->
+        <!-- ================================================================= -->
+        <Border x:Name="TopBarBorder" Grid.Row="0" Background="#12151E" BorderBrush="#232734" BorderThickness="0,0,0,1" Padding="10,6">
+            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+
+                <!-- Sidebar Toggle + Brand Icon -->
+                <Button x:Name="ToggleSidebarBtn" Content="☰" Width="28" Height="28" Click="ToggleSidebar_Click"
+                        Background="#1B1F2B" Foreground="#C5A059" BorderBrush="#2D3343" FontWeight="Bold" Cursor="Hand" Margin="0,2,6,2"
+                        ToolTip="Seitenleiste ein-/ausblenden"/>
+                <Image Source="funkenwerk_pdf.png" Width="24" Height="24" VerticalAlignment="Center" Margin="0,2,8,2"/>
+
+                <!-- File Actions -->
+                <Button x:Name="OpenBtn" Content="Öffnen" Height="28" Padding="9,0" FontSize="12" Click="OpenPdf_Click"
+                        Background="#1B1F2B" Foreground="#F9FAFB" BorderBrush="#2D3343" FontWeight="SemiBold" Cursor="Hand" Margin="0,2,4,2"/>
+                <Button x:Name="NewBtn" Content="+ Neu" Height="28" Padding="8,0" FontSize="12" Click="NewBlankPdf_Click"
+                        Background="#1B1F2B" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,2,4,2"/>
+                <Button x:Name="SaveBtn" Content="Speichern" Height="28" Padding="11,0" FontSize="12" Click="SavePdf_Click"
+                        Background="#C5A059" Foreground="#0F1117" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Margin="0,2,4,2"/>
+                <Button x:Name="SaveAsBtn" Content="Speichern als" Height="28" Padding="9,0" FontSize="12" Click="SaveAsPdf_Click"
+                        Background="#1B1F2B" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,2,6,2"/>
+
+                <Border Width="1" Height="20" Background="#2A3042" VerticalAlignment="Center" Margin="2,2,8,2"/>
+
+                <!-- Edit / Fill / Sign Tools (Individual Wrap Items so Nothing Ever Clips) -->
+                <Button x:Name="ToolSelectBtn" Content="↖ Auswahl" Height="28" Padding="9,0" FontSize="12" Click="ToolSelect_Click"
+                        Background="#C5A059" Foreground="#0F1117" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Margin="0,2,4,2"/>
+                <Button x:Name="ToolTextBtn" Content="T Text" Height="28" Padding="9,0" FontSize="12" Click="ToolText_Click"
+                        Background="#1B1F2B" Foreground="#F9FAFB" BorderBrush="#2D3343" FontWeight="SemiBold" Cursor="Hand" Margin="0,2,4,2"/>
+                <Button x:Name="ToolCheckBtn" Content="✓ Haken" Height="28" Padding="9,0" FontSize="12" Click="ToolCheck_Click"
+                        Background="#1B1F2B" Foreground="#F9FAFB" BorderBrush="#2D3343" FontWeight="SemiBold" Cursor="Hand" Margin="0,2,4,2"/>
+                <Button x:Name="ToolCrossBtn" Content="✕ Kreuz" Height="28" Padding="9,0" FontSize="12" Click="ToolCross_Click"
+                        Background="#1B1F2B" Foreground="#F9FAFB" BorderBrush="#2D3343" FontWeight="SemiBold" Cursor="Hand" Margin="0,2,4,2"/>
+                <Button x:Name="DateBtn" Content="Datum" Height="28" Padding="8,0" FontSize="12" Click="InsertDate_Click"
+                        Background="#1B1F2B" Foreground="#F9FAFB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,2,4,2"/>
+                <Button x:Name="ToolWhiteoutBtn" Content="▭ Korrektur" Height="28" Padding="8,0" FontSize="12" Click="ToolWhiteout_Click"
+                        Background="#1B1F2B" Foreground="#F9FAFB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,2,4,2"/>
+                <Button x:Name="ToolHighlightBtn" Content="Marker" Height="28" Padding="8,0" FontSize="12" Click="ToolHighlight_Click"
+                        Background="#1B1F2B" Foreground="#F9FAFB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,2,5,2"/>
+                <Button x:Name="SignModalBtn" Content="✍ Unterschrift" Height="28" Padding="10,0" FontSize="12" Click="OpenSignatureModal_Click"
+                        Background="#1D2230" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1.2" FontWeight="Bold" Cursor="Hand" Margin="0,2,6,2"/>
+
+                <Border Width="1" Height="20" Background="#2A3042" VerticalAlignment="Center" Margin="2,2,8,2"/>
+
+                <!-- Element Size Stepper (Scales Checkmark, Cross, Text & Signature) -->
+                <Border x:Name="SizeStepperBorder" Background="#181C26" BorderBrush="#2D3343" BorderThickness="1" CornerRadius="5" Height="28" Margin="0,2,6,2"
+                        ToolTip="Größe für Haken, Kreuz, Text &amp; Unterschrift ändern">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="SizeDownBtn" Content="−" Width="24" Height="26" Click="SizeDown_Click"
+                                Background="Transparent" Foreground="#E5E7EB" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
+                        <TextBlock x:Name="SizeValueLabel" Text="14 pt" Width="34" TextAlignment="Center" VerticalAlignment="Center"
+                                   Foreground="#C5A059" FontSize="11.5" FontWeight="Bold"/>
+                        <Button x:Name="SizeUpBtn" Content="+" Width="24" Height="26" Click="SizeUp_Click"
+                                Background="Transparent" Foreground="#E5E7EB" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Color Swatches -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,2,6,2">
+                    <Button Width="19" Height="19" Background="#111111" BorderBrush="#C5A059" BorderThickness="2" Margin="0,0,3,0" Cursor="Hand" Click="ColorBlack_Click" x:Name="SwatchBlackBtn" ToolTip="Schwarz"/>
+                    <Button Width="19" Height="19" Background="#0A2E8A" BorderBrush="#4B5563" BorderThickness="1" Margin="0,0,3,0" Cursor="Hand" Click="ColorBlue_Click" x:Name="SwatchBlueBtn" ToolTip="Dokumentenblau"/>
+                    <Button Width="19" Height="19" Background="#C5A059" BorderBrush="#4B5563" BorderThickness="1" Margin="0,0,3,0" Cursor="Hand" Click="ColorGold_Click" x:Name="SwatchGoldBtn" ToolTip="Gold"/>
+                    <Button Width="19" Height="19" Background="#DC2626" BorderBrush="#4B5563" BorderThickness="1" Cursor="Hand" Click="ColorRed_Click" x:Name="SwatchRedBtn" ToolTip="Rot"/>
+                </StackPanel>
+
+                <!-- Zoom Stepper -->
+                <Border x:Name="ZoomStepperBorder" Background="#181C26" BorderBrush="#2D3343" BorderThickness="1" CornerRadius="5" Height="28" Margin="0,2,6,2"
+                        ToolTip="Zoom (Strg + Mausrad / Klick auf % zum Zurücksetzen)">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="ZoomOutBtn" Content="−" Width="22" Height="26" Click="ZoomOut_Click"
+                                Background="Transparent" Foreground="#E5E7EB" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
+                        <TextBlock x:Name="ZoomLabel" Text="125%" Width="38" TextAlignment="Center" VerticalAlignment="Center"
+                                   Foreground="#E5E7EB" FontSize="11.5" FontWeight="SemiBold" Cursor="Hand"
+                                   MouseLeftButtonDown="ZoomReset_Click"/>
+                        <Button x:Name="ZoomInBtn" Content="+" Width="22" Height="26" Click="ZoomIn_Click"
+                                Background="Transparent" Foreground="#E5E7EB" BorderThickness="0" FontWeight="Bold" Cursor="Hand"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Theme Toggle -->
+                <Button x:Name="ThemeToggleBtn" Content="☀" Width="28" Height="28" Click="ThemeToggle_Click"
+                        Background="#1B1F2B" Foreground="#C5A059" BorderBrush="#2D3343" FontWeight="Bold" Cursor="Hand" Margin="0,2,0,2"/>
+            </WrapPanel>
+        </Border>
+
+        <!-- ================================================================= -->
+        <!-- ROW 1: WORKSPACE (COLLAPSIBLE PAGES SIDEBAR | DOCUMENT VIEWPORT)  -->
+        <!-- ================================================================= -->
+        <Grid Grid.Row="1" Margin="10,8,10,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="SidebarCol" Width="168"/>
+                <ColumnDefinition x:Name="SidebarGapCol" Width="10"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- LEFT TILE: PAGES & PAGE OPERATIONS -->
+            <Border x:Name="PagesTileBorder" Grid.Column="0" Background="#141821" BorderBrush="#242938" BorderThickness="1" CornerRadius="12" Padding="10">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="SEITEN" Foreground="#C5A059" FontSize="11.5" FontWeight="Bold" Margin="0,0,0,7"/>
+
+                    <Grid Grid.Row="1" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="30"/>
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="RotateBtn" Grid.Column="0" Content="↻ 90°" Height="26" FontSize="11" Click="RotatePage_Click"
+                                Background="#1D2230" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,0,4,0"/>
+                        <Button x:Name="MergeBtn" Grid.Column="1" Content="+ PDF" Height="26" FontSize="11" Click="MergePdf_Click"
+                                Background="#1D2230" Foreground="#C5A059" BorderBrush="#2D3343" FontWeight="SemiBold" Cursor="Hand" Margin="0,0,4,0"/>
+                        <Button x:Name="DeletePageBtn" Grid.Column="2" Content="✕" Height="26" FontSize="11" Click="DeletePage_Click"
+                                Background="#1D2230" Foreground="#F87171" BorderBrush="#2D3343" FontWeight="Bold" Cursor="Hand"/>
+                    </Grid>
+
+                    <ListBox x:Name="PagesListBox" Grid.Row="2" Background="Transparent" BorderThickness="0"
+                             SelectionChanged="PagesListBox_SelectionChanged"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Margin" Value="0,2"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border x:Name="ItemBorder" Padding="10,7" CornerRadius="8" Background="#1A1F2C" BorderBrush="#262C3D" BorderThickness="1" Cursor="Hand">
+                                                <ContentPresenter/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#C5A059"/>
+                                                    <Setter TargetName="ItemBorder" Property="BorderThickness" Value="1.5"/>
+                                                    <Setter TargetName="ItemBorder" Property="Background" Value="#222838"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Title}" Foreground="#F9FAFB" FontWeight="SemiBold" FontSize="12"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Badge}" Foreground="#C5A059" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
+            <!-- RIGHT TILE: DOCUMENT CANVAS -->
+            <Border x:Name="ViewerTileBorder" Grid.Column="2" Background="#141821" BorderBrush="#242938" BorderThickness="1" CornerRadius="12" Padding="6">
+                <Grid>
+                    <ScrollViewer x:Name="PageScrollViewer"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto"
+                                  Background="Transparent"
+                                  ScrollChanged="PageScrollViewer_ScrollChanged">
+                        <StackPanel x:Name="PagesStackPanel"
+                                    Orientation="Vertical"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Top"
+                                    Margin="20,16,20,28"
+                                    KeyboardNavigation.TabNavigation="Cycle"/>
+                    </ScrollViewer>
+
+                    <!-- Non-Blocking Save & Copy Feedback Toast -->
+                    <Border x:Name="ViewerToastBorder"
+                            VerticalAlignment="Top"
+                            HorizontalAlignment="Center"
+                            Margin="0,14,0,0"
+                            Padding="16,8"
+                            CornerRadius="20"
+                            Background="#F2151923"
+                            BorderBrush="#C5A059"
+                            BorderThickness="1.5"
+                            Visibility="Collapsed"
+                            IsHitTestVisible="False">
+                        <TextBlock x:Name="ViewerToastText"
+                                   Text="✓ Gespeichert"
+                                   Foreground="#F9FAFB"
+                                   FontSize="12.5"
+                                   FontWeight="Bold"/>
+                    </Border>
+
+                    <!-- Empty State Overlay -->
+                    <Border x:Name="EmptyStateOverlay" Background="#141821" CornerRadius="10" Visibility="Visible">
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Width="340">
+                            <Image Source="funkenwerk_pdf.png" Width="68" Height="68" Margin="0,0,0,14"/>
+                            <TextBlock x:Name="EmptyTitleTxt" Text="PDF hierher ziehen oder öffnen" Foreground="#F9FAFB" FontSize="15" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,16"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Button Content="PDF ÖFFNEN" Height="34" Padding="16,0" Click="OpenPdf_Click"
+                                        Background="#C5A059" Foreground="#0F1117" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Margin="0,0,8,0"/>
+                                <Button x:Name="EmptyNewBtn" Content="+ LEERES DOKUMENT" Height="34" Padding="14,0" Click="NewBlankPdf_Click"
+                                        Background="#1D2230" Foreground="#E5E7EB" BorderBrush="#2D3343" FontWeight="SemiBold" Cursor="Hand"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ===================================================== -->
+                    <!-- INTEGRATED SIGNATURE PAD MODAL                        -->
+                    <!-- ===================================================== -->
+                    <Border x:Name="SignatureModalOverlay" Background="#CC090B10" CornerRadius="10" Visibility="Collapsed">
+                        <Border MaxWidth="520" Margin="16" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                Background="#151923" BorderBrush="#C5A059" BorderThickness="1.5" CornerRadius="14" Padding="16">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="✍ UNTERSCHRIFT" Foreground="#C5A059" FontSize="13.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    <Button Grid.Column="1" Content="✕" Width="26" Height="26" Click="CloseSignatureModal_Click"
+                                            Background="#1D2230" Foreground="#9CA3AF" BorderBrush="#2D3343" Cursor="Hand"/>
+                                </Grid>
+
+                                <Border Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="8" Width="460" Height="175" Margin="0,0,0,12">
+                                    <Grid>
+                                        <Line X1="20" Y1="135" X2="440" Y2="135" Stroke="#E5E7EB" StrokeThickness="1.5" StrokeDashArray="4 2"/>
+                                        <InkCanvas x:Name="SignatureInkCanvas" Background="Transparent"/>
+                                    </Grid>
+                                </Border>
+
+                                <WrapPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button Content="Leeren" Height="30" Padding="12,0" Click="ClearSignaturePad_Click"
+                                            Background="#1D2230" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,2,6,2"/>
+                                    <Button Content="Bild laden" Height="30" Padding="12,0" Click="LoadSignatureImage_Click"
+                                            Background="#1D2230" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,2,6,2"/>
+                                    <Button x:Name="UseSavedSigBtn" Content="Gespeicherte nutzen" Height="30" Padding="12,0" Click="UseSavedSignature_Click"
+                                            Background="#1D2230" Foreground="#C5A059" BorderBrush="#2D3343" FontWeight="SemiBold" Cursor="Hand" Margin="0,2,6,2"/>
+                                    <Button Content="✓ EINFÜGEN" Height="30" Padding="16,0" Click="ApplySignaturePad_Click"
+                                            Background="#C5A059" Foreground="#0F1117" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Margin="0,2,0,2"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================================================================= -->
+        <!-- ROW 2: MINIMAL STATUS BAR                                         -->
+        <!-- ================================================================= -->
+        <Border x:Name="BottomBarBorder" Grid.Row="2" Background="#12151E" BorderBrush="#232734" BorderThickness="0,1,0,0" Padding="12,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="StatusText" Grid.Column="0" Text="Bereit"
+                           Foreground="#9CA3AF" FontSize="11.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="PageCounterText" Grid.Column="1" Text="0 / 0 Seiten"
+                           Foreground="#C5A059" FontSize="11.5" FontWeight="SemiBold" VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

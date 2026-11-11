@@ -30,6 +30,7 @@
             selectedIndex: null,
             selectedType: null,
             focusedTextId: null,
+            lastSelectedFont: (params.wireModels && params.wireModels.texts && params.wireModels.texts[0] && params.wireModels.texts[0].font) ? params.wireModels.texts[0].font : 'Arial',
             showFontMenu: false,
             showSizeMenu: false,
             showAlignMenu: false,
@@ -52,12 +53,34 @@
             fileRobotInstance: null,
             isCapturing: false, // UI-Status während Snapshot
 
+            // Direktes Zuschneiden (In-Place Crop) auf der 2D-Vorschau
+            isCropping: false,
+            isApplyingCrop: false,
+            cropBox: { top: 0, right: 0, bottom: 0, left: 0, shape: 'rect' },
+            activeCropHandle: null,
+            cropStartX: 0,
+            cropStartY: 0,
+            cropStartBox: null,
+            cropElemW: 100,
+            cropElemH: 100,
+            cropRotation: 0,
+
             hasSavedDesign: false,
             showMessage: false,
             messageText: '',
 
             // Vollbild / Maximal-Ansicht
             isMaximized: false,
+
+            // Zoom & Extra-Zoomfenster (Navigator / Minimap)
+            stageZoom: 1.0,
+            stagePanX: 0.0,
+            stagePanY: 0.0,
+            _zoomFocusX: null,
+            _zoomFocusY: null,
+            isDraggingMinimap: false,
+            _minimapOffsetX: 0,
+            _minimapOffsetY: 0,
 
             // Undo / Redo History
             history: [],
@@ -90,10 +113,27 @@
                 return this.historyIndex >= 0 && this.historyIndex < this.history.length - 1;
             },
 
-            get currentTexts() { return this.activeSide === 'front' ? this.texts : this.texts_back; },
-            get currentLogos() { return this.activeSide === 'front' ? this.logos : this.logos_back; },
+            normalizeArray(val) {
+                if (!val) return [];
+                const raw = (window.Alpine && typeof window.Alpine.raw === 'function') ? window.Alpine.raw(val) : val;
+                if (Array.isArray(raw)) return raw.filter(item => item !== null && item !== undefined);
+                if (typeof raw === 'object') return Object.values(raw).filter(item => item !== null && item !== undefined);
+                return [];
+            },
+
+            get currentTexts() {
+                const list = this.activeSide === 'front' ? this.texts : this.texts_back;
+                return Array.isArray(list) ? list : this.normalizeArray(list);
+            },
+            get currentLogos() {
+                const list = this.activeSide === 'front' ? this.logos : this.logos_back;
+                return Array.isArray(list) ? list : this.normalizeArray(list);
+            },
 
             get areaCenterX() {
+                if (this.config && this.config.beginnerCoords && Number(this.config.beginnerCoords.center_x) > 0) {
+                    return Number(this.config.beginnerCoords.center_x);
+                }
                 if (this.config && this.config.area_shape === 'custom') {
                     const pts = this.config.custom_points || [];
                     if (pts.length > 0) {
@@ -107,6 +147,9 @@
                 return left + (width / 2);
             },
             get areaCenterY() {
+                if (this.config && this.config.beginnerCoords && Number(this.config.beginnerCoords.center_y) > 0) {
+                    return Number(this.config.beginnerCoords.center_y);
+                }
                 if (this.config && this.config.area_shape === 'custom') {
                     const pts = this.config.custom_points || [];
                     if (pts.length > 0) {
@@ -118,6 +161,48 @@
                 const top = Number(this.config?.area_top ?? 0);
                 const height = Number(this.config?.area_height ?? 100);
                 return top + (height / 2);
+            },
+            getWorkingAreaWidthPercent() {
+                if (this.config && this.config.beginnerCoords && Number(this.config.beginnerCoords.area_width_pct) > 0) {
+                    return Number(this.config.beginnerCoords.area_width_pct);
+                }
+                if (this.config && this.config.area_shape === 'custom') {
+                    const pts = this.config.custom_points || [];
+                    if (pts.length > 0) {
+                        const xs = pts.map(p => Number(p.x ?? 50));
+                        return Math.max(8, Math.max(...xs) - Math.min(...xs));
+                    }
+                }
+                return Math.max(8, Number(this.config?.area_width ?? 80));
+            },
+            getDefaultStudioTextSize() {
+                if (this.config && this.config.beginnerCoords && Number(this.config.beginnerCoords.studio_text_size) > 0) {
+                    return Number(this.config.beginnerCoords.studio_text_size);
+                }
+                const w = this.getWorkingAreaWidthPercent();
+                return Math.round(Math.max(0.48, Math.min(0.88, (w - 10) / 36)) * 100) / 100;
+            },
+            getMaxEmptyTextWidthPx() {
+                const scale = this.scaleFactor || 1;
+                const stageWidthPx = 600 * scale;
+                const areaWidthPx = stageWidthPx * (this.getWorkingAreaWidthPercent() / 100);
+                // 32px für die 4 Eck-Aktionsicons (-left-4 / -right-4) + 12px Sicherheitsabstand zum grünen Arbeitsflächenrand
+                return Math.max(64, Math.floor(areaWidthPx - 44));
+            },
+            getEffectiveTextareaFontSizePx(item) {
+                const scale = this.scaleFactor || 1;
+                const basePx = (20 * ((item && item.size) || this.getDefaultStudioTextSize())) * scale;
+                const hasText = item && item.text !== undefined && item.text !== null && String(item.text).length > 0;
+                if (hasText) {
+                    return basePx;
+                }
+                const maxEmptyContentW = Math.max(44, this.getMaxEmptyTextWidthPx() - 24);
+                // "Text eingeben..." benötigt in bold Arial ca. 8.3 * fontSizePx Breite
+                const estimatedPlaceholderW = basePx * 8.4;
+                if (estimatedPlaceholderW > maxEmptyContentW) {
+                    return Math.max(8.5, Math.floor(basePx * (maxEmptyContentW / estimatedPlaceholderW) * 10) / 10);
+                }
+                return basePx;
             },
 
             get activeThemeObj() {
@@ -192,13 +277,19 @@
                         });
                         this.hasTransparentOverlay = transCorners >= 2;
 
-                        // 2. Durchschnittliche Helligkeit im zentralen Gravurbereich (30%..70%) messen
+                        // 2. Durchschnittliche Helligkeit im zentralen Gravurbereich messen
                         let lumSum = 0;
                         let count = 0;
-                        const start = Math.floor(size * 0.30);
-                        const end = Math.floor(size * 0.70);
-                        for (let y = start; y <= end; y++) {
-                            for (let x = start; x <= end; x++) {
+                        const aLeft = Number(this.areaLeft ?? 30);
+                        const aTop = Number(this.areaTop ?? 30);
+                        const aWidth = Number(this.areaWidth ?? 40);
+                        const aHeight = Number(this.areaHeight ?? 40);
+                        const xStart = Math.max(0, Math.min(size - 1, Math.floor(size * ((aLeft + aWidth * 0.25) / 100))));
+                        const xEnd = Math.max(xStart, Math.min(size - 1, Math.floor(size * ((aLeft + aWidth * 0.75) / 100))));
+                        const yStart = Math.max(0, Math.min(size - 1, Math.floor(size * ((aTop + aHeight * 0.25) / 100))));
+                        const yEnd = Math.max(yStart, Math.min(size - 1, Math.floor(size * ((aTop + aHeight * 0.75) / 100))));
+                        for (let y = yStart; y <= yEnd; y++) {
+                            for (let x = xStart; x <= xEnd; x++) {
                                 const idx = (y * size + x) * 4;
                                 if (data[idx + 3] > 100) {
                                     lumSum += 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
@@ -225,6 +316,60 @@
                 window.dispatchEvent(new CustomEvent('configurator-prefs-synced', {
                     detail: { showNotice: this.showNotice, videoEnabled: this.videoEnabled }
                 }));
+            },
+
+            getSmoothPolygonPoints(rawPts) {
+                const pts = (Array.isArray(rawPts) ? rawPts : []).filter(p => p && typeof p === 'object' && isFinite(p.x) && isFinite(p.y));
+                if (pts.length < 3) return pts;
+
+                let current = pts.map(p => ({ x: Number(p.x), y: Number(p.y) }));
+                const passes = 2;
+
+                for (let pass = 0; pass < passes; pass++) {
+                    const next = [];
+                    const n = current.length;
+                    for (let i = 0; i < n; i++) {
+                        const pPrev = current[(i - 1 + n) % n];
+                        const pCurr = current[i];
+                        const pNext = current[(i + 1) % n];
+
+                        const v1x = pCurr.x - pPrev.x, v1y = pCurr.y - pPrev.y;
+                        const v2x = pNext.x - pCurr.x, v2y = pNext.y - pCurr.y;
+                        const l1 = Math.hypot(v1x, v1y), l2 = Math.hypot(v2x, v2y);
+                        const cosA = (l1 > 0.001 && l2 > 0.001) ? ((v1x * v2x + v1y * v2y) / (l1 * l2)) : 1;
+
+                        // Echte Spitzen (z. B. Herz-Einkerbung oben oder Herz-Spitze unten) scharf erhalten,
+                        // lange gerade Kanten (z. B. Talisman / ID-Armband) nicht nach innen ziehen (max. 1.2% Corner-Offset)
+                        if (cosA < 0.55) {
+                            next.push({ x: pCurr.x, y: pCurr.y });
+                        } else {
+                            const t1 = l1 > 0.001 ? Math.min(0.25, 1.2 / l1) : 0.25;
+                            const t2 = l2 > 0.001 ? Math.min(0.25, 1.2 / l2) : 0.25;
+                            next.push({
+                                x: Number(((1 - t1) * pCurr.x + t1 * pPrev.x).toFixed(2)),
+                                y: Number(((1 - t1) * pCurr.y + t1 * pPrev.y).toFixed(2))
+                            });
+                            next.push({
+                                x: Number(((1 - t2) * pCurr.x + t2 * pNext.x).toFixed(2)),
+                                y: Number(((1 - t2) * pCurr.y + t2 * pNext.y).toFixed(2))
+                            });
+                        }
+                    }
+                    current = next;
+                }
+                return current;
+            },
+
+            getSmoothPolygonClipPath(rawPts) {
+                const smooth = this.getSmoothPolygonPoints(rawPts);
+                if (!smooth || smooth.length === 0) return 'none';
+                return 'polygon(' + smooth.map(p => p.x + '% ' + p.y + '%').join(', ') + ')';
+            },
+
+            getSmoothPolygonSvgPoints(rawPts) {
+                const smooth = this.getSmoothPolygonPoints(rawPts);
+                if (!smooth || smooth.length === 0) return '';
+                return smooth.map(p => p.x + ',' + p.y).join(' ');
             },
 
             toggleAnimation(val = null) {
@@ -340,7 +485,7 @@
                     this.updateScaleFactor();
 
                     const startConfigurator = () => {
-                        if (this.config.modelPath && this.$refs.container3d && this.config.isPersonalizable !== false && this.config.personalizationMode !== 'custom_fields') {
+                        if (this.config.modelPath && this.$refs.container3d && this.config.isPersonalizable !== false && (this.config.personalizationMode !== 'custom_fields' || this.config.isBeginnerMode)) {
                             this.$refs.container3d._engine = new window.Configurator3DEngine(this, this.$refs.container3d, this.config.modelPath, this.activeBgImage || this.config.bgPath, this.config);
 
                             const forceStart3D = () => {
@@ -397,32 +542,72 @@
 
                     checkDependencies();
 
-                    this.$watch('texts', () => {
-                        if(this.selectedType === 'text' && !this.texts[this.selectedIndex]){
+                    this.$watch('texts', (val) => {
+                        if (val && !Array.isArray(val) && typeof val === 'object') {
+                            this.texts = this.normalizeArray(val);
+                            return;
+                        }
+                        const list = this.normalizeArray(this.texts);
+                        if(this.selectedType === 'text' && this.activeSide === 'front' && !list[this.selectedIndex]){
                             this.selectedType = null; this.selectedIndex = null;
                         }
                         this.updateTexture();
                         this.scheduleDebouncedHistory();
                     }, {deep: true});
 
-                    this.$watch('logos', () => {
-                        if(this.selectedType === 'logo' && !this.logos[this.selectedIndex]){
+                    this.$watch('logos', (val) => {
+                        if (val && !Array.isArray(val) && typeof val === 'object') {
+                            this.logos = this.normalizeArray(val);
+                            return;
+                        }
+                        const list = this.normalizeArray(this.logos);
+                        if (list.length > 0 && this.context !== 'preview' && !this.isPerformingHistoryAction) {
+                            const frontTexts = this.normalizeArray(this.texts);
+                            if (frontTexts.length > 0 && frontTexts.every(t => !t || !t.text || String(t.text).trim() === '')) {
+                                this.focusedTextId = null;
+                                this.texts = [];
+                                if (this.activeSide === 'front') {
+                                    this.selectItem('logo', list.length - 1);
+                                }
+                            }
+                        }
+                        if(this.selectedType === 'logo' && this.activeSide === 'front' && !list[this.selectedIndex]){
                             this.selectedType = null; this.selectedIndex = null;
                         }
                         this.updateTexture();
                         this.scheduleDebouncedHistory();
                     }, {deep: true});
 
-                    this.$watch('texts_back', () => {
-                        if(this.selectedType === 'text' && !this.texts_back[this.selectedIndex]){
+                    this.$watch('texts_back', (val) => {
+                        if (val && !Array.isArray(val) && typeof val === 'object') {
+                            this.texts_back = this.normalizeArray(val);
+                            return;
+                        }
+                        const list = this.normalizeArray(this.texts_back);
+                        if(this.selectedType === 'text' && this.activeSide === 'back' && !list[this.selectedIndex]){
                             this.selectedType = null; this.selectedIndex = null;
                         }
                         this.updateTexture();
                         this.scheduleDebouncedHistory();
                     }, {deep: true});
 
-                    this.$watch('logos_back', () => {
-                        if(this.selectedType === 'logo' && !this.logos_back[this.selectedIndex]){
+                    this.$watch('logos_back', (val) => {
+                        if (val && !Array.isArray(val) && typeof val === 'object') {
+                            this.logos_back = this.normalizeArray(val);
+                            return;
+                        }
+                        const list = this.normalizeArray(this.logos_back);
+                        if (list.length > 0 && this.context !== 'preview' && !this.isPerformingHistoryAction) {
+                            const backTexts = this.normalizeArray(this.texts_back);
+                            if (backTexts.length > 0 && backTexts.every(t => !t || !t.text || String(t.text).trim() === '')) {
+                                this.focusedTextId = null;
+                                this.texts_back = [];
+                                if (this.activeSide === 'back') {
+                                    this.selectItem('logo', list.length - 1);
+                                }
+                            }
+                        }
+                        if(this.selectedType === 'logo' && this.activeSide === 'back' && !list[this.selectedIndex]){
                             this.selectedType = null; this.selectedIndex = null;
                         }
                         this.updateTexture();
@@ -475,8 +660,10 @@
                     };
                     window.addEventListener('resize', this._onResize);
 
-                    if(this.texts && this.texts.length > 0) this.selectItem('text', 0);
-                    else if (this.logos && this.logos.length > 0) this.selectItem('logo', 0);
+                    if (!this.config.isBeginnerMode) {
+                        if(this.texts && this.texts.length > 0) this.selectItem('text', 0);
+                        else if (this.logos && this.logos.length > 0) this.selectItem('logo', 0);
+                    }
 
                     document.fonts.ready.then(() => {
                         this.updateScaleFactor(null, true);
@@ -556,18 +743,16 @@
 
             ensureTextDims(item) {
                 if (!item || !item.id) {
-                    return { width: '160px', height: '38px' };
+                    return { width: '120px', height: '36px' };
                 }
                 if (this.textDims[item.id] && this.textDims[item.id].width && this.textDims[item.id].height) {
                     return this.textDims[item.id];
                 }
 
-                const scale = this.scaleFactor || 1;
-                const fontSizePx = (20 * (item.size || 1)) * scale;
+                const hasText = item.text !== undefined && item.text !== null && String(item.text).length > 0;
+                const fontSizePx = this.getEffectiveTextareaFontSizePx(item);
                 const fontFamily = (this.fontMap && this.fontMap[item.font]) ? this.fontMap[item.font] : 'Arial';
-                const rawText = (item.text !== undefined && item.text !== null && String(item.text).length > 0)
-                    ? String(item.text)
-                    : 'Text eingeben...';
+                const rawText = hasText ? String(item.text) : 'Text eingeben...';
                 const textLines = rawText.split('\n');
                 const lines = textLines.length || 1;
 
@@ -589,8 +774,12 @@
                     }
                 } catch (e) {}
 
-                const finalWidth = Math.max(60, canvasWidth + 24) + 'px';
-                const finalHeight = Math.max(34, canvasHeight + 14) + 'px';
+                let widthPx = Math.max(60, canvasWidth + 24);
+                if (!hasText) {
+                    widthPx = Math.min(widthPx, this.getMaxEmptyTextWidthPx());
+                }
+                const finalWidth = widthPx + 'px';
+                const finalHeight = Math.max(32, canvasHeight + 14) + 'px';
                 this.textDims[item.id] = { width: finalWidth, height: finalHeight };
                 return this.textDims[item.id];
             },
@@ -599,17 +788,20 @@
                 if (this.activeSide === side) return;
                 this.showFontMenu = this.showSizeMenu = this.showAlignMenu = this.showPosMenu = false;
 
-                if (side === 'back' && (!this.texts_back || this.texts_back.length === 0) && (!this.logos_back || this.logos_back.length === 0)) {
+                const backTexts = this.normalizeArray(this.texts_back);
+                const backLogos = this.normalizeArray(this.logos_back);
+
+                if (side === 'back' && backTexts.length === 0 && backLogos.length === 0 && this.context !== 'preview') {
                     const newId = Math.random().toString(36).substr(2, 9);
                     const newItem = {
                         id: newId,
                         text: '',
-                        size: 1,
+                        size: this.getDefaultStudioTextSize(),
                         x: this.areaCenterX,
                         y: this.areaCenterY,
                         rotation: 0,
                         align: 'center',
-                        font: 'Arial'
+                        font: this.getPreferredFont()
                     };
                     this.ensureTextDims(newItem);
                     this.texts_back = [newItem];
@@ -622,7 +814,7 @@
                     return;
                 }
 
-                const targetTexts = side === 'back' ? (this.texts_back || []) : (this.texts || []);
+                const targetTexts = side === 'back' ? backTexts : this.normalizeArray(this.texts);
                 targetTexts.forEach(t => this.ensureTextDims(t));
 
                 this.selectedType = null;
@@ -632,18 +824,70 @@
             },
 
             addFallbackText() {
-                const newId = Math.random().toString(36).substr(2, 9);
-                const newItem = {id: newId, text: '', size: 1, x: this.areaCenterX, y: this.areaCenterY, rotation: 0, align: 'center', font: 'Arial'};
-                this.ensureTextDims(newItem);
-                if (this.activeSide === 'front') {
-                    this.texts.push(newItem);
-                    this.selectItem('text', this.texts.length - 1);
-                } else {
-                    this.texts_back.push(newItem);
-                    this.selectItem('text', this.texts_back.length - 1);
+                this.addNewTextElement();
+            },
+
+            addNewTextElement() {
+                if (this.context === 'preview' || this.config.isBeginnerMode) return;
+                this.showDrawingBoard = true;
+
+                const tName = this.activeSide === 'back' ? 'texts_back' : 'texts';
+                let currentList = JSON.parse(JSON.stringify(this.normalizeArray(this[tName])));
+                currentList = Array.isArray(currentList) ? currentList : Object.values(currentList || {});
+
+                // Falls bereits ein leeres Textfeld auf der aktiven Seite existiert, dieses direkt fokussieren
+                const emptyIdx = currentList.findIndex(t => !t || !t.text || String(t.text).trim() === '');
+                if (emptyIdx !== -1 && currentList[emptyIdx]) {
+                    const existingId = currentList[emptyIdx].id || Math.random().toString(36).substr(2, 9);
+                    currentList[emptyIdx].id = existingId;
+                    this[tName] = currentList;
+                    this.selectItem('text', emptyIdx);
+                    this.focusedTextId = existingId;
+                    this.$nextTick(() => {
+                        const root = this.$root || document;
+                        const ta = root.querySelector(`textarea[data-id="${existingId}"]`);
+                        if (ta) ta.focus();
+                    });
+                    return;
                 }
+
+                // Neues Textfeld anlegen (leicht versetzt, falls im Zentrum schon ein Text liegt)
+                const newId = Math.random().toString(36).substr(2, 9);
+                let targetX = this.areaCenterX;
+                let targetY = this.areaCenterY;
+                if (currentList.length > 0) {
+                    const offsetStep = Math.min(3, currentList.length) * 6;
+                    targetY = Math.min(82, this.areaCenterY + offsetStep);
+                }
+
+                let maxZ = 30;
+                currentList.forEach((it, idx) => {
+                    const z = (it && typeof it.zIndex === 'number') ? it.zIndex : (30 + idx);
+                    if (z > maxZ) maxZ = z;
+                });
+                (this.currentLogos || []).forEach((it, idx) => {
+                    const z = (it && typeof it.zIndex === 'number') ? it.zIndex : (10 + idx);
+                    if (z > maxZ) maxZ = z;
+                });
+
+                const newItem = {
+                    id: newId,
+                    text: '',
+                    size: this.getDefaultStudioTextSize(),
+                    x: targetX,
+                    y: targetY,
+                    rotation: 0,
+                    align: 'center',
+                    font: this.getPreferredFont(),
+                    zIndex: Math.min(95, maxZ + 1)
+                };
+                this.ensureTextDims(newItem);
+                currentList.push(newItem);
+                this[tName] = currentList;
+                this.selectItem('text', currentList.length - 1);
                 this.focusedTextId = newId;
                 this.$nextTick(() => {
+                    this.refitAllTextareas();
                     const root = this.$root || document;
                     const ta = root.querySelector(`textarea[data-id="${newId}"]`);
                     if (ta) ta.focus();
@@ -662,10 +906,10 @@
 
             saveDraft() {
                 const draft = {
-                    texts: JSON.parse(JSON.stringify(this.texts)),
-                    logos: JSON.parse(JSON.stringify(this.logos)),
-                    texts_back: JSON.parse(JSON.stringify(this.texts_back)),
-                    logos_back: JSON.parse(JSON.stringify(this.logos_back)),
+                    texts: JSON.parse(JSON.stringify(this.normalizeArray(this.texts))),
+                    logos: JSON.parse(JSON.stringify(this.normalizeArray(this.logos))),
+                    texts_back: JSON.parse(JSON.stringify(this.normalizeArray(this.texts_back))),
+                    logos_back: JSON.parse(JSON.stringify(this.normalizeArray(this.logos_back))),
                     notes: (this.$wire && typeof this.$wire.notes !== 'undefined') ? this.$wire.notes : '',
                     uploaded_files: (this.$wire && Array.isArray(this.$wire.uploaded_files)) ? this.$wire.uploaded_files : []
                 };
@@ -687,10 +931,10 @@
                 if (draftStr) {
                     try {
                         const draft = JSON.parse(draftStr);
-                        if (draft.texts) this.texts = draft.texts;
-                        if (draft.logos) this.logos = draft.logos;
-                        if (draft.texts_back) this.texts_back = draft.texts_back;
-                        if (draft.logos_back) this.logos_back = draft.logos_back;
+                        if (draft.texts) this.texts = this.normalizeArray(draft.texts);
+                        if (draft.logos) this.logos = this.normalizeArray(draft.logos);
+                        if (draft.texts_back) this.texts_back = this.normalizeArray(draft.texts_back);
+                        if (draft.logos_back) this.logos_back = this.normalizeArray(draft.logos_back);
 
                         if (this.$wire) {
                             if (draft.texts) this.$wire.texts = this.texts;
@@ -753,6 +997,226 @@
                 return true;
             },
 
+            resolveBeginnerSymbolRelPath(rawVal) {
+                const v = String(rawVal || '').trim().toLowerCase();
+                if (!v || ['kein symbol', 'keine', 'nein', '-'].includes(v)) return null;
+                const map = {
+                    'herz': 'Liebe/herz.svg',
+                    'pfote': 'Tiere/pfotenabdruck.svg',
+                    'unendlichkeit': 'Liebe/unendlichkeit.svg',
+                    'stern': 'Symbole/stern.svg',
+                    'schutzengel': 'Symbole/schutzengel.svg',
+                    'engel': 'Symbole/schutzengel.svg',
+                    'lebensbaum': 'Natur/lebensbaum.svg',
+                    'baum': 'Natur/lebensbaum.svg',
+                    'kleeblatt': 'Symbole/kleeblatt.svg',
+                    'klee': 'Symbole/kleeblatt.svg',
+                    'krone': 'Symbole/krone.svg',
+                    'anker': 'Symbole/anker.svg'
+                };
+                for (const [key, rel] of Object.entries(map)) {
+                    if (v.startsWith(key) || v.includes(key)) return rel;
+                }
+                return null;
+            },
+
+            formatBeginnerTextForStage(rawText) {
+                const normalized = String(rawText || '').replace(/\r\n|\r/g, '\n').trim();
+                if (!normalized) return '';
+                const maxCharsPerLine = Math.max(12, Math.min(28, Math.round(this.getWorkingAreaWidthPercent() * 0.56)));
+                const rawLines = normalized.split('\n');
+                const wrapped = [];
+
+                rawLines.forEach(line => {
+                    const trimmed = line.trim();
+                    if (!trimmed) return;
+                    if (trimmed.length > maxCharsPerLine && trimmed.includes(' ')) {
+                        const words = trimmed.split(/\s+/);
+                        let current = '';
+                        words.forEach(w => {
+                            if (!current) {
+                                current = w;
+                            } else if ((current.length + 1 + w.length) <= maxCharsPerLine) {
+                                current += ' ' + w;
+                            } else {
+                                wrapped.push(current);
+                                current = w;
+                            }
+                        });
+                        if (current) wrapped.push(current);
+                    } else {
+                        wrapped.push(trimmed);
+                    }
+                });
+
+                return wrapped.slice(0, 5).join('\n');
+            },
+
+            syncBeginnerInputsToStage(forSave = false, explicitFont = null) {
+                if (!this.config || !this.config.isBeginnerMode || this.context === 'preview') return;
+                const containerEl = document.querySelector('[data-custom-fields-container]')
+                    || (this.$refs && this.$refs.stage ? this.$refs.stage.closest('[x-data]') : null)
+                    || document;
+                const inputs = containerEl.querySelectorAll('[data-custom-field-id]');
+                if (!inputs || inputs.length === 0) return;
+
+                const coords = this.config.beginnerCoords || {
+                    symbol_x: this.areaCenterX,
+                    symbol_y: 38,
+                    symbol_size: 80,
+                    text_x: this.areaCenterX,
+                    text_y: 64,
+                    text_size: 0.95,
+                    center_x: this.areaCenterX,
+                    center_y: this.areaCenterY
+                };
+
+                let chosenFont = explicitFont || 'Arial';
+                let matchedSymbolRel = null;
+                let textLines = [];
+                let fallbackPlaceholder = 'Dein Wunschtext';
+
+                inputs.forEach(el => {
+                    const fType = el.getAttribute('data-custom-field-type') || 'text';
+                    const fRole = el.getAttribute('data-custom-field-role') || '';
+                    const rawVal = String(el.value || '').replace(/\r\n|\r/g, '\n').trim();
+
+                    if (fType === 'font') {
+                        if (!explicitFont && rawVal) chosenFont = rawVal;
+                        return;
+                    }
+                    if (fType === 'select' && fRole === 'symbol') {
+                        matchedSymbolRel = this.resolveBeginnerSymbolRelPath(rawVal);
+                        return;
+                    }
+
+                    let cleanVal = this.filterEmojis(rawVal).trim();
+                    if (fType === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(cleanVal)) {
+                        const parts = cleanVal.split('-');
+                        cleanVal = `${parts[2]}.${parts[1]}.${parts[0]}`;
+                    }
+
+                    if (cleanVal && !['kein symbol', 'keine', 'nein', '-'].includes(cleanVal.toLowerCase())) {
+                        const maybeSym = (fType === 'select' && !matchedSymbolRel) ? this.resolveBeginnerSymbolRelPath(cleanVal) : null;
+                        if (maybeSym) {
+                            matchedSymbolRel = maybeSym;
+                        } else {
+                            textLines.push(cleanVal);
+                        }
+                    } else if (el.getAttribute('data-custom-field-required') === '1') {
+                        const ph = String(el.getAttribute('data-custom-field-placeholder') || '').replace(/^z\.\s*B\.\s*/i, '').trim();
+                        if (ph && fallbackPlaceholder === 'Dein Wunschtext') {
+                            fallbackPlaceholder = ph;
+                        }
+                    }
+                });
+
+                if (matchedSymbolRel) {
+                    const vectorVal = 'vectors/' + matchedSymbolRel;
+                    const vectorUrl = window.location.origin + '/storage/produkte/configurator/vectors/' + matchedSymbolRel;
+                    const targetSymX = Number(coords.symbol_x ?? this.areaCenterX);
+                    const targetSymY = Number(coords.symbol_y ?? 38);
+                    const targetSymSize = Number(coords.symbol_size ?? 80);
+                    const currentLogosList = this.normalizeArray(this.logos);
+
+                    if (
+                        currentLogosList.length !== 1 ||
+                        currentLogosList[0]?.value !== vectorVal ||
+                        Number(currentLogosList[0]?.x) !== targetSymX ||
+                        Number(currentLogosList[0]?.y) !== targetSymY ||
+                        Number(currentLogosList[0]?.size) !== targetSymSize
+                    ) {
+                        this.logos = [{
+                            id: 'beginner_symbol_1',
+                            type: 'vector',
+                            value: vectorVal,
+                            url: vectorUrl,
+                            x: targetSymX,
+                            y: targetSymY,
+                            size: targetSymSize,
+                            rotation: 0
+                        }];
+                    }
+                } else if (this.normalizeArray(this.logos).length > 0) {
+                    this.logos = [];
+                }
+
+                const rawDisplayText = textLines.length > 0 ? textLines.join('\n') : (forSave ? '' : fallbackPlaceholder);
+                const displayText = this.formatBeginnerTextForStage(rawDisplayText);
+                if (displayText) {
+                    const lineCount = displayText.split('\n').length;
+                    const baseSize = Number(coords.text_size ?? 0.95);
+                    const effectiveSize = lineCount === 2
+                        ? Math.round(baseSize * 0.90 * 100) / 100
+                        : (lineCount >= 3 ? Math.round(baseSize * 0.80 * 100) / 100 : baseSize);
+                    const targetTextX = Number(coords.text_x ?? this.areaCenterX);
+                    const targetTextY = Number(matchedSymbolRel ? (coords.text_y ?? 64) : (coords.center_y ?? this.areaCenterY));
+                    const currentTextsList = this.normalizeArray(this.texts);
+
+                    if (currentTextsList.length === 1 && currentTextsList[0] && this.texts && this.texts[0]) {
+                        if (this.texts[0].text !== displayText) this.texts[0].text = displayText;
+                        if (this.texts[0].font !== chosenFont) this.texts[0].font = chosenFont;
+                        if (Number(this.texts[0].x) !== targetTextX) this.texts[0].x = targetTextX;
+                        if (Number(this.texts[0].y) !== targetTextY) this.texts[0].y = targetTextY;
+                        if (Number(this.texts[0].size) !== effectiveSize) this.texts[0].size = effectiveSize;
+                    } else {
+                        this.texts = [{
+                            id: 'beginner_text_1',
+                            text: displayText,
+                            font: chosenFont,
+                            align: 'center',
+                            x: targetTextX,
+                            y: targetTextY,
+                            size: effectiveSize,
+                            rotation: 0
+                        }];
+                    }
+                } else if (this.normalizeArray(this.texts).length > 0) {
+                    this.texts = [];
+                }
+
+                this.updateTexture();
+            },
+
+            syncStageTextareasToState() {
+                if (this.context === 'preview') return;
+                if (this.config && this.config.isBeginnerMode) {
+                    this.syncBeginnerInputsToStage(true);
+                    return;
+                }
+                const rootEl = this.$root || document;
+                const textareas = rootEl.querySelectorAll('textarea[data-id]');
+                if (!textareas || textareas.length === 0) return;
+
+                const frontList = this.normalizeArray(this.texts);
+                const backList = this.normalizeArray(this.texts_back);
+                let frontChanged = false;
+                let backChanged = false;
+
+                textareas.forEach(ta => {
+                    const id = ta.getAttribute('data-id');
+                    if (!id) return;
+                    const val = this.filterEmojis(ta.value || '');
+                    const fItem = frontList.find(t => t && String(t.id) === String(id));
+                    if (fItem && fItem.text !== val) {
+                        fItem.text = val;
+                        frontChanged = true;
+                    }
+                    const bItem = backList.find(t => t && String(t.id) === String(id));
+                    if (bItem && bItem.text !== val) {
+                        bItem.text = val;
+                        backChanged = true;
+                    }
+                });
+
+                if (frontChanged) {
+                    this.texts = JSON.parse(JSON.stringify(frontList));
+                }
+                if (backChanged) {
+                    this.texts_back = JSON.parse(JSON.stringify(backList));
+                }
+            },
+
             // NEU: Snapshot Capture vor dem Speichern in den Warenkorb mit Doppel-Klick Schutz & Mobile-Timeout
             async submitConfig() {
                 // 0. Prüfen, ob der Bestätigungs-Haken gesetzt wurde (Task 2.4)
@@ -773,13 +1237,14 @@
                 let snapshotBackBase64 = null;
 
                 try {
+                    this.syncStageTextareasToState();
                     this.focusedTextId = null;
                     this.selectedIndex = null;
                     this.selectedType = null;
                     this.showFontMenu = this.showSizeMenu = this.showAlignMenu = this.showPosMenu = false;
 
-                    // Snapshot-Erstellung nur für den 2D/3D Studio-Konfigurator ausführen (NICHT bei Schnell-Personalisierung oder Standard-Sofortkauf!)
-                    if (this.config.isPersonalizable !== false && this.config.personalizationMode !== 'custom_fields') {
+                    // Snapshot-Erstellung für den 2D/3D Studio-Konfigurator sowie den Neulings-Modus auf Studio-Produkten ausführen
+                    if (this.config.isPersonalizable !== false && (this.config.personalizationMode !== 'custom_fields' || this.config.isBeginnerMode)) {
                         try {
                             const timeoutPromise = new Promise(resolve => setTimeout(resolve, 3500));
 
@@ -820,17 +1285,19 @@
                                     // TEXTUREN ERZWINGEN ZU RENDERN (Synchron für sofortigen GPU-Upload beim nächsten Render-Aufruf)
                                     try {
                                         engine.renderBothCanvases(
-                                            Alpine.raw(this.texts),
-                                            Alpine.raw(this.logos),
-                                            Alpine.raw(this.texts_back),
-                                            Alpine.raw(this.logos_back),
+                                            this.normalizeArray(this.texts),
+                                            this.normalizeArray(this.logos),
+                                            this.normalizeArray(this.texts_back),
+                                            this.normalizeArray(this.logos_back),
                                             Alpine.raw(this.fontMap)
                                         );
                                     } catch (e) { console.error("Force Render failed:", e); }
 
+                                    const backTextsList = this.normalizeArray(this.texts_back);
+                                    const backLogosList = this.normalizeArray(this.logos_back);
                                     const hasBackContent = this.config.has_back_side && (
-                                        (this.texts_back && this.texts_back.some(t => t && t.text && String(t.text).trim() !== '')) ||
-                                        (this.logos_back && this.logos_back.length > 0)
+                                        backTextsList.some(t => t && t.text && String(t.text).trim() !== '') ||
+                                        backLogosList.length > 0
                                     );
 
                                     if (hasBackContent) {
@@ -979,8 +1446,8 @@
 
                     // Vor dem Speichern alle dynamischen Eingabefelder synchronisieren (verhindert Debounce-Verlust bei schnellem Klick)
                     if (this.config.personalizationMode === 'custom_fields') {
-                        const rootEl = this.$root || document;
-                        rootEl.querySelectorAll('[data-custom-field-id]').forEach(el => {
+                        const containerEl = document.querySelector('[data-custom-fields-container]') || this.$root || document;
+                        containerEl.querySelectorAll('[data-custom-field-id]').forEach(el => {
                             const cfId = el.getAttribute('data-custom-field-id');
                             if (cfId) {
                                 $wire.set('customFieldValues.' + cfId, el.value ?? '', false);
@@ -988,12 +1455,19 @@
                         });
                     }
 
-                    // 2. An Livewire übergeben
+                    // 2. An Livewire übergeben (inkl. explizitem Stage-State-Sync für In-Place-Mutationen)
                     let payload = {};
                     if (snapshotBase64) payload.front = snapshotBase64;
                     if (snapshotBackBase64) payload.back = snapshotBackBase64;
 
-                    await $wire.saveWithSnapshot(payload);
+                    const syncedStageState = {
+                        texts: JSON.parse(JSON.stringify(this.normalizeArray(this.texts))),
+                        logos: JSON.parse(JSON.stringify(this.normalizeArray(this.logos))),
+                        texts_back: JSON.parse(JSON.stringify(this.normalizeArray(this.texts_back))),
+                        logos_back: JSON.parse(JSON.stringify(this.normalizeArray(this.logos_back))),
+                    };
+
+                    await $wire.saveWithSnapshot(payload, syncedStageState);
                 } catch (e) {
                     console.error("Fehler beim Speichern der Konfiguration:", e);
                 } finally {
@@ -1030,10 +1504,10 @@
                         requestAnimationFrame(() => {
                             try {
                                 engine.renderBothCanvases(
-                                    Alpine.raw(this.texts),
-                                    Alpine.raw(this.logos),
-                                    Alpine.raw(this.texts_back),
-                                    Alpine.raw(this.logos_back),
+                                    this.normalizeArray(this.texts),
+                                    this.normalizeArray(this.logos),
+                                    this.normalizeArray(this.texts_back),
+                                    this.normalizeArray(this.logos_back),
                                     Alpine.raw(this.fontMap)
                                 );
                             } catch (e) {
@@ -1105,12 +1579,15 @@
 
                 if(e.target.closest('.flex.flex-wrap.items-center') ||
                     e.target.closest('.active-control-corner') ||
+                    e.target.closest('.crop-control-handle') ||
                     e.target.closest('.schwebender-werkzeugkasten') ||
                     e.target.closest('textarea') ||
                     e.target.closest('#image-editor-modal') ||
                     e.target.closest('.configurator-storage-ui'))
                     return;
 
+                this.isCropping = false;
+                this.activeCropHandle = null;
                 this.selectedType = null;
                 this.selectedIndex = null;
                 this.focusedTextId = null;
@@ -1118,10 +1595,46 @@
             },
 
             selectItem(type, index) {
-                if(this.context === 'preview') return;
+                if(this.context === 'preview' || this.config.isBeginnerMode) return;
+                if (this.selectedType !== type || this.selectedIndex !== index) {
+                    this.isCropping = false;
+                    this.activeCropHandle = null;
+                }
                 this.selectedType = type;
                 this.selectedIndex = index;
+                if (type === 'text' && this.currentTexts && this.currentTexts[index] && this.currentTexts[index].font) {
+                    this.lastSelectedFont = this.currentTexts[index].font;
+                }
                 this.showFontMenu = this.showSizeMenu = this.showAlignMenu = this.showPosMenu = false;
+            },
+
+            getPreferredFont(fallback = 'Arial') {
+                if (this.selectedType === 'text' && this.selectedIndex !== null && this.currentTexts && this.currentTexts[this.selectedIndex] && this.currentTexts[this.selectedIndex].font) {
+                    this.lastSelectedFont = this.currentTexts[this.selectedIndex].font;
+                    return this.lastSelectedFont;
+                }
+                if (this.lastSelectedFont && (!this.fontMap || Object.keys(this.fontMap).length === 0 || this.fontMap[this.lastSelectedFont])) {
+                    return this.lastSelectedFont;
+                }
+                const activeList = this.currentTexts || [];
+                for (let i = activeList.length - 1; i >= 0; i--) {
+                    if (activeList[i] && activeList[i].font) {
+                        this.lastSelectedFont = activeList[i].font;
+                        return this.lastSelectedFont;
+                    }
+                }
+                return fallback;
+            },
+
+            setTextFont(fontKey) {
+                if (!fontKey) return;
+                this.lastSelectedFont = fontKey;
+                if (this.selectedType === 'text' && this.selectedIndex !== null && this.currentTexts && this.currentTexts[this.selectedIndex]) {
+                    this.currentTexts[this.selectedIndex].font = fontKey;
+                }
+                this.showFontMenu = false;
+                this.updateTexture();
+                this.recordHistory();
             },
 
             getElementZIndex(type, index) {
@@ -1130,7 +1643,7 @@
                 if (item && typeof item.zIndex === 'number' && !isNaN(item.zIndex)) {
                     return Math.max(1, Math.min(95, Math.round(item.zIndex)));
                 }
-                return type === 'text' ? (20 + Number(index || 0)) : (10 + Number(index || 0));
+                return type === 'text' ? (30 + Number(index || 0)) : (10 + Number(index || 0));
             },
 
             bringToFront() {
@@ -1139,7 +1652,7 @@
                 const lList = this.currentLogos || [];
                 let maxZ = 10;
                 tList.forEach((it, idx) => {
-                    const z = (it && typeof it.zIndex === 'number') ? it.zIndex : (20 + idx);
+                    const z = (it && typeof it.zIndex === 'number') ? it.zIndex : (30 + idx);
                     if (z > maxZ) maxZ = z;
                 });
                 lList.forEach((it, idx) => {
@@ -1160,7 +1673,7 @@
                 const lList = this.currentLogos || [];
                 let minZ = 30;
                 tList.forEach((it, idx) => {
-                    const z = (it && typeof it.zIndex === 'number') ? it.zIndex : (20 + idx);
+                    const z = (it && typeof it.zIndex === 'number') ? it.zIndex : (30 + idx);
                     if (z < minZ) minZ = z;
                 });
                 lList.forEach((it, idx) => {
@@ -1170,7 +1683,7 @@
                 const target = this.selectedType === 'text' ? tList[this.selectedIndex] : lList[this.selectedIndex];
                 if (target) {
                     if (minZ <= 2) {
-                        tList.forEach((it, idx) => { it.zIndex = ((typeof it.zIndex === 'number') ? it.zIndex : (20 + idx)) + 2; });
+                        tList.forEach((it, idx) => { it.zIndex = ((typeof it.zIndex === 'number') ? it.zIndex : (30 + idx)) + 2; });
                         lList.forEach((it, idx) => { it.zIndex = ((typeof it.zIndex === 'number') ? it.zIndex : (10 + idx)) + 2; });
                         target.zIndex = 1;
                     } else {
@@ -1182,7 +1695,7 @@
             },
 
             deleteSelectedItem() {
-                if(this.selectedIndex === null) return;
+                if(this.selectedIndex === null || this.context === 'preview' || this.config.isBeginnerMode) return;
 
                 let tName = this.activeSide === 'front' ? 'texts' : 'texts_back';
                 let lName = this.activeSide === 'front' ? 'logos' : 'logos_back';
@@ -1195,21 +1708,35 @@
 
                 if(this.selectedType === 'text') {
                     this.focusedTextId = null;
-                    let newTexts = JSON.parse(JSON.stringify(this[tName]));
-                    newTexts.splice(this.selectedIndex, 1);
-
-                    if (newTexts.length === 0) {
-                        newTexts.push({id: Math.random().toString(36).substr(2, 9), text: '', size: 1, x: this.areaCenterX, y: this.areaCenterY, rotation: 0, align: 'center', font: 'Arial'});
+                    let rawTexts = JSON.parse(JSON.stringify(this.normalizeArray(this[tName])));
+                    let newTexts = Array.isArray(rawTexts) ? rawTexts : Object.values(rawTexts || {});
+                    const idx = Number(this.selectedIndex);
+                    if (!isNaN(idx) && idx >= 0 && idx < newTexts.length) {
+                        newTexts.splice(idx, 1);
                     }
 
                     this[tName] = newTexts;
-                    this.selectItem('text', this[tName].length - 1);
+                    if (newTexts.length > 0) {
+                        this.selectItem('text', Math.min(idx, newTexts.length - 1));
+                    } else {
+                        const activeLogos = this.normalizeArray(this[lName]);
+                        if (activeLogos.length > 0) {
+                            this.selectItem('logo', activeLogos.length - 1);
+                        } else {
+                            this.selectedType = null;
+                            this.selectedIndex = null;
+                        }
+                    }
                     this.$nextTick(() => {
                         this.refitAllTextareas();
                     });
                 } else if(this.selectedType === 'logo') {
-                    let newLogos = JSON.parse(JSON.stringify(this[lName]));
-                    newLogos.splice(this.selectedIndex, 1);
+                    let rawLogos = JSON.parse(JSON.stringify(this.normalizeArray(this[lName])));
+                    let newLogos = Array.isArray(rawLogos) ? rawLogos : Object.values(rawLogos || {});
+                    const idx = Number(this.selectedIndex);
+                    if (!isNaN(idx) && idx >= 0 && idx < newLogos.length) {
+                        newLogos.splice(idx, 1);
+                    }
                     this[lName] = newLogos;
                     this.selectedType = null;
                     this.selectedIndex = null;
@@ -1223,16 +1750,21 @@
 
                 let tName = this.activeSide === 'front' ? 'texts' : 'texts_back';
                 let lName = this.activeSide === 'front' ? 'logos' : 'logos_back';
+                const propName = (this.selectedType === 'text') ? tName : lName;
 
-                const target = (this.selectedType === 'text') ? this[tName] : this[lName];
-                let clone = JSON.parse(JSON.stringify(target[this.selectedIndex]));
+                let list = JSON.parse(JSON.stringify(this.normalizeArray(this[propName])));
+                list = Array.isArray(list) ? list : Object.values(list || {});
+                const idx = Number(this.selectedIndex);
+                if (isNaN(idx) || !list[idx]) return;
 
+                let clone = JSON.parse(JSON.stringify(list[idx]));
                 clone.id = Math.random().toString(36).substr(2, 9);
                 clone.x = Math.min(90, (clone.x ?? this.areaCenterX) + 5);
                 clone.y = Math.min(90, (clone.y ?? this.areaCenterY) + 5);
 
-                target.push(clone);
-                this.selectItem(this.selectedType, target.length - 1);
+                list.push(clone);
+                this[propName] = list;
+                this.selectItem(this.selectedType, list.length - 1);
                 this.updateTexture();
                 this.recordHistory();
             },
@@ -1305,8 +1837,315 @@
                 this.centerVertical();
             },
 
+            // --- IN-PLACE ZUSCHNEIDEN (CROP) AUF DER 2D-BÜHNE ---
+            startCropMode() {
+                if (this.context === 'preview' || this.config.isBeginnerMode || this.selectedType !== 'logo' || this.selectedIndex === null) return;
+                const logo = this.currentLogos[this.selectedIndex];
+                if (!logo || !logo.url) return;
+                this.showFontMenu = this.showSizeMenu = this.showAlignMenu = this.showPosMenu = false;
+                this.cropBox = { top: 0, right: 0, bottom: 0, left: 0, shape: 'rect' };
+                this.activeCropHandle = null;
+                this.isCropping = true;
+            },
+
+            cancelCropMode() {
+                this.isCropping = false;
+                this.activeCropHandle = null;
+            },
+
+            getLogoClipPath() {
+                if (!this.isCropping) return 'none';
+                const t = Number(this.cropBox.top || 0);
+                const r = Number(this.cropBox.right || 0);
+                const b = Number(this.cropBox.bottom || 0);
+                const l = Number(this.cropBox.left || 0);
+                if (this.cropBox.shape === 'circle') {
+                    const rx = Math.max(1, (100 - l - r) / 2);
+                    const ry = Math.max(1, (100 - t - b) / 2);
+                    const cx = l + rx;
+                    const cy = t + ry;
+                    return `ellipse(${rx}% ${ry}% at ${cx}% ${cy}%)`;
+                }
+                return `inset(${t}% ${r}% ${b}% ${l}%)`;
+            },
+
+            startCropDrag(event, handle) {
+                if (!this.isCropping || this.selectedType !== 'logo' || this.selectedIndex === null) return;
+                const logo = this.currentLogos[this.selectedIndex];
+                if (!logo) return;
+
+                const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+                const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+                const wrapper = event.currentTarget ? event.currentTarget.closest('.logo-crop-wrapper') : null;
+                const wrapperRect = wrapper ? wrapper.getBoundingClientRect() : null;
+
+                this.cropStartX = clientX;
+                this.cropStartY = clientY;
+                this.cropStartBox = { ...this.cropBox };
+                this.cropElemW = wrapperRect ? Math.max(24, wrapperRect.width) : Math.max(24, (Number(logo.size || 100) * this.scaleFactor * (this.stageZoom || 1)));
+                this.cropElemH = wrapperRect ? Math.max(24, wrapperRect.height) : this.cropElemW;
+                this.cropRotation = Number(logo.rotation || 0);
+                this.activeCropHandle = handle;
+
+                if (event.cancelable) event.preventDefault();
+            },
+
+            async applyCrop() {
+                if (!this.isCropping || this.selectedType !== 'logo' || this.selectedIndex === null || this.isApplyingCrop) return;
+                const lName = this.activeSide === 'front' ? 'logos' : 'logos_back';
+                let list = JSON.parse(JSON.stringify(this.normalizeArray(this[lName])));
+                list = Array.isArray(list) ? list : Object.values(list || {});
+                const idx = Number(this.selectedIndex);
+                const logo = list[idx];
+                if (!logo || !logo.url) {
+                    this.cancelCropMode();
+                    return;
+                }
+
+                const top = Math.max(0, Math.min(85, Number(this.cropBox.top || 0)));
+                const right = Math.max(0, Math.min(85, Number(this.cropBox.right || 0)));
+                const bottom = Math.max(0, Math.min(85, Number(this.cropBox.bottom || 0)));
+                const left = Math.max(0, Math.min(85, Number(this.cropBox.left || 0)));
+                const shape = this.cropBox.shape || 'rect';
+
+                if (top < 0.5 && right < 0.5 && bottom < 0.5 && left < 0.5 && shape === 'rect') {
+                    this.cancelCropMode();
+                    return;
+                }
+
+                this.isApplyingCrop = true;
+                try {
+                    const img = await new Promise((resolve, reject) => {
+                        const i = new Image();
+                        if (!logo.url.startsWith('data:') && !logo.url.startsWith(window.location.origin) && !logo.url.startsWith('/')) {
+                            i.crossOrigin = 'anonymous';
+                        }
+                        i.onload = () => resolve(i);
+                        i.onerror = (e) => reject(e);
+                        i.src = logo.url;
+                    });
+
+                    const natW = img.naturalWidth || img.width || 500;
+                    const natH = img.naturalHeight || img.height || 500;
+                    const sx = Math.round((left / 100) * natW);
+                    const sy = Math.round((top / 100) * natH);
+                    const sw = Math.max(2, Math.round(((100 - left - right) / 100) * natW));
+                    const sh = Math.max(2, Math.round(((100 - top - bottom) / 100) * natH));
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = sw;
+                    canvas.height = sh;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) {
+                        this.isApplyingCrop = false;
+                        return;
+                    }
+
+                    if (shape === 'circle') {
+                        ctx.beginPath();
+                        ctx.ellipse(sw / 2, sh / 2, sw / 2, sh / 2, 0, 0, Math.PI * 2);
+                        ctx.closePath();
+                        ctx.clip();
+                    }
+
+                    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+                    const b64 = canvas.toDataURL('image/png');
+
+                    // Original-Referenz für jederzeitiges Zurücksetzen sichern
+                    if (!logo.original_url) logo.original_url = logo.url;
+                    if (!logo.original_value) logo.original_value = logo.value;
+                    if (!logo.original_size) logo.original_size = logo.size;
+
+                    // Exakte Positions- & Größen-Kompensation, damit das verbleibende Motiv keinen Millimeter auf der Bühne springt
+                    const oldSize = Number(logo.size || 100);
+                    const wPct = oldSize / 5; // (oldSize / 500) * 100
+                    const hPct = wPct * (natH / natW);
+                    const dxLocal = ((left - right) / 200) * wPct;
+                    const dyLocal = ((top - bottom) / 200) * hPct;
+                    const rad = Number(logo.rotation || 0) * Math.PI / 180;
+                    const dxStage = dxLocal * Math.cos(rad) - dyLocal * Math.sin(rad);
+                    const dyStage = dxLocal * Math.sin(rad) + dyLocal * Math.cos(rad);
+                    const widthFraction = Math.max(0.08, (100 - left - right) / 100);
+
+                    const oldVal = logo.value;
+                    logo.x = Number((Number(logo.x ?? this.areaCenterX) + dxStage).toFixed(2));
+                    logo.y = Number((Number(logo.y ?? this.areaCenterY) + dyStage).toFixed(2));
+                    logo.size = Math.max(12, Number((oldSize * widthFraction).toFixed(2)));
+                    logo.url = b64;
+
+                    this[lName] = list;
+                    this.isCropping = false;
+                    this.activeCropHandle = null;
+                    this.updateTexture();
+
+                    if (this.$wire && oldVal) {
+                        try {
+                            const res = await this.$wire.saveCroppedLogo(oldVal, b64, logo.original_value || oldVal);
+                            if (res && res.value && res.url) {
+                                let freshList = JSON.parse(JSON.stringify(this.normalizeArray(this[lName])));
+                                freshList = Array.isArray(freshList) ? freshList : Object.values(freshList || {});
+                                if (freshList[idx]) {
+                                    freshList[idx].value = res.value;
+                                    freshList[idx].url = res.url;
+                                    this[lName] = freshList;
+                                    this.updateTexture();
+                                }
+                            }
+                        } catch (err) {
+                            console.error('Fehler beim Speichern des zugeschnittenen Bildes:', err);
+                        }
+                    }
+
+                    this.recordHistory();
+                } catch (e) {
+                    console.error('Zuschnitt-Fehler:', e);
+                } finally {
+                    this.isApplyingCrop = false;
+                }
+            },
+
+            async resetLogoToOriginal() {
+                if (this.selectedType !== 'logo' || this.selectedIndex === null) return;
+                const lName = this.activeSide === 'front' ? 'logos' : 'logos_back';
+                let list = JSON.parse(JSON.stringify(this.normalizeArray(this[lName])));
+                list = Array.isArray(list) ? list : Object.values(list || {});
+                const idx = Number(this.selectedIndex);
+                const logo = list[idx];
+                if (!logo) return;
+
+                this.cropBox = { top: 0, right: 0, bottom: 0, left: 0, shape: 'rect' };
+
+                if (logo.original_url && logo.original_value) {
+                    const currentVal = logo.value;
+                    const origVal = logo.original_value;
+                    logo.url = logo.original_url;
+                    logo.value = origVal;
+                    if (logo.original_size) {
+                        logo.size = logo.original_size;
+                    }
+                    delete logo.original_url;
+                    delete logo.original_value;
+                    delete logo.original_size;
+
+                    this[lName] = list;
+                    this.isCropping = false;
+                    this.activeCropHandle = null;
+                    this.updateTexture();
+
+                    if (this.$wire && currentVal && origVal) {
+                        try {
+                            await this.$wire.restoreOriginalLogo(currentVal, origVal);
+                        } catch (err) {
+                            console.error('Fehler beim Wiederherstellen des Originalbildes:', err);
+                        }
+                    }
+                    this.recordHistory();
+                }
+            },
+
+            getStageRect() {
+                if ((this.showDrawingBoard || !this.config.modelPath) && this.$refs.drawingBoard) {
+                    return this.$refs.drawingBoard.getBoundingClientRect();
+                }
+                return this.$refs.container.getBoundingClientRect();
+            },
+
+            setStageZoom(val) {
+                const z = Math.max(1.0, Math.min(3.0, Number(val) || 1.0));
+                if (z <= 1.01) {
+                    this.stageZoom = 1.0;
+                    this.stagePanX = 0.0;
+                    this.stagePanY = 0.0;
+                    this._zoomFocusX = null;
+                    this._zoomFocusY = null;
+                    return;
+                }
+                if (this._zoomFocusX === null || this._zoomFocusY === null) {
+                    this._zoomFocusX = Number(this.areaCenterX ?? 50);
+                    this._zoomFocusY = Number(this.areaCenterY ?? 50);
+                }
+                const maxPan = 50 * (z - 1);
+                this.stageZoom = Number(z.toFixed(3));
+                this.stagePanX = Number(Math.max(-maxPan, Math.min(maxPan, (50 - this._zoomFocusX) * z)).toFixed(2));
+                this.stagePanY = Number(Math.max(-maxPan, Math.min(maxPan, (50 - this._zoomFocusY) * z)).toFixed(2));
+            },
+
+            stepStageZoom(delta) {
+                const next = Math.max(1.0, Math.min(3.0, Number((Number(this.stageZoom || 1.0) + Number(delta || 0)).toFixed(2))));
+                this.setStageZoom(next);
+            },
+
+            resetStageZoom() {
+                this.setStageZoom(1.0);
+            },
+
+            getMinimapViewportStyle() {
+                const z = Math.max(1.0, Number(this.stageZoom || 1.0));
+                const vw = 100 / z;
+                const vh = 100 / z;
+                const left = Math.max(0, Math.min(100 - vw, 50 - (50 + Number(this.stagePanX || 0)) / z));
+                const top = Math.max(0, Math.min(100 - vh, 50 - (50 + Number(this.stagePanY || 0)) / z));
+                return `left: ${left.toFixed(2)}%; top: ${top.toFixed(2)}%; width: ${vw.toFixed(2)}%; height: ${vh.toFixed(2)}%;`;
+            },
+
+            startMinimapDrag(event) {
+                if (this.stageZoom <= 1.01) return;
+                const minimap = this.$refs.zoomMinimap;
+                if (!minimap) return;
+
+                const rect = minimap.getBoundingClientRect();
+                const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+                const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+                const mx = ((clientX - rect.left) / Math.max(1, rect.width)) * 100;
+                const my = ((clientY - rect.top) / Math.max(1, rect.height)) * 100;
+
+                const z = Math.max(1.01, Number(this.stageZoom || 1.01));
+                const cx = 50 - Number(this.stagePanX || 0) / z;
+                const cy = 50 - Number(this.stagePanY || 0) / z;
+                const halfW = 50 / z;
+                const halfH = 50 / z;
+
+                this.isDraggingMinimap = true;
+                if (Math.abs(mx - cx) <= halfW && Math.abs(my - cy) <= halfH) {
+                    this._minimapOffsetX = mx - cx;
+                    this._minimapOffsetY = my - cy;
+                } else {
+                    this._minimapOffsetX = 0;
+                    this._minimapOffsetY = 0;
+                    this.updateMinimapFromEvent(event);
+                }
+            },
+
+            updateMinimapFromEvent(event) {
+                if (!this.isDraggingMinimap || this.stageZoom <= 1.01) return;
+                const minimap = this.$refs.zoomMinimap;
+                if (!minimap) return;
+
+                const rect = minimap.getBoundingClientRect();
+                const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+                const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+                const mx = ((clientX - rect.left) / Math.max(1, rect.width)) * 100;
+                const my = ((clientY - rect.top) / Math.max(1, rect.height)) * 100;
+
+                const targetCx = mx - (this._minimapOffsetX || 0);
+                const targetCy = my - (this._minimapOffsetY || 0);
+                const z = Math.max(1.01, Number(this.stageZoom || 1.01));
+                const maxPan = 50 * (z - 1);
+
+                const newPanX = Math.max(-maxPan, Math.min(maxPan, (50 - targetCx) * z));
+                const newPanY = Math.max(-maxPan, Math.min(maxPan, (50 - targetCy) * z));
+
+                this.stagePanX = Number(newPanX.toFixed(2));
+                this.stagePanY = Number(newPanY.toFixed(2));
+                this._zoomFocusX = Number((50 - this.stagePanX / z).toFixed(2));
+                this._zoomFocusY = Number((50 - this.stagePanY / z).toFixed(2));
+            },
+
             startAction(event, type, index, action = 'drag') {
-                if(this.context === 'preview' || (!this.showDrawingBoard && this.config.modelPath)) return;
+                if(this.context === 'preview' || this.config.isBeginnerMode || (!this.showDrawingBoard && this.config.modelPath)) return;
+                if (this.isCropping && this.selectedType === type && this.selectedIndex === index && action === 'drag') {
+                    return;
+                }
                 this.selectItem(type, index);
 
                 let item = (type === 'text') ? this.currentTexts[index] : this.currentLogos[index];
@@ -1314,7 +2153,7 @@
 
                 const clientX = event.touches ? event.touches[0].clientX : event.clientX;
                 const clientY = event.touches ? event.touches[0].clientY : event.clientY;
-                const rect = this.$refs.container.getBoundingClientRect();
+                const rect = this.getStageRect();
 
                 const curX = Number(item.x ?? this.areaCenterX);
                 const curY = Number(item.y ?? this.areaCenterY);
@@ -1358,11 +2197,45 @@
             },
 
             handleMouseMove(event) {
+                if (this.isDraggingMinimap) {
+                    this.updateMinimapFromEvent(event);
+                    return;
+                }
+
+                if (this.isCropping && this.activeCropHandle) {
+                    const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+                    const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+                    const dxScreen = clientX - this.cropStartX;
+                    const dyScreen = clientY - this.cropStartY;
+                    const rad = -((this.cropRotation || 0) * Math.PI / 180);
+                    const dxLocal = dxScreen * Math.cos(rad) - dyScreen * Math.sin(rad);
+                    const dyLocal = dxScreen * Math.sin(rad) + dyScreen * Math.cos(rad);
+
+                    const dPctX = (dxLocal / Math.max(24, this.cropElemW)) * 100;
+                    const dPctY = (dyLocal / Math.max(24, this.cropElemH)) * 100;
+                    const h = this.activeCropHandle;
+                    const maxInset = 82;
+
+                    if (h.includes('n')) {
+                        this.cropBox.top = Math.max(0, Math.min(maxInset - this.cropBox.bottom, Number((this.cropStartBox.top + dPctY).toFixed(1))));
+                    }
+                    if (h.includes('s')) {
+                        this.cropBox.bottom = Math.max(0, Math.min(maxInset - this.cropBox.top, Number((this.cropStartBox.bottom - dPctY).toFixed(1))));
+                    }
+                    if (h.includes('w')) {
+                        this.cropBox.left = Math.max(0, Math.min(maxInset - this.cropBox.right, Number((this.cropStartBox.left + dPctX).toFixed(1))));
+                    }
+                    if (h.includes('e')) {
+                        this.cropBox.right = Math.max(0, Math.min(maxInset - this.cropBox.left, Number((this.cropStartBox.right - dPctX).toFixed(1))));
+                    }
+                    return;
+                }
+
                 if(!this.currentElement || this.context === 'preview' || (!this.showDrawingBoard && this.config.modelPath)) return;
 
                 const clientX = event.touches ? event.touches[0].clientX : event.clientX;
                 const clientY = event.touches ? event.touches[0].clientY : event.clientY;
-                const rect = this.$refs.container.getBoundingClientRect();
+                const rect = this.getStageRect();
                 const item = this.currentElement.type === 'text' ? this.currentTexts[this.currentElement.index] : this.currentLogos[this.currentElement.index];
                 if (!item) return;
 
@@ -1487,6 +2360,18 @@
             },
 
             handleMouseUp() {
+                if (this.isDraggingMinimap) {
+                    this.isDraggingMinimap = false;
+                    this._justTransformed = true;
+                    setTimeout(() => { this._justTransformed = false; }, 80);
+                    return;
+                }
+                if (this.activeCropHandle) {
+                    this.activeCropHandle = null;
+                    this._justTransformed = true;
+                    setTimeout(() => { this._justTransformed = false; }, 80);
+                    return;
+                }
                 const wasTransforming = this.isDragging || this.isResizing || this.isRotating;
                 if (this.currentElement && this.currentElement.fromTextarea && !this.hasDraggedDistance && !wasTransforming) {
                     const tItem = (this.currentTexts && this.currentTexts[this.currentElement.index]) ? this.currentTexts[this.currentElement.index] : null;
@@ -1514,16 +2399,16 @@
                 if(!el) return;
                 const scrollPos = window.scrollY;
 
-                const item = (this.texts || []).find(t => String(t.id) === String(id))
-                          || (this.texts_back || []).find(t => String(t.id) === String(id));
+                const item = this.normalizeArray(this.texts).find(t => t && String(t.id) === String(id))
+                          || this.normalizeArray(this.texts_back).find(t => t && String(t.id) === String(id));
 
                 // Niemals das aktive Eingabefeld überschreiben, während der Nutzer darin tippt oder löscht!
                 if (document.activeElement !== el && item && typeof item.text === 'string' && el.value !== item.text) {
                     el.value = item.text;
                 }
 
-                const scale = this.scaleFactor || 1;
-                const fontSizePx = (20 * ((item && item.size) || 1)) * scale;
+                const hasText = el.value !== undefined && el.value !== null && el.value.length > 0;
+                const fontSizePx = this.getEffectiveTextareaFontSizePx(item || { text: el.value, size: this.getDefaultStudioTextSize() });
                 const fontFamily = (item && this.fontMap && this.fontMap[item.font]) ? this.fontMap[item.font] : 'Arial';
 
                 el.style.fontSize = fontSizePx + 'px';
@@ -1531,7 +2416,7 @@
                 el.style.lineHeight = '1.28';
                 el.style.padding = '4px 10px';
 
-                const rawText = (el.value !== undefined && el.value !== null && el.value.length > 0)
+                const rawText = hasText
                     ? el.value
                     : (el.getAttribute('placeholder') || 'Text eingeben...');
                 const textLines = rawText.split('\n');
@@ -1570,7 +2455,7 @@
                     const domHeight = el.scrollHeight;
 
                     // Wenn der Text leer ist (Placeholder sichtbar) oder scrollWidth im Übergang 0 liefert, greift das Canvas-Minimum
-                    if (el.value && el.value.length > 0 && domWidth > 4) {
+                    if (hasText && domWidth > 4) {
                         newWidth = Math.max(domWidth, Math.floor(canvasWidth * 0.92));
                         newHeight = Math.max(domHeight, Math.floor(canvasHeight * 0.92));
                     } else {
@@ -1581,8 +2466,12 @@
 
                 // Großzügiger Puffer links/rechts (+24px) und oben/unten (+14px), damit geschwungene Schreibschriften
                 // (z. B. Lobster Two, Great Vibes, Alex Brush) an den Rändern des Textfelds niemals abgeschnitten werden
-                const finalWidth = Math.max(60, newWidth + 24) + 'px';
-                const finalHeight = Math.max(34, newHeight + 14) + 'px';
+                let widthPx = Math.max(60, newWidth + 24);
+                if (!hasText) {
+                    widthPx = Math.min(widthPx, this.getMaxEmptyTextWidthPx());
+                }
+                const finalWidth = widthPx + 'px';
+                const finalHeight = Math.max(32, newHeight + 14) + 'px';
 
                 el.style.width = finalWidth;
                 el.style.height = finalHeight;
@@ -1673,10 +2562,10 @@
             // --- UNDO / REDO & HISTORY ENGINE ---
             getSnapshot() {
                 return JSON.stringify({
-                    texts: Alpine.raw ? Alpine.raw(this.texts) : this.texts,
-                    logos: Alpine.raw ? Alpine.raw(this.logos) : this.logos,
-                    texts_back: Alpine.raw ? Alpine.raw(this.texts_back) : this.texts_back,
-                    logos_back: Alpine.raw ? Alpine.raw(this.logos_back) : this.logos_back,
+                    texts: this.normalizeArray(this.texts),
+                    logos: this.normalizeArray(this.logos),
+                    texts_back: this.normalizeArray(this.texts_back),
+                    logos_back: this.normalizeArray(this.logos_back),
                     activeSide: this.activeSide
                 });
             },
@@ -1714,10 +2603,10 @@
                     this.isPerformingHistoryAction = true;
                     const data = JSON.parse(snapStr);
 
-                    this.texts = JSON.parse(JSON.stringify(data.texts || []));
-                    this.logos = JSON.parse(JSON.stringify(data.logos || []));
-                    this.texts_back = JSON.parse(JSON.stringify(data.texts_back || []));
-                    this.logos_back = JSON.parse(JSON.stringify(data.logos_back || []));
+                    this.texts = JSON.parse(JSON.stringify(this.normalizeArray(data.texts)));
+                    this.logos = JSON.parse(JSON.stringify(this.normalizeArray(data.logos)));
+                    this.texts_back = JSON.parse(JSON.stringify(this.normalizeArray(data.texts_back)));
+                    this.logos_back = JSON.parse(JSON.stringify(this.normalizeArray(data.logos_back)));
 
                     if (data.activeSide && data.activeSide !== this.activeSide) {
                         this.activeSide = data.activeSide;
@@ -1925,7 +2814,7 @@
                     textItem.text = cleanVal;
                 }
 
-                const activeList = this.activeSide === 'back' ? this.texts_back : this.texts;
+                const activeList = this.currentTexts;
                 const targetId = (textItem && textItem.id) ? textItem.id : el.getAttribute('data-id');
 
                 if (index !== null && activeList && activeList[index]) {
@@ -2052,9 +2941,20 @@
                 const cleanQuote = this.wrapQuoteForStage(filtered);
 
                 const tName = this.activeSide === 'back' ? 'texts_back' : 'texts';
-                const clonedList = JSON.parse(JSON.stringify(this[tName] || []));
+                let clonedList = JSON.parse(JSON.stringify(this.normalizeArray(this[tName])));
+                clonedList = Array.isArray(clonedList) ? clonedList : Object.values(clonedList || {});
                 const freshId = 'txt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
                 let targetIdx = 0;
+
+                let maxZ = 30;
+                clonedList.forEach((it, idx) => {
+                    const z = (it && typeof it.zIndex === 'number') ? it.zIndex : (30 + idx);
+                    if (z > maxZ) maxZ = z;
+                });
+                (this.currentLogos || []).forEach((it, idx) => {
+                    const z = (it && typeof it.zIndex === 'number') ? it.zIndex : (10 + idx);
+                    if (z > maxZ) maxZ = z;
+                });
 
                 // 1. Falls aktuell ein Textfeld auf dieser Seite ausgewählt ist, Spruch dort einsetzen & einpassen
                 if (this.selectedType === 'text' && this.selectedIndex !== null && clonedList[this.selectedIndex]) {
@@ -2066,6 +2966,7 @@
                     activeItem.size = this.computeFitQuoteSize(cleanQuote, activeItem.font || 'Cinzel');
                     activeItem.x = activeItem.x ?? this.areaCenterX;
                     activeItem.y = activeItem.y ?? this.areaCenterY;
+                    activeItem.zIndex = Math.min(95, maxZ + 1);
                 } else {
                     // 2. Suche nach einem bereits vorhandenen, noch leeren Textfeld auf der aktiven Seite
                     const emptyIdx = clonedList.findIndex(t => !t.text || String(t.text).trim() === '');
@@ -2078,9 +2979,11 @@
                         emptyItem.size = this.computeFitQuoteSize(cleanQuote, emptyItem.font || 'Cinzel');
                         emptyItem.x = this.areaCenterX;
                         emptyItem.y = this.areaCenterY;
+                        emptyItem.zIndex = Math.min(95, maxZ + 1);
                     } else {
                         // 3. Neues zentriertes Textfeld auf der aktiven Seite anlegen
-                        const defaultFont = 'Cinzel';
+                        const defaultFont = (this.lastSelectedFont && this.lastSelectedFont !== 'Arial') ? this.lastSelectedFont : 'Cinzel';
+                        this.lastSelectedFont = defaultFont;
                         const newItem = {
                             id: freshId,
                             text: cleanQuote,
@@ -2089,7 +2992,8 @@
                             x: this.areaCenterX,
                             y: this.areaCenterY,
                             size: this.computeFitQuoteSize(cleanQuote, defaultFont),
-                            rotation: 0
+                            rotation: 0,
+                            zIndex: Math.min(95, maxZ + 1)
                         };
                         clonedList.push(newItem);
                         targetIdx = clonedList.length - 1;

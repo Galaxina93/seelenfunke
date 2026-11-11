@@ -132,8 +132,13 @@ class ManagementRoutine extends Component
             'active_alarm_label' => 'Jeden Tag',
             'alarms' => [
                 ['id' => 'alarm_0645', 'hour' => 6, 'minute' => 45, 'label' => 'Frühschicht / Manufaktur', 'schedule_text' => 'Jeden Tag', 'is_enabled' => false, 'smart_plug_ips' => ['192.168.188.109'], 'ai_briefing_enabled' => true],
-                ['id' => 'alarm_0830', 'hour' => 8, 'minute' => 30, 'label' => 'Seelenfunke Fokus-Start', 'schedule_text' => 'Jeden Tag', 'is_enabled' => true, 'smart_plug_ips' => ['192.168.188.109', '192.168.188.106'], 'ai_briefing_enabled' => true],
+                ['id' => 'alarm_0830', 'hour' => 8, 'minute' => 30, 'label' => 'Seelenfunke Fokus-Start', 'schedule_text' => 'Jeden Tag', 'is_enabled' => true, 'smart_plug_ips' => ['192.168.188.109', '192.168.188.110'], 'ai_briefing_enabled' => true],
                 ['id' => 'alarm_1300', 'hour' => 13, 'minute' => 0, 'label' => 'Mittags-Check / Express', 'schedule_text' => 'Nicht geplant', 'is_enabled' => false, 'smart_plug_ips' => [], 'ai_briefing_enabled' => false],
+            ],
+            'smart_plugs' => [
+                ['id' => 'c85151a0c0064f259ee18c352f626363', 'name' => 'Lichterkette Fußleiste', 'ip' => '192.168.188.109', 'model' => 'Tapo P100 (HW 2.0)', 'room' => 'easy-AP · Heimnetz'],
+                ['id' => 'dfb60661bf0945cf87cfe84f0e2db861', 'name' => 'Packtisch Warm Licht', 'ip' => '192.168.188.110', 'model' => 'Tapo P100/P110', 'room' => 'easy-AP · Heimnetz'],
+                ['id' => '53a51fd44692437f8669263ab58b2323', 'name' => 'Lichterkette Spiegel', 'ip' => '192.168.188.123', 'model' => 'Tapo P100/P110', 'room' => 'easy-AP · Heimnetz'],
             ],
             'timers' => [
                 ['id' => 'timer_5', 'label' => 'Timer: 5 Min.', 'duration_seconds' => 300],

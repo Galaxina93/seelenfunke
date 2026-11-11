@@ -3,7 +3,7 @@
          class="border-t z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] shrink-0 {{ $isDark ? 'bg-gray-950 border-gray-800' : 'bg-white border-gray-200' }}">
         <div :class="isMaximized ? 'max-w-6xl mx-auto space-y-2' : 'max-w-4xl mx-auto space-y-3.5'">
             {{-- VERPACKUNGS-UPGRADES FÜR NICHT-PERSONALISIERBARE PHYSISCHE PRODUKTE SOWIE SCHNELL-PERSONALISIERUNG IM FOOTER (BEI STUDIO LIEGEN SIE IN DER RECHTEN STUDIO-SPALTE) --}}
-            @if((!$this->product->isPersonalizable() || $this->product->usesCustomFieldsPersonalization()) && $context !== 'template_admin' && $context !== 'order_edit' && $this->type === 'physical' && !$isDigital && !$isService && count($this->availableAddons) > 0)
+            @if((!$this->product->isPersonalizable() || $this->isUsingCustomFieldsMode()) && $context !== 'template_admin' && $context !== 'order_edit' && $this->type === 'physical' && !$isDigital && !$isService && count($this->availableAddons) > 0)
                 <div class="space-y-2 animate-fade-in-up"
                      x-data="{ previewAddon: null }"
                      @keydown.escape.window="if (previewAddon) previewAddon = null">
@@ -186,7 +186,7 @@
                          class="rounded-xl border transition-all duration-200">
                         <label class="flex items-start gap-2.5 cursor-pointer group">
                             <input type="checkbox"
-                                   wire:model.live="config_confirmed"
+                                   wire:model="config_confirmed"
                                    @change="if($el.checked) confirmWarning = false"
                                    :class="(confirmWarning || {{ $errors->has('config_confirmed') ? 'true' : 'false' }}) ? 'border-red-500 ring-2 ring-red-500/30' : '{{ $isDark ? 'border-gray-700 bg-gray-950' : 'border-gray-300' }}'"
                                    class="mt-0.5 w-4 h-4 text-primary rounded focus:ring-primary cursor-pointer transition-all shrink-0">
@@ -197,7 +197,7 @@
                                     Ich stimme ausdrücklich zu, dass mit der Ausführung des Vertrags vor Ablauf der Widerrufsfrist begonnen wird. Mir ist bekannt, dass ich durch diese Zustimmung mein Widerrufsrecht verliere.
                                 @elseif(!$this->product->isPersonalizable())
                                     Ich bestätige meine Bestellung. Da dieses Produkt nicht personalisiert ist, gilt das gesetzliche 14-tägige Widerrufsrecht.
-                                @elseif($this->product->usesCustomFieldsPersonalization())
+                                @elseif($this->isUsingCustomFieldsMode())
                                     Ich habe meine Wunschgravur-Angaben auf korrekte Schreibweise geprüft. Individualisierte Artikel werden speziell nach Kundenwunsch gefertigt und sind vom <strong>Widerrufsrecht ausgeschlossen</strong>.
                                 @else
                                     Ich habe meine Texte, Logos und Positionen geprüft. Die Vorschau ist eine <strong>Visualisierung</strong>; handwerkliche Abweichungen sind möglich. Individualisierte Artikel sind vom <strong>Widerrufsrecht ausgeschlossen</strong>.

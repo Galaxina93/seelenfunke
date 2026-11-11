@@ -643,6 +643,45 @@ class AccountingSeeder extends Seeder
 
         $specialIssues = [
             [
+                'title'          => '144x Blanko Metall-Visitenkarten für Lasergravur (44x Schwarz, 100x Gold) & 50x Grußkartenumschläge Schwarz-Gold inkl. 50 Aufklebern',
+                'location'       => 'Temu (chance Commodity, GGOOOM, Lumina BK, Abundant Hardware)',
+                'amount'         => -46.71,
+                'date'           => '2026-11-10',
+                'category'       => 'Arbeitsmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => 'PO-076-18708670177910774',
+                'note'           => "Bestellnummer: PO-076-18708670177910774 | Bestellzeit / Bezahlt am: 10.11.2026 | Zahlungsart: PayPal (a***e@t-online.de) | Zustellung durch: 25.11.2026\nPositionen (6 Artikel insgesamt):\n- 2x 22 Stück (gesamt 44 Stück) Blanko Gravur Visitenkarten Metall, Laser Markierung Dünne Karten (Variante: Schwarz, Händler: chance Commodity / Foshanshishanchengquqingshizeriyongpindian): je 5,15 € = 10,30 €\n- 2x 29-teilige (gesamt 58 Stück) goldene, lasergravurgeeignete Visitenkarten (86x54 mm, 0,2 mm Dicke, Variante: Goldenes 29-teiliges Set, Händler: GGOOOM / Haikouqiongshanquhuidabaihuodian): je 5,61 € = 11,22 €\n- 1x 100-teiliges Set (50 Umschläge + 50 Aufkleber) Grußkartenumschläge im westlichen Stil mit goldenem Folienrand (Variante: Schwarz / 50 Umschläge + 50 Aufkleber, Händler: Lumina BK / Kaibo(dongguan)Zhi Zhi Pin Co., Ltd.): 9,63 €\n- 1x 42 Stück Blanko Gravierungsvisitenkarten Metall, Laser Markierung Dünne Karten (Variante: 【Golden】, Händler: Abundant Hardware / Yunfushifuchuangshiye Co., Ltd.): 9,13 €\nArtikel gesamt: 40,28 € | Versand: KOSTENLOS (0,00 €) | Einfuhrabgaben: 6,43 € | Gesamt (Netto): 39,24 € | Enthält Umsatzsteuer (19 %): 7,47 € | Gesamtsumme (Brutto): 46,71 €",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-10_Temu_144x-Blanko-Metall-Visitenkarten-Schwarz-Gold-und-50x-Umschlaege-mit-Aufklebern-Order-PO-076-18708670177910774.pdf'
+                ]
+            ],
+            [
+                'title'          => 'BONTEC PC Monitor Wandhalterung für 13-30 Zoll Monitor & TV (bis 15 kg, schwenkbar & neigbar, VESA 75/100 mm, inkl. Wasserwaage)',
+                'location'       => 'Amazon (bracketsales123)',
+                'amount'         => -12.86,
+                'date'           => '2026-11-09',
+                'category'       => 'Arbeitsmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => '303-8877971-9336327',
+                'note'           => "Bestellnummer: 303-8877971-9336327 | Bestellt am: 09.11.2026 (Belegausdruck 09.11.2026, 19:36 Uhr) | Zahlungsart: Volksbank eG Braunschweig Wolfsburg ••• 000\nPosition:\n- 1x BONTEC PC Monitor Wandhalterung für 13-30 Zoll Monitor & TV, bis zu 15 kg | Schwenkbare und neigbare TV Wandhalterung für Plasma- und Curved-Bildschirme, inkl. Wasserwaage, VESA 75/100 mm (Verkauf durch: bracketsales123)\nZwischensumme / Gesamt vor USt. (Netto): 10,81 € | Verpackung & Versand: 0,00 € | Geschätzte USt. (19 %): 2,05 € | Gesamtsumme (Brutto): 12,86 €\nEinsatzzweck: Wandmontage des Status-/KI-Monitors im Gewerbebereich (Laser-Manufaktur).\nHinweis: Aktuell Amazon-Bestellübersicht; offizielle Amazon-Umsatzsteuerrechnung nach Versand bei Bedarf ergänzen.",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-09_Amazon-bracketsales123_BONTEC-Monitor-Wandhalterung-13-30-Zoll-VESA-Order-303-8877971-9336327.pdf'
+                ]
+            ],
+            [
+                'title'          => 'NiPoGi GK3 Plus Mini PC (Windows 11 Pro, Intel N5030 bis 3,10 GHz, 12 GB RAM, 256 GB M.2 SSD, 2x HDMI, VGA, Dual WiFi)',
+                'location'       => 'Amazon (zealouse)',
+                'amount'         => -239.98,
+                'date'           => '2026-11-09',
+                'category'       => 'Arbeitsmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => '028-9253761-6814750',
+                'note'           => "Bestellnummer: 028-9253761-6814750 | Bestellt am: 09.11.2026 (Belegausdruck 09.11.2026, 18:13 Uhr) | Zahlungsart: Volksbank eG Braunschweig Wolfsburg ••• 000\nPosition:\n- 1x NiPoGi GK3 Plus Mini PC W-11 Pro, Intel N5030 (bis zu 3,10 GHz, 4 C / 4T) | 12 GB RAM 256 GB M.2 SSD Mini Desktop Computer für Schule/Zuhause/Büro, 2x HDMI, VGA, 4K Triple-Display, Dual WIFI (ASIN: B0BYHRYHRM, Verkauf durch: zealouse / Verkäufer-ID: A2S8NTHFMR9EA6)\nZwischensumme / Gesamt vor USt. (Netto): 201,66 € | Verpackung & Versand: 0,00 € | Geschätzte USt. (19 %): 38,32 € | Gesamtsumme (Brutto): 239,98 €\nEinsatzzweck: Dedizierter Wandmonitor-PC (GWG) im Gewerbebereich / Laser-Manufaktur zur grafischen Echtzeit-Anzeige der Bestellungen & Unternehmenskennzahlen sowie KI-Steuerung (Audio-Ausgabe via Bluetooth an Teufel-Anlage).\nHinweis: Aktuell Amazon-Bestellübersicht; offizielle Amazon-Umsatzsteuerrechnung nach Versand bei Bedarf ergänzen.\nProdukt-Link: https://www.amazon.de/dp/B0BYHRYHRM",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-09_Amazon-zealouse_NiPoGi-GK3-Plus-Mini-PC-12GB-256GB-Order-028-9253761-6814750.pdf'
+                ]
+            ],
+            [
                 'title'          => '2x Acryl-Visitenkartenhalter (3-lagig, transparent, für bis zu 180 Visitenkarten)',
                 'location'       => 'Temu (Whaleco Technology Limited)',
                 'amount'         => -11.01,
@@ -683,15 +722,16 @@ class AccountingSeeder extends Seeder
             ],
             [
                 'title'          => 'MUNBYN AirPrint Etikettendrucker Wi-Fi WLAN Labeldrucker 4x6 ITPP941AP (Weiß, 203 DPI Thermodrucker)',
-                'location'       => 'Amazon (MUNBYNUK)',
+                'location'       => 'Amazon (MUNBYNUK / GuangZhouMengBianXinXiKeJiYouXianGongSi)',
                 'amount'         => -229.99,
                 'date'           => '2026-11-05',
                 'category'       => 'Arbeitsmaterial',
                 'tax_rate'       => 19,
-                'invoice_number' => '303-8737484-6302724',
-                'note'           => "Bestellnummer: 303-8737484-6302724 | Bestellt am: 05.11.2026 (11:04 Uhr) | Zahlungsart: Volksbank eG Braunschweig Wolfsburg ••• 000\nPosition:\n- 1x MUNBYN AirPrint Etikettendrucker Wi-Fi WLAN Labeldrucker 4x6 ITPP941AP Weiß | 203DPI Thermodrucker WLAN, Etiketten Thermal Printer für Versandetiketten, kompatibel mit Shopify, DHL, DPD, FedEx (Verkauf durch: MUNBYNUK): 229,99 € brutto\nZwischensumme / Gesamt vor USt. (Netto): 193,27 € | Verpackung & Versand: 0,00 € | Geschätzte USt. (19%): 36,72 € | Gesamtsumme (Brutto): 229,99 €\nSupport & Herstellerkontakt (MUNBYN):\n- Tel: +1 628 229 3612 (8:00-17:00 Uhr PT)\n- WhatsApp: +86 17817881067 / +86 181 4489 8200 (Werktags - 24 Stunden)\n- E-Mail: support@munbyn.com\nBestellübersicht-Link: https://www.amazon.de/gp/css/summary/print.html?orderID=303-8737484-6302724&ref=ppx_yo2ov_dt_b_invoice",
+                'invoice_number' => 'DE6ATKOM0AEUD (Bestellnr. 303-8737484-6302724)',
+                'note'           => "Rechnungsnummer: DE6ATKOM0AEUD | Rechnungsdatum / Lieferdatum: 06.11.2026 | Bestellnummer: 303-8737484-6302724 | Bestellt am: 05.11.2026 (11:04 Uhr) | Zahlungsreferenznummer: 5JSKVUBTPWPM75OQ | Zahlungsart: Volksbank eG Braunschweig Wolfsburg ••• 000\nUmsatzsteuer erklärt durch: Amazon EU S.à r.l. (USt-IdNr.: LU20260743) | Verkauft von: GuangZhouMengBianXinXiKeJiYouXianGongSi (MUNBYNUK)\nPosition:\n- 1x MUNBYN AirPrint Etikettendrucker Wi-Fi WLAN Labeldrucker 4x6 ITPP941AP Weiß | 203DPI Thermodrucker WLAN, Etiketten Thermal Printer für Versandetiketten, kompatibel mit Shopify, DHL, DPD, FedEx (ASIN: B0C5MF41QN): 193,27 € netto (229,99 € brutto)\nZwischensumme (ohne USt.): 193,27 € | Versandkosten: 0,00 € | USt. (19%): 36,72 € | Gesamtpreis / Zahlbetrag (Brutto): 229,99 €\nSupport & Herstellerkontakt (MUNBYN):\n- Tel: +1 628 229 3612 (8:00-17:00 Uhr PT)\n- WhatsApp: +86 17817881067 / +86 181 4489 8200 (Werktags - 24 Stunden)\n- E-Mail: support@munbyn.com\nProdukt-Link: https://www.amazon.de/dp/B0C5MF41QN",
                 'file_paths'     => [
-                    'buchhaltung/receipts/2026/11/2026-11-05_Amazon-MUNBYNUK_MUNBYN-AirPrint-Etikettendrucker-WiFi-WLAN-ITPP941AP-Order-303-8737484-6302724.pdf'
+                    'buchhaltung/receipts/2026/11/2026-11-06_Amazon-MUNBYNUK_MUNBYN-AirPrint-Etikettendrucker-WiFi-WLAN-ITPP941AP-Rechnung-DE6ATKOM0AEUD.pdf',
+                    'buchhaltung/receipts/2026/11/2026-11-05_Amazon-MUNBYNUK_MUNBYN-AirPrint-Etikettendrucker-WiFi-WLAN-ITPP941AP-Order-303-8737484-6302724.pdf',
                 ]
             ],
             [

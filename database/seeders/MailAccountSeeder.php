@@ -125,7 +125,9 @@ class MailAccountSeeder extends Seeder
                 'last_sync_at' => now(),
             ];
 
-            if (!$existingAcc || trim((string) $existingAcc->password) === '') {
+            if (!$existingAcc) {
+                $updatePayload['password'] = $fallbackPassword;
+            } elseif ($fallbackPassword !== '' && trim((string) $existingAcc->password) === '') {
                 $updatePayload['password'] = $fallbackPassword;
             }
 

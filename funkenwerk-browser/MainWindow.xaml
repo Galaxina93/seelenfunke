@@ -1,0 +1,457 @@
+<Window x:Class="FunkenwerkBrowser.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Browser"
+        Icon="funkenwerk_browser.ico"
+        Width="1460" Height="900"
+        MinWidth="860" MinHeight="540"
+        WindowStartupLocation="CenterScreen"
+        FontFamily="Segoe UI"
+        Background="{DynamicResource BgCanvasBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
+        PreviewKeyDown="Window_PreviewKeyDown"
+        PreviewMouseDown="Window_PreviewMouseDown"
+        Deactivated="Window_Deactivated">
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="BgCanvasBrush" Color="#0C0F16"/>
+        <SolidColorBrush x:Key="BgBarBrush" Color="#111520"/>
+        <SolidColorBrush x:Key="BgElevatedBrush" Color="#191F2E"/>
+        <SolidColorBrush x:Key="BookmarkHoverBrush" Color="#1FFFFFFF"/>
+        <SolidColorBrush x:Key="BorderSubtleBrush" Color="#32C5A059"/>
+        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F9FAFB"/>
+        <SolidColorBrush x:Key="TextSecondaryBrush" Color="#9CA3AF"/>
+
+        <Style x:Key="NavBtn" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource BgElevatedBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#C5A059"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Flat Chrome-style Bookmark Bar Item (NO button background, subtle hover only) -->
+        <Style x:Key="FlatBookmarkBtn" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BookmarkHoverBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="GoldPillBtn" TargetType="Button">
+            <Setter Property="Background" Value="#D91F1708"/>
+            <Setter Property="Foreground" Value="#FCE7B2"/>
+            <Setter Property="BorderBrush" Value="#F2C5A059"/>
+            <Setter Property="BorderThickness" Value="1.2"/>
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#EB2D210B"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Background="{DynamicResource BgCanvasBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="40"/>
+            <RowDefinition Height="46"/>
+            <RowDefinition Height="34"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- ROW 0: TAB BAR -->
+        <Border Grid.Row="0" Background="{DynamicResource BgCanvasBrush}" Padding="10,5,10,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Image Grid.Column="0" Source="funkenwerk_browser.png" Width="22" Height="22" VerticalAlignment="Center" Margin="2,0,10,0"/>
+
+                <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+                    <StackPanel Orientation="Horizontal">
+                        <StackPanel x:Name="TabsHeaderStack" Orientation="Horizontal"/>
+                        <Button Content="+" Width="30" Height="28" Padding="0" Margin="4,0,0,0" Style="{StaticResource NavBtn}" Click="NewTab_Click" ToolTip="Neuer Tab (Strg+T)"/>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <Button x:Name="ThemeBtn" Grid.Column="2" Content="☀" Width="30" Height="28" Padding="0" Style="{StaticResource NavBtn}" Click="ToggleTheme_Click" ToolTip="Hell / Dunkel"/>
+            </Grid>
+        </Border>
+
+        <!-- ROW 1: NAVIGATION, ADDRESS BAR WITH STAR, AUTOFILL/PASSWORDS & SHIELD -->
+        <Border Grid.Row="1" Background="{DynamicResource BgBarBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,1,0,1" Padding="10,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                    <Button Content="←" Width="32" Height="30" Padding="0" Margin="0,0,4,0" Style="{StaticResource NavBtn}" Click="Back_Click" ToolTip="Zurück"/>
+                    <Button Content="→" Width="32" Height="30" Padding="0" Margin="0,0,4,0" Style="{StaticResource NavBtn}" Click="Forward_Click" ToolTip="Vorwärts"/>
+                    <Button Content="↻" Width="32" Height="30" Padding="0" Margin="0,0,4,0" Style="{StaticResource NavBtn}" Click="Reload_Click" ToolTip="Neu laden"/>
+                    <Button Content="⌂" Width="32" Height="30" Padding="0" Style="{StaticResource NavBtn}" Click="Home_Click" ToolTip="Startseite"/>
+                </StackPanel>
+
+                <!-- Clean Address Bar + Bookmark Star Button -->
+                <Border Grid.Column="1" Background="{DynamicResource BgElevatedBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="9" Height="32" Padding="10,0,4,0" VerticalAlignment="Center">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="SslIconTxt" Grid.Column="0" Text="🔒" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="AddressBox" Grid.Column="1" Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}" CaretBrush="#C5A059" BorderThickness="0" VerticalContentAlignment="Center" FontSize="12.5"
+                                 KeyDown="AddressBox_KeyDown" GotKeyboardFocus="AddressBox_GotFocus"/>
+                        <Button x:Name="BookmarkStarBtn" Grid.Column="2" Content="☆" FontSize="14" Padding="7,1" Style="{StaticResource FlatBookmarkBtn}" Click="BookmarkStarBtn_Click" ToolTip="Lesezeichen für diese Seite hinzufügen oder bearbeiten (Strg+D)"/>
+                    </Grid>
+                </Border>
+
+                <!-- Passwords/Autofill + Tracker Shield + Airlock Mode + F12 -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                    <Button x:Name="QuickFillBtn" Content="⚡ Autofill" Height="30" Margin="0,0,5,0" Style="{StaticResource NavBtn}" Click="QuickFillCurrentPage_Click"
+                            ToolTip="Login oder Adressformular auf dieser Webseite sofort ausfüllen"/>
+
+                    <Button x:Name="VaultDrawerToggleBtn" Content="🔑 Passwörter" Height="30" Margin="0,0,6,0" Style="{StaticResource NavBtn}" Click="ToggleVaultDrawer_Click"
+                            ToolTip="Passwörter, Autofill &amp; Chrome-Synchronisation"/>
+
+                    <Border Background="{DynamicResource BgElevatedBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="9,5" Margin="0,0,6,0"
+                            ToolTip="Blockierte Werbe- &amp; Tracking-Anfragen">
+                        <TextBlock x:Name="BlockedCountTxt" Text="🛡 0" FontSize="11.5" FontWeight="Bold" Foreground="#C5A059"/>
+                    </Border>
+
+                    <Button x:Name="AirlockModeBtn" Content="🔒 FESTUNG" Height="30" Margin="0,0,6,0" Style="{StaticResource GoldPillBtn}" Click="ToggleAirlockMode_Click"
+                            ToolTip="Wechselt zwischen offenem Web und strikter Kiosk-Whitelist"/>
+
+                    <Button Content="F12" Height="30" Style="{StaticResource NavBtn}" Click="OpenDevTools_Click" ToolTip="Entwicklerwerkzeuge (F12)"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ROW 2: CHROME-STYLE BOOKMARK BAR (NO BUTTON BACKGROUNDS, FOLDERS, FAVICONS & ICON-ONLY SUPPORT) -->
+        <Border x:Name="BookmarkBarContainer" Grid.Row="2" Background="{DynamicResource BgBarBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,0,1" Padding="6,0"
+                MouseRightButtonUp="BookmarkBarEmpty_MouseRightButtonUp" AllowDrop="True"
+                DragOver="BookmarkBarContainer_DragOver" DragLeave="BookmarkBarContainer_DragLeave" Drop="BookmarkBarEmpty_Drop">
+            <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" VerticalAlignment="Center" PreviewMouseWheel="BookmarkBarScroll_PreviewMouseWheel">
+                <StackPanel x:Name="BookmarksBarStack" Orientation="Horizontal" VerticalAlignment="Center" AllowDrop="True"
+                            DragOver="BookmarkBarContainer_DragOver" Drop="BookmarkBarEmpty_Drop"/>
+            </ScrollViewer>
+        </Border>
+
+        <!-- ROW 3: WEB CONTENT HOST + OPTIONAL PASSWORDS/AUTOFILL SIDE DRAWER -->
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Grid Grid.Column="0">
+                <Grid x:Name="WebViewsHostGrid"/>
+
+                <!-- Clean Airlock Gate Screen (Shown ONLY when StrictFortressMode is active and a non-whitelisted domain is requested) -->
+                <Grid x:Name="AirlockBlockedOverlay" Visibility="Collapsed" Background="{DynamicResource BgCanvasBrush}">
+                    <Border Width="440" VerticalAlignment="Center" HorizontalAlignment="Center" Background="{DynamicResource BgBarBrush}" BorderBrush="#99C5A059" BorderThickness="1.4" CornerRadius="18" Padding="28,24">
+                        <StackPanel HorizontalAlignment="Center">
+                            <Image Source="funkenwerk_browser.png" Width="58" Height="58" Margin="0,0,0,14"/>
+                            <TextBlock Text="FESTUNGS-SCHLEUSE AKTIV" Foreground="#C5A059" FontSize="11.5" FontWeight="Bold" HorizontalAlignment="Center"/>
+                            <TextBlock x:Name="BlockedDomainTitleTxt" Text="domain.de" FontSize="20" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center" Margin="0,6,0,20" TextTrimming="CharacterEllipsis"/>
+
+                            <Button Content="✦  DOMAIN DAUERHAFT FREIGEBEN" Height="38" Width="310" Style="{StaticResource GoldPillBtn}" Margin="0,0,0,8" Click="AllowBlockedDomainPermanently_Click"/>
+                            <Button Content="⏱  SCHLEUSE FÜR 30 MIN. ÖFFNEN" Height="36" Width="310" Style="{StaticResource NavBtn}" Click="Open30MinAirlockFromGate_Click"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Grid>
+
+            <!-- RIGHT DOCKED DRAWER: PASSWÖRTER, AUTOFILL & CHROME-SYNC -->
+            <Border x:Name="VaultSideDrawer" Grid.Column="1" Visibility="Collapsed" Width="390"
+                    Background="{DynamicResource BgBarBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1,0,0,0" Padding="14">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <Grid Grid.Row="0" Margin="0,0,0,10">
+                        <TextBlock Text="🔑 PASSWÖRTER &amp; AUTOFILL" FontSize="12" FontWeight="Bold" Foreground="#C5A059" VerticalAlignment="Center"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Content="↻ Chrome-Sync" Padding="8,4" Margin="0,0,4,0" FontSize="11" Style="{StaticResource NavBtn}" Click="SyncFromChromeNow_Click" ToolTip="Lesezeichen, Icons, Autofill &amp; Logins aus Google Chrome synchronisieren"/>
+                            <Button Content="📥 CSV" Padding="8,4" Margin="0,0,4,0" FontSize="11" Style="{StaticResource NavBtn}" Click="ImportPasswordsCsv_Click" ToolTip="Passwörter aus Chrome-CSV-Export importieren"/>
+                            <Button Content="✕" Width="26" Height="26" Padding="0" Style="{StaticResource FlatBookmarkBtn}" Click="ToggleVaultDrawer_Click"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Tab Switcher: Passwörter vs. Autofill-Stammdaten -->
+                    <UniformGrid Grid.Row="1" Columns="2" Margin="0,0,0,10">
+                        <Button x:Name="VaultTabPasswordsBtn" Content="🔑 Zugangsdaten" Height="30" Margin="0,0,3,0" Style="{StaticResource GoldPillBtn}" Click="SwitchVaultTabPasswords_Click"/>
+                        <Button x:Name="VaultTabAutofillBtn" Content="📋 Autofill-Profil" Height="30" Margin="3,0,0,0" Style="{StaticResource NavBtn}" Click="SwitchVaultTabAutofill_Click"/>
+                    </UniformGrid>
+
+                    <!-- PANEL A: PASSWÖRTER & LOGINS -->
+                    <Grid x:Name="VaultPasswordsPanel" Grid.Row="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Quick Save / Edit Login for Current Page -->
+                        <Border Grid.Row="0" Background="{DynamicResource BgElevatedBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="10" Padding="10" Margin="0,0,0,10">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,6">
+                                    <TextBlock x:Name="VaultCurrentHostTxt" Text="Aktuelle Seite" FontSize="11.5" FontWeight="Bold" Foreground="#C5A059" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                    <Button Content="⚡ Ausfüllen" Padding="8,3" FontSize="11" HorizontalAlignment="Right" Style="{StaticResource GoldPillBtn}" Click="QuickFillCurrentPage_Click"/>
+                                </Grid>
+
+                                <TextBox x:Name="VaultNewUserBox" Height="28" Padding="7,0" Margin="0,0,0,5" VerticalContentAlignment="Center"
+                                         Background="{DynamicResource BgCanvasBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                                         ToolTip="Benutzername oder E-Mail"/>
+
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="30"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <PasswordBox x:Name="VaultNewPassBox" Grid.Column="0" Height="28" Padding="7,0" VerticalContentAlignment="Center"
+                                                 Background="{DynamicResource BgCanvasBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                                                 KeyDown="VaultNewPassBox_KeyDown"/>
+                                    <TextBox x:Name="VaultNewPassRevealBox" Grid.Column="0" Visibility="Collapsed" Height="28" Padding="7,0" VerticalContentAlignment="Center"
+                                             Background="{DynamicResource BgCanvasBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                                             KeyDown="VaultNewPassBox_KeyDown"/>
+                                    <Button Grid.Column="1" Content="👁" Height="28" Margin="3,0,0,0" Padding="0" Style="{StaticResource NavBtn}" Click="ToggleVaultNewPassEye_Click" ToolTip="Passwort anzeigen/verbergen"/>
+                                    <Button Grid.Column="2" Content="Speichern" Height="28" Margin="4,0,0,0" Padding="10,0" Style="{StaticResource GoldPillBtn}" Click="SaveCurrentPageLogin_Click"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Search Saved Logins -->
+                        <TextBox x:Name="VaultSearchBox" Grid.Row="1" Height="30" Padding="8,0" Margin="0,0,0,8" VerticalContentAlignment="Center"
+                                 Background="{DynamicResource BgElevatedBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                                 TextChanged="VaultSearchBox_TextChanged" ToolTip="Gespeicherte Logins durchsuchen"/>
+
+                        <!-- Saved Logins List -->
+                        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="VaultLoginsListStack"/>
+                        </ScrollViewer>
+                    </Grid>
+
+                    <!-- PANEL B: AUTOFILL PROFILE -->
+                    <ScrollViewer x:Name="VaultAutofillPanel" Grid.Row="2" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <Border Background="{DynamicResource BgElevatedBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="10" Padding="11">
+                                <StackPanel>
+                                    <TextBlock Text="Vorname &amp; Nachname" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,3"/>
+                                    <UniformGrid Columns="2" Margin="0,0,0,7">
+                                        <TextBox x:Name="AfFirstNameBox" Height="28" Padding="6,0" Margin="0,0,3,0" VerticalContentAlignment="Center" Background="{DynamicResource BgCanvasBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}"/>
+                                        <TextBox x:Name="AfLastNameBox" Height="28" Padding="6,0" Margin="3,0,0,0" VerticalContentAlignment="Center" Background="{DynamicResource BgCanvasBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}"/>
+                                    </UniformGrid>
+
+                                    <TextBlock Text="Firma / Unternehmen" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,3"/>
+                                    <TextBox x:Name="AfCompanyBox" Height="28" Padding="6,0" Margin="0,0,0,7" VerticalContentAlignment="Center" Background="{DynamicResource BgCanvasBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}"/>
+
+                                    <TextBlock Text="Straße &amp; Hausnummer" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,3"/>
+                                    <TextBox x:Name="AfStreetBox" Height="28" Padding="6,0" Margin="0,0,0,7" VerticalContentAlignment="Center" Background="{DynamicResource BgCanvasBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}"/>
+
+                                    <TextBlock Text="PLZ &amp; Ort" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,3"/>
+                                    <Grid Margin="0,0,0,7">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="95"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="AfZipBox" Grid.Column="0" Height="28" Padding="6,0" Margin="0,0,4,0" VerticalContentAlignment="Center" Background="{DynamicResource BgCanvasBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}"/>
+                                        <TextBox x:Name="AfCityBox" Grid.Column="1" Height="28" Padding="6,0" VerticalContentAlignment="Center" Background="{DynamicResource BgCanvasBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}"/>
+                                    </Grid>
+
+                                    <TextBlock Text="E-Mail-Adresse" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,3"/>
+                                    <TextBox x:Name="AfEmailBox" Height="28" Padding="6,0" Margin="0,0,0,7" VerticalContentAlignment="Center" Background="{DynamicResource BgCanvasBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}"/>
+
+                                    <TextBlock Text="Telefon" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,3"/>
+                                    <TextBox x:Name="AfPhoneBox" Height="28" Padding="6,0" Margin="0,0,0,10" VerticalContentAlignment="Center" Background="{DynamicResource BgCanvasBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}"/>
+
+                                    <UniformGrid Columns="2">
+                                        <Button Content="✓ Speichern" Height="32" Margin="0,0,4,0" Style="{StaticResource GoldPillBtn}" Click="SaveAutofillProfile_Click"/>
+                                        <Button Content="⚡ Seite ausfüllen" Height="32" Margin="4,0,0,0" Style="{StaticResource NavBtn}" Click="FillAddressOnCurrentPage_Click"/>
+                                    </UniformGrid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================================================================= -->
+        <!-- POPUP 1: CHROME-STYLE BOOKMARK FOLDER DROPDOWN (FLOATS OVER WEB)  -->
+        <!-- ================================================================= -->
+        <Popup x:Name="BookmarkFolderPopup" AllowsTransparency="True" Placement="Bottom" StaysOpen="True" PopupAnimation="Fade">
+            <Border x:Name="BookmarkFolderPopupBorder" MinWidth="270" MaxWidth="390" MaxHeight="520" Margin="4"
+                    Background="{DynamicResource BgBarBrush}" BorderBrush="#99C5A059" BorderThickness="1.2" CornerRadius="12" Padding="8"
+                    AllowDrop="True" DragOver="FolderPopup_DragOver" Drop="FolderPopup_Drop">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity="0.55" Color="#000000"/>
+                </Border.Effect>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Folder Breadcrumb / Back Header -->
+                    <Grid Grid.Row="0" Margin="4,2,4,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="FolderPopupBackBtn" Grid.Column="0" Content="←" Width="24" Height="22" Padding="0" Margin="0,0,6,0" Visibility="Collapsed" Style="{StaticResource FlatBookmarkBtn}" Click="FolderPopupBack_Click"/>
+                        <TextBlock x:Name="FolderPopupTitleTxt" Grid.Column="1" Text="ORDNER" FontSize="11.5" FontWeight="Bold" Foreground="#C5A059" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                        <Button Grid.Column="2" Content="✎" Width="24" Height="22" Padding="0" Style="{StaticResource FlatBookmarkBtn}" Click="EditCurrentlyOpenFolder_Click" ToolTip="Diesen Ordner umbenennen oder bearbeiten"/>
+                    </Grid>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" MaxHeight="410">
+                        <StackPanel x:Name="FolderPopupItemsStack"/>
+                    </ScrollViewer>
+
+                    <Border Grid.Row="2" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,1,0,0" Margin="0,6,0,0" Padding="0,6,0,0">
+                        <UniformGrid Columns="2">
+                            <Button Content="+ Aktuelle Seite hier" FontSize="11" Padding="6,4" Style="{StaticResource FlatBookmarkBtn}" Foreground="#C5A059" Click="AddCurrentPageToOpenFolder_Click"/>
+                            <Button Content="+ Neuer Unterordner" FontSize="11" Padding="6,4" Style="{StaticResource FlatBookmarkBtn}" Foreground="{DynamicResource TextSecondaryBrush}" Click="AddSubfolderToOpenFolder_Click"/>
+                        </UniformGrid>
+                    </Border>
+                </Grid>
+            </Border>
+        </Popup>
+
+        <!-- ================================================================= -->
+        <!-- POPUP 1B: CASCADING SUBFOLDER POPUP ON HOVER (RIGHT SIDE)         -->
+        <!-- ================================================================= -->
+        <Popup x:Name="BookmarkSubfolderPopup" AllowsTransparency="True" Placement="Right" HorizontalOffset="-2" StaysOpen="True" PopupAnimation="Fade">
+            <Border x:Name="BookmarkSubfolderPopupBorder" MinWidth="250" MaxWidth="360" MaxHeight="480" Margin="4"
+                    Background="{DynamicResource BgBarBrush}" BorderBrush="#99C5A059" BorderThickness="1.2" CornerRadius="12" Padding="8">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity="0.55" Color="#000000"/>
+                </Border.Effect>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock x:Name="SubfolderPopupTitleTxt" Grid.Row="0" Text="UNTERORDNER" FontSize="11" FontWeight="Bold" Foreground="#C5A059" Margin="4,2,4,6" TextTrimming="CharacterEllipsis"/>
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" MaxHeight="420">
+                        <StackPanel x:Name="SubfolderPopupItemsStack"/>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Popup>
+
+        <!-- ================================================================= -->
+        <!-- POPUP 2: RIGHT-CLICK BOOKMARK / FOLDER RENAME & MANAGER POPOVER   -->
+        <!-- (Supports empty name "" for Icon-Only, Enter to confirm!)         -->
+        <!-- ================================================================= -->
+        <Popup x:Name="BookmarkEditPopup" AllowsTransparency="True" Placement="Bottom" StaysOpen="False" PopupAnimation="Fade">
+            <Border Width="335" Margin="4"
+                    Background="{DynamicResource BgBarBrush}" BorderBrush="#BFC5A059" BorderThickness="1.3" CornerRadius="12" Padding="13">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity="0.6" Color="#000000"/>
+                </Border.Effect>
+                <StackPanel>
+                    <Grid Margin="0,0,0,8">
+                        <TextBlock x:Name="EditPopupHeaderTxt" Text="LESEZEICHEN BEARBEITEN" FontSize="11" FontWeight="Bold" Foreground="#C5A059" VerticalAlignment="Center"/>
+                        <Button x:Name="EditPopupIconOnlyBtn" Content="🖼 Nur Icon" Padding="8,2" FontSize="10.5" HorizontalAlignment="Right" Style="{StaticResource NavBtn}" Click="SetBookmarkIconOnly_Click"
+                                ToolTip="Name leeren und in der Leiste nur das Webseiten-Icon anzeigen"/>
+                    </Grid>
+
+                    <TextBlock Text="Name (Leer lassen = nur Icon, Enter = bestätigen)" FontSize="10.5" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,3"/>
+                    <TextBox x:Name="EditBookmarkNameBox" Height="30" Padding="8,0" Margin="0,0,0,8" VerticalContentAlignment="Center" FontSize="12.5"
+                             Background="{DynamicResource BgCanvasBrush}" Foreground="{DynamicResource TextPrimaryBrush}" CaretBrush="#C5A059" BorderBrush="#99C5A059" BorderThickness="1"
+                             KeyDown="EditBookmarkBox_KeyDown"/>
+
+                    <StackPanel x:Name="EditBookmarkUrlSection" Margin="0,0,0,8">
+                        <TextBlock Text="Adresse (URL)" FontSize="10.5" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,3"/>
+                        <TextBox x:Name="EditBookmarkUrlBox" Height="28" Padding="8,0" VerticalContentAlignment="Center" FontSize="11.5"
+                                 Background="{DynamicResource BgCanvasBrush}" Foreground="{DynamicResource TextPrimaryBrush}" CaretBrush="#C5A059" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                                 KeyDown="EditBookmarkBox_KeyDown"/>
+                    </StackPanel>
+
+                    <TextBlock Text="Ordner" FontSize="10.5" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,3"/>
+                    <ComboBox x:Name="EditBookmarkFolderCombo" Height="29" Margin="0,0,0,10" FontSize="11.5"/>
+
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="◀" Width="28" Height="27" Padding="0" Margin="0,0,4,0" Style="{StaticResource NavBtn}" Click="MoveEditedBookmarkLeft_Click" ToolTip="Nach links / oben verschieben"/>
+                        <Button Grid.Column="1" Content="▶" Width="28" Height="27" Padding="0" Margin="0,0,4,0" Style="{StaticResource NavBtn}" Click="MoveEditedBookmarkRight_Click" ToolTip="Nach rechts / unten verschieben"/>
+                        <Button x:Name="EditOpenNewTabBtn" Grid.Column="2" Content="🗔 Neuer Tab" Height="27" Margin="0,0,4,0" Style="{StaticResource NavBtn}" Click="OpenEditedBookmarkNewTab_Click"/>
+                        <Button x:Name="EditDeleteBookmarkBtn" Grid.Column="3" Content="🗑" Width="30" Height="27" Padding="0" Style="{StaticResource NavBtn}" Click="DeleteEditedBookmark_Click" ToolTip="Löschen"/>
+                    </Grid>
+
+                    <UniformGrid Columns="2">
+                        <Button Content="✓ Bestätigen (Enter)" Height="31" Margin="0,0,4,0" Style="{StaticResource GoldPillBtn}" Click="ConfirmEditBookmark_Click"/>
+                        <Button Content="+ Neuer Ordner" Height="31" Margin="4,0,0,0" Style="{StaticResource NavBtn}" Click="CreateNewFolderFromEditPopup_Click"/>
+                    </UniformGrid>
+                </StackPanel>
+            </Border>
+        </Popup>
+    </Grid>
+</Window>

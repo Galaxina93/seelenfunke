@@ -111,7 +111,9 @@ data class AlarmSyncPackagePayload(
     val alarms: List<SmartAlarmItem>? = null,
     val timers: List<TimerPresetItem>? = null,
     @SerializedName("smart_plugs") val smartPlugs: List<SmartPlugDevice>? = null,
-    @SerializedName("wake_up_logs") val wakeUpLogs: Map<String, WakeUpLogEntry>? = null
+    @SerializedName("wake_up_logs") val wakeUpLogs: Map<String, WakeUpLogEntry>? = null,
+    @SerializedName("funkira_voice") val funkiraVoice: String? = "Aoede",
+    @SerializedName("gemini_tts_key") val geminiTtsKey: String? = null
 )
 
 data class AlarmSyncPackageResponse(
@@ -167,7 +169,8 @@ interface OrganizerApi {
     suspend fun addTask(
         @Path("listId") listId: String,
         @Field("title") title: String,
-        @Field("priority") priority: String = "niedrig"
+        @Field("priority") priority: String = "niedrig",
+        @Field("relevant_from") relevantFrom: String? = null
     ): TaskDetailResponse
 
     @DELETE("funki/tasks/{id}")

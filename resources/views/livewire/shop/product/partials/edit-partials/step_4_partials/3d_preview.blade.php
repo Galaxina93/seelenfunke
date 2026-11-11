@@ -73,20 +73,40 @@
             </svg>
 
             {{-- Polygon Ankerpunkte --}}
-            <template x-if="configSettings.area_shape === 'custom'">
+            <template x-if="configSettings.area_shape === 'custom' && showPolygonHandles">
                 <template x-for="(point, idx) in (configSettings.custom_points || [])" :key="idx">
-                    <div class="point-handle group absolute w-7 h-7 bg-white dark:bg-gray-900 border-[2.5px] border-[var(--theme-color)] rounded-full z-20 cursor-move -translate-x-1/2 -translate-y-1/2 shadow-sm dark:shadow-[0_0_10px_rgba(197,160,89,0.5)] flex items-center justify-center hover:scale-110 transition-all"
+                    <div class="point-handle group absolute bg-white dark:bg-gray-900 border-[2px] border-[var(--theme-color)] rounded-full z-20 cursor-move -translate-x-1/2 -translate-y-1/2 shadow-sm dark:shadow-[0_0_10px_rgba(197,160,89,0.5)] flex items-center justify-center hover:scale-125 hover:z-30 transition-all"
+                         :class="(configSettings.custom_points && configSettings.custom_points.length > 35) ? 'w-4 h-4' : 'w-7 h-7'"
                          :style="`left: ${point.x}%; top: ${point.y}%;`"
                          @mousedown.stop="startDragPoint(idx, $event)"
                          @touchstart.stop="startDragPoint(idx, $event)">
 
-                        <span x-text="idx + 1" class="absolute text-[11px] font-black text-[var(--theme-color)] pointer-events-none transition-opacity duration-200 group-hover:opacity-0"></span>
+                        <span x-text="idx + 1"
+                              :class="(configSettings.custom_points && configSettings.custom_points.length > 35) ? 'text-[7px]' : 'text-[11px]'"
+                              class="absolute font-black text-[var(--theme-color)] pointer-events-none transition-opacity duration-200 group-hover:opacity-0"></span>
 
                         <button @click.stop="deletePoint(idx)"
                                 class="absolute text-red-500 hover:text-red-400 font-bold pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                                style="font-size: 18px; line-height: 1; padding-bottom: 2px;">&times;</button>
+                                style="font-size: 14px; line-height: 1; padding-bottom: 1px;">&times;</button>
                     </div>
                 </template>
+            </template>
+
+            {{-- NEULINGS-POSITIONS-VORSCHAU (Symbol oben mittig & Wunschtext unten mittig) --}}
+            <template x-if="showBeginnerPositionPreview">
+                <div class="absolute inset-0 pointer-events-none z-30">
+                    {{-- Symbol-Marker oben mittig --}}
+                    <div class="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-emerald-400 bg-emerald-500/20 backdrop-blur-[1px] shadow-md transition-all"
+                         :style="`left: ${configSettings.beginner_symbol_x ?? 50}%; top: ${configSettings.beginner_symbol_y ?? 36}%; width: ${Math.max(26, (configSettings.beginner_symbol_size ?? 45) * 0.9)}px; height: ${Math.max(26, (configSettings.beginner_symbol_size ?? 45) * 0.9)}px;`">
+                        <span class="text-emerald-300 font-black leading-none text-sm">♥</span>
+                        <span class="text-[7px] font-black uppercase tracking-wider text-emerald-200 mt-0.5">Symbol</span>
+                    </div>
+                    {{-- Wunschtext-Marker unten mittig --}}
+                    <div class="absolute -translate-x-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg border-2 border-dashed border-[#C5A059] bg-gray-950/65 backdrop-blur-[1px] shadow-md whitespace-nowrap transition-all"
+                         :style="`left: ${configSettings.beginner_text_x ?? 50}%; top: ${configSettings.beginner_text_y ?? 64}%; font-size: ${Math.max(9, (configSettings.beginner_text_size ?? 0.85) * 14)}px;`">
+                        <span class="font-serif font-bold text-[#F3E5AB]">Wunschtext</span>
+                    </div>
+                </div>
             </template>
         </div>
     </div>

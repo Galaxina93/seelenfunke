@@ -68,13 +68,7 @@ class ManagementTask extends Component
 
     public function mount(): void
     {
-        $firstList = TaskListModel::where('name', 'Aufgaben')->first()
-            ?? TaskListModel::orderBy('position', 'asc')->orderBy('created_at', 'asc')->first();
-        if ($firstList) {
-            $this->activeListId = $firstList->id;
-        } else {
-            $this->activeListId = 'all';
-        }
+        $this->activeListId = 'all';
     }
 
     public function selectList(string $id): void

@@ -370,20 +370,27 @@ fun DashboardContent(
     FinanceDashboardCard(kpis = kpis, onClick = onNavigateToFinances)
 
     // 3. BELEG ERFASSEN & SCHNELLEINTRAG
-    var isQuickEntryExpanded by remember { mutableStateOf(false) }
+    var isQuickEntryExpanded by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val isUploading by viewModel.isUploading.collectAsState()
     val isAiScanning by viewModel.isAiScanning.collectAsState()
     val actionResult by viewModel.actionResult.collectAsState()
     val categories = remember {
-        listOf("Lebensmittel", "Miete/Wohnen", "Transport", "Freizeit/Hobby", "Versicherungen", "Investitionen", "Sonstiges")
+        listOf("Lebensmittel", "Miete/Wohnen", "Transport", "Freizeit/Hobby", "Versicherungen", "Investitionen", "Werkzeug & Material", "Sonstiges")
     }
+    val zentrumContext = androidx.compose.ui.platform.LocalContext.current
 
     LaunchedEffect(actionResult) {
         actionResult?.let { res ->
-            res.onSuccess {
+            res.onSuccess { msg ->
+                android.widget.Toast.makeText(zentrumContext, msg, android.widget.Toast.LENGTH_SHORT).show()
                 isQuickEntryExpanded = false
                 viewModel.clearActionResult()
-            }.onFailure {
+            }.onFailure { err ->
+                android.widget.Toast.makeText(
+                    zentrumContext,
+                    err.localizedMessage ?: "Beleg konnte nicht verarbeitet werden.",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
                 viewModel.clearActionResult()
             }
         }
@@ -453,7 +460,7 @@ fun DashboardContent(
                     onDismiss = { isQuickEntryExpanded = false },
                     onScanReceipt = { bytes, fileName, mime, autoSave, onResult ->
                         viewModel.scanReceipt(bytes, fileName, mime, autoSave) { scanData ->
-                            scanData?.let { onResult(it) }
+                            onResult(scanData)
                         }
                     },
                     onSubmit = { title, amt, cat, isBiz, date, loc, bytes, name, mime ->

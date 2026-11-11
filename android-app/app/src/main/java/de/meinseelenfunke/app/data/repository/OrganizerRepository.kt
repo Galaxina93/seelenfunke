@@ -124,10 +124,41 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
         }
     }
 
-    suspend fun addTask(listId: String, title: String, priority: String = "niedrig"): Result<ManagementTask> {
+    suspend fun addTask(
+        listId: String,
+        title: String,
+        priority: String = "niedrig",
+        relevantFrom: String? = null
+    ): Result<ManagementTask> {
         return try {
-            val response = serviceLocator.getOrganizerApi().addTask(listId, title, priority)
+            val smartAliases = setOf("my_day", "important", "planned", "all", "default")
+            var targetListId = listId
+            if (targetListId.isBlank() || targetListId in smartAliases) {
+                val cachedLists = loadTaskListsFromCache() ?: getTaskLists().getOrNull().orEmpty()
+                val resolved = cachedLists.firstOrNull { it.name.equals("Aufgaben", ignoreCase = true) }
+                    ?: cachedLists.firstOrNull()
+                if (resolved != null && resolved.id.isNotBlank()) {
+                    targetListId = resolved.id
+                } else {
+                    val createdList = addTaskList("Aufgaben", "home").getOrNull()
+                    if (createdList != null && createdList.id.isNotBlank()) {
+                        targetListId = createdList.id
+                    }
+                }
+            }
+
+            val effPriority = if (listId == "important" && priority == "niedrig") "hoch" else priority
+            val effRelevantFrom = relevantFrom ?: if (listId == "my_day" || listId == "planned") {
+                java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+            } else null
+
+            val response = serviceLocator.getOrganizerApi().addTask(targetListId, title, effPriority, effRelevantFrom)
             if (response.success) {
+                val current = loadTasksFromCache()?.toMutableList() ?: mutableListOf()
+                current.removeAll { it.id == response.data.id }
+                current.add(0, response.data)
+                saveTasksToCache(current)
+                triggerTasksWidgetUpdate(serviceLocator.context)
                 Result.success(response.data)
             } else {
                 Result.failure(Exception("Konnte Aufgabe nicht hinzufügen."))
@@ -295,6 +326,9 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
                 deviceName = payload["device_name"] ?: "Funkenwerk Android"
             )
             if (response.success) {
+                response.data?.geminiTtsKey?.takeIf { it.isNotBlank() }?.let { key ->
+                    serviceLocator.saveGeminiApiKey(key)
+                }
                 val stamp = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.GERMANY).format(java.util.Date())
                 de.meinseelenfunke.app.util.FunkenwerkAlarmManager.markSyncCompleted(context, stamp)
                 Result.success(stamp)
@@ -311,6 +345,9 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             val response = serviceLocator.getOrganizerApi().getAlarmSyncPackage()
             if (response.success && response.data != null) {
                 val pkg = response.data
+                pkg.geminiTtsKey?.takeIf { it.isNotBlank() }?.let { key ->
+                    serviceLocator.saveGeminiApiKey(key)
+                }
                 de.meinseelenfunke.app.util.FunkenwerkAlarmManager.applyRemotePackage(
                     context = context,
                     alarms = pkg.alarms,

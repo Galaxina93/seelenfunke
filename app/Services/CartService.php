@@ -369,7 +369,10 @@ class CartService
     public function calculateTierPrice(Product $product, int $qty, ?array $configuration = null): int
     {
         if ($product->slug === 'geschenkgutschein' && $configuration && isset($configuration['amount_cents'])) {
-            return max(500, min(100000, (int) $configuration['amount_cents']));
+            $voucherAmount = max(500, min(100000, (int) $configuration['amount_cents']));
+            $isPostDelivery = (($configuration['delivery_method'] ?? 'email') === 'post');
+            $cardColorSurcharge = (($configuration['card_color'] ?? 'gold') === 'black' && $isPostDelivery) ? 150 : 0;
+            return $voucherAmount + $cardColorSurcharge;
         }
 
         if ($product->slug === 'seelenfunke-ingame-artifact' && $configuration && isset($configuration['ingame_item_key'])) {
@@ -444,8 +447,10 @@ class CartService
         }
 
         // 5. Optionale Feld-Aufpreise der Schnell-Personalisierung (custom_fields_data) serverseitig über das Produkt verifizieren
-        if ($product->usesCustomFieldsPersonalization() && $configuration && !empty($configuration['custom_fields_data']) && is_array($configuration['custom_fields_data'])) {
-            $defsById = collect($product->getCustomFieldsDefinition())->keyBy('id');
+        $isCustomFieldsConfig = $product->isPersonalizable()
+            && ($product->usesCustomFieldsPersonalization() || (($configuration['personalization_mode'] ?? '') === 'custom_fields'));
+        if ($isCustomFieldsConfig && $configuration && !empty($configuration['custom_fields_data']) && is_array($configuration['custom_fields_data'])) {
+            $defsById = collect($product->getCustomFieldsDefinition(true))->keyBy('id');
             foreach ($configuration['custom_fields_data'] as $cfEntry) {
                 if (!is_array($cfEntry) || empty($cfEntry['id'])) {
                     continue;
@@ -534,6 +539,10 @@ class CartService
                 );
             }
             $configuration['amount_cents'] = max(500, min(100000, $rawCents));
+            $cardColor = (($configuration['card_color'] ?? 'gold') === 'black') ? 'black' : 'gold';
+            $isPostDelivery = (($configuration['delivery_method'] ?? 'email') === 'post');
+            $configuration['card_color'] = $cardColor;
+            $configuration['card_color_surcharge_cents'] = ($cardColor === 'black' && $isPostDelivery) ? 150 : 0;
             $configuration['is_gift_voucher'] = true;
         }
 
@@ -615,9 +624,11 @@ class CartService
         }
 
         // Validierung & Kanonisierung der Schnell-Personalisierungs-Eingabefelder (custom_fields_data)
-        if ($product->usesCustomFieldsPersonalization()) {
+        $isCustomFieldsMode = $product->isPersonalizable()
+            && ($product->usesCustomFieldsPersonalization() || (($configuration['personalization_mode'] ?? '') === 'custom_fields'));
+        if ($isCustomFieldsMode) {
             $configuration['personalization_mode'] = 'custom_fields';
-            $defs = $product->getCustomFieldsDefinition();
+            $defs = $product->getCustomFieldsDefinition(true);
             $submittedById = collect(is_array($configuration['custom_fields_data'] ?? null) ? $configuration['custom_fields_data'] : [])
                 ->filter(fn($item) => is_array($item) && !empty($item['id']))
                 ->keyBy('id');

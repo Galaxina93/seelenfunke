@@ -57,10 +57,23 @@
                 </div>
 
                 {{-- NEUER PUNKT BUTTON --}}
-                <button type="button" @click="addNewDefaultPoint()" class="w-full px-4 py-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white dark:hover:text-gray-900 border border-emerald-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-2 shadow-inner">
+                <button type="button" @click="addNewDefaultPoint()" class="w-full px-4 py-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white dark:hover:text-gray-900 border border-emerald-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-2 shadow-inner cursor-pointer">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
                     Neuen Polygon-Punkt hinzufügen
                 </button>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button"
+                            @click="smoothPolygonContour()"
+                            class="px-3 py-2.5 bg-primary/10 text-primary hover:bg-primary hover:text-gray-900 border border-primary/25 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
+                        <span>✨ Kontur glätten</span>
+                    </button>
+                    <button type="button"
+                            @click="showPolygonHandles = !showPolygonHandles"
+                            class="px-3 py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
+                        <span x-text="showPolygonHandles ? '👁️ Punkte ausblenden' : '👁️ Punkte einblenden'"></span>
+                    </button>
+                </div>
 
                 {{-- KOPIEREN BUTTON (mit Fallback für lokale Entwicklung) --}}
                 <button type="button"
@@ -122,6 +135,76 @@
                         </button>
                     </div>
                 </template>
+            </div>
+        </div>
+
+        {{-- NEULINGS-POSITION (SYMBOL OBEN MITTIG & WUNSCHTEXT UNTEN MITTIG) --}}
+        <div class="pt-5 border-t border-gray-200 dark:border-gray-800 space-y-4">
+            <div class="flex items-center justify-between gap-2">
+                <div>
+                    <h5 class="text-[11px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">⚡ Neulings-Position (2D &amp; 3D)</h5>
+                    <p class="text-[9px] text-gray-500 mt-0.5">Feste Position für „Neuling (Einfache Variante)“: Symbol oben mittig &amp; Text unten mittig.</p>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <button type="button"
+                            @click="ensureBeginnerCoordsInitialized(); showBeginnerPositionPreview = !showBeginnerPositionPreview; if (showBeginnerPositionPreview) { showDrawingBoard = true; }"
+                            :class="showBeginnerPositionPreview ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white dark:bg-gray-950 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-800'"
+                            class="px-2.5 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition cursor-pointer">
+                        <span x-text="showBeginnerPositionPreview ? '👁️ Aktiv' : '👁️ Zeigen'"></span>
+                    </button>
+                    <button type="button"
+                            @click="resetBeginnerPosition()"
+                            title="Automatisch auf Arbeitsfläche zentrieren"
+                            class="px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 text-gray-600 dark:text-gray-300 hover:border-emerald-500/40 hover:text-emerald-600 text-[9px] font-black uppercase tracking-wider transition cursor-pointer">
+                        ↺ Auto
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3">
+                {{-- 1. Symbol oben mittig --}}
+                <div class="p-3 rounded-xl bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-black uppercase tracking-wider text-gray-800 dark:text-gray-200">1. Symbol (oben mittig)</span>
+                        <span class="text-[9px] font-bold text-emerald-600 dark:text-emerald-400" x-text="`X: ${configSettings.beginner_symbol_x ?? 50}% · Y: ${configSettings.beginner_symbol_y ?? 36}%`"></span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div>
+                            <label class="block text-[9px] font-bold text-gray-400 uppercase mb-1">X (%)</label>
+                            <input type="number" step="0.5" min="0" max="100" x-model.number="configSettings.beginner_symbol_x" @input="showBeginnerPositionPreview = true; showDrawingBoard = true" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-2 py-1.5 text-xs text-center text-gray-900 dark:text-white outline-none focus:border-emerald-500">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-bold text-gray-400 uppercase mb-1">Y (%)</label>
+                            <input type="number" step="0.5" min="0" max="100" x-model.number="configSettings.beginner_symbol_y" @input="showBeginnerPositionPreview = true; showDrawingBoard = true" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-2 py-1.5 text-xs text-center text-gray-900 dark:text-white outline-none focus:border-emerald-500">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-bold text-gray-400 uppercase mb-1">Größe</label>
+                            <input type="number" step="1" min="15" max="180" x-model.number="configSettings.beginner_symbol_size" @input="showBeginnerPositionPreview = true; showDrawingBoard = true" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-2 py-1.5 text-xs text-center text-gray-900 dark:text-white outline-none focus:border-emerald-500">
+                        </div>
+                    </div>
+                </div>
+
+                {{-- 2. Wunschtext unten mittig --}}
+                <div class="p-3 rounded-xl bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-black uppercase tracking-wider text-gray-800 dark:text-gray-200">2. Wunschtext (unten mittig)</span>
+                        <span class="text-[9px] font-bold text-[#C5A059]" x-text="`X: ${configSettings.beginner_text_x ?? 50}% · Y: ${configSettings.beginner_text_y ?? 64}%`"></span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div>
+                            <label class="block text-[9px] font-bold text-gray-400 uppercase mb-1">X (%)</label>
+                            <input type="number" step="0.5" min="0" max="100" x-model.number="configSettings.beginner_text_x" @input="showBeginnerPositionPreview = true; showDrawingBoard = true" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-2 py-1.5 text-xs text-center text-gray-900 dark:text-white outline-none focus:border-[#C5A059]">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-bold text-gray-400 uppercase mb-1">Y (%)</label>
+                            <input type="number" step="0.5" min="0" max="100" x-model.number="configSettings.beginner_text_y" @input="showBeginnerPositionPreview = true; showDrawingBoard = true" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-2 py-1.5 text-xs text-center text-gray-900 dark:text-white outline-none focus:border-[#C5A059]">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-bold text-gray-400 uppercase mb-1">Schriftgröße</label>
+                            <input type="number" step="0.05" min="0.3" max="2.5" x-model.number="configSettings.beginner_text_size" @input="showBeginnerPositionPreview = true; showDrawingBoard = true" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-2 py-1.5 text-xs text-center text-gray-900 dark:text-white outline-none focus:border-[#C5A059]">
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 

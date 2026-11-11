@@ -1,4 +1,5 @@
 @php
+    $resolvedCardColor = ($cardColor ?? $voucher->card_color ?? ($voucher->orderItem->configuration['card_color'] ?? 'gold')) === 'black' ? 'black' : 'gold';
     $amountFormatted = number_format($voucher->initial_value / 100, 2, ',', '.') . ' €';
     $recipientName = trim((string) ($voucher->recipient_name ?? ''));
     $personalMessage = trim((string) ($voucher->personal_message ?? ''));
@@ -30,9 +31,9 @@
     </g>
 
     <!-- ========================================================================= -->
-    <!-- EBENE 2 (SCHWARZ #000000): LASER-GRAVUR AUF GOLDENER METALLKARTE          -->
+    <!-- EBENE 2 (SCHWARZ #000000): LASER-GRAVUR AUF {{ $resolvedCardColor === 'black' ? 'SCHWARZER' : 'GOLDENER' }} METALLKARTE -->
     <!-- ========================================================================= -->
-    <g id="Laser_Gravur_Seelenfunke" fill="#000000" stroke="none">
+    <g id="Laser_Gravur_Seelenfunke_{{ $resolvedCardColor === 'black' ? 'SCHWARZ' : 'GOLD' }}" fill="#000000" stroke="none">
 
         <!-- Edler Doppelrahmen mit Eck-Ornamenten -->
         <g fill="none" stroke="#000000">

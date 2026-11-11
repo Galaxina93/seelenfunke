@@ -548,6 +548,9 @@ Route::middleware('auth:sanctum')->group(function () {
         // Shop Orders (Bestellungen)
         require __DIR__ . '/api/orders.php';
 
+        // Dateiverwaltung (Workspace & Dateitrichter)
+        require __DIR__ . '/api/files.php';
+
         // Marketing & Content-Planer Live-Kontext (Shop-Produkte, Margen, Jahreszeiten & Feiertage)
         Route::get('/funki/marketing/live-context', function (\App\Services\Marketing\HolidayOfferAutopilotService $autopilot) {
             return response()->json([

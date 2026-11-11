@@ -189,6 +189,154 @@ class SystemSettingSeeder extends Seeder
 
         // Veraltete Zusatz-Postfach-Settings entfernen (alles läuft zentral über kontakt@mein-seelenfunke.de)
         SystemSetting::whereIn('key', ['owner_email_impressum', 'owner_email_invoices', 'owner_email_backup'])->delete();
+
+        // 6. Funkenwerk SmartHome & Steckdosen-Konfiguration (ohne Passwörter/Secrets) in DB hinterlegen
+        $smartPlugs = [
+            [
+                'id' => 'c85151a0c0064f259ee18c352f626363',
+                'name' => 'Lichterkette Fußleiste',
+                'ip' => '192.168.188.109',
+                'mac' => '98-03-8E-7D-A7-96',
+                'model' => 'Tapo P100 (HW 2.0)',
+                'firmware' => '1.4.6 Build 260617 Rel.064743',
+                'room' => 'easy-AP · Heimnetz',
+            ],
+            [
+                'id' => 'dfb60661bf0945cf87cfe84f0e2db861',
+                'name' => 'Packtisch Warm Licht',
+                'ip' => '192.168.188.110',
+                'mac' => 'Tapo SHIP 2.0',
+                'model' => 'Tapo P100/P110',
+                'firmware' => '1.4.x',
+                'room' => 'easy-AP · Heimnetz',
+            ],
+            [
+                'id' => '53a51fd44692437f8669263ab58b2323',
+                'name' => 'Lichterkette Spiegel',
+                'ip' => '192.168.188.123',
+                'mac' => 'Tapo SHIP 2.0',
+                'model' => 'Tapo P100/P110',
+                'firmware' => '1.4.x',
+                'room' => 'easy-AP · Heimnetz',
+            ],
+        ];
+
+        $smartHomeConfig = [
+            'updated_at' => now()->toIso8601String(),
+            'grid_layout_count' => 4,
+            'selected_camera_name' => 'Terasse',
+            'plugs' => $smartPlugs,
+            'cameras' => [
+                [
+                    'id' => '433ccbb85a0a42b18304153cf95e3c7e',
+                    'name' => 'Terasse',
+                    'ip' => '192.168.188.105',
+                    'stream_path' => '/stream2',
+                    'service_url' => 'http://192.168.188.105/onvif/device_service',
+                    'device_model' => 'Tapo C520WS',
+                    'description' => 'Terrasse und Gartenbereich',
+                    'motion_record' => true,
+                    'motion_sensitivity' => 70,
+                    'position' => 0,
+                    'invert_pan' => true,
+                    'invert_tilt' => false,
+                ],
+                [
+                    'id' => 'c336115ddb5744ba9befa67cd668fbbc',
+                    'name' => 'Einfahrt',
+                    'ip' => '192.168.188.132',
+                    'stream_path' => '/stream2',
+                    'service_url' => 'http://192.168.188.132/onvif/device_service',
+                    'device_model' => 'Tapo C520WS',
+                    'description' => 'Hofeinfahrt und Eingangsbereich',
+                    'motion_record' => false,
+                    'motion_sensitivity' => 50,
+                    'position' => 1,
+                    'invert_pan' => true,
+                    'invert_tilt' => false,
+                ],
+                [
+                    'id' => '89314360083541a38f9e591453b5202a',
+                    'name' => 'Garage',
+                    'ip' => '192.168.188.102',
+                    'stream_path' => '/stream2',
+                    'service_url' => 'http://192.168.188.102/onvif/device_service',
+                    'device_model' => 'Tapo C210',
+                    'description' => 'Garagentor und Stellplatz',
+                    'motion_record' => false,
+                    'motion_sensitivity' => 50,
+                    'position' => 2,
+                    'invert_pan' => true,
+                    'invert_tilt' => false,
+                ],
+                [
+                    'id' => 'd0dd7c3b4b64431e9fe1ae3f2bf73331',
+                    'name' => 'Gewerbe',
+                    'ip' => '192.168.188.101',
+                    'stream_path' => '/stream1',
+                    'service_url' => 'http://192.168.188.101/onvif/device_service',
+                    'device_model' => 'Tapo C210',
+                    'description' => 'Gewerbe & Manufaktur (192.168.188.101)',
+                    'motion_record' => false,
+                    'motion_sensitivity' => 55,
+                    'position' => 3,
+                    'invert_pan' => true,
+                    'invert_tilt' => false,
+                ],
+            ],
+            'label_printer' => [
+                'name' => 'MUNBYN ITPP941AP',
+                'ip' => '192.168.188.149',
+                'hostname' => 'ITPP941AP.fritz.box',
+                'mac' => 'F0:23:AE:7D:51:35',
+                'serial_number' => '941AP261000423',
+                'firmware' => '1.2.4',
+                'ipp_port' => 631,
+                'raw_port' => 9100,
+                'auto_print_shop_jobs' => true,
+                'preferred_protocol' => 'IPP',
+            ],
+        ];
+
+        SystemSetting::updateOrCreate(
+            ['key' => 'funki_smarthome_config'],
+            ['value' => json_encode($smartHomeConfig, JSON_UNESCAPED_UNICODE)]
+        );
+
+        $existingAlarmRaw = SystemSetting::where('key', 'funki_alarm_sync_package')->value('value');
+        $existingAlarmPkg = is_string($existingAlarmRaw) ? json_decode($existingAlarmRaw, true) : null;
+        if (is_array($existingAlarmPkg)) {
+            $existingAlarmPkg['smart_plugs'] = $smartPlugs;
+            SystemSetting::updateOrCreate(
+                ['key' => 'funki_alarm_sync_package'],
+                ['value' => json_encode($existingAlarmPkg, JSON_UNESCAPED_UNICODE)]
+            );
+        } else {
+            SystemSetting::updateOrCreate(
+                ['key' => 'funki_alarm_sync_package'],
+                ['value' => json_encode([
+                    'last_synced_at' => now()->toIso8601String(),
+                    'device_name' => 'Funkenwerk Suite',
+                    'active_alarm_time' => '08:30',
+                    'active_alarm_label' => 'Jeden Tag',
+                    'alarms' => [
+                        ['id' => 'alarm_0645', 'hour' => 6, 'minute' => 45, 'label' => 'Frühschicht / Manufaktur', 'schedule_text' => 'Jeden Tag', 'days_of_week' => [1, 2, 3, 4, 5, 6, 7], 'is_enabled' => false, 'smart_plug_ips' => ['192.168.188.109'], 'trigger_plug_on_ring' => true, 'ai_briefing_enabled' => true, 'sync_with_routine' => true],
+                        ['id' => 'alarm_0830', 'hour' => 8, 'minute' => 30, 'label' => 'Seelenfunke Fokus-Start', 'schedule_text' => 'Jeden Tag', 'days_of_week' => [1, 2, 3, 4, 5, 6, 7], 'is_enabled' => true, 'smart_plug_ips' => ['192.168.188.109', '192.168.188.110'], 'trigger_plug_on_ring' => true, 'ai_briefing_enabled' => true, 'sync_with_routine' => true],
+                        ['id' => 'alarm_1300', 'hour' => 13, 'minute' => 0, 'label' => 'Mittags-Check / Express', 'schedule_text' => 'Nicht geplant', 'days_of_week' => [], 'is_enabled' => false, 'smart_plug_ips' => [], 'trigger_plug_on_ring' => false, 'ai_briefing_enabled' => false, 'sync_with_routine' => false],
+                    ],
+                    'timers' => [
+                        ['id' => 'timer_5', 'label' => 'Timer: 5 Min.', 'duration_seconds' => 300],
+                        ['id' => 'timer_10', 'label' => 'Timer: 10 Min.', 'duration_seconds' => 600],
+                        ['id' => 'timer_15', 'label' => 'Timer: 15 Min.', 'duration_seconds' => 900],
+                        ['id' => 'timer_20', 'label' => 'Timer: 20 Min.', 'duration_seconds' => 1200],
+                        ['id' => 'timer_30', 'label' => 'Timer: 30 Min.', 'duration_seconds' => 1800],
+                    ],
+                    'smart_plugs' => $smartPlugs,
+                    'wake_up_logs' => [],
+                ], JSON_UNESCAPED_UNICODE)]
+            );
+        }
+
         Cache::forget('global_shop_settings');
     }
 }

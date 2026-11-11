@@ -1706,6 +1706,37 @@ namespace Funkenwerk
             }
         }
 
+        public static (int CropX, int CropY, int CropW, int CropH) GetCustomRegionCropRect(int destW, int destH, string regionMode)
+        {
+            if (regionMode != "custom_region" && regionMode != "mouse_follow_custom")
+                return (0, 0, destW & ~1, destH & ~1);
+
+            int srcCaptureW = Math.Max(64, CustomRegionW);
+            int srcCaptureH = Math.Max(64, CustomRegionH);
+
+            double scaleX = (double)destW / srcCaptureW;
+            double scaleY = (double)destH / srcCaptureH;
+            double scale = Math.Min(scaleX, scaleY);
+
+            int dstW = Math.Clamp((int)Math.Round(srcCaptureW * scale), 2, destW);
+            int dstH = Math.Clamp((int)Math.Round(srcCaptureH * scale), 2, destH);
+            int dstX = (destW - dstW) / 2;
+            int dstY = (destH - dstH) / 2;
+
+            // Trim 2px inside if pillarboxed/letterboxed so the 1px border line drawn by PostProcessCapturedScreen is not included
+            if (dstX > 2 && dstW > 16) { dstX += 2; dstW -= 4; }
+            if (dstY > 2 && dstH > 16) { dstY += 2; dstH -= 4; }
+
+            dstX &= ~1;
+            dstY &= ~1;
+            dstW = Math.Max(64, dstW & ~1);
+            dstH = Math.Max(64, dstH & ~1);
+            if (dstX + dstW > destW) dstW = (destW - dstX) & ~1;
+            if (dstY + dstH > destH) dstH = (destH - dstY) & ~1;
+
+            return (dstX, dstY, dstW, dstH);
+        }
+
         private static void DrawTutorialCursorSpotlight(byte[] bgra, int w, int h, int cx, int cy, bool isMouseFollow)
         {
             bool leftDown = (GetAsyncKeyState(0x01) & 0x8000) != 0;
@@ -1895,8 +1926,12 @@ namespace Funkenwerk
 
         private static string ResolveDefaultFfmpegPath()
         {
+            string localDirect = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
+            if (File.Exists(localDirect)) return localDirect;
             string localTools = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tools", "ffmpeg.exe");
             if (File.Exists(localTools)) return localTools;
+            string collectionRoot = @"C:\Users\konta\Desktop\Funkenwerk Collection\Funkenwerk\ffmpeg.exe";
+            if (File.Exists(collectionRoot)) return collectionRoot;
             string desktopTools = @"C:\Users\konta\Desktop\Funkenwerk\tools\ffmpeg.exe";
             if (File.Exists(desktopTools)) return desktopTools;
             return "ffmpeg";
@@ -2137,6 +2172,7 @@ namespace Funkenwerk
         private TimeSpan _pausedAccumulated;
         private DateTime _pauseStart;
         private string _currentOutputPath = "";
+        private string _currentStagingPath = "";
 
         public bool IsRecording => _isRecording;
         public double SpeedMultiplier
@@ -2155,14 +2191,75 @@ namespace Funkenwerk
         public string CurrentOutputPath => _currentOutputPath;
         public string OutputPath => _currentOutputPath;
 
+        public static string ResolveDefaultFfmpegPath()
+        {
+            string localDirect = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
+            if (File.Exists(localDirect)) return localDirect;
+            string localTools = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tools", "ffmpeg.exe");
+            if (File.Exists(localTools)) return localTools;
+            string collectionRoot = @"C:\Users\konta\Desktop\Funkenwerk Collection\Funkenwerk\ffmpeg.exe";
+            if (File.Exists(collectionRoot)) return collectionRoot;
+            string desktopTools = @"C:\Users\konta\Desktop\Funkenwerk\tools\ffmpeg.exe";
+            if (File.Exists(desktopTools)) return desktopTools;
+            return "ffmpeg";
+        }
+
+        public static bool IsValidMp4File(string path)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return false;
+                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                long fileLen = fs.Length;
+                if (fileLen < 128) return false;
+
+                bool hasFtyp = false;
+                bool hasMoov = false;
+                byte[] hdr = new byte[16];
+                long pos = 0;
+
+                while (pos + 8 <= fileLen)
+                {
+                    fs.Position = pos;
+                    int read = fs.Read(hdr, 0, 8);
+                    if (read < 8) break;
+
+                    uint size32 = (uint)((hdr[0] << 24) | (hdr[1] << 16) | (hdr[2] << 8) | hdr[3]);
+                    string type = Encoding.ASCII.GetString(hdr, 4, 4);
+
+                    if (type == "ftyp") hasFtyp = true;
+                    else if (type == "moov") hasMoov = true;
+
+                    long boxSize = size32;
+                    if (size32 == 1)
+                    {
+                        if (pos + 16 > fileLen) break;
+                        int r2 = fs.Read(hdr, 8, 8);
+                        if (r2 < 8) break;
+                        boxSize = ((long)hdr[8] << 56) | ((long)hdr[9] << 48) | ((long)hdr[10] << 40) | ((long)hdr[11] << 32) |
+                                  ((long)hdr[12] << 24) | ((long)hdr[13] << 16) | ((long)hdr[14] << 8) | hdr[15];
+                    }
+                    else if (size32 == 0)
+                    {
+                        // Size 0 means box extends to EOF; if this is mdat at size 0 before moov, file was truncated!
+                        break;
+                    }
+
+                    if (boxSize < 8 || pos + boxSize > fileLen) break;
+                    pos += boxSize;
+                }
+
+                return hasFtyp && hasMoov;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public bool Start(string outputMp4Path, int width, int height, int fps, string micName, bool recordMic, double micVolume, bool highBitrate, CameraStudioConfig? fullCfg = null)
         {
-            string ffmpegPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tools", "ffmpeg.exe");
-            if (!File.Exists(ffmpegPath))
-            {
-                string desktopTools = @"C:\Users\konta\Desktop\Funkenwerk\tools\ffmpeg.exe";
-                ffmpegPath = File.Exists(desktopTools) ? desktopTools : "ffmpeg";
-            }
+            string ffmpegPath = ResolveDefaultFfmpegPath();
             var cfg = new CameraStudioConfig
             {
                 SelectedMicrophoneName = micName,
@@ -2173,16 +2270,26 @@ namespace Funkenwerk
                 RecordingSpeedMultiplier = fullCfg?.RecordingSpeedMultiplier ?? 1.0,
                 VoiceChangerEnabled = fullCfg?.VoiceChangerEnabled ?? false,
                 VoicePreset = fullCfg?.VoicePreset ?? "none",
+                VoiceChangerPreset = fullCfg?.VoiceChangerPreset ?? fullCfg?.VoicePreset ?? "none",
                 VoicePitchSemitones = fullCfg?.VoicePitchSemitones ?? 0.0,
                 VoiceFormantShift = fullCfg?.VoiceFormantShift ?? 0,
                 VoiceRobotModulation = fullCfg?.VoiceRobotModulation ?? 0,
+                VoiceRobotMix = fullCfg?.VoiceRobotMix ?? fullCfg?.VoiceRobotModulation ?? 0,
                 VoiceReverbMix = fullCfg?.VoiceReverbMix ?? 0,
                 VoiceSubBass = fullCfg?.VoiceSubBass ?? 0,
+                VoiceBassBoost = fullCfg?.VoiceBassBoost ?? fullCfg?.VoiceSubBass ?? 0,
                 VoiceNoiseGate = fullCfg?.VoiceNoiseGate ?? 15,
                 ActiveMusicSignalPath = fullCfg?.ActiveMusicSignalPath ?? "",
                 MusicSignalVolume = fullCfg?.MusicSignalVolume ?? 75,
                 MusicSignalLoop = fullCfg?.MusicSignalLoop ?? true,
-                SoundMuted = fullCfg?.SoundMuted ?? false
+                SoundMuted = fullCfg?.SoundMuted ?? false,
+                SplitMode = fullCfg?.SplitMode ?? "single",
+                ShowPipOverlay = fullCfg?.ShowPipOverlay ?? true,
+                WindowRegionMode = fullCfg?.WindowRegionMode ?? "full",
+                CustomShareRegionX = fullCfg?.CustomShareRegionX ?? 120,
+                CustomShareRegionY = fullCfg?.CustomShareRegionY ?? 120,
+                CustomShareRegionW = fullCfg?.CustomShareRegionW ?? 960,
+                CustomShareRegionH = fullCfg?.CustomShareRegionH ?? 540
             };
             return StartRecording(ffmpegPath, outputMp4Path, width, height, fps, cfg);
         }
@@ -2229,6 +2336,23 @@ namespace Funkenwerk
             return string.Join(",", parts);
         }
 
+        private static void DrainStderrAsync(Process proc)
+        {
+            Task.Run(async () =>
+            {
+                try
+                {
+                    char[] buf = new char[1024];
+                    while (!proc.HasExited)
+                    {
+                        int n = await proc.StandardError.ReadAsync(buf, 0, buf.Length).ConfigureAwait(false);
+                        if (n <= 0) break;
+                    }
+                }
+                catch { }
+            });
+        }
+
         public bool StartRecording(string ffmpegPath, string outputMp4Path, int width, int height, int fps, CameraStudioConfig cfg)
         {
             lock (_recLock)
@@ -2238,6 +2362,11 @@ namespace Funkenwerk
                 try
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(outputMp4Path)!);
+
+                    // Stage into %TEMP% while FFmpeg is writing so Windows File Explorer / WhatsApp never touch an unfinalized MP4
+                    string stagingDir = Path.Combine(Path.GetTempPath(), "FunkenwerkRecStaging");
+                    Directory.CreateDirectory(stagingDir);
+                    string stagingMp4Path = Path.Combine(stagingDir, $"fw_stage_{Guid.NewGuid():N}.mp4");
 
                     _fps = Math.Clamp(fps, 15, 60);
                     _speedMultiplier = Math.Clamp(cfg.RecordingSpeedMultiplier <= 0.05 ? 1.0 : cfg.RecordingSpeedMultiplier, 0.25, 10.0);
@@ -2250,42 +2379,59 @@ namespace Funkenwerk
 
                     bool includeMic = !cfg.MicMuted && cfg.RecordingMode != "video_only" && !string.IsNullOrWhiteSpace(cfg.SelectedMicrophoneName);
                     bool includeMusic = !cfg.SoundMuted && cfg.RecordingMode != "video_only" && !string.IsNullOrWhiteSpace(cfg.ActiveMusicSignalPath) && File.Exists(cfg.ActiveMusicSignalPath);
-                    int crf = cfg.RecordingMode == "gaming_60" ? 17 : 21;
+                    int crf = cfg.RecordingMode == "gaming_60" ? 18 : 21;
                     string volStr = Math.Clamp(cfg.MicVolume / 100.0, 0.0, 2.0).ToString("0.00", CultureInfo.InvariantCulture);
                     string musVolStr = Math.Clamp(cfg.MusicSignalVolume / 100.0, 0.0, 1.5).ToString("0.00", CultureInfo.InvariantCulture);
 
+                    // If user marked a custom area ("Fläche wählen") in pure screen-share mode, crop output MP4 cleanly to that area
+                    string videoFilterArg = "";
+                    bool isPureScreenShare = cfg.SplitMode == "screenshare_only" || (cfg.SplitMode == "windowshare" && !cfg.ShowPipOverlay);
+                    bool isCustomArea = cfg.WindowRegionMode == "custom_region" || cfg.WindowRegionMode == "mouse_follow_custom";
+                    if (isPureScreenShare && isCustomArea)
+                    {
+                        var (cx, cy, cw, ch) = FunkenwerkWindowCapture.GetCustomRegionCropRect(width, height, cfg.WindowRegionMode);
+                        if (cw >= 64 && ch >= 64 && (cw < width || ch < height))
+                        {
+                            videoFilterArg = $"-vf \"crop={cw}:{ch}:{cx}:{cy}\" ";
+                        }
+                    }
+
+                    // Universal H.264 Main Profile + BT.709 + zero B-frames + no edit lists for 100% WhatsApp / Explorer / WMP compatibility
+                    string videoCodecArgs = $"{videoFilterArg}-c:v libx264 -preset veryfast -profile:v main -bf 0 -crf {crf} -pix_fmt yuv420p -colorspace bt709 -color_primaries bt709 -color_trc bt709 -color_range tv";
+                    string muxerFlags = "-fflags +genpts -avoid_negative_ts make_zero -use_editlist 0 -max_muxing_queue_size 4096 -movflags +faststart";
+
                     string safeMicName = FunkenwerkSecurityVault.SanitizeCliArgument(cfg.SelectedMicrophoneName);
                     string safeMusicPath = includeMusic ? FunkenwerkSecurityVault.SanitizeCliArgument(cfg.ActiveMusicSignalPath) : "";
-                    string safeOutPath = FunkenwerkSecurityVault.SanitizeCliArgument(outputMp4Path);
+                    string safeStagePath = FunkenwerkSecurityVault.SanitizeCliArgument(stagingMp4Path);
                     string baseAudioFilter = FunkenwerkVoiceChangerEngine.BuildFfmpegAudioFilter(cfg, volStr);
-                    string audioFilter = AppendAudioTempoFilter(baseAudioFilter, _speedMultiplier);
-                    string musicFilter = AppendAudioTempoFilter($"volume={musVolStr}", _speedMultiplier);
+                    string audioFilter = AppendAudioTempoFilter(baseAudioFilter, _speedMultiplier) + ",aresample=async=1:first_pts=0";
+                    string musicFilter = AppendAudioTempoFilter($"volume={musVolStr}", _speedMultiplier) + ",aresample=async=1:first_pts=0";
                     string loopArg = cfg.MusicSignalLoop ? "-stream_loop -1 " : "";
                     string args;
                     if (includeMic && !string.IsNullOrEmpty(safeMicName) && includeMusic && !string.IsNullOrEmpty(safeMusicPath))
                     {
                         args = $"-y -hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s {width}x{height} -r {_fps} -i - " +
-                               $"-f dshow -rtbufsize 32M -i audio=\"{safeMicName}\" " +
+                               $"-f dshow -rtbufsize 64M -i audio=\"{safeMicName}\" " +
                                $"{loopArg}-i \"{safeMusicPath}\" " +
                                $"-filter_complex \"[1:a]{audioFilter}[mic];[2:a]{musicFilter}[mus];[mic][mus]amix=inputs=2:duration=first:dropout_transition=0[aout]\" " +
-                               $"-map 0:v -map \"[aout]\" -c:v libx264 -preset ultrafast -crf {crf} -pix_fmt yuv420p -c:a aac -b:a 160k -shortest -movflags +faststart \"{safeOutPath}\"";
+                               $"-map 0:v -map \"[aout]\" {videoCodecArgs} -c:a aac -ar 44100 -ac 2 -b:a 128k -shortest {muxerFlags} \"{safeStagePath}\"";
                     }
                     else if (includeMic && !string.IsNullOrEmpty(safeMicName))
                     {
                         args = $"-y -hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s {width}x{height} -r {_fps} -i - " +
-                               $"-f dshow -rtbufsize 32M -i audio=\"{safeMicName}\" " +
-                               $"-filter:a \"{audioFilter}\" -c:v libx264 -preset ultrafast -crf {crf} -pix_fmt yuv420p -c:a aac -b:a 160k -shortest -movflags +faststart \"{safeOutPath}\"";
+                               $"-f dshow -rtbufsize 64M -i audio=\"{safeMicName}\" " +
+                               $"-filter:a \"{audioFilter}\" {videoCodecArgs} -c:a aac -ar 44100 -ac 2 -b:a 128k -shortest {muxerFlags} \"{safeStagePath}\"";
                     }
                     else if (includeMusic && !string.IsNullOrEmpty(safeMusicPath))
                     {
                         args = $"-y -hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s {width}x{height} -r {_fps} -i - " +
                                $"{loopArg}-i \"{safeMusicPath}\" " +
-                               $"-map 0:v -map 1:a -filter:a \"{musicFilter}\" -c:v libx264 -preset ultrafast -crf {crf} -pix_fmt yuv420p -c:a aac -b:a 160k -shortest -movflags +faststart \"{safeOutPath}\"";
+                               $"-map 0:v -map 1:a -filter:a \"{musicFilter}\" {videoCodecArgs} -c:a aac -ar 44100 -ac 2 -b:a 128k -shortest {muxerFlags} \"{safeStagePath}\"";
                     }
                     else
                     {
                         args = $"-y -hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s {width}x{height} -r {_fps} -i - " +
-                               $"-c:v libx264 -preset ultrafast -crf {crf} -pix_fmt yuv420p -movflags +faststart \"{safeOutPath}\"";
+                               $"{videoCodecArgs} {muxerFlags} \"{safeStagePath}\"";
                     }
 
                     var psi = new ProcessStartInfo
@@ -2300,20 +2446,23 @@ namespace Funkenwerk
 
                     _ffmpegProc = Process.Start(psi);
                     if (_ffmpegProc == null) return false;
+                    DrainStderrAsync(_ffmpegProc);
 
                     // Check within 180ms if audio device caused an immediate exit; if so, fallback to video-only so recording ALWAYS works
                     Thread.Sleep(180);
                     if (_ffmpegProc.HasExited && (includeMic || includeMusic))
                     {
                         string fallbackArgs = $"-y -hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s {width}x{height} -r {_fps} -i - " +
-                                              $"-c:v libx264 -preset ultrafast -crf {crf} -pix_fmt yuv420p -movflags +faststart \"{outputMp4Path}\"";
+                                              $"{videoCodecArgs} {muxerFlags} \"{safeStagePath}\"";
                         psi.Arguments = fallbackArgs;
                         _ffmpegProc = Process.Start(psi);
                         if (_ffmpegProc == null) return false;
+                        DrainStderrAsync(_ffmpegProc);
                     }
 
                     _videoStdin = _ffmpegProc.StandardInput.BaseStream;
                     _currentOutputPath = outputMp4Path;
+                    _currentStagingPath = stagingMp4Path;
                     _startTime = DateTime.UtcNow;
                     _pausedAccumulated = TimeSpan.Zero;
                     _isPaused = false;
@@ -2393,18 +2542,20 @@ namespace Funkenwerk
                 long framesToWrite = Math.Min(targetFrames - _writtenFrames, 4);
                 for (long f = 0; f < framesToWrite && _isRecording && !_isPaused; f++)
                 {
+                    Stream? stdin;
                     lock (_recLock)
                     {
                         if (!_isRecording || _videoStdin == null) break;
-                        try
-                        {
-                            _videoStdin.Write(localFrame, 0, frameLen);
-                            _writtenFrames++;
-                        }
-                        catch
-                        {
-                            break;
-                        }
+                        stdin = _videoStdin;
+                    }
+                    try
+                    {
+                        stdin.Write(localFrame, 0, frameLen);
+                        Interlocked.Increment(ref _writtenFrames);
+                    }
+                    catch
+                    {
+                        break;
                     }
                 }
             }
@@ -2431,11 +2582,13 @@ namespace Funkenwerk
         public string StopRecording()
         {
             string savedPath;
+            string stagingPath;
             Process? procToWait;
             Thread? pacerToJoin;
             lock (_recLock)
             {
                 savedPath = _currentOutputPath;
+                stagingPath = _currentStagingPath;
                 _isRecording = false;
                 _isPaused = false;
                 pacerToJoin = _pacerThread;
@@ -2444,13 +2597,36 @@ namespace Funkenwerk
 
             if (pacerToJoin != null && pacerToJoin != Thread.CurrentThread)
             {
-                try { pacerToJoin.Join(600); } catch { }
+                try { pacerToJoin.Join(1200); } catch { }
+            }
+
+            // Ensure at least 10 frames were written if a recording was started and immediately stopped
+            byte[]? padFrame = null;
+            int padLen = 0;
+            long currentWritten = Interlocked.Read(ref _writtenFrames);
+            lock (_frameBufLock)
+            {
+                if (_hasFirstFrame && currentWritten < 10 && _latestFrame.Length > 0)
+                {
+                    padLen = _latestFrame.Length;
+                    padFrame = new byte[padLen];
+                    Buffer.BlockCopy(_latestFrame, 0, padFrame, 0, padLen);
+                }
             }
 
             lock (_recLock)
             {
                 try
                 {
+                    if (padFrame != null && _videoStdin != null)
+                    {
+                        long needed = Math.Max(0, 10 - Interlocked.Read(ref _writtenFrames));
+                        for (long i = 0; i < needed; i++)
+                        {
+                            _videoStdin.Write(padFrame, 0, padLen);
+                            Interlocked.Increment(ref _writtenFrames);
+                        }
+                    }
                     _videoStdin?.Flush();
                     _videoStdin?.Close();
                 }
@@ -2464,7 +2640,7 @@ namespace Funkenwerk
             {
                 try
                 {
-                    if (!procToWait.WaitForExit(3500))
+                    if (!procToWait.WaitForExit(12000))
                     {
                         procToWait.Kill(true);
                     }
@@ -2475,7 +2651,29 @@ namespace Funkenwerk
                     procToWait.Dispose();
                 }
             }
-            return savedPath;
+
+            if (!string.IsNullOrWhiteSpace(stagingPath) && File.Exists(stagingPath))
+            {
+                if (IsValidMp4File(stagingPath) && !string.IsNullOrWhiteSpace(savedPath))
+                {
+                    try
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(savedPath)!);
+                        File.Move(stagingPath, savedPath, true);
+                        return savedPath;
+                    }
+                    catch
+                    {
+                        try { File.Copy(stagingPath, savedPath, true); File.Delete(stagingPath); return savedPath; } catch { }
+                    }
+                }
+
+                // Never leave an unfinalized/corrupted MP4 file around
+                try { File.Delete(stagingPath); } catch { }
+                return "";
+            }
+
+            return IsValidMp4File(savedPath) ? savedPath : "";
         }
 
         public void Dispose() => StopRecording();
@@ -4145,12 +4343,7 @@ namespace Funkenwerk
 
         private async Task DecodeLoopAsync(string filePath, int w, int h, int fps, CancellationToken token)
         {
-            string ffmpegPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tools", "ffmpeg.exe");
-            if (!File.Exists(ffmpegPath))
-            {
-                string desktopTools = @"C:\Users\konta\Desktop\Funkenwerk\tools\ffmpeg.exe";
-                ffmpegPath = File.Exists(desktopTools) ? desktopTools : "ffmpeg";
-            }
+            string ffmpegPath = FunkenwerkVideoRecorder.ResolveDefaultFfmpegPath();
 
             int frameBytes = w * h * 4;
             byte[] readBuf = new byte[frameBytes];
@@ -5122,10 +5315,31 @@ namespace Funkenwerk
             if (Math.Abs(combinedSemi) > 0.15)
             {
                 double pitchFactor = Math.Pow(2.0, combinedSemi / 12.0);
-                double tempoFactor = Math.Clamp(1.0 / pitchFactor, 0.5, 2.0);
                 string pfStr = pitchFactor.ToString("0.000", CultureInfo.InvariantCulture);
-                string tfStr = tempoFactor.ToString("0.000", CultureInfo.InvariantCulture);
-                filters.Add($"asetrate=48000*{pfStr},aresample=48000,atempo={tfStr}");
+
+                // CRITICAL: Always resample input (e.g. 44100 Hz DirectShow mic) to 48000 Hz BEFORE asetrate=48000*pitchFactor!
+                // Without the leading aresample=48000, a 44.1 kHz microphone has its clock stretched by 44100/48000 (8.125% slower than real time),
+                // causing audio PTS to fall behind video PTS and causing FFmpeg to stall on exit waiting for missing audio!
+                var pitchChain = new List<string>
+                {
+                    "aresample=48000",
+                    $"asetrate=48000*{pfStr}",
+                    "aresample=48000"
+                };
+
+                double remTempo = Math.Clamp(1.0 / pitchFactor, 0.25, 4.0);
+                while (remTempo > 2.0)
+                {
+                    pitchChain.Add("atempo=2.0");
+                    remTempo /= 2.0;
+                }
+                while (remTempo < 0.5)
+                {
+                    pitchChain.Add("atempo=0.5");
+                    remTempo /= 0.5;
+                }
+                pitchChain.Add($"atempo={remTempo.ToString("0.000", CultureInfo.InvariantCulture)}");
+                filters.Add(string.Join(",", pitchChain));
             }
 
             if (string.Equals(cfg.VoiceChangerPreset, "radio", StringComparison.OrdinalIgnoreCase))

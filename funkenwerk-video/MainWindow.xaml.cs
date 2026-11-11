@@ -1,1541 +1,928 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
-using System.Windows.Threading;
 using Microsoft.Win32;
 
 namespace FunkenwerkVideo
 {
+    public sealed class ProjectFolderItem
+    {
+        public string Name { get; set; } = "";
+        public string FolderPath { get; set; } = "";
+        public bool IsSelected { get; set; }
+        public List<RawClipInfo> Clips { get; set; } = new();
+    }
+
     public partial class MainWindow : Window
     {
-        private readonly string _baseDir;
-        private readonly string _rawFolderDir;
-        private readonly string _outputFolderDir;
-        private readonly string _thumbCacheDir;
-        private readonly string _musicAssetsDir;
-
-        private FileSystemWatcher? _rawWatcher;
-        private readonly DispatcherTimer _watcherDebounceTimer = new DispatcherTimer();
-        private readonly DispatcherTimer _playerTickTimer = new DispatcherTimer();
-
-        private readonly List<RawVideoClipInfo> _rawClips = new();
-        private List<CutDecisionItem> _cutDecisions = new();
-        private List<SeelenfunkeMusicTrackItem> _musicCatalog = new();
-
-        private string _activeDirectorMode = "packaging_pov";
         private bool _isDarkMode = true;
-        private bool _isUiReady = false;
-        private bool _suppressComboEvents = false;
-        private bool _isAnalyzingFolder = false;
-        private bool _isRenderingVideo = false;
+        private bool _isPlaying = false;
+        private bool _isRendering = false;
+        private string _currentVideoPath = "";
+        private readonly List<ProjectFolderItem> _projects = new();
+        private readonly HashSet<string> _customProjectFolders = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _selectedFolderPaths = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _pendingDeletedPaths = new(StringComparer.OrdinalIgnoreCase);
+        private FileSystemWatcher? _rawTourWatcher;
+        private readonly Dictionary<(DependencyObject Obj, DependencyProperty Prop), string> _originalDarkBrushes = new();
 
-        // Player & Sequence Preview State
-        private bool _isPlayerPlaying = false;
-        private bool _isSequencePreviewActive = false;
-        private int _sequencePreviewIndex = 0;
-        private double? _activePreviewSegmentStopSec = null;
-        private readonly MediaPlayer _musicPreviewPlayer = new MediaPlayer();
-        private bool _isMusicPreviewPlaying = false;
-
-        private static readonly string[] SupportedVideoExtensions = { ".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v" };
+        private static readonly Dictionary<string, string> _darkToLightHexMap = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["#000000"] = "#F8FAFC",
+            ["#07090D"] = "#EEF2F6",
+            ["#0F1117"] = "#F3F4F6",
+            ["#11131A"] = "#FFFFFF",
+            ["#181B24"] = "#F8FAFC",
+            ["#232734"] = "#E2E8F0",
+            ["#242936"] = "#E2E8F0",
+            ["#262A36"] = "#CBD5E1",
+            ["#26231F"] = "#FDF8ED",
+            ["#F9FAFB"] = "#111827",
+            ["#D1D5DB"] = "#374151",
+            ["#9CA3AF"] = "#4B5563"
+        };
 
         public MainWindow()
         {
             InitializeComponent();
-
-            _baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            _rawFolderDir = System.IO.Path.Combine(_baseDir, "Rohmaterial");
-            _outputFolderDir = System.IO.Path.Combine(_baseDir, "Fertige Videos");
-            _thumbCacheDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkVideo", "ThumbCache");
-            _musicAssetsDir = System.IO.Path.Combine(_baseDir, "Assets", "MarketingMusic");
-
-            Directory.CreateDirectory(_rawFolderDir);
-            Directory.CreateDirectory(_outputFolderDir);
-            Directory.CreateDirectory(_thumbCacheDir);
-
-            _watcherDebounceTimer.Interval = TimeSpan.FromMilliseconds(550);
-            _watcherDebounceTimer.Tick += async (s, e) =>
-            {
-                _watcherDebounceTimer.Stop();
-                await ScanAndAnalyzeRawFolderAsync();
-            };
-
-            _playerTickTimer.Interval = TimeSpan.FromMilliseconds(50);
-            _playerTickTimer.Tick += PlayerTickTimer_Tick;
-
-            _musicPreviewPlayer.MediaEnded += (s, e) =>
-            {
-                _isMusicPreviewPlaying = false;
-                if (PreviewMusicBtnTxt != null) PreviewMusicBtnTxt.Text = "▶ Anhören";
-            };
-
-            Loaded += async (s, e) =>
-            {
-                _isUiReady = true;
-                InitMusicCatalogCombo();
-                UpdateDirectorModeButtonsUI();
-                SetupRawFolderFileWatcher();
-                RefreshFinishedVideosList();
-                await ScanAndAnalyzeRawFolderAsync();
-            };
-
-            Closing += (s, e) =>
-            {
-                try { _rawWatcher?.Dispose(); } catch { }
-                try { _musicPreviewPlayer.Close(); } catch { }
-                try { PreviewPlayer.Close(); } catch { }
-            };
+            Loaded += MainWindow_Loaded;
         }
 
-        // =========================================================================
-        // WINDOW CHROME & THEME (Darkmode Tiefschwarz #000000 <-> Lightmode)
-        // =========================================================================
-        private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            if (e.ClickCount == 2)
+            CaptureOriginalDarkBrushes(this);
+            ApplyThemeMode(_isDarkMode);
+            StartRawTourWatcher();
+            await ReloadProjectsAsync();
+            LoadLatestVideoIntoPreview();
+        }
+
+        private void StartRawTourWatcher()
+        {
+            try
             {
-                MaximizeRestoreWindow_Click(sender, e);
-                return;
+                string rawDir = ViralVideographerEngine.GetRawTourDir();
+                _rawTourWatcher = new FileSystemWatcher(rawDir)
+                {
+                    NotifyFilter = NotifyFilters.FileName | NotifyFilters.Size | NotifyFilters.LastWrite,
+                    EnableRaisingEvents = true
+                };
+                FileSystemEventHandler handler = (_, _) =>
+                {
+                    Dispatcher.InvokeAsync(async () =>
+                    {
+                        if (!_isRendering)
+                            await ReloadProjectsAsync();
+                    });
+                };
+                _rawTourWatcher.Created += handler;
+                _rawTourWatcher.Deleted += handler;
+                _rawTourWatcher.Renamed += (_, _) => handler(this, null!);
             }
-            if (e.LeftButton == MouseButtonState.Pressed)
+            catch { }
+        }
+
+        private SolidColorBrush BrushFromHex(string hex)
+        {
+            if (!_isDarkMode && _darkToLightHexMap.TryGetValue(hex, out var lightHex))
             {
-                try { DragMove(); } catch { }
+                hex = lightHex;
             }
-        }
-
-        private void MinimizeWindow_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
-
-        private void MaximizeRestoreWindow_Click(object sender, RoutedEventArgs e)
-        {
-            WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-        }
-
-        private void CloseWindow_Click(object sender, RoutedEventArgs e) => Close();
-
-        private void ToggleTheme_Click(object sender, RoutedEventArgs e)
-        {
-            _isDarkMode = !_isDarkMode;
-            ApplyThemeColors();
-        }
-
-        private void ApplyThemeColors()
-        {
-            string bgMain = _isDarkMode ? "#000000" : "#F9FAFB";
-            string bgPanel = _isDarkMode ? "#050505" : "#FFFFFF";
-            string borderHex = _isDarkMode ? "#1F1F1F" : "#E5E7EB";
-            string textPrimary = _isDarkMode ? "#FFFFFF" : "#111827";
-
-            RootBorder.Background = BrushFromHex(bgMain);
-            HeaderBar.Background = BrushFromHex(bgPanel);
-            HeaderBar.BorderBrush = BrushFromHex(borderHex);
-            LeftSidebarBorder.Background = BrushFromHex(bgPanel);
-            CenterWorkspaceBorder.Background = BrushFromHex(bgMain);
-            RightInspectorBorder.Background = BrushFromHex(bgPanel);
-            BrandTitleTxt.Foreground = BrushFromHex(textPrimary);
-            RawClipsCountTitle.Foreground = BrushFromHex(textPrimary);
-
-            if (ThemeToggleBtn.Template?.FindName("ThemeIconTxt", ThemeToggleBtn) is TextBlock iconTxt)
-            {
-                iconTxt.Text = _isDarkMode ? "☀" : "🌙";
-            }
-
-            UpdateDirectorModeButtonsUI();
-            RenderRawClipsList();
-            RenderCutDecisionsTimeline();
-            RefreshFinishedVideosList();
-        }
-
-        private static SolidColorBrush BrushFromHex(string hex)
-        {
             return new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
         }
 
-        // =========================================================================
-        // AUTOMATED SELF-TEST & BENCHMARK RUNNER (UI BUTTON)
-        // =========================================================================
-        private async void RunSelfTest_Click(object sender, RoutedEventArgs e)
+        private void CaptureOriginalDarkBrushes(DependencyObject parent, HashSet<DependencyObject>? visited = null)
         {
-            if (_isRenderingVideo || _isAnalyzingFolder) return;
-            RunSelfTestHeaderBtn.IsEnabled = false;
-            string prevStatus = WatcherStatusTxt.Text;
+            if (parent == null) return;
+            visited ??= new HashSet<DependencyObject>();
+            if (!visited.Add(parent)) return;
 
-            try
+            RecordBrush(parent, Border.BackgroundProperty);
+            RecordBrush(parent, Border.BorderBrushProperty);
+            RecordBrush(parent, Panel.BackgroundProperty);
+            RecordBrush(parent, Control.BackgroundProperty);
+            RecordBrush(parent, Control.BorderBrushProperty);
+            RecordBrush(parent, Control.ForegroundProperty);
+            RecordBrush(parent, TextBlock.ForegroundProperty);
+
+            foreach (var child in LogicalTreeHelper.GetChildren(parent))
             {
-                var report = await VideoEngineSelfTestSuite.RunFullVerificationSuiteAsync(
-                    _musicAssetsDir,
-                    stepMsg => Dispatcher.InvokeAsync(() => WatcherStatusTxt.Text = $"🧪 Test: {stepMsg}"));
-
-                WatcherStatusTxt.Text = $"✓ System-Test: {report.SummaryText}";
-
-                var sb = new StringBuilder();
-                sb.AppendLine($"Ergebnis: {report.SummaryText}");
-                sb.AppendLine();
-                foreach (var line in report.LogLines)
-                {
-                    sb.AppendLine(line);
-                }
-
-                MessageBox.Show(
-                    sb.ToString(),
-                    report.AllPassed ? "✓ Funkenwerk Video · 100 % System- & Sicherheits-Test bestanden" : "System-Test Bericht",
-                    MessageBoxButton.OK,
-                    report.AllPassed ? MessageBoxImage.Information : MessageBoxImage.Warning);
+                if (child is DependencyObject dChild)
+                    CaptureOriginalDarkBrushes(dChild, visited);
             }
-            catch (Exception ex)
+            if (parent is Visual)
             {
-                WatcherStatusTxt.Text = prevStatus;
-                MessageBox.Show("Fehler beim Selbsttest: " + ex.Message, "System-Test", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
-            finally
-            {
-                RunSelfTestHeaderBtn.IsEnabled = true;
+                int count = VisualTreeHelper.GetChildrenCount(parent);
+                for (int i = 0; i < count; i++)
+                    CaptureOriginalDarkBrushes(VisualTreeHelper.GetChild(parent, i), visited);
             }
         }
 
-        // =========================================================================
-        // WATCHED FOLDER ("Rohmaterial") & DRAG-AND-DROP
-        // =========================================================================
-        private void SetupRawFolderFileWatcher()
+        private void RecordBrush(DependencyObject obj, DependencyProperty prop)
         {
-            try
+            var key = (obj, prop);
+            if (_originalDarkBrushes.ContainsKey(key)) return;
+            if (obj.ReadLocalValue(prop) is SolidColorBrush scb && scb.Color.A > 0)
             {
-                _rawWatcher = new FileSystemWatcher(_rawFolderDir)
-                {
-                    NotifyFilter = NotifyFilters.FileName | NotifyFilters.Size | NotifyFilters.LastWrite,
-                    IncludeSubdirectories = false,
-                    EnableRaisingEvents = true
-                };
-
-                void OnFsEvent(object s, FileSystemEventArgs e)
-                {
-                    string ext = System.IO.Path.GetExtension(e.FullPath).ToLowerInvariant();
-                    if (!SupportedVideoExtensions.Contains(ext)) return;
-                    Dispatcher.InvokeAsync(() =>
-                    {
-                        _watcherDebounceTimer.Stop();
-                        _watcherDebounceTimer.Start();
-                    });
-                }
-
-                _rawWatcher.Created += OnFsEvent;
-                _rawWatcher.Deleted += OnFsEvent;
-                _rawWatcher.Renamed += (s, e) => OnFsEvent(s, e);
-            }
-            catch { }
-        }
-
-        private void Window_DragOver(object sender, DragEventArgs e)
-        {
-            e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
-            e.Handled = true;
-        }
-
-        private async void Window_Drop(object sender, DragEventArgs e)
-        {
-            if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
-            var droppedPaths = e.Data.GetData(DataFormats.FileDrop) as string[];
-            if (droppedPaths == null || droppedPaths.Length == 0) return;
-
-            await CopyFilesOrFoldersToRawDirectoryAsync(droppedPaths);
-        }
-
-        private async void AddRawVideosDialog_Click(object sender, MouseButtonEventArgs e)
-        {
-            var dlg = new OpenFileDialog
-            {
-                Title = "Eigene Kamera- / Handy-Aufnahmen auswählen",
-                Filter = "Videodateien (*.mp4;*.mov;*.mkv;*.avi;*.webm)|*.mp4;*.mov;*.mkv;*.avi;*.webm|Alle Dateien (*.*)|*.*",
-                Multiselect = true
-            };
-
-            if (dlg.ShowDialog() == true && dlg.FileNames.Length > 0)
-            {
-                await CopyFilesOrFoldersToRawDirectoryAsync(dlg.FileNames);
+                string hex = $"#{scb.Color.R:X2}{scb.Color.G:X2}{scb.Color.B:X2}";
+                _originalDarkBrushes[key] = hex;
             }
         }
 
-        private async void ImportSampleFromVideos_Click(object sender, RoutedEventArgs e)
+        private void ApplyThemeMode(bool isDark)
         {
-            string userVideosDir = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
-            var dlg = new OpenFileDialog
-            {
-                Title = "Aufnahme aus deinem Videos-Ordner in 'Rohmaterial' übernehmen",
-                InitialDirectory = Directory.Exists(userVideosDir) ? userVideosDir : _baseDir,
-                Filter = "Videodateien (*.mp4;*.mov;*.mkv;*.avi;*.webm)|*.mp4;*.mov;*.mkv;*.avi;*.webm",
-                Multiselect = true
-            };
-
-            if (dlg.ShowDialog() == true && dlg.FileNames.Length > 0)
-            {
-                await CopyFilesOrFoldersToRawDirectoryAsync(dlg.FileNames);
-            }
-        }
-
-        private async Task CopyFilesOrFoldersToRawDirectoryAsync(IEnumerable<string> paths)
-        {
-            var videoFilesToCopy = new List<string>();
-            foreach (var p in paths)
-            {
-                if (Directory.Exists(p))
-                {
-                    var files = Directory.GetFiles(p, "*.*", SearchOption.AllDirectories)
-                        .Where(f => SupportedVideoExtensions.Contains(System.IO.Path.GetExtension(f).ToLowerInvariant()));
-                    videoFilesToCopy.AddRange(files);
-                }
-                else if (File.Exists(p))
-                {
-                    string ext = System.IO.Path.GetExtension(p).ToLowerInvariant();
-                    if (SupportedVideoExtensions.Contains(ext))
-                    {
-                        videoFilesToCopy.Add(p);
-                    }
-                }
-            }
-
-            if (videoFilesToCopy.Count == 0) return;
-
-            WatcherStatusTxt.Text = $"Kopiere {videoFilesToCopy.Count} Aufnahme(n) in 'Rohmaterial'...";
-            await Task.Run(() =>
-            {
-                foreach (var src in videoFilesToCopy)
-                {
-                    try
-                    {
-                        string dest = System.IO.Path.Combine(_rawFolderDir, System.IO.Path.GetFileName(src));
-                        if (!string.Equals(System.IO.Path.GetFullPath(src), System.IO.Path.GetFullPath(dest), StringComparison.OrdinalIgnoreCase))
-                        {
-                            File.Copy(src, dest, overwrite: true);
-                        }
-                    }
-                    catch { }
-                }
-            });
-
-            await ScanAndAnalyzeRawFolderAsync();
-        }
-
-        private void OpenRawFolder_Click(object sender, RoutedEventArgs e)
-        {
-            Directory.CreateDirectory(_rawFolderDir);
-            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{_rawFolderDir}\"") { UseShellExecute = true });
-        }
-
-        private void OpenOutputFolder_Click(object sender, RoutedEventArgs e)
-        {
-            Directory.CreateDirectory(_outputFolderDir);
-            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{_outputFolderDir}\"") { UseShellExecute = true });
-        }
-
-        private async void RefreshRawFolder_Click(object sender, RoutedEventArgs e)
-        {
-            await ScanAndAnalyzeRawFolderAsync(forceReanalyze: true);
-        }
-
-        // =========================================================================
-        // PARALLEL MULTI-CORE AI SCAN & ANALYSIS OF REAL RAW CAMERA CLIPS
-        // =========================================================================
-        private async Task ScanAndAnalyzeRawFolderAsync(bool forceReanalyze = false)
-        {
-            if (_isAnalyzingFolder) return;
-            _isAnalyzingFolder = true;
-
-            try
-            {
-                Directory.CreateDirectory(_rawFolderDir);
-                var filesOnDisk = Directory.GetFiles(_rawFolderDir)
-                    .Where(f => SupportedVideoExtensions.Contains(System.IO.Path.GetExtension(f).ToLowerInvariant()))
-                    .OrderBy(f => File.GetLastWriteTimeUtc(f))
-                    .ToList();
-
-                _rawClips.RemoveAll(c => !filesOnDisk.Any(f => string.Equals(f, c.FilePath, StringComparison.OrdinalIgnoreCase)));
-
-                if (forceReanalyze)
-                {
-                    _rawClips.Clear();
-                }
-
-                var missingFiles = filesOnDisk
-                    .Where(f => !_rawClips.Any(c => string.Equals(c.FilePath, f, StringComparison.OrdinalIgnoreCase)))
-                    .ToList();
-
-                if (missingFiles.Count > 0)
-                {
-                    var sw = Stopwatch.StartNew();
-                    WatcherStatusTxt.Text = $"Parallele KI-Analyse für {missingFiles.Count} Aufnahme(n)...";
-                    var newlyAnalyzed = await VideoAiCutEngine.AnalyzeMultipleClipsParallelAsync(
-                        missingFiles,
-                        _thumbCacheDir,
-                        (done, total, name) =>
-                        {
-                            Dispatcher.InvokeAsync(() =>
-                            {
-                                WatcherStatusTxt.Text = $"KI-Analyse ({done}/{total}): {name}...";
-                            });
-                        });
-                    sw.Stop();
-                    _rawClips.AddRange(newlyAnalyzed);
-                    WatcherStatusTxt.Text = $"✓ {_rawClips.Count} Aufnahmen bereit (Analyse in {sw.ElapsedMilliseconds} ms)";
-                }
-                else
-                {
-                    WatcherStatusTxt.Text = $"Ordner 'Rohmaterial' synchron ({_rawClips.Count} Dateien)";
-                }
-
-                RawClipsCountTitle.Text = _rawClips.Count == 1
-                    ? "1 Kamera-Aufnahme bereit"
-                    : $"{_rawClips.Count} Kamera-Aufnahmen bereit";
-
-                double totalRawSec = _rawClips.Sum(c => c.DurationSeconds);
-                RawClipsSummaryTxt.Text = _rawClips.Count > 0
-                    ? $"✓ {_rawClips.Count(c => c.IsIncluded)} von {_rawClips.Count} Aufnahmen aktiv ({totalRawSec:0.0} Sek. echtes Rohmaterial)"
-                    : "Ziehe deine selbst gedrehten Videos (MP4/MOV) hier hinein oder lege sie in den Ordner 'Rohmaterial'.";
-
-                RenderRawClipsList();
-                RecomputeSmartCuts();
-            }
-            catch (Exception ex)
-            {
-                WatcherStatusTxt.Text = "Analyse-Hinweis: " + ex.Message;
-            }
-            finally
-            {
-                _isAnalyzingFolder = false;
-            }
-        }
-
-        private void RenderRawClipsList()
-        {
-            if (RawClipsStackPanel == null) return;
-            RawClipsStackPanel.Children.Clear();
-
-            string cardBg = _isDarkMode ? "#0B0B0B" : "#F3F4F6";
-            string cardBorder = _isDarkMode ? "#222222" : "#D1D5DB";
-            string textPrimary = _isDarkMode ? "#FFFFFF" : "#111827";
-            string textMuted = _isDarkMode ? "#9CA3AF" : "#4B5563";
-
-            if (_rawClips.Count == 0)
-            {
-                var emptyCard = new Border
-                {
-                    Background = BrushFromHex(cardBg),
-                    BorderBrush = BrushFromHex(cardBorder),
-                    BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(10),
-                    Padding = new Thickness(14, 18, 14, 18),
-                    Margin = new Thickness(0, 4, 0, 0)
-                };
-                var sp = new StackPanel();
-                sp.Children.Add(new TextBlock
-                {
-                    Text = "Noch keine Rohvideos im Ordner",
-                    Foreground = BrushFromHex(textPrimary),
-                    FontWeight = FontWeights.Bold,
-                    FontSize = 12.5,
-                    HorizontalAlignment = HorizontalAlignment.Center
-                });
-                sp.Children.Add(new TextBlock
-                {
-                    Text = "Ziehe deine eigenen Kamera-, Smartphone- oder Action-Cam-Aufnahmen einfach in dieses Fenster oder klicke auf '⚡ Aus Videos laden'.",
-                    Foreground = BrushFromHex(textMuted),
-                    FontSize = 11,
-                    TextWrapping = TextWrapping.Wrap,
-                    TextAlignment = TextAlignment.Center,
-                    Margin = new Thickness(0, 5, 0, 0)
-                });
-                emptyCard.Child = sp;
-                RawClipsStackPanel.Children.Add(emptyCard);
-                return;
-            }
-
-            foreach (var clip in _rawClips)
-            {
-                var card = new Border
-                {
-                    Background = BrushFromHex(cardBg),
-                    BorderBrush = BrushFromHex(clip.IsIncluded ? "#C5A059" : cardBorder),
-                    BorderThickness = new Thickness(clip.IsIncluded ? 1.2 : 1),
-                    CornerRadius = new CornerRadius(10),
-                    Padding = new Thickness(10, 9, 10, 9),
-                    Margin = new Thickness(0, 0, 0, 8),
-                    Cursor = Cursors.Hand,
-                    ToolTip = $"{clip.AiDetailSummary}\nKlicken, um dieses Originalvideo im Studio-Player anzusehen"
-                };
-
-                var grid = new Grid();
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(76) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-                var thumbBorder = new Border
-                {
-                    Width = 76,
-                    Height = 52,
-                    CornerRadius = new CornerRadius(6),
-                    Background = BrushFromHex("#141414"),
-                    ClipToBounds = true
-                };
-                if (!string.IsNullOrEmpty(clip.ThumbnailPath) && File.Exists(clip.ThumbnailPath))
-                {
-                    try
-                    {
-                        var bmp = new BitmapImage();
-                        bmp.BeginInit();
-                        bmp.CacheOption = BitmapCacheOption.OnLoad;
-                        bmp.UriSource = new Uri(clip.ThumbnailPath, UriKind.Absolute);
-                        bmp.EndInit();
-                        thumbBorder.Child = new Image { Source = bmp, Stretch = Stretch.UniformToFill };
-                    }
-                    catch { }
-                }
-                Grid.SetColumn(thumbBorder, 0);
-                grid.Children.Add(thumbBorder);
-
-                var infoStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-                infoStack.Children.Add(new TextBlock
-                {
-                    Text = clip.FileName,
-                    Foreground = BrushFromHex(textPrimary),
-                    FontWeight = FontWeights.Bold,
-                    FontSize = 12,
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                });
-                infoStack.Children.Add(new TextBlock
-                {
-                    Text = $"{clip.DurationLabel} · {clip.ResolutionLabel} · {clip.FileSizeLabel}",
-                    Foreground = BrushFromHex(textMuted),
-                    FontSize = 10.5,
-                    Margin = new Thickness(0, 2, 0, 2)
-                });
-                infoStack.Children.Add(new TextBlock
-                {
-                    Text = clip.AiBadgeText,
-                    Foreground = BrushFromHex(clip.IsBadTakeWarning ? "#F59E0B" : "#C5A059"),
-                    FontSize = 10.5,
-                    FontWeight = FontWeights.SemiBold,
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                });
-                Grid.SetColumn(infoStack, 2);
-                grid.Children.Add(infoStack);
-
-                var rightStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
-                var chk = new CheckBox
-                {
-                    IsChecked = clip.IsIncluded,
-                    ToolTip = "Im KI-Schnitt verwenden",
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    Margin = new Thickness(0, 0, 0, 6)
-                };
-                var capturedClip = clip;
-                chk.Click += (s, e) =>
-                {
-                    e.Handled = true;
-                    capturedClip.IsIncluded = chk.IsChecked == true;
-                    RenderRawClipsList();
-                    RecomputeSmartCuts();
-                };
-                rightStack.Children.Add(chk);
-
-                var delBtn = new TextBlock
-                {
-                    Text = "🗑",
-                    Foreground = BrushFromHex(textMuted),
-                    FontSize = 11.5,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    Cursor = Cursors.Hand,
-                    ToolTip = "Aus Rohmaterial-Ordner entfernen"
-                };
-                delBtn.MouseLeftButtonUp += (s, e) =>
-                {
-                    e.Handled = true;
-                    try
-                    {
-                        if (PreviewPlayer.Source != null && string.Equals(PreviewPlayer.Source.LocalPath, capturedClip.FilePath, StringComparison.OrdinalIgnoreCase))
-                        {
-                            StopVideoPreview();
-                        }
-                        File.Delete(capturedClip.FilePath);
-                    }
-                    catch { }
-                    _rawClips.Remove(capturedClip);
-                    RenderRawClipsList();
-                    RecomputeSmartCuts();
-                };
-                rightStack.Children.Add(delBtn);
-
-                Grid.SetColumn(rightStack, 3);
-                grid.Children.Add(rightStack);
-
-                card.Child = grid;
-                card.MouseLeftButtonUp += (s, e) =>
-                {
-                    PlaySingleClipSegmentInPreview(capturedClip.FilePath, 0, capturedClip.DurationSeconds, $"Original-Rohvideo: {capturedClip.FileName}", "📷 ROHVIDEO (UNGESCHNITTEN)");
-                };
-
-                RawClipsStackPanel.Children.Add(card);
-            }
-        }
-
-        // =========================================================================
-        // 6 VIRALE KI-REGIE-MODI, MUSIK-KATALOG & SCHNITT-BERECHNUNG
-        // =========================================================================
-        private void InitMusicCatalogCombo()
-        {
-            _suppressComboEvents = true;
-            _musicCatalog = VideoAiCutEngine.GetStudioMusicCatalog(_musicAssetsDir);
-            MusicTrackCombo.Items.Clear();
-            foreach (var track in _musicCatalog)
-            {
-                MusicTrackCombo.Items.Add(new ComboBoxItem
-                {
-                    Tag = track,
-                    Content = track.DisplayLabel
-                });
-            }
-            if (MusicTrackCombo.Items.Count > 1)
-            {
-                MusicTrackCombo.SelectedIndex = 1; // Default: Pack With Me in Gifhorn (sf_09)
-            }
-            _suppressComboEvents = false;
-            UpdateSelectedMusicHint();
-        }
-
-        private SeelenfunkeMusicTrackItem? GetSelectedMusicTrack()
-        {
-            if (MusicTrackCombo?.SelectedItem is ComboBoxItem item && item.Tag is SeelenfunkeMusicTrackItem tr)
-            {
-                return tr;
-            }
-            return _musicCatalog.FirstOrDefault();
-        }
-
-        private void UpdateSelectedMusicHint()
-        {
-            var tr = GetSelectedMusicTrack();
-            if (tr == null || MusicTrackHintTxt == null) return;
-            MusicTrackHintTxt.Text = tr.Description;
-        }
-
-        private void DirectorMode_Click(object sender, MouseButtonEventArgs e)
-        {
-            if (sender is not Border b || b.Tag is not string modeKey) return;
-            _activeDirectorMode = modeKey;
-            UpdateDirectorModeButtonsUI();
-
-            _suppressComboEvents = true;
-            if (modeKey == "packaging_pov")
-            {
-                SelectMusicById("sf_09"); // Pack With Me in Gifhorn
-                TargetDurationSlider.Value = 15;
-                MusicVolSlider.Value = 72;
-                OrigAudioVolSlider.Value = 38;
-                ActiveModeRuleHintTxt.Text = "4-Phasen Packaging: Teaser (1,4s) → Hero-Unikat → Micro-ASMR (2-Cam Zoom) → Samt-Finale";
-            }
-            else if (modeKey == "asmr_laser")
-            {
-                SelectMusicById("sf_07"); // Action-Cam White Glove
-                TargetDurationSlider.Value = 14;
-                MusicVolSlider.Value = 80;
-                OrigAudioVolSlider.Value = 30;
-                ActiveModeRuleHintTxt.Text = "Laser-Dramaturgie: Action-Hook (0–1,8s) → Takt-Schnitte → Edler Reveal";
-            }
-            else if (modeKey == "viral_drop")
-            {
-                SelectMusicById("sf_01"); // Golden Shimmer Drop
-                TargetDurationSlider.Value = 9;
-                MusicVolSlider.Value = 90;
-                OrigAudioVolSlider.Value = 20;
-                ActiveModeRuleHintTxt.Text = "Drop-Dramaturgie: Spannungsaufbau (0–4s) → Licht-Impuls exakt bei Sek. 4,0";
-            }
-            else if (modeKey == "unboxing_reveal")
-            {
-                SelectMusicById("sf_03"); // Velvet Impulse Beat
-                TargetDurationSlider.Value = 12;
-                MusicVolSlider.Value = 82;
-                OrigAudioVolSlider.Value = 28;
-                ActiveModeRuleHintTxt.Text = "Transformation: 1. Vorher/Rohling → 2. Whip-Flow Veredelung → 3. Nachher-Reveal";
-            }
-            else if (modeKey == "story_speech")
-            {
-                SelectMusicById("sf_04"); // Founder Trust Piano
-                TargetDurationSlider.Value = 28;
-                MusicVolSlider.Value = 15;
-                OrigAudioVolSlider.Value = 100;
-                ActiveModeRuleHintTxt.Text = "Gling/Opus-Stil: Sprechpausen > 0,38s entfernt + 2-Kamera-Zoom gegen Jump-Cuts";
-            }
-            else if (modeKey == "clean_all")
-            {
-                SelectMusicById("sf_08"); // Schiefer & Gold Manufaktur
-                TargetDurationSlider.Value = 18;
-                MusicVolSlider.Value = 80;
-                OrigAudioVolSlider.Value = 25;
-                ActiveModeRuleHintTxt.Text = "Chronologisch: Alle Roh-Clips ohne Anfangs-/End-Wackler im Takt verbunden";
-            }
-            _suppressComboEvents = false;
-            UpdateSelectedMusicHint();
-            RecomputeSmartCuts();
-        }
-
-        private void SelectMusicById(string id)
-        {
-            foreach (ComboBoxItem item in MusicTrackCombo.Items)
-            {
-                if (item.Tag is SeelenfunkeMusicTrackItem tr && tr.Id == id)
-                {
-                    MusicTrackCombo.SelectedItem = item;
-                    break;
-                }
-            }
-        }
-
-        private void UpdateDirectorModeButtonsUI()
-        {
-            var buttons = new[] { ModeBtnPackaging, ModeBtnAsmr, ModeBtnViralDrop, ModeBtnUnboxing, ModeBtnSpeech, ModeBtnCleanAll };
-            foreach (var btn in buttons)
-            {
-                if (btn == null) continue;
-                bool active = (btn.Tag as string) == _activeDirectorMode;
-                if (_isDarkMode)
-                {
-                    btn.Background = BrushFromHex(active ? "#1A150B" : "#0A0A0A");
-                    btn.BorderBrush = BrushFromHex(active ? "#C5A059" : "#262626");
-                    btn.BorderThickness = new Thickness(active ? 1.5 : 1);
-                }
-                else
-                {
-                    btn.Background = BrushFromHex(active ? "#FEF3C7" : "#F3F4F6");
-                    btn.BorderBrush = BrushFromHex(active ? "#C5A059" : "#D1D5DB");
-                    btn.BorderThickness = new Thickness(active ? 1.5 : 1);
-                }
-
-                if (btn.Child is StackPanel sp && sp.Children.Count > 0 && sp.Children[0] is TextBlock titleTxt)
-                {
-                    titleTxt.Foreground = BrushFromHex(active ? "#C5A059" : (_isDarkMode ? "#FFFFFF" : "#111827"));
-                }
-            }
-        }
-
-        private void RecalculateAiCuts_Click(object sender, RoutedEventArgs e)
-        {
-            RecomputeSmartCuts();
-        }
-
-        private void RecomputeSmartCuts()
-        {
-            if (!_isUiReady) return;
-            var music = GetSelectedMusicTrack();
-            double targetSec = TargetDurationSlider?.Value ?? 15.0;
-            bool snapBeat = SnapToBeatCheck?.IsChecked == true;
-            bool trimShake = AutoTrimShakeCheck?.IsChecked == true;
-            string transPref = (TransitionCombo?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "auto_director";
-
-            _cutDecisions = VideoAiCutEngine.BuildSmartCutDecisionList(
-                _rawClips,
-                _activeDirectorMode,
-                music,
-                targetSec,
-                snapBeat,
-                trimShake,
-                transPref);
-
-            RenderCutDecisionsTimeline();
-        }
-
-        private void RenderCutDecisionsTimeline()
-        {
-            if (CutDecisionsStackPanel == null) return;
-            CutDecisionsStackPanel.Children.Clear();
-
-            double totalDur = _cutDecisions.Sum(c => c.DurationSec);
-            CutListSummaryTxt.Text = $" ({_cutDecisions.Count} Schnitte · {totalDur:0.0} Sek.)";
-
-            // Update OpusClip-style Virality & Pacing Score
-            var music = GetSelectedMusicTrack();
-            bool hasMusic = music != null && !string.IsNullOrEmpty(music.FileName) && (MusicVolSlider?.Value ?? 75) > 1;
-            var scoreReport = VideoAiCutEngine.CalculateViralScoreReport(_cutDecisions, _activeDirectorMode, hasMusic, OrigAudioVolSlider?.Value ?? 35);
-            if (ViralScoreBadgeTxt != null) ViralScoreBadgeTxt.Text = scoreReport.VerdictBadge;
-            if (ViralPacingHintTxt != null) ViralPacingHintTxt.Text = scoreReport.PacingSummary;
-
-            string cardBg = _isDarkMode ? "#0D0D0D" : "#FFFFFF";
-            string cardBorder = _isDarkMode ? "#262626" : "#D1D5DB";
-            string textPrimary = _isDarkMode ? "#FFFFFF" : "#111827";
-            string textMuted = _isDarkMode ? "#9CA3AF" : "#4B5563";
-            string btnBg = _isDarkMode ? "#171717" : "#F3F4F6";
-
-            if (_cutDecisions.Count == 0)
-            {
-                CutDecisionsStackPanel.Children.Add(new TextBlock
-                {
-                    Text = "Sobald links mindestens ein eigenes Rohvideo geladen ist, berechnet die KI hier automatisch die virale Schnittfolge inkl. Übergängen.",
-                    Foreground = BrushFromHex(textMuted),
-                    FontSize = 11.5,
-                    Margin = new Thickness(8, 14, 8, 14),
-                    TextAlignment = TextAlignment.Center
-                });
-                return;
-            }
-
-            string[] transitionCycle = { "hard_action", "punch_zoom", "velvet_dip", "whip_flow", "flash_luma" };
-            double[] speedCycle = { 1.00, 1.15, 0.88 };
-
-            for (int i = 0; i < _cutDecisions.Count; i++)
-            {
-                var cut = _cutDecisions[i];
-                int capturedIdx = i;
-
-                var card = new Border
-                {
-                    Background = BrushFromHex(cardBg),
-                    BorderBrush = BrushFromHex(cut.RoleKey is "teaser_hook" or "hook" or "drop" or "reveal" ? "#C5A059" : cardBorder),
-                    BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(9),
-                    Padding = new Thickness(10, 8, 10, 8),
-                    Margin = new Thickness(0, 0, 0, 7),
-                    Cursor = Cursors.Hand,
-                    ToolTip = "Klicken, um exakt diesen Schnitt-Ausschnitt im Player vorzuhören"
-                };
-
-                var g = new Grid();
-                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(68) });
-                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
-                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-                var thumbBorder = new Border
-                {
-                    Width = 68,
-                    Height = 48,
-                    CornerRadius = new CornerRadius(6),
-                    Background = BrushFromHex("#141414"),
-                    ClipToBounds = true
-                };
-                if (!string.IsNullOrEmpty(cut.ThumbnailPath) && File.Exists(cut.ThumbnailPath))
-                {
-                    try
-                    {
-                        var bmp = new BitmapImage();
-                        bmp.BeginInit();
-                        bmp.CacheOption = BitmapCacheOption.OnLoad;
-                        bmp.UriSource = new Uri(cut.ThumbnailPath, UriKind.Absolute);
-                        bmp.EndInit();
-                        thumbBorder.Child = new Image { Source = bmp, Stretch = Stretch.UniformToFill };
-                    }
-                    catch { }
-                }
-                Grid.SetColumn(thumbBorder, 0);
-                g.Children.Add(thumbBorder);
-
-                // Middle Details (Role + Transition Badge + Speed Badge + Reason)
-                var midStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-
-                var topRow = new StackPanel { Orientation = Orientation.Horizontal };
-                var rolePill = new Border
-                {
-                    Background = BrushFromHex("#24C5A059"),
-                    BorderBrush = BrushFromHex("#C5A059"),
-                    BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(5),
-                    Padding = new Thickness(6, 1, 6, 1),
-                    Margin = new Thickness(0, 0, 6, 0)
-                };
-                rolePill.Child = new TextBlock
-                {
-                    Text = $"#{cut.Index} · {cut.RoleBadge}",
-                    Foreground = BrushFromHex("#C5A059"),
-                    FontSize = 10,
-                    FontWeight = FontWeights.Bold
-                };
-                topRow.Children.Add(rolePill);
-
-                // Clickable Transition & 2-Cam Zoom Badge
-                var transPill = new Border
-                {
-                    Background = BrushFromHex("#1410B981"),
-                    BorderBrush = BrushFromHex("#10B981"),
-                    BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(5),
-                    Padding = new Thickness(6, 1, 6, 1),
-                    Margin = new Thickness(0, 0, 6, 0),
-                    Cursor = Cursors.Hand,
-                    ToolTip = "Klicken, um den Übergang / 2-Kamera-Zoom für diesen Schnitt zu wechseln"
-                };
-                transPill.Child = new TextBlock
-                {
-                    Text = cut.TransitionBadgeLabel,
-                    Foreground = BrushFromHex("#10B981"),
-                    FontSize = 9.5,
-                    FontWeight = FontWeights.SemiBold
-                };
-                transPill.MouseLeftButtonUp += (s, e) =>
-                {
-                    e.Handled = true;
-                    int curIdx = Array.IndexOf(transitionCycle, cut.TransitionType);
-                    cut.TransitionType = transitionCycle[(curIdx + 1) % transitionCycle.Length];
-                    cut.ZoomFactor = cut.TransitionType == "punch_zoom" ? 1.08 : 1.00;
-                    RenderCutDecisionsTimeline();
-                };
-                topRow.Children.Add(transPill);
-
-                // Clickable Speed Ramp Badge
-                var speedPill = new Border
-                {
-                    Background = BrushFromHex(btnBg),
-                    BorderBrush = BrushFromHex(cardBorder),
-                    BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(5),
-                    Padding = new Thickness(6, 1, 6, 1),
-                    Margin = new Thickness(0, 0, 8, 0),
-                    Cursor = Cursors.Hand,
-                    ToolTip = "Klicken, um das Tempo für diesen Schnitt zu wechseln (1.0x Echtzeit / 1.15x Dynamik / 0.88x Smooth)"
-                };
-                speedPill.Child = new TextBlock
-                {
-                    Text = cut.SpeedBadgeLabel,
-                    Foreground = BrushFromHex(textPrimary),
-                    FontSize = 9.5
-                };
-                speedPill.MouseLeftButtonUp += (s, e) =>
-                {
-                    e.Handled = true;
-                    int curS = Array.FindIndex(speedCycle, v => Math.Abs(v - cut.SpeedFactor) < 0.04);
-                    cut.SpeedFactor = speedCycle[(curS + 1) % speedCycle.Length];
-                    RenderCutDecisionsTimeline();
-                };
-                topRow.Children.Add(speedPill);
-
-                topRow.Children.Add(new TextBlock
-                {
-                    Text = $"{cut.SourceFileName} ({cut.TimeRangeLabel})",
-                    Foreground = BrushFromHex(textPrimary),
-                    FontSize = 11,
-                    FontWeight = FontWeights.Bold,
-                    VerticalAlignment = VerticalAlignment.Center
-                });
-                midStack.Children.Add(topRow);
-
-                midStack.Children.Add(new TextBlock
-                {
-                    Text = $"💡 {cut.AiCutReason}  ·  {cut.TimelinePositionLabel}",
-                    Foreground = BrushFromHex(textMuted),
-                    FontSize = 10.5,
-                    Margin = new Thickness(0, 3, 0, 0),
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                });
-
-                Grid.SetColumn(midStack, 2);
-                g.Children.Add(midStack);
-
-                // Right Quick-Adjust Controls
-                var ctrlRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-
-                Button MakeMiniBtn(string label, string tooltip, Action onClick)
-                {
-                    var b = new Button
-                    {
-                        Content = label,
-                        ToolTip = tooltip,
-                        Background = BrushFromHex(btnBg),
-                        Foreground = BrushFromHex(textPrimary),
-                        BorderBrush = BrushFromHex(cardBorder),
-                        BorderThickness = new Thickness(1),
-                        Padding = new Thickness(6, 3, 6, 3),
-                        Margin = new Thickness(3, 0, 0, 0),
-                        FontSize = 10.5,
-                        Cursor = Cursors.Hand
-                    };
-                    b.Click += (s, e) =>
-                    {
-                        e.Handled = true;
-                        onClick();
-                    };
-                    return b;
-                }
-
-                ctrlRow.Children.Add(MakeMiniBtn("◀ -0.5s", "Startpunkt im Rohvideo 0,5 Sek. früher setzen", () =>
-                {
-                    cut.InPointSec = Math.Max(0, Math.Round(cut.InPointSec - 0.5, 2));
-                    RenderCutDecisionsTimeline();
-                    PreviewCutDecisionItem(cut);
-                }));
-
-                ctrlRow.Children.Add(MakeMiniBtn("+0.5s ▶", "Startpunkt im Rohvideo 0,5 Sek. später setzen", () =>
-                {
-                    double maxIn = Math.Max(0, cut.SourceClipTotalDuration - cut.DurationSec);
-                    cut.InPointSec = Math.Min(maxIn, Math.Round(cut.InPointSec + 0.5, 2));
-                    RenderCutDecisionsTimeline();
-                    PreviewCutDecisionItem(cut);
-                }));
-
-                ctrlRow.Children.Add(MakeMiniBtn("Dauer -", "Schnitt um 0,4 Sek. kürzen", () =>
-                {
-                    cut.DurationSec = Math.Max(0.7, Math.Round(cut.DurationSec - 0.4, 2));
-                    VideoAiCutEngine.RecalculateTimelinePositions(_cutDecisions);
-                    RenderCutDecisionsTimeline();
-                    PreviewCutDecisionItem(cut);
-                }));
-
-                ctrlRow.Children.Add(MakeMiniBtn("Dauer +", "Schnitt um 0,4 Sek. verlängern", () =>
-                {
-                    double maxDur = Math.Max(0.7, cut.SourceClipTotalDuration - cut.InPointSec);
-                    cut.DurationSec = Math.Min(maxDur, Math.Round(cut.DurationSec + 0.4, 2));
-                    VideoAiCutEngine.RecalculateTimelinePositions(_cutDecisions);
-                    RenderCutDecisionsTimeline();
-                    PreviewCutDecisionItem(cut);
-                }));
-
-                ctrlRow.Children.Add(MakeMiniBtn("🔄 Stelle", "Andere Stelle aus diesem Rohvideo wählen", () =>
-                {
-                    double step = Math.Max(1.4, cut.SourceClipTotalDuration * 0.25);
-                    double nextIn = cut.InPointSec + step;
-                    if (nextIn + cut.DurationSec > cut.SourceClipTotalDuration)
-                        nextIn = 0.2;
-                    cut.InPointSec = Math.Round(Math.Max(0, Math.Min(nextIn, cut.SourceClipTotalDuration - cut.DurationSec)), 2);
-                    RenderCutDecisionsTimeline();
-                    PreviewCutDecisionItem(cut);
-                }));
-
-                if (capturedIdx > 0)
-                {
-                    ctrlRow.Children.Add(MakeMiniBtn("▲", "Nach oben verschieben", () =>
-                    {
-                        (_cutDecisions[capturedIdx - 1], _cutDecisions[capturedIdx]) = (_cutDecisions[capturedIdx], _cutDecisions[capturedIdx - 1]);
-                        VideoAiCutEngine.RecalculateTimelinePositions(_cutDecisions);
-                        RenderCutDecisionsTimeline();
-                    }));
-                }
-
-                if (capturedIdx < _cutDecisions.Count - 1)
-                {
-                    ctrlRow.Children.Add(MakeMiniBtn("▼", "Nach unten verschieben", () =>
-                    {
-                        (_cutDecisions[capturedIdx + 1], _cutDecisions[capturedIdx]) = (_cutDecisions[capturedIdx], _cutDecisions[capturedIdx + 1]);
-                        VideoAiCutEngine.RecalculateTimelinePositions(_cutDecisions);
-                        RenderCutDecisionsTimeline();
-                    }));
-                }
-
-                ctrlRow.Children.Add(MakeMiniBtn("✕", "Diesen Schnitt aus der Timeline entfernen", () =>
-                {
-                    _cutDecisions.RemoveAt(capturedIdx);
-                    VideoAiCutEngine.RecalculateTimelinePositions(_cutDecisions);
-                    RenderCutDecisionsTimeline();
-                }));
-
-                Grid.SetColumn(ctrlRow, 3);
-                g.Children.Add(ctrlRow);
-
-                card.Child = g;
-                card.MouseLeftButtonUp += (s, e) =>
-                {
-                    PreviewCutDecisionItem(cut);
-                };
-
-                CutDecisionsStackPanel.Children.Add(card);
-            }
-        }
-
-        // =========================================================================
-        // LIVE STUDIO VIDEO PLAYER & MULTI-SEGMENT SEQUENCE PREVIEW
-        // =========================================================================
-        private void PreviewCutDecisionItem(CutDecisionItem cut)
-        {
-            _isSequencePreviewActive = false;
-            StopMusicPreview();
-            PlaySingleClipSegmentInPreview(
-                cut.SourceFilePath,
-                cut.InPointSec,
-                cut.OutPointSec,
-                $"Schnitt #{cut.Index}: {cut.SourceFileName} ({cut.TimeRangeLabel} · {cut.TransitionBadgeLabel})",
-                cut.RoleBadge);
-        }
-
-        private void PlaySingleClipSegmentInPreview(string filePath, double startSec, double stopSec, string titleLabel, string badgeLabel)
-        {
-            if (!File.Exists(filePath)) return;
-            try
-            {
-                PlayerEmptyOverlay.Visibility = Visibility.Collapsed;
-                PlayerActiveRoleBadge.Visibility = Visibility.Visible;
-                PlayerActiveRoleTxt.Text = badgeLabel;
-                PreviewTitleTxt.Text = titleLabel;
-                PlayerClipNameTxt.Text = System.IO.Path.GetFileName(filePath);
-
-                _activePreviewSegmentStopSec = stopSec;
-                PreviewPlayer.Source = new Uri(filePath, UriKind.Absolute);
-                PreviewPlayer.Volume = (OrigAudioVolSlider?.Value ?? 35.0) / 100.0;
-                PreviewPlayer.Position = TimeSpan.FromSeconds(Math.Max(0, startSec));
-                PreviewPlayer.Play();
-                _isPlayerPlaying = true;
-                PlayerPlayPauseBtn.Content = "❚❚";
-                _playerTickTimer.Start();
-            }
-            catch { }
-        }
-
-        private void PlayFullCutSequencePreview_Click(object sender, RoutedEventArgs e)
-        {
-            if (_cutDecisions.Count == 0) return;
-
-            if (_isSequencePreviewActive)
-            {
-                StopVideoPreview();
-                StopMusicPreview();
-                return;
-            }
-
-            _isSequencePreviewActive = true;
-            _sequencePreviewIndex = 0;
-            PlayFullCutPreviewBtn.Content = "⏹ Vorschau stoppen";
-
-            var music = GetSelectedMusicTrack();
-            if (music != null && !string.IsNullOrEmpty(music.FullPath) && File.Exists(music.FullPath))
+            _isDarkMode = isDark;
+            Background = BrushFromHex("#0F1117");
+            Foreground = BrushFromHex("#F9FAFB");
+
+            foreach (var kv in _originalDarkBrushes)
             {
                 try
                 {
-                    _musicPreviewPlayer.Open(new Uri(music.FullPath, UriKind.Absolute));
-                    _musicPreviewPlayer.Volume = (MusicVolSlider?.Value ?? 75.0) / 100.0;
-                    _musicPreviewPlayer.Position = TimeSpan.Zero;
-                    _musicPreviewPlayer.Play();
-                    _isMusicPreviewPlaying = true;
+                    kv.Key.Obj.SetValue(kv.Key.Prop, BrushFromHex(kv.Value));
                 }
                 catch { }
             }
 
-            StartCurrentSequenceStep();
+            if (ThemeToggleBtn != null)
+            {
+                ThemeToggleBtn.Content = _isDarkMode ? "🌙 Darkmode" : "☀ Hell";
+            }
+
+            RenderProjectsUI();
         }
 
-        private void StartCurrentSequenceStep()
+        private void ThemeToggle_Click(object sender, RoutedEventArgs e)
         {
-            if (!_isSequencePreviewActive || _sequencePreviewIndex < 0 || _sequencePreviewIndex >= _cutDecisions.Count)
+            ApplyThemeMode(!_isDarkMode);
+        }
+
+        private async Task ReloadProjectsAsync()
+        {
+            var folderCandidates = new List<string>();
+
+            // 1. Default Rohmaterial_Tour folder
+            string rawTourDir = ViralVideographerEngine.GetRawTourDir();
+            folderCandidates.Add(rawTourDir);
+
+            // 2. Subfolders inside 'Projekte'
+            string projectsRoot = ViralVideographerEngine.GetProjectsDir();
+            if (Directory.Exists(projectsRoot))
             {
-                StopVideoPreview();
-                StopMusicPreview();
+                foreach (var dir in Directory.GetDirectories(projectsRoot).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
+                {
+                    folderCandidates.Add(dir);
+                }
+            }
+
+            // 3. Any custom added project folders
+            foreach (var customDir in _customProjectFolders)
+            {
+                if (Directory.Exists(customDir))
+                    folderCandidates.Add(customDir);
+            }
+
+            var distinctFolders = folderCandidates
+                .Select(f => System.IO.Path.GetFullPath(f))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var newProjects = new List<ProjectFolderItem>();
+            foreach (var folder in distinctFolders)
+            {
+                if (!Directory.Exists(folder)) continue;
+
+                var files = Directory.GetFiles(folder)
+                    .Where(f => ViralVideographerEngine.AllowedVideoExtensions.Contains(System.IO.Path.GetExtension(f)))
+                    .Where(f => !_pendingDeletedPaths.Contains(System.IO.Path.GetFullPath(f)))
+                    .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                var clips = new List<RawClipInfo>();
+                foreach (var f in files)
+                {
+                    if (_pendingDeletedPaths.Contains(System.IO.Path.GetFullPath(f))) continue;
+                    var info = await ViralVideographerEngine.AnalyzeRawClipAsync(f);
+                    if (info != null && !_pendingDeletedPaths.Contains(info.FilePath))
+                        clips.Add(info);
+                }
+
+                string folderName = new DirectoryInfo(folder).Name;
+                newProjects.Add(new ProjectFolderItem
+                {
+                    Name = folderName,
+                    FolderPath = folder,
+                    IsSelected = _selectedFolderPaths.Contains(folder),
+                    Clips = clips
+                });
+            }
+
+            // Auto-select first project with clips if none selected yet
+            if (_selectedFolderPaths.Count == 0 && newProjects.Count > 0)
+            {
+                var best = newProjects.FirstOrDefault(p => p.Clips.Count > 0) ?? newProjects[0];
+                best.IsSelected = true;
+                _selectedFolderPaths.Add(best.FolderPath);
+            }
+
+            _projects.Clear();
+            _projects.AddRange(newProjects);
+            RenderProjectsUI();
+        }
+
+        private void RenderProjectsUI()
+        {
+            if (ProjectsStackPanel == null) return;
+            ProjectsStackPanel.Children.Clear();
+
+            foreach (var proj in _projects)
+            {
+                string projPath = proj.FolderPath;
+                bool isChecked = proj.IsSelected;
+
+                var card = new Border
+                {
+                    Background = BrushFromHex("#181B24"),
+                    BorderBrush = isChecked ? BrushFromHex("#C5A059") : BrushFromHex("#232734"),
+                    BorderThickness = new Thickness(isChecked ? 1.5 : 1),
+                    CornerRadius = new CornerRadius(12),
+                    Padding = new Thickness(14, 12, 14, 12),
+                    Margin = new Thickness(0, 0, 0, 10)
+                };
+
+                var cardStack = new StackPanel();
+
+                // Header Row: Checkbox + Folder Name + Video Count Badge + Quick Buttons
+                var headerGrid = new Grid { Cursor = Cursors.Hand };
+                headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var chk = new CheckBox
+                {
+                    IsChecked = isChecked,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 12, 0),
+                    Cursor = Cursors.Hand,
+                    LayoutTransform = new ScaleTransform(1.2, 1.2)
+                };
+                chk.Click += (s, e) =>
+                {
+                    e.Handled = true;
+                    ToggleProjectSelection(projPath, chk.IsChecked == true);
+                };
+                Grid.SetColumn(chk, 0);
+                headerGrid.Children.Add(chk);
+
+                var titlePanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+                titlePanel.Children.Add(new TextBlock
+                {
+                    Text = $"📁 {proj.Name}",
+                    Foreground = BrushFromHex("#F9FAFB"),
+                    FontSize = 14,
+                    FontWeight = FontWeights.Bold,
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+                Grid.SetColumn(titlePanel, 1);
+                headerGrid.Children.Add(titlePanel);
+
+                var countBadge = new Border
+                {
+                    Background = BrushFromHex("#26231F"),
+                    BorderBrush = BrushFromHex("#C5A059"),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(6),
+                    Padding = new Thickness(8, 3, 8, 3),
+                    Margin = new Thickness(8, 0, 10, 0),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                countBadge.Child = new TextBlock
+                {
+                    Text = $"{proj.Clips.Count} Videos",
+                    Foreground = BrushFromHex("#C5A059"),
+                    FontSize = 11,
+                    FontWeight = FontWeights.Bold
+                };
+                Grid.SetColumn(countBadge, 2);
+                headerGrid.Children.Add(countBadge);
+
+                var actionsPanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+
+                var addVidBtn = new Button
+                {
+                    Content = "＋",
+                    Width = 28,
+                    Height = 26,
+                    Background = BrushFromHex("#11131A"),
+                    Foreground = BrushFromHex("#C5A059"),
+                    BorderBrush = BrushFromHex("#262A36"),
+                    BorderThickness = new Thickness(1),
+                    Margin = new Thickness(0, 0, 5, 0),
+                    Cursor = Cursors.Hand,
+                    FontWeight = FontWeights.Bold,
+                    ToolTip = "Videos hinzufügen"
+                };
+                addVidBtn.Click += async (s, e) =>
+                {
+                    e.Handled = true;
+                    await PickAndImportVideosToFolderAsync(projPath);
+                };
+                actionsPanel.Children.Add(addVidBtn);
+
+                var openDirBtn = new Button
+                {
+                    Content = "📂",
+                    Width = 28,
+                    Height = 26,
+                    Background = BrushFromHex("#11131A"),
+                    Foreground = BrushFromHex("#D1D5DB"),
+                    BorderBrush = BrushFromHex("#262A36"),
+                    BorderThickness = new Thickness(1),
+                    Margin = new Thickness(0, 0, 5, 0),
+                    Cursor = Cursors.Hand,
+                    FontSize = 11,
+                    ToolTip = "Ordner öffnen"
+                };
+                openDirBtn.Click += (s, e) =>
+                {
+                    e.Handled = true;
+                    OpenFolderInExplorer(projPath);
+                };
+                actionsPanel.Children.Add(openDirBtn);
+
+                var clearBtn = new Button
+                {
+                    Content = "✕",
+                    Width = 28,
+                    Height = 26,
+                    Background = BrushFromHex("#26231F"),
+                    Foreground = BrushFromHex("#F87171"),
+                    BorderBrush = BrushFromHex("#262A36"),
+                    BorderThickness = new Thickness(1),
+                    Cursor = Cursors.Hand,
+                    FontWeight = FontWeights.Bold,
+                    ToolTip = "Projekt leeren / entfernen"
+                };
+                clearBtn.Click += (s, e) =>
+                {
+                    e.Handled = true;
+                    ClearOrRemoveProjectFolder(proj);
+                };
+                actionsPanel.Children.Add(clearBtn);
+
+                Grid.SetColumn(actionsPanel, 3);
+                headerGrid.Children.Add(actionsPanel);
+
+                headerGrid.MouseLeftButtonUp += (_, _) =>
+                {
+                    ToggleProjectSelection(projPath, !isChecked);
+                };
+
+                cardStack.Children.Add(headerGrid);
+
+                // Show Raw Video Files inside this Project Folder
+                if (proj.Clips.Count > 0)
+                {
+                    var clipsContainer = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
+                    foreach (var clip in proj.Clips.ToList())
+                    {
+                        string clipPath = clip.FilePath;
+                        var clipRow = new Border
+                        {
+                            Background = BrushFromHex("#11131A"),
+                            BorderBrush = BrushFromHex("#232734"),
+                            BorderThickness = new Thickness(1),
+                            CornerRadius = new CornerRadius(8),
+                            Padding = new Thickness(10, 6, 10, 6),
+                            Margin = new Thickness(0, 0, 0, 5),
+                            Cursor = Cursors.Hand
+                        };
+
+                        var cg = new Grid();
+                        cg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                        cg.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                        cg.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                        var nameTxt = new TextBlock
+                        {
+                            Text = $"🎬 {clip.FileName}",
+                            Foreground = BrushFromHex("#F9FAFB"),
+                            FontSize = 12,
+                            FontWeight = FontWeights.SemiBold,
+                            VerticalAlignment = VerticalAlignment.Center,
+                            TextTrimming = TextTrimming.CharacterEllipsis
+                        };
+                        Grid.SetColumn(nameTxt, 0);
+                        cg.Children.Add(nameTxt);
+
+                        var sizeTxt = new TextBlock
+                        {
+                            Text = clip.SizeFormatted,
+                            Foreground = BrushFromHex("#9CA3AF"),
+                            FontSize = 11,
+                            VerticalAlignment = VerticalAlignment.Center,
+                            Margin = new Thickness(10, 0, 10, 0)
+                        };
+                        Grid.SetColumn(sizeTxt, 1);
+                        cg.Children.Add(sizeTxt);
+
+                        var delClipBtn = new Button
+                        {
+                            Content = "✕",
+                            Width = 26,
+                            Height = 24,
+                            Background = BrushFromHex("#26231F"),
+                            Foreground = BrushFromHex("#F87171"),
+                            BorderBrush = BrushFromHex("#262A36"),
+                            BorderThickness = new Thickness(1),
+                            Cursor = Cursors.Hand,
+                            FontSize = 11,
+                            FontWeight = FontWeights.Bold,
+                            VerticalAlignment = VerticalAlignment.Center,
+                            ToolTip = "Video entfernen"
+                        };
+                        delClipBtn.Click += (s, e) =>
+                        {
+                            e.Handled = true;
+                            RemoveSingleClipInstant(proj, clipPath);
+                        };
+                        Grid.SetColumn(delClipBtn, 2);
+                        cg.Children.Add(delClipBtn);
+
+                        clipRow.MouseLeftButtonUp += (_, _) => LoadVideoIntoPreviewPlayer(clipPath);
+                        clipRow.Child = cg;
+                        clipsContainer.Children.Add(clipRow);
+                    }
+                    cardStack.Children.Add(clipsContainer);
+                }
+
+                card.Child = cardStack;
+                ProjectsStackPanel.Children.Add(card);
+            }
+
+            // Clean Drop Box at the bottom of Projects list
+            var dropBox = new Border
+            {
+                Background = BrushFromHex("#26231F"),
+                BorderBrush = BrushFromHex("#C5A059"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(14, 12, 14, 12),
+                Margin = new Thickness(0, 4, 0, 0),
+                Cursor = Cursors.Hand
+            };
+            dropBox.MouseLeftButtonUp += async (_, _) =>
+            {
+                string targetDir = GetPrimarySelectedFolderPath();
+                await PickAndImportVideosToFolderAsync(targetDir);
+            };
+            dropBox.Child = new TextBlock
+            {
+                Text = "📥 Projektordner oder Rohvideos hier reinwerfen (Drag & Drop)",
+                Foreground = BrushFromHex("#C5A059"),
+                FontSize = 12,
+                FontWeight = FontWeights.Bold,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            ProjectsStackPanel.Children.Add(dropBox);
+        }
+
+        private void ToggleProjectSelection(string folderPath, bool isSelected)
+        {
+            string full = System.IO.Path.GetFullPath(folderPath);
+            if (isSelected)
+                _selectedFolderPaths.Add(full);
+            else
+                _selectedFolderPaths.Remove(full);
+
+            foreach (var p in _projects)
+            {
+                if (string.Equals(p.FolderPath, full, StringComparison.OrdinalIgnoreCase))
+                    p.IsSelected = isSelected;
+            }
+            RenderProjectsUI();
+        }
+
+        private string GetPrimarySelectedFolderPath()
+        {
+            var selected = _projects.FirstOrDefault(p => p.IsSelected);
+            if (selected != null && Directory.Exists(selected.FolderPath))
+                return selected.FolderPath;
+            return ViralVideographerEngine.GetRawTourDir();
+        }
+
+        private void RemoveSingleClipInstant(ProjectFolderItem proj, string clipFilePath)
+        {
+            string full = System.IO.Path.GetFullPath(clipFilePath);
+            lock (_pendingDeletedPaths)
+            {
+                _pendingDeletedPaths.Add(full);
+            }
+            proj.Clips.RemoveAll(c => string.Equals(c.FilePath, full, StringComparison.OrdinalIgnoreCase));
+            RenderProjectsUI();
+            _ = DeleteFileWithRetryAsync(full);
+        }
+
+        private void ClearOrRemoveProjectFolder(ProjectFolderItem proj)
+        {
+            var pathsToDelete = proj.Clips.Select(c => c.FilePath).ToList();
+            foreach (var p in pathsToDelete)
+            {
+                lock (_pendingDeletedPaths)
+                {
+                    _pendingDeletedPaths.Add(System.IO.Path.GetFullPath(p));
+                }
+            }
+            proj.Clips.Clear();
+
+            string rawTour = System.IO.Path.GetFullPath(ViralVideographerEngine.GetRawTourDir());
+            if (!string.Equals(proj.FolderPath, rawTour, StringComparison.OrdinalIgnoreCase))
+            {
+                _customProjectFolders.Remove(proj.FolderPath);
+                _selectedFolderPaths.Remove(proj.FolderPath);
+                _projects.Remove(proj);
+            }
+
+            RenderProjectsUI();
+
+            foreach (var p in pathsToDelete)
+            {
+                _ = DeleteFileWithRetryAsync(p);
+            }
+        }
+
+        private async Task DeleteFileWithRetryAsync(string filePath)
+        {
+            string full = System.IO.Path.GetFullPath(filePath);
+            ViralVideographerEngine.InvalidateClipCache(full);
+
+            if (string.Equals(_currentVideoPath, full, StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    PreviewMediaElement.Stop();
+                    PreviewMediaElement.Source = null;
+                    _currentVideoPath = "";
+                }
+                catch { }
+            }
+
+            for (int attempt = 0; attempt < 12; attempt++)
+            {
+                try
+                {
+                    if (!File.Exists(full))
+                        break;
+                    File.SetAttributes(full, FileAttributes.Normal);
+                    File.Delete(full);
+                    if (!File.Exists(full))
+                        break;
+                }
+                catch
+                {
+                    await Task.Delay(150);
+                }
+            }
+
+            if (!File.Exists(full))
+            {
+                lock (_pendingDeletedPaths)
+                {
+                    _pendingDeletedPaths.Remove(full);
+                }
+            }
+        }
+
+        private async void AddProjectFolder_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new OpenFolderDialog
+            {
+                Title = "Projektordner mit Rohvideos auswählen",
+                Multiselect = false
+            };
+            if (dlg.ShowDialog() == true && !string.IsNullOrWhiteSpace(dlg.FolderName))
+            {
+                string full = System.IO.Path.GetFullPath(dlg.FolderName);
+                _customProjectFolders.Add(full);
+                _selectedFolderPaths.Clear();
+                _selectedFolderPaths.Add(full);
+                await ReloadProjectsAsync();
+            }
+        }
+
+        private async void AddRawFiles_Click(object sender, RoutedEventArgs e)
+        {
+            string targetDir = GetPrimarySelectedFolderPath();
+            await PickAndImportVideosToFolderAsync(targetDir);
+        }
+
+        private async Task PickAndImportVideosToFolderAsync(string targetFolder)
+        {
+            var dlg = new OpenFileDialog
+            {
+                Title = "Rohvideos auswählen",
+                Filter = "Videodateien (*.mp4;*.mov;*.mkv;*.webm;*.avi)|*.mp4;*.mov;*.mkv;*.webm;*.avi",
+                Multiselect = true
+            };
+            if (dlg.ShowDialog() == true && dlg.FileNames.Length > 0)
+            {
+                await ImportFilesToFolderAsync(dlg.FileNames, targetFolder);
+            }
+        }
+
+        private async Task ImportFilesToFolderAsync(IEnumerable<string> paths, string targetFolder)
+        {
+            Directory.CreateDirectory(targetFolder);
+            var itemList = paths.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+            if (itemList.Count == 0) return;
+
+            var videoFilesToCopy = new List<string>();
+            foreach (var item in itemList)
+            {
+                if (Directory.Exists(item))
+                {
+                    string fullDir = System.IO.Path.GetFullPath(item);
+                    _customProjectFolders.Add(fullDir);
+                    _selectedFolderPaths.Clear();
+                    _selectedFolderPaths.Add(fullDir);
+                }
+                else if (File.Exists(item) && ViralVideographerEngine.AllowedVideoExtensions.Contains(System.IO.Path.GetExtension(item)))
+                {
+                    videoFilesToCopy.Add(item);
+                }
+            }
+
+            if (videoFilesToCopy.Count > 0)
+            {
+                RenderProgressBorder.Visibility = Visibility.Visible;
+                RenderStatusTxt.Text = $"Importiere {videoFilesToCopy.Count} Video(s)...";
+                RenderProgressBar.Value = 50;
+
+                await Task.Run(() =>
+                {
+                    foreach (var src in videoFilesToCopy)
+                    {
+                        try
+                        {
+                            string dest = System.IO.Path.Combine(targetFolder, System.IO.Path.GetFileName(src));
+                            string fullDest = System.IO.Path.GetFullPath(dest);
+                            lock (_pendingDeletedPaths)
+                            {
+                                _pendingDeletedPaths.Remove(fullDest);
+                            }
+                            ViralVideographerEngine.InvalidateClipCache(fullDest);
+
+                            if (!string.Equals(System.IO.Path.GetFullPath(src), fullDest, StringComparison.OrdinalIgnoreCase))
+                            {
+                                File.Copy(src, dest, true);
+                            }
+                        }
+                        catch { }
+                    }
+                });
+
+                RenderProgressBorder.Visibility = Visibility.Collapsed;
+            }
+
+            await ReloadProjectsAsync();
+        }
+
+        private async void RefreshRawClips_Click(object sender, RoutedEventArgs e)
+        {
+            await ReloadProjectsAsync();
+        }
+
+        private void ProjectsTile_DragEnter(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop) && ProjectsTileBorder != null)
+            {
+                ProjectsTileBorder.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C5A059"));
+                ProjectsTileBorder.BorderThickness = new Thickness(2);
+            }
+        }
+
+        private void ProjectsTile_DragLeave(object sender, DragEventArgs e)
+        {
+            if (ProjectsTileBorder != null)
+            {
+                ProjectsTileBorder.BorderBrush = BrushFromHex("#232734");
+                ProjectsTileBorder.BorderThickness = new Thickness(1);
+            }
+        }
+
+        private void Window_DragOver(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                e.Effects = DragDropEffects.Copy;
+                e.Handled = true;
+            }
+        }
+
+        private async void Window_Drop(object sender, DragEventArgs e)
+        {
+            ProjectsTile_DragLeave(sender, e);
+            if (e.Data.GetDataPresent(DataFormats.FileDrop) && e.Data.GetData(DataFormats.FileDrop) is string[] dropped && dropped.Length > 0)
+            {
+                e.Handled = true;
+                string targetDir = GetPrimarySelectedFolderPath();
+                await ImportFilesToFolderAsync(dropped, targetDir);
+            }
+        }
+
+        private async void ProduceViralVideo_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isRendering) return;
+
+            var selectedProjects = _projects.Where(p => p.IsSelected && p.Clips.Count > 0).ToList();
+            if (selectedProjects.Count == 0)
+            {
+                var fallback = _projects.FirstOrDefault(p => p.Clips.Count > 0);
+                if (fallback != null)
+                {
+                    fallback.IsSelected = true;
+                    _selectedFolderPaths.Add(fallback.FolderPath);
+                    selectedProjects.Add(fallback);
+                    RenderProjectsUI();
+                }
+            }
+
+            var allSelectedClips = selectedProjects.SelectMany(p => p.Clips).ToList();
+            if (allSelectedClips.Count == 0)
+            {
+                RenderProgressBorder.Visibility = Visibility.Visible;
+                RenderProgressBar.Value = 0;
+                RenderStatusTxt.Text = "Bitte zuerst einen Projektordner mit Rohvideos auswählen.";
                 return;
             }
 
-            var cut = _cutDecisions[_sequencePreviewIndex];
-            PlaySingleClipSegmentInPreview(
-                cut.SourceFilePath,
-                cut.InPointSec,
-                cut.OutPointSec,
-                $"KI-Gesamtvorschau ({_sequencePreviewIndex + 1}/{_cutDecisions.Count}): {cut.SourceFileName}",
-                $"{cut.RoleBadge} · {cut.TransitionBadgeLabel}");
-        }
+            string projectName = selectedProjects.Count == 1 ? selectedProjects[0].Name : "Kombi";
 
-        private void PlayerTickTimer_Tick(object? sender, EventArgs e)
-        {
-            if (!_isPlayerPlaying || PreviewPlayer.Source == null) return;
+            _isRendering = true;
+            ProduceViralVideoBtn.IsEnabled = false;
+            RenderProgressBorder.Visibility = Visibility.Visible;
+            RenderProgressBar.Value = 10;
+            RenderStatusTxt.Text = $"Verarbeite {allSelectedClips.Count} Videos...";
 
-            double curSec = PreviewPlayer.Position.TotalSeconds;
-            double totalSec = PreviewPlayer.NaturalDuration.HasTimeSpan ? PreviewPlayer.NaturalDuration.TimeSpan.TotalSeconds : 10.0;
-
-            PlayerTimelineSlider.Maximum = Math.Max(1.0, totalSec);
-            PlayerTimelineSlider.Value = Math.Clamp(curSec, 0, totalSec);
-            PlayerTimeTxt.Text = $"{RawVideoClipInfo.FormatSeconds(curSec)} / {RawVideoClipInfo.FormatSeconds(totalSec)}";
-
-            if (_activePreviewSegmentStopSec.HasValue && curSec >= _activePreviewSegmentStopSec.Value - 0.04)
+            var opts = new VideographerJobOptions
             {
-                if (_isSequencePreviewActive)
-                {
-                    _sequencePreviewIndex++;
-                    if (_sequencePreviewIndex < _cutDecisions.Count)
-                    {
-                        StartCurrentSequenceStep();
-                    }
-                    else
-                    {
-                        StopVideoPreview();
-                        StopMusicPreview();
-                    }
-                }
-                else
-                {
-                    PreviewPlayer.Pause();
-                    _isPlayerPlaying = false;
-                    PlayerPlayPauseBtn.Content = "▶";
-                    _playerTickTimer.Stop();
-                }
-            }
-        }
+                ProjectName = projectName,
+                SaveToDesktop = true,
+                RecipeId = "auto_videographer",
+                TransitionMode = "LightWipeZoom",
+                EnableHookTextOverlay = false,
+                EnableGoldParticlesVfx = true,
+                EnableViralSoundEffects = true,
+                EnableAsmrBoost = true,
+                EnableBeatPulseBed = true,
+                TargetFps = 60
+            };
 
-        private void PreviewPlayer_MediaOpened(object sender, RoutedEventArgs e)
-        {
-            if (PreviewPlayer.NaturalDuration.HasTimeSpan)
+            var progress = new Progress<(int Percent, string Status)>(p =>
             {
-                PlayerTimelineSlider.Maximum = Math.Max(1.0, PreviewPlayer.NaturalDuration.TimeSpan.TotalSeconds);
-            }
-        }
+                RenderProgressBar.Value = p.Percent;
+                RenderStatusTxt.Text = p.Status;
+            });
 
-        private void PreviewPlayer_MediaEnded(object sender, RoutedEventArgs e)
-        {
-            if (_isSequencePreviewActive)
-            {
-                _sequencePreviewIndex++;
-                if (_sequencePreviewIndex < _cutDecisions.Count)
-                {
-                    StartCurrentSequenceStep();
-                    return;
-                }
-            }
-            StopVideoPreview();
-            StopMusicPreview();
-        }
+            var result = await ViralVideographerEngine.ProduceViralVideoAsync(allSelectedClips, opts, progress);
 
-        private void PlayerPlayPause_Click(object sender, RoutedEventArgs e)
-        {
-            if (PreviewPlayer.Source == null)
-            {
-                if (_cutDecisions.Count > 0)
-                {
-                    PreviewCutDecisionItem(_cutDecisions[0]);
-                }
-                return;
-            }
+            _isRendering = false;
+            ProduceViralVideoBtn.IsEnabled = true;
 
-            if (_isPlayerPlaying)
+            if (result.Success)
             {
-                PreviewPlayer.Pause();
-                _isPlayerPlaying = false;
-                PlayerPlayPauseBtn.Content = "▶";
-                StopMusicPreview();
+                LoadVideoIntoPreviewPlayer(result.OutputVideoPath);
+                RenderProgressBar.Value = 100;
+                RenderStatusTxt.Text = $"✓ Auf Desktop gespeichert: {System.IO.Path.GetFileName(result.OutputVideoPath)}";
             }
             else
             {
-                _activePreviewSegmentStopSec = null;
-                PreviewPlayer.Play();
-                _isPlayerPlaying = true;
-                PlayerPlayPauseBtn.Content = "❚❚";
-                _playerTickTimer.Start();
+                RenderStatusTxt.Text = $"⚠ {result.ErrorMessage}";
             }
         }
 
-        private void PlayerTimelineSlider_MouseUp(object sender, MouseButtonEventArgs e)
+        private void LoadLatestVideoIntoPreview()
         {
-            if (PreviewPlayer.Source == null) return;
-            _activePreviewSegmentStopSec = null;
-            PreviewPlayer.Position = TimeSpan.FromSeconds(PlayerTimelineSlider.Value);
-        }
-
-        private void StopVideoPreview()
-        {
-            _isSequencePreviewActive = false;
-            _isPlayerPlaying = false;
-            _activePreviewSegmentStopSec = null;
-            _playerTickTimer.Stop();
-            try { PreviewPlayer.Pause(); } catch { }
-            PlayerPlayPauseBtn.Content = "▶";
-            PlayFullCutPreviewBtn.Content = "▶ Komplette KI-Schnitt-Vorschau abspielen";
-        }
-
-        // =========================================================================
-        // RIGHT COLUMN SETTINGS & MUSIC PREVIEW
-        // =========================================================================
-        private void SettingsCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (!_isUiReady || _suppressComboEvents) return;
-            RecomputeSmartCuts();
-        }
-
-        private void CriteriaCheck_Changed(object sender, RoutedEventArgs e)
-        {
-            if (!_isUiReady || _suppressComboEvents) return;
-            RecomputeSmartCuts();
-        }
-
-        private void TargetDurationSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (TargetDurationLabelTxt != null)
-            {
-                TargetDurationLabelTxt.Text = $"{(int)Math.Round(e.NewValue)} Sek.";
-            }
-            if (!_isUiReady || _suppressComboEvents) return;
-            RecomputeSmartCuts();
-        }
-
-        private void MusicTrackCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (!_isUiReady || _suppressComboEvents) return;
-            StopMusicPreview();
-            UpdateSelectedMusicHint();
-            RecomputeSmartCuts();
-        }
-
-        private void AudioMixSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (MusicVolLabelTxt != null && MusicVolSlider != null)
-            {
-                MusicVolLabelTxt.Text = $"{(int)Math.Round(MusicVolSlider.Value)} %";
-                _musicPreviewPlayer.Volume = MusicVolSlider.Value / 100.0;
-            }
-            if (OrigAudioVolLabelTxt != null && OrigAudioVolSlider != null)
-            {
-                OrigAudioVolLabelTxt.Text = $"{(int)Math.Round(OrigAudioVolSlider.Value)} %";
-                if (PreviewPlayer != null)
-                    PreviewPlayer.Volume = OrigAudioVolSlider.Value / 100.0;
-            }
-        }
-
-        private void ToggleMusicPreview_Click(object sender, RoutedEventArgs e)
-        {
-            if (_isMusicPreviewPlaying)
-            {
-                StopMusicPreview();
-                return;
-            }
-
-            var tr = GetSelectedMusicTrack();
-            if (tr == null || string.IsNullOrEmpty(tr.FullPath) || !File.Exists(tr.FullPath)) return;
-
             try
             {
-                _musicPreviewPlayer.Open(new Uri(tr.FullPath, UriKind.Absolute));
-                _musicPreviewPlayer.Volume = (MusicVolSlider?.Value ?? 75.0) / 100.0;
-                _musicPreviewPlayer.Play();
-                _isMusicPreviewPlaying = true;
-                PreviewMusicBtnTxt.Text = "⏹ Stopp";
+                string desktopDir = ViralVideographerEngine.GetDesktopDir();
+                var desktopVids = Directory.GetFiles(desktopDir, "Virales_Video_*.mp4")
+                    .Select(f => new FileInfo(f))
+                    .OrderByDescending(f => f.LastWriteTimeUtc)
+                    .ToList();
+
+                if (desktopVids.Count > 0)
+                {
+                    LoadVideoIntoPreviewPlayer(desktopVids[0].FullName);
+                    return;
+                }
+
+                string outDir = ViralVideographerEngine.GetOutputVideosDir();
+                var outVids = Directory.GetFiles(outDir, "*.mp4")
+                    .Select(f => new FileInfo(f))
+                    .OrderByDescending(f => f.LastWriteTimeUtc)
+                    .ToList();
+
+                if (outVids.Count > 0)
+                {
+                    LoadVideoIntoPreviewPlayer(outVids[0].FullName);
+                }
             }
             catch { }
         }
 
-        private void StopMusicPreview()
+        private void LoadVideoIntoPreviewPlayer(string mp4Path)
         {
-            _isMusicPreviewPlaying = false;
-            try { _musicPreviewPlayer.Stop(); } catch { }
-            if (PreviewMusicBtnTxt != null) PreviewMusicBtnTxt.Text = "▶ Anhören";
+            if (string.IsNullOrWhiteSpace(mp4Path) || !File.Exists(mp4Path)) return;
+            _currentVideoPath = mp4Path;
+
+            try
+            {
+                PlayerEmptyOverlay.Visibility = Visibility.Collapsed;
+                PreviewMediaElement.Stop();
+                PreviewMediaElement.Source = new Uri(mp4Path, UriKind.Absolute);
+                PreviewMediaElement.Play();
+                _isPlaying = true;
+                PlayPauseBtn.Content = "⏸ Pause";
+            }
+            catch { }
         }
 
-        private void SelectCustomMusicFile_Click(object sender, RoutedEventArgs e)
+        private void PreviewMediaElement_MediaEnded(object sender, RoutedEventArgs e)
         {
-            var dlg = new OpenFileDialog
+            try
             {
-                Title = "Eigene Musikdatei auswählen",
-                Filter = "Audiodateien (*.mp3;*.m4a;*.wav;*.aac)|*.mp3;*.m4a;*.wav;*.aac"
-            };
-            if (dlg.ShowDialog() == true && File.Exists(dlg.FileName))
-            {
-                var customItem = new SeelenfunkeMusicTrackItem
-                {
-                    Id = "custom_" + Guid.NewGuid().ToString("N")[..6],
-                    Title = System.IO.Path.GetFileNameWithoutExtension(dlg.FileName),
-                    CategoryLabel = "Eigene Datei",
-                    Bpm = 90,
-                    ShimmerDropSec = 4.0,
-                    FileName = System.IO.Path.GetFileName(dlg.FileName),
-                    FullPath = dlg.FileName,
-                    Description = $"Eigene Audiodatei: {System.IO.Path.GetFileName(dlg.FileName)}"
-                };
-                _musicCatalog.Add(customItem);
-                var cbi = new ComboBoxItem { Tag = customItem, Content = customItem.DisplayLabel };
-                MusicTrackCombo.Items.Add(cbi);
-                MusicTrackCombo.SelectedItem = cbi;
+                PreviewMediaElement.Position = TimeSpan.Zero;
+                PreviewMediaElement.Play();
             }
+            catch { }
         }
 
-        // =========================================================================
-        // 1-CLICK MASTER MP4 RENDER & EXPORT
-        // =========================================================================
-        private async void RenderExportMaster_Click(object sender, RoutedEventArgs e)
+        private void PlayPause_Click(object sender, RoutedEventArgs e)
         {
-            if (_isRenderingVideo) return;
-            if (_cutDecisions.Count == 0)
+            if (string.IsNullOrWhiteSpace(_currentVideoPath)) return;
+            try
             {
-                MessageBox.Show(
-                    "Bitte lege zuerst mindestens ein eigenes Rohvideo in den Ordner 'Rohmaterial' (oder ziehe es links in das Fenster).",
-                    "Kein Rohmaterial geladen",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-                return;
-            }
-
-            StopVideoPreview();
-            StopMusicPreview();
-
-            _isRenderingVideo = true;
-            RenderExportMasterBtn.IsEnabled = false;
-            RenderProgressCard.Visibility = Visibility.Visible;
-            RenderProgressBar.Value = 2;
-            RenderPercentTxt.Text = "2 %";
-            RenderStatusTxt.Text = "Starte paralleles FFmpeg Studio-Rendering & ASMR-Mastering...";
-
-            string aspectTag = (AspectRatioCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "9_16_crop";
-            string colorTag = (ColorGradingCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "atelier_gold";
-            string transTag = (TransitionCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "auto_director";
-            var music = GetSelectedMusicTrack();
-
-            string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-            string modeLabel = _activeDirectorMode switch
-            {
-                "packaging_pov" => "PackagingViral",
-                "viral_drop" => "ShimmerDrop",
-                "unboxing_reveal" => "VorherNachher",
-                "story_speech" => "StorySprache",
-                "clean_all" => "Chronologisch",
-                _ => "LaserASMR"
-            };
-            string outFileName = $"Seelenfunke_{modeLabel}_{timestamp}.mp4";
-            string outFullPath = System.IO.Path.Combine(_outputFolderDir, outFileName);
-
-            var renderOpts = new VideoRenderOptions
-            {
-                DirectorModeKey = _activeDirectorMode,
-                AspectRatioMode = aspectTag,
-                ColorGradingMode = colorTag,
-                TransitionMode = transTag,
-                TargetTotalDurationSec = TargetDurationSlider.Value,
-                MusicFilePath = music?.FullPath,
-                MusicVolumePercent = MusicVolSlider.Value,
-                OriginalAudioVolumePercent = OrigAudioVolSlider.Value,
-                SnapCutsToBeat = SnapToBeatCheck.IsChecked == true,
-                AutoTrimCameraShake = AutoTrimShakeCheck.IsChecked == true,
-                EnableAsmrAudioMastering = AsmrMasteringCheck?.IsChecked == true,
-                OutputFilePath = outFullPath
-            };
-
-            var cutsSnapshot = _cutDecisions.ToList();
-
-            var (success, savedPath, errorMsg) = await VideoAiCutEngine.RenderMasterVideoAsync(
-                cutsSnapshot,
-                renderOpts,
-                (pct, msg) =>
+                if (_isPlaying)
                 {
-                    Dispatcher.InvokeAsync(() =>
+                    PreviewMediaElement.Pause();
+                    _isPlaying = false;
+                    PlayPauseBtn.Content = "▶ Play";
+                }
+                else
+                {
+                    PreviewMediaElement.Play();
+                    _isPlaying = true;
+                    PlayPauseBtn.Content = "⏸ Pause";
+                }
+            }
+            catch { }
+        }
+
+        private void OpenFolderInExplorer(string folderPath)
+        {
+            try
+            {
+                if (Directory.Exists(folderPath))
+                {
+                    Process.Start(new ProcessStartInfo
                     {
-                        RenderProgressBar.Value = pct;
-                        RenderPercentTxt.Text = $"{pct} %";
-                        RenderStatusTxt.Text = msg;
+                        FileName = "explorer.exe",
+                        Arguments = $"\"{folderPath}\"",
+                        UseShellExecute = true
                     });
-                });
-
-            _isRenderingVideo = false;
-            RenderExportMasterBtn.IsEnabled = true;
-
-            if (success && File.Exists(savedPath))
-            {
-                RenderProgressBar.Value = 100;
-                RenderPercentTxt.Text = "100 %";
-                RenderStatusTxt.Text = $"✓ Gespeichert: {System.IO.Path.GetFileName(savedPath)}";
-                RefreshFinishedVideosList();
-
-                var fi = new FileInfo(savedPath);
-                PlaySingleClipSegmentInPreview(
-                    savedPath,
-                    0,
-                    9999,
-                    $"🎬 FERTIGES MASTER-VIDEO: {fi.Name}",
-                    "✓ FERTIG GESCHNITTENES MP4");
+                }
             }
-            else
-            {
-                RenderStatusTxt.Text = "✕ Fehler: " + errorMsg;
-                MessageBox.Show("Fehler beim Video-Export:\n" + errorMsg, "Funkenwerk Video", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
+            catch { }
         }
 
-        private void RefreshFinishedVideosList()
+        private void RevealCurrentVideo_Click(object sender, RoutedEventArgs e)
         {
-            if (FinishedVideosStackPanel == null) return;
-            FinishedVideosStackPanel.Children.Clear();
-
-            Directory.CreateDirectory(_outputFolderDir);
-            var files = Directory.GetFiles(_outputFolderDir, "*.mp4")
-                .OrderByDescending(f => File.GetLastWriteTimeUtc(f))
-                .Take(6)
-                .ToList();
-
-            string textPrimary = _isDarkMode ? "#FFFFFF" : "#111827";
-            string textMuted = _isDarkMode ? "#9CA3AF" : "#4B5563";
-            string rowBg = _isDarkMode ? "#121212" : "#F3F4F6";
-
-            if (files.Count == 0)
+            try
             {
-                FinishedVideosStackPanel.Children.Add(new TextBlock
+                if (!string.IsNullOrWhiteSpace(_currentVideoPath) && File.Exists(_currentVideoPath))
                 {
-                    Text = "Noch keine geschnittenen Videos im Ordner 'Fertige Videos'.",
-                    Foreground = BrushFromHex(textMuted),
-                    FontSize = 11,
-                    Margin = new Thickness(0, 4, 0, 4)
-                });
-                return;
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "explorer.exe",
+                        Arguments = $"/select,\"{_currentVideoPath}\"",
+                        UseShellExecute = true
+                    });
+                }
+                else
+                {
+                    OpenFolderInExplorer(ViralVideographerEngine.GetDesktopDir());
+                }
             }
-
-            foreach (var f in files)
-            {
-                var fi = new FileInfo(f);
-                var row = new Border
-                {
-                    Background = BrushFromHex(rowBg),
-                    CornerRadius = new CornerRadius(7),
-                    Padding = new Thickness(8, 6, 8, 6),
-                    Margin = new Thickness(0, 0, 0, 5),
-                    Cursor = Cursors.Hand,
-                    ToolTip = "Klicken, um das fertige Video im Studio-Player abzuspielen"
-                };
-
-                var g = new Grid();
-                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-                var st = new StackPanel();
-                st.Children.Add(new TextBlock
-                {
-                    Text = fi.Name,
-                    Foreground = BrushFromHex(textPrimary),
-                    FontSize = 11,
-                    FontWeight = FontWeights.SemiBold,
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                });
-                st.Children.Add(new TextBlock
-                {
-                    Text = $"{(fi.Length / (1024.0 * 1024.0)):0.1} MB · {fi.LastWriteTime:dd.MM. HH:mm}",
-                    Foreground = BrushFromHex(textMuted),
-                    FontSize = 10
-                });
-                Grid.SetColumn(st, 0);
-                g.Children.Add(st);
-
-                var openBtn = new TextBlock
-                {
-                    Text = "📂",
-                    Foreground = BrushFromHex("#C5A059"),
-                    FontSize = 13,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(8, 0, 0, 0),
-                    ToolTip = "Im Windows Explorer markieren"
-                };
-                string capturedPath = f;
-                openBtn.MouseLeftButtonUp += (s, e) =>
-                {
-                    e.Handled = true;
-                    Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{capturedPath}\"") { UseShellExecute = true });
-                };
-                Grid.SetColumn(openBtn, 1);
-                g.Children.Add(openBtn);
-
-                row.Child = g;
-                row.MouseLeftButtonUp += (s, e) =>
-                {
-                    PlaySingleClipSegmentInPreview(
-                        capturedPath,
-                        0,
-                        9999,
-                        $"🎬 FERTIGES MASTER-VIDEO: {fi.Name}",
-                        "✓ FERTIG GESCHNITTENES MP4");
-                };
-
-                FinishedVideosStackPanel.Children.Add(row);
-            }
+            catch { }
         }
     }
 }

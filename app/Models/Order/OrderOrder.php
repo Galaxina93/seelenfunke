@@ -645,8 +645,13 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
                     // Safety check to prevent duplicate vouchers for this item
                     $alreadyExists = \App\Models\Marketing\MarketingGiftVoucher::where('order_item_id', $item->id)->exists();
                     if (!$alreadyExists) {
-                        // Der Gutscheinwert darf niemals den tatsächlich berechneten/bezahlten Einzelpreis des Artikels überschreiten
-                        $paidVoucherValue = max(500, min(100000, (int) ($item->unit_price > 0 ? $item->unit_price : ($config['amount_cents'] ?? 500))));
+                        $cardColor = (($config['card_color'] ?? 'gold') === 'black') ? 'black' : 'gold';
+                        $isPostDelivery = (($config['delivery_method'] ?? 'email') === 'post');
+                        $surchargeCents = ($cardColor === 'black' && $isPostDelivery) ? 150 : 0;
+                        $unitNetVoucherPrice = $item->unit_price > 0 ? max(0, (int) $item->unit_price - $surchargeCents) : (int) ($config['amount_cents'] ?? 500);
+                        $configuredAmount = isset($config['amount_cents']) ? (int) $config['amount_cents'] : $unitNetVoucherPrice;
+                        // Der Gutscheinwert darf niemals den tatsächlich berechneten/bezahlten Einzelpreis (abzgl. Karten-Design-Aufschlag) überschreiten
+                        $paidVoucherValue = max(500, min(100000, min($unitNetVoucherPrice, $configuredAmount)));
 
                         for ($i = 0; $i < $item->quantity; $i++) {
                             $code = \App\Models\Marketing\MarketingGiftVoucher::generateCode();
@@ -658,8 +663,9 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
                                 'current_balance' => $paidVoucherValue,
                                 'recipient_name' => (string) ($config['recipient_name'] ?? $order->customer_name ?: 'Beschenkte Person'),
                                 'recipient_email' => $config['recipient_email'] ?? null,
-                                'personal_message' => $rawPersonalMsg !== null ? mb_substr((string) $rawPersonalMsg, 0, 160) : null,
+                                'personal_message' => $rawPersonalMsg !== null ? mb_substr((string) $rawPersonalMsg, 0, 100) : null,
                                 'delivery_method' => $config['delivery_method'] ?? 'email',
+                                'card_color' => $cardColor,
                                 'is_active' => true,
                                 'valid_until' => now()->addYears(3)->endOfYear(),
                             ]);

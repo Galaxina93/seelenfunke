@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Windows;
 
@@ -8,6 +9,9 @@ namespace Funkenwerk
 {
     public partial class App : Application
     {
+        [DllImport("kernel32.dll")]
+        private static extern bool AttachConsole(int dwProcessId);
+
         private static string RedactSensitiveCrashDetails(string raw)
         {
             if (string.IsNullOrEmpty(raw)) return "";
@@ -29,6 +33,32 @@ namespace Funkenwerk
             };
 
             base.OnStartup(e);
+
+            if (e.Args != null && e.Args.Contains("--self-test", StringComparer.OrdinalIgnoreCase))
+            {
+                AttachConsole(-1);
+                Dispatcher.InvokeAsync(async () =>
+                {
+                    try
+                    {
+                        if (MainWindow is MainWindow mw)
+                        {
+                            bool ok = await mw.RunAutomatedSuiteSelfTestAsync();
+                            Environment.Exit(ok ? 0 : 1);
+                        }
+                        else
+                        {
+                            Environment.Exit(1);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("SELF-TEST EXCEPTION: " + RedactSensitiveCrashDetails(ex.Message));
+                        Environment.Exit(2);
+                    }
+                });
+                return;
+            }
 
             if (e.Args != null && e.Args.Contains("--verify-camera-studio", StringComparer.OrdinalIgnoreCase))
             {

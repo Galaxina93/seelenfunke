@@ -64,8 +64,16 @@ Am unteren Rand des Wecker-Bereichs befindet sich eine eigene Sub-Tab-Navigation
   * `Steckdose 2 (Kaffee / Büro)` -> `192.168.188.106`
   * `Steckdose 3 (Laser / Zusatz)` -> `192.168.188.123`
 
-### 3.3 KI-Morgen-Sprachbriefing (`TextToSpeech`)
-* Ist beim Wecker **„KI-Morgen-Briefing“** aktiviert, begrüßt die App Alina beim Aufstehen über die native deutsche Android-Sprachausgabe (`TextToSpeech`, `Locale.GERMANY`), nennt die aktuelle Uhrzeit, bestätigt das Einschalten der Smart-Home-Steckdosen und liest die wichtigsten gecachten Aufgaben und Kalendereinträge des Tages vor.
+### 3.3 Sequenzielle Weckton- & Funkira-Sprachbriefing-Steuerung (`Aoede` / `USAGE_ALARM`)
+* **WakeLock & `STREAM_ALARM`-Garantie:** Beim Auslösen eines Weckers fordert [`FunkenwerkAlarmManager.kt`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/util/FunkenwerkAlarmManager.kt) sofort einen `PowerManager.PARTIAL_WAKE_LOCK` (`Funkenwerk:SmartAlarmWakeLock`) an, hebt die Wecker-Lautstärke (`AudioManager.STREAM_ALARM`) bei Bedarf auf mindestens 65 % an und nutzt für alle Medien-Streams strikt `AudioAttributes.USAGE_ALARM` (inkl. Vibration und Fallback auf `R.raw.open_project_brain`), sodass der Wecker selbst im lautlosen Modus oder Schlafenszeit-Modus hörbar klingelt.
+* **Strikte Sequenzierung ohne Überlagerung (`triggerAlarmSequence`):**
+  1. Zuerst ertönt für ~4,2 Sekunden ausschließlich der **Weckton** (`activeAlarmPlayer`), während im Hintergrund parallel Funkiras Sprachdatei (`.wav`, 24 kHz) synthetisiert bzw. geladen wird.
+  2. Sobald die Sprachdatei bereitsteht, **pausiert der Weckton samt Vibration vollständig** (`pauseAlarmRingtoneOnly`), sodass Weckton und KI-Ansage sich **niemals überlagern**.
+  3. Anschließend spricht **Funkira mit ihrer echten Stimme (`Aoede`)** über die Gemini Native Audio Engine (`synthesizeGeminiAoedeDirect` bzw. Backend-Fallback `POST /api/funki/routine/morning-briefing-tts`) das personalisierte Morgen-Briefing (Uhrzeit, Smart-Home-Schaltstatus, Kalendentermine, offene Aufgaben). Nur bei komplett fehlender Internet-/WLAN-Verbindung greift als Offline-Notanker die System-TTS (ebenfalls auf `USAGE_ALARM`).
+  4. Nach Ende der Sprachansage setzt nach 1,5 Sekunden Pause der Weckton wieder ein (`resumeAlarmRingtoneOnly`), bis Alina auf **„Aufstehen & Sync“** oder **„5 Min Schlummern“** tippt.
+
+### 3.4 Sofort-Wiedergabe eines Zufallslieds beim Klick auf eine Musik-Playlist
+* Sowohl in der **Funkenwerk Android App** ([`MusicPlayerManager.kt`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/util/MusicPlayerManager.kt) & [`MusicTabContent.kt`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/ui/screens/MusicTabContent.kt)), im **Webportal** ([`ManagementMusic.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Management/ManagementMusic.php) & [`global-music-player.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/components/backend/global-music-player.blade.php)) als auch in der **Windows Desktop Suite** ([`MainWindow.xaml.cs`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk/MainWindow.xaml.cs)) startet beim Klick auf eine Playlist (`Alle`, `Favoriten` oder eine eigene Playlist) sofort automatisch **1 zufälliger Song** aus dieser Playlist (unter Bevorzugung lokal gecachter Tracks für 0 ms Startzeit).
 
 ---
 

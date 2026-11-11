@@ -4441,8 +4441,8 @@ trait AiSystemFuncs
                 return ['status' => 'error', 'message' => 'Gemini API Key fehlt. Websuche nicht möglich.'];
             }
 
-            // Wir nutzen Gemini 2.5 Flash für schnelle, tiefe Suche via Search Grounding
-            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . $apiKey;
+            // Wir nutzen Gemini 3 Flash für schnelle, tiefe Suche via Search Grounding
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=" . $apiKey;
 
             $payload = [
                 "contents" => [

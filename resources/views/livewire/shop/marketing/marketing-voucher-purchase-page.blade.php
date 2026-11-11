@@ -19,37 +19,49 @@
                     {{-- Deko Hintergrundlicht --}}
                     <div class="absolute -top-40 -right-40 w-80 h-80 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-all duration-700"></div>
 
-                    <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center justify-between mb-6 gap-2 flex-wrap">
                         <h3 class="text-lg font-serif font-bold text-gray-800 flex items-center gap-2">
                             <span class="w-2.5 h-2.5 bg-primary rounded-full animate-pulse"></span>
                             Live-Vorschau deines Gutscheins
                         </h3>
-                        <span class="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-primary/10 text-primary">
-                            Schritt {{ $currentStep }}/3
-                        </span>
+                        <div class="flex items-center gap-1.5">
+                            @if($cardColor === 'black')
+                                <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-gray-900 text-white border border-gray-700">
+                                    Schwarze Edition{{ $deliveryMethod === 'post' ? ' (+ 1,50 €)' : ' (PDF Gratis)' }}
+                                </span>
+                            @else
+                                <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">
+                                    Gold-Edition
+                                </span>
+                            @endif
+                            <span class="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-primary/10 text-primary">
+                                Schritt {{ $currentStep }}/3
+                            </span>
+                        </div>
                     </div>
 
-                    {{-- Die Gutschein-Karte selbst (In edlem, hellem Creme-/Champagner-Farbton) --}}
-                    <div class="w-full aspect-[1.586/1] bg-gradient-to-br from-[#FAF7F2] via-[#FDFBF7] to-[#F3ECE0] border-2 border-primary/35 rounded-2xl p-6 relative flex flex-col justify-between shadow-md overflow-hidden min-h-[260px]">
-                        {{-- Goldene Eckenverzierungen --}}
-                        <div class="absolute top-2.5 left-2.5 w-4 h-4 border-t-2 border-l-2 border-primary/60"></div>
-                        <div class="absolute top-2.5 right-2.5 w-4 h-4 border-t-2 border-r-2 border-primary/60"></div>
-                        <div class="absolute bottom-2.5 left-2.5 w-4 h-4 border-b-2 border-l-2 border-primary/60"></div>
-                        <div class="absolute bottom-2.5 right-2.5 w-4 h-4 border-b-2 border-r-2 border-primary/60"></div>
+                    {{-- Die Gutschein-Karte selbst (Dynamisch: Gold-Edition vs. Schwarze Edition) --}}
+                    @php $isBlackCard = $cardColor === 'black'; @endphp
+                    <div class="w-full aspect-[1.586/1] rounded-2xl p-6 relative flex flex-col justify-between shadow-md overflow-hidden min-h-[260px] transition-all duration-300 border-2 {{ $isBlackCard ? 'bg-gradient-to-br from-[#161616] via-[#1F1F1F] to-[#0D0D0D] border-gray-500/80 text-white' : 'bg-gradient-to-br from-[#FAF7F2] via-[#FDFBF7] to-[#F3ECE0] border-primary/35 text-gray-900' }}">
+                        {{-- Eckenverzierungen --}}
+                        <div class="absolute top-2.5 left-2.5 w-4 h-4 border-t-2 border-l-2 {{ $isBlackCard ? 'border-gray-300/75' : 'border-primary/60' }}"></div>
+                        <div class="absolute top-2.5 right-2.5 w-4 h-4 border-t-2 border-r-2 {{ $isBlackCard ? 'border-gray-300/75' : 'border-primary/60' }}"></div>
+                        <div class="absolute bottom-2.5 left-2.5 w-4 h-4 border-b-2 border-l-2 {{ $isBlackCard ? 'border-gray-300/75' : 'border-primary/60' }}"></div>
+                        <div class="absolute bottom-2.5 right-2.5 w-4 h-4 border-b-2 border-r-2 {{ $isBlackCard ? 'border-gray-300/75' : 'border-primary/60' }}"></div>
 
                         {{-- Logo im Hintergrund --}}
-                        <div class="absolute inset-0 flex items-center justify-center opacity-[0.04] pointer-events-none select-none">
+                        <div class="absolute inset-0 flex items-center justify-center pointer-events-none select-none {{ $isBlackCard ? 'opacity-[0.07] invert brightness-200' : 'opacity-[0.04]' }}">
                             <img src="{{ URL::to('/shop/projekt/logo/mein-seelenfunke-logo.svg') }}" class="w-64 h-auto" alt="Mein Seelenfunke Logo">
                         </div>
 
                         {{-- Header --}}
                         <div class="flex justify-between items-start gap-3 z-10">
                             <div>
-                                <p class="text-xs uppercase tracking-widest text-primary font-bold">Geschenkgutschein</p>
-                                <p class="text-[10px] text-gray-500 tracking-wider font-mono mt-0.5">SEELENFUNKE-XXXX-XXXX</p>
+                                <p class="text-xs uppercase tracking-widest font-bold {{ $isBlackCard ? 'text-gray-200' : 'text-primary' }}">Geschenkgutschein</p>
+                                <p class="text-[10px] tracking-wider font-mono mt-0.5 {{ $isBlackCard ? 'text-gray-400' : 'text-gray-500' }}">SEELENFUNKE-XXXX-XXXX</p>
                             </div>
                             <div class="text-right shrink-0">
-                                <span class="text-3xl sm:text-4xl font-serif font-bold text-primary whitespace-nowrap">
+                                <span class="text-3xl sm:text-4xl font-serif font-bold whitespace-nowrap {{ $isBlackCard ? 'text-white' : 'text-primary' }}">
                                     {{ number_format($this->selectedAmount, 2, ',', '.') }}&nbsp;€
                                 </span>
                             </div>
@@ -58,24 +70,24 @@
                         {{-- Body (Nachricht & Empfänger) --}}
                         <div class="my-4 z-10">
                             @if(trim((string) $recipientName) !== '')
-                                <p class="text-xs text-gray-500 mb-0.5">Für:</p>
-                                <p class="text-lg font-serif font-bold text-gray-900 tracking-wide truncate mb-2">{{ $recipientName }}</p>
+                                <p class="text-xs mb-0.5 {{ $isBlackCard ? 'text-gray-400' : 'text-gray-500' }}">Für:</p>
+                                <p class="text-lg font-serif font-bold tracking-wide truncate mb-2 {{ $isBlackCard ? 'text-white' : 'text-gray-900' }}">{{ $recipientName }}</p>
                             @else
-                                <p class="text-xs text-gray-400 italic mb-3">Empfänger wird in Schritt 2 eingetragen...</p>
+                                <p class="text-xs italic mb-3 {{ $isBlackCard ? 'text-gray-500' : 'text-gray-400' }}">Empfänger wird in Schritt 2 eingetragen...</p>
                             @endif
 
                             @if(trim((string) $personalMessage) !== '')
-                                <p class="text-xs text-gray-500 mb-0.5">Deine Nachricht:</p>
-                                <p class="text-sm font-sans italic text-gray-700 line-clamp-3 leading-relaxed">„{{ $personalMessage }}“</p>
+                                <p class="text-xs mb-0.5 {{ $isBlackCard ? 'text-gray-400' : 'text-gray-500' }}">Deine Nachricht:</p>
+                                <p class="text-sm font-sans italic line-clamp-3 leading-relaxed {{ $isBlackCard ? 'text-gray-200' : 'text-gray-700' }}">„{{ $personalMessage }}“</p>
                             @else
-                                <p class="text-xs text-gray-400 italic">Persönliche Widmung (optional)...</p>
+                                <p class="text-xs italic {{ $isBlackCard ? 'text-gray-500' : 'text-gray-400' }}">Persönliche Widmung (optional)...</p>
                             @endif
                         </div>
 
                         {{-- Footer --}}
-                        <div class="flex justify-between items-end border-t border-primary/20 pt-3 z-10">
-                            <p class="text-[9px] text-gray-500">Einlösbar auf www.mein-seelenfunke.de</p>
-                            <p class="text-[9px] text-primary font-bold uppercase tracking-wider">Mein Seelenfunke</p>
+                        <div class="flex justify-between items-end border-t pt-3 z-10 {{ $isBlackCard ? 'border-gray-600/60' : 'border-primary/20' }}">
+                            <p class="text-[9px] {{ $isBlackCard ? 'text-gray-400' : 'text-gray-500' }}">Einlösbar auf www.mein-seelenfunke.de</p>
+                            <p class="text-[9px] font-bold uppercase tracking-wider {{ $isBlackCard ? 'text-gray-200' : 'text-primary' }}">Mein Seelenfunke</p>
                         </div>
                     </div>
 
@@ -85,13 +97,13 @@
                             <svg class="w-5 h-5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                             <div>
                                 <strong class="text-gray-800">Digitaler Versand (E-Mail):</strong>
-                                <p class="mt-0.5">Der Gutschein wird sofort nach erfolgreicher Zahlung als hochauflösendes PDF an {{ $recipientEmail ?: 'die angegebene E-Mail-Adresse' }} versendet. Perfekt zum Selbstdrucken oder Weiterleiten.</p>
+                                <p class="mt-0.5">Der Gutschein wird sofort nach erfolgreicher Zahlung als hochauflösendes PDF ({{ $isBlackCard ? 'Schwarze Edition' : 'Gold-Edition' }}) an {{ $recipientEmail ?: 'die angegebene E-Mail-Adresse' }} versendet. Perfekt zum Selbstdrucken oder Weiterleiten.</p>
                             </div>
                         @else
                             <svg class="w-5 h-5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5a2 2 0 10-2 2h2zm-2 4h12M5 15h14" /></svg>
                             <div>
                                 <strong class="text-gray-800">Postalischer Versand (+ {{ number_format($this->shippingCost, 2, ',', '.') }} €):</strong>
-                                <p class="mt-0.5">Wir gravieren deinen Gutschein per Laser auf eine edle goldene Metallkarte und versenden sie im schwarzen Umschlag mit goldenen Linien und goldenem Wachssiegel-Aufkleber an deine Lieferadresse.</p>
+                                <p class="mt-0.5">Wir gravieren deinen Gutschein per Laser auf eine edle {{ $isBlackCard ? 'schwarze' : 'goldene' }} Metallkarte und versenden sie im schwarzen Umschlag mit goldenen Linien und goldenem Wachssiegel-Aufkleber an deine Lieferadresse.</p>
                             </div>
                         @endif
                     </div>
@@ -199,7 +211,7 @@
                         @if($currentStep > 2 && $this->isStep2Valid)
                             <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs text-emerald-900">
                                 <svg class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                                <span>Für: <strong>{{ \Illuminate\Support\Str::limit($recipientName, 24) }}</strong></span>
+                                <span>Für: <strong>{{ \Illuminate\Support\Str::limit($recipientName, 24) }}</strong> · <strong>{{ $cardColor === 'black' ? ($deliveryMethod === 'post' ? 'Schwarze Karte (+ 1,50 €)' : 'Schwarze Edition (PDF Gratis)') : 'Gold-Edition' }}</strong></span>
                                 <button type="button" wire:click="goToStep(2)" class="ml-1 text-[11px] font-bold text-primary hover:underline cursor-pointer">Ändern</button>
                             </div>
                         @endif
@@ -345,16 +357,54 @@
                                 </label>
                                 <textarea wire:model.live="personalMessage"
                                           rows="3"
-                                          maxlength="160"
+                                          maxlength="100"
                                           placeholder="Schreibe eine liebevolle Widmung für die Gutscheinkarte..."
                                           class="w-full bg-white border-2 @error('personalMessage') border-red-500 focus:border-red-500 @else border-gray-300 focus:border-primary @enderror rounded-2xl py-3.5 px-5 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"></textarea>
                                 <div class="flex justify-between items-center mt-1.5 px-1">
                                     <span class="text-[11px] text-gray-500">Wird auf dem Gutschein unter dem Empfängernamen verewigt</span>
-                                    <span class="text-[11px] {{ mb_strlen((string) $personalMessage) > 160 ? 'text-red-600 font-bold' : 'text-gray-500 font-medium' }}">{{ mb_strlen((string) $personalMessage) }}/160</span>
+                                    <span class="text-[11px] {{ mb_strlen((string) $personalMessage) > 100 ? 'text-red-600 font-bold' : 'text-gray-500 font-medium' }}">{{ mb_strlen((string) $personalMessage) }}/100</span>
                                 </div>
                                 @error('personalMessage')
                                     <span class="text-red-600 text-xs font-semibold mt-1 block">⚠️ {{ $message }}</span>
                                 @enderror
+                            </div>
+
+                            {{-- KARTEN-DESIGN WÄHLEN (GOLD STANDARD VS. SCHWARZE EDITION + 1,50 €) --}}
+                            <div class="pt-2 border-t border-gray-100">
+                                <label class="block text-xs uppercase tracking-wider text-gray-700 font-bold mb-2.5 ml-1">
+                                    Karten-Design wählen
+                                </label>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {{-- Gold-Edition (Standard · 0,00 €) --}}
+                                    <button type="button"
+                                            wire:click="$set('cardColor', 'gold')"
+                                            class="p-4 rounded-2xl border-2 text-left transition-all duration-300 flex flex-col justify-between cursor-pointer {{ $cardColor === 'gold' ? 'border-primary bg-primary/10 shadow-xs' : 'border-gray-200 bg-white hover:border-gray-300' }}">
+                                        <div class="flex items-center justify-between w-full mb-2">
+                                            <div class="flex items-center gap-2.5">
+                                                <span class="w-5 h-5 rounded-full bg-gradient-to-br from-[#FAF7F2] via-[#E8D5B5] to-[#C5A059] border border-primary/50 shrink-0"></span>
+                                                <span class="text-sm font-bold {{ $cardColor === 'gold' ? 'text-primary' : 'text-gray-900' }}">Gold-Edition</span>
+                                            </div>
+                                            <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">Inklusive</span>
+                                        </div>
+                                        <span class="text-xs text-gray-500 leading-relaxed">Klassisches Champagner-Gold mit feinen goldenen Linien.</span>
+                                    </button>
+
+                                    {{-- Schwarze Edition (+ 1,50 € nur bei physischer Metallkarte per Post) --}}
+                                    <button type="button"
+                                            wire:click="$set('cardColor', 'black')"
+                                            class="p-4 rounded-2xl border-2 text-left transition-all duration-300 flex flex-col justify-between cursor-pointer {{ $cardColor === 'black' ? 'border-primary bg-primary/10 shadow-xs' : 'border-gray-200 bg-white hover:border-gray-300' }}">
+                                        <div class="flex items-center justify-between w-full mb-2 gap-1">
+                                            <div class="flex items-center gap-2.5">
+                                                <span class="w-5 h-5 rounded-full bg-gradient-to-br from-[#2B2B2B] via-[#1A1A1A] to-[#0A0A0A] border border-gray-400 shrink-0"></span>
+                                                <span class="text-sm font-bold {{ $cardColor === 'black' ? 'text-primary' : 'text-gray-900' }}">Schwarze Edition</span>
+                                            </div>
+                                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-bold whitespace-nowrap">
+                                                {{ $deliveryMethod === 'post' ? '+ 1,50 € (Metallkarte)' : 'PDF Gratis · Post + 1,50 €' }}
+                                            </span>
+                                        </div>
+                                        <span class="text-xs text-gray-500 leading-relaxed">Als E-Mail-PDF kostenlos. Als echte schwarze Metallkarte per Post + 1,50 €.</span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -391,7 +441,7 @@
                                 <span class="text-xs font-semibold text-gray-400">Schritt 3 von 3</span>
                             </div>
                             <p class="text-xs sm:text-sm text-gray-500">
-                                Entscheide, ob dein Gutschein sofort digital per E-Mail oder als lasergravierte goldene Metallkarte im edlen schwarzen Umschlag mit goldenem Siegel per Post versendet werden soll.
+                                Entscheide, ob dein Gutschein sofort digital per E-Mail oder als lasergravierte {{ $cardColor === 'black' ? 'schwarze' : 'goldene' }} Metallkarte im edlen schwarzen Umschlag mit goldenem Siegel per Post versendet werden soll.
                             </p>
                         </div>
 
@@ -413,7 +463,7 @@
                                     <span class="text-sm font-bold {{ $deliveryMethod === 'post' ? 'text-primary' : 'text-gray-800' }}">✉️ Per Post im Umschlag</span>
                                     <span class="text-xs px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-bold">+ {{ number_format($this->postShippingCost, 2, ',', '.') }} €</span>
                                 </div>
-                                <span class="text-xs text-gray-500 leading-relaxed">Lasergravierte goldene Metallkarte im schwarzen Umschlag mit goldenem Siegel.</span>
+                                <span class="text-xs text-gray-500 leading-relaxed">Lasergravierte {{ $cardColor === 'black' ? 'schwarze' : 'goldene' }} Metallkarte im schwarzen Umschlag mit goldenem Siegel.</span>
                             </button>
                         </div>
 
@@ -441,10 +491,46 @@
                                 @else
                                     <span class="text-[11px] text-gray-500 mt-1.5 block ml-1">Pflichtfeld · Hierhin wird der Gutschein digital nach Abschluss des Kaufs versendet.</span>
                                 @enderror
+
+                                @if($cardColor === 'black')
+                                    <div class="mt-3 p-3.5 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-700 flex items-start justify-between gap-3">
+                                        <div>
+                                            <strong class="text-gray-900">Schwarze Edition als E-Mail-PDF (0,00 € Aufpreis):</strong>
+                                            <p class="mt-0.5 text-gray-600">Der Aufpreis von 1,50 € fällt nur an, wenn du dich für die echte lasergravierte schwarze Metallkarte per Post entscheidest.</p>
+                                        </div>
+                                        <button type="button" wire:click="$set('deliveryMethod', 'post')" class="shrink-0 px-3 py-1.5 rounded-lg bg-white border border-gray-300 hover:border-primary text-gray-800 hover:text-primary font-bold text-[11px] transition-colors cursor-pointer">
+                                            Metallkarte wählen
+                                        </button>
+                                    </div>
+                                @endif
                             </div>
                         @else
                             <div class="p-5 rounded-2xl bg-gray-50 border border-gray-200 text-xs text-gray-600 animate-fade-in space-y-4">
                                 <div>
+                                    <span class="font-bold text-gray-800 block mb-2">Gewählte Metallkarte für den Postversand:</span>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <button type="button"
+                                                wire:click="$set('cardColor', 'gold')"
+                                                class="p-3 rounded-xl border-2 text-left transition-all flex items-center justify-between gap-2 cursor-pointer {{ $cardColor === 'gold' ? 'border-primary bg-white shadow-2xs' : 'border-gray-200 bg-white/70 hover:border-gray-300' }}">
+                                            <span class="flex items-center gap-2 font-bold {{ $cardColor === 'gold' ? 'text-primary' : 'text-gray-800' }}">
+                                                <span class="w-4 h-4 rounded-full bg-gradient-to-br from-[#FAF7F2] via-[#E8D5B5] to-[#C5A059] border border-primary/50 shrink-0"></span>
+                                                <span>Goldene Metallkarte</span>
+                                            </span>
+                                            <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">Inklusive</span>
+                                        </button>
+                                        <button type="button"
+                                                wire:click="$set('cardColor', 'black')"
+                                                class="p-3 rounded-xl border-2 text-left transition-all flex items-center justify-between gap-2 cursor-pointer {{ $cardColor === 'black' ? 'border-primary bg-white shadow-2xs' : 'border-gray-200 bg-white/70 hover:border-gray-300' }}">
+                                            <span class="flex items-center gap-2 font-bold {{ $cardColor === 'black' ? 'text-primary' : 'text-gray-800' }}">
+                                                <span class="w-4 h-4 rounded-full bg-gradient-to-br from-[#2B2B2B] via-[#1A1A1A] to-[#0A0A0A] border border-gray-400 shrink-0"></span>
+                                                <span>Schwarze Metallkarte</span>
+                                            </span>
+                                            <span class="text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">+ 1,50 €</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="border-t border-gray-200/80 pt-3">
                                     <span class="font-bold text-gray-800 block mb-1">📍 Wichtiger Hinweis zur Post-Zustellung:</span>
                                     Die Lieferadresse für den Post-Gutschein gibst du ganz bequem im nächsten Schritt direkt während des Checkouts an. Falls du noch andere physische Artikel bestellst, senden wir alles zusammen in einem liebevoll verpackten Paket.
                                 </div>
@@ -453,16 +539,16 @@
                                     <span class="font-bold text-gray-800 block">Deine Vorteile beim Postversand:</span>
                                     <ul class="space-y-1.5 pl-0.5">
                                         <li class="flex items-center gap-2 text-gray-700">
-                                            <svg class="w-4 h-4 text-green-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
+                                            <svg class="w-4 h-4 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
                                             <span>Edler schwarzer Umschlag mit goldenen Linien</span>
                                         </li>
                                         <li class="flex items-center gap-2 text-gray-700">
-                                            <svg class="w-4 h-4 text-green-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
+                                            <svg class="w-4 h-4 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
                                             <span>Goldenes Siegel</span>
                                         </li>
                                         <li class="flex items-center gap-2 text-gray-700">
-                                            <svg class="w-4 h-4 text-green-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
-                                            <span>Lasergravierte goldene Metallkarte (Scheckkartenformat)</span>
+                                            <svg class="w-4 h-4 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
+                                            <span>Lasergravierte {{ $cardColor === 'black' ? 'schwarze' : 'goldene' }} Metallkarte (Scheckkartenformat)</span>
                                         </li>
                                     </ul>
                                 </div>
@@ -471,10 +557,20 @@
 
                         {{-- Finale Zusammenfassung & In den Warenkorb legen (Luftig & über volle Breite) --}}
                         <div class="bg-gray-50 border border-gray-200 rounded-2xl p-6 sm:p-7 space-y-6">
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs border-b border-gray-200/80 pb-5">
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs border-b border-gray-200/80 pb-5">
                                 <div>
                                     <span class="text-gray-400 block uppercase tracking-wider text-[10px] font-bold mb-1">Gutscheinwert</span>
                                     <span class="font-bold text-gray-900 text-sm whitespace-nowrap">{{ number_format($this->selectedAmount, 2, ',', '.') }}&nbsp;€</span>
+                                </div>
+                                <div>
+                                    <span class="text-gray-400 block uppercase tracking-wider text-[10px] font-bold mb-1">Karten-Design</span>
+                                    <span class="font-bold text-gray-900 text-sm whitespace-nowrap">
+                                        @if($cardColor === 'black')
+                                            {{ $deliveryMethod === 'post' ? 'Schwarz (+ 1,50 €)' : 'Schwarz (PDF Gratis)' }}
+                                        @else
+                                            Gold (Inklusive)
+                                        @endif
+                                    </span>
                                 </div>
                                 <div>
                                     <span class="text-gray-400 block uppercase tracking-wider text-[10px] font-bold mb-1">Empfänger</span>
@@ -492,6 +588,11 @@
                             <div class="flex flex-wrap items-baseline justify-between gap-4">
                                 <div>
                                     <p class="text-xs uppercase tracking-wider text-gray-500 font-bold">Gesamtsumme</p>
+                                    @if($cardColor === 'black' && $deliveryMethod === 'post')
+                                        <span class="text-xs text-gray-600 font-semibold block">inkl. Schwarze Metallkarte (+ 1,50 €)</span>
+                                    @elseif($cardColor === 'black' && $deliveryMethod === 'email')
+                                        <span class="text-xs text-gray-600 font-semibold block">Schwarze Edition als E-Mail-PDF (0,00 € Aufpreis)</span>
+                                    @endif
                                     @if($this->shippingCost > 0)
                                         <span class="text-xs text-gray-500 block">inkl. Postversand im edlen Umschlag</span>
                                     @else

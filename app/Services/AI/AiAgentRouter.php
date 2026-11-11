@@ -56,7 +56,7 @@ Beispiel falsch: Hier sind die Agenten: [...]";
                 $llmUrl = config('services.gemini.url') ?: 'https://generativelanguage.googleapis.com/v1beta/openai/';
                 $endpoint = rtrim($llmUrl, '/') . '/chat/completions';
                 $apiKey = config('services.gemini.key');
-                $modelName = 'gemini-2.5-flash'; // Forcing working 2.x arch
+                $modelName = 'gemini-3-flash-preview';
             } else {
                 $llmUrl = config('services.mittwald.url') ?: 'https://api.mittwald.example/v1';
                 $endpoint = rtrim($llmUrl, '/') . '/chat/completions';

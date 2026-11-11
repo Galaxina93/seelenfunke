@@ -1,6 +1,11 @@
 package de.meinseelenfunke.app.ui.screens
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -38,12 +43,16 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -61,6 +70,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -93,6 +103,8 @@ import de.meinseelenfunke.app.ui.theme.Gold
 import de.meinseelenfunke.app.ui.theme.Rose500
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
 import de.meinseelenfunke.app.util.FunkenwerkAlarmManager
+import de.meinseelenfunke.app.util.MusicPlayerManager
+import de.meinseelenfunke.app.util.MusicTrackDto
 import de.meinseelenfunke.app.util.SmartAlarmItem
 import de.meinseelenfunke.app.util.SmartPlugDevice
 import de.meinseelenfunke.app.util.TimerPresetItem
@@ -107,6 +119,7 @@ fun AlarmTabContent(
     val context = LocalContext.current
     LaunchedEffect(Unit) {
         FunkenwerkAlarmManager.ensureInitialized(context)
+        MusicPlayerManager.fetchPlaylists(context)
     }
 
     val alarms by FunkenwerkAlarmManager.alarmsFlow.collectAsState()
@@ -116,11 +129,23 @@ fun AlarmTabContent(
     val selectedSubTab by FunkenwerkAlarmManager.activeInnerSubTabFlow.collectAsState() // 0 = Wecker, 1 = Timer, 2 = Stoppuhr
     val smartPlugs by FunkenwerkAlarmManager.smartPlugsFlow.collectAsState()
     val lastSync by FunkenwerkAlarmManager.lastSyncFlow.collectAsState()
+    val isAlarmRinging by FunkenwerkAlarmManager.isAlarmRingingFlow.collectAsState()
+    val ringingAlarmInfo by FunkenwerkAlarmManager.activeRingingAlarmInfoFlow.collectAsState()
 
     var isSyncing by remember { mutableStateOf(false) }
     var showSmartHomeSettingsModal by remember { mutableStateOf(false) }
     var editingAlarm by remember { mutableStateOf<SmartAlarmItem?>(null) }
     var showAddTimerModal by remember { mutableStateOf(false) }
+    var alarmRingInBannerText by remember { mutableStateOf<String?>(null) }
+    var alarmRingInBannerTrigger by remember { mutableIntStateOf(0) }
+    var activeAlarmToast by remember { mutableStateOf<Toast?>(null) }
+
+    LaunchedEffect(alarmRingInBannerTrigger) {
+        if (alarmRingInBannerTrigger > 0 && !alarmRingInBannerText.isNullOrBlank()) {
+            delay(3200L)
+            alarmRingInBannerText = null
+        }
+    }
 
     // Persistent Stopwatch state (runs accurately across minimize & tab switches)
     val stopwatchRunning by FunkenwerkAlarmManager.stopwatchRunningFlow.collectAsState()
@@ -214,6 +239,62 @@ fun AlarmTabContent(
             }
         }
 
+        // 1b. ACTIVE RINGING ALARM BANNER (Always visible when alarm / timer / briefing is playing)
+        if (isAlarmRinging) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 10.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Rose500.copy(alpha = 0.18f))
+                    .border(1.5.dp, Rose500, RoundedCornerShape(16.dp))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "🔔 ${ringingAlarmInfo?.second ?: "Wecker / Alarm aktiv"}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AppTheme.colors.textPrimary
+                    )
+                    Text(
+                        text = if (ringingAlarmInfo != null) "${ringingAlarmInfo!!.third} Uhr" else "Ton läuft",
+                        fontSize = 11.5.sp,
+                        color = Rose500,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (ringingAlarmInfo != null) {
+                        Button(
+                            onClick = {
+                                val (aId, aLabel, aTime) = ringingAlarmInfo!!
+                                FunkenwerkAlarmManager.stopAlarmSound(context)
+                                FunkenwerkAlarmManager.scheduleSnoozeAlarm(context, aId, aLabel, aTime, 5)
+                                Toast.makeText(context, "💤 5 Min. Schlummern aktiviert", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text("5 Min.", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Button(
+                        onClick = {
+                            FunkenwerkAlarmManager.stopAlarmSound(context)
+                            Toast.makeText(context, "Wecker ausgeschaltet", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Rose500, contentColor = Color.White),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text("🛑 Ausschalten", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
         // 2. MAIN CONTENT AREA (Sub-Tab 0 = Wecker, 1 = Timer, 2 = Stoppuhr)
         Box(
             modifier = Modifier
@@ -223,11 +304,27 @@ fun AlarmTabContent(
             when (selectedSubTab) {
                 0 -> WeckerSubTabView(
                     alarms = alarms,
+                    smartPlugs = smartPlugs,
                     isDark = isDark,
+                    ringInBannerText = alarmRingInBannerText,
                     onToggleAlarm = { alarm ->
                         val updated = FunkenwerkAlarmManager.toggleAlarm(context, alarm.id)
-                        if (updated != null && updated.syncWithRoutine) {
-                            viewModel.syncAlarmPackageToPortal()
+                        if (updated != null) {
+                            if (updated.isEnabled) {
+                                val ringInMsg = FunkenwerkAlarmManager.formatTimeUntilAlarm(updated)
+                                alarmRingInBannerText = ringInMsg
+                                alarmRingInBannerTrigger++
+                                activeAlarmToast?.cancel()
+                                val toast = Toast.makeText(context, "⏰ $ringInMsg", Toast.LENGTH_SHORT)
+                                activeAlarmToast = toast
+                                toast.show()
+                            } else {
+                                activeAlarmToast?.cancel()
+                                alarmRingInBannerText = null
+                            }
+                            if (updated.syncWithRoutine) {
+                                viewModel.syncAlarmPackageToPortal()
+                            }
                         }
                     },
                     onEditAlarm = { alarm -> editingAlarm = alarm },
@@ -245,6 +342,11 @@ fun AlarmTabContent(
                             aiBriefingEnabled = true,
                             syncWithRoutine = true
                         )
+                    },
+                    onSwitchPlug = { ip, turnOn ->
+                        FunkenwerkAlarmManager.triggerSmartPlugsAsync(context, listOf(ip), turnOn = turnOn) { _, msg ->
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        }
                     }
                 )
 
@@ -329,10 +431,17 @@ fun AlarmTabContent(
             onSave = { savedAlarm ->
                 FunkenwerkAlarmManager.upsertAlarm(context, savedAlarm)
                 editingAlarm = null
+                if (savedAlarm.isEnabled) {
+                    val ringInMsg = FunkenwerkAlarmManager.formatTimeUntilAlarm(savedAlarm)
+                    alarmRingInBannerText = ringInMsg
+                    alarmRingInBannerTrigger++
+                    activeAlarmToast?.cancel()
+                    val toast = Toast.makeText(context, "⏰ $ringInMsg", Toast.LENGTH_SHORT)
+                    activeAlarmToast = toast
+                    toast.show()
+                }
                 if (savedAlarm.syncWithRoutine) {
-                    viewModel.syncAlarmPackageToPortal { _, msg ->
-                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                    }
+                    viewModel.syncAlarmPackageToPortal()
                 }
             },
             onDelete = { idToDelete ->
@@ -345,9 +454,9 @@ fun AlarmTabContent(
                     Toast.makeText(context, summary, Toast.LENGTH_LONG).show()
                 }
             },
-            onTestAiBriefing = { label, hasPlugs ->
-                FunkenwerkAlarmManager.speakMorningBriefing(context, label, hasPlugs)
-                Toast.makeText(context, "🎙️ KI-Morgen-Briefing wird gesprochen...", Toast.LENGTH_SHORT).show()
+            onTestAiBriefing = { label, hasPlugs, previewTime ->
+                FunkenwerkAlarmManager.speakMorningBriefing(context, label, hasPlugs, previewTime)
+                Toast.makeText(context, "🎙️ KI-Morgen-Briefing ($previewTime Uhr) wird gesprochen...", Toast.LENGTH_SHORT).show()
             }
         )
     }
@@ -481,11 +590,16 @@ private fun AlarmBottomNavItem(
 @Composable
 private fun WeckerSubTabView(
     alarms: List<SmartAlarmItem>,
+    smartPlugs: List<SmartPlugDevice>,
     isDark: Boolean,
+    ringInBannerText: String? = null,
     onToggleAlarm: (SmartAlarmItem) -> Unit,
     onEditAlarm: (SmartAlarmItem) -> Unit,
-    onAddAlarm: () -> Unit
+    onAddAlarm: () -> Unit,
+    onSwitchPlug: (String, Boolean) -> Unit
 ) {
+    val plugNamesByIp = remember(smartPlugs) { smartPlugs.associate { it.ip to it.name } }
+
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -510,7 +624,7 @@ private fun WeckerSubTabView(
                         )
                         .border(cardBorderWidth, cardBorderColor, RoundedCornerShape(24.dp))
                         .clickable { onEditAlarm(alarm) }
-                        .padding(horizontal = 22.dp, vertical = 20.dp)
+                        .padding(horizontal = 22.dp, vertical = 18.dp)
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Row(
@@ -519,10 +633,13 @@ private fun WeckerSubTabView(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = alarm.scheduleText,
-                                fontSize = 14.sp,
+                                text = "${alarm.label} · ${alarm.scheduleText}",
+                                fontSize = 13.5.sp,
                                 fontWeight = if (isEnabled) FontWeight.Bold else FontWeight.Medium,
-                                color = scheduleTextColor
+                                color = scheduleTextColor,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
                             )
 
                             val badges = buildList {
@@ -531,6 +648,7 @@ private fun WeckerSubTabView(
                                 if (alarm.syncWithRoutine) add("🔄 Routine")
                             }
                             if (badges.isNotEmpty()) {
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = badges.joinToString(" · "),
                                     fontSize = 11.sp,
@@ -540,7 +658,7 @@ private fun WeckerSubTabView(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -561,8 +679,153 @@ private fun WeckerSubTabView(
                                 onCheckedChange = { onToggleAlarm(alarm) }
                             )
                         }
+
+                        // Compact info row showing custom Wecksound and linked Tapo plugs
+                        val hasCustomSound = !alarm.alarmSoundTrackId.isNullOrBlank() && alarm.alarmSoundTrackId != "standard"
+                        val plugNames = alarm.smartPlugIps.map { plugNamesByIp[it] ?: it }
+                        if (hasCustomSound || (alarm.triggerPlugOnRing && plugNames.isNotEmpty())) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            val detailParts = buildList {
+                                if (hasCustomSound) add("🎵 ${alarm.effectiveSoundDisplay}")
+                                if (alarm.triggerPlugOnRing && plugNames.isNotEmpty()) add("⚡ ${plugNames.joinToString(", ")}")
+                            }
+                            Text(
+                                text = detailParts.joinToString("  •  "),
+                                fontSize = 11.sp,
+                                color = if (isEnabled) AppTheme.colors.textSecondary else AppTheme.colors.textMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
+            }
+
+            // Direct Smart-Home Steckdosen Overview Card (matching PC Funkenwerk -> Smarthome)
+            if (smartPlugs.isNotEmpty()) {
+                item(key = "smarthome_plugs_overview") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(AppTheme.colors.cardBackground)
+                            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(20.dp))
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Bolt,
+                                    contentDescription = null,
+                                    tint = Gold,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Smart-Home Steckdosen (Heimnetz)",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = AppTheme.colors.textPrimary
+                                )
+                            }
+                            Text(
+                                text = "${smartPlugs.size} Tapo P100",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Gold
+                            )
+                        }
+
+                        smartPlugs.forEach { plug ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(AppTheme.colors.inputBackground)
+                                    .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = plug.name,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = AppTheme.colors.textPrimary
+                                    )
+                                    Text(
+                                        text = "${plug.ip} · ${plug.room}",
+                                        fontSize = 11.sp,
+                                        color = AppTheme.colors.textMuted
+                                    )
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Emerald500.copy(alpha = 0.16f))
+                                            .border(1.dp, Emerald500.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                            .clickable { onSwitchPlug(plug.ip, true) }
+                                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("EIN", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Emerald500)
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Rose500.copy(alpha = 0.16f))
+                                            .border(1.dp, Rose500.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                            .clickable { onSwitchPlug(plug.ip, false) }
+                                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("AUS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Rose500)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Brief floating pill banner showing remaining hours/minutes when an alarm switch is turned ON
+        AnimatedVisibility(
+            visible = !ringInBannerText.isNullOrBlank(),
+            enter = fadeIn() + slideInVertically(initialOffsetY = { it / 2 }),
+            exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 2 }),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 84.dp, start = 16.dp, end = 16.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (isDark) Color(0xF215171E) else Color(0xF5FFFFFF))
+                    .border(1.5.dp, Gold, RoundedCornerShape(16.dp))
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Alarm,
+                    contentDescription = null,
+                    tint = Gold,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = ringInBannerText ?: "",
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AppTheme.colors.textPrimary
+                )
             }
         }
 
@@ -950,8 +1213,9 @@ private fun AlarmEditDialog(
     onSave: (SmartAlarmItem) -> Unit,
     onDelete: (String) -> Unit,
     onTestPlugs: (List<String>) -> Unit,
-    onTestAiBriefing: (String, Boolean) -> Unit
+    onTestAiBriefing: (String, Boolean, String) -> Unit
 ) {
+    val context = LocalContext.current
     var hourStr by remember { mutableStateOf(String.format(Locale.GERMANY, "%02d", initialAlarm.hour)) }
     var minuteStr by remember { mutableStateOf(String.format(Locale.GERMANY, "%02d", initialAlarm.minute)) }
     var label by remember { mutableStateOf(initialAlarm.label) }
@@ -960,11 +1224,40 @@ private fun AlarmEditDialog(
     var triggerPlugs by remember { mutableStateOf(initialAlarm.triggerPlugOnRing) }
     var aiBriefing by remember { mutableStateOf(initialAlarm.aiBriefingEnabled) }
     var syncRoutine by remember { mutableStateOf(initialAlarm.syncWithRoutine) }
+    var selectedSoundTrackId by remember { mutableStateOf(initialAlarm.alarmSoundTrackId ?: "standard") }
+    var selectedSoundTitle by remember { mutableStateOf(initialAlarm.alarmSoundTitle ?: "Standard-Weckton") }
+    var showSoundPickerModal by remember { mutableStateOf(false) }
+    var isPreviewingSound by remember { mutableStateOf(false) }
 
     val dayLabels = listOf(1 to "Mo", 2 to "Di", 3 to "Mi", 4 to "Do", 5 to "Fr", 6 to "Sa", 7 to "So")
 
+    if (showSoundPickerModal) {
+        AlarmSoundPickerDialog(
+            currentSelectedId = selectedSoundTrackId,
+            onDismiss = {
+                FunkenwerkAlarmManager.stopAllActiveAudio()
+                isPreviewingSound = false
+                showSoundPickerModal = false
+            },
+            onSelect = { trackId, trackTitle ->
+                FunkenwerkAlarmManager.stopAllActiveAudio()
+                isPreviewingSound = false
+                selectedSoundTrackId = trackId
+                selectedSoundTitle = trackTitle
+                if (trackId != "standard" && trackId != "random_music") {
+                    MusicPlayerManager.cacheTrackForAlarmAsync(context, trackId)
+                }
+                showSoundPickerModal = false
+            }
+        )
+    }
+
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            FunkenwerkAlarmManager.stopAllActiveAudio()
+            isPreviewingSound = false
+            onDismiss()
+        },
         containerColor = AppTheme.colors.cardBackground,
         shape = RoundedCornerShape(20.dp),
         title = {
@@ -980,7 +1273,10 @@ private fun AlarmEditDialog(
                     color = AppTheme.colors.textPrimary
                 )
                 if (isExisting) {
-                    IconButton(onClick = { onDelete(initialAlarm.id) }) {
+                    IconButton(onClick = {
+                        FunkenwerkAlarmManager.stopAllActiveAudio()
+                        onDelete(initialAlarm.id)
+                    }) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Wecker löschen",
@@ -1089,6 +1385,81 @@ private fun AlarmEditDialog(
                     }
                 }
 
+                // Wecksound Selection (Music Library / Standard)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(AppTheme.colors.inputBackground)
+                        .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(12.dp))
+                        .padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.MusicNote, contentDescription = null, tint = Gold, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Wecksound",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AppTheme.colors.textPrimary
+                            )
+                        }
+                        TextButton(
+                            onClick = {
+                                if (isPreviewingSound) {
+                                    FunkenwerkAlarmManager.stopAllActiveAudio()
+                                    isPreviewingSound = false
+                                } else {
+                                    FunkenwerkAlarmManager.startLoopingAlarmPlayerOnly(context, selectedSoundTrackId)
+                                    isPreviewingSound = true
+                                }
+                            },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        ) {
+                            Text(
+                                text = if (isPreviewingSound) "⏹ Stopp" else "▶ Probe hören",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isPreviewingSound) Rose500 else Gold
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(AppTheme.colors.cardBackground)
+                            .border(1.dp, Gold.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                            .clickable { showSoundPickerModal = true }
+                            .padding(horizontal = 10.dp, vertical = 9.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "🎵 $selectedSoundTitle",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AppTheme.colors.textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "Auswählen ▾",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Gold
+                        )
+                    }
+                }
+
                 // Smart-Home Wi-Fi Plugs Section
                 Column(
                     modifier = Modifier
@@ -1181,7 +1552,12 @@ private fun AlarmEditDialog(
                             )
                         }
                         TextButton(
-                            onClick = { onTestAiBriefing(label, triggerPlugs && selectedPlugIps.isNotEmpty()) },
+                            onClick = {
+                                val h = (hourStr.toIntOrNull() ?: initialAlarm.hour).coerceIn(0, 23)
+                                val m = (minuteStr.toIntOrNull() ?: initialAlarm.minute).coerceIn(0, 59)
+                                val previewTime = String.format(Locale.GERMANY, "%02d:%02d", h, m)
+                                onTestAiBriefing(label, triggerPlugs && selectedPlugIps.isNotEmpty(), previewTime)
+                            },
                             contentPadding = PaddingValues(0.dp)
                         ) {
                             Text("🎙️ Vorschau anhören", fontSize = 11.sp, color = Gold, fontWeight = FontWeight.Bold)
@@ -1226,6 +1602,8 @@ private fun AlarmEditDialog(
         confirmButton = {
             Button(
                 onClick = {
+                    FunkenwerkAlarmManager.stopAllActiveAudio()
+                    isPreviewingSound = false
                     val h = (hourStr.toIntOrNull() ?: initialAlarm.hour).coerceIn(0, 23)
                     val m = (minuteStr.toIntOrNull() ?: initialAlarm.minute).coerceIn(0, 59)
                     val daysList = selectedDays.toList().sorted()
@@ -1241,7 +1619,9 @@ private fun AlarmEditDialog(
                             smartPlugIps = selectedPlugIps.toList(),
                             triggerPlugOnRing = triggerPlugs,
                             aiBriefingEnabled = aiBriefing,
-                            syncWithRoutine = syncRoutine
+                            syncWithRoutine = syncRoutine,
+                            alarmSoundTrackId = selectedSoundTrackId,
+                            alarmSoundTitle = selectedSoundTitle
                         )
                     )
                 },
@@ -1251,11 +1631,189 @@ private fun AlarmEditDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = {
+                FunkenwerkAlarmManager.stopAllActiveAudio()
+                isPreviewingSound = false
+                onDismiss()
+            }) {
                 Text("Abbrechen", color = AppTheme.colors.textMuted)
             }
         }
     )
+}
+
+@Composable
+private fun AlarmSoundPickerDialog(
+    currentSelectedId: String,
+    onDismiss: () -> Unit,
+    onSelect: (trackId: String, trackTitle: String) -> Unit
+) {
+    val context = LocalContext.current
+    val tracks = remember { MusicPlayerManager.getAvailableTracksForAlarm(context) }
+    var searchQuery by remember { mutableStateOf("") }
+    var previewingId by remember { mutableStateOf<String?>(null) }
+
+    val filteredTracks = remember(tracks, searchQuery) {
+        if (searchQuery.isBlank()) tracks
+        else tracks.filter {
+            it.title.contains(searchQuery, ignoreCase = true) ||
+                it.artist.contains(searchQuery, ignoreCase = true)
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = AppTheme.colors.cardBackground,
+        shape = RoundedCornerShape(20.dp),
+        title = {
+            Text(
+                text = "Wecksound wählen",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = AppTheme.colors.textPrimary
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(420.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("Song in Musikbibliothek suchen...", fontSize = 11.sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = alarmOutlinedTextFieldColors()
+                )
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    item {
+                        SoundOptionRow(
+                            title = "Standard-Weckton",
+                            subtitle = "Klassischer Seelenfunke Weckton",
+                            isSelected = currentSelectedId == "standard",
+                            isPreviewing = previewingId == "standard",
+                            onSelect = { onSelect("standard", "Standard-Weckton") },
+                            onTogglePreview = {
+                                if (previewingId == "standard") {
+                                    FunkenwerkAlarmManager.stopAllActiveAudio()
+                                    previewingId = null
+                                } else {
+                                    FunkenwerkAlarmManager.startLoopingAlarmPlayerOnly(context, "standard")
+                                    previewingId = "standard"
+                                }
+                            }
+                        )
+                    }
+                    item {
+                        SoundOptionRow(
+                            title = "Zufallslied aus Musikbibliothek",
+                            subtitle = "${tracks.size} Songs verfügbar",
+                            isSelected = currentSelectedId == "random_music",
+                            isPreviewing = previewingId == "random_music",
+                            onSelect = { onSelect("random_music", "Zufallslied (Musikbibliothek)") },
+                            onTogglePreview = {
+                                if (previewingId == "random_music") {
+                                    FunkenwerkAlarmManager.stopAllActiveAudio()
+                                    previewingId = null
+                                } else {
+                                    FunkenwerkAlarmManager.startLoopingAlarmPlayerOnly(context, "random_music")
+                                    previewingId = "random_music"
+                                }
+                            }
+                        )
+                    }
+
+                    items(filteredTracks, key = { it.id }) { track ->
+                        val displayTitle = if (track.artist.isNotBlank() && track.artist != "Mein Seelenfunke") {
+                            "${track.title} (${track.artist})"
+                        } else {
+                            track.title
+                        }
+                        SoundOptionRow(
+                            title = track.title,
+                            subtitle = track.artist.ifBlank { "Musikbibliothek" },
+                            isSelected = currentSelectedId == track.id,
+                            isPreviewing = previewingId == track.id,
+                            onSelect = { onSelect(track.id, displayTitle) },
+                            onTogglePreview = {
+                                if (previewingId == track.id) {
+                                    FunkenwerkAlarmManager.stopAllActiveAudio()
+                                    previewingId = null
+                                } else {
+                                    MusicPlayerManager.cacheTrackForAlarmAsync(context, track.id)
+                                    FunkenwerkAlarmManager.startLoopingAlarmPlayerOnly(context, track.id)
+                                    previewingId = track.id
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Schließen", color = Gold, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
+}
+
+@Composable
+private fun SoundOptionRow(
+    title: String,
+    subtitle: String,
+    isSelected: Boolean,
+    isPreviewing: Boolean,
+    onSelect: () -> Unit,
+    onTogglePreview: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (isSelected) Gold.copy(alpha = 0.14f) else AppTheme.colors.inputBackground)
+            .border(1.dp, if (isSelected) Gold else AppTheme.colors.cardBorder, RoundedCornerShape(10.dp))
+            .clickable { onSelect() }
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isSelected) Gold else AppTheme.colors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = subtitle,
+                fontSize = 10.5.sp,
+                color = AppTheme.colors.textMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        IconButton(
+            onClick = onTogglePreview,
+            modifier = Modifier.size(32.dp)
+        ) {
+            Icon(
+                imageVector = if (isPreviewing) Icons.Default.Stop else Icons.Default.PlayArrow,
+                contentDescription = "Vorschau",
+                tint = if (isPreviewing) Rose500 else Gold,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
 }
 
 @Composable
@@ -1348,6 +1906,7 @@ private fun SmartHomeAndAiSettingsDialog(
 
     var newPlugName by remember { mutableStateOf("") }
     var newPlugIp by remember { mutableStateOf("") }
+    val smartCameras = remember { FunkenwerkAlarmManager.defaultSmartCameras() }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1402,7 +1961,7 @@ private fun SmartHomeAndAiSettingsDialog(
                 )
 
                 Text(
-                    text = "Hinterlegte WLAN-Steckdosen",
+                    text = "Tapo Smart-Home Steckdosen (P100)",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = Gold
@@ -1469,6 +2028,30 @@ private fun SmartHomeAndAiSettingsDialog(
                         }
                     }) {
                         Icon(Icons.Default.Add, contentDescription = "Hinzufügen", tint = Gold)
+                    }
+                }
+
+                Text(
+                    text = "Tapo Smart-Home Kameras (Funkenwerk)",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Gold
+                )
+                smartCameras.forEach { cam ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(AppTheme.colors.inputBackground)
+                            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(10.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("📷 ${cam.name}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.textPrimary)
+                            Text("${cam.ip} • ${cam.description}", fontSize = 11.sp, color = AppTheme.colors.textMuted)
+                        }
                     }
                 }
 
