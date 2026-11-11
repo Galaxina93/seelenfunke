@@ -518,6 +518,7 @@ namespace FunkenwerkOS
         private readonly Stopwatch _clock = new();
         private readonly DispatcherTimer _frameHeartbeatTimer;
         private double _lastSec;
+        private TimeSpan _lastRenderingTime = TimeSpan.MinValue;
         private bool _running;
         private DateTime _surgeUntilUtc = DateTime.MinValue;
         private double _currentGreenBlend;
@@ -566,9 +567,13 @@ namespace FunkenwerkOS
 
             _frameHeartbeatTimer = new DispatcherTimer(DispatcherPriority.Render)
             {
-                Interval = TimeSpan.FromMilliseconds(8)
+                Interval = TimeSpan.FromMilliseconds(45)
             };
-            _frameHeartbeatTimer.Tick += OnVSyncFrame;
+            _frameHeartbeatTimer.Tick += (_, _) =>
+            {
+                if (_running && (_clock.Elapsed.TotalSeconds - _lastSec) > 0.042)
+                    InvalidateVisual();
+            };
 
             var rng = new Random(20261110);
             for (int i = 0; i < SparkCount; i++)
@@ -607,30 +612,22 @@ namespace FunkenwerkOS
                 _running = true;
                 _clock.Restart();
                 _lastSec = 0;
+                _lastRenderingTime = TimeSpan.MinValue;
                 _fpsWindowStartSec = 0;
                 _fpsFrameCounter = 0;
                 _renderMsAccum = 0;
                 _renderMsMax = 0;
-                try { _lastProcCpuTime = Process.GetCurrentProcess().TotalProcessorTime; } catch { }
-
-                // Keep WPF MediaContext TimeManager locked at 60 Hz VSync continuously!
-                var keepAliveAnim = new System.Windows.Media.Animation.DoubleAnimation(0.999, 1.0, new Duration(TimeSpan.FromSeconds(1)))
-                {
-                    RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
-                    AutoReverse = true
-                };
-                System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(keepAliveAnim, 120);
-                BeginAnimation(OpacityProperty, keepAliveAnim);
+                try { _lastProcCpuTime = Environment.CpuUsage.TotalTime; } catch { }
 
                 CompositionTarget.Rendering += OnVSyncFrame;
                 _frameHeartbeatTimer.Start();
+                InvalidateVisual();
             }
             else if (!active && _running)
             {
                 _running = false;
                 _frameHeartbeatTimer.Stop();
                 CompositionTarget.Rendering -= OnVSyncFrame;
-                BeginAnimation(OpacityProperty, null);
                 _clock.Stop();
             }
         }
@@ -638,9 +635,11 @@ namespace FunkenwerkOS
         public void SetFocusMode(bool active)
         {
             _focusModeActive = active;
-            _portalScale = active ? 0.74 : 1.0;
+            _portalScale = active ? 0.92 : 1.0;
             InvalidateVisual();
         }
+
+        public double GetPortalCenterOffsetY(double height) => height * (_focusModeActive ? 0.065 : 0.04);
 
         public void TriggerIncomingOrderSurge(double durationSeconds = 5.0)
         {
@@ -658,10 +657,16 @@ namespace FunkenwerkOS
 
         private void OnVSyncFrame(object? sender, EventArgs e)
         {
+            if (e is RenderingEventArgs rea)
+            {
+                if (rea.RenderingTime == _lastRenderingTime) return;
+                _lastRenderingTime = rea.RenderingTime;
+            }
+
             double now = _clock.Elapsed.TotalSeconds;
-            double dt = now - _lastSec;
-            if (dt < 0.0142) return; // Lock cleanly to 60.0 FPS (16.67ms)
-            if (dt > 0.05) dt = 0.0166;
+            double rawDt = now - _lastSec;
+            if (rawDt < 0.004) return;
+            double dt = rawDt > 0.05 ? 0.016667 : rawDt;
             _lastSec = now;
 
             bool surging = DateTime.UtcNow < _surgeUntilUtc;
@@ -731,7 +736,7 @@ namespace FunkenwerkOS
 
                 try
                 {
-                    TimeSpan curCpu = Process.GetCurrentProcess().TotalProcessorTime;
+                    TimeSpan curCpu = Environment.CpuUsage.TotalTime;
                     double cpuDeltaSec = (curCpu - _lastProcCpuTime).TotalSeconds;
                     _lastProcCpuTime = curCpu;
                     _measuredCpuPercent = Math.Clamp((cpuDeltaSec / (winElapsed * Math.Max(1, Environment.ProcessorCount))) * 100.0, 0.0, 100.0);
@@ -756,7 +761,7 @@ namespace FunkenwerkOS
             if (w <= 20 || h <= 20) return;
 
             double cx = w * 0.5;
-            double cy = h * (_focusModeActive ? 0.57 : 0.54);
+            double cy = h * 0.5 + GetPortalCenterOffsetY(h);
             double minDim = Math.Min(w, h) * _portalScale;
             double maxOrbitR = minDim * 0.45;
             double orbR = minDim * 0.168;
@@ -962,6 +967,7 @@ namespace FunkenwerkOS
         private readonly TextBlock _headerSubtitleTxt;
         private readonly StackPanel _centerStack;
         private readonly ScaleTransform _centerScaleTransform;
+        private readonly TranslateTransform _centerTranslateTransform;
         private readonly TextBlock _centerStarTxt;
         private readonly TextBlock _orderCountTxt;
         private readonly TextBlock _orderSubLabelTxt;
@@ -969,17 +975,33 @@ namespace FunkenwerkOS
         private readonly TextBlock _statusTxt;
         private readonly TextBlock _clockAndFpsTxt;
         private readonly StackPanel _topBar;
+        private sealed class EnvOrderTrackState
+        {
+            public bool Initialized;
+            public int LastOpenCount = -1;
+            public int LastTotalCount = -1;
+            public string LastLatestOrderKey = "";
+            public HashSet<int> KnownOrderIds = new();
+            public HashSet<string> KnownOrderKeys = new(StringComparer.OrdinalIgnoreCase);
+        }
+
+        private readonly StackPanel _envSwitchPanel;
+        private readonly Button _envLocalBtn;
+        private readonly Button _envStageBtn;
+        private readonly Button _envLiveBtn;
+        private readonly Button _btPairBtn;
         private readonly Button _testBtn;
         private readonly Button _focusBtn;
-        private readonly DispatcherTimer _livePollTimer;
         private readonly DispatcherTimer _fastControlTimer;
+        private System.Threading.CancellationTokenSource? _bgWorkerCts;
+        private readonly Dictionary<string, EnvOrderTrackState> _envTrackStates = new(StringComparer.OrdinalIgnoreCase);
+        private readonly object _trackLock = new();
+        private string _activeDisplayEnv = "live";
 
         private bool _isFocusMode;
         private DateTime _lastMouseMoveUtc = DateTime.UtcNow;
         private bool _lastSurgingState;
         private int _currentOrderCount = -1;
-        private HashSet<int> _knownOrderIds = new();
-        private bool _initialSeedDone;
         private double _latestFps = 60.0;
         private double _latestRenderMs = 0.2;
         private double _latestCpuPct = 1.0;
@@ -1092,15 +1114,20 @@ namespace FunkenwerkOS
             _headerStack.Children.Add(_headerSubtitleTxt);
             _stageGrid.Children.Add(_headerStack);
 
-            // Center Order Counter inside Crystal Sphere
+            // Center Order Counter inside Crystal Sphere (mathematically & optically locked to sphere center cx, cy)
             _centerScaleTransform = new ScaleTransform(1.0, 1.0);
+            _centerTranslateTransform = new TranslateTransform(0.0, 0.0);
+            var centerTransformGroup = new TransformGroup();
+            centerTransformGroup.Children.Add(_centerScaleTransform);
+            centerTransformGroup.Children.Add(_centerTranslateTransform);
+
             _centerStack = new StackPanel
             {
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 56, 0, 0),
+                Margin = new Thickness(0),
                 RenderTransformOrigin = new Point(0.5, 0.5),
-                RenderTransform = _centerScaleTransform,
+                RenderTransform = centerTransformGroup,
                 IsHitTestVisible = false
             };
 
@@ -1110,20 +1137,20 @@ namespace FunkenwerkOS
                 FontSize = 20,
                 Foreground = s_goldTitleBrush,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 0, 0, -4)
+                Visibility = Visibility.Collapsed
             };
             _centerStack.Children.Add(_centerStarTxt);
 
             _orderCountTxt = new TextBlock
             {
                 Text = "0",
-                FontFamily = new FontFamily("Georgia"),
-                FontSize = 112,
+                FontFamily = new FontFamily("Times New Roman"),
+                FontSize = 114,
                 FontWeight = FontWeights.Bold,
                 Foreground = s_goldTitleBrush,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
-                Margin = new Thickness(0, -8, 0, -4)
+                Margin = new Thickness(0, -25, 0, -22)
             };
             _centerStack.Children.Add(_orderCountTxt);
 
@@ -1134,10 +1161,12 @@ namespace FunkenwerkOS
                 FontWeight = FontWeights.Bold,
                 Foreground = s_goldSubBrush,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, -2, 0, 0)
+                TextAlignment = TextAlignment.Center,
+                Margin = new Thickness(0, 8, 0, -5)
             };
             _centerStack.Children.Add(_orderSubLabelTxt);
             _stageGrid.Children.Add(_centerStack);
+            _stageGrid.SizeChanged += (_, _) => UpdateCenterStackExactAlignment();
 
             // Bottom Status Pill
             var pillBgBrush = new SolidColorBrush(Color.FromArgb(215, 8, 11, 18));
@@ -1187,6 +1216,9 @@ namespace FunkenwerkOS
                 VerticalAlignment = VerticalAlignment.Top,
                 Margin = new Thickness(0, 24, 28, 0)
             };
+            _btPairBtn = CreateStageButton("🔊 Teufel");
+            _btPairBtn.Margin = new Thickness(0, 0, 8, 0);
+            _btPairBtn.Click += async (_, _) => await PairOrConnectTeufelSpeakerAsync(userInitiated: true);
             var sleepBtn = CreateStageButton("☾ Nachtruhe (08:00)");
             sleepBtn.Margin = new Thickness(0, 0, 8, 0);
             sleepBtn.Click += (_, _) => OsHardwareAndAudioEngine.TriggerNightSleepUntilMorning0800();
@@ -1198,6 +1230,7 @@ namespace FunkenwerkOS
             minBtn.Click += (_, _) => WindowState = WindowState.Minimized;
             var closeBtn = CreateStageButton("✕");
             closeBtn.Click += (_, _) => Close();
+            _topBar.Children.Add(_btPairBtn);
             _topBar.Children.Add(sleepBtn);
             _topBar.Children.Add(fullBtn);
             _topBar.Children.Add(minBtn);
@@ -1211,6 +1244,28 @@ namespace FunkenwerkOS
                 VerticalAlignment = VerticalAlignment.Bottom,
                 Margin = new Thickness(0, 0, 28, 26)
             };
+
+            _envSwitchPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 0, 10, 0)
+            };
+            _envLocalBtn = CreateStageButton("LOKAL");
+            _envLocalBtn.Margin = new Thickness(0, 0, 4, 0);
+            _envLocalBtn.Click += (_, _) => SwitchGewerbeEnvironment("local");
+
+            _envStageBtn = CreateStageButton("STAGE");
+            _envStageBtn.Margin = new Thickness(0, 0, 4, 0);
+            _envStageBtn.Click += (_, _) => SwitchGewerbeEnvironment("stage");
+
+            _envLiveBtn = CreateStageButton("LIVE");
+            _envLiveBtn.Click += (_, _) => SwitchGewerbeEnvironment("live");
+
+            _envSwitchPanel.Children.Add(_envLocalBtn);
+            _envSwitchPanel.Children.Add(_envStageBtn);
+            _envSwitchPanel.Children.Add(_envLiveBtn);
+            UpdateEnvSwitchButtonsUi();
+
             _testBtn = CreateStageButton("✦ Eingang testen");
             _testBtn.Margin = new Thickness(0, 0, 8, 0);
             _testBtn.Click += (_, _) => SimulateOrderArrivalForDemo();
@@ -1218,6 +1273,7 @@ namespace FunkenwerkOS
             _focusBtn = CreateStageButton("◎ Fokus");
             _focusBtn.Click += (_, _) => ToggleFocusMode();
 
+            bottomRightBar.Children.Add(_envSwitchPanel);
             bottomRightBar.Children.Add(_testBtn);
             bottomRightBar.Children.Add(_focusBtn);
             _stageGrid.Children.Add(bottomRightBar);
@@ -1264,9 +1320,13 @@ namespace FunkenwerkOS
                 _latestFps = fps;
                 _latestRenderMs = renderMs;
                 _latestCpuPct = cpuPct;
-                int dispFps = Math.Clamp((int)Math.Round(fps), 1, 240);
-                _clockAndFpsTxt.Text = $"{DateTime.Now:HH:mm}  ·  {dispFps} FPS";
-                WriteFpsBenchmarkReport(fps, renderMs, cpuPct, _lastSurgingState);
+                if (!_isFocusMode)
+                {
+                    int dispFps = Math.Clamp((int)Math.Round(fps), 1, 240);
+                    string nextClockTxt = $"{DateTime.Now:HH:mm}  ·  {dispFps} FPS";
+                    if (!string.Equals(_clockAndFpsTxt.Text, nextClockTxt, StringComparison.Ordinal))
+                        _clockAndFpsTxt.Text = nextClockTxt;
+                }
             };
 
             Content = _stageGrid;
@@ -1281,38 +1341,96 @@ namespace FunkenwerkOS
             _fastControlTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             _fastControlTimer.Tick += (_, _) =>
             {
-                CheckExternalTestTriggerFlag();
                 if (_isFocusMode && !_focusBtn.IsMouseOver && (DateTime.UtcNow - _lastMouseMoveUtc).TotalSeconds >= 2.5)
                 {
                     _focusBtn.Opacity = 0.0;
                 }
             };
 
-            _livePollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(7) };
-            _livePollTimer.Tick += async (_, _) =>
+            Loaded += (_, _) =>
             {
-                OsHardwareAndAudioEngine.KeepDisplayAndSystemAwake();
-                await PollLiveOrdersAsync();
-            };
-
-            Loaded += async (_, _) =>
-            {
+                _activeDisplayEnv = (_settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant();
+                UpdateCenterStackExactAlignment();
                 OsHardwareAndAudioEngine.KeepDisplayAndSystemAwake();
                 _portalRenderer.SetRunning(true);
                 _fastControlTimer.Start();
-                _livePollTimer.Start();
-                await PollLiveOrdersAsync();
+                StartBackgroundOrderAndTelemetryWorker();
             };
 
             Closed += (_, _) =>
             {
                 _fastControlTimer.Stop();
-                _livePollTimer.Stop();
+                StopBackgroundOrderAndTelemetryWorker();
                 _portalRenderer.SetRunning(false);
             };
         }
 
-        private void CheckExternalTestTriggerFlag()
+        private void StartBackgroundOrderAndTelemetryWorker()
+        {
+            StopBackgroundOrderAndTelemetryWorker();
+            var cts = new System.Threading.CancellationTokenSource();
+            _bgWorkerCts = cts;
+            _ = Task.Run(() => RunBackgroundWorkerLoopAsync(cts.Token));
+        }
+
+        private void StopBackgroundOrderAndTelemetryWorker()
+        {
+            try
+            {
+                _bgWorkerCts?.Cancel();
+                _bgWorkerCts?.Dispose();
+            }
+            catch { }
+            _bgWorkerCts = null;
+        }
+
+        private async Task RunBackgroundWorkerLoopAsync(System.Threading.CancellationToken ct)
+        {
+            int tickSec = 0;
+            while (!ct.IsCancellationRequested)
+            {
+                try
+                {
+                    if (CheckExternalTestTriggerFlagOnBgThread())
+                    {
+                        _ = Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(SimulateOrderArrivalForDemo));
+                    }
+
+                    if (CheckExternalBtPairTriggerFlagOnBgThread() || tickSec == 1)
+                    {
+                        await PairOrConnectTeufelSpeakerAsync(userInitiated: tickSec != 1).ConfigureAwait(false);
+                    }
+
+                    // Poll orders every 4 seconds (and immediately on tick 0) completely off the WPF UI thread
+                    if (tickSec % 4 == 0)
+                    {
+                        OsHardwareAndAudioEngine.KeepDisplayAndSystemAwake();
+                        string activeEnv = (_settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant();
+                        var snap = await SeelenfunkeLiveClient.FetchActiveEnvOrdersPulseAsync(_settings).ConfigureAwait(false);
+                        EvaluateSingleEnvPulseOffUiThread(activeEnv, snap);
+                    }
+
+                    // Write FPS benchmark file once every 15 seconds on the background thread (zero UI-thread I/O)
+                    if (tickSec % 15 == 2)
+                    {
+                        WriteFpsBenchmarkReportSync(_latestFps, _latestRenderMs, _latestCpuPct, _lastSurgingState);
+                    }
+                }
+                catch { }
+
+                tickSec++;
+                try
+                {
+                    await Task.Delay(1000, ct).ConfigureAwait(false);
+                }
+                catch
+                {
+                    break;
+                }
+            }
+        }
+
+        private static bool CheckExternalTestTriggerFlagOnBgThread()
         {
             try
             {
@@ -1321,33 +1439,93 @@ namespace FunkenwerkOS
                 if (File.Exists(flagFile))
                 {
                     File.Delete(flagFile);
-                    SimulateOrderArrivalForDemo();
+                    return true;
                 }
+            }
+            catch { }
+            return false;
+        }
+
+        private static bool CheckExternalBtPairTriggerFlagOnBgThread()
+        {
+            try
+            {
+                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkOS");
+                string flagFile = Path.Combine(dir, "trigger_bt_pair.flag");
+                if (File.Exists(flagFile))
+                {
+                    File.Delete(flagFile);
+                    return true;
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        private async Task PairOrConnectTeufelSpeakerAsync(bool userInitiated)
+        {
+            try
+            {
+                var audio = OsHardwareAndAudioEngine.ReadAudioState();
+                if (!userInitiated && audio.IsTeufelConnected)
+                {
+                    _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+                    {
+                        _btPairBtn.Content = "🔊 Teufel ✓";
+                    }));
+                    return;
+                }
+
+                _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+                {
+                    _btPairBtn.Content = "🔊 Kopple...";
+                }));
+
+                var list = await OsHardwareAndAudioEngine.ScanBluetoothDevicesAsync(issueHardwareInquiry: false).ConfigureAwait(false);
+                var target = list.FirstOrDefault(b => b.IsTeufel)
+                          ?? new BluetoothDeviceDto { Name = "Teufel KB 43 CR 19", BluetoothAddress = 0xFC58FAC7F41DUL, IsPaired = false };
+
+                var (ok, msg) = await OsHardwareAndAudioEngine.ConnectOrPairBluetoothDeviceAsync(target).ConfigureAwait(false);
+                var postAudio = OsHardwareAndAudioEngine.ReadAudioState();
+
+                try
+                {
+                    string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkOS");
+                    File.WriteAllText(Path.Combine(dir, "bt_pair_status.log"),
+                        $"TIME={DateTime.Now:HH:mm:ss} | OK={ok} | MSG={msg} | ACTIVE_OUT={postAudio.DeviceName} | TEUFEL_CONN={postAudio.IsTeufelConnected}");
+                }
+                catch { }
+
+                _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+                {
+                    _btPairBtn.Content = postAudio.IsTeufelConnected ? "🔊 Teufel ✓" : "🔊 Teufel";
+                    if (userInitiated && postAudio.IsTeufelConnected)
+                    {
+                        PlayMatteOrderArrivalSound();
+                    }
+                }));
             }
             catch { }
         }
 
-        private static void WriteFpsBenchmarkReport(double fps, double renderMs, double cpuPct, bool isSurging)
+        private static void WriteFpsBenchmarkReportSync(double fps, double renderMs, double cpuPct, bool isSurging)
         {
-            _ = Task.Run(() =>
+            try
             {
-                try
-                {
-                    string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkOS");
-                    Directory.CreateDirectory(dir);
-                    string path = Path.Combine(dir, "gewerbe_fps_benchmark.txt");
-                    string line = string.Format(
-                        CultureInfo.InvariantCulture,
-                        "TIMESTAMP={0:yyyy-MM-dd HH:mm:ss} | FPS={1:F1} | RENDER_CPU_MS={2:F3} | PROCESS_CPU_PCT={3:F1}% | MODE={4}",
-                        DateTime.Now,
-                        fps,
-                        renderMs,
-                        cpuPct,
-                        isSurging ? "EMERALD_SURGE_5S" : "GOLD_SHOWCASE");
-                    File.WriteAllText(path, line + Environment.NewLine);
-                }
-                catch { }
-            });
+                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkOS");
+                Directory.CreateDirectory(dir);
+                string path = Path.Combine(dir, "gewerbe_fps_benchmark.txt");
+                string line = string.Format(
+                    CultureInfo.InvariantCulture,
+                    "TIMESTAMP={0:yyyy-MM-dd HH:mm:ss} | FPS={1:F1} | RENDER_CPU_MS={2:F3} | PROCESS_CPU_PCT={3:F1}% | MODE={4}",
+                    DateTime.Now,
+                    fps,
+                    renderMs,
+                    cpuPct,
+                    isSurging ? "EMERALD_SURGE_5S" : "GOLD_SHOWCASE");
+                File.WriteAllText(path, line + Environment.NewLine);
+            }
+            catch { }
         }
 
         private static Button CreateStageButton(string text)
@@ -1370,6 +1548,52 @@ namespace FunkenwerkOS
             };
         }
 
+        private static readonly Brush s_envActiveBgBrush = CreateFrozenSolidBrush(235, 197, 160, 89);
+        private static readonly Brush s_envActiveFgBrush = CreateFrozenSolidBrush(255, 10, 13, 22);
+        private static readonly Brush s_envInactiveBgBrush = CreateFrozenSolidBrush(200, 10, 13, 22);
+        private static readonly Brush s_envInactiveFgBrush = CreateFrozenSolidBrush(185, 253, 230, 138);
+
+        private static SolidColorBrush CreateFrozenSolidBrush(byte a, byte r, byte g, byte b)
+        {
+            var br = new SolidColorBrush(Color.FromArgb(a, r, g, b));
+            br.Freeze();
+            return br;
+        }
+
+        private void SwitchGewerbeEnvironment(string env)
+        {
+            string normEnv = (env ?? "live").Trim().ToLowerInvariant();
+            _settings.ApiEnvironment = normEnv;
+            _activeDisplayEnv = normEnv;
+            UpdateEnvSwitchButtonsUi();
+
+            _currentOrderCount = 0;
+            _orderCountTxt.Text = "0";
+
+            _ = Task.Run(() =>
+            {
+                try { OsVaultAndStorage.SaveSettings(_settings); } catch { }
+            });
+            _ = PollLiveOrdersAsync();
+        }
+
+        private void UpdateEnvSwitchButtonsUi()
+        {
+            string active = (_settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant();
+            ApplyEnvBtnVisual(_envLocalBtn, "LOKAL", active == "local");
+            ApplyEnvBtnVisual(_envStageBtn, "STAGE", active == "stage");
+            ApplyEnvBtnVisual(_envLiveBtn, "LIVE", active == "live");
+        }
+
+        private static void ApplyEnvBtnVisual(Button btn, string label, bool isActive)
+        {
+            if (btn == null) return;
+            btn.Content = isActive ? $"● {label}" : label;
+            btn.Background = isActive ? s_envActiveBgBrush : s_envInactiveBgBrush;
+            btn.Foreground = isActive ? s_envActiveFgBrush : s_envInactiveFgBrush;
+            btn.FontWeight = isActive ? FontWeights.Bold : FontWeights.SemiBold;
+        }
+
         private void ToggleFocusMode() => SetFocusModeState(!_isFocusMode);
 
         public void SetFocusModeState(bool active)
@@ -1385,18 +1609,29 @@ namespace FunkenwerkOS
             _statusBorder.Visibility = extraVis;
             _clockAndFpsTxt.Visibility = extraVis;
             _topBar.Visibility = extraVis;
+            _envSwitchPanel.Visibility = extraVis;
             _testBtn.Visibility = extraVis;
 
-            // In Focus Mode: monumental "MEIN SEELENFUNKE" title (132 pt) and centered animation below it
+            // In Focus Mode: monumental "MEIN SEELENFUNKE" title (132 pt) and large centered animation below it
             _brandTitleTxt.FontSize = active ? 132 : 60;
-            _headerStack.Margin = active ? new Thickness(0, 34, 0, 0) : new Thickness(0, 26, 0, 0);
+            _headerStack.Margin = active ? new Thickness(0, 22, 0, 0) : new Thickness(0, 26, 0, 0);
 
-            _centerScaleTransform.ScaleX = active ? 0.74 : 1.0;
-            _centerScaleTransform.ScaleY = active ? 0.74 : 1.0;
-            _centerStack.Margin = active ? new Thickness(0, 76, 0, 0) : new Thickness(0, 56, 0, 0);
+            UpdateCenterStackExactAlignment();
 
             _focusBtn.Content = active ? "◎ Fokus aktiv" : "◎ Fokus";
             _focusBtn.Opacity = active ? 0.0 : 1.0;
+        }
+
+        private void UpdateCenterStackExactAlignment()
+        {
+            double scale = _isFocusMode ? 0.92 : 1.0;
+            _centerScaleTransform.ScaleX = scale;
+            _centerScaleTransform.ScaleY = scale;
+
+            double h = _stageGrid.ActualHeight;
+            if (h <= 20) h = ActualHeight;
+            if (h <= 20) h = SystemParameters.PrimaryScreenHeight;
+            _centerTranslateTransform.Y = _portalRenderer.GetPortalCenterOffsetY(h);
         }
 
         private void ToggleFullscreenMode()
@@ -1454,42 +1689,105 @@ namespace FunkenwerkOS
         {
             try
             {
-                var snap = await SeelenfunkeLiveClient.FetchDashboardSnapshotAsync(_settings);
-                UpdateFromSnapshot(snap);
+                string activeEnv = (_settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant();
+                var snap = await SeelenfunkeLiveClient.FetchActiveEnvOrdersPulseAsync(_settings).ConfigureAwait(false);
+                EvaluateSingleEnvPulseOffUiThread(activeEnv, snap);
             }
             catch { }
         }
 
+        private void EvaluateSingleEnvPulseOffUiThread(string env, OsDashboardSnapshot snap)
+        {
+            if (snap == null || !snap.IsConnected) return;
+
+            bool envHasNew = false;
+            int finalCount = snap.OpenOrdersCount;
+
+            lock (_trackLock)
+            {
+                string normEnv = (env ?? "live").Trim().ToLowerInvariant();
+                _activeDisplayEnv = normEnv;
+
+                if (!_envTrackStates.TryGetValue(normEnv, out var st))
+                {
+                    st = new EnvOrderTrackState();
+                    _envTrackStates[normEnv] = st;
+                }
+
+                var incomingIds = new HashSet<int>();
+                var incomingKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (snap.AllPageOrderIds != null)
+                {
+                    foreach (int id in snap.AllPageOrderIds)
+                        if (id > 0) incomingIds.Add(id);
+                }
+                if (snap.AllPageOrderKeys != null)
+                {
+                    foreach (string k in snap.AllPageOrderKeys)
+                        if (!string.IsNullOrWhiteSpace(k)) incomingKeys.Add(k);
+                }
+                if (snap.ActiveOrders != null)
+                {
+                    foreach (var o in snap.ActiveOrders)
+                    {
+                        if (o.Id > 0) incomingIds.Add(o.Id);
+                        if (!string.IsNullOrWhiteSpace(o.OrderUuid)) incomingKeys.Add(o.OrderUuid);
+                    }
+                }
+
+                if (st.Initialized)
+                {
+                    if (snap.TotalOrdersCount > st.LastTotalCount && st.LastTotalCount >= 0)
+                        envHasNew = true;
+                    else if (snap.OpenOrdersCount > st.LastOpenCount && st.LastOpenCount >= 0)
+                        envHasNew = true;
+                    else if (!string.IsNullOrWhiteSpace(snap.LatestOrderKey) && !string.IsNullOrWhiteSpace(st.LastLatestOrderKey)
+                             && string.CompareOrdinal(snap.LatestOrderKey, st.LastLatestOrderKey) > 0)
+                        envHasNew = true;
+                    else if (incomingKeys.Any(k => !st.KnownOrderKeys.Contains(k)))
+                        envHasNew = true;
+                    else if (incomingIds.Any(id => !st.KnownOrderIds.Contains(id)))
+                        envHasNew = true;
+                }
+
+                st.LastOpenCount = snap.OpenOrdersCount;
+                st.LastTotalCount = snap.TotalOrdersCount;
+                if (!string.IsNullOrWhiteSpace(snap.LatestOrderKey)
+                    && (string.IsNullOrWhiteSpace(st.LastLatestOrderKey) || string.CompareOrdinal(snap.LatestOrderKey, st.LastLatestOrderKey) > 0))
+                {
+                    st.LastLatestOrderKey = snap.LatestOrderKey;
+                }
+                foreach (int id in incomingIds)
+                    st.KnownOrderIds.Add(id);
+                foreach (string k in incomingKeys)
+                    st.KnownOrderKeys.Add(k);
+                st.Initialized = true;
+            }
+
+            bool countChanged = finalCount != _currentOrderCount;
+            if (countChanged || envHasNew)
+            {
+                _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+                {
+                    _currentOrderCount = finalCount;
+                    string nextText = finalCount.ToString(CultureInfo.InvariantCulture);
+                    if (!string.Equals(_orderCountTxt.Text, nextText, StringComparison.Ordinal))
+                        _orderCountTxt.Text = nextText;
+
+                    if (envHasNew)
+                    {
+                        PlayMatteOrderArrivalSound();
+                        _portalRenderer.TriggerIncomingOrderSurge(5.0);
+                    }
+                }));
+            }
+        }
+
         public void UpdateFromSnapshot(OsDashboardSnapshot snap)
         {
-            if (snap == null) return;
-
-            int newCount = snap.OpenOrdersCount;
-            var incomingIds = snap.ActiveOrders?.Where(o => o.Id > 0).Select(o => o.Id).ToHashSet() ?? new HashSet<int>();
-
-            bool hasNewOrder = false;
-            if (_initialSeedDone)
-            {
-                if (newCount > _currentOrderCount && _currentOrderCount >= 0)
-                    hasNewOrder = true;
-                else if (incomingIds.Any(id => !_knownOrderIds.Contains(id)))
-                    hasNewOrder = true;
-            }
-
-            _currentOrderCount = newCount;
-            if (incomingIds.Count > 0 || snap.IsConnected)
-            {
-                _knownOrderIds = incomingIds;
-                _initialSeedDone = true;
-            }
-
-            _orderCountTxt.Text = newCount.ToString(CultureInfo.InvariantCulture);
-
-            if (hasNewOrder)
-            {
-                PlayMatteOrderArrivalSound();
-                _portalRenderer.TriggerIncomingOrderSurge(5.0);
-            }
+            if (snap == null || !snap.IsConnected) return;
+            string env = (_settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant();
+            EvaluateSingleEnvPulseOffUiThread(env, snap);
         }
 
         public void SimulateOrderArrivalForDemo()
@@ -1517,6 +1815,24 @@ namespace FunkenwerkOS
             lock (s_chimeLock)
             {
                 if (s_cachedStereoChimeWavBytes != null) return;
+
+                try
+                {
+                    string wavAssetPath = Path.Combine(AppContext.BaseDirectory, "order_ching.wav");
+                    if (File.Exists(wavAssetPath))
+                    {
+                        byte[] assetBytes = File.ReadAllBytes(wavAssetPath);
+                        if (assetBytes.Length > 1024)
+                        {
+                            s_cachedStereoChimeWavBytes = assetBytes;
+                            s_persistentChimeStream = new MemoryStream(s_cachedStereoChimeWavBytes, writable: false);
+                            s_persistentChimePlayer = new SoundPlayer(s_persistentChimeStream);
+                            s_persistentChimePlayer.Load();
+                            return;
+                        }
+                    }
+                }
+                catch { }
 
                 const int sampleRate = 48000;
                 const short channels = 2;

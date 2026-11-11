@@ -643,6 +643,19 @@ class AccountingSeeder extends Seeder
 
         $specialIssues = [
             [
+                'title'          => 'Foto- & Deko-Requisiten für Produktfotografie / Fotobox (Eichhörnchen, Schneeflocke, 2 Kugeln weiß, Holzschlitten, Islandmoos, 4 Bäume grün, Haus mit LED u.a.)',
+                'location'       => 'hagebaumarkt Gifhorn (BAUKING Ostfalen GmbH)',
+                'amount'         => -40.28,
+                'date'           => '2026-11-11',
+                'category'       => 'Arbeitsmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => 'Kassenbon Terminal-ID 61701298',
+                'note'           => "Händler: hagebaumarkt Gifhorn (BAUKING Ostfalen GmbH, Eyßelheideweg 8, 38518 Gifhorn, Tel.: 05371983281, USt-IdNr.: DE301797232) | Terminal-ID: 61701298 | Zahlungsart: MasterCard (40,28 EUR)\nPositionen (Steuerklasse A = 19 % MwSt.):\n- 1x EICHHÖRNCHEN (EAN: 4061562311603): 4,99 €\n- 1x SCHNEEFLOCKE (EAN: 4006339655108): 1,49 €\n- 1x PAPIERTRAGETASCHE (EAN: 4333990117035): 0,25 €\n- 1x 2 KUGELN WEISS (EAN: 4061562282279): 1,49 €\n- 1x HOLZSCHLITTEN (EAN: 4006339694350): 3,79 €\n- 1x ISLANDMOOS (EAN: 4061562193490): 3,79 €\n- 1x 4 BÄUME GRÜN (EAN: 4061562137487): 8,99 €\n- 1x DUOHM (EAN: 4048962523935): 5,49 €\n- 1x HAUS MIT LED (EAN: 8721461010910): 10,00 €\nGesamt (Netto): 33,85 € | MwSt. (19 %): 6,43 € | Summe (Brutto): 40,28 €",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-11_hagebaumarkt-Gifhorn_Produktfotografie-Deko-Requisiten-Winter-Weihnachten-Kassenbon.jpg'
+                ]
+            ],
+            [
                 'title'          => '144x Blanko Metall-Visitenkarten für Lasergravur (44x Schwarz, 100x Gold) & 50x Grußkartenumschläge Schwarz-Gold inkl. 50 Aufklebern',
                 'location'       => 'Temu (chance Commodity, GGOOOM, Lumina BK, Abundant Hardware)',
                 'amount'         => -46.71,

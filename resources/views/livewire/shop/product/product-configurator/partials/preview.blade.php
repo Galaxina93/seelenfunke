@@ -1,5 +1,5 @@
 {{-- FIX: Wenn Context = 'edit', dann kein sticky, damit es im Warenkorb Modal scrollt! --}}
-<div :class="isMaximized ? 'configurator-studio-preview custom-scrollbar flex flex-col items-center justify-start p-2 sm:p-4 lg:p-5 border-b lg:border-b-0 lg:border-r select-none {{ $isDark ? 'bg-gray-950 border-gray-800' : 'bg-gray-50/50 border-gray-200' }}' : 'flex flex-col items-center z-40 border-b shadow-[0_4px_30px_rgba(0,0,0,0.03)] shrink-0 select-none pb-8 {{ ($context === 'edit' || !empty($isBeginnerStudioMode)) ? 'relative' : 'sticky top-0' }} {{ $isDark ? 'bg-gray-950/80 backdrop-blur-xl border-gray-800' : 'bg-gray-50/30 border-gray-100' }}'"
+<div :class="isMaximized ? 'configurator-studio-preview custom-scrollbar flex flex-col items-center justify-start p-2 sm:p-4 lg:p-5 border-b lg:border-b-0 lg:border-r select-none {{ $isDark ? 'bg-gray-950 border-gray-800' : 'bg-gray-50/50 border-gray-200' }}' : 'flex flex-col items-center z-40 border-b shadow-[0_4px_30px_rgba(0,0,0,0.03)] shrink-0 select-none px-3 sm:px-5 pb-3 sm:pb-4 {{ ($context === 'edit' || !empty($isBeginnerStudioMode)) ? 'relative' : 'sticky top-0' }} {{ $isDark ? 'bg-gray-950/80 backdrop-blur-xl border-gray-800' : 'bg-gray-50/30 border-gray-100' }}'"
      :style="isMaximized ? 'min-width: 0;' : ''"
      x-ref="stage">
 
@@ -85,84 +85,188 @@
         </div>
     </div>
 
-    {{-- OBEN AUSSERHALB DER ANSICHT: LINKS (ZURÜCK / VOR) | MITTIG (2D EDITOR / 3D ANSICHT) | RECHTS (MAXIMAL) --}}
+    {{-- OBEN AUSSERHALB DER ANSICHT: LINKS (ZURÜCK / VOR PFEILE) | MITTIG (2D / 3D SWITCH) | RECHTS (MAXIMAL) --}}
     <div :class="isMaximized ? 'w-[min(90vw,min(58vh,600px))]' : 'w-full max-w-[455px] md:max-w-[600px]'"
-         class="mt-0.5 mb-3 flex items-center justify-between gap-1.5 sm:gap-2 relative z-50 shrink-0">
+         class="mt-4 sm:mt-5 mb-2 px-2 sm:px-3 flex flex-col gap-2 relative z-50 shrink-0">
 
-        {{-- LINKS: ZURÜCK / VOR BUTTONS --}}
-        <div class="flex items-center justify-start min-w-[74px] sm:min-w-[128px]">
-            @if($context !== 'preview')
-            <div x-show="(showDrawingBoard || !config.modelPath) && context !== 'preview' && !config.isBeginnerMode"
-                 data-snapshot-ignore="true"
-                 class="flex items-center gap-0.5 p-1 rounded-xl shadow-sm border backdrop-blur-md transition-all pointer-events-auto {{ $isDark ? 'bg-gray-900/95 border-gray-800 text-gray-100' : 'bg-white/95 border-gray-200/90 text-gray-800' }}">
-                <button type="button"
-                        @click.stop="undo()"
-                        :disabled="!canUndo"
-                        :class="canUndo
-                            ? '{{ $isDark ? 'text-white hover:bg-gray-800 active:scale-95' : 'text-gray-900 hover:bg-gray-100 active:scale-95' }} cursor-pointer'
-                            : '{{ $isDark ? 'text-gray-500 opacity-70' : 'text-gray-400 opacity-80' }} cursor-not-allowed'"
-                        class="px-2 py-1.5 rounded-lg transition-all flex items-center gap-1.5 select-none"
-                        title="Rückgängig (Strg+Z)">
-                    <span :class="canUndo ? 'text-primary' : ''" class="flex items-center shrink-0 transition-colors">
-                        <x-heroicon-m-arrow-uturn-left class="w-4 h-4 stroke-[2.2]" />
-                    </span>
-                    <span class="text-[10px] font-black uppercase tracking-wider hidden sm:inline">Zurück</span>
-                </button>
-                <div class="w-px h-4 {{ $isDark ? 'bg-gray-700' : 'bg-gray-300' }}"></div>
-                <button type="button"
-                        @click.stop="redo()"
-                        :disabled="!canRedo"
-                        :class="canRedo
-                            ? '{{ $isDark ? 'text-white hover:bg-gray-800 active:scale-95' : 'text-gray-900 hover:bg-gray-100 active:scale-95' }} cursor-pointer'
-                            : '{{ $isDark ? 'text-gray-500 opacity-70' : 'text-gray-400 opacity-80' }} cursor-not-allowed'"
-                        class="px-2 py-1.5 rounded-lg transition-all flex items-center gap-1.5 select-none"
-                        title="Wiederholen (Strg+Y)">
-                    <span class="text-[10px] font-black uppercase tracking-wider hidden sm:inline">Vor</span>
-                    <span :class="canRedo ? 'text-primary' : ''" class="flex items-center shrink-0 transition-colors">
-                        <x-heroicon-m-arrow-uturn-right class="w-4 h-4 stroke-[2.2]" />
-                    </span>
-                </button>
+        <div class="flex items-center justify-between gap-1.5 sm:gap-2 w-full">
+            {{-- LINKS: ZURÜCK (UNDO) & VOR (REDO) PFEIL-BUTTONS (Bewusst ohne Text-Label „Zurück“ / „Vor“, nur als kompakte Pfeil-Icons) --}}
+            <div class="flex items-center justify-start min-w-[74px] sm:min-w-[96px]">
+                @if($context !== 'preview')
+                <div x-show="(showDrawingBoard || !config.modelPath) && context !== 'preview' && !config.isBeginnerMode"
+                     data-snapshot-ignore="true"
+                     class="flex items-center gap-0.5 p-1 rounded-xl shadow-sm border backdrop-blur-md transition-all pointer-events-auto {{ $isDark ? 'bg-gray-900/95 border-gray-800 text-gray-100' : 'bg-white/95 border-gray-200/90 text-gray-800' }}">
+                    {{-- ZURÜCK-BUTTON (Undo / Rückgängig) --}}
+                    <button type="button"
+                            @click.stop="undo()"
+                            :disabled="!canUndo"
+                            :class="canUndo
+                                ? '{{ $isDark ? 'text-white hover:bg-gray-800 active:scale-95' : 'text-gray-900 hover:bg-gray-100 active:scale-95' }} cursor-pointer'
+                                : '{{ $isDark ? 'text-gray-500 opacity-70' : 'text-gray-400 opacity-80' }} cursor-not-allowed'"
+                            class="p-1.5 rounded-lg transition-all flex items-center justify-center select-none"
+                            title="Rückgängig (Strg+Z)"
+                            aria-label="Rückgängig (Strg+Z)">
+                        <span :class="canUndo ? 'text-primary' : ''" class="flex items-center shrink-0 transition-colors">
+                            <x-heroicon-m-arrow-uturn-left class="w-4 h-4 stroke-[2.2]" />
+                        </span>
+                    </button>
+                    <div class="w-px h-4 {{ $isDark ? 'bg-gray-700' : 'bg-gray-300' }}"></div>
+                    {{-- VOR-BUTTON (Redo / Wiederholen) --}}
+                    <button type="button"
+                            @click.stop="redo()"
+                            :disabled="!canRedo"
+                            :class="canRedo
+                                ? '{{ $isDark ? 'text-white hover:bg-gray-800 active:scale-95' : 'text-gray-900 hover:bg-gray-100 active:scale-95' }} cursor-pointer'
+                                : '{{ $isDark ? 'text-gray-500 opacity-70' : 'text-gray-400 opacity-80' }} cursor-not-allowed'"
+                            class="p-1.5 rounded-lg transition-all flex items-center justify-center select-none"
+                            title="Wiederholen (Strg+Y)"
+                            aria-label="Wiederholen (Strg+Y)">
+                        <span :class="canRedo ? 'text-primary' : ''" class="flex items-center shrink-0 transition-colors">
+                            <x-heroicon-m-arrow-uturn-right class="w-4 h-4 stroke-[2.2]" />
+                        </span>
+                    </button>
+                </div>
+                @endif
             </div>
-            @endif
-        </div>
 
-        {{-- MITTIG: 2D EDITOR / 3D ANSICHT SWITCH --}}
-        <div class="flex items-center justify-center">
-            <div x-show="config.modelPath" class="p-1 rounded-full shadow-sm border inline-flex items-center gap-1 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
-                <button type="button" @click="showDrawingBoard = true" class="px-3.5 sm:px-5 py-1.5 sm:py-2 rounded-full text-[11px] sm:text-xs font-black uppercase tracking-widest transition-all duration-300 cursor-pointer" :class="showDrawingBoard ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : '{{ $isDark ? 'text-gray-500 hover:text-white hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50' }}'"><span x-text="config.isBeginnerMode ? '2D Vorschau' : '2D Editor'">2D Editor</span></button>
-                <button type="button" @click="showDrawingBoard = false" class="px-3.5 sm:px-5 py-1.5 sm:py-2 rounded-full text-[11px] sm:text-xs font-black uppercase tracking-widest transition-all duration-300 cursor-pointer" :class="!showDrawingBoard ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : '{{ $isDark ? 'text-gray-500 hover:text-white hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50' }}'">3D Ansicht</button>
+            {{-- MITTIG: 2D / 3D SWITCH --}}
+            <div class="flex items-center justify-center">
+                <div x-show="config.modelPath" class="p-1 rounded-full shadow-sm border inline-flex items-center gap-1 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
+                    <button type="button" @click="showDrawingBoard = true" class="px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs font-black uppercase tracking-widest transition-all duration-300 cursor-pointer" :class="showDrawingBoard ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : '{{ $isDark ? 'text-gray-500 hover:text-white hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50' }}'">2D</button>
+                    <button type="button" @click="showDrawingBoard = false" class="px-4 sm:px-5 py-1.5 rounded-full text-[11px] sm:text-xs font-black uppercase tracking-widest transition-all duration-300 cursor-pointer" :class="!showDrawingBoard ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : '{{ $isDark ? 'text-gray-500 hover:text-white hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50' }}'">3D</button>
+                </div>
             </div>
-        </div>
 
-        {{-- RECHTS: MAXIMAL / VERKLEINERN BUTTON --}}
-        <div class="flex items-center justify-end min-w-[74px] sm:min-w-[128px]">
-            @if($context !== 'preview')
-            <div x-show="context !== 'preview'" data-snapshot-ignore="true" class="pointer-events-auto">
-                <button type="button"
-                        @click.stop="toggleMaximize()"
-                        class="px-2.5 py-2 rounded-xl shadow-sm border backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer {{ $isDark ? 'bg-gray-900/95 border-gray-800 text-gray-200 hover:text-white hover:bg-gray-800' : 'bg-white/95 border-gray-200/90 text-gray-800 hover:text-gray-950 hover:bg-gray-100' }}"
-                        :title="isMaximized ? 'Normalansicht (Esc)' : 'Maximal-Ansicht'">
-                    <template x-if="!isMaximized">
-                        <div class="flex items-center gap-1.5">
-                            <x-heroicon-m-arrows-pointing-out class="w-4 h-4 text-primary" />
-                            <span class="text-[10px] font-black uppercase tracking-wider hidden sm:inline">Maximal</span>
-                        </div>
-                    </template>
-                    <template x-if="isMaximized">
-                        <div class="flex items-center gap-1.5">
-                            <x-heroicon-m-arrows-pointing-in class="w-4 h-4 text-primary" />
-                            <span class="text-[10px] font-black uppercase tracking-wider hidden sm:inline">Verkleinern</span>
-                        </div>
-                    </template>
-                </button>
+            {{-- RECHTS: MAXIMAL / VERKLEINERN BUTTON --}}
+            <div class="flex items-center justify-end min-w-[74px] sm:min-w-[96px]">
+                @if($context !== 'preview')
+                <div x-show="context !== 'preview'" data-snapshot-ignore="true" class="pointer-events-auto">
+                    <button type="button"
+                            @click.stop="toggleMaximize()"
+                            class="px-2.5 py-2 rounded-xl shadow-sm border backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer {{ $isDark ? 'bg-gray-900/95 border-gray-800 text-gray-200 hover:text-white hover:bg-gray-800' : 'bg-white/95 border-gray-200/90 text-gray-800 hover:text-gray-950 hover:bg-gray-100' }}"
+                            :title="isMaximized ? 'Normalansicht (Esc)' : 'Maximal-Ansicht'">
+                        <template x-if="!isMaximized">
+                            <div class="flex items-center gap-1.5">
+                                <x-heroicon-m-arrows-pointing-out class="w-4 h-4 text-primary" />
+                                <span class="text-[10px] font-black uppercase tracking-wider hidden sm:inline">Maximal</span>
+                            </div>
+                        </template>
+                        <template x-if="isMaximized">
+                            <div class="flex items-center gap-1.5">
+                                <x-heroicon-m-arrows-pointing-in class="w-4 h-4 text-primary" />
+                                <span class="text-[10px] font-black uppercase tracking-wider hidden sm:inline">Verkleinern</span>
+                            </div>
+                        </template>
+                    </button>
+                </div>
+                @endif
             </div>
-            @endif
         </div>
     </div>
 
+    {{-- OBEN AUSSEN STICKY DIREKT AN DER VORSCHAU (VOLLE BREITE, OHNE AUSSEN-BORDER): + TEXT | + BILD | SYMBOLE | SPRÜCHE + ZOOM-REGLER --}}
+    <div x-show="(showDrawingBoard || !config.modelPath) && context !== 'preview'"
+         x-cloak
+         data-snapshot-ignore="true"
+         :class="isMaximized ? 'w-[min(90vw,min(58vh,600px))]' : 'w-full max-w-[455px] md:max-w-[600px]'"
+         class="px-1 sm:px-2 pb-1.5 flex flex-col gap-1.5 relative z-40 pointer-events-auto schwebender-werkzeugkasten shrink-0">
+
+        {{-- REIHE 1: + TEXT | + BILD | SYMBOLE | SPRÜCHE (Nur im Studio-Editor, nicht im Neulings-Modus) --}}
+        <div x-show="!config.isBeginnerMode"
+             class="flex items-center justify-around gap-1 sm:gap-2 w-full">
+            <button type="button"
+                    @mousedown.stop @click.stop="addNewTextElement()"
+                    class="flex-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 cursor-pointer transition-all px-2 py-1.5 sm:py-2 rounded-xl group select-none {{ $isDark ? 'text-primary hover:text-white hover:bg-primary/20' : 'text-[#9A7B3E] hover:text-[#7A5E28] hover:bg-[#C5A059]/12' }}"
+                    title="Neues Textfeld hinzufügen">
+                <span class="font-serif font-black text-xs sm:text-sm leading-none flex items-center pointer-events-none text-[#C5A059]">Aa+</span>
+                <span class="text-[10px] sm:text-xs font-bold tracking-tight pointer-events-none whitespace-nowrap">+ Text</span>
+            </button>
+
+            @if($configSettings['allow_logo'] ?? true)
+                <div class="w-px h-5 {{ $isDark ? 'bg-gray-800' : 'bg-gray-200/80' }}"></div>
+                <button type="button"
+                        @mousedown.stop @click.stop="toggleTab('files')"
+                        :class="activeTab === 'files' ? '{{ $isDark ? 'bg-primary/20 text-primary' : 'bg-[#C5A059]/15 text-[#7A5E28]' }}' : '{{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/12' }}'"
+                        class="relative flex-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 cursor-pointer transition-all px-2 py-1.5 sm:py-2 rounded-xl group select-none"
+                        title="Eigene Dateien & Bilder hochladen">
+                    <span class="sr-only">Eigene Dateien</span>
+                    @if(count($uploaded_files ?? []) > 0)
+                        <span class="absolute top-0.5 right-1.5 w-4 h-4 rounded-full bg-primary text-gray-900 text-[9px] font-black flex items-center justify-center shadow-2xs pointer-events-none">{{ count($uploaded_files) }}</span>
+                    @endif
+                    <x-heroicon-o-photo class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none text-[#C5A059] shrink-0" />
+                    <span class="text-[10px] sm:text-xs font-bold tracking-tight pointer-events-none whitespace-nowrap">+ Bild</span>
+                </button>
+            @endif
+
+            <div class="w-px h-5 {{ $isDark ? 'bg-gray-800' : 'bg-gray-200/80' }}"></div>
+            <button type="button"
+                    @mousedown.stop @click.stop="toggleTab('symbols')"
+                    :class="activeTab === 'symbols' ? '{{ $isDark ? 'bg-primary/20 text-primary' : 'bg-[#C5A059]/15 text-[#7A5E28]' }}' : '{{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/12' }}'"
+                    class="flex-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 cursor-pointer transition-all px-2 py-1.5 sm:py-2 rounded-xl group select-none"
+                    title="Symbole auswählen">
+                <x-heroicon-o-sparkles class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none text-[#C5A059] shrink-0" />
+                <span class="text-[10px] sm:text-xs font-bold tracking-tight pointer-events-none whitespace-nowrap">Symbole</span>
+            </button>
+
+            @if(!empty($quotes))
+                <div class="w-px h-5 {{ $isDark ? 'bg-gray-800' : 'bg-gray-200/80' }}"></div>
+                <button type="button"
+                        @mousedown.stop @click.stop="toggleTab('quotes')"
+                        :class="activeTab === 'quotes' ? '{{ $isDark ? 'bg-primary/20 text-primary' : 'bg-[#C5A059]/15 text-[#7A5E28]' }}' : '{{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/12' }}'"
+                        class="flex-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 cursor-pointer transition-all px-2 py-1.5 sm:py-2 rounded-xl group select-none"
+                        title="Sprüche & Widmungen einfügen">
+                    <x-heroicon-o-chat-bubble-bottom-center-text class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none text-[#C5A059] shrink-0" />
+                    <span class="text-[10px] sm:text-xs font-bold tracking-tight pointer-events-none whitespace-nowrap">Sprüche</span>
+                </button>
+            @endif
+        </div>
+
+        {{-- REIHE 2: ZOOM-REGLER AUSSERHALB OBERHALB DER VORSCHAU ÜBER DIE VOLLE BREITE --}}
+        @if($context !== 'preview')
+        <div @mousedown.stop
+             @touchstart.stop
+             class="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border w-full transition-all {{ $isDark ? 'bg-gray-900/90 border-gray-800 text-gray-100' : 'bg-white/95 border-gray-200/80 text-gray-800 shadow-2xs' }}">
+            <button type="button"
+                    @click.stop="stepStageZoom(-0.15)"
+                    :disabled="stageZoom <= 1.01"
+                    :class="stageZoom > 1.01 ? 'hover:text-primary active:scale-90 cursor-pointer' : 'opacity-40 cursor-not-allowed'"
+                    class="w-6 h-6 rounded-full flex items-center justify-center transition-all select-none shrink-0"
+                    title="Herauszoomen">
+                <x-heroicon-m-magnifying-glass-minus class="w-4 h-4 text-[#C5A059]" />
+            </button>
+            <input type="range"
+                   min="1"
+                   max="3"
+                   step="0.02"
+                   :value="stageZoom"
+                   @input.stop="setStageZoom($event.target.value)"
+                   class="flex-1 h-1.5 rounded-lg appearance-none cursor-pointer accent-[#C5A059] {{ $isDark ? 'bg-gray-700' : 'bg-gray-200' }}"
+                   title="Arbeitsfläche zoomen (100% - 300%)">
+            <button type="button"
+                    @click.stop="stepStageZoom(0.15)"
+                    :disabled="stageZoom >= 2.99"
+                    :class="stageZoom < 2.99 ? 'hover:text-primary active:scale-90 cursor-pointer' : 'opacity-40 cursor-not-allowed'"
+                    class="w-6 h-6 rounded-full flex items-center justify-center transition-all select-none shrink-0"
+                    title="Heranzoomen">
+                <x-heroicon-m-magnifying-glass-plus class="w-4 h-4 text-[#C5A059]" />
+            </button>
+            <button type="button"
+                    @click.stop="resetStageZoom()"
+                    :class="stageZoom > 1.01 ? 'text-[#9A7B3E] hover:text-primary cursor-pointer' : 'text-gray-400 cursor-default'"
+                    class="min-w-[38px] text-right text-[10px] font-black tracking-tight transition-colors select-none shrink-0"
+                    title="Zoom zurücksetzen (100%)">
+                <span x-text="Math.round(stageZoom * 100) + '%'">100%</span>
+            </button>
+        </div>
+        @endif
+    </div>
+
     {{-- BÜHNE --}}
-    <div class="relative overflow-hidden border-[6px] group transition-[border-color,box-shadow,background-color] duration-200 {{ $isDark ? 'bg-gray-900 border-gray-800 ring-1 ring-gray-700' : 'bg-white border-white ring-1 ring-gray-100' }}"
-         :class="isMaximized ? 'shadow-2xl rounded-2xl' : 'w-full max-w-[455px] md:max-w-[600px] aspect-square shadow-[0_10px_40px_rgba(0,0,0,0.08)]'"
+    <div class="relative overflow-hidden border-[6px] rounded-t-2xl group transition-[border-color,box-shadow,background-color] duration-200 {{ $isDark ? 'bg-gray-900 border-gray-800 ring-1 ring-gray-700' : 'bg-white border-white ring-1 ring-gray-100' }}"
+         :class="[
+             isMaximized ? 'shadow-2xl' : 'w-full max-w-[455px] md:max-w-[600px] aspect-square shadow-[0_10px_40px_rgba(0,0,0,0.08)]',
+             (showDrawingBoard && context !== 'preview' && !config.isBeginnerMode && (selectedIndex !== null || isCropping)) ? 'rounded-b-none' : 'rounded-b-2xl'
+         ]"
          :style="isMaximized
              ? 'width: min(90vw, min(58vh, 600px)); height: min(90vw, min(58vh, 600px)); aspect-ratio: 1 / 1; flex-shrink: 0;' + (activeBgImage ? ` background-image: url('${activeBgImage}'); background-size: cover; background-position: center;` : '')
              : (activeBgImage ? `background-image: url('${activeBgImage}'); background-size: cover; background-position: center;` : '')"
@@ -185,46 +289,7 @@
                    class="absolute inset-0 w-full h-full object-cover pointer-events-none transition-opacity duration-500 z-[5] opacity-95"></video>
         </template>
 
-        {{-- KOMPAKTER ZOOM-REGLER MITTIG OBEN AUF DER ANSICHT --}}
         @if($context !== 'preview')
-        <div x-show="(showDrawingBoard || !config.modelPath) && context !== 'preview'"
-             data-snapshot-ignore="true"
-             @mousedown.stop
-             @touchstart.stop
-             class="absolute top-2.5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 px-2.5 py-1 rounded-full shadow-md border backdrop-blur-md transition-all pointer-events-auto {{ $isDark ? 'bg-gray-900/90 border-gray-700/90 text-gray-100' : 'bg-white/90 border-[#C5A059]/45 text-gray-800 shadow-[0_4px_16px_rgba(0,0,0,0.12)]' }}">
-            <button type="button"
-                    @click.stop="stepStageZoom(-0.15)"
-                    :disabled="stageZoom <= 1.01"
-                    :class="stageZoom > 1.01 ? 'hover:text-primary active:scale-90 cursor-pointer' : 'opacity-40 cursor-not-allowed'"
-                    class="w-5 h-5 rounded-full flex items-center justify-center transition-all select-none"
-                    title="Herauszoomen">
-                <x-heroicon-m-magnifying-glass-minus class="w-3.5 h-3.5 text-[#C5A059]" />
-            </button>
-            <input type="range"
-                   min="1"
-                   max="3"
-                   step="0.02"
-                   :value="stageZoom"
-                   @input.stop="setStageZoom($event.target.value)"
-                   class="w-20 sm:w-28 h-1.5 rounded-lg appearance-none cursor-pointer accent-[#C5A059] {{ $isDark ? 'bg-gray-700' : 'bg-gray-200' }}"
-                   title="Arbeitsfläche zoomen (100% - 300%)">
-            <button type="button"
-                    @click.stop="stepStageZoom(0.15)"
-                    :disabled="stageZoom >= 2.99"
-                    :class="stageZoom < 2.99 ? 'hover:text-primary active:scale-90 cursor-pointer' : 'opacity-40 cursor-not-allowed'"
-                    class="w-5 h-5 rounded-full flex items-center justify-center transition-all select-none"
-                    title="Heranzoomen">
-                <x-heroicon-m-magnifying-glass-plus class="w-3.5 h-3.5 text-[#C5A059]" />
-            </button>
-            <button type="button"
-                    @click.stop="resetStageZoom()"
-                    :class="stageZoom > 1.01 ? 'text-[#9A7B3E] hover:text-primary cursor-pointer' : 'text-gray-400 cursor-default'"
-                    class="min-w-[34px] text-right text-[10px] font-black tracking-tight transition-colors select-none"
-                    title="Zoom zurücksetzen (100%)">
-                <span x-text="Math.round(stageZoom * 100) + '%'">100%</span>
-            </button>
-        </div>
-
         {{-- EXTRA-ZOOMFENSTER (NAVIGATOR / MINIMAP) OBEN RECHTS ZUM MM-GENAUEN VERSCHIEBEN --}}
         <div x-show="stageZoom > 1.01 && (showDrawingBoard || !config.modelPath) && context !== 'preview'"
              x-cloak
@@ -360,11 +425,49 @@
                         };
                      `">
 
-                <div x-show="currentTexts.length === 0 && currentLogos.length === 0 && context !== 'preview' && !config.isBeginnerMode" data-snapshot-ignore="true" class="absolute inset-0 flex items-center justify-center pointer-events-auto">
-                    <button @click="addFallbackText()"
-                            class="px-6 py-3 backdrop-blur-md border rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all {{ $isDark ? 'bg-gray-900/85 text-primary border-[#C5A059]/40 hover:bg-primary hover:text-gray-950' : 'bg-white/85 text-[#9A7B3E] border-[#C5A059]/50 hover:bg-[#C5A059] hover:text-white hover:border-[#C5A059] shadow-[0_8px_24px_rgba(197,160,89,0.20)]' }}">
-                        + Text hinzufügen
+                <div x-show="currentTexts.length === 0 && currentLogos.length === 0 && context !== 'preview' && !config.isBeginnerMode"
+                     data-snapshot-ignore="true"
+                     class="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 pointer-events-auto">
+                    <button type="button"
+                            @mousedown.stop
+                            @touchstart.stop
+                            @click.stop="addFallbackText()"
+                            class="px-5 py-2.5 backdrop-blur-md border rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 cursor-pointer {{ $isDark ? 'bg-gray-900/88 text-primary border-[#C5A059]/45 hover:bg-primary hover:text-gray-950' : 'bg-white/90 text-[#9A7B3E] border-[#C5A059]/55 hover:bg-[#C5A059] hover:text-white hover:border-[#C5A059] shadow-[0_8px_24px_rgba(197,160,89,0.22)]' }}">
+                        <span class="font-serif text-xs leading-none">Aa+</span>
+                        <span>+ Text hinzufügen</span>
                     </button>
+
+                    @if($configSettings['allow_logo'] ?? true)
+                        <button type="button"
+                                @mousedown.stop
+                                @touchstart.stop
+                                @click.stop="activeTab = 'files'"
+                                class="px-4 py-2 backdrop-blur-md border rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer {{ $isDark ? 'bg-gray-900/80 text-gray-200 border-gray-700 hover:border-[#C5A059] hover:text-[#C5A059]' : 'bg-white/85 text-gray-700 border-gray-200/90 hover:border-[#C5A059] hover:text-[#9A7B3E] shadow-sm' }}">
+                            <x-heroicon-o-photo class="w-3.5 h-3.5 text-[#C5A059]" />
+                            <span>+ Bild / Motiv laden</span>
+                        </button>
+                    @endif
+
+                    <div class="flex items-center justify-center gap-1.5">
+                        <button type="button"
+                                @mousedown.stop
+                                @touchstart.stop
+                                @click.stop="activeTab = 'symbols'"
+                                class="px-3 py-1.5 backdrop-blur-md border rounded-full text-[9px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer {{ $isDark ? 'bg-gray-900/75 text-gray-300 border-gray-700 hover:border-[#C5A059] hover:text-[#C5A059]' : 'bg-white/80 text-gray-600 border-gray-200/80 hover:border-[#C5A059] hover:text-[#9A7B3E] shadow-2xs' }}">
+                            <x-heroicon-o-sparkles class="w-3 h-3 text-[#C5A059]" />
+                            <span>Symbole</span>
+                        </button>
+                        @if(!empty($quotes))
+                            <button type="button"
+                                    @mousedown.stop
+                                    @touchstart.stop
+                                    @click.stop="activeTab = 'quotes'"
+                                    class="px-3 py-1.5 backdrop-blur-md border rounded-full text-[9px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer {{ $isDark ? 'bg-gray-900/75 text-gray-300 border-gray-700 hover:border-[#C5A059] hover:text-[#C5A059]' : 'bg-white/80 text-gray-600 border-gray-200/80 hover:border-[#C5A059] hover:text-[#9A7B3E] shadow-2xs' }}">
+                                <x-heroicon-o-chat-bubble-bottom-center-text class="w-3 h-3 text-[#C5A059]" />
+                                <span>Sprüche</span>
+                            </button>
+                        @endif
+                    </div>
                 </div>
 
                 <template x-for="(logoItem,index) in currentLogos" :key="'content-logo-' + activeSide + '-' + (logoItem.id || index)">
@@ -605,134 +708,235 @@
             </div>
         </div>
 
-        {{-- KOMPAKTE SCHWEBENDE WERKZEUGLEISTE (AUSSERHALB DES GEZOOMTEN ZEICHENBRETTS, BLEIBT IMMER IN ORIGINALGRÖSSE UNTEN MITTIG) --}}
-        <div x-show="(selectedIndex !== null || currentTexts.length === 0) && showDrawingBoard && context !== 'preview' && !config.isBeginnerMode"
-             data-snapshot-ignore="true"
-             x-transition
-             class="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 max-w-[94%] backdrop-blur-md border rounded-2xl sm:rounded-full px-3 sm:px-4 py-1.5 sm:py-2 flex items-center gap-1 sm:gap-2 z-40 pointer-events-auto schwebender-werkzeugkasten {{ $isDark ? 'bg-gray-900/85 border-[#C5A059]/40 shadow-2xl' : 'bg-white/85 border-[#C5A059]/45 shadow-[0_8px_28px_rgba(197,160,89,0.20),0_2px_10px_rgba(0,0,0,0.06)]' }}">
+    </div>
 
-            {{-- MODUS A: STANDARD-WERKZEUGE (+ Text, Verschieben, Drehen, Größe, Zuschneiden, Ebenen, Löschen) --}}
-            <template x-if="!isCropping">
-                <div class="flex items-center gap-1 sm:gap-2">
-                    <div @mousedown.stop @click.stop="addNewTextElement()" @touchstart.stop.prevent="addNewTextElement()"
-                         class="flex flex-col items-center justify-center cursor-pointer transition-colors px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl group select-none {{ $isDark ? 'text-primary hover:text-white hover:bg-primary/20' : 'text-[#9A7B3E] hover:text-[#7A5E28] hover:bg-[#C5A059]/15' }}" title="Neues Textfeld hinzufügen">
-                        <span class="font-serif font-black text-xs sm:text-sm leading-none h-4 sm:h-5 flex items-center pointer-events-none">Aa+</span>
-                        <span class="text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 pointer-events-none whitespace-nowrap {{ $isDark ? 'text-primary group-hover:text-white' : 'text-[#9A7B3E] group-hover:text-[#7A5E28]' }}">+ Text</span>
+    {{-- UNTEN AUSSEN STICKY DIREKT AN DER VORSCHAU (VOLLE BREITE): VEREINTE AKTIONS- & WERKZEUGLEISTE --}}
+    <div x-show="showDrawingBoard && context !== 'preview' && !config.isBeginnerMode && (selectedIndex !== null || isCropping)"
+         x-cloak
+         data-snapshot-ignore="true"
+         :class="isMaximized ? 'w-[min(90vw,min(58vh,600px))]' : 'w-full max-w-[455px] md:max-w-[600px]'"
+         class="rounded-b-2xl border-x border-b px-2 sm:px-3 py-2 flex flex-wrap items-center justify-center sm:justify-around gap-1 sm:gap-1.5 relative z-50 pointer-events-auto schwebender-werkzeugkasten shrink-0 {{ $isDark ? 'bg-gray-900/95 border-gray-800 shadow-lg' : 'bg-white/95 border-gray-200/90 shadow-[0_10px_28px_rgba(0,0,0,0.06)]' }}">
+
+        {{-- MODUS A: ALLE WERKZEUGE LOGISCH IN 2 ÜBERSICHTLICHEN REIHEN (Reihe 1: Hauptwerkzeuge | Reihe 2 ab Kopie-Icon: Kopie, Ausrichten, Löschen) --}}
+        <template x-if="!isCropping && selectedIndex !== null">
+            <div class="flex flex-col gap-1.5 w-full">
+
+                {{-- REIHE 1: VERSCHIEBEN | DREHEN | GRÖSSE | ZUSCHNEIDEN (Bild) bzw. SCHRIFT & FORMAT (Text) --}}
+                <div class="flex items-center justify-around gap-1.5 sm:gap-2 w-full pb-1.5 border-b {{ $isDark ? 'border-gray-800/80' : 'border-gray-100' }}">
+
+                    {{-- 1. VERSCHIEBEN --}}
+                    <div @mousedown.stop="startAction($event, selectedType, selectedIndex, 'drag')"
+                         @touchstart.stop.prevent="startAction($event, selectedType, selectedIndex, 'drag')"
+                         class="flex-1 flex flex-col items-center justify-center cursor-move transition-colors px-2 py-1.5 rounded-xl group select-none {{ $isDark ? 'text-gray-300 hover:text-white hover:bg-gray-800/80' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/12' }}"
+                         title="Gedrückt halten zum Verschieben">
+                        <x-heroicon-m-arrows-pointing-out class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
+                        <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5 pointer-events-none">Verschieben</span>
                     </div>
 
-                    <template x-if="selectedIndex !== null">
-                        <div class="flex items-center gap-1 sm:gap-2">
-                            <div class="w-px h-7 mx-0.5 sm:mx-1 self-center {{ $isDark ? 'bg-gray-700' : 'bg-[#C5A059]/30' }}"></div>
+                    {{-- 2. DREHEN --}}
+                    <div @mousedown.stop="startAction($event, selectedType, selectedIndex, 'rotate')"
+                         @touchstart.stop.prevent="startAction($event, selectedType, selectedIndex, 'rotate')"
+                         class="flex-1 flex flex-col items-center justify-center cursor-alias transition-colors px-2 py-1.5 rounded-xl group select-none {{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/12' }}"
+                         title="Gedrückt halten zum Drehen">
+                        <x-heroicon-m-arrow-path class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
+                        <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5 pointer-events-none">Drehen</span>
+                    </div>
 
-                            <div @mousedown.stop="startAction($event, selectedType, selectedIndex, 'drag')" @touchstart.stop.prevent="startAction($event, selectedType, selectedIndex, 'drag')"
-                                 class="flex flex-col items-center justify-center cursor-move transition-colors px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl group select-none {{ $isDark ? 'text-gray-300 hover:text-white hover:bg-gray-800/70' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/15' }}" title="Verschieben">
-                                <x-heroicon-m-arrows-pointing-out class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
-                                <span class="text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 pointer-events-none {{ $isDark ? 'text-gray-400 group-hover:text-white' : 'text-gray-600 group-hover:text-[#9A7B3E]' }}">Verschieben</span>
+                    {{-- 3. GRÖSSE (Klick öffnet Schieberegler, Ziehen skaliert direkt) --}}
+                    <div class="relative flex-1 flex justify-center">
+                        <button type="button"
+                                @click.stop="if (!hasDraggedDistance) { showSizeMenu = !showSizeMenu; showFontMenu = false; showAlignMenu = false; showPosMenu = false; }"
+                                @mousedown.stop="startAction($event, selectedType, selectedIndex, 'resize')"
+                                @touchstart.stop="startAction($event, selectedType, selectedIndex, 'resize')"
+                                :class="showSizeMenu ? '{{ $isDark ? 'bg-gray-800 text-primary' : 'bg-[#C5A059]/15 text-[#9A7B3E]' }}' : '{{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/12' }}'"
+                                class="w-full flex flex-col items-center justify-center cursor-pointer transition-colors px-2 py-1.5 rounded-xl group select-none"
+                                title="Größe ändern (Klicken für Regler oder Ziehen)">
+                            <svg class="w-4 h-4 sm:w-5 sm:h-5 rotate-90 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 20L20 4M20 4H14M20 4V10M4 20H10M4 20V14" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5 pointer-events-none">Größe</span>
+                        </button>
+                        <div x-show="showSizeMenu"
+                             @click.outside="showSizeMenu = false"
+                             x-cloak
+                             class="absolute bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2 w-56 rounded-2xl shadow-2xl border p-4 z-[100] {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200' }}">
+                            <div class="flex justify-between text-[10px] font-black tracking-widest text-gray-400 uppercase mb-2.5"><span>Klein</span><span>Groß</span></div>
+                            <template x-if="selectedType === 'text' && currentTexts[selectedIndex] !== undefined">
+                                <input type="range" min="0.1" max="5" step="0.05" x-model="currentTexts[selectedIndex].size" @change="recordHistory()" class="w-full accent-primary h-2 rounded-lg appearance-none cursor-pointer {{ $isDark ? 'bg-gray-800' : 'bg-gray-100' }}">
+                            </template>
+                            <template x-if="selectedType === 'logo' && currentLogos[selectedIndex] !== undefined">
+                                <input type="range" min="10" max="500" step="1" x-model="currentLogos[selectedIndex].size" @change="recordHistory()" class="w-full accent-primary h-2 rounded-lg appearance-none cursor-pointer {{ $isDark ? 'bg-gray-800' : 'bg-gray-100' }}">
+                            </template>
+                        </div>
+                    </div>
+
+                    {{-- 4. ZUSCHNEIDEN (Nur bei ausgewähltem Bild/Motiv) --}}
+                    <template x-if="selectedType === 'logo' && currentLogos[selectedIndex] !== undefined">
+                        <button type="button"
+                                @mousedown.stop @click.stop="startCropMode()"
+                                class="flex-1 flex flex-col items-center justify-center cursor-pointer transition-colors px-2 py-1.5 rounded-xl group select-none {{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/12' }}"
+                                title="Bild zuschneiden">
+                            <x-heroicon-m-scissors class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
+                            <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5 pointer-events-none">Zuschneiden</span>
+                        </button>
+                    </template>
+
+                    {{-- 5. TEXT-WERKZEUGE: SCHRIFT & FORMAT (Nur bei ausgewähltem Text) --}}
+                    <template x-if="selectedType === 'text' && currentTexts[selectedIndex] !== undefined">
+                        <div class="contents">
+                            <div class="w-px h-6 mx-0.5 {{ $isDark ? 'bg-gray-800' : 'bg-gray-200' }}"></div>
+
+                            <div class="relative flex-1 flex justify-center">
+                                <button type="button"
+                                        @click.stop="showFontMenu = !showFontMenu; showSizeMenu = false; showAlignMenu = false; showPosMenu = false"
+                                        :class="showFontMenu ? '{{ $isDark ? 'bg-gray-800 text-primary' : 'bg-[#C5A059]/15 text-[#9A7B3E]' }}' : '{{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/12' }}'"
+                                        class="w-full flex flex-col items-center justify-center px-2 py-1 rounded-xl transition-colors cursor-pointer select-none"
+                                        title="Schriftart wählen">
+                                    <span class="font-serif font-black text-sm leading-none h-4 flex items-center">Aa</span>
+                                    <span class="text-[9px] font-bold text-[#C5A059] mt-0.5 leading-tight max-w-[80px] truncate" x-text="currentTexts[selectedIndex]?.font || lastSelectedFont || 'Arial'"></span>
+                                </button>
+                                <div x-show="showFontMenu"
+                                     @click.outside="showFontMenu = false"
+                                     x-cloak
+                                     class="absolute bottom-[calc(100%+10px)] right-0 sm:left-1/2 sm:-translate-x-1/2 w-56 rounded-2xl shadow-2xl border overflow-hidden z-[100] flex flex-col max-h-64 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200' }}">
+                                    <div class="overflow-y-auto p-2 custom-scrollbar space-y-1">
+                                        <template x-for="(fontName, fontKey) in fontMap">
+                                            <button type="button"
+                                                    @click.stop="setTextFont(fontKey)"
+                                                    class="w-full text-left px-4 py-2.5 text-sm rounded-xl truncate transition-colors cursor-pointer {{ $isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50' }}"
+                                                    :style="{ fontFamily: fontName }"
+                                                    :class="currentTexts[selectedIndex].font === fontKey ? 'text-primary font-bold {{ $isDark ? 'bg-primary/10' : 'bg-primary/5' }}' : '{{ $isDark ? 'text-gray-300' : 'text-gray-700' }}'">
+                                                <span x-text="fontKey"></span>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </div>
                             </div>
 
-                            <div @mousedown.stop="startAction($event, selectedType, selectedIndex, 'rotate')" @touchstart.stop.prevent="startAction($event, selectedType, selectedIndex, 'rotate')"
-                                 class="flex flex-col items-center justify-center cursor-alias transition-colors px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl group select-none {{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/15' }}" title="Drehen">
-                                <x-heroicon-m-arrow-path class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
-                                <span class="text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 pointer-events-none {{ $isDark ? 'text-gray-400 group-hover:text-primary' : 'text-gray-600 group-hover:text-[#9A7B3E]' }}">Drehen</span>
-                            </div>
-
-                            <div @mousedown.stop="startAction($event, selectedType, selectedIndex, 'resize')" @touchstart.stop.prevent="startAction($event, selectedType, selectedIndex, 'resize')"
-                                 class="flex flex-col items-center justify-center cursor-se-resize transition-colors px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl group select-none {{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/15' }}" title="Skalieren">
-                                <svg class="w-4 h-4 sm:w-5 sm:h-5 rotate-90 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 20L20 4M20 4H14M20 4V10M4 20H10M4 20V14" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                <span class="text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 pointer-events-none {{ $isDark ? 'text-gray-400 group-hover:text-primary' : 'text-gray-600 group-hover:text-[#9A7B3E]' }}">Größe</span>
-                            </div>
-
-                            {{-- ZUSCHNEIDEN ICON (NUR BEI AUSGEWÄHLTEM BILD/MOTIV) --}}
-                            <div x-show="selectedType === 'logo'"
-                                 @mousedown.stop @click.stop="startCropMode()" @touchstart.stop.prevent="startCropMode()"
-                                 class="flex flex-col items-center justify-center cursor-pointer transition-colors px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl group select-none {{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/15' }}" title="Bild zuschneiden">
-                                <x-heroicon-m-scissors class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
-                                <span class="text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 pointer-events-none {{ $isDark ? 'text-gray-400 group-hover:text-primary' : 'text-gray-600 group-hover:text-[#9A7B3E]' }}">Zuschneiden</span>
-                            </div>
-
-                            <div class="w-px h-7 mx-0.5 sm:mx-1 self-center {{ $isDark ? 'bg-gray-700' : 'bg-[#C5A059]/30' }}" x-show="(currentTexts.length + currentLogos.length) > 1"></div>
-
-                            <div x-show="(currentTexts.length + currentLogos.length) > 1"
-                                 @click.stop="bringToFront()" @touchstart.stop.prevent="bringToFront()"
-                                 class="flex flex-col items-center justify-center cursor-pointer transition-colors px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl group select-none {{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/15' }}" title="Auf obere Ebene heben">
-                                <x-heroicon-m-arrow-up-on-square-stack class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
-                                <span class="text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 pointer-events-none {{ $isDark ? 'text-gray-400 group-hover:text-primary' : 'text-gray-600 group-hover:text-[#9A7B3E]' }}">Nach vorn</span>
-                            </div>
-
-                            <div x-show="(currentTexts.length + currentLogos.length) > 1"
-                                 @click.stop="sendToBack()" @touchstart.stop.prevent="sendToBack()"
-                                 class="flex flex-col items-center justify-center cursor-pointer transition-colors px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl group select-none {{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/15' }}" title="In den Hintergrund senden">
-                                <x-heroicon-m-arrow-down-on-square-stack class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
-                                <span class="text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 pointer-events-none {{ $isDark ? 'text-gray-400 group-hover:text-primary' : 'text-gray-600 group-hover:text-[#9A7B3E]' }}">Nach hinten</span>
-                            </div>
-
-                            <div class="w-px h-7 mx-0.5 sm:mx-1 self-center {{ $isDark ? 'bg-gray-700' : 'bg-[#C5A059]/30' }}"></div>
-
-                            <div @mousedown.stop @click.stop="deleteSelectedItem()" @touchstart.stop.prevent="deleteSelectedItem()"
-                                 class="flex flex-col items-center justify-center cursor-pointer transition-colors px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl group select-none {{ $isDark ? 'text-gray-300 hover:text-red-400 hover:bg-red-500/10' : 'text-gray-700 hover:text-red-600 hover:bg-red-50/80' }}" title="Löschen">
-                                <x-heroicon-m-trash class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
-                                <span class="text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 pointer-events-none {{ $isDark ? 'text-gray-400 group-hover:text-red-400' : 'text-gray-600 group-hover:text-red-600' }}">Löschen</span>
+                            <div class="relative flex-1 flex justify-center">
+                                <button type="button"
+                                        @click.stop="showAlignMenu = !showAlignMenu; showFontMenu = false; showSizeMenu = false; showPosMenu = false"
+                                        :class="showAlignMenu ? '{{ $isDark ? 'bg-gray-800 text-primary' : 'bg-[#C5A059]/15 text-[#9A7B3E]' }}' : '{{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/12' }}'"
+                                        class="w-full flex flex-col items-center justify-center px-2 py-1.5 rounded-xl transition-colors cursor-pointer select-none"
+                                        title="Textausrichtung">
+                                    <div class="w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center">
+                                        <template x-if="currentTexts[selectedIndex].align === 'left'"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M3.75 12h10.5m-10.5 5.25h16.5" /></svg></template>
+                                        <template x-if="currentTexts[selectedIndex].align === 'center' || !currentTexts[selectedIndex].align"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M7.5 12h9m-9 5.25h9" /></svg></template>
+                                        <template x-if="currentTexts[selectedIndex].align === 'right'"><svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M10.5 12h9.75m-16.5 5.25h16.5" /></svg></template>
+                                    </div>
+                                    <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5">Format</span>
+                                </button>
+                                <div x-show="showAlignMenu"
+                                     @click.outside="showAlignMenu = false"
+                                     x-cloak
+                                     class="absolute bottom-[calc(100%+10px)] right-0 rounded-2xl shadow-2xl border p-1.5 z-[100] flex gap-1 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200' }}">
+                                    <button type="button" @click.stop="setTextAlign('left')" class="p-2.5 rounded-xl hover:text-primary transition-colors cursor-pointer {{ $isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-50 text-gray-500' }}"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M3.75 12h10.5m-10.5 5.25h16.5" /></svg></button>
+                                    <button type="button" @click.stop="setTextAlign('center')" class="p-2.5 rounded-xl hover:text-primary transition-colors cursor-pointer {{ $isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-50 text-gray-500' }}"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M7.5 12h9m-9 5.25h9" /></svg></button>
+                                    <button type="button" @click.stop="setTextAlign('right')" class="p-2.5 rounded-xl hover:text-primary transition-colors cursor-pointer {{ $isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-50 text-gray-500' }}"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M10.5 12h9.75m-16.5 5.25h16.5" /></svg></button>
+                                </div>
                             </div>
                         </div>
                     </template>
                 </div>
-            </template>
 
-            {{-- MODUS B: AKTIVER ZUSCHNITT-MODUS (Frei/Rechteck, Rund, Original, Abbrechen, Übernehmen) --}}
-            <template x-if="isCropping">
-                <div class="flex items-center gap-1 sm:gap-2">
+                {{-- REIHE 2 (AB KOPIE-ICON): KOPIE | HORIZ. | VERTIK. | MITTE | LÖSCHEN --}}
+                <div class="flex items-center justify-around gap-1.5 sm:gap-2 w-full">
                     <button type="button"
-                            @mousedown.stop @click.stop="cropBox.shape = 'rect'"
-                            :class="cropBox.shape === 'rect' ? 'text-[#9A7B3E] bg-[#C5A059]/15 border-[#C5A059]/45' : '{{ $isDark ? 'text-gray-300 hover:text-white' : 'text-gray-700 hover:text-[#9A7B3E]' }} border-transparent'"
-                            class="flex flex-col items-center justify-center cursor-pointer border transition-colors px-2.5 py-1 rounded-xl select-none">
-                        <svg class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="14" rx="2" /></svg>
-                        <span class="text-[9px] font-semibold tracking-tight mt-0.5 pointer-events-none">Eckig</span>
+                            @click.stop="duplicateElement"
+                            class="flex-1 flex flex-col items-center justify-center px-2 py-1.5 rounded-xl transition-colors cursor-pointer select-none {{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/12' }}"
+                            title="Element duplizieren">
+                        <x-heroicon-m-square-2-stack class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
+                        <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5 pointer-events-none">Kopie</span>
                     </button>
 
                     <button type="button"
-                            @mousedown.stop @click.stop="cropBox.shape = 'circle'"
-                            :class="cropBox.shape === 'circle' ? 'text-[#9A7B3E] bg-[#C5A059]/15 border-[#C5A059]/45' : '{{ $isDark ? 'text-gray-300 hover:text-white' : 'text-gray-700 hover:text-[#9A7B3E]' }} border-transparent'"
-                            class="flex flex-col items-center justify-center cursor-pointer border transition-colors px-2.5 py-1 rounded-xl select-none">
-                        <svg class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8" /></svg>
-                        <span class="text-[9px] font-semibold tracking-tight mt-0.5 pointer-events-none">Rund</span>
-                    </button>
-
-                    <template x-if="currentLogos[selectedIndex] && (currentLogos[selectedIndex].original_url || cropBox.top > 0 || cropBox.right > 0 || cropBox.bottom > 0 || cropBox.left > 0)">
-                        <button type="button"
-                                @mousedown.stop @click.stop="resetLogoToOriginal()"
-                                class="flex flex-col items-center justify-center cursor-pointer transition-colors px-2 py-1 rounded-xl select-none {{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-gray-800/70' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/15' }}"
-                                title="Zuschnitt zurücksetzen">
-                            <x-heroicon-m-arrow-uturn-left class="w-4 h-4 pointer-events-none" />
-                            <span class="text-[9px] font-semibold tracking-tight mt-0.5 pointer-events-none">Original</span>
-                        </button>
-                    </template>
-
-                    <div class="w-px h-7 mx-0.5 self-center {{ $isDark ? 'bg-gray-700' : 'bg-[#C5A059]/30' }}"></div>
-
-                    <button type="button"
-                            @mousedown.stop @click.stop="cancelCropMode()"
-                            class="flex flex-col items-center justify-center cursor-pointer transition-colors px-2.5 py-1 rounded-xl select-none {{ $isDark ? 'text-gray-300 hover:text-red-400 hover:bg-red-500/10' : 'text-gray-700 hover:text-red-600 hover:bg-red-50/80' }}">
-                        <x-heroicon-m-x-mark class="w-4 h-4 pointer-events-none" />
-                        <span class="text-[9px] font-semibold tracking-tight mt-0.5 pointer-events-none">Abbrechen</span>
+                            @click.stop="centerHorizontal"
+                            class="flex-1 flex flex-col items-center justify-center px-2 py-1.5 rounded-xl transition-colors cursor-pointer select-none {{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/12' }}"
+                            title="Horizontal zentrieren">
+                        <x-heroicon-m-pause class="w-4 h-4 sm:w-5 sm:h-5 rotate-90 pointer-events-none" />
+                        <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5 pointer-events-none">Horiz.</span>
                     </button>
 
                     <button type="button"
-                            @mousedown.stop @click.stop="applyCrop()"
-                            :disabled="isApplyingCrop"
-                            class="flex items-center gap-1.5 cursor-pointer bg-[#C5A059] text-white hover:bg-[#b08d48] font-bold text-xs px-3.5 py-2 rounded-xl shadow-md transition-all select-none">
-                        <x-heroicon-m-check class="w-4 h-4 stroke-[2.5] pointer-events-none" />
-                        <span x-text="isApplyingCrop ? 'Speichert...' : 'Übernehmen'"></span>
+                            @click.stop="centerVertical"
+                            class="flex-1 flex flex-col items-center justify-center px-2 py-1.5 rounded-xl transition-colors cursor-pointer select-none {{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/12' }}"
+                            title="Vertikal zentrieren">
+                        <x-heroicon-m-pause class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
+                        <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5 pointer-events-none">Vertik.</span>
+                    </button>
+
+                    <button type="button"
+                            @click.stop="centerBoth"
+                            class="flex-1 flex flex-col items-center justify-center px-2 py-1.5 bg-primary/10 hover:bg-primary/20 text-[#9A7B3E] dark:text-primary rounded-xl transition-colors cursor-pointer select-none"
+                            title="Exakt in die Mitte setzen">
+                        <x-heroicon-m-viewfinder-circle class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
+                        <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5 pointer-events-none">Mitte</span>
+                    </button>
+
+                    <div class="w-px h-6 mx-0.5 {{ $isDark ? 'bg-gray-800' : 'bg-gray-200' }}"></div>
+
+                    <button type="button"
+                            @mousedown.stop @click.stop="deleteSelectedItem()"
+                            class="flex-1 flex flex-col items-center justify-center cursor-pointer transition-colors px-2 py-1.5 rounded-xl group select-none {{ $isDark ? 'text-gray-300 hover:text-red-400 hover:bg-red-500/10' : 'text-gray-700 hover:text-red-600 hover:bg-red-50/80' }}"
+                            title="Ausgewähltes Element löschen">
+                        <x-heroicon-m-trash class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
+                        <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5 pointer-events-none">Löschen</span>
                     </button>
                 </div>
-            </template>
-        </div>
+            </div>
+        </template>
 
+        {{-- MODUS B: AKTIVER ZUSCHNITT-MODUS (Eckig, Rund, Original, Abbrechen, Übernehmen) --}}
+        <template x-if="isCropping">
+            <div class="flex flex-wrap items-center justify-center gap-2 sm:gap-3 w-full">
+                <button type="button"
+                        @mousedown.stop @click.stop="cropBox.shape = 'rect'"
+                        :class="cropBox.shape === 'rect' ? 'text-[#9A7B3E] bg-[#C5A059]/15 border-[#C5A059]/45' : '{{ $isDark ? 'text-gray-300 hover:text-white' : 'text-gray-700 hover:text-[#9A7B3E]' }} border-transparent'"
+                        class="flex flex-col items-center justify-center cursor-pointer border transition-colors px-3 py-1.5 rounded-xl select-none">
+                    <svg class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="14" rx="2" /></svg>
+                    <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5 pointer-events-none">Eckig</span>
+                </button>
+
+                <button type="button"
+                        @mousedown.stop @click.stop="cropBox.shape = 'circle'"
+                        :class="cropBox.shape === 'circle' ? 'text-[#9A7B3E] bg-[#C5A059]/15 border-[#C5A059]/45' : '{{ $isDark ? 'text-gray-300 hover:text-white' : 'text-gray-700 hover:text-[#9A7B3E]' }} border-transparent'"
+                        class="flex flex-col items-center justify-center cursor-pointer border transition-colors px-3 py-1.5 rounded-xl select-none">
+                    <svg class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8" /></svg>
+                    <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5 pointer-events-none">Rund</span>
+                </button>
+
+                <template x-if="currentLogos[selectedIndex] && (currentLogos[selectedIndex].original_url || cropBox.top > 0 || cropBox.right > 0 || cropBox.bottom > 0 || cropBox.left > 0)">
+                    <button type="button"
+                            @mousedown.stop @click.stop="resetLogoToOriginal()"
+                            class="flex flex-col items-center justify-center cursor-pointer transition-colors px-2.5 py-1.5 rounded-xl select-none {{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-gray-800/70' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/15' }}"
+                            title="Zuschnitt zurücksetzen">
+                        <x-heroicon-m-arrow-uturn-left class="w-4 h-4 pointer-events-none" />
+                        <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5 pointer-events-none">Original</span>
+                    </button>
+                </template>
+
+                <div class="w-px h-7 mx-0.5 self-center {{ $isDark ? 'bg-gray-700' : 'bg-[#C5A059]/30' }}"></div>
+
+                <button type="button"
+                        @mousedown.stop @click.stop="cancelCropMode()"
+                        class="flex flex-col items-center justify-center cursor-pointer transition-colors px-2.5 py-1.5 rounded-xl select-none {{ $isDark ? 'text-gray-300 hover:text-red-400 hover:bg-red-500/10' : 'text-gray-700 hover:text-red-600 hover:bg-red-50/80' }}">
+                    <x-heroicon-m-x-mark class="w-4 h-4 pointer-events-none" />
+                    <span class="text-[9px] font-bold uppercase tracking-tight mt-0.5 pointer-events-none">Abbrechen</span>
+                </button>
+
+                <button type="button"
+                        @mousedown.stop @click.stop="applyCrop()"
+                        :disabled="isApplyingCrop"
+                        class="flex items-center gap-1.5 cursor-pointer bg-[#C5A059] text-white hover:bg-[#b08d48] font-bold text-xs px-3.5 py-2 rounded-xl shadow-md transition-all select-none">
+                    <x-heroicon-m-check class="w-4 h-4 stroke-[2.5] pointer-events-none" />
+                    <span x-text="isApplyingCrop ? 'Speichert...' : 'Übernehmen'"></span>
+                </button>
+            </div>
+        </template>
     </div>
 
     {{-- EBENEN- & ELEMENT-AUSWAHL (Damit verdeckte Texte/Bilder jederzeit anklickbar und nach oben hebbar sind) --}}
     <div x-show="showDrawingBoard && context !== 'preview' && !config.isBeginnerMode && (currentTexts.length + currentLogos.length) > 1"
          x-cloak
-         class="w-full max-w-[455px] md:max-w-[600px] px-1 sm:px-2 mt-3 relative z-50">
+         class="w-full max-w-[455px] md:max-w-[600px] px-1 sm:px-2 mt-3 relative z-40">
         <div class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-2xl border shadow-sm {{ $isDark ? 'bg-gray-900/90 border-gray-800 text-gray-300' : 'bg-white border-gray-200/80 text-gray-700' }}">
             <div class="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
                 <span class="text-[10px] font-black uppercase tracking-wider text-gray-400 mr-1 flex items-center gap-1 shrink-0">
@@ -779,7 +983,7 @@
     </div>
 
     {{-- VORDERSEITE / RÜCKSEITE SWITCH (Direkt unter dem Rahmen) --}}
-    <div x-show="config.has_back_side && !config.isBeginnerMode && (context !== 'preview' || (texts_back && texts_back.some(t => t && t.text && String(t.text).trim() !== '')) || (logos_back && logos_back.length > 0))" x-cloak class="mt-6 shadow-sm border rounded-full p-1 flex items-center justify-center relative z-50 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
+    <div x-show="config.has_back_side && !config.isBeginnerMode && (context !== 'preview' || (texts_back && texts_back.some(t => t && t.text && String(t.text).trim() !== '')) || (logos_back && logos_back.length > 0))" x-cloak class="mt-5 shadow-sm border rounded-full p-1 flex items-center justify-center relative z-40 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
         <button type="button"
                 @click="switchSide('front')"
                 :class="activeSide === 'front' ? 'bg-primary text-white shadow-md' : '{{ $isDark ? 'text-gray-500 hover:text-white' : 'text-gray-500 hover:text-gray-800' }}'"
@@ -792,120 +996,6 @@
                 class="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300 w-36 text-center cursor-pointer">
             Rückseite
         </button>
-    </div>
-
-    {{-- GLOBALE EINSTELLUNGEN (Toolbar darunter) --}}
-    <div x-show="showDrawingBoard && context !== 'preview' && !config.isBeginnerMode" class="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mt-6 shadow-[0_10px_30px_rgba(0,0,0,0.05)] border p-2 sm:p-3 rounded-[1.5rem] animate-fade-in-up relative z-50 w-full max-w-[98vw] md:max-w-xl mx-auto {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}" x-cloak>
-
-        <button type="button"
-                @click="addNewTextElement()"
-                class="flex flex-col items-center px-3.5 py-2 rounded-xl transition-colors cursor-pointer group {{ $isDark ? 'hover:bg-gray-800 text-primary' : 'hover:bg-gray-50 text-primary' }}"
-                title="Neues Textfeld hinzufügen">
-            <div class="flex items-center justify-center w-6 h-6 font-serif font-black text-base leading-none">Aa<span class="text-xs font-sans font-black ml-0.5">+</span></div>
-            <span class="text-[9px] font-black uppercase tracking-widest mt-1">+ Text</span>
-        </button>
-
-        <template x-if="selectedIndex !== null">
-            <div class="w-px h-10 mx-1 sm:mx-2 {{ $isDark ? 'bg-gray-800' : 'bg-gray-200' }}"></div>
-        </template>
-
-        <template x-if="selectedType === 'text' && currentTexts[selectedIndex] !== undefined">
-            <div class="flex items-center gap-1 sm:gap-2">
-                <div class="relative">
-                    <button @click="showFontMenu = !showFontMenu; showSizeMenu = false; showAlignMenu = false; showPosMenu = false" class="flex flex-col items-center px-3.5 py-1.5 rounded-xl transition-colors group relative {{ $isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50' }}" :class="showFontMenu ? '{{ $isDark ? 'bg-gray-800 text-primary' : 'bg-gray-100 text-primary' }}' : 'text-gray-500'">
-                        <div class="flex items-center justify-center w-6 h-5 font-serif font-black text-lg leading-none">Aa</div>
-                        <span class="text-[9px] font-black uppercase tracking-widest mt-0.5 leading-none">Schrift</span>
-                        <span class="text-[9px] font-bold text-[#C5A059] mt-0.5 leading-tight max-w-[82px] truncate" x-text="currentTexts[selectedIndex]?.font || lastSelectedFont || 'Arial'"></span>
-                    </button>
-                    <div x-show="showFontMenu" @click.outside="showFontMenu = false" class="absolute bottom-[calc(100%+12px)] left-0 w-56 rounded-2xl shadow-2xl border overflow-hidden z-[100] flex flex-col max-h-64 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
-                        <div class="overflow-y-auto p-2 custom-scrollbar space-y-1">
-                            <template x-for="(fontName, fontKey) in fontMap">
-                                <button @click="setTextFont(fontKey)" class="w-full text-left px-4 py-2.5 text-sm rounded-xl truncate transition-colors {{ $isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50' }}" :style="{ fontFamily: fontName }" :class="currentTexts[selectedIndex].font === fontKey ? 'text-primary font-bold {{ $isDark ? 'bg-primary/10' : 'bg-primary/5' }}' : '{{ $isDark ? 'text-gray-300' : 'text-gray-700' }}'"><span x-text="fontKey"></span></button>
-                            </template>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="relative">
-                    <button @click="showAlignMenu = !showAlignMenu; showFontMenu = false; showSizeMenu = false; showPosMenu = false" class="flex flex-col items-center px-4 py-2 rounded-xl transition-colors group relative {{ $isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50' }}" :class="showAlignMenu ? '{{ $isDark ? 'bg-gray-800 text-primary' : 'bg-gray-100 text-primary' }}' : 'text-gray-500'">
-                        <div class="w-6 h-6 flex items-center justify-center">
-                            <template x-if="currentTexts[selectedIndex].align === 'left'"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M3.75 12h10.5m-10.5 5.25h16.5" /></svg></template>
-                            <template x-if="currentTexts[selectedIndex].align === 'center' || !currentTexts[selectedIndex].align"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M7.5 12h9m-9 5.25h9" /></svg></template>
-                            <template x-if="currentTexts[selectedIndex].align === 'right'"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M10.5 12h9.75m-16.5 5.25h16.5" /></svg></template>
-                        </div>
-                        <span class="text-[9px] font-black uppercase tracking-widest mt-1">Format</span>
-                    </button>
-                    <div x-show="showAlignMenu" @click.outside="showAlignMenu = false" class="absolute bottom-[calc(100%+12px)] left-1/2 -translate-x-1/2 rounded-2xl shadow-2xl border p-2 z-[100] flex gap-1 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
-                        <button @click="setTextAlign('left')" class="p-3 rounded-xl hover:text-primary transition-colors {{ $isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-50 text-gray-500' }}"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M3.75 12h10.5m-10.5 5.25h16.5" /></svg></button>
-                        <button @click="setTextAlign('center')" class="p-3 rounded-xl hover:text-primary transition-colors {{ $isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-50 text-gray-500' }}"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M7.5 12h9m-9 5.25h9" /></svg></button>
-                        <button @click="setTextAlign('right')" class="p-3 rounded-xl hover:text-primary transition-colors {{ $isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-50 text-gray-500' }}"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M10.5 12h9.75m-16.5 5.25h16.5" /></svg></button>
-                    </div>
-                </div>
-            </div>
-        </template>
-
-        <template x-if="selectedType === 'text' && currentTexts[selectedIndex] !== undefined">
-            <div class="w-px h-10 mx-1 sm:mx-2 {{ $isDark ? 'bg-gray-800' : 'bg-gray-200' }}"></div>
-        </template>
-
-        <div class="relative">
-            <template x-if="selectedType !== null && ((selectedType === 'text' && currentTexts[selectedIndex] !== undefined) || (selectedType === 'logo' && currentLogos[selectedIndex] !== undefined))">
-                <button @click="showSizeMenu = !showSizeMenu; showFontMenu = false; showAlignMenu = false; showPosMenu = false" class="flex flex-col items-center px-4 py-2 rounded-xl transition-colors group {{ $isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50' }}" :class="showSizeMenu ? '{{ $isDark ? 'bg-gray-800 text-primary' : 'bg-gray-100 text-primary' }}' : 'text-gray-500'">
-                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                    <span class="text-[9px] font-black uppercase tracking-widest mt-1">Größe</span>
-                </button>
-            </template>
-            <div x-show="showSizeMenu" @click.outside="showSizeMenu = false" class="absolute bottom-[calc(100%+12px)] left-1/2 -translate-x-1/2 w-56 rounded-2xl shadow-2xl border p-5 z-[100] {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}" x-cloak>
-                <div class="flex justify-between text-[10px] font-black tracking-widest text-gray-400 uppercase mb-3"><span>Klein</span><span>Groß</span></div>
-
-                <template x-if="selectedType === 'text' && currentTexts[selectedIndex] !== undefined">
-                    <input type="range" min="0.1" max="5" step="0.05" x-model="currentTexts[selectedIndex].size" @change="recordHistory()" class="w-full accent-primary h-2 rounded-lg appearance-none cursor-pointer {{ $isDark ? 'bg-gray-800' : 'bg-gray-100' }}">
-                </template>
-                <template x-if="selectedType === 'logo' && currentLogos[selectedIndex] !== undefined">
-                    <input type="range" min="10" max="500" step="1" x-model="currentLogos[selectedIndex].size" @change="recordHistory()" class="w-full accent-primary h-2 rounded-lg appearance-none cursor-pointer {{ $isDark ? 'bg-gray-800' : 'bg-gray-100' }}">
-                </template>
-            </div>
-        </div>
-
-        <template x-if="selectedType === 'logo' && currentLogos[selectedIndex] !== undefined">
-            <div class="flex items-center gap-1 sm:gap-2">
-                <div class="w-px h-10 mx-1 sm:mx-2 {{ $isDark ? 'bg-gray-800' : 'bg-gray-200' }}"></div>
-                <button @click="isCropping ? cancelCropMode() : startCropMode()"
-                        class="flex flex-col items-center px-4 py-2 rounded-xl transition-colors cursor-pointer {{ $isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50' }}"
-                        :class="isCropping ? 'text-primary font-bold bg-primary/10' : 'text-gray-500'">
-                    <x-heroicon-m-scissors class="w-6 h-6" />
-                    <span class="text-[9px] font-black uppercase tracking-widest mt-1">Zuschneiden</span>
-                </button>
-            </div>
-        </template>
-
-        <template x-if="selectedIndex !== null">
-            <div class="flex items-center gap-2 sm:gap-3">
-                <div class="w-px h-10 mx-1 sm:mx-2 {{ $isDark ? 'bg-gray-800' : 'bg-gray-200' }}"></div>
-
-                <button @click="duplicateElement" class="flex flex-col items-center px-4 py-2 rounded-xl text-gray-500 transition-colors {{ $isDark ? 'hover:bg-gray-800 hover:text-gray-300' : 'hover:bg-gray-50 hover:text-gray-700' }}">
-                    <x-heroicon-m-square-2-stack class="w-6 h-6" />
-                    <span class="text-[9px] font-black uppercase tracking-widest mt-1">Kopie</span>
-                </button>
-
-                <div class="w-px h-10 mx-1 sm:mx-2 {{ $isDark ? 'bg-gray-800' : 'bg-gray-200' }}"></div>
-
-                <div class="flex items-center gap-1">
-                    <button @click="centerHorizontal" class="flex flex-col items-center justify-center min-w-[3rem] px-2 py-2 rounded-xl text-gray-500 transition-colors {{ $isDark ? 'hover:bg-gray-800 hover:text-gray-300' : 'hover:bg-gray-50 hover:text-gray-700' }}" title="Horizontal zentrieren">
-                        <x-heroicon-m-pause class="w-5 h-5 rotate-90" />
-                        <span class="text-[8px] sm:text-[9px] font-black uppercase tracking-widest mt-1">Horiz.</span>
-                    </button>
-                    <button @click="centerVertical" class="flex flex-col items-center justify-center min-w-[3rem] px-2 py-2 rounded-xl text-gray-500 transition-colors {{ $isDark ? 'hover:bg-gray-800 hover:text-gray-300' : 'hover:bg-gray-50 hover:text-gray-700' }}" title="Vertikal zentrieren">
-                        <x-heroicon-m-pause class="w-5 h-5" />
-                        <span class="text-[8px] sm:text-[9px] font-black uppercase tracking-widest mt-1">Vertik.</span>
-                    </button>
-                    <button @click="centerBoth" class="flex flex-col items-center justify-center min-w-[3rem] px-2 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl transition-colors shadow-sm" title="Exakt in die Mitte">
-                        <x-heroicon-m-viewfinder-circle class="w-5 h-5" />
-                        <span class="text-[8px] sm:text-[9px] font-black uppercase tracking-widest mt-1">Mitte</span>
-                    </button>
-                </div>
-            </div>
-        </template>
     </div>
 
 </div>

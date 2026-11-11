@@ -1033,7 +1033,7 @@ use HasFactory, HasUuids, SoftDeletes;
         $addons[] = [
             'id'          => 'gift_wrap_black_gold',
             'name'        => 'Geschenkpapier (Schwarz-Gold-Look)',
-            'description' => 'Von Hand in edles Schwarz-Gold-Geschenkpapier eingeschlagen – direkt verschenkfertig',
+            'description' => 'Edles Schwarz-Gold-Geschenkpapier: Wahlweise fertig verpackt oder als Bogen zum Selbstverpacken beigelegt',
             'price'       => '3.90',
             'price_cents' => 390,
             'image_path'  => 'produkte/addons/geschenkpapier-schwarz-gold.jpg',
@@ -1041,6 +1041,33 @@ use HasFactory, HasUuids, SoftDeletes;
         ];
 
         return $addons;
+    }
+
+    /**
+     * Prüft, ob es sich bei einem Addon um das Geschenkpapier-Upgrade handelt.
+     */
+    public static function isGiftWrapAddon(array|string $addonOrId): bool
+    {
+        if (is_string($addonOrId)) {
+            $id = strtolower(trim($addonOrId));
+            return $id === 'gift_wrap_black_gold' || str_contains($id, 'geschenkpapier') || str_contains($id, 'gift_wrap');
+        }
+
+        $id = strtolower(trim((string) ($addonOrId['id'] ?? '')));
+        $name = mb_strtolower(trim((string) ($addonOrId['name'] ?? '')));
+
+        return $id === 'gift_wrap_black_gold'
+            || str_contains($id, 'gift_wrap')
+            || str_contains($name, 'geschenkpapier')
+            || str_contains($name, 'geschenkverpackung');
+    }
+
+    /**
+     * Liefert die lesbare Bezeichnung für die gewählte Geschenkpapier-Ausführung.
+     */
+    public static function resolveGiftWrapModeLabel(?string $mode): string
+    {
+        return ($mode === 'loose') ? 'Papier nur mitliefern' : 'Fertig verpackt';
     }
 
     /**
@@ -1142,7 +1169,7 @@ use HasFactory, HasUuids, SoftDeletes;
         }
 
         if ($addonId === 'gift_wrap_black_gold' || str_contains($addonNameLower, 'geschenkpapier')) {
-            return 'Von Hand in edles Schwarz-Gold-Geschenkpapier eingeschlagen – direkt verschenkfertig';
+            return 'Edles Schwarz-Gold-Geschenkpapier: Wahlweise fertig verpackt oder als Bogen zum Selbstverpacken beigelegt';
         }
 
         return '';
@@ -1219,7 +1246,9 @@ use HasFactory, HasUuids, SoftDeletes;
             } elseif ($isPresetWrapAddon) {
                 $canonicalId = 'gift_wrap_black_gold';
                 $rawName = 'Geschenkpapier (Schwarz-Gold-Look)';
-                $rawDesc = $rawDesc !== '' ? $rawDesc : 'Von Hand in edles Schwarz-Gold-Geschenkpapier eingeschlagen – direkt verschenkfertig';
+                $rawDesc = ($rawDesc !== '' && !str_contains($rawDesc, ' – '))
+                    ? $rawDesc
+                    : 'Edles Schwarz-Gold-Geschenkpapier: Wahlweise fertig verpackt oder als Bogen zum Selbstverpacken beigelegt';
                 if ($priceCents === 0 || $priceCents === 290) {
                     $priceCents = 390;
                 }

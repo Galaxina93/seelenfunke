@@ -309,12 +309,12 @@ class FileDownloadService
                 $defaultTextSize = 0.56;
             } elseif ($pkgKey === 'seelen-kristall') {
                 $centerX = 50.0;
-                $centerY = 50.0;
+                $centerY = 45.6;
                 $defaultSymbolX = 50.0;
-                $defaultSymbolY = 35.0;
+                $defaultSymbolY = 32.0;
                 $defaultSymbolSize = 80.0;
                 $defaultTextX = 50.0;
-                $defaultTextY = 58.0;
+                $defaultTextY = 55.5;
                 $defaultTextSize = 1.20;
             } elseif ($pkgKey === 'weizenglas-personalisiert') {
                 $centerX = 50.0;
@@ -484,12 +484,13 @@ class FileDownloadService
         // Zylindrische (Runde) Flächen ausrollen: Breite (Durchmesser) zu Umfang umrechnen
         if ($overlayType === 'cylinder') {
             $widthMm = $widthMm * pi();
-        } elseif ($overlayType === 'plane' && (($productConfig['area_shape'] ?? '') === 'custom')) {
+        } elseif ($overlayType === 'plane' && in_array($productConfig['area_shape'] ?? '', ['custom', 'circle'], true)) {
             // Auf der 1:1 quadratischen 2D/3D-Arbeitsfläche (aspect-square) sind X-% und Y-% isotrop
-            // (1 % Breite == 1 % Höhe). Damit Freiform-Polygone (wie das Herz beim Seelenanhänger)
-            // und Vollflächen-Fotos beim Laser-Export nicht durch unterschiedliche Rohling-Außenmaße
-            // (z. B. 45x40 mm) verzerrt/gestaucht werden, bilden wir die 1:1-Stage isotrop ab.
-            $stageSpanMm = max($widthMm, $heightMm);
+            // (1 % Breite == 1 % Höhe). Bei kreisrunden Trophäen (z. B. Der Seelenkristall 180x200 mm inkl. Fuß)
+            // bestimmt die Kreisscheiben-Breite (min) das 1:1-Maß; bei Freiform-Polygonen (custom) die Hauptspannweite (max).
+            $stageSpanMm = (($productConfig['area_shape'] ?? '') === 'circle')
+                ? min($widthMm, $heightMm)
+                : max($widthMm, $heightMm);
             $widthMm = $stageSpanMm;
             $heightMm = $stageSpanMm;
         }
@@ -986,8 +987,10 @@ class FileDownloadService
         $heightMm = $heightMm ?: floatval($product->height ?? 100);
         if ($overlayType === 'cylinder') {
             $widthMm = $widthMm * pi();
-        } elseif ($overlayType === 'plane' && (($productConfig['area_shape'] ?? '') === 'custom')) {
-            $stageSpanMm = max($widthMm, $heightMm);
+        } elseif ($overlayType === 'plane' && in_array($productConfig['area_shape'] ?? '', ['custom', 'circle'], true)) {
+            $stageSpanMm = (($productConfig['area_shape'] ?? '') === 'circle')
+                ? min($widthMm, $heightMm)
+                : max($widthMm, $heightMm);
             $widthMm = $stageSpanMm;
             $heightMm = $stageSpanMm;
         }

@@ -170,7 +170,7 @@
     </div>
 
     {{-- ZENTRIERTE BÜHNE FÜR ÜBERGANG & ENDINFOS --}}
-    <div class="relative z-20 min-h-full w-full flex flex-col items-center justify-center px-4 sm:px-6 py-10 sm:py-14">
+    <div class="relative z-20 min-h-full w-full flex flex-col items-center justify-center px-4 sm:px-6 pt-24 sm:pt-28 pb-12 sm:pb-16">
 
         {{-- 1. FUNKI & GOLD-AURA + HEADLINE-CROSSFADE --}}
         <div class="flex flex-col items-center justify-center text-center max-w-lg mx-auto transition-all duration-700 transform-gpu"

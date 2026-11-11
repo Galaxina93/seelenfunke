@@ -241,6 +241,109 @@ namespace FunkenwerkOS
             int GetMute([MarshalAs(UnmanagedType.Bool)] out bool pbMute);
         }
 
+        [Guid("2A07407E-6497-4A18-9787-32F79BD0D98F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        private interface IDeviceTopology
+        {
+            int GetConnectorCount(out uint pCount);
+            int GetConnector(uint nIndex, out IConnector ppConnector);
+        }
+
+        [Guid("9C2C4058-23F5-41DE-877A-DF3AF236A09E"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        private interface IConnector
+        {
+            int GetType(out int pType);
+            int GetDataFlow(out int pFlow);
+            int ConnectTo(IConnector pConnectTo);
+            int Disconnect();
+            int IsConnected([MarshalAs(UnmanagedType.Bool)] out bool pbConnected);
+            int GetConnectedTo(out IConnector ppConTo);
+        }
+
+        [Guid("AE2DE0E4-5BCA-4F2D-AA46-5D13F8FDB3A9"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        private interface IPart
+        {
+            int GetName([MarshalAs(UnmanagedType.LPWStr)] out string ppwstrName);
+            int GetLocalId(out uint pnId);
+            int GetGlobalId([MarshalAs(UnmanagedType.LPWStr)] out string ppwstrGlobalId);
+            int GetPartType(out int pPartType);
+            int GetSubType(out Guid pSubType);
+            int GetControlInterfaceCount(out uint pCount);
+            int GetControlInterface(uint nIndex, out IntPtr ppInterfaceDesc);
+            int EnumPartsIncoming(out IntPtr ppParts);
+            int EnumPartsOutgoing(out IntPtr ppParts);
+            int GetTopologyObject(out IDeviceTopology ppTopology);
+            int Activate(int dwClsCtx, ref Guid refiid, [MarshalAs(UnmanagedType.IUnknown)] out object ppvObject);
+        }
+
+        [Guid("28F54685-06FD-11D2-B27A-00A0C9223196"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        private interface IKsControl
+        {
+            int KsProperty(ref KSPROPERTY Property, uint PropertyLength, IntPtr PropertyData, uint DataLength, out uint BytesReturned);
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct KSPROPERTY
+        {
+            public Guid Set;
+            public uint Id;
+            public uint Flags;
+        }
+
+        private static readonly Guid KsPropSetIdBtAudio = new("7FA06C40-B8F6-4C7E-8556-E8C33A12E54D");
+
+        private static void TriggerBtAudioOneShotReconnect(string deviceNameFragment)
+        {
+            try
+            {
+                var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+                // 0 = eRender, 0x0000000F = DEVICE_STATEMASK_ALL (includes UNPLUGGED Bluetooth endpoints!)
+                if (enumerator.EnumAudioEndpoints(0, 0x0000000F, out IMMDeviceCollection col) != 0 || col == null)
+                    return;
+
+                col.GetCount(out uint count);
+                Guid iidTopology = typeof(IDeviceTopology).GUID;
+                Guid iidKsControl = typeof(IKsControl).GUID;
+
+                for (uint i = 0; i < count; i++)
+                {
+                    if (col.Item(i, out IMMDevice dev) != 0 || dev == null) continue;
+                    string name = ReadDeviceFriendlyName(dev);
+                    bool isMatch = (!string.IsNullOrWhiteSpace(deviceNameFragment) && name.Contains(deviceNameFragment, StringComparison.OrdinalIgnoreCase))
+                                || (deviceNameFragment.Contains("Teufel", StringComparison.OrdinalIgnoreCase) && name.Contains("Teufel", StringComparison.OrdinalIgnoreCase));
+                    if (!isMatch) continue;
+
+                    var ksProp = new KSPROPERTY
+                    {
+                        Set = KsPropSetIdBtAudio,
+                        Id = 0,   // KSPROPERTY_ONESHOT_RECONNECT
+                        Flags = 1 // KSPROPERTY_TYPE_GET
+                    };
+
+                    // Try activating IKsControl via IDeviceTopology -> IConnector -> GetConnectedTo -> IPart
+                    if (dev.Activate(ref iidTopology, 1, IntPtr.Zero, out object topoObj) == 0 && topoObj is IDeviceTopology topo)
+                    {
+                        if (topo.GetConnector(0, out IConnector conn) == 0 && conn != null)
+                        {
+                            if (conn.GetConnectedTo(out IConnector connTo) == 0 && connTo is IPart part)
+                            {
+                                if (part.Activate(1, ref iidKsControl, out object ksObj) == 0 && ksObj is IKsControl ks)
+                                {
+                                    ks.KsProperty(ref ksProp, (uint)Marshal.SizeOf<KSPROPERTY>(), IntPtr.Zero, 0, out _);
+                                }
+                            }
+                        }
+                    }
+
+                    // Also try direct IKsControl activation on IMMDevice
+                    if (dev.Activate(ref iidKsControl, 1, IntPtr.Zero, out object directKsObj) == 0 && directKsObj is IKsControl directKs)
+                    {
+                        directKs.KsProperty(ref ksProp, (uint)Marshal.SizeOf<KSPROPERTY>(), IntPtr.Zero, 0, out _);
+                    }
+                }
+            }
+            catch { }
+        }
+
         private static string ReadDeviceFriendlyName(IMMDevice device)
         {
             try
@@ -1124,6 +1227,42 @@ namespace FunkenwerkOS
             public string szName;
         }
 
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct BLUETOOTH_AUTHENTICATION_CALLBACK_PARAMS
+        {
+            public BLUETOOTH_DEVICE_INFO deviceInfo;
+            public int authenticationMethod;
+            public int ioCapability;
+            public int authenticationRequirements;
+            public uint Numeric_Value;
+        }
+
+        [StructLayout(LayoutKind.Explicit, Size = 48)]
+        private struct BLUETOOTH_AUTHENTICATE_RESPONSE
+        {
+            [FieldOffset(0)]
+            public ulong bthAddressRemote;
+            [FieldOffset(8)]
+            public int authMethod;
+            [FieldOffset(12)]
+            public uint numericCompInfo;
+            [FieldOffset(12)]
+            public byte pin0;
+            [FieldOffset(13)]
+            public byte pin1;
+            [FieldOffset(14)]
+            public byte pin2;
+            [FieldOffset(15)]
+            public byte pin3;
+            [FieldOffset(28)]
+            public byte pinLength;
+            [FieldOffset(44)]
+            public byte negativeResponse;
+        }
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        private delegate bool PFN_AUTHENTICATION_CALLBACK_EX(IntPtr pvParam, IntPtr pAuthCallbackParams);
+
         [DllImport("BluetoothAPIs.dll", SetLastError = true)]
         private static extern IntPtr BluetoothFindFirstRadio(ref BLUETOOTH_FIND_RADIO_PARAMS pbtfrp, out IntPtr phRadio);
 
@@ -1151,10 +1290,73 @@ namespace FunkenwerkOS
         private static extern bool BluetoothFindDeviceClose(IntPtr hFind);
 
         [DllImport("BluetoothAPIs.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern uint BluetoothGetDeviceInfo(IntPtr hRadio, ref BLUETOOTH_DEVICE_INFO pbtdi);
+
+        [DllImport("BluetoothAPIs.dll", SetLastError = true)]
+        private static extern uint BluetoothRemoveDevice(ref ulong pAddress);
+
+        [DllImport("bthprops.cpl", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern uint BluetoothRegisterForAuthenticationEx(IntPtr pbtdiIn, out IntPtr phRegHandleOut, PFN_AUTHENTICATION_CALLBACK_EX pfnCallbackIn, IntPtr pvParam);
+
+        [DllImport("bthprops.cpl", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool BluetoothUnregisterAuthentication(IntPtr hRegHandle);
+
+        [DllImport("bthprops.cpl", SetLastError = true)]
+        private static extern uint BluetoothSendAuthenticationResponseEx(IntPtr hRadioIn, ref BLUETOOTH_AUTHENTICATE_RESPONSE pauthResponse);
+
+        [DllImport("bthprops.cpl", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern uint BluetoothAuthenticateDeviceEx(IntPtr hwndParentIn, IntPtr hRadioIn, ref BLUETOOTH_DEVICE_INFO pbtdiInout, IntPtr pbtOobData, int authenticationRequirement);
 
         [DllImport("BluetoothAPIs.dll", SetLastError = true)]
         private static extern uint BluetoothSetServiceState(IntPtr hRadio, ref BLUETOOTH_DEVICE_INFO pbtdi, ref Guid pGuidService, uint dwServiceFlags);
+
+        private static IntPtr s_activePairingRadioHandle;
+        private static string s_lastAuthCallbackDiag = "NONE";
+
+        private static bool OnBluetoothAuthCallbackEx(IntPtr pvParam, IntPtr pAuthCallbackParams)
+        {
+            try
+            {
+                if (pAuthCallbackParams == IntPtr.Zero) return true;
+                int devInfoSize = Marshal.SizeOf<BLUETOOTH_DEVICE_INFO>();
+                ulong remoteAddr = (ulong)Marshal.ReadInt64(pAuthCallbackParams, 8);
+                int authMethod = Marshal.ReadInt32(pAuthCallbackParams, devInfoSize);
+                uint numericVal = (uint)Marshal.ReadInt32(pAuthCallbackParams, devInfoSize + 12);
+
+                var resp = new BLUETOOTH_AUTHENTICATE_RESPONSE
+                {
+                    bthAddressRemote = remoteAddr,
+                    authMethod = authMethod,
+                    negativeResponse = 0
+                };
+
+                if (authMethod == 1) // BLUETOOTH_AUTHENTICATION_METHOD_LEGACY ("0000")
+                {
+                    resp.pin0 = (byte)'0';
+                    resp.pin1 = (byte)'0';
+                    resp.pin2 = (byte)'0';
+                    resp.pin3 = (byte)'0';
+                    resp.pinLength = 4;
+                }
+                else
+                {
+                    resp.numericCompInfo = numericVal;
+                }
+
+                uint sendRes = BluetoothSendAuthenticationResponseEx(s_activePairingRadioHandle, ref resp);
+                if (sendRes != 0 && s_activePairingRadioHandle != IntPtr.Zero)
+                {
+                    sendRes = BluetoothSendAuthenticationResponseEx(IntPtr.Zero, ref resp);
+                }
+                s_lastAuthCallbackDiag = $"CB_METHOD={authMethod}_VAL={numericVal}_SENDRES={sendRes}";
+            }
+            catch (Exception ex)
+            {
+                s_lastAuthCallbackDiag = $"CB_ERR={ex.Message}";
+            }
+            return true;
+        }
 
         private static readonly Guid GuidAudioSink = new("0000110B-0000-1000-8000-00805F9B34FB");
         private static readonly Guid GuidHandsfree = new("0000111E-0000-1000-8000-00805F9B34FB");
@@ -1254,50 +1456,18 @@ namespace FunkenwerkOS
                     if (hRadio != IntPtr.Zero) CloseHandle(hRadio);
                 }
 
-                // 2. Supplement via PnP Bluetooth DEV_ nodes (with true kernel DEVPKEY_Device_IsConnected property check!)
-                try
+                if (!map.Values.Any(b => b.IsTeufel))
                 {
-                    string psCmd = "Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue | Where-Object { $_.InstanceId -match '^(BTHENUM|BTHLE)\\\\DEV_[0-9A-Fa-f]{12}' } | ForEach-Object { $c = Get-PnpDeviceProperty -InstanceId $_.InstanceId -KeyName '{83da6326-97a6-4088-9453-a1923f573b29} 15' -ErrorAction SilentlyContinue; [PSCustomObject]@{ FriendlyName = $_.FriendlyName; InstanceId = $_.InstanceId; IsConnected = [bool]($c.Data) } } | ConvertTo-Json -Compress";
-                    string json = RunProcessCapture("powershell.exe", $"-NoProfile -NonInteractive -Command \"{psCmd}\"");
-                    if (!string.IsNullOrWhiteSpace(json))
+                    bool activeTeufelAudio = audioOutputs.Any(a => a.Name.Contains("Teufel", StringComparison.OrdinalIgnoreCase));
+                    map["Teufel KB 43 CR 19"] = new BluetoothDeviceDto
                     {
-                        using var doc = JsonDocument.Parse(json.StartsWith("[") ? json : $"[{json}]");
-                        foreach (var el in doc.RootElement.EnumerateArray())
-                        {
-                            string cleanName = (el.TryGetProperty("FriendlyName", out var fn) ? (fn.GetString() ?? "") : "").Trim();
-                            string inst = el.TryGetProperty("InstanceId", out var idp) ? (idp.GetString() ?? "") : "";
-                            bool pnpConnected = el.TryGetProperty("IsConnected", out var ic) && ic.ValueKind == JsonValueKind.True;
-                            if (string.IsNullOrWhiteSpace(cleanName)) continue;
-
-                            ulong parsedAddr = 0;
-                            var addrMatch = Regex.Match(inst, @"DEV_([0-9A-Fa-f]{12})", RegexOptions.IgnoreCase);
-                            if (addrMatch.Success)
-                                ulong.TryParse(addrMatch.Groups[1].Value, System.Globalization.NumberStyles.HexNumber, null, out parsedAddr);
-
-                            bool activeAudio = cleanName.Length >= 5 && audioOutputs.Any(a => a.Name.Contains(cleanName, StringComparison.OrdinalIgnoreCase));
-                            bool isActuallyConnected = pnpConnected || activeAudio;
-
-                            if (!map.TryGetValue(cleanName, out var existing))
-                            {
-                                map[cleanName] = new BluetoothDeviceDto
-                                {
-                                    Name = cleanName,
-                                    InstanceId = inst,
-                                    BluetoothAddress = parsedAddr,
-                                    IsConnected = isActuallyConnected,
-                                    IsPaired = true
-                                };
-                            }
-                            else
-                            {
-                                if (isActuallyConnected) existing.IsConnected = true;
-                                if (existing.BluetoothAddress == 0 && parsedAddr != 0)
-                                    existing.BluetoothAddress = parsedAddr;
-                            }
-                        }
-                    }
+                        Name = "Teufel KB 43 CR 19",
+                        InstanceId = "BTH\\FC58FAC7F41D",
+                        BluetoothAddress = 0xFC58FAC7F41DUL,
+                        IsConnected = activeTeufelAudio,
+                        IsPaired = false
+                    };
                 }
-                catch { }
 
                 return map.Values
                     .OrderByDescending(b => b.IsTeufel)
@@ -1308,6 +1478,8 @@ namespace FunkenwerkOS
             });
         }
 
+        private static readonly SemaphoreSlim s_btConnectLock = new(1, 1);
+
         public static async Task<(bool Success, string Message)> ConnectOrPairBluetoothDeviceAsync(BluetoothDeviceDto dev)
         {
             if (dev == null || string.IsNullOrWhiteSpace(dev.Name))
@@ -1315,68 +1487,243 @@ namespace FunkenwerkOS
 
             return await Task.Run(() =>
             {
+                s_btConnectLock.Wait();
                 try
                 {
-                    // 1. If BluetoothAddress is known, pair (if unpaired) and activate Audio/HID services via BluetoothAPIs.dll
-                    if (dev.BluetoothAddress != 0)
+                    bool TrySwitchToActiveCoreAudioOutput()
                     {
-                        IntPtr hRadio = IntPtr.Zero;
-                        IntPtr hFindRadio = IntPtr.Zero;
-                        try
+                        var outputs = ListAudioOutputDevices();
+                        var match = outputs.FirstOrDefault(a =>
+                            a.Name.Contains(dev.Name, StringComparison.OrdinalIgnoreCase) ||
+                            (dev.Name.Contains("Teufel", StringComparison.OrdinalIgnoreCase) && a.Name.Contains("Teufel", StringComparison.OrdinalIgnoreCase)));
+                        if (match != null)
                         {
-                            var rp = new BLUETOOTH_FIND_RADIO_PARAMS { dwSize = (uint)Marshal.SizeOf<BLUETOOTH_FIND_RADIO_PARAMS>() };
-                            hFindRadio = BluetoothFindFirstRadio(ref rp, out hRadio);
+                            SetDefaultAudioOutputDevice(match.DeviceId);
+                            return true;
+                        }
+                        return false;
+                    }
 
+                    if (TrySwitchToActiveCoreAudioOutput())
+                        return (true, $"Verbunden mit '{dev.Name}'");
+
+                    EnsureWirelessServicesAndLocationConsent();
+
+                    // Resolve BluetoothAddress if missing
+                    if (dev.BluetoothAddress == 0)
+                    {
+                        var known = ScanBluetoothDevicesAsync(issueHardwareInquiry: false).GetAwaiter().GetResult();
+                        var found = known.FirstOrDefault(x =>
+                            x.BluetoothAddress != 0 &&
+                            (string.Equals(x.Name, dev.Name, StringComparison.OrdinalIgnoreCase) ||
+                             (dev.Name.Contains("Teufel", StringComparison.OrdinalIgnoreCase) && x.IsTeufel)));
+                        if (found != null)
+                            dev.BluetoothAddress = found.BluetoothAddress;
+                        else if (dev.Name.Contains("Teufel", StringComparison.OrdinalIgnoreCase))
+                            dev.BluetoothAddress = 0xFC58FAC7F41DUL;
+                    }
+
+                    IntPtr hRadio = IntPtr.Zero;
+                    IntPtr hFindRadio = IntPtr.Zero;
+                    try
+                    {
+                        var rp = new BLUETOOTH_FIND_RADIO_PARAMS { dwSize = (uint)Marshal.SizeOf<BLUETOOTH_FIND_RADIO_PARAMS>() };
+                        hFindRadio = BluetoothFindFirstRadio(ref rp, out hRadio);
+                        s_activePairingRadioHandle = hRadio;
+
+                        Guid gSink = GuidAudioSink;
+                        Guid gHf = GuidHandsfree;
+                        Guid gAv = GuidAvRemote;
+                        Guid gHid = GuidHid;
+
+                        if (dev.BluetoothAddress != 0 && hRadio != IntPtr.Zero)
+                        {
                             var bdi = new BLUETOOTH_DEVICE_INFO
                             {
                                 dwSize = (uint)Marshal.SizeOf<BLUETOOTH_DEVICE_INFO>(),
                                 Address = dev.BluetoothAddress,
                                 szName = dev.Name
                             };
+                            BluetoothGetDeviceInfo(hRadio, ref bdi);
 
-                            if (!dev.IsPaired)
+                            // Phase 1: If already remembered AND authenticated in Windows, try KSPROPERTY_ONESHOT_RECONNECT + A2DP Service Toggle (0 -> 1) first!
+                            if (bdi.fRemembered && bdi.fAuthenticated)
                             {
-                                // 0 = MITMProtectionNotRequired
-                                BluetoothAuthenticateDeviceEx(IntPtr.Zero, hRadio, ref bdi, IntPtr.Zero, 0);
-                                Thread.Sleep(500);
-                            }
-
-                            // Enable High-Quality A2DP Stereo Audio Sink & AVRCP, and explicitly DISABLE Handsfree (0)
-                            // so Windows never falls back to low-bitrate SCO Hands-Free telephony profile or glitches A2DP!
-                            Guid gSink = GuidAudioSink;
-                            Guid gHf = GuidHandsfree;
-                            Guid gAv = GuidAvRemote;
-                            Guid gHid = GuidHid;
-                            BluetoothSetServiceState(hRadio, ref bdi, ref gSink, 1);
-                            BluetoothSetServiceState(hRadio, ref bdi, ref gAv, 1);
-                            BluetoothSetServiceState(hRadio, ref bdi, ref gHf, 0);
-                            if (!dev.IsTeufel && !dev.Name.Contains("Speaker", StringComparison.OrdinalIgnoreCase) && !dev.Name.Contains("Audio", StringComparison.OrdinalIgnoreCase))
-                            {
-                                BluetoothSetServiceState(hRadio, ref bdi, ref gHid, 1);
-                            }
-
-                            if (hRadio != IntPtr.Zero)
-                            {
+                                TriggerBtAudioOneShotReconnect(dev.Name);
+                                if (!bdi.fConnected)
+                                {
+                                    BluetoothSetServiceState(hRadio, ref bdi, ref gSink, 0);
+                                    BluetoothSetServiceState(hRadio, ref bdi, ref gAv, 0);
+                                    Thread.Sleep(280);
+                                }
+                                BluetoothSetServiceState(hRadio, ref bdi, ref gSink, 1);
+                                BluetoothSetServiceState(hRadio, ref bdi, ref gAv, 1);
+                                BluetoothSetServiceState(hRadio, ref bdi, ref gHf, 0);
+                                if (dev.IsTeufel || dev.Name.Contains("Speaker", StringComparison.OrdinalIgnoreCase) || dev.Name.Contains("Audio", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    BluetoothSetServiceState(hRadio, ref bdi, ref gHid, 0);
+                                }
+                                TriggerBtAudioOneShotReconnect(dev.Name);
                                 BluetoothEnableDiscovery(hRadio, false);
+                                BluetoothEnableIncomingConnections(hRadio, false);
+
+                                for (int w = 0; w < 4; w++)
+                                {
+                                    Thread.Sleep(380);
+                                    if (TrySwitchToActiveCoreAudioOutput())
+                                    {
+                                        return (true, $"Verbunden mit '{dev.Name}'");
+                                    }
+                                }
+
+                                BluetoothGetDeviceInfo(hRadio, ref bdi);
                             }
-                        }
-                        finally
-                        {
-                            if (hFindRadio != IntPtr.Zero) BluetoothFindRadioClose(hFindRadio);
-                            if (hRadio != IntPtr.Zero) CloseHandle(hRadio);
+
+                            // Phase 2: If speaker is in PAIRING mode (or unauthenticated / stale link key rejected), pair via WinRT DAS + bthprops.cpl and bind A2DP!
+                            if (!bdi.fConnected || !bdi.fAuthenticated)
+                            {
+                                string winRtPairDiag = "NONE";
+                                if (bdi.fRemembered)
+                                {
+                                    try
+                                    {
+                                        var oldBt = Windows.Devices.Bluetooth.BluetoothDevice.FromBluetoothAddressAsync(dev.BluetoothAddress).AsTask().GetAwaiter().GetResult();
+                                        if (oldBt?.DeviceInformation?.Pairing != null && oldBt.DeviceInformation.Pairing.IsPaired)
+                                        {
+                                            oldBt.DeviceInformation.Pairing.UnpairAsync().AsTask().GetAwaiter().GetResult();
+                                        }
+                                        oldBt?.Dispose();
+                                    }
+                                    catch { }
+
+                                    ulong remAddr = dev.BluetoothAddress;
+                                    BluetoothRemoveDevice(ref remAddr);
+                                    Thread.Sleep(450);
+                                }
+
+                                BluetoothEnableDiscovery(hRadio, true);
+                                BluetoothEnableIncomingConnections(hRadio, true);
+
+                                // 2A. Native Windows 10/11 WinRT DeviceAssociationService (DAS) Custom Pairing (registers PnP MMDevice Audio Endpoint!)
+                                try
+                                {
+                                    var btDev = Windows.Devices.Bluetooth.BluetoothDevice.FromBluetoothAddressAsync(dev.BluetoothAddress).AsTask().GetAwaiter().GetResult();
+                                    if (btDev?.DeviceInformation?.Pairing != null)
+                                    {
+                                        if (!btDev.DeviceInformation.Pairing.IsPaired)
+                                        {
+                                            var custom = btDev.DeviceInformation.Pairing.Custom;
+                                            custom.PairingRequested += static (_, args) =>
+                                            {
+                                                try
+                                                {
+                                                    if (args.PairingKind == Windows.Devices.Enumeration.DevicePairingKinds.ProvidePin)
+                                                        args.Accept("0000");
+                                                    else
+                                                        args.Accept();
+                                                }
+                                                catch { }
+                                            };
+
+                                            var kinds = Windows.Devices.Enumeration.DevicePairingKinds.ConfirmOnly
+                                                      | Windows.Devices.Enumeration.DevicePairingKinds.ConfirmPinMatch
+                                                      | Windows.Devices.Enumeration.DevicePairingKinds.ProvidePin
+                                                      | Windows.Devices.Enumeration.DevicePairingKinds.DisplayPin;
+
+                                            var pRes = custom.PairAsync(kinds, Windows.Devices.Enumeration.DevicePairingProtectionLevel.None).AsTask().GetAwaiter().GetResult();
+                                            winRtPairDiag = pRes.Status.ToString();
+                                        }
+                                        else
+                                        {
+                                            winRtPairDiag = "AlreadyPaired";
+                                        }
+
+                                        // Trigger uncached SDP/RFCOMM query to wake ACL & A2DP driver
+                                        try
+                                        {
+                                            _ = btDev.GetRfcommServicesAsync(Windows.Devices.Bluetooth.BluetoothCacheMode.Uncached).AsTask().GetAwaiter().GetResult();
+                                        }
+                                        catch { }
+                                    }
+                                    btDev?.Dispose();
+                                }
+                                catch (Exception wex)
+                                {
+                                    winRtPairDiag = "ERR_" + wex.GetType().Name;
+                                }
+
+                                bdi = new BLUETOOTH_DEVICE_INFO
+                                {
+                                    dwSize = (uint)Marshal.SizeOf<BLUETOOTH_DEVICE_INFO>(),
+                                    Address = dev.BluetoothAddress,
+                                    szName = dev.Name
+                                };
+                                BluetoothGetDeviceInfo(hRadio, ref bdi);
+
+                                uint authRes = 0;
+                                if (!bdi.fAuthenticated)
+                                {
+                                    PFN_AUTHENTICATION_CALLBACK_EX authCb = OnBluetoothAuthCallbackEx;
+                                    BluetoothRegisterForAuthenticationEx(IntPtr.Zero, out IntPtr hAuthReg, authCb, IntPtr.Zero);
+                                    try
+                                    {
+                                        authRes = BluetoothAuthenticateDeviceEx(IntPtr.Zero, hRadio, ref bdi, IntPtr.Zero, 2);
+                                        if (authRes != 0)
+                                            authRes = BluetoothAuthenticateDeviceEx(IntPtr.Zero, hRadio, ref bdi, IntPtr.Zero, 0);
+                                        Thread.Sleep(500);
+                                    }
+                                    finally
+                                    {
+                                        if (hAuthReg != IntPtr.Zero)
+                                            BluetoothUnregisterAuthentication(hAuthReg);
+                                        GC.KeepAlive(authCb);
+                                    }
+                                }
+
+                                BluetoothGetDeviceInfo(hRadio, ref bdi);
+                                uint sSink = BluetoothSetServiceState(hRadio, ref bdi, ref gSink, 1);
+                                uint sAv = BluetoothSetServiceState(hRadio, ref bdi, ref gAv, 1);
+                                BluetoothSetServiceState(hRadio, ref bdi, ref gHf, 0);
+                                if (dev.IsTeufel || dev.Name.Contains("Speaker", StringComparison.OrdinalIgnoreCase) || dev.Name.Contains("Audio", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    BluetoothSetServiceState(hRadio, ref bdi, ref gHid, 0);
+                                }
+                                else
+                                {
+                                    BluetoothSetServiceState(hRadio, ref bdi, ref gHid, 1);
+                                }
+
+                                Thread.Sleep(550);
+                                TriggerBtAudioOneShotReconnect(dev.Name);
+                                BluetoothEnableDiscovery(hRadio, false);
+                                BluetoothEnableIncomingConnections(hRadio, false);
+                                BluetoothGetDeviceInfo(hRadio, ref bdi);
+
+                                try
+                                {
+                                    string diagDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkOS");
+                                    File.WriteAllText(Path.Combine(diagDir, "bt_lowlevel.log"),
+                                        $"ADDR={dev.BluetoothAddress:X12} | WINRT={winRtPairDiag} | CB={s_lastAuthCallbackDiag} | AUTH_RES={authRes} | SINK_RES={sSink} | AV_RES={sAv} | CONN={bdi.fConnected} | REM={bdi.fRemembered} | AUTH={bdi.fAuthenticated}");
+                                }
+                                catch { }
+                            }
                         }
                     }
-
-                    // 2. Wait up to 2.5s for CoreAudio endpoint to become active and switch default audio output
-                    for (int i = 0; i < 6; i++)
+                    finally
                     {
-                        var outputs = ListAudioOutputDevices();
-                        var match = outputs.FirstOrDefault(a =>
-                            a.Name.Contains(dev.Name, StringComparison.OrdinalIgnoreCase) ||
-                            (dev.Name.Contains("Teufel", StringComparison.OrdinalIgnoreCase) && a.Name.Contains("Teufel", StringComparison.OrdinalIgnoreCase)));
-                        if (match != null && SetDefaultAudioOutputDevice(match.DeviceId))
+                        s_activePairingRadioHandle = IntPtr.Zero;
+                        if (hFindRadio != IntPtr.Zero) BluetoothFindRadioClose(hFindRadio);
+                        if (hRadio != IntPtr.Zero) CloseHandle(hRadio);
+                    }
+
+                    // Wait up to 3.5s for CoreAudio endpoint to become active and switch default audio output
+                    for (int i = 0; i < 8; i++)
+                    {
+                        if (TrySwitchToActiveCoreAudioOutput())
                             return (true, $"Verbunden mit '{dev.Name}'");
-                        Thread.Sleep(400);
+                        if (i == 3)
+                            TriggerBtAudioOneShotReconnect(dev.Name);
+                        Thread.Sleep(420);
                     }
 
                     if (dev.BluetoothAddress != 0)
@@ -1387,6 +1734,10 @@ namespace FunkenwerkOS
                 catch (Exception ex)
                 {
                     return (false, ex.Message);
+                }
+                finally
+                {
+                    s_btConnectLock.Release();
                 }
             });
         }
@@ -2609,9 +2960,32 @@ namespace FunkenwerkOS
 
                         try
                         {
-                            using var wifiKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}\0000", writable: true);
-                            wifiKey?.SetValue("bLowPowerEnable", "0", RegistryValueKind.String);
-                            wifiKey?.SetValue("Scan_IPSEnable", "0", RegistryValueKind.String);
+                            using var netClassKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}", writable: false);
+                            if (netClassKey != null)
+                            {
+                                foreach (string subName in netClassKey.GetSubKeyNames())
+                                {
+                                    if (subName.Length != 4) continue;
+                                    try
+                                    {
+                                        using var subKey = netClassKey.OpenSubKey(subName, writable: true);
+                                        string desc = Convert.ToString(subKey?.GetValue("DriverDesc") ?? "") ?? "";
+                                        if (desc.Contains("8821", StringComparison.OrdinalIgnoreCase) || desc.Contains("Wireless", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            subKey?.SetValue("bLowPowerEnable", "0", RegistryValueKind.String);
+                                            subKey?.SetValue("Scan_IPSEnable", "0", RegistryValueKind.String);
+                                            subKey?.SetValue("MultiChannelFcsMode", "0", RegistryValueKind.String);
+                                            subKey?.SetValue("ConcurrentOpPref", "0", RegistryValueKind.String);
+                                        }
+                                    }
+                                    catch { }
+                                }
+                            }
+
+                            foreach (var audProc in Process.GetProcessesByName("audiodg"))
+                            {
+                                try { audProc.PriorityClass = ProcessPriorityClass.High; } catch { }
+                            }
                         }
                         catch { }
 

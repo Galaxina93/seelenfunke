@@ -391,6 +391,55 @@
                 </button>
                 @endif
 
+                {{-- Design laden & Design Sichern im Studio-Vollbildmodus (feste Breite, kein Springen) --}}
+                <div x-show="!config.isBeginnerMode" class="flex items-center gap-1.5 shrink-0">
+                    <button type="button"
+                            @click.stop="if (draftExists) loadDraft()"
+                            :disabled="!draftExists"
+                            :tabindex="draftExists ? 0 : -1"
+                            title="Gespeichertes Design laden"
+                            aria-label="Gespeichertes Design laden"
+                            :class="!draftExists
+                                ? 'opacity-0 pointer-events-none border-transparent'
+                                : (isDraftLoading
+                                    ? 'opacity-100 border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                    : 'opacity-100 {{ $isDark ? 'bg-gray-900 border-gray-700 text-[#C5A059] hover:border-[#C5A059]' : 'bg-white border-[#C5A059]/45 text-[#9A7B3E] hover:bg-[#C5A059]/10 hover:border-[#C5A059]' }}')"
+                            class="w-8 h-8 rounded-xl border transition-all duration-200 flex items-center justify-center cursor-pointer select-none shrink-0">
+                        <template x-if="!isDraftLoading">
+                            <svg class="w-4 h-4 text-[#C5A059]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                        </template>
+                        <template x-if="isDraftLoading">
+                            <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </template>
+                    </button>
+
+                    <button type="button"
+                            @click.stop="saveDraft()"
+                            title="Design Sichern"
+                            aria-label="Design Sichern"
+                            :class="isDraftSaving
+                                ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                : '{{ $isDark ? 'bg-gray-900 border-gray-700 text-gray-300 hover:text-[#C5A059] hover:border-[#C5A059]' : 'bg-white border-gray-200 text-gray-700 hover:text-[#9A7B3E] hover:border-[#C5A059]' }}'"
+                            class="w-8 h-8 rounded-xl border transition-all duration-200 flex items-center justify-center cursor-pointer select-none shrink-0">
+                        <template x-if="!isDraftSaving">
+                            <svg class="w-4 h-4 text-[#C5A059]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                                <polyline points="7 3 7 8 15 8"></polyline>
+                            </svg>
+                        </template>
+                        <template x-if="isDraftSaving">
+                            <svg class="w-4 h-4 text-emerald-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </template>
+                    </button>
+                </div>
+
                 <button type="button"
                         @click="toggleMaximize()"
                         class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-sm cursor-pointer {{ $isDark ? 'bg-gray-900 hover:bg-gray-800 text-gray-200 border-gray-700 hover:text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-200' }}">
@@ -403,16 +452,16 @@
 
         {{-- GESTALTUNGS-LEISTE (direkt im Alpine-Scope des Konfigurators für Produktseite, Warenkorb & Bestell-Bearbeitung) --}}
         @if($context !== 'preview' && !$isDigital && !$isService && ($isEffectiveStudio || $isBeginnerStudioMode))
-            <div x-show="!isMaximized" class="px-4 sm:px-6 py-2.5 border-b flex flex-wrap justify-between items-center gap-2 shrink-0 {{ $isDark ? 'bg-gray-900/80 border-gray-800' : 'bg-gray-50 border-gray-200' }}">
-                <div class="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-                    <span class="text-sm font-medium mr-0.5 {{ $isDark ? 'text-gray-300' : 'text-gray-600' }}">{{ $isBeginnerStudioMode ? 'Vorschau' : 'Gestaltung' }}</span>
+            <div x-show="!isMaximized" class="px-4 sm:px-6 py-2.5 border-b flex items-center justify-between gap-2 shrink-0 {{ $isDark ? 'bg-gray-900/80 border-gray-800' : 'bg-gray-50 border-gray-200' }}">
+                <div class="flex items-center gap-2 sm:gap-2.5 min-w-0">
+                    <span class="text-sm font-medium mr-0.5 shrink-0 {{ $isDark ? 'text-gray-300' : 'text-gray-600' }}">{{ $isBeginnerStudioMode ? 'Vorschau' : 'Gestaltung' }}</span>
 
                     <button type="button"
                             @click="toggleNotice()"
                             :class="showNotice
                                 ? '{{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-200 hover:text-white' : 'bg-white border-gray-200/90 text-gray-700 shadow-2xs hover:border-gray-300 hover:text-gray-900' }}'
                                 : '{{ $isDark ? 'bg-gray-900/60 border-gray-800 text-gray-500 hover:text-gray-300' : 'bg-gray-100/80 border-gray-200/60 text-gray-400 hover:text-gray-600 hover:bg-gray-100' }}'"
-                            class="px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none"
+                            class="px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none shrink-0"
                             :title="showNotice ? 'Hinweis ausblenden' : 'Hinweis einblenden'">
                         <span x-show="showNotice" class="flex items-center text-blue-500 shrink-0">
                             <x-heroicon-o-eye class="w-3.5 h-3.5" />
@@ -428,7 +477,7 @@
                             :class="videoEnabled
                                 ? '{{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-200 hover:text-white' : 'bg-white border-gray-200/90 text-gray-700 shadow-2xs hover:border-gray-300 hover:text-gray-900' }}'
                                 : '{{ $isDark ? 'bg-gray-900/60 border-gray-800 text-gray-500 hover:text-gray-300' : 'bg-gray-100/80 border-gray-200/60 text-gray-400 hover:text-gray-600 hover:bg-gray-100' }}'"
-                            class="px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none"
+                            class="px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none shrink-0"
                             :title="videoEnabled ? 'Jahreszeiten-Animation ausblenden' : 'Jahreszeiten-Animation einblenden'">
                         <span x-show="videoEnabled" class="flex items-center text-primary shrink-0">
                             <x-heroicon-o-eye class="w-3.5 h-3.5" />
@@ -440,11 +489,65 @@
                     </button>
                 </div>
 
-                @if($context === 'add')
-                    <button type="button" @click="$dispatch('cancel-configurator')" class="text-xs text-gray-500 hover:text-red-500 transition-colors cursor-pointer">
-                        Andere Vorlage wählen
-                    </button>
-                @endif
+                {{-- RECHTS AM RAND: Andere Vorlage wählen + Design laden + Design Sichern (Diskette ganz außen rechts, ohne Springen) --}}
+                <div class="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0 ml-auto">
+                    @if($context === 'add')
+                        <button type="button" @click="$dispatch('cancel-configurator')" class="text-xs text-gray-500 hover:text-red-500 transition-colors cursor-pointer whitespace-nowrap mr-0.5">
+                            Andere Vorlage wählen
+                        </button>
+                    @endif
+
+                    {{-- Fester Platzhalter für „Design laden“, damit beim Speichern nichts springt oder verschoben wird --}}
+                    <div x-show="!config.isBeginnerMode" class="flex items-center gap-1.5 shrink-0">
+                        <button type="button"
+                                @click.stop="if (draftExists) loadDraft()"
+                                :disabled="!draftExists"
+                                :tabindex="draftExists ? 0 : -1"
+                                title="Gespeichertes Design laden"
+                                aria-label="Gespeichertes Design laden"
+                                :class="!draftExists
+                                    ? 'opacity-0 pointer-events-none border-transparent'
+                                    : (isDraftLoading
+                                        ? 'opacity-100 border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                        : 'opacity-100 {{ $isDark ? 'bg-gray-800 border-gray-700 text-[#C5A059] hover:border-[#C5A059]' : 'bg-white border-[#C5A059]/45 text-[#9A7B3E] hover:bg-[#C5A059]/10 hover:border-[#C5A059] shadow-2xs' }}')"
+                                class="w-7 h-7 rounded-lg border transition-all duration-200 flex items-center justify-center cursor-pointer select-none shrink-0">
+                            <template x-if="!isDraftLoading">
+                                <svg class="w-3.5 h-3.5 text-[#C5A059]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                            </template>
+                            <template x-if="isDraftLoading">
+                                <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </template>
+                        </button>
+
+                        {{-- Design Sichern (Diskette ganz rechts am Rand) --}}
+                        <button type="button"
+                                @click.stop="saveDraft()"
+                                title="Design Sichern"
+                                aria-label="Design Sichern"
+                                :class="isDraftSaving
+                                    ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                    : '{{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-300 hover:text-[#C5A059] hover:border-[#C5A059]' : 'bg-white border-gray-200/90 text-gray-700 hover:text-[#9A7B3E] hover:border-[#C5A059] shadow-2xs' }}'"
+                                class="w-7 h-7 rounded-lg border transition-all duration-200 flex items-center justify-center cursor-pointer select-none shrink-0">
+                            <span class="sr-only">Design Sichern</span>
+                            <template x-if="!isDraftSaving">
+                                <svg class="w-3.5 h-3.5 text-[#C5A059]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                                    <polyline points="7 3 7 8 15 8"></polyline>
+                                </svg>
+                            </template>
+                            <template x-if="isDraftSaving">
+                                <svg class="w-3.5 h-3.5 text-emerald-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </template>
+                        </button>
+                    </div>
+                </div>
             </div>
         @endif
 

@@ -558,33 +558,54 @@
                                             <span class="block text-[10px] font-black uppercase tracking-widest text-gray-500">
                                                 🎁 Verpackung &amp; Extras (Optional hinzubuchen)
                                             </span>
-                                            <div class="grid grid-cols-1 gap-2">
+                                            <div class="grid grid-cols-1 gap-2" x-data="{ previewGiftWrapMode: 'wrapped' }">
                                                 @foreach($previewAddons as $addon)
                                                     @php
                                                         $addonPriceFmt = number_format(((int) $addon['price_cents']) / 100, 2, ',', '.');
                                                         $addonImg = $addon['image_url'] ?? \App\Models\Product\Product::resolveAddonImageUrl($addon);
+                                                        $isPreviewGiftWrap = \App\Models\Product\Product::isGiftWrapAddon($addon);
                                                     @endphp
                                                     <div @click="togglePreviewAddon('{{ $addon['id'] }}')"
-                                                         class="w-full text-left border rounded-xl p-2.5 transition-all flex items-center justify-between gap-3 cursor-pointer"
-                                                         :class="selectedPreviewAddons.includes('{{ $addon['id'] }}') ? 'bg-amber-50/80 border-[var(--theme-color)] ring-1 ring-[var(--theme-color-30)]' : 'bg-white border-gray-200 hover:border-gray-300'">
-                                                        <div class="flex items-center gap-3 min-w-0 flex-1">
-                                                            <span class="w-4 h-4 rounded flex items-center justify-center border shrink-0"
-                                                                  :class="selectedPreviewAddons.includes('{{ $addon['id'] }}') ? 'bg-[var(--theme-color)] border-[var(--theme-color)] text-gray-900' : 'border-gray-300 bg-white'">
-                                                                <svg x-show="selectedPreviewAddons.includes('{{ $addon['id'] }}')" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                                                            </span>
-                                                            @if($addonImg)
-                                                                <img src="{{ $addonImg }}" alt="{{ $addon['name'] }}" class="w-11 h-11 rounded-lg object-cover border border-gray-200 shrink-0">
-                                                            @endif
-                                                            <div class="min-w-0 flex-1">
-                                                                <span class="text-xs font-bold text-gray-800 block leading-tight">{{ $addon['name'] }}</span>
-                                                                @if(!empty($addon['description']))
-                                                                    <span x-show="selectedPreviewAddons.includes('{{ $addon['id'] }}')" x-cloak class="text-[10px] text-gray-500 block mt-0.5 leading-snug">{{ $addon['description'] }}</span>
+                                                         class="w-full text-left border rounded-xl p-2.5 transition-all cursor-pointer"
+                                                         :class="selectedPreviewAddons.includes('{{ $addon['id'] }}') ? 'bg-white border-[var(--theme-color)] ring-1 ring-[var(--theme-color-30)]' : 'bg-white border-gray-200 hover:border-gray-300'">
+                                                        <div class="flex items-center justify-between gap-3">
+                                                            <div class="flex items-center gap-3 min-w-0 flex-1">
+                                                                <span class="w-4 h-4 rounded flex items-center justify-center border shrink-0"
+                                                                      :class="selectedPreviewAddons.includes('{{ $addon['id'] }}') ? 'bg-[var(--theme-color)] border-[var(--theme-color)] text-gray-900' : 'border-gray-300 bg-white'">
+                                                                    <svg x-show="selectedPreviewAddons.includes('{{ $addon['id'] }}')" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                                                </span>
+                                                                @if($addonImg)
+                                                                    <img src="{{ $addonImg }}" alt="{{ $addon['name'] }}" class="w-11 h-11 rounded-lg object-cover border border-gray-200 shrink-0">
                                                                 @endif
+                                                                <div class="min-w-0 flex-1">
+                                                                    <span class="text-xs font-bold text-gray-800 block leading-tight">{{ $addon['name'] }}</span>
+                                                                </div>
                                                             </div>
+                                                            <span class="font-bold text-[var(--theme-color)] bg-[var(--theme-color-10)] px-2 py-0.5 rounded-lg text-[11px] whitespace-nowrap shrink-0">
+                                                                + {{ $addonPriceFmt }}&nbsp;€
+                                                            </span>
                                                         </div>
-                                                        <span class="font-bold text-[var(--theme-color)] bg-[var(--theme-color-10)] px-2 py-0.5 rounded-lg text-[11px] whitespace-nowrap shrink-0">
-                                                            + {{ $addonPriceFmt }}&nbsp;€
-                                                        </span>
+                                                        @if($isPreviewGiftWrap)
+                                                            <div x-show="selectedPreviewAddons.includes('{{ $addon['id'] }}')"
+                                                                 x-cloak
+                                                                 @click.stop
+                                                                 class="mt-2 pt-2 border-t border-gray-100 grid grid-cols-2 gap-1.5">
+                                                                <button type="button"
+                                                                        @click.stop="previewGiftWrapMode = 'wrapped'"
+                                                                        :class="previewGiftWrapMode !== 'loose' ? 'bg-[#F5F1E8] border-[#C5A059] text-gray-900' : 'bg-gray-50 border-gray-200 text-gray-600'"
+                                                                        class="px-2 py-1 rounded-lg border text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer">
+                                                                    <span x-show="previewGiftWrapMode !== 'loose'" class="text-[#C5A059] font-black">✓</span>
+                                                                    <span>Fertig verpackt</span>
+                                                                </button>
+                                                                <button type="button"
+                                                                        @click.stop="previewGiftWrapMode = 'loose'"
+                                                                        :class="previewGiftWrapMode === 'loose' ? 'bg-[#F5F1E8] border-[#C5A059] text-gray-900' : 'bg-gray-50 border-gray-200 text-gray-600'"
+                                                                        class="px-2 py-1 rounded-lg border text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer">
+                                                                    <span x-show="previewGiftWrapMode === 'loose'" class="text-[#C5A059] font-black">✓</span>
+                                                                    <span>Papier nur mitliefern</span>
+                                                                </button>
+                                                            </div>
+                                                        @endif
                                                     </div>
                                                 @endforeach
                                             </div>

@@ -123,6 +123,8 @@ Route::group(['middleware' => [function ($request, $next) {
         
         $responseData = $orders->toArray();
         $responseData['priority_order'] = $priorityOrderData;
+        $responseData['open_orders_count'] = OrderOrder::whereNotIn('status', ['completed', 'cancelled', 'refunded', 'shipped'])->count();
+        $responseData['latest_order_id'] = (string) (OrderOrder::max('id') ?? '');
         
         return response()->json($responseData);
     });

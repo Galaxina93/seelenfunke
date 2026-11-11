@@ -500,9 +500,14 @@
                                 </thead>
                                 <tbody class="divide-y divide-gray-100 dark:divide-gray-800/40">
                                     @foreach($recentOrders as $order)
-                                        <tr class="group hover:bg-gray-50/80 dark:hover:bg-gray-800/20 transition-colors rounded-xl">
+                                        <tr @click="if (window.Livewire && typeof window.Livewire.navigate === 'function') { window.Livewire.navigate('{{ route('customer.orders', ['order' => $order->id]) }}'); } else { window.location.href = '{{ route('customer.orders', ['order' => $order->id]) }}'; }"
+                                            @keydown.enter="if (window.Livewire && typeof window.Livewire.navigate === 'function') { window.Livewire.navigate('{{ route('customer.orders', ['order' => $order->id]) }}'); } else { window.location.href = '{{ route('customer.orders', ['order' => $order->id]) }}'; }"
+                                            role="link"
+                                            tabindex="0"
+                                            title="Bestellung #{{ $order->order_number }} ansehen"
+                                            class="group cursor-pointer hover:bg-gray-50/80 dark:hover:bg-gray-800/20 transition-colors rounded-xl">
                                             <td class="py-3 pl-4 pr-3 rounded-l-xl">
-                                                <span class="text-gray-900 dark:text-white font-mono text-xs font-bold">#{{ $order->order_number }}</span>
+                                                <span class="text-gray-900 dark:text-white group-hover:text-primary transition-colors font-mono text-xs font-bold">#{{ $order->order_number }}</span>
                                             </td>
                                             <td class="py-3 px-3">
                                                 <span class="text-gray-600 dark:text-gray-400 text-xs">{{ $order->created_at->format('d.m.Y') }}</span>
@@ -536,7 +541,7 @@
                                                 </span>
                                             </td>
                                             <td class="py-3 pl-3 pr-4 sm:pr-5 text-right rounded-r-xl">
-                                                <a href="{{ route('customer.orders', ['order' => $order->id]) }}" wire:navigate title="Bestellung ansehen" class="inline-flex items-center justify-center p-1.5 bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-500 dark:text-gray-400 hover:text-primary hover:border-primary/30 transition-colors">
+                                                <a href="{{ route('customer.orders', ['order' => $order->id]) }}" @click.stop wire:navigate title="Bestellung ansehen" class="inline-flex items-center justify-center p-1.5 bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-500 dark:text-gray-400 group-hover:text-primary group-hover:border-primary/30 hover:text-primary hover:border-primary/30 transition-colors">
                                                     <x-heroicon-m-eye class="w-4 h-4" />
                                                 </a>
                                             </td>

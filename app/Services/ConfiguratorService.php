@@ -126,7 +126,9 @@ class ConfiguratorService
 
         imagedestroy($im);
 
-        $avgLuminance = $sampleCount > 0 ? round($lumSum / $sampleCount, 1) : 140.0;
+        // Bei hochtransparentem Kristallglas im Zentrum (sampleCount === 0, aber hasTransparency === true)
+        // scheint der atmosphärische Hintergrund durch -> helle Milchglas-Lasergravur (isDarkSurface = true)
+        $avgLuminance = $sampleCount > 0 ? round($lumSum / $sampleCount, 1) : ($hasTransparency ? 25.0 : 140.0);
         $isDarkSurface = $avgLuminance < 65.0;
 
         return self::$overlayAnalysisCache[$cacheKey] = [

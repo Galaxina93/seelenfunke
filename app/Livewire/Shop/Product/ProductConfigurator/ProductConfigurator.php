@@ -70,6 +70,7 @@ class ProductConfigurator extends Component
     public $variantId = null;
     public $variantName = null;
     public array $selectedAddons = [];
+    public string $giftWrapMode = 'wrapped'; // 'wrapped' = Fertig verpackt | 'loose' = Papier nur mitliefern
     public array $customFieldValues = [];
     #[Locked]
     public array $savedCustomFieldsSnapshot = [];
@@ -254,6 +255,19 @@ class ProductConfigurator extends Component
         } else {
             $this->selectedAddons = [];
         }
+
+        $restoredWrapMode = (string) ($source['gift_wrap_mode'] ?? '');
+        if ($restoredWrapMode === '' && !empty($source['addons_summary']) && is_array($source['addons_summary'])) {
+            foreach ($source['addons_summary'] as $savedAddon) {
+                if (is_array($savedAddon) && \App\Models\Product\Product::isGiftWrapAddon($savedAddon)) {
+                    if (($savedAddon['wrap_mode'] ?? '') === 'loose' || str_contains(mb_strtolower((string) ($savedAddon['name'] ?? '')), 'mitliefern')) {
+                        $restoredWrapMode = 'loose';
+                    }
+                    break;
+                }
+            }
+        }
+        $this->giftWrapMode = ($restoredWrapMode === 'loose') ? 'loose' : 'wrapped';
         $this->uploaded_files = is_array($source['files'] ?? null) ? $source['files'] : [];
         if (!empty($this->uploaded_files)) {
             $this->registerSessionOwnedUploads($this->uploaded_files);
@@ -550,6 +564,15 @@ class ProductConfigurator extends Component
         }
     }
 
+    public function setGiftWrapMode(string $mode): void
+    {
+        if ($this->context === 'preview') {
+            return;
+        }
+
+        $this->giftWrapMode = ($mode === 'loose') ? 'loose' : 'wrapped';
+    }
+
     public function resolveSelectedAddonsSummary(): array
     {
         if (empty($this->selectedAddons)) {
@@ -559,13 +582,33 @@ class ProductConfigurator extends Component
         $summary = [];
         foreach ($this->availableAddons as $addon) {
             if (in_array($addon['id'], $this->selectedAddons, true)) {
-                $summary[] = [
+                $isWrap = \App\Models\Product\Product::isGiftWrapAddon($addon);
+                $wrapMode = ($this->giftWrapMode === 'loose') ? 'loose' : 'wrapped';
+                $wrapLabel = \App\Models\Product\Product::resolveGiftWrapModeLabel($wrapMode);
+
+                $addonName = $isWrap
+                    ? $addon['name'] . ' (' . $wrapLabel . ')'
+                    : $addon['name'];
+
+                $addonDesc = $isWrap
+                    ? ($wrapMode === 'loose'
+                        ? 'Passender Bogen Schwarz-Gold-Geschenkpapier inklusive Verschluss-Sticker lose beigelegt (Gravur vorher selbst begutachten)'
+                        : 'Von Hand in edles Schwarz-Gold-Geschenkpapier eingeschlagen, direkt verschenkfertig')
+                    : trim((string) ($addon['description'] ?? ''));
+
+                $entry = [
                     'id'          => $addon['id'],
-                    'name'        => $addon['name'],
-                    'description' => trim((string) ($addon['description'] ?? '')),
+                    'name'        => $addonName,
+                    'description' => $addonDesc,
                     'price_cents' => (int) $addon['price_cents'],
                     'image_path'  => $addon['image_path'] ?? null,
                 ];
+
+                if ($isWrap) {
+                    $entry['wrap_mode'] = $wrapMode;
+                }
+
+                $summary[] = $entry;
             }
         }
 
@@ -1505,6 +1548,7 @@ class ProductConfigurator extends Component
                     'variant_id' => $this->variantId,
                     'variant_name' => $this->variantName,
                     'selected_addons' => array_values($this->selectedAddons),
+                    'gift_wrap_mode' => ($this->giftWrapMode === 'loose') ? 'loose' : 'wrapped',
                     'addons_summary' => $this->resolveSelectedAddonsSummary(),
                     'snapshot_path' => $finalSnapshotPath,
                     'is_express' => $this->is_express,

@@ -358,4 +358,29 @@ In [`_edit_step_2.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-
    - Bündelt den Automatik-Schalter (`toggleAutoSeasonalMainImage`) mit den **8 System-Anlässen** (`Weihnachten`, `Ostern`, `Hochzeit`, `Geburtstag`, `Valentinstag`, `Muttertag`, `Vatertag`, `Halloween`).
    - Zeigt pro Anlass automatisch das vorhandene Vorlagen-/Saisonbild samt Live-Status (`Heute im Shop aktiv`), erlaubt den direkten 1-Klick-Bild-Upload (`seasonal_media_uploads.{Holiday}`), das Umschalten des `KI-generiert`-Flags (`toggleSeasonalImageAiGenerated`) sowie das Zurücksetzen (`removeSeasonalMainImage`).
 
+---
+
+## 12. Realistisches 3D-Kristallglas („Der Seelen Kristall“ 180 × 200 × 40 mm) & Studio-Konfigurator UX-Feinschliff (11. November 2026)
+
+### 12.1 Maßstabsgetreue 3D-GLB-Geometrie & Deckungsgleiches 2D-Overlay für „Der Seelen Kristall“
+- **3D-GLB & Seeder ([`ProductAssetSeeder.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/database/seeders/ProductAssetSeeder.php), [`ProductSeeder.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/database/seeders/ProductSeeder.php), [`ProductTemplateSeeder.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/database/seeders/ProductTemplateSeeder.php)):**
+  - Neuberechnung von `public/storage/3d-models/der-seelen-kristall.glb` nach realen Produktfotos und den exakten Rohling-Maßen **180 × 200 × 40 mm** (`0.180 × 0.200 × 0.040 m`): 36-fach facettierter Kronenschliff-Kristallkreis (Ø 180 mm, 20 mm Stärke, glatte Vorder-/Rückseite Ø 148 mm) auf trapezförmigem Kristallsockel (144 × 28 × 40 mm) mit leichtem optischen Grünschimmer an den geschliffenen Facettenkanten (`GlassEdge`).
+  - Synchronisierung von `public/storage/overlays/der-seelen-kristall-overlay.png` per Orthographic-Projektion exakt passend zu `area_shape => 'circle'`, `area_left => 17.5`, `area_top => 24.0`, `area_width => 65.0`, `area_height => 65.0`.
+- **Physikalisches Kristallglas-Rendering in Three.js ([`ConfiguratorService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/ConfiguratorService.php), [`_edit.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/partials/_edit.blade.php), [`three_js_main.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/partials/edit-partials/step_4_partials/three_js_main.blade.php)):**
+  - Automatische Bounding-Box-Skalierung auf 2.2 Einheiten für reale Meter-Modelle (`maxDim < 0.8`) sowie zweistufiges `MeshPhysicalMaterial` (`GlassBody` mit `ior: 1.52`, `transmission: 0.94`, `attenuationColor: 0xebf7f4` und `GlassEdge` mit `roughness: 0.14`, `attenuationColor: 0xd0ebe4`).
+
+### 12.2Aufgeräumte Studio-Konfigurator-Oberfläche (`preview.blade.php`, `formluar.blade.php`, `footer.blade.php`)
+- **Kopfbereich & Layout-stabiles „Design sichern / laden“ ([`product-configurator.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/product-configurator.blade.php)):**
+  - Das Disketten-Icon (`Design Sichern`) sitzt rechts außen in der `Gestaltung`-Kopfzeile neben `Andere Vorlage wählen`; ein fester `w-7 h-7`-Platzhalter für `Design laden` verhindert jedes Springen beim Speichern.
+- **Angedockte Werkzeugleisten ober- & unterhalb der Vorschau ([`preview.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/preview.blade.php)):**
+  - Reine Pfeil-Icons für Undo/Redo (`<!-- Zurück und Vor Buttons (Undo / Redo) -->`), kompakte `2D` / `3D`-Umschalter und sauberer Seitenabstand (`px-3 sm:px-5`).
+  - Oberhalb der Vorschau über die volle Breite angedockt: Erstellungsleiste (`+ Text | + Bild | Symbole | Sprüche`) ohne seitliche/obere Doppel-Border sowie darunter der vollbreite Zoom-Regler (`50 % – 250 %`).
+  - Unterhalb der Vorschau über die volle Breite angedockt (2 luftige Reihen bei ausgewähltem Element):
+    - **Reihe 1:** `Verschieben | Drehen | Größe | Zuschneiden` (bzw. `Schrift | Format` mit rechtsbündigem `right-0`-Popover ohne Abschneiden).
+    - **Reihe 2 (ab Kopie):** `Kopie | Horiz. | Vertik. | Mitte | Löschen`.
+- **Zentriertes Auswahl-Modal & Footer-Vorteils-Badges ([`formluar.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/formluar.blade.php), [`footer.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/footer.blade.php), [`right.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/partials/product-show/right.blade.php), [`resources/views/frontend/footer/footer.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/frontend/footer/footer.blade.php)):**
+  - `Symbole`, `Sprüche` und `Eigene Dateien` öffnen als zentriertes Overlay-Modal inkl. goldenem `!`-Info-Button und kompaktem `§ 3 AGB`-Urheberrechtshinweis.
+  - Gelber Hintergrund/Border bei `✨ Treue-Bonus:` entfernt; `Soziales leisten` im Konfigurator-Footer gekürzt (Hover-Erklärung unverändert); die 3 Qualitäts-Badges (`Premium Qualität`, `Handveredelt`, `Sorgfältig verpackt`) als dezente Badges unter `Laserzertifiziert` in den globalen Footer verschoben.
+
+
 

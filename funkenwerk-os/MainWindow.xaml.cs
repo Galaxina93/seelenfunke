@@ -4611,7 +4611,7 @@ namespace FunkenwerkOS
         private async void OpenBtPairing_Click(object sender, RoutedEventArgs e)
         {
             ShowToast("Suche & verbinde Bluetooth-Geräte...");
-            var list = await OsHardwareAndAudioEngine.ScanBluetoothDevicesAsync(issueHardwareInquiry: true);
+            var list = await OsHardwareAndAudioEngine.ScanBluetoothDevicesAsync(issueHardwareInquiry: false);
             BluetoothListControl.ItemsSource = list;
 
             var candidate = list.FirstOrDefault(b => b.IsTeufel) ?? list.FirstOrDefault(b => !b.IsConnected);

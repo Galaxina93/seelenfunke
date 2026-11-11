@@ -300,6 +300,8 @@
                         if (count > 0) {
                             const avgLum = lumSum / count;
                             this.isDarkSurface = avgLum < 65;
+                        } else if (this.hasTransparentOverlay) {
+                            this.isDarkSurface = true;
                         }
                     } catch (e) {
                         // Fallback auf Server-Analyse
@@ -1599,13 +1601,13 @@
                 if (this.selectedType !== type || this.selectedIndex !== index) {
                     this.isCropping = false;
                     this.activeCropHandle = null;
+                    this.showFontMenu = this.showSizeMenu = this.showAlignMenu = this.showPosMenu = false;
                 }
                 this.selectedType = type;
                 this.selectedIndex = index;
                 if (type === 'text' && this.currentTexts && this.currentTexts[index] && this.currentTexts[index].font) {
                     this.lastSelectedFont = this.currentTexts[index].font;
                 }
-                this.showFontMenu = this.showSizeMenu = this.showAlignMenu = this.showPosMenu = false;
             },
 
             getPreferredFont(fallback = 'Arial') {

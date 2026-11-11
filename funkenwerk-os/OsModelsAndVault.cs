@@ -28,7 +28,7 @@ namespace FunkenwerkOS
         public string ExplorerSortBy { get; set; } = "Name"; // Name | Created | Modified | Type | Size
         public bool ExplorerSortAsc { get; set; } = true;
         public string ApiEnvironment { get; set; } = "live";
-        public bool OrderChimeEnabled { get; set; } = false;
+        public bool OrderChimeEnabled { get; set; } = true;
         public string SavedEmail { get; set; } = "kontakt@mein-seelenfunke.de";
         public string? EncryptedTokenLocal { get; set; }
         public string? EncryptedTokenStage { get; set; }
@@ -133,6 +133,7 @@ namespace FunkenwerkOS
     public sealed class OsOrderItemDto
     {
         public int Id { get; set; }
+        public string OrderUuid { get; set; } = "";
         public string OrderNumber { get; set; } = "";
         public string CustomerName { get; set; } = "";
         public string StatusLabel { get; set; } = "";
@@ -169,6 +170,9 @@ namespace FunkenwerkOS
         public string StatusSummary { get; set; } = "Nicht verbunden";
         public long LatencyMs { get; set; }
         public int OpenOrdersCount { get; set; }
+        public int TotalOrdersCount { get; set; }
+        public int LatestOrderId { get; set; }
+        public string LatestOrderKey { get; set; } = "";
         public int ExpressOrdersCount { get; set; }
         public string ShopRevenueFormatted { get; set; } = "0,00 €";
         public string AvailableLiquidityFormatted { get; set; } = "0,00 €";
@@ -176,6 +180,8 @@ namespace FunkenwerkOS
         public int OpenTasksCount { get; set; }
         public OsPriorityOrderDto PriorityOrder { get; set; } = new();
         public List<OsOrderItemDto> ActiveOrders { get; set; } = new();
+        public List<int> AllPageOrderIds { get; set; } = new();
+        public List<string> AllPageOrderKeys { get; set; } = new();
         public List<OsTaskItemDto> OpenTasks { get; set; } = new();
     }
 
@@ -1296,11 +1302,17 @@ namespace FunkenwerkOS
             }
         }
 
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> s_unprotectCache = new(StringComparer.Ordinal);
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (long LastWriteTicks, string Token)> s_fwSettingsTokenCache = new(StringComparer.OrdinalIgnoreCase);
+
         public static string UnprotectVaultSecret(string? storedCipher)
         {
             const string prefix = "FWVAULT2:";
             if (string.IsNullOrWhiteSpace(storedCipher) || !storedCipher.StartsWith(prefix, StringComparison.Ordinal))
                 return "";
+
+            if (s_unprotectCache.TryGetValue(storedCipher, out string? cachedPlain))
+                return cachedPlain;
 
             byte[]? envelope = null;
             byte[]? key = null;
@@ -1311,7 +1323,10 @@ namespace FunkenwerkOS
                 byte[] dpapiCipher = Convert.FromBase64String(storedCipher.Substring(prefix.Length));
                 envelope = DpapiUnprotectWin32(dpapiCipher, FunkenwerkMainEntropy);
                 if (envelope == null || envelope.Length < 45 || envelope[0] != 0x02)
+                {
+                    s_unprotectCache[storedCipher] = "";
                     return "";
+                }
 
                 byte[] salt = new byte[16];
                 byte[] nonce = new byte[12];
@@ -1331,10 +1346,13 @@ namespace FunkenwerkOS
 
                 using var aesGcm = new AesGcm(key, 16);
                 aesGcm.Decrypt(nonce, cipher, tag, plainBytes, FunkenwerkMainAad);
-                return Encoding.UTF8.GetString(plainBytes);
+                string decrypted = Encoding.UTF8.GetString(plainBytes);
+                s_unprotectCache[storedCipher] = decrypted;
+                return decrypted;
             }
             catch
             {
+                s_unprotectCache[storedCipher] = "";
                 return "";
             }
             finally
@@ -1365,6 +1383,10 @@ namespace FunkenwerkOS
                 string fwSettings = Path.Combine(CollectionRootDir, "Funkenwerk", "settings.json");
                 if (File.Exists(fwSettings))
                 {
+                    long writeTicks = File.GetLastWriteTimeUtc(fwSettings).Ticks;
+                    if (s_fwSettingsTokenCache.TryGetValue(normEnv, out var cached) && cached.LastWriteTicks == writeTicks)
+                        return cached.Token;
+
                     using var doc = JsonDocument.Parse(File.ReadAllText(fwSettings, Encoding.UTF8));
                     var root = doc.RootElement;
                     var candidates = new List<string?>();
@@ -1377,8 +1399,14 @@ namespace FunkenwerkOS
                     {
                         string dec = UnprotectVaultSecret(c);
                         if (!string.IsNullOrWhiteSpace(dec))
-                            return dec.Trim();
+                        {
+                            string trimmed = dec.Trim();
+                            s_fwSettingsTokenCache[normEnv] = (writeTicks, trimmed);
+                            return trimmed;
+                        }
                     }
+
+                    s_fwSettingsTokenCache[normEnv] = (writeTicks, "");
                 }
             }
             catch { }
@@ -1386,17 +1414,20 @@ namespace FunkenwerkOS
             return "";
         }
 
-        public static void StoreBearerTokenUnified(OsSettings settings, string env, string rawBearerToken)
+        public static void StoreBearerTokenUnified(OsSettings settings, string env, string rawBearerToken, bool switchActiveEnv = true)
         {
             string encrypted = ProtectVaultSecret(rawBearerToken);
             if (string.IsNullOrEmpty(encrypted)) return;
+
+            s_unprotectCache[encrypted] = rawBearerToken;
 
             string normEnv = (env ?? "live").Trim().ToLowerInvariant();
             if (normEnv == "local") settings.EncryptedTokenLocal = encrypted;
             else if (normEnv == "stage") settings.EncryptedTokenStage = encrypted;
             else settings.EncryptedTokenLive = encrypted;
 
-            settings.ApiEnvironment = normEnv;
+            if (switchActiveEnv)
+                settings.ApiEnvironment = normEnv;
             SaveSettings(settings);
 
             try
@@ -1409,9 +1440,12 @@ namespace FunkenwerkOS
                         ? (JsonNode.Parse(File.ReadAllText(fwSettingsPath, Encoding.UTF8)) as JsonObject ?? new JsonObject())
                         : new JsonObject();
 
-                    string apiBaseUrl = SeelenfunkeLiveClient.GetBaseUrlForEnvironment(normEnv);
-                    obj["ApiBaseUrl"] = apiBaseUrl;
-                    obj["ApiToken"] = encrypted;
+                    if (switchActiveEnv)
+                    {
+                        string apiBaseUrl = SeelenfunkeLiveClient.GetBaseUrlForEnvironment(normEnv);
+                        obj["ApiBaseUrl"] = apiBaseUrl;
+                        obj["ApiToken"] = encrypted;
+                    }
                     if (normEnv == "local") obj["ApiTokenLocal"] = encrypted;
                     else if (normEnv == "stage") obj["ApiTokenStage"] = encrypted;
                     else obj["ApiTokenLive"] = encrypted;
@@ -1425,6 +1459,7 @@ namespace FunkenwerkOS
                     File.WriteAllText(tmp, obj.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
                     File.Move(tmp, fwSettingsPath, overwrite: true);
                     LockDownFileAcl(fwSettingsPath);
+                    s_fwSettingsTokenCache.Clear();
                 }
             }
             catch { }

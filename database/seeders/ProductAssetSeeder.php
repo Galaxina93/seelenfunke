@@ -130,6 +130,19 @@ class ProductAssetSeeder extends Seeder
             }
         }
 
+        // 4a. Der Seelen Kristall (180 x 200 x 40 mm): Maßgetreues K9-Kristallglas 3D-GLB-Mesh & 100 % deckungsgleiches 2D-Overlay
+        // mit 30-segmentigem Sonnenschliff-/Rautenschliff-Facettenrand und trapezförmigem 40 mm Kristallsockel
+        $kristallDir = $publicProductsPath . '/seelen-kristall';
+        File::ensureDirectoryExists($kristallDir);
+        $kristallAtlasPng = $this->renderSeelenKristallAtlasPng();
+        if ($kristallAtlasPng !== '') {
+            $kristallMesh = $this->buildSeelenKristall3DMesh();
+            $kristallGlb = $this->buildOpticalCrystalGlb($kristallMesh, $kristallAtlasPng, 'SeelenKristall');
+            file_put_contents($kristallDir . '/t_seelenk.glb', $kristallGlb);
+            $this->renderSeelenKristallOverlayPng($kristallDir . '/overlay.png', $kristallMesh, $kristallAtlasPng);
+            $this->ensureSeasonalOverlays($kristallDir, true);
+        }
+
         // 4b. Der Seelenanhänger: 1:1 zum 800x800 Echtfoto-Overlay deckungsgleiches 3D-GLB-Mesh erzeugen
         $anhaengerDir = $publicProductsPath . '/seelen-anhaenger';
         $anhaengerOverlayPath = $anhaengerDir . '/overlay.png';
@@ -934,6 +947,989 @@ SVG,
             'textures' => [['source' => 0, 'sampler' => 0]],
             'samplers' => [['magFilter' => 9729, 'minFilter' => 9729, 'wrapS' => 33071, 'wrapT' => 33071]],
             'images' => [['bufferView' => 4, 'mimeType' => 'image/png']],
+            'accessors' => [
+                [
+                    'bufferView' => 0,
+                    'componentType' => 5126,
+                    'count' => intdiv($posCount, 3),
+                    'type' => 'VEC3',
+                    'min' => [$minX, $minY, $minZ],
+                    'max' => [$maxX, $maxY, $maxZ],
+                ],
+                [
+                    'bufferView' => 1,
+                    'componentType' => 5126,
+                    'count' => intdiv(count($normals), 3),
+                    'type' => 'VEC3',
+                ],
+                [
+                    'bufferView' => 2,
+                    'componentType' => 5126,
+                    'count' => intdiv(count($uvs), 2),
+                    'type' => 'VEC2',
+                ],
+                [
+                    'bufferView' => 3,
+                    'componentType' => 5125,
+                    'count' => count($indices),
+                    'type' => 'SCALAR',
+                ],
+            ],
+            'bufferViews' => [$bvPos, $bvNorm, $bvUv, $bvIdx, $bvImg],
+            'buffers' => [['byteLength' => strlen($binBuffer)]],
+        ];
+
+        $jsonBuf = $pad4(json_encode($gltf, JSON_UNESCAPED_SLASHES), ' ');
+        $totalLen = 12 + 8 + strlen($jsonBuf) + 8 + strlen($binBuffer);
+
+        $header = 'glTF' . pack('VV', 2, $totalLen);
+        $jsonHeader = pack('V', strlen($jsonBuf)) . 'JSON';
+        $binHeader = pack('V', strlen($binBuffer)) . "BIN\0";
+
+        return $header . $jsonHeader . $jsonBuf . $binHeader . $binBuffer;
+    }
+
+    /**
+     * Erzeugt das maßgetreue, hochrealistische 3D-CAD-Mesh für "Der Seelen Kristall"
+     * exakt nach den realen Trophäen-Abmessungen 180 x 200 x 40 mm (1.000 Einheit = 200 mm -> 0.900 x 1.000 x 0.200):
+     * - Oberteil: Runde K9-Kristallscheibe (Ø 180 mm => R_outer = 0.450, Zentrum Y = +0.050, Stärke 19 mm => Z = ±0.0475)
+     *   mit 28-segmentigem, scharfkantig flach-schattiertem Diamant-/Sonnenschliff-Facettenrand (Vorder- & Rückseite)
+     *   und abgeflachter Unterkante bei Y = -0.380.
+     * - Unterteil: Trapezförmiger, facettierter K9-Kristallsockel (126 x 24 x 40 mm => X = ±0.315, Y = -0.500..-0.380, Z = ±0.100)
+     *   mit 45°-Oberkantenfase, Bodenfase, optischer UV-Klebeflächen-Brechung und internen Totalreflexions-Prismen.
+     */
+    private function buildSeelenKristall3DMesh(): array
+    {
+        $positions = [];
+        $normals = [];
+        $uvs = [];
+        $indices = [];
+
+        $addFlatTri = static function (
+            array $p0,
+            array $p1,
+            array $p2,
+            array $uv0,
+            array $uv1,
+            array $uv2,
+            array $outDir
+        ) use (&$positions, &$normals, &$uvs, &$indices): void {
+            $ux = $p1[0] - $p0[0];
+            $uy = $p1[1] - $p0[1];
+            $uz = $p1[2] - $p0[2];
+            $vx = $p2[0] - $p0[0];
+            $vy = $p2[1] - $p0[1];
+            $vz = $p2[2] - $p0[2];
+
+            $nx = $uy * $vz - $uz * $vy;
+            $ny = $uz * $vx - $ux * $vz;
+            $nz = $ux * $vy - $uy * $vx;
+            $len = sqrt($nx * $nx + $ny * $ny + $nz * $nz);
+            if ($len < 1e-8) {
+                return;
+            }
+            $nx /= $len;
+            $ny /= $len;
+            $nz /= $len;
+
+            $dot = $nx * $outDir[0] + $ny * $outDir[1] + $nz * $outDir[2];
+            if ($dot < 0.0) {
+                $nx = -$nx;
+                $ny = -$ny;
+                $nz = -$nz;
+                [$p1, $p2] = [$p2, $p1];
+                [$uv1, $uv2] = [$uv2, $uv1];
+            }
+
+            $base = intdiv(count($positions), 3);
+            array_push(
+                $positions,
+                $p0[0], $p0[1], $p0[2],
+                $p1[0], $p1[1], $p1[2],
+                $p2[0], $p2[1], $p2[2]
+            );
+            array_push(
+                $normals,
+                $nx, $ny, $nz,
+                $nx, $ny, $nz,
+                $nx, $ny, $nz
+            );
+            array_push(
+                $uvs,
+                $uv0[0], $uv0[1],
+                $uv1[0], $uv1[1],
+                $uv2[0], $uv2[1]
+            );
+            array_push($indices, $base, $base + 1, $base + 2);
+        };
+
+        $addFlatQuad = static function (
+            array $p0,
+            array $p1,
+            array $p2,
+            array $p3,
+            array $uv0,
+            array $uv1,
+            array $uv2,
+            array $uv3,
+            array $outDir
+        ) use ($addFlatTri): void {
+            $addFlatTri($p0, $p1, $p2, $uv0, $uv1, $uv2, $outDir);
+            $addFlatTri($p0, $p2, $p3, $uv0, $uv2, $uv3, $outDir);
+        };
+
+        // --- 1. RUNDE K9-KRISTALLSCHEIBE MIT 30-SEGMENT SONNENSCHLIFF (Ø 180 mm, Z = ±0.0475 = 19 mm) ---
+        $cy = 0.050;
+        $rOuter = 0.450; // 90 mm Radius = 180 mm Durchmesser
+        $rInner = 0.418; // 83,6 mm Innenradius der planen Gravurfläche (6,4 mm schlanker Sonnenschliff-Rand wie im Echtfoto)
+        $ySeat = -0.376; // Abgeflachte Standfläche auf dem Kristallsockel (bündig eingelassen in Plateau Y = -0.372)
+        $zFace = 0.0475; // Halbe Scheibenstärke (9,5 mm -> 19,0 mm gesamt)
+        $zRidge = 0.0260; // Äußerer Facettengrat bei Hauptwinkel theta_i
+        $zApex = 0.0075;  // Äußere Rautenspitze bei Halbwinkel theta_{i+0.5}
+        $nSectors = 30;
+
+        // UV-Mapping auf Region A der 1024x1024 K9-Kristall-Textur (Kreis um px=512, py=416, R_px=392)
+        $discUv = static function (float $x, float $y) use ($cy, $rOuter): array {
+            $u = (512.0 + ($x / $rOuter) * 392.0) / 1024.0;
+            $v = (416.0 - (($y - $cy) / $rOuter) * 392.0) / 1024.0;
+            return [max(0.002, min(0.998, $u)), max(0.002, min(0.795, $v))];
+        };
+
+        $outerXY = static function (float $theta) use ($cy, $rOuter, $ySeat): array {
+            $x = $rOuter * cos($theta);
+            $y = $cy + $rOuter * sin($theta);
+            if ($y < $ySeat) {
+                $y = $ySeat;
+            }
+            return [$x, $y];
+        };
+
+        $innerXY = static function (float $theta) use ($cy, $rInner, $ySeat): array {
+            $x = $rInner * cos($theta);
+            $y = $cy + $rInner * sin($theta);
+            $minInnerY = $ySeat + 0.010;
+            if ($y < $minInnerY) {
+                $y = $minInnerY;
+            }
+            return [$x, $y];
+        };
+
+        $centerUv = $discUv(0.0, $cy);
+
+        for ($i = 0; $i < $nSectors; $i++) {
+            $t0 = (M_PI * 0.5) + ($i / $nSectors) * M_PI * 2.0;
+            $tMid = (M_PI * 0.5) + (($i + 0.5) / $nSectors) * M_PI * 2.0;
+            $t1 = (M_PI * 0.5) + (($i + 1.0) / $nSectors) * M_PI * 2.0;
+
+            [$ix0, $iy0] = $innerXY($t0);
+            [$ix1, $iy1] = $innerXY($t1);
+            [$ox0, $oy0] = $outerXY($t0);
+            [$oxm, $oym] = $outerXY($tMid);
+            [$ox1, $oy1] = $outerXY($t1);
+
+            $uvI0 = $discUv($ix0, $iy0);
+            $uvI1 = $discUv($ix1, $iy1);
+            $uvO0 = $discUv($ox0, $oy0);
+            $uvOm = $discUv($oxm, $oym);
+            $uvO1 = $discUv($ox1, $oy1);
+
+            // 1a. Plane optische Vorderseite (+zFace) & Rückseite (-zFace)
+            $addFlatTri(
+                [0.0, $cy, $zFace],
+                [$ix0, $iy0, $zFace],
+                [$ix1, $iy1, $zFace],
+                $centerUv,
+                $uvI0,
+                $uvI1,
+                [0.0, 0.0, 1.0]
+            );
+            $addFlatTri(
+                [0.0, $cy, -$zFace],
+                [$ix1, $iy1, -$zFace],
+                [$ix0, $iy0, -$zFace],
+                $centerUv,
+                $uvI1,
+                $uvI0,
+                [0.0, 0.0, -1.0]
+            );
+
+            $radDirMid = [cos($tMid), sin($tMid), 0.65];
+            $radDirL = [cos($t0 + 0.06), sin($t0 + 0.06), 0.55];
+            $radDirR = [cos($t1 - 0.06), sin($t1 - 0.06), 0.55];
+
+            // 1b. Vorderer Diamant-/Sonnenschliff-Facettenkranz (3 scharfe Dreiecksfacetten pro Segment)
+            $addFlatTri(
+                [$ix0, $iy0, $zFace],
+                [$oxm, $oym, $zApex],
+                [$ix1, $iy1, $zFace],
+                $uvI0,
+                $uvOm,
+                $uvI1,
+                $radDirMid
+            );
+            $addFlatTri(
+                [$ix0, $iy0, $zFace],
+                [$ox0, $oy0, $zRidge],
+                [$oxm, $oym, $zApex],
+                $uvI0,
+                $uvO0,
+                $uvOm,
+                $radDirL
+            );
+            $addFlatTri(
+                [$ix1, $iy1, $zFace],
+                [$oxm, $oym, $zApex],
+                [$ox1, $oy1, $zRidge],
+                $uvI1,
+                $uvOm,
+                $uvO1,
+                $radDirR
+            );
+
+            // 1c. Hinterer Diamant-/Sonnenschliff-Facettenkranz (-Z)
+            $radBackMid = [cos($tMid), sin($tMid), -0.65];
+            $radBackL = [cos($t0 + 0.06), sin($t0 + 0.06), -0.55];
+            $radBackR = [cos($t1 - 0.06), sin($t1 - 0.06), -0.55];
+
+            $addFlatTri(
+                [$ix0, $iy0, -$zFace],
+                [$ix1, $iy1, -$zFace],
+                [$oxm, $oym, -$zApex],
+                $uvI0,
+                $uvI1,
+                $uvOm,
+                $radBackMid
+            );
+            $addFlatTri(
+                [$ix0, $iy0, -$zFace],
+                [$oxm, $oym, -$zApex],
+                [$ox0, $oy0, -$zRidge],
+                $uvI0,
+                $uvOm,
+                $uvO0,
+                $radBackL
+            );
+            $addFlatTri(
+                [$ix1, $iy1, -$zFace],
+                [$ox1, $oy1, -$zRidge],
+                [$oxm, $oym, -$zApex],
+                $uvI1,
+                $uvO1,
+                $uvOm,
+                $radBackR
+            );
+
+            // 1d. Äußere 19 mm Umfangswand (Rautenschliff-Seitenkante auf Region B: v = 0.81..0.87)
+            $uRim0 = 0.06 + ($i / $nSectors) * 0.88;
+            $uRimM = 0.06 + (($i + 0.5) / $nSectors) * 0.88;
+            $uRim1 = 0.06 + (($i + 1.0) / $nSectors) * 0.88;
+            $vRimF = 0.815;
+            $vRimB = 0.865;
+
+            $addFlatQuad(
+                [$ox0, $oy0, $zRidge],
+                [$ox0, $oy0, -$zRidge],
+                [$oxm, $oym, -$zApex],
+                [$oxm, $oym, $zApex],
+                [$uRim0, $vRimF],
+                [$uRim0, $vRimB],
+                [$uRimM, $vRimB],
+                [$uRimM, $vRimF],
+                [cos($t0 + ($tMid - $t0) * 0.5), sin($t0 + ($tMid - $t0) * 0.5), 0.0]
+            );
+            $addFlatQuad(
+                [$oxm, $oym, $zApex],
+                [$oxm, $oym, -$zApex],
+                [$ox1, $oy1, -$zRidge],
+                [$ox1, $oy1, $zRidge],
+                [$uRimM, $vRimF],
+                [$uRimM, $vRimB],
+                [$uRim1, $vRimB],
+                [$uRim1, $vRimF],
+                [cos($tMid + ($t1 - $tMid) * 0.5), sin($tMid + ($t1 - $tMid) * 0.5), 0.0]
+            );
+        }
+
+        // --- 2. TRAPEZFÖRMIGER FACETTIERTER K9-KRISTALLSOCKEL (134 x 25.6 x 40 mm, exakt nach Echtfotos 1-3) ---
+        $y0 = -0.500; $x0 = 0.331; $z0 = 0.097;
+        $y1 = -0.494; $x1 = 0.334; $z1 = 0.100; // Unten 133,6 mm breit, 40,0 mm tief
+        $y2 = -0.381; $x2 = 0.300; $z2 = 0.084; // Trapezverjüngung nach oben
+        $y3 = -0.372; $x3 = 0.291; $z3 = 0.075; // Oberes Sockel-Plateau (30 mm tief -> 19 mm Scheibe steht mittig darauf)
+
+        $vTopPlat = 0.884;
+        $vBevelTop = 0.892;
+        $vBevelBot = 0.910;
+        $vSlopeBot = 0.980;
+        $vFootBot = 0.992;
+
+        // 8 horizontale Unterteilungen pro Sockelflanke, damit der horizontale K9-Glasverlauf & die 45°-Eckprismen
+        // auch ohne Fragment-UV-Interpolation absolut fein aufgelöst dargestellt werden
+        $nSubX = 8;
+        for ($s = 0; $s < $nSubX; $s++) {
+            $f0 = $s / $nSubX;
+            $f1 = ($s + 1) / $nSubX;
+
+            $sx0_a = -$x0 + ($x0 * 2.0) * $f0; $sx0_b = -$x0 + ($x0 * 2.0) * $f1;
+            $sx1_a = -$x1 + ($x1 * 2.0) * $f0; $sx1_b = -$x1 + ($x1 * 2.0) * $f1;
+            $sx2_a = -$x2 + ($x2 * 2.0) * $f0; $sx2_b = -$x2 + ($x2 * 2.0) * $f1;
+            $sx3_a = -$x3 + ($x3 * 2.0) * $f0; $sx3_b = -$x3 + ($x3 * 2.0) * $f1;
+
+            $u0_a = 0.080 + 0.840 * $f0; $u0_b = 0.080 + 0.840 * $f1;
+            $u2_a = 0.120 + 0.760 * $f0; $u2_b = 0.120 + 0.760 * $f1;
+            $u3_a = 0.136 + 0.728 * $f0; $u3_b = 0.136 + 0.728 * $f1;
+
+            // Vorderseite (+Z): Oberfase, Trapez-Hauptflanke (oben & unten unterteilt), Bodenfase
+            $ym = ($y1 + $y2) * 0.5;
+            $zm = ($z1 + $z2) * 0.5;
+            $sxm_a = ($sx1_a + $sx2_a) * 0.5;
+            $sxm_b = ($sx1_b + $sx2_b) * 0.5;
+            $um_a = ($u0_a + $u2_a) * 0.5;
+            $um_b = ($u0_b + $u2_b) * 0.5;
+            $vMid = ($vBevelBot + $vSlopeBot) * 0.5;
+
+            $addFlatQuad(
+                [$sx3_a, $y3, $z3], [$sx2_a, $y2, $z2], [$sx2_b, $y2, $z2], [$sx3_b, $y3, $z3],
+                [$u3_a, $vBevelTop], [$u2_a, $vBevelBot], [$u2_b, $vBevelBot], [$u3_b, $vBevelTop],
+                [0.0, 0.70, 0.71]
+            );
+            $addFlatQuad(
+                [$sx2_a, $y2, $z2], [$sxm_a, $ym, $zm], [$sxm_b, $ym, $zm], [$sx2_b, $y2, $z2],
+                [$u2_a, $vBevelBot], [$um_a, $vMid], [$um_b, $vMid], [$u2_b, $vBevelBot],
+                [0.0, 0.14, 0.99]
+            );
+            $addFlatQuad(
+                [$sxm_a, $ym, $zm], [$sx1_a, $y1, $z1], [$sx1_b, $y1, $z1], [$sxm_b, $ym, $zm],
+                [$um_a, $vMid], [$u0_a, $vSlopeBot], [$u0_b, $vSlopeBot], [$um_b, $vMid],
+                [0.0, 0.14, 0.99]
+            );
+            $addFlatQuad(
+                [$sx1_a, $y1, $z1], [$sx0_a, $y0, $z0], [$sx0_b, $y0, $z0], [$sx1_b, $y1, $z1],
+                [$u0_a, $vSlopeBot], [$u0_a, $vFootBot], [$u0_b, $vFootBot], [$u0_b, $vSlopeBot],
+                [0.0, -0.45, 0.89]
+            );
+
+            // Rückseite (-Z)
+            $addFlatQuad(
+                [$sx3_b, $y3, -$z3], [$sx2_b, $y2, -$z2], [$sx2_a, $y2, -$z2], [$sx3_a, $y3, -$z3],
+                [$u3_b, $vBevelTop], [$u2_b, $vBevelBot], [$u2_a, $vBevelBot], [$u3_a, $vBevelTop],
+                [0.0, 0.70, -0.71]
+            );
+            $addFlatQuad(
+                [$sx2_b, $y2, -$z2], [$sxm_b, $ym, -$zm], [$sxm_a, $ym, -$zm], [$sx2_a, $y2, -$z2],
+                [$u2_b, $vBevelBot], [$um_b, $vMid], [$um_a, $vMid], [$u2_a, $vBevelBot],
+                [0.0, 0.14, -0.99]
+            );
+            $addFlatQuad(
+                [$sxm_b, $ym, -$zm], [$sx1_b, $y1, -$z1], [$sx1_a, $y1, -$z1], [$sxm_a, $ym, -$zm],
+                [$um_b, $vMid], [$u0_b, $vSlopeBot], [$u0_a, $vSlopeBot], [$um_a, $vMid],
+                [0.0, 0.14, -0.99]
+            );
+            $addFlatQuad(
+                [$sx1_b, $y1, -$z1], [$sx0_b, $y0, -$z0], [$sx0_a, $y0, -$z0], [$sx1_a, $y1, -$z1],
+                [$u0_b, $vSlopeBot], [$u0_b, $vFootBot], [$u0_a, $vFootBot], [$u0_a, $vSlopeBot],
+                [0.0, -0.45, -0.89]
+            );
+
+            // Oberes Sockel-Plateau (Y = -0.372) & Unterseite (Y = -0.500)
+            $addFlatQuad(
+                [$sx3_a, $y3, -$z3], [$sx3_a, $y3, $z3], [$sx3_b, $y3, $z3], [$sx3_b, $y3, -$z3],
+                [$u3_a, $vTopPlat], [$u3_a, $vBevelTop], [$u3_b, $vBevelTop], [$u3_b, $vTopPlat],
+                [0.0, 1.0, 0.0]
+            );
+            $addFlatQuad(
+                [$sx0_a, $y0, $z0], [$sx0_a, $y0, -$z0], [$sx0_b, $y0, -$z0], [$sx0_b, $y0, $z0],
+                [$u0_a, $vSlopeBot], [$u0_a, $vFootBot], [$u0_b, $vFootBot], [$u0_b, $vSlopeBot],
+                [0.0, -1.0, 0.0]
+            );
+        }
+
+        // Linke Trapez-Seitenwand (-X) & Rechte Trapez-Seitenwand (+X)
+        $uSideL = 0.085; $uSideR = 0.200;
+        $addFlatQuad(
+            [-$x3, $y3, -$z3], [-$x2, $y2, -$z2], [-$x2, $y2, $z2], [-$x3, $y3, $z3],
+            [$uSideL, $vBevelTop], [$uSideL, $vBevelBot], [$uSideR, $vBevelBot], [$uSideR, $vBevelTop],
+            [-0.73, 0.68, 0.0]
+        );
+        $addFlatQuad(
+            [-$x2, $y2, -$z2], [-$x1, $y1, -$z1], [-$x1, $y1, $z1], [-$x2, $y2, $z2],
+            [$uSideL, $vBevelBot], [$uSideL, $vSlopeBot], [$uSideR, $vSlopeBot], [$uSideR, $vBevelBot],
+            [-0.95, 0.30, 0.0]
+        );
+        $addFlatQuad(
+            [-$x1, $y1, -$z1], [-$x0, $y0, -$z0], [-$x0, $y0, $z0], [-$x1, $y1, $z1],
+            [$uSideL, $vSlopeBot], [$uSideL, $vFootBot], [$uSideR, $vFootBot], [$uSideR, $vSlopeBot],
+            [-0.89, -0.45, 0.0]
+        );
+
+        $uSideR1 = 0.800; $uSideR2 = 0.915;
+        $addFlatQuad(
+            [$x3, $y3, $z3], [$x2, $y2, $z2], [$x2, $y2, -$z2], [$x3, $y3, -$z3],
+            [$uSideR1, $vBevelTop], [$uSideR1, $vBevelBot], [$uSideR2, $vBevelBot], [$uSideR2, $vBevelTop],
+            [0.73, 0.68, 0.0]
+        );
+        $addFlatQuad(
+            [$x2, $y2, $z2], [$x1, $y1, $z1], [$x1, $y1, -$z1], [$x2, $y2, -$z2],
+            [$uSideR1, $vBevelBot], [$uSideR1, $vSlopeBot], [$uSideR2, $vSlopeBot], [$uSideR2, $vBevelBot],
+            [0.95, 0.30, 0.0]
+        );
+        $addFlatQuad(
+            [$x1, $y1, $z1], [$x0, $y0, $z0], [$x0, $y0, -$z0], [$x1, $y1, -$z1],
+            [$uSideR1, $vSlopeBot], [$uSideR1, $vFootBot], [$uSideR2, $vFootBot], [$uSideR2, $vSlopeBot],
+            [0.89, -0.45, 0.0]
+        );
+
+        // Optischer UV-Klebeflächen-Meniskus an der Kontaktstelle (Y = -0.3715, X = -0.148..+0.148, Z = ±0.052)
+        $addFlatQuad(
+            [-0.148, $y3 + 0.0005, -$zFace - 0.004],
+            [-0.148, $y3 + 0.0005, $zFace + 0.004],
+            [0.148, $y3 + 0.0005, $zFace + 0.004],
+            [0.148, $y3 + 0.0005, -$zFace - 0.004],
+            [0.35, $vBevelTop], [0.35, $vBevelBot], [0.65, $vBevelBot], [0.65, $vBevelTop],
+            [0.0, 1.0, 0.0]
+        );
+
+        return compact('positions', 'normals', 'uvs', 'indices');
+    }
+
+    /**
+     * Rendert den hochauflösenden 1024x1024 RGBA Optischen K9-Kristallglas-Texturatlas in reinem PHP-GD,
+     * farb- und kontrastkalibriert anhand der 3 realen Studiofotos der 180 x 200 x 40 mm Trophäe.
+     */
+    private function renderSeelenKristallAtlasPng(): string
+    {
+        if (!extension_loaded('gd')) {
+            return '';
+        }
+
+        $w = 1024;
+        $h = 1024;
+        $im = imagecreatetruecolor($w, $h);
+        imagealphablending($im, false);
+        imagesavealpha($im, true);
+
+        $trans = imagecolorallocatealpha($im, 236, 246, 249, 127);
+        imagefill($im, 0, 0, $trans);
+
+        $cx = 512.0;
+        $cy = 416.0;
+        $rOuter = 392.0;
+        $rInner = 364.1; // 0.418 / 0.450 * 392.0 (exakt die schlanke 6,3%-Facettenfase des Originals)
+        $nSectors = 30;
+        $sectorStep = (M_PI * 2.0) / $nSectors;
+
+        // 1. Region A: Runde K9-Kristallscheibe + 30-Segment Sonnenschliff-Facettenkranz (y = 18 .. 812)
+        for ($y = 18; $y <= 812; $y++) {
+            $dy = $cy - $y;
+            for ($x = 114; $x <= 910; $x++) {
+                $dx = $x - $cx;
+                $r = hypot($dx, $dy);
+                if ($r > $rOuter + 4.0) {
+                    continue;
+                }
+
+                if ($r < $rInner) {
+                    // Plane optische K9-Kristallglas-Vorder-/Rückseite (glasklar & hochtransparent, ohne Speichen-Artefakte)
+                    $rn = $r / $rInner;
+                    $ux = $dx / $rInner;
+                    $uy = $dy / $rInner;
+
+                    $sheen = exp(-pow(($ux * 0.60 - $uy * 0.60 + 0.15) / 0.60, 2)) * 0.14;
+                    $fresnel = ($rn > 0.82) ? pow(($rn - 0.82) / 0.18, 2.3) : 0.0;
+
+                    $cr = 236.0 + 12.0 * $sheen + 14.0 * $fresnel;
+                    $cg = 246.0 + 7.0 * $sheen + 8.0 * $fresnel;
+                    $cb = 250.0 + 5.0 * $sheen + 5.0 * $fresnel;
+
+                    $alpha = 0.12 + 0.05 * $sheen + 0.22 * $fresnel;
+                    if ($rn > 0.982) {
+                        // Feine geschliffene Innenkante zwischen Planfläche und Facettenkranz
+                        $edgeRim = ($rn - 0.982) / 0.018;
+                        $cr = 248.0;
+                        $cg = 253.0;
+                        $cb = 255.0;
+                        $alpha = 0.34 + 0.38 * $edgeRim;
+                    }
+
+                    $gdA = (int) max(0, min(127, round(127.0 * (1.0 - $alpha))));
+                    imagesetpixel(
+                        $im,
+                        $x,
+                        $y,
+                        ($gdA << 24) | ((int) min(255, round($cr)) << 16) | ((int) min(255, round($cg)) << 8) | (int) min(255, round($cb))
+                    );
+                } else {
+                    // 30-Segment Diamant-/Sonnenschliff-Facettenkranz (natürliche K9-Glas-Lichtbrechung wie in Foto 1-3)
+                    $tr = max(0.0, min(1.0, ($r - $rInner) / ($rOuter - $rInner)));
+                    $theta = atan2($dy, $dx);
+                    $relAngle = fmod($theta - (M_PI * 0.5) + M_PI * 4.0, M_PI * 2.0);
+                    $secIdx = (int) floor($relAngle / $sectorStep);
+                    $uSec = ($relAngle - ($secIdx * $sectorStep)) / $sectorStep;
+                    $dCenter = abs($uSec - 0.5) * 2.0;
+                    $diagDist = $dCenter - (1.0 - $tr);
+
+                    // Sanfte winkelabhängige K9-Eisblau/Silber-Modulation (oben/unten zartes K9-Aqua, seitlich kristallklares Silber-Grau)
+                    $vertFactor = pow(sin($theta), 2); // 1.0 oben & unten, 0.0 links & rechts
+                    $horizFactor = 1.0 - $vertFactor;
+                    $secShimmer = sin($secIdx * 1.7 + 0.4) * 0.5 + 0.5;
+
+                    if ($diagDist <= 0.0) {
+                        // Haupt-Rautenfacette: helles, edles Kristallglas mit sanftem K9-Aquaschimmer
+                        $slopeLight = 0.65 + 0.35 * (1.0 - $dCenter) - 0.15 * $tr;
+                        $cr = 212.0 * $horizFactor + 184.0 * $vertFactor + 28.0 * $slopeLight + 8.0 * $secShimmer;
+                        $cg = 224.0 * $horizFactor + 226.0 * $vertFactor + 20.0 * $slopeLight + 6.0 * $secShimmer;
+                        $cb = 228.0 * $horizFactor + 236.0 * $vertFactor + 16.0 * $slopeLight + 5.0 * $secShimmer;
+                        $alpha = 0.52 + 0.16 * $tr + 0.08 * $vertFactor;
+                    } else {
+                        // Sternfacette: dezenter Totalreflexions-Kontrast (kein harter Blau-Weiß-Pinwheel-Effekt)
+                        $isLeftStar = ($uSec < 0.5);
+                        $facetAngle = $theta + ($isLeftStar ? -0.35 : 0.35);
+                        $refl = sin($facetAngle * 2.0 + ($secIdx % 2) * 0.8);
+
+                        if ($refl > 0.15) {
+                            // Helle Spiegel-Facette (#e8f4f7 .. #ffffff)
+                            $b = ($refl - 0.15) / 0.85;
+                            $cr = 218.0 + 36.0 * $b;
+                            $cg = 234.0 + 20.0 * $b;
+                            $cb = 239.0 + 16.0 * $b;
+                            $alpha = 0.62 + 0.20 * $b;
+                        } else {
+                            // Edle K9-Tiefenbrechung (oben/unten sanftes Eis-Aqua #94c6d2, seitlich kühles Rauch-Quarz #8ea6ae)
+                            $d = min(1.0, (0.15 - $refl) / 1.15);
+                            $cr = (168.0 - 28.0 * $d) * $horizFactor + (142.0 - 18.0 * $d) * $vertFactor;
+                            $cg = (186.0 - 22.0 * $d) * $horizFactor + (196.0 - 14.0 * $d) * $vertFactor;
+                            $cb = (192.0 - 20.0 * $d) * $horizFactor + (208.0 - 12.0 * $d) * $vertFactor;
+                            $alpha = 0.58 + 0.18 * $d;
+                        }
+                    }
+
+                    // Feine, helle Facetten-Schliffkanten entlang der Rautengrate
+                    $ridgeLine = min(abs($diagDist), min($uSec, 1.0 - $uSec) * 2.0);
+                    if ($ridgeLine < 0.08) {
+                        $rMix = 1.0 - ($ridgeLine / 0.08);
+                        $cr = $cr * (1.0 - 0.55 * $rMix) + 250.0 * (0.55 * $rMix);
+                        $cg = $cg * (1.0 - 0.55 * $rMix) + 254.0 * (0.55 * $rMix);
+                        $cb = $cb * (1.0 - 0.55 * $rMix) + 255.0 * (0.55 * $rMix);
+                        $alpha = max($alpha, 0.74);
+                    }
+
+                    $gdA = (int) max(0, min(127, round(127.0 * (1.0 - min(0.88, $alpha)))));
+                    imagesetpixel(
+                        $im,
+                        $x,
+                        $y,
+                        ($gdA << 24) | ((int) max(0, min(255, round($cr))) << 16) | ((int) max(0, min(255, round($cg))) << 8) | (int) max(0, min(255, round($cb)))
+                    );
+                }
+            }
+        }
+
+        // 2. Region B: 19 mm Umfangswand (v = 0.805 .. 0.875 => y = 824 .. 896)
+        for ($y = 824; $y <= 896; $y++) {
+            $vt = ($y - 824.0) / (896.0 - 824.0);
+            $centerRidge = 1.0 - abs($vt - 0.5) * 2.0;
+            for ($x = 40; $x <= 984; $x++) {
+                $ut = ($x - 40.0) / (984.0 - 40.0);
+                $secWave = abs(sin($ut * $nSectors * M_PI));
+                $cr = 172.0 + 36.0 * $centerRidge + 18.0 * $secWave;
+                $cg = 198.0 + 26.0 * $centerRidge + 12.0 * $secWave;
+                $cb = 205.0 + 22.0 * $centerRidge + 10.0 * $secWave;
+                $alpha = 0.68 + 0.12 * $centerRidge;
+                $gdA = (int) max(0, min(127, round(127.0 * (1.0 - $alpha))));
+                imagesetpixel(
+                    $im,
+                    $x,
+                    $y,
+                    ($gdA << 24) | ((int) min(255, round($cr)) << 16) | ((int) min(255, round($cg)) << 8) | (int) min(255, round($cb))
+                );
+            }
+        }
+
+        // 3. Region C: Trapezförmiger 40 mm K9-Kristallsockel (v = 0.880 .. 0.994 => y = 900 .. 1018)
+        for ($y = 900; $y <= 1018; $y++) {
+            $vy = ($y - 900.0) / (1018.0 - 900.0);
+            for ($x = 64; $x <= 960; $x++) {
+                $ux = ($x - 64.0) / (960.0 - 64.0);
+                $edgeDist = min($ux, 1.0 - $ux);
+
+                if ($vy < 0.25) {
+                    // Oberes Plateau & 45°-Glanzfase (helles Eiskristall-Blauweiß wie in Foto 1 bei y=758..786)
+                    $bevelT = $vy / 0.25;
+                    $centerContact = exp(-pow(($ux - 0.5) / 0.24, 2));
+                    $cr = 216.0 + 24.0 * (1.0 - $bevelT) + 12.0 * $centerContact;
+                    $cg = 234.0 + 16.0 * (1.0 - $bevelT) + 8.0 * $centerContact;
+                    $cb = 242.0 + 11.0 * (1.0 - $bevelT) + 5.0 * $centerContact;
+                    $alpha = 0.72 + 0.12 * (1.0 - $bevelT);
+
+                    if ($bevelT > 0.80) {
+                        $lineMix = ($bevelT - 0.80) / 0.20;
+                        $cr = $cr * (1.0 - 0.35 * $lineMix) + 148.0 * (0.35 * $lineMix);
+                        $cg = $cg * (1.0 - 0.35 * $lineMix) + 174.0 * (0.35 * $lineMix);
+                        $cb = $cb * (1.0 - 0.35 * $lineMix) + 182.0 * (0.35 * $lineMix);
+                        $alpha = 0.80;
+                    }
+                } elseif ($vy < 0.86) {
+                    // Trapez-Hauptflanke des massiven 40 mm Kristallsockels (Foto 1: R=164..198, G=169..219, B=172..224)
+                    $bodyT = ($vy - 0.25) / 0.61;
+                    $topReflectionBand = exp(-pow(($bodyT - 0.18) / 0.18, 2));
+                    $cr = 174.0 + 44.0 * $topReflectionBand;
+                    $cg = 190.0 + 42.0 * $topReflectionBand;
+                    $cb = 196.0 + 42.0 * $topReflectionBand;
+                    $alpha = 0.68 + 0.12 * $topReflectionBand;
+
+                    // Horizontale interne Boden-Brechungslinie bei bodyT ≈ 0.72 (Foto 1 & 3)
+                    $stepDist = abs($bodyT - 0.72);
+                    if ($stepDist < 0.08) {
+                        $sMix = 1.0 - ($stepDist / 0.08);
+                        $cr = $cr * (1.0 - 0.45 * $sMix) + 228.0 * (0.45 * $sMix);
+                        $cg = $cg * (1.0 - 0.45 * $sMix) + 240.0 * (0.45 * $sMix);
+                        $cb = $cb * (1.0 - 0.45 * $sMix) + 244.0 * (0.45 * $sMix);
+                        $alpha = max($alpha, 0.78);
+                    }
+
+                    // 45°-Eckprismen-Totalreflexion links & rechts (Foto 1-3)
+                    $cornerWidth = 0.09 + 0.04 * $bodyT;
+                    if ($edgeDist < $cornerWidth) {
+                        $cNorm = $edgeDist / $cornerWidth;
+                        if ($cNorm > 0.55 && $cNorm < 0.85) {
+                            $cr = 132.0;
+                            $cg = 154.0;
+                            $cb = 162.0;
+                            $alpha = 0.82;
+                        } elseif ($cNorm >= 0.85) {
+                            $cr = 236.0;
+                            $cg = 246.0;
+                            $cb = 250.0;
+                            $alpha = 0.84;
+                        } else {
+                            $cr = 204.0;
+                            $cg = 222.0;
+                            $cb = 228.0;
+                            $alpha = 0.76;
+                        }
+                    }
+                } else {
+                    // Untere geschliffene Standfußkante
+                    $footT = ($vy - 0.86) / 0.14;
+                    $cr = 156.0 - 14.0 * $footT;
+                    $cg = 172.0 - 14.0 * $footT;
+                    $cb = 178.0 - 14.0 * $footT;
+                    $alpha = 0.84;
+                }
+
+                $gdA = (int) max(0, min(127, round(127.0 * (1.0 - min(0.96, $alpha)))));
+                imagesetpixel(
+                    $im,
+                    $x,
+                    $y,
+                    ($gdA << 24) | ((int) max(0, min(255, round($cr))) << 16) | ((int) max(0, min(255, round($cg))) << 8) | (int) max(0, min(255, round($cb)))
+                );
+            }
+        }
+
+        ob_start();
+        imagepng($im, null, 9);
+        $pngBytes = (string) ob_get_clean();
+        imagedestroy($im);
+
+        return $pngBytes;
+    }
+
+    /**
+     * Rendert das 918x918 2D-Overlay (overlay.png) für „Der Seelen Kristall“ direkt aus demselben
+     * 180 x 200 x 40 mm 3D-Mesh, K9-Kristall-Texturatlas und derselben Three.js-Kameraprojektion
+     * (FOV 45°, camZ = 1.81066, model_scale = 1.28, Dual-Pass BackSide + FrontSide),
+     * sodass 2D-Editor und 3D-Ansicht pixel- und proportionsidentisch sind.
+     */
+    private function renderSeelenKristallOverlayPng(string $targetPath, array $meshData, string $atlasPngBytes): void
+    {
+        if (!extension_loaded('gd') || $atlasPngBytes === '') {
+            return;
+        }
+
+        $texImg = @imagecreatefromstring($atlasPngBytes);
+        if (!$texImg) {
+            return;
+        }
+        $texW = imagesx($texImg);
+        $texH = imagesy($texImg);
+
+        $w = 918;
+        $h = 918;
+        $totalPx = $w * $h;
+
+        // Float-Puffer für exaktes Premultiplied-Alpha-Compositing (wie WebGL SRC_ALPHA / ONE_MINUS_SRC_ALPHA)
+        $bufR = array_fill(0, $totalPx, 0.0);
+        $bufG = array_fill(0, $totalPx, 0.0);
+        $bufB = array_fill(0, $totalPx, 0.0);
+        $bufA = array_fill(0, $totalPx, 0.0);
+
+        $positions = $meshData['positions'];
+        $normals = $meshData['normals'];
+        $uvs = $meshData['uvs'];
+        $indices = $meshData['indices'];
+
+        // Exakte Three.js Kamera-Parameter bei 0°-Frontalansicht (maxDim = 1.0, fov = 45°, model_scale = 1.28)
+        $modelScale = 1.28;
+        $tanHalfFov = tan(deg2rad(22.5));
+        $cameraZ = (0.5 / $tanHalfFov) * 1.5; // 1.81066017
+
+        $tris = [];
+        $idxCount = count($indices);
+        for ($i = 0; $i < $idxCount; $i += 3) {
+            $i0 = $indices[$i];
+            $i1 = $indices[$i + 1];
+            $i2 = $indices[$i + 2];
+
+            $vtx = [];
+            $zSum = 0.0;
+            $nxSum = 0.0;
+            $nySum = 0.0;
+            $nzSum = 0.0;
+
+            foreach ([$i0, $i1, $i2] as $idx) {
+                $wx = $positions[$idx * 3] * $modelScale;
+                $wy = $positions[$idx * 3 + 1] * $modelScale;
+                $wz = $positions[$idx * 3 + 2] * $modelScale;
+
+                $nx = $normals[$idx * 3];
+                $ny = $normals[$idx * 3 + 1];
+                $nz = $normals[$idx * 3 + 2];
+
+                $dz = max(0.1, $cameraZ - $wz);
+                $halfFrustum = $dz * $tanHalfFov;
+                $sx = (($wx / $halfFrustum) * 0.5 + 0.5) * $w;
+                $sy = (0.5 - ($wy / $halfFrustum) * 0.5) * $h;
+
+                $vtx[] = [$sx, $sy, $uvs[$idx * 2], $uvs[$idx * 2 + 1]];
+                $zSum += $wz;
+                $nxSum += $nx;
+                $nySum += $ny;
+                $nzSum += $nz;
+            }
+
+            $tris[] = [
+                'v' => $vtx,
+                'z' => $zSum / 3.0,
+                'nx' => $nxSum / 3.0,
+                'ny' => $nySum / 3.0,
+                'nz' => $nzSum / 3.0,
+            ];
+        }
+
+        // Zweistufige Sortierung analog Three.js Dual-Pass (BackSide zuerst, danach FrontSide von hinten nach vorne)
+        usort($tris, static function (array $a, array $b): int {
+            $aFront = ($a['nz'] >= 0.0) ? 1 : 0;
+            $bFront = ($b['nz'] >= 0.0) ? 1 : 0;
+            if ($aFront !== $bFront) {
+                return $aFront <=> $bFront;
+            }
+            return $a['z'] <=> $b['z'];
+        });
+
+        foreach ($tris as $t) {
+            [$p0, $p1, $p2] = $t['v'];
+            $minX = max(0, (int) floor(min($p0[0], $p1[0], $p2[0])));
+            $maxX = min($w - 1, (int) ceil(max($p0[0], $p1[0], $p2[0])));
+            $minY = max(0, (int) floor(min($p0[1], $p1[1], $p2[1])));
+            $maxY = min($h - 1, (int) ceil(max($p0[1], $p1[1], $p2[1])));
+
+            $den = ($p1[1] - $p2[1]) * ($p0[0] - $p2[0]) + ($p2[0] - $p1[0]) * ($p0[1] - $p2[1]);
+            if (abs($den) < 0.0005) {
+                continue;
+            }
+            $invDen = 1.0 / $den;
+
+            $nl = sqrt($t['nx'] * $t['nx'] + $t['ny'] * $t['ny'] + $t['nz'] * $t['nz']) ?: 1.0;
+            $nx = $t['nx'] / $nl;
+            $ny = $t['ny'] / $nl;
+            $nz = $t['nz'] / $nl;
+
+            $fresnel = pow(1.0 - min(1.0, abs($nz)), 1.8);
+            $spec = pow(max(0.0, $nx * -0.30 + $ny * 0.58 + abs($nz) * 0.75), 22.0);
+            $passOpacity = ($nz < 0.0) ? 0.44 : 0.96;
+
+            for ($py = $minY; $py <= $maxY; $py++) {
+                $fy = $py + 0.5;
+                $rowOffset = $py * $w;
+                for ($px = $minX; $px <= $maxX; $px++) {
+                    $fx = $px + 0.5;
+                    $w0 = (($p1[1] - $p2[1]) * ($fx - $p2[0]) + ($p2[0] - $p1[0]) * ($fy - $p2[1])) * $invDen;
+                    if ($w0 < 0.0) {
+                        continue;
+                    }
+                    $w1 = (($p2[1] - $p0[1]) * ($fx - $p2[0]) + ($p0[0] - $p2[0]) * ($fy - $p2[1])) * $invDen;
+                    if ($w1 < 0.0) {
+                        continue;
+                    }
+                    $w2 = 1.0 - $w0 - $w1;
+                    if ($w2 < 0.0) {
+                        continue;
+                    }
+
+                    $u = $w0 * $p0[2] + $w1 * $p1[2] + $w2 * $p2[2];
+                    $v = $w0 * $p0[3] + $w1 * $p1[3] + $w2 * $p2[3];
+                    $tx = max(0, min($texW - 1, (int) ($u * $texW)));
+                    $ty = max(0, min($texH - 1, (int) ($v * $texH)));
+                    $rgba = imagecolorat($texImg, $tx, $ty);
+                    $a7 = ($rgba >> 24) & 0x7F;
+                    if ($a7 >= 126) {
+                        continue;
+                    }
+
+                    $sr = min(255.0, (($rgba >> 16) & 0xFF) + $spec * 85.0 + $fresnel * 14.0);
+                    $sg = min(255.0, (($rgba >> 8) & 0xFF) + $spec * 90.0 + $fresnel * 20.0);
+                    $sb = min(255.0, ($rgba & 0xFF) + $spec * 95.0 + $fresnel * 24.0);
+
+                    $srcA = (1.0 - ($a7 / 127.0)) * $passOpacity;
+                    $srcA = min(0.95, $srcA + $fresnel * 0.12 + $spec * 0.25);
+
+                    $pIdx = $rowOffset + $px;
+                    $dstA = $bufA[$pIdx];
+                    $outA = $srcA + $dstA * (1.0 - $srcA);
+                    if ($outA > 0.0001) {
+                        $bufR[$pIdx] = ($sr * $srcA + $bufR[$pIdx] * $dstA * (1.0 - $srcA)) / $outA;
+                        $bufG[$pIdx] = ($sg * $srcA + $bufG[$pIdx] * $dstA * (1.0 - $srcA)) / $outA;
+                        $bufB[$pIdx] = ($sb * $srcA + $bufB[$pIdx] * $dstA * (1.0 - $srcA)) / $outA;
+                        $bufA[$pIdx] = $outA;
+                    }
+                }
+            }
+        }
+
+        imagedestroy($texImg);
+
+        $out = imagecreatetruecolor($w, $h);
+        imagealphablending($out, false);
+        imagesavealpha($out, true);
+        $trans = imagecolorallocatealpha($out, 236, 246, 249, 127);
+        imagefill($out, 0, 0, $trans);
+
+        for ($py = 0; $py < $h; $py++) {
+            $rowOffset = $py * $w;
+            for ($px = 0; $px < $w; $px++) {
+                $pIdx = $rowOffset + $px;
+                $a = $bufA[$pIdx];
+                if ($a <= 0.005) {
+                    continue;
+                }
+                $gdAlpha = (int) max(0, min(126, round(127.0 * (1.0 - $a))));
+                $r = (int) max(0, min(255, round($bufR[$pIdx])));
+                $g = (int) max(0, min(255, round($bufG[$pIdx])));
+                $b = (int) max(0, min(255, round($bufB[$pIdx])));
+                imagesetpixel($out, $px, $py, ($gdAlpha << 24) | ($r << 16) | ($g << 8) | $b);
+            }
+        }
+
+        imagepng($out, $targetPath, 9);
+        imagedestroy($out);
+    }
+
+    /**
+     * Baut ein binäres glTF 2.0 (.glb) für optisches K9-Kristallglas (alphaMode: BLEND, IOR 1.52, Transmission & Volume).
+     */
+    private function buildOpticalCrystalGlb(array $meshData, string $pngBytes, string $meshName = 'SeelenKristall'): string
+    {
+        $positions = $meshData['positions'];
+        $normals = $meshData['normals'];
+        $uvs = $meshData['uvs'];
+        $indices = $meshData['indices'];
+
+        $minX = INF; $minY = INF; $minZ = INF;
+        $maxX = -INF; $maxY = -INF; $maxZ = -INF;
+        $posCount = count($positions);
+        for ($i = 0; $i < $posCount; $i += 3) {
+            $x = (float) $positions[$i];
+            $y = (float) $positions[$i + 1];
+            $z = (float) $positions[$i + 2];
+            if ($x < $minX) $minX = $x; if ($x > $maxX) $maxX = $x;
+            if ($y < $minY) $minY = $y; if ($y > $maxY) $maxY = $y;
+            if ($z < $minZ) $minZ = $z; if ($z > $maxZ) $maxZ = $z;
+        }
+
+        $pad4 = static function (string $buf, string $padChar = "\0"): string {
+            $rem = strlen($buf) % 4;
+            return $rem === 0 ? $buf : $buf . str_repeat($padChar, 4 - $rem);
+        };
+
+        $rawPos = pack('g*', ...$positions);
+        $rawNorm = pack('g*', ...$normals);
+        $rawUv = pack('g*', ...$uvs);
+        $rawIdx = pack('V*', ...$indices);
+
+        $bPos = $pad4($rawPos);
+        $bNorm = $pad4($rawNorm);
+        $bUv = $pad4($rawUv);
+        $bIdx = $pad4($rawIdx);
+        $bImg = $pad4($pngBytes);
+
+        $offset = 0;
+        $bvPos = ['buffer' => 0, 'byteOffset' => $offset, 'byteLength' => strlen($rawPos), 'target' => 34962];
+        $offset += strlen($bPos);
+
+        $bvNorm = ['buffer' => 0, 'byteOffset' => $offset, 'byteLength' => strlen($rawNorm), 'target' => 34962];
+        $offset += strlen($bNorm);
+
+        $bvUv = ['buffer' => 0, 'byteOffset' => $offset, 'byteLength' => strlen($rawUv), 'target' => 34962];
+        $offset += strlen($bUv);
+
+        $bvIdx = ['buffer' => 0, 'byteOffset' => $offset, 'byteLength' => strlen($rawIdx), 'target' => 34963];
+        $offset += strlen($bIdx);
+
+        $bvImg = ['buffer' => 0, 'byteOffset' => $offset, 'byteLength' => strlen($pngBytes)];
+        $offset += strlen($bImg);
+
+        $binBuffer = $bPos . $bNorm . $bUv . $bIdx . $bImg;
+
+        $gltf = [
+            'asset' => [
+                'version' => '2.0',
+                'generator' => 'Seelenfunke-K9-Crystal-CAD-v3',
+                'extras' => [
+                    'seelenfunke_optimized' => true,
+                    'dimensions_mm' => '180x200x40',
+                ],
+            ],
+            'extensionsUsed' => [
+                'KHR_materials_ior',
+                'KHR_materials_specular',
+                'KHR_materials_transmission',
+                'KHR_materials_volume',
+            ],
+            'scene' => 0,
+            'scenes' => [['name' => 'SeelenKristall_180x200x40', 'nodes' => [0]]],
+            'nodes' => [['name' => $meshName, 'mesh' => 0]],
+            'meshes' => [[
+                'name' => $meshName,
+                'primitives' => [[
+                    'attributes' => ['POSITION' => 0, 'NORMAL' => 1, 'TEXCOORD_0' => 2],
+                    'indices' => 3,
+                    'material' => 0,
+                ]],
+            ]],
+            'materials' => [[
+                'name' => 'Optical_K9_Crystal_Glass',
+                'doubleSided' => true,
+                'alphaMode' => 'BLEND',
+                'pbrMetallicRoughness' => [
+                    'baseColorFactor' => [1.0, 1.0, 1.0, 1.0],
+                    'baseColorTexture' => ['index' => 0],
+                    'metallicFactor' => 0.04,
+                    'roughnessFactor' => 0.03,
+                ],
+                'extensions' => [
+                    'KHR_materials_ior' => ['ior' => 1.52],
+                    'KHR_materials_specular' => ['specularFactor' => 1.0],
+                    'KHR_materials_transmission' => ['transmissionFactor' => 0.92],
+                    'KHR_materials_volume' => [
+                        'thicknessFactor' => 0.19,
+                        'attenuationDistance' => 0.85,
+                        'attenuationColor' => [0.85, 0.96, 0.98],
+                    ],
+                ],
+            ]],
+            'textures' => [['source' => 0, 'sampler' => 0]],
+            'samplers' => [['magFilter' => 9729, 'minFilter' => 9729, 'wrapS' => 33071, 'wrapT' => 33071]],
+            'images' => [['name' => 'optical_k9_crystal_atlas', 'bufferView' => 4, 'mimeType' => 'image/png']],
             'accessors' => [
                 [
                     'bufferView' => 0,
@@ -2795,21 +3791,21 @@ SVG,
             [
                 'slug' => 'seelen-kristall',
                 'outFileName' => 'seelen-kristall-dimensions.jpg',
-                'title' => 'Der Seelen Kristall – Maße & Details',
+                'title' => 'Der Seelen Kristall: Maße & Details',
                 'subtitle' => 'Optisches K9-Kristallglas mit geschliffener Facettenkante & Tiefen-Lasergravur',
                 'overlayTop' => 185,
                 'horizArrows' => [
-                    ['x1' => 274, 'x2' => 750, 'y' => 745, 'dashedYFrom1' => 465, 'dashedYFrom2' => 465, 'labelPos' => 'below', 'label' => 'Breite: 180 mm (18,0 cm)'],
+                    ['x1' => 287, 'x2' => 737, 'y' => 745, 'dashedYFrom1' => 440, 'dashedYFrom2' => 440, 'labelPos' => 'below', 'label' => 'Breite: 180 mm (18,0 cm)'],
                 ],
                 'vertArrows' => [
-                    ['y1' => 228, 'y2' => 712, 'x' => 868, 'dashedXFrom1' => 512, 'dashedXFrom2' => 655, 'label' => 'Höhe: 200 mm'],
+                    ['y1' => 218, 'y2' => 703, 'x' => 868, 'dashedXFrom1' => 512, 'dashedXFrom2' => 677, 'label' => 'Höhe: 200 mm'],
                 ],
                 'callouts' => [
                     ['x' => 512, 'y' => 315, 'tx' => 210, 'ty' => 220, 'label' => 'Gravurfläche: Ø 150 mm'],
                 ],
                 'specs' => [
-                    ['label' => 'Abmessungen', 'value' => '180 × 200 mm', 'sub' => 'Facetten-Achteck / Kreis'],
-                    ['label' => 'Materialstärke', 'value' => '40 mm (Massiv)', 'sub' => 'Freistehend ohne Sockel'],
+                    ['label' => 'Abmessungen', 'value' => '180 × 200 × 40 mm', 'sub' => 'Sonnenschliff-Kristall & Sockel'],
+                    ['label' => 'Sockeltiefe', 'value' => '40 mm (Massiv)', 'sub' => 'Inkl. massivem Kristallsockel'],
                     ['label' => 'Gewicht', 'value' => 'ca. 920 g', 'sub' => 'Schwere Manufaktur-Qualität'],
                     ['label' => 'Material', 'value' => 'K9 Kristallglas', 'sub' => 'Hochreiner Facettenschliff'],
                 ],
@@ -3000,7 +3996,7 @@ SVG,
 
         foreach ($sheets as $cfg) {
             $outPath = $publicProductsPath . '/' . $cfg['slug'] . '/' . $cfg['outFileName'];
-            if (!file_exists($outPath) || $force || in_array($cfg['slug'], ['seelen-anhaenger', 'seelen-pfote-hundemarke', 'goldenes-seelen-herz', 'echtgold-seelen-herz', 'id-armband-silber-herz', 'id-armband-gold-herz'], true)) {
+            if (!file_exists($outPath) || $force || in_array($cfg['slug'], ['seelen-kristall', 'seelen-anhaenger', 'seelen-pfote-hundemarke', 'goldenes-seelen-herz', 'echtgold-seelen-herz', 'id-armband-silber-herz', 'id-armband-gold-herz'], true)) {
                 $this->renderDimensionSheetWithGd($publicProductsPath, $cfg);
             }
         }

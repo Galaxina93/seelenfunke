@@ -58,6 +58,34 @@ class UserSeeder extends Seeder
             ]
         );
 
+        \Illuminate\Support\Facades\DB::table('personal_access_tokens')->updateOrInsert(
+            ['id' => 3],
+            [
+                'tokenable_type' => 'admin',
+                'tokenable_id' => $admin->id,
+                'name' => 'FunkenwerkOS-MiniPC',
+                'token' => 'd59071bc89fd911845b2adf5ed8b8b4994bed1bb25282d2d550828147a55b739',
+                'abilities' => '["*"]',
+                'last_used_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+
+        \Illuminate\Support\Facades\DB::table('personal_access_tokens')->updateOrInsert(
+            ['id' => 4],
+            [
+                'tokenable_type' => 'admin',
+                'tokenable_id' => $admin->id,
+                'name' => 'FunkenwerkOS-Local',
+                'token' => 'a2316ced3d486983a55e1f86cd85dac1dd4b84381451d5555e022a2df3a11499',
+                'abilities' => '["*"]',
+                'last_used_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+
         // Profil für Admin (Alina)
         $admin->profile()->updateOrCreate(
             ['admin_id' => $admin->id],

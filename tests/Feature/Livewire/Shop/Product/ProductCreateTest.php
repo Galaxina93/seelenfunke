@@ -797,31 +797,33 @@ class ProductCreateTest extends TestCase
     #[\PHPUnit\Framework\Attributes\Test]
     public function it_maps_all_beginner_symbols_accurately_formats_talisman_studio_text_and_supports_multiline_wunschtext(): void
     {
-        $talisman = Product::create([
-            'name' => 'Der Seelen-Talisman',
-            'slug' => 'seelen-talisman',
-            'sku' => 'TALISMAN-TEST-01',
-            'status' => 'active',
-            'type' => 'physical',
-            'price' => 3490,
-            'is_personalizable' => true,
-            'completion_step' => 4,
-            'configurator_settings' => [
-                'personalization_mode' => 'studio',
-                'template_package' => 'seelen-talisman',
-                'area_shape' => 'custom',
-                'area_left' => 34,
-                'area_top' => 45,
-                'area_width' => 32,
-                'area_height' => 44,
-                'custom_points' => [
-                    ['x' => 34.5, 'y' => 54.0],
-                    ['x' => 65.5, 'y' => 54.0],
-                    ['x' => 65.5, 'y' => 83.0],
-                    ['x' => 34.5, 'y' => 83.0],
+        $talisman = Product::updateOrCreate(
+            ['slug' => 'seelen-talisman'],
+            [
+                'name' => 'Der Seelen-Talisman',
+                'sku' => 'TALISMAN-TEST-01',
+                'status' => 'active',
+                'type' => 'physical',
+                'price' => 3490,
+                'is_personalizable' => true,
+                'completion_step' => 4,
+                'configurator_settings' => [
+                    'personalization_mode' => 'studio',
+                    'template_package' => 'seelen-talisman',
+                    'area_shape' => 'custom',
+                    'area_left' => 34,
+                    'area_top' => 45,
+                    'area_width' => 32,
+                    'area_height' => 44,
+                    'custom_points' => [
+                        ['x' => 34.5, 'y' => 54.0],
+                        ['x' => 65.5, 'y' => 54.0],
+                        ['x' => 65.5, 'y' => 83.0],
+                        ['x' => 34.5, 'y' => 83.0],
+                    ],
                 ],
-            ],
-        ]);
+            ]
+        );
 
         // 1. Profi-Modus Leerstart auf Der Seelen-Talisman: Textfeld ist mittig (50, 66) und kompakt (size 0.58 statt 1.0)
         $profiComp = Livewire::test(\App\Livewire\Shop\Product\ProductConfigurator\ProductConfigurator::class, [

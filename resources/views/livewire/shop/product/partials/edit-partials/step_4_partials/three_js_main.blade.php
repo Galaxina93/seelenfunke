@@ -357,7 +357,8 @@ let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
 eng.controls.minDistance = maxDim * 0.7;
 eng.controls.maxDistance = maxDim * 3.0;
 
-eng.camera.position.set(0, maxDim * 0.2, cameraZ * 1.5);
+const isOpticalCrystalModel = this.modelPath && this.modelPath.includes('seelenk');
+eng.camera.position.set(0, isOpticalCrystalModel ? 0 : (maxDim * 0.2), cameraZ * 1.5);
 eng.controls.target.set(0, 0, 0);
 eng.camera.updateProjectionMatrix();
 
@@ -510,12 +511,14 @@ baseZ = (size.z / 2) + 0.001;
 
 const matFront = new window.THREE.MeshBasicMaterial({ map: eng.textureFront, transparent: true, depthWrite: false, side: window.THREE.DoubleSide });
 eng.texturePlaneFront = new window.THREE.Mesh(geo, matFront);
+eng.texturePlaneFront.renderOrder = 2;
 eng.texturePlaneFront.userData.baseZ = baseZ;
 eng.modelContainer.add(this.getRaw(eng.texturePlaneFront));
 
 if (this.configSettings.has_back_side) {
 const matBack = new window.THREE.MeshBasicMaterial({ map: eng.textureBack, transparent: true, depthWrite: false, side: window.THREE.DoubleSide });
 eng.texturePlaneBack = new window.THREE.Mesh(geo, matBack);
+eng.texturePlaneBack.renderOrder = 2;
 eng.texturePlaneBack.userData.baseZ = baseZ;
 eng.modelContainer.add(this.getRaw(eng.texturePlaneBack));
 }
@@ -601,9 +604,55 @@ const hasEnv = !!this.bgPath;
 
 eng.model.traverse((child) => {
 if (child.isMesh && child.material) {
-const oldMap = child.material.map;
+const firstMat = Array.isArray(child.material) ? child.material[0] : child.material;
+if (!child.userData._origMap && firstMat && firstMat.map) {
+child.userData._origMap = firstMat.map;
+}
+if (!child.userData._origMatName && firstMat && firstMat.name) {
+child.userData._origMatName = firstMat.name;
+}
+const oldMap = child.userData._origMap || (firstMat ? firstMat.map : null);
+const origMatName = child.userData._origMatName || '';
+const isOpticalCrystal = (origMatName === 'Optical_K9_Crystal_Glass') || (this.modelPath && this.modelPath.includes('seelenk'));
 
 if(matType === 'glass') {
+child.renderOrder = 1;
+if (isOpticalCrystal && child.geometry && child.geometry.index) {
+const idxCount = child.geometry.index.count;
+child.geometry.clearGroups();
+child.geometry.addGroup(0, idxCount, 0);
+child.geometry.addGroup(0, idxCount, 1);
+
+const matBack = new window.THREE.MeshPhysicalMaterial({
+map: oldMap,
+color: 0xe6f8fc,
+metalness: 0.02,
+roughness: 0.05,
+ior: 1.52,
+reflectivity: 0.9,
+envMapIntensity: hasEnv ? 0.35 : 0.0,
+transparent: true,
+opacity: 0.44,
+depthWrite: false,
+side: window.THREE.BackSide
+});
+const matFront = new window.THREE.MeshPhysicalMaterial({
+map: oldMap,
+color: 0xffffff,
+metalness: 0.04,
+roughness: 0.03,
+ior: 1.52,
+reflectivity: 1.0,
+clearcoat: 1.0,
+clearcoatRoughness: 0.02,
+envMapIntensity: hasEnv ? 0.45 : 0.0,
+transparent: true,
+opacity: 0.96,
+depthWrite: false,
+side: window.THREE.FrontSide
+});
+child.material = [matBack, matFront];
+} else {
 child.material = new window.THREE.MeshPhysicalMaterial({
 map: oldMap,
 color: 0xffffff,
@@ -614,6 +663,7 @@ opacity: 0.80,
 depthWrite: false,
 side: window.THREE.FrontSide
 });
+}
 } else if(matType === 'wood') {
 child.material = new window.THREE.MeshStandardMaterial({
 map: oldMap,
@@ -638,7 +688,11 @@ roughness: 0.5,
 metalness: 0.0
 });
 }
+if (Array.isArray(child.material)) {
+child.material.forEach(m => { m.needsUpdate = true; });
+} else {
 child.material.needsUpdate = true;
+}
 }
 });
 },

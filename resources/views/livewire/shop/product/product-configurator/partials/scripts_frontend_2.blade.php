@@ -158,7 +158,8 @@
                     this.controls.minDistance = maxDim * 0.7;
                     this.controls.maxDistance = maxDim * 3.0;
 
-                    this.camera.position.set(0, maxDim * 0.2, cameraZ * 1.5);
+                    const isOpticalCrystalModel = this.modelPath && this.modelPath.includes('seelenk');
+                    this.camera.position.set(0, isOpticalCrystalModel ? 0 : (maxDim * 0.2), cameraZ * 1.5);
                     this.camera.updateProjectionMatrix();
                     this.defaultCamPos = this.camera.position.clone();
                     this.defaultCamTarget = this.controls.target.clone();
@@ -359,12 +360,14 @@
 
             const matFront = new window.THREE.MeshBasicMaterial({ map: this.textureFront, transparent: true, depthWrite: false, side: window.THREE.DoubleSide });
             this.texturePlaneFront = new window.THREE.Mesh(geo, matFront);
+            this.texturePlaneFront.renderOrder = 2;
             this.texturePlaneFront.userData.baseZ = baseZ;
             this.modelContainer.add(this.texturePlaneFront);
 
             if (this.config.has_back_side) {
                 const matBack = new window.THREE.MeshBasicMaterial({ map: this.textureBack, transparent: true, depthWrite: false, side: window.THREE.DoubleSide });
                 this.texturePlaneBack = new window.THREE.Mesh(geo, matBack);
+                this.texturePlaneBack.renderOrder = 2;
                 this.texturePlaneBack.userData.baseZ = baseZ;
                 this.modelContainer.add(this.texturePlaneBack);
             }
@@ -382,10 +385,80 @@
 
             this.model.traverse((child) => {
                 if(child.isMesh && child.material) {
-                    const oldMap = child.material.map;
+                    const firstMat = Array.isArray(child.material) ? child.material[0] : child.material;
+                    if (!child.userData._origMap && firstMat && firstMat.map) {
+                        child.userData._origMap = firstMat.map;
+                    }
+                    if (!child.userData._origMatName && firstMat && firstMat.name) {
+                        child.userData._origMatName = firstMat.name;
+                    }
+                    const oldMap = child.userData._origMap || (firstMat ? firstMat.map : null);
+                    const origMatName = child.userData._origMatName || '';
+                    const isOpticalCrystal = (origMatName === 'Optical_K9_Crystal_Glass') || (this.modelPath && this.modelPath.includes('seelenk'));
 
                     if(matType === 'glass') {
-                        if (isMobile) {
+                        child.renderOrder = 1;
+                        if (isOpticalCrystal && child.geometry && child.geometry.index) {
+                            // ZWEISTUFIGES K9-KRISTALLGLAS-RENDERING (BackSide-Tiefenbrechung + FrontSide-Sonnenschliff-Glanz)
+                            const idxCount = child.geometry.index.count;
+                            child.geometry.clearGroups();
+                            child.geometry.addGroup(0, idxCount, 0);
+                            child.geometry.addGroup(0, idxCount, 1);
+
+                            const matBack = isMobile
+                                ? new window.THREE.MeshStandardMaterial({
+                                    map: oldMap,
+                                    color: 0xdff6fa,
+                                    roughness: 0.08,
+                                    metalness: 0.02,
+                                    transparent: true,
+                                    opacity: 0.38,
+                                    depthWrite: false,
+                                    side: window.THREE.BackSide
+                                })
+                                : new window.THREE.MeshPhysicalMaterial({
+                                    map: oldMap,
+                                    color: 0xe6f8fc,
+                                    metalness: 0.02,
+                                    roughness: 0.05,
+                                    ior: 1.52,
+                                    reflectivity: 0.9,
+                                    envMapIntensity: hasEnv ? 0.35 : 0.0,
+                                    transparent: true,
+                                    opacity: 0.44,
+                                    depthWrite: false,
+                                    side: window.THREE.BackSide
+                                });
+
+                            const matFront = isMobile
+                                ? new window.THREE.MeshStandardMaterial({
+                                    map: oldMap,
+                                    color: 0xffffff,
+                                    roughness: 0.05,
+                                    metalness: 0.05,
+                                    transparent: true,
+                                    opacity: 0.90,
+                                    depthWrite: false,
+                                    side: window.THREE.FrontSide
+                                })
+                                : new window.THREE.MeshPhysicalMaterial({
+                                    map: oldMap,
+                                    color: 0xffffff,
+                                    metalness: 0.04,
+                                    roughness: 0.03,
+                                    ior: 1.52,
+                                    reflectivity: 1.0,
+                                    clearcoat: 1.0,
+                                    clearcoatRoughness: 0.02,
+                                    envMapIntensity: hasEnv ? 0.45 : 0.0,
+                                    transparent: true,
+                                    opacity: 0.96,
+                                    depthWrite: false,
+                                    side: window.THREE.FrontSide
+                                });
+
+                            child.material = [matBack, matFront];
+                        } else if (isMobile) {
                             // FALLBACK FÜR MOBILE: StandardMaterial (braucht kein HDRI um gut auszusehen)
                             child.material = new window.THREE.MeshStandardMaterial({
                                 map: oldMap,
@@ -434,7 +507,11 @@
                             metalness: 0.0
                         });
                     }
-                    child.material.needsUpdate = true;
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => { m.needsUpdate = true; });
+                    } else {
+                        child.material.needsUpdate = true;
+                    }
                 }
             });
         }

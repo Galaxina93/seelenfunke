@@ -596,8 +596,21 @@ class CartService
             }
             $requestedIds = array_values(array_unique($requestedIds));
 
+            $giftWrapMode = (($configuration['gift_wrap_mode'] ?? '') === 'loose') ? 'loose' : 'wrapped';
+            if ($giftWrapMode === 'wrapped' && !empty($configuration['addons_summary']) && is_array($configuration['addons_summary'])) {
+                foreach ($configuration['addons_summary'] as $subAddon) {
+                    if (is_array($subAddon) && \App\Models\Product\Product::isGiftWrapAddon($subAddon)) {
+                        if (($subAddon['wrap_mode'] ?? '') === 'loose' || str_contains(mb_strtolower((string) ($subAddon['name'] ?? '')), 'mitliefern')) {
+                            $giftWrapMode = 'loose';
+                        }
+                        break;
+                    }
+                }
+            }
+
             $validSelectedIds = [];
             $canonicalSummary = [];
+            $hasGiftWrapSelected = false;
 
             foreach ($productAddons as $addon) {
                 if (!is_array($addon) || empty($addon['id']) || empty($addon['name'])) {
@@ -607,20 +620,42 @@ class CartService
                 if (in_array($aid, $requestedIds, true)) {
                     $addonCents = max(0, (int) ($addon['price_cents'] ?? 0));
                     $validSelectedIds[] = $aid;
-                    $canonicalSummary[] = [
+
+                    $isWrap = \App\Models\Product\Product::isGiftWrapAddon($addon);
+                    if ($isWrap) {
+                        $hasGiftWrapSelected = true;
+                    }
+                    $wrapLabel = \App\Models\Product\Product::resolveGiftWrapModeLabel($giftWrapMode);
+
+                    $entry = [
                         'id'          => $aid,
-                        'name'        => (string) $addon['name'],
-                        'description' => trim((string) ($addon['description'] ?? '')),
+                        'name'        => $isWrap ? ((string) $addon['name'] . ' (' . $wrapLabel . ')') : (string) $addon['name'],
+                        'description' => $isWrap
+                            ? ($giftWrapMode === 'loose'
+                                ? 'Passender Bogen Schwarz-Gold-Geschenkpapier inklusive Verschluss-Sticker lose beigelegt (Gravur vorher selbst begutachten)'
+                                : 'Von Hand in edles Schwarz-Gold-Geschenkpapier eingeschlagen, direkt verschenkfertig')
+                            : trim((string) ($addon['description'] ?? '')),
                         'price_cents' => $addonCents,
                         'image_path'  => $addon['image_path'] ?? \App\Models\Product\Product::resolveAddonImagePath($addon),
                     ];
+
+                    if ($isWrap) {
+                        $entry['wrap_mode'] = $giftWrapMode;
+                    }
+
+                    $canonicalSummary[] = $entry;
                 }
             }
 
             $configuration['selected_addons'] = $validSelectedIds;
             $configuration['addons_summary'] = $canonicalSummary;
+            if ($hasGiftWrapSelected) {
+                $configuration['gift_wrap_mode'] = $giftWrapMode;
+            } else {
+                unset($configuration['gift_wrap_mode']);
+            }
         } else {
-            unset($configuration['selected_addons'], $configuration['addons_summary']);
+            unset($configuration['selected_addons'], $configuration['addons_summary'], $configuration['gift_wrap_mode']);
         }
 
         // Validierung & Kanonisierung der Schnell-Personalisierungs-Eingabefelder (custom_fields_data)

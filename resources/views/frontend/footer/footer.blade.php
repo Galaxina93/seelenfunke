@@ -21,6 +21,28 @@
                 <p class="text-sm text-white leading-relaxed">
                     Mit einer zertifizierten <a href="{{ route('manufacture') }}#kompetenz" title="Zu unserem Laserschutz-Zertifikat: Unsere Kompetenz für Ihre Sicherheit" class="font-bold text-white underline decoration-primary underline-offset-4 hover:text-primary hover:decoration-primary transition-colors">Laserschutzbeauftragten</a> stehen Sicherheit und Präzision bei der Veredelung Ihrer Unikate an erster Stelle.
                 </p>
+
+                {{-- 3 Kompakte Manufaktur-Qualitätsmerkmale --}}
+                <div class="grid grid-cols-3 gap-2 mt-4 w-full">
+                    <div class="rounded-xl border border-white/10 bg-white/[0.03] px-2 py-2.5 flex flex-col items-center justify-center text-center gap-1 hover:border-primary/40 transition-colors" title="Manuelle Endkontrolle in der Manufaktur">
+                        <svg class="w-4 h-4 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+                        </svg>
+                        <span class="text-[9px] font-bold uppercase tracking-wider text-gray-200 leading-tight">Premium Qualität</span>
+                    </div>
+                    <div class="rounded-xl border border-white/10 bg-white/[0.03] px-2 py-2.5 flex flex-col items-center justify-center text-center gap-1 hover:border-primary/40 transition-colors" title="Persönlich für dich gelasert in Gifhorn">
+                        <svg class="w-4 h-4 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
+                        </svg>
+                        <span class="text-[9px] font-bold uppercase tracking-wider text-gray-200 leading-tight">Handveredelt</span>
+                    </div>
+                    <div class="rounded-xl border border-white/10 bg-white/[0.03] px-2 py-2.5 flex flex-col items-center justify-center text-center gap-1 hover:border-primary/40 transition-colors" title="Liebevoll & sicher gepolstert">
+                        <svg class="w-4 h-4 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
+                        </svg>
+                        <span class="text-[9px] font-bold uppercase tracking-wider text-gray-200 leading-tight">Sorgfältig verpackt</span>
+                    </div>
+                </div>
             </div>
 
             {{-- Spalte 2: Adresse --}}

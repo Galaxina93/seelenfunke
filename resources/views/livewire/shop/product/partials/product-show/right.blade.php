@@ -403,59 +403,6 @@
 
             </div>
         @endif
-
-        {{-- USP Icons --}}
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-12 w-full">
-            @if($isDigital)
-                <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
-                    <span class="text-2xl mb-2 block">🚀</span>
-                    <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Sofort verfügbar</h4>
-                    <p class="text-[10px] text-gray-500 mt-1">Direkter Download nach Zahlung</p>
-                </div>
-                <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
-                    <span class="text-2xl mb-2 block">📱</span>
-                    <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Überall lesen</h4>
-                    <p class="text-[10px] text-gray-500 mt-1">Optimiert für alle Geräte</p>
-                </div>
-                <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
-                    <span class="text-2xl mb-2 block">📄</span>
-                    <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Papierlos &amp; Digital</h4>
-                    <p class="text-[10px] text-gray-500 mt-1">Kein physischer Versand nötig</p>
-                </div>
-            @elseif($isService)
-                <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
-                    <span class="text-2xl mb-2 block">🎓</span>
-                    <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Expertenwissen</h4>
-                    <p class="text-[10px] text-gray-500 mt-1">Persönliche Beratung vom Profi</p>
-                </div>
-                <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
-                    <span class="text-2xl mb-2 block">📹</span>
-                    <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Online Termin</h4>
-                    <p class="text-[10px] text-gray-500 mt-1">Bequem von Zuhause aus</p>
-                </div>
-                <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
-                    <span class="text-2xl mb-2 block">🤝</span>
-                    <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Individuell</h4>
-                    <p class="text-[10px] text-gray-500 mt-1">Lösungen für dein Projekt</p>
-                </div>
-            @else
-                <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
-                    <span class="text-2xl mb-2 block">🛡️</span>
-                    <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Premium Qualität</h4>
-                    <p class="text-[10px] text-gray-500 mt-1">Manuelle Endkontrolle in der Manufaktur</p>
-                </div>
-                <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
-                    <span class="text-2xl mb-2 block">✨</span>
-                    <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Handveredelt</h4>
-                    <p class="text-[10px] text-gray-500 mt-1">Persönlich für dich gelasert</p>
-                </div>
-                <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
-                    <span class="text-2xl mb-2 block">📦</span>
-                    <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Sorgfältig verpackt</h4>
-                    <p class="text-[10px] text-gray-500 mt-1">Liebevoll & sicher gepolstert</p>
-                </div>
-            @endif
-        </div>
     </div>
 
     @php

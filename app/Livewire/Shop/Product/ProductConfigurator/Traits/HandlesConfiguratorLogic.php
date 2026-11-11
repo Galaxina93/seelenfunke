@@ -486,12 +486,12 @@ trait HandlesConfiguratorLogic
             $defaultStudioTextSize = 0.50;
         } elseif ($pkgKey === 'seelen-kristall') {
             $centerX = 50.0;
-            $centerY = 50.0;
+            $centerY = 45.6;
             $defaultSymbolX = 50.0;
-            $defaultSymbolY = 35.0;
+            $defaultSymbolY = 32.0;
             $defaultSymbolSize = 80.0;
             $defaultTextX = 50.0;
-            $defaultTextY = 58.0;
+            $defaultTextY = 55.5;
             $defaultTextSize = 1.20;
             $defaultStudioTextSize = 0.88;
         } elseif ($pkgKey === 'weizenglas-personalisiert') {

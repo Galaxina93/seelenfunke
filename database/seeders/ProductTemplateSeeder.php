@@ -45,8 +45,8 @@ class ProductTemplateSeeder extends Seeder
     {
         return match ($slug) {
             'seelen-kristall' => [
-                'logo_x' => 50, 'logo_y' => 33, 'logo_size' => 82,
-                'text_x' => 50, 'text_y' => 58,
+                'logo_x' => 50, 'logo_y' => 31, 'logo_size' => 80,
+                'text_x' => 50, 'text_y' => 55.5,
                 'text_size' => match ($holiday) {
                     'weihnachten'  => 1.25,
                     'ostern'       => 1.30,

@@ -14,6 +14,7 @@
                         @foreach($this->availableAddons as $addon)
                             @php
                                 $isAddonSelected = in_array($addon['id'], $selectedAddons, true);
+                                $isGiftWrapOption = \App\Models\Product\Product::isGiftWrapAddon($addon);
                                 $addonFormattedPrice = number_format(((int) $addon['price_cents']) / 100, 2, ',', '.');
                                 $addonImageUrl = $addon['image_url'] ?? \App\Models\Product\Product::resolveAddonImageUrl($addon);
                             @endphp
@@ -22,40 +23,63 @@
                                  tabindex="0"
                                  @keydown.enter.prevent="$wire.toggleAddon('{{ $addon['id'] }}')"
                                  @keydown.space.prevent="$wire.toggleAddon('{{ $addon['id'] }}')"
-                                 class="w-full text-left border rounded-xl p-3 transition-all flex items-center justify-between gap-3.5 cursor-pointer group {{ $isAddonSelected ? ($isDark ? 'bg-gray-900 border-primary ring-1 ring-primary/50 shadow-sm' : 'bg-white border-primary ring-1 ring-primary/40 shadow-xs') : ($isDark ? 'bg-gray-900 border-gray-800 hover:border-primary/40' : 'bg-white border-gray-200 hover:border-primary/40 shadow-2xs') }}">
-                                <div class="flex items-center gap-3.5 min-w-0 flex-1">
-                                    <span class="w-5 h-5 rounded flex items-center justify-center border shrink-0 transition-colors {{ $isAddonSelected ? 'bg-primary border-primary text-gray-900 shadow-2xs' : ($isDark ? 'border-gray-600 bg-gray-950 group-hover:border-primary/60' : 'border-gray-300 bg-white group-hover:border-primary/60') }}">
-                                        @if($isAddonSelected)
-                                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                 class="w-full text-left border rounded-xl p-3 transition-all cursor-pointer group {{ $isAddonSelected ? ($isDark ? 'bg-gray-900 border-primary ring-1 ring-primary/50 shadow-sm' : 'bg-white border-primary ring-1 ring-primary/40 shadow-xs') : ($isDark ? 'bg-gray-900 border-gray-800 hover:border-primary/40' : 'bg-white border-gray-200 hover:border-primary/40 shadow-2xs') }}">
+                                <div class="flex items-center justify-between gap-3.5">
+                                    <div class="flex items-center gap-3.5 min-w-0 flex-1">
+                                        <span class="w-5 h-5 rounded flex items-center justify-center border shrink-0 transition-colors {{ $isAddonSelected ? 'bg-primary border-primary text-gray-900 shadow-2xs' : ($isDark ? 'border-gray-600 bg-gray-950 group-hover:border-primary/60' : 'border-gray-300 bg-white group-hover:border-primary/60') }}">
+                                            @if($isAddonSelected)
+                                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                            @endif
+                                        </span>
+                                        @if($addonImageUrl)
+                                            <div @click.stop="previewAddon = @js([
+                                                    'id' => $addon['id'],
+                                                    'name' => $addon['name'],
+                                                    'description' => $addon['description'] ?? '',
+                                                    'price' => $addonFormattedPrice,
+                                                    'image' => $addonImageUrl,
+                                                ])"
+                                                 title="Bild &amp; Details groß anzeigen"
+                                                 class="relative w-12 h-12 rounded-xl overflow-hidden border shrink-0 cursor-zoom-in group/img {{ $isAddonSelected ? 'border-primary ring-2 ring-primary/30' : ($isDark ? 'border-gray-700 bg-gray-950 hover:border-primary/60' : 'border-gray-200 bg-gray-50 hover:border-primary/60') }}">
+                                                <img src="{{ $addonImageUrl }}" alt="{{ $addon['name'] }}" class="w-full h-full object-cover group-hover/img:scale-110 transition-transform duration-300">
+                                                <span class="absolute bottom-0.5 right-0.5 w-4 h-4 rounded bg-black/65 text-white flex items-center justify-center backdrop-blur-2xs opacity-85 group-hover/img:opacity-100 transition-all shadow-xs">
+                                                    <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"/>
+                                                    </svg>
+                                                </span>
+                                            </div>
                                         @endif
-                                    </span>
-                                    @if($addonImageUrl)
-                                        <div @click.stop="previewAddon = @js([
-                                                'id' => $addon['id'],
-                                                'name' => $addon['name'],
-                                                'description' => $addon['description'] ?? '',
-                                                'price' => $addonFormattedPrice,
-                                                'image' => $addonImageUrl,
-                                            ])"
-                                             title="Bild &amp; Details groß anzeigen"
-                                             class="relative w-12 h-12 rounded-xl overflow-hidden border shrink-0 cursor-zoom-in group/img {{ $isAddonSelected ? 'border-primary ring-2 ring-primary/30' : ($isDark ? 'border-gray-700 bg-gray-950 hover:border-primary/60' : 'border-gray-200 bg-gray-50 hover:border-primary/60') }}">
-                                            <img src="{{ $addonImageUrl }}" alt="{{ $addon['name'] }}" class="w-full h-full object-cover group-hover/img:scale-110 transition-transform duration-300">
-                                            <span class="absolute bottom-0.5 right-0.5 w-4 h-4 rounded bg-black/65 text-white flex items-center justify-center backdrop-blur-2xs opacity-85 group-hover/img:opacity-100 transition-all shadow-xs">
-                                                <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"/>
-                                                </svg>
+                                        <div class="min-w-0 flex-1">
+                                            <span class="text-xs sm:text-sm font-bold block leading-tight {{ $isDark ? 'text-gray-100' : 'text-gray-800' }}">
+                                                {{ $addon['name'] }}
                                             </span>
                                         </div>
-                                    @endif
-                                    <div class="min-w-0 flex-1">
-                                        <span class="text-xs sm:text-sm font-bold block leading-tight {{ $isDark ? 'text-gray-100' : 'text-gray-800' }}">
-                                            {{ $addon['name'] }}
-                                        </span>
                                     </div>
+                                    <span class="font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-lg text-xs whitespace-nowrap shrink-0">
+                                        + {{ $addonFormattedPrice }}&nbsp;€
+                                    </span>
                                 </div>
-                                <span class="font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-lg text-xs whitespace-nowrap shrink-0">
-                                    + {{ $addonFormattedPrice }}&nbsp;€
-                                </span>
+
+                                @if($isAddonSelected && $isGiftWrapOption)
+                                    <div @click.stop class="mt-2.5 pt-2.5 border-t grid grid-cols-2 gap-2 {{ $isDark ? 'border-gray-800' : 'border-gray-100' }}">
+                                        <button type="button"
+                                                wire:click.stop="setGiftWrapMode('wrapped')"
+                                                class="px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer {{ ($giftWrapMode ?? 'wrapped') !== 'loose' ? ($isDark ? 'bg-gray-800 border-primary text-white shadow-2xs' : 'bg-[#F5F1E8] border-[#C5A059] text-gray-900 shadow-2xs') : ($isDark ? 'bg-gray-950 border-gray-800 text-gray-400 hover:border-gray-700 hover:text-gray-200' : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-900') }}">
+                                            @if(($giftWrapMode ?? 'wrapped') !== 'loose')
+                                                <span class="text-[#C5A059] font-black">✓</span>
+                                            @endif
+                                            <span>Fertig verpackt</span>
+                                        </button>
+                                        <button type="button"
+                                                wire:click.stop="setGiftWrapMode('loose')"
+                                                class="px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer {{ ($giftWrapMode ?? 'wrapped') === 'loose' ? ($isDark ? 'bg-gray-800 border-primary text-white shadow-2xs' : 'bg-[#F5F1E8] border-[#C5A059] text-gray-900 shadow-2xs') : ($isDark ? 'bg-gray-950 border-gray-800 text-gray-400 hover:border-gray-700 hover:text-gray-200' : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-900') }}">
+                                            @if(($giftWrapMode ?? 'wrapped') === 'loose')
+                                                <span class="text-[#C5A059] font-black">✓</span>
+                                            @endif
+                                            <span>Papier nur mitliefern</span>
+                                        </button>
+                                    </div>
+                                @endif
                             </div>
                         @endforeach
                     </div>
@@ -200,7 +224,7 @@
                                 @elseif($this->isUsingCustomFieldsMode())
                                     Ich habe meine Wunschgravur-Angaben auf korrekte Schreibweise geprüft. Individualisierte Artikel werden speziell nach Kundenwunsch gefertigt und sind vom <strong>Widerrufsrecht ausgeschlossen</strong>.
                                 @else
-                                    Ich habe meine Texte, Logos und Positionen geprüft. Die Vorschau ist eine <strong>Visualisierung</strong>; handwerkliche Abweichungen sind möglich. Individualisierte Artikel sind vom <strong>Widerrufsrecht ausgeschlossen</strong>.
+                                    Ich habe meine Texte, Logos und Positionen geprüft. Die Vorschau ist eine <strong>Visualisierung</strong>; handwerkliche Abweichungen sind möglich. Individualisierte Artikel sind vom <strong>Widerrufsrecht ausgeschlossen</strong>.@if(count($uploaded_files ?? []) > 0) Zudem bestätige ich, dass ich alle erforderlichen Rechte an meinen hochgeladenen Motiven besitze (<a href="/agb#urheberrecht-freistellung" target="_blank" class="underline font-semibold">§ 3 AGB</a>).@endif
                                 @endif
                                 @if($context !== 'template_admin')
                                     <a href="{{ route('agb') }}" target="_blank" class="text-primary underline font-bold ml-1">AGB</a> &amp; <a href="{{ route('widerruf') }}" target="_blank" class="text-primary underline font-bold">Widerrufsbelehrung</a>.
@@ -226,12 +250,12 @@
                     @endphp
                     @if($configuratorBonusSparks > 0)
                         <div :class="isMaximized ? 'lg:w-auto shrink-0' : 'w-full'"
-                             class="flex items-center justify-between gap-2 px-3 sm:px-3.5 py-2 rounded-xl border {{ $isDark ? 'bg-amber-500/10 border-[#C5A059]/40 text-[#f5dca0]' : 'bg-amber-50/90 border-amber-200/90 text-amber-900' }} text-xs">
+                             class="flex items-center justify-between gap-2 px-1 py-1 {{ $isDark ? 'text-gray-300' : 'text-gray-700' }} text-xs">
                             <span class="flex items-center gap-1.5 font-semibold min-w-0 truncate">
                                 <span class="shrink-0">✨</span>
                                 <span class="truncate">Treue-Bonus:</span>
                             </span>
-                            <span class="font-mono font-black px-2.5 py-0.5 rounded-full whitespace-nowrap shrink-0 {{ $isDark ? 'bg-[#C5A059]/25 text-[#f5dca0]' : 'bg-amber-200/70 text-amber-950' }}">
+                            <span class="font-mono font-black whitespace-nowrap shrink-0 {{ $isDark ? 'text-[#C5A059]' : 'text-[#9A7B3E]' }}">
                                 +{{ number_format($configuratorBonusSparks, 0, ',', '.') }} ✨ Funken
                             </span>
                         </div>
@@ -421,7 +445,7 @@
                                 $confHerzensEuro = \App\Services\HerzensprojektService::resolveFormattedEuro();
                                 $confHerzensUnit = \App\Services\HerzensprojektService::resolveUnitLabel(true);
                             @endphp
-                            <a href="{{ route('manufacture') }}#herzensprojekte" target="_blank" title="Wir führen {{ $confHerzensEuro }} € {{ $confHerzensUnit }} aus unseren Unternehmenserlösen an unsere regionalen Herzensprojekte für Kinder ab (Details & Transparenzhinweis)" class="text-[11px] font-bold {{ $isDark ? 'text-gray-300 hover:text-primary' : 'text-gray-700 hover:text-primary' }} leading-tight transition-colors">Soziales leisten ({{ $confHerzensEuro }}&nbsp;€ {{ $confHerzensUnit }})</a>
+                            <a href="{{ route('manufacture') }}#herzensprojekte" target="_blank" title="Wir führen {{ $confHerzensEuro }} € {{ $confHerzensUnit }} aus unseren Unternehmenserlösen an unsere regionalen Herzensprojekte für Kinder ab (Details & Transparenzhinweis)" class="text-[11px] font-bold {{ $isDark ? 'text-gray-300 hover:text-primary' : 'text-gray-700 hover:text-primary' }} leading-tight transition-colors">Soziales leisten</a>
                         </div>
                         <div class="flex items-center sm:justify-center gap-2.5">
                             <div class="w-7 h-7 rounded-full {{ $isDark ? 'bg-amber-500/15 border-amber-500/30 text-amber-400' : 'bg-amber-50 border-amber-200/80 text-amber-600' }} border flex items-center justify-center shrink-0">

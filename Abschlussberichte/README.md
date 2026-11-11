@@ -13,7 +13,12 @@ Alle Systemdokumentationen, Architekturberichte und operativen KI-Workflows sind
 
 ---
 
-## 2. Produkte, Konfigurator & 3D-Pipeline (`Produkte/`)
+## 2. Praxis- & Arbeitsdokumentation (`Arbeitsdokumentation/`)
+* [`Brennpunkt_Masse.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Arbeitsdokumentation/Brennpunkt_Masse.md) – Laufende Praxis- und Arbeitsdokumentation der Manufaktur: gemessene Fokus-/Brennpunkt-Höhen (`mm` in xTool Studio), Ausrichtungs-Schritte und erprobte Arbeitsabläufe für alle Seelenfunke-Rohlinge.
+
+---
+
+## 3. Produkte, Konfigurator & 3D-Pipeline (`Produkte/`)
 * [`Produkte_Massstabsgetreue_2D_3D_Kalibrierung_und_Prompt_Leitfaden.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Produkte/Produkte_Massstabsgetreue_2D_3D_Kalibrierung_und_Prompt_Leitfaden.md) – Verbindlicher Leitfaden & Copy-Paste-Master-Prompt für die maßstabsgetreue Überarbeitung von Produkten (2D-Overlay `800×800`, 3D-GLB-Deckungsgleichheit, echte 3D-Durchbrüche, `engraving_scale`-Formel und perfekte Definition der `custom_points`-Arbeitsfläche).
 * [`Produkte_Analyse.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Produkte/Produkte_Analyse.md)
 * [`Produkte_Uebersicht.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Produkte/Produkte_Uebersicht.md)
@@ -33,7 +38,7 @@ Alle Systemdokumentationen, Architekturberichte und operativen KI-Workflows sind
 
 ---
 
-## 3. Weitere Fachabteilungen
+## 4. Weitere Fachabteilungen
 * **`Agenten/`** – KI-Agenten, Funkira, Gemini Live Bridge, Nischen-Scanner & Laserschutzschulung (`Agenten_*.md`)
 * **`Android/`** – Mobile App, Wecker/Smart-Home-KLAP-v2, Routine-Paket-Sync & Widget-Synchronisation (`Android_*.md`, inkl. [`Android_Wecker_SmartHome_und_Routine_Sync.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Android/Android_Wecker_SmartHome_und_Routine_Sync.md), [`Android_Widgets_Architektur_und_Testbericht.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Android/Android_Widgets_Architektur_und_Testbericht.md) & [`Android_Technische_Analyse.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Android/Android_Technische_Analyse.md))
 * **`Bestellungen/`** – Bestellwesen, Angebote, Checkout, Reklamationen & Smart-Fertigungs-Sortierung (`Bestellungen_*.md`, inkl. [`Bestellungen_Smart_Fertigung_und_Funki_Anweisung.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Bestellungen/Bestellungen_Smart_Fertigung_und_Funki_Anweisung.md))

@@ -1,4 +1,18 @@
-<div>
+<div x-data="{
+        scrollOrdersToTop() {
+            const doScroll = () => {
+                const mainEl = document.querySelector('main');
+                if (mainEl) {
+                    mainEl.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            };
+            doScroll();
+            setTimeout(doScroll, 60);
+            setTimeout(doScroll, 180);
+        }
+    }"
+    @scroll-orders-top.window="scrollOrdersToTop()">
     <div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10 animate-fade-in-up min-h-full flex flex-col relative z-10 text-gray-700 dark:text-gray-300">
 
         {{-- SEITEN-HEADER (Wird ausgeblendet, wenn man in der Detailansicht ist) --}}
@@ -31,7 +45,7 @@
 
                 {{-- NAVIGATION & BESTELLNUMMER --}}
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-                    <button wire:click="resetOrderView" class="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all font-bold tracking-widest uppercase text-xs group px-6 py-3 rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-600 shadow-sm dark:shadow-lg hover:shadow-md">
+                    <button wire:click="resetOrderView" @click="scrollOrdersToTop()" class="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all font-bold tracking-widest uppercase text-xs group px-6 py-3 rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-600 shadow-sm dark:shadow-lg hover:shadow-md">
                     <span class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center mr-3 group-hover:border-primary/50 transition-colors shadow-inner text-gray-600 dark:text-gray-300 group-hover:text-primary">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
                     </span>
@@ -146,7 +160,7 @@
                                 <div class="grid grid-cols-4 gap-1 text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 dark:text-gray-600 text-center">
                                     <span class="text-orange-500 font-bold">1. Im Atelier</span>
                                     <span class="{{ $isProcessing ? 'text-blue-600 dark:text-blue-400 font-bold' : '' }}">{{ $hasPersonalizableOrderItems ? '2. Lasergravur' : '2. Qualitätsprüfung' }}</span>
-                                    <span class="{{ $isShipped ? 'text-purple-600 dark:text-purple-400 font-bold' : '' }}">3. Verpackt & DHL</span>
+                                    <span class="{{ $isShipped ? 'text-purple-600 dark:text-purple-400 font-bold' : '' }}">3. Versendet</span>
                                     <span class="{{ $isCompleted ? 'text-emerald-600 dark:text-emerald-500 font-bold' : '' }}">4. Angekommen</span>
                                 </div>
 
@@ -903,7 +917,7 @@
                                     <p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-black tracking-widest mb-1">Gesamtbetrag</p>
                                     <p class="font-serif font-bold text-2xl text-primary">{{ number_format($o->total_price / 100, 2, ',', '.') }} €</p>
                                 </div>
-                                <button wire:click="showOrder('{{ $o->id }}')" class="flex items-center gap-4 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-primary text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-primary px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all shadow-sm dark:shadow-xl dark:group-hover:shadow-[0_0_20px_rgba(197,160,89,0.2)]">
+                                <button wire:click="showOrder('{{ $o->id }}')" @click="scrollOrdersToTop()" class="flex items-center gap-4 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-primary text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-primary px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all shadow-sm dark:shadow-xl dark:group-hover:shadow-[0_0_20px_rgba(197,160,89,0.2)]">
                                     Details
                                     <div class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-900 group-hover:bg-gray-200 dark:group-hover:bg-primary/20 flex items-center justify-center transition-colors">
                                         <svg class="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
@@ -937,7 +951,7 @@
                                     @php
                                         $sliderImageUrl = method_exists($item, 'resolveDisplayImageUrl') ? $item->resolveDisplayImageUrl() : null;
                                     @endphp
-                                    <div class="snap-start shrink-0 w-40 relative group/item cursor-pointer" wire:click="showOrder('{{ $o->id }}')">
+                                    <div class="snap-start shrink-0 w-40 relative group/item cursor-pointer" wire:click="showOrder('{{ $o->id }}')" @click="scrollOrdersToTop()">
                                         <div class="aspect-square rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 overflow-hidden relative mb-4 shadow-sm group-hover/item:shadow-[0_0_25px_rgba(197,160,89,0.3)] group-hover/item:border-primary/50 transition-all duration-500">
                                             @if($sliderImageUrl)
                                                 <img src="{{ $sliderImageUrl }}" alt="{{ $item->product_name }}" class="w-full h-full object-cover transition-transform duration-700 group-hover/item:scale-110">
@@ -959,7 +973,7 @@
 
                                 @if($o->items->count() > $limit)
                                     <div class="snap-start shrink-0 w-32 flex items-center justify-center">
-                                        <button wire:click="showOrder('{{ $o->id }}')" class="text-xs font-black uppercase tracking-widest text-gray-500 hover:text-primary transition-all flex flex-col items-center gap-2 group/more">
+                                        <button wire:click="showOrder('{{ $o->id }}')" @click="scrollOrdersToTop()" class="text-xs font-black uppercase tracking-widest text-gray-500 hover:text-primary transition-all flex flex-col items-center gap-2 group/more">
                                         <span class="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 group-hover/more:border-primary flex items-center justify-center text-2xl shadow-sm dark:shadow-inner transition-colors">
                                             +{{ $o->items->count() - $limit }}
                                         </span>

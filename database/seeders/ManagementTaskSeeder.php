@@ -24,7 +24,7 @@ class ManagementTaskSeeder extends Seeder
                     [
                         'title' => 'Barmenia Wohngebäude (Nr. 304734394) zum 31.12.2026 kündigen, sobald DEVK-Police da ist',
                         'priority' => 'hoch',
-                        'ai_plan' => "Vertragsnummer Barmenia: 304734394 (Kunden-Nr. 704555407).\nKündigung zum 31.12.2026 einreichen, sobald die neue DEVK Komfort Police (552,24 €/Jahr) vorliegt.",
+                        'ai_plan' => "Vertragsnummer Barmenia: 304734394 (Kunden-Nr. 704555407).\nCHECK24-Antragsnummer: WHG-31186083 (weitergeleitet an DEVK, Tarif: DEVK Komfort, 552,24 €/Jahr ab 01.01.2027).\nWICHTIG: Erst kündigen, sobald der offizielle Versicherungsschein (Police) direkt von der DEVK vorliegt (Barmenia hat keine 3-Monats-Frist, sondern ist bis 31.12.2026 bzw. danach täglich kündbar).",
                     ],
                     ['title' => 'Wohngebäude Versicherung prüfen', 'priority' => 'niedrig'],
                     ['title' => 'Burger was noch fehlt', 'priority' => 'niedrig'],

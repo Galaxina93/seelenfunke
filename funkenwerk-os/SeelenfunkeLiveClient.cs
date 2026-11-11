@@ -27,10 +27,13 @@ namespace FunkenwerkOS
         {
             "127.0.0.1",
             "localhost",
+            "192.168.188.119",
             "seelenfunke.test",
             "stage.mein-seelenfunke.de",
             "mein-seelenfunke.de"
         };
+
+        private static string s_preferredLocalBaseUrl = "http://127.0.0.1/api";
 
         private static readonly HttpClient Http = CreateHardenedHttpClient();
 
@@ -73,10 +76,12 @@ namespace FunkenwerkOS
             if (!Uri.TryCreate(rawUrl.Trim(), UriKind.Absolute, out Uri? uri)) return false;
             if (!string.IsNullOrEmpty(uri.UserInfo)) return false;
 
-            bool hostAllowed = AllowedHosts.Any(h => string.Equals(h, uri.Host, StringComparison.OrdinalIgnoreCase));
+            bool isLanDev = uri.Host.StartsWith("192.168.188.", StringComparison.OrdinalIgnoreCase);
+            bool hostAllowed = isLanDev || AllowedHosts.Any(h => string.Equals(h, uri.Host, StringComparison.OrdinalIgnoreCase));
             if (!hostAllowed) return false;
 
-            bool isLocal = uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
+            bool isLocal = isLanDev
+                        || uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
                         || uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
                         || uri.Host.Equals("seelenfunke.test", StringComparison.OrdinalIgnoreCase);
 
@@ -142,18 +147,82 @@ namespace FunkenwerkOS
             }
         }
 
-        public static async Task<OsDashboardSnapshot> FetchDashboardSnapshotAsync(OsSettings settings)
+        public static Task<OsDashboardSnapshot> FetchDashboardSnapshotAsync(OsSettings settings)
+        {
+            return Task.Run(async () =>
+            {
+                var snap = new OsDashboardSnapshot();
+                string env = settings.ApiEnvironment;
+                string baseUrl = GetBaseUrlForEnvironment(env);
+                if (!IsTrustedApiUrl(baseUrl, out string safeBase))
+                {
+                    snap.StatusSummary = "Ungültige API";
+                    return snap;
+                }
+
+                string bearer = OsVaultAndStorage.ResolveBearerToken(settings, env);
+                if (string.IsNullOrWhiteSpace(bearer))
+                {
+                    snap.StatusSummary = "Anmeldung erforderlich";
+                    return snap;
+                }
+
+                var sw = Stopwatch.StartNew();
+                try
+                {
+                    var ordersTask = SendGetAsync($"{safeBase}/shop/orders?status=all", bearer);
+                    var kpisTask = SendGetAsync($"{safeBase}/funki/financials/kpis", bearer);
+                    var tasksTask = SendGetAsync($"{safeBase}/funki/tasks", bearer);
+
+                    await Task.WhenAll(ordersTask, kpisTask, tasksTask).ConfigureAwait(false);
+                    sw.Stop();
+                    snap.LatencyMs = sw.ElapsedMilliseconds;
+
+                    string? ordersBody = ordersTask.Result;
+                    string? kpisBody = kpisTask.Result;
+                    string? tasksBody = tasksTask.Result;
+
+                    if (ordersBody == null && kpisBody == null && tasksBody == null)
+                    {
+                        snap.IsConnected = false;
+                        snap.StatusSummary = "Offline / Token prüfen";
+                        return snap;
+                    }
+
+                    snap.IsConnected = true;
+                    snap.StatusSummary = $"{env.ToUpperInvariant()} · {snap.LatencyMs} ms";
+
+                    if (!string.IsNullOrWhiteSpace(ordersBody))
+                        ParseOrdersPayload(ordersBody, snap);
+
+                    if (!string.IsNullOrWhiteSpace(kpisBody))
+                        ParseFinancialKpisPayload(kpisBody, snap);
+
+                    if (!string.IsNullOrWhiteSpace(tasksBody))
+                        ParseTasksPayload(tasksBody, snap);
+                }
+                catch
+                {
+                    snap.IsConnected = false;
+                    snap.StatusSummary = "Verbindung unterbrochen";
+                }
+
+                return snap;
+            });
+        }
+
+        public static async Task<OsDashboardSnapshot> FetchOrdersSnapshotForEnvAsync(OsSettings settings, string env)
         {
             var snap = new OsDashboardSnapshot();
-            string env = settings.ApiEnvironment;
-            string baseUrl = GetBaseUrlForEnvironment(env);
+            string normEnv = (env ?? "live").Trim().ToLowerInvariant();
+            string baseUrl = GetBaseUrlForEnvironment(normEnv);
             if (!IsTrustedApiUrl(baseUrl, out string safeBase))
             {
                 snap.StatusSummary = "Ungültige API";
                 return snap;
             }
 
-            string bearer = OsVaultAndStorage.ResolveBearerToken(settings, env);
+            string bearer = OsVaultAndStorage.ResolveBearerToken(settings, normEnv);
             if (string.IsNullOrWhiteSpace(bearer))
             {
                 snap.StatusSummary = "Anmeldung erforderlich";
@@ -163,19 +232,13 @@ namespace FunkenwerkOS
             var sw = Stopwatch.StartNew();
             try
             {
-                var ordersTask = SendGetAsync($"{safeBase}/shop/orders?status=all", bearer);
-                var kpisTask = SendGetAsync($"{safeBase}/funki/financials/kpis", bearer);
-                var tasksTask = SendGetAsync($"{safeBase}/funki/tasks", bearer);
-
-                await Task.WhenAll(ordersTask, kpisTask, tasksTask);
+                string? ordersBody = normEnv == "local"
+                    ? await SendGetLocalWithLanFallbackAsync("/shop/orders?status=all", bearer).ConfigureAwait(false)
+                    : await SendGetAsync($"{safeBase}/shop/orders?status=all", bearer).ConfigureAwait(false);
                 sw.Stop();
                 snap.LatencyMs = sw.ElapsedMilliseconds;
 
-                string? ordersBody = ordersTask.Result;
-                string? kpisBody = kpisTask.Result;
-                string? tasksBody = tasksTask.Result;
-
-                if (ordersBody == null && kpisBody == null && tasksBody == null)
+                if (string.IsNullOrWhiteSpace(ordersBody))
                 {
                     snap.IsConnected = false;
                     snap.StatusSummary = "Offline / Token prüfen";
@@ -183,16 +246,8 @@ namespace FunkenwerkOS
                 }
 
                 snap.IsConnected = true;
-                snap.StatusSummary = $"{env.ToUpperInvariant()} · {snap.LatencyMs} ms";
-
-                if (!string.IsNullOrWhiteSpace(ordersBody))
-                    ParseOrdersPayload(ordersBody, snap);
-
-                if (!string.IsNullOrWhiteSpace(kpisBody))
-                    ParseFinancialKpisPayload(kpisBody, snap);
-
-                if (!string.IsNullOrWhiteSpace(tasksBody))
-                    ParseTasksPayload(tasksBody, snap);
+                snap.StatusSummary = $"{normEnv.ToUpperInvariant()} · {snap.LatencyMs} ms";
+                ParseOrdersPayload(ordersBody, snap);
             }
             catch
             {
@@ -201,6 +256,15 @@ namespace FunkenwerkOS
             }
 
             return snap;
+        }
+
+        public static Task<OsDashboardSnapshot> FetchActiveEnvOrdersPulseAsync(OsSettings settings)
+        {
+            return Task.Run(async () =>
+            {
+                string primaryEnv = (settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant();
+                return await FetchOrdersSnapshotForEnvAsync(settings, primaryEnv).ConfigureAwait(false);
+            });
         }
 
         public static async Task<bool> ToggleTaskAsync(OsSettings settings, int taskId, bool isCompleted)
@@ -250,21 +314,86 @@ namespace FunkenwerkOS
             }
         }
 
-        private static async Task<string?> SendGetAsync(string url, string bearer)
+        private static async Task<string?> SendGetLocalWithLanFallbackAsync(string relativePath, string bearer)
+        {
+            string primaryLocal = s_preferredLocalBaseUrl;
+            string fallbackLocal = string.Equals(primaryLocal, "http://127.0.0.1/api", StringComparison.OrdinalIgnoreCase)
+                ? "http://192.168.188.119/api"
+                : "http://127.0.0.1/api";
+
+            string? body = await SendGetAsync($"{primaryLocal}{relativePath}", bearer, timeoutSec: 2.5).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(body))
+                return body;
+
+            string? fallbackBody = await SendGetAsync($"{fallbackLocal}{relativePath}", bearer, timeoutSec: 3.5).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(fallbackBody))
+            {
+                s_preferredLocalBaseUrl = fallbackLocal;
+                return fallbackBody;
+            }
+            return null;
+        }
+
+        private static async Task<string?> SendGetAsync(string url, string bearer, double timeoutSec = 10.0)
         {
             try
             {
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(timeoutSec));
                 using var req = new HttpRequestMessage(HttpMethod.Get, url);
                 req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
                 req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-                using var resp = await Http.SendAsync(req);
+                using var resp = await Http.SendAsync(req, cts.Token).ConfigureAwait(false);
                 if (!resp.IsSuccessStatusCode) return null;
-                return await resp.Content.ReadAsStringAsync();
+                return await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
             }
             catch
             {
                 return null;
             }
+        }
+
+        private static int ComputeStablePositiveId(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key)) return 0;
+            if (int.TryParse(key, NumberStyles.Integer, CultureInfo.InvariantCulture, out int direct) && direct > 0)
+                return direct;
+
+            uint hash = 2166136261u;
+            foreach (char c in key)
+            {
+                hash ^= c;
+                hash *= 16777619u;
+            }
+            int pos = (int)(hash & 0x7FFFFFFFu);
+            return pos == 0 ? 1 : pos;
+        }
+
+        private static void ExtractOrderIdentity(JsonElement el, out string orderKey, out int numericId)
+        {
+            orderKey = "";
+            if (el.TryGetProperty("id", out var idProp))
+            {
+                if (idProp.ValueKind == JsonValueKind.String)
+                    orderKey = idProp.GetString() ?? "";
+                else if (idProp.ValueKind == JsonValueKind.Number && idProp.TryGetInt32(out int nVal))
+                    orderKey = nVal.ToString(CultureInfo.InvariantCulture);
+            }
+            if (string.IsNullOrWhiteSpace(orderKey))
+                orderKey = GetStr(el, "order_number", "");
+
+            numericId = ComputeStablePositiveId(orderKey);
+        }
+
+        private static int GetSafeInt32(JsonElement obj, string propName, int fallback = 0)
+        {
+            if (obj.TryGetProperty(propName, out var p))
+            {
+                if (p.ValueKind == JsonValueKind.Number && p.TryGetInt32(out int v))
+                    return v;
+                if (p.ValueKind == JsonValueKind.String && int.TryParse(p.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int sv))
+                    return sv;
+            }
+            return fallback;
         }
 
         private static void ParseOrdersPayload(string json, OsDashboardSnapshot snap)
@@ -274,15 +403,30 @@ namespace FunkenwerkOS
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
 
+                int maxSeenId = 0;
+                string maxSeenKey = "";
+                snap.TotalOrdersCount = GetSafeInt32(root, "total", 0);
+
                 if (root.TryGetProperty("priority_order", out var prioEl) && prioEl.ValueKind == JsonValueKind.Object)
                 {
-                    int cents = prioEl.TryGetProperty("total_price", out var tp) && tp.TryGetInt32(out int cVal) ? cVal : 0;
+                    ExtractOrderIdentity(prioEl, out string pKey, out int pidVal);
+                    if (!string.IsNullOrWhiteSpace(pKey))
+                    {
+                        if (!snap.AllPageOrderKeys.Contains(pKey, StringComparer.OrdinalIgnoreCase))
+                            snap.AllPageOrderKeys.Add(pKey);
+                        if (string.CompareOrdinal(pKey, maxSeenKey) > 0)
+                            maxSeenKey = pKey;
+                    }
+                    if (pidVal > 0 && !snap.AllPageOrderIds.Contains(pidVal))
+                        snap.AllPageOrderIds.Add(pidVal);
+
+                    int cents = GetSafeInt32(prioEl, "total_price", 0);
                     snap.PriorityOrder = new OsPriorityOrderDto
                     {
                         HasPriorityOrder = true,
                         OrderNumber = GetStr(prioEl, "order_number", "Auftrag"),
                         CustomerName = GetStr(prioEl, "customer_name", ""),
-                        ItemCount = prioEl.TryGetProperty("item_count", out var ic) && ic.TryGetInt32(out int iVal) ? iVal : 1,
+                        ItemCount = GetSafeInt32(prioEl, "item_count", 1),
                         IsExpress = prioEl.TryGetProperty("is_express", out var ex) && ex.ValueKind == JsonValueKind.True,
                         TotalFormatted = FormatEuroFromCents(cents),
                         TipSummary = GetStr(prioEl, "priority_tip", "").Split('\n')[0].Trim()
@@ -293,10 +437,15 @@ namespace FunkenwerkOS
                 bool hasArr = false;
                 if (root.TryGetProperty("orders", out var ordersNode))
                 {
-                    if (ordersNode.ValueKind == JsonValueKind.Object && ordersNode.TryGetProperty("data", out var dataArr) && dataArr.ValueKind == JsonValueKind.Array)
+                    if (ordersNode.ValueKind == JsonValueKind.Object)
                     {
-                        ordersArr = dataArr;
-                        hasArr = true;
+                        int otVal = GetSafeInt32(ordersNode, "total", -1);
+                        if (otVal >= 0) snap.TotalOrdersCount = otVal;
+                        if (ordersNode.TryGetProperty("data", out var dataArr) && dataArr.ValueKind == JsonValueKind.Array)
+                        {
+                            ordersArr = dataArr;
+                            hasArr = true;
+                        }
                     }
                     else if (ordersNode.ValueKind == JsonValueKind.Array)
                     {
@@ -316,6 +465,22 @@ namespace FunkenwerkOS
                     int expressCount = 0;
                     foreach (var o in ordersArr.EnumerateArray())
                     {
+                        ExtractOrderIdentity(o, out string oKey, out int idVal);
+                        if (!string.IsNullOrWhiteSpace(oKey))
+                        {
+                            if (!snap.AllPageOrderKeys.Contains(oKey, StringComparer.OrdinalIgnoreCase))
+                                snap.AllPageOrderKeys.Add(oKey);
+                            if (string.CompareOrdinal(oKey, maxSeenKey) > 0)
+                                maxSeenKey = oKey;
+                        }
+                        if (idVal > 0)
+                        {
+                            if (!snap.AllPageOrderIds.Contains(idVal))
+                                snap.AllPageOrderIds.Add(idVal);
+                            if (idVal > maxSeenId)
+                                maxSeenId = idVal;
+                        }
+
                         string rawStatus = GetStr(o, "status", "pending").ToLowerInvariant();
                         bool isClosed = rawStatus is "completed" or "cancelled" or "refunded" or "shipped";
                         bool isExpress = o.TryGetProperty("is_express", out var exProp) && exProp.ValueKind == JsonValueKind.True;
@@ -328,15 +493,16 @@ namespace FunkenwerkOS
 
                         if (snap.ActiveOrders.Count < 14)
                         {
-                            int cents = o.TryGetProperty("total_price", out var tp) && tp.TryGetInt32(out int cVal) ? cVal : 0;
+                            int cents = GetSafeInt32(o, "total_price", 0);
                             snap.ActiveOrders.Add(new OsOrderItemDto
                             {
-                                Id = o.TryGetProperty("id", out var idProp) && idProp.TryGetInt32(out int idVal) ? idVal : 0,
+                                Id = idVal,
+                                OrderUuid = oKey,
                                 OrderNumber = GetStr(o, "order_number", "#"),
                                 CustomerName = GetStr(o, "customer_name", ""),
                                 StatusLabel = TranslateOrderStatus(rawStatus),
                                 StatusBadgeHex = GetStatusHex(rawStatus),
-                                ItemCount = o.TryGetProperty("item_count", out var ic) && ic.TryGetInt32(out int icVal) ? icVal : 1,
+                                ItemCount = GetSafeInt32(o, "item_count", 1),
                                 TotalFormatted = FormatEuroFromCents(cents),
                                 IsExpress = isExpress
                             });
@@ -346,6 +512,27 @@ namespace FunkenwerkOS
                     snap.OpenOrdersCount = openCount;
                     snap.ExpressOrdersCount = expressCount;
                 }
+
+                int explicitOpen = GetSafeInt32(root, "open_orders_count", -1);
+                if (explicitOpen >= 0)
+                    snap.OpenOrdersCount = explicitOpen;
+
+                if (root.TryGetProperty("latest_order_id", out var explicitLatestProp))
+                {
+                    if (explicitLatestProp.ValueKind == JsonValueKind.String)
+                    {
+                        string lStr = explicitLatestProp.GetString() ?? "";
+                        if (!string.IsNullOrWhiteSpace(lStr) && string.CompareOrdinal(lStr, maxSeenKey) > 0)
+                            maxSeenKey = lStr;
+                    }
+                    else if (explicitLatestProp.ValueKind == JsonValueKind.Number && explicitLatestProp.TryGetInt32(out int lInt) && lInt > 0)
+                    {
+                        maxSeenId = Math.Max(maxSeenId, lInt);
+                    }
+                }
+
+                snap.LatestOrderKey = maxSeenKey;
+                snap.LatestOrderId = !string.IsNullOrWhiteSpace(maxSeenKey) ? ComputeStablePositiveId(maxSeenKey) : maxSeenId;
             }
             catch { }
         }

@@ -83,12 +83,14 @@ class CustomerOrdersComponent extends Component
 
         $this->selectedOrderId = $id;
         $this->previewItemId = null;
+        $this->dispatch('scroll-orders-top');
     }
 
     public function resetOrderView()
     {
         $this->selectedOrderId = null;
         $this->previewItemId = null;
+        $this->dispatch('scroll-orders-top');
     }
 
     public function openPreview($itemId)
