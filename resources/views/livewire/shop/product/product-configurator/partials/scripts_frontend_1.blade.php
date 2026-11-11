@@ -1,5 +1,10 @@
 @script
 <script>
+    /*!
+     * © Mein-Seelenfunke (Inhaberin: Alina Steinhauer, Gifhorn) - 2D/3D-Gravur-Studio Engine
+     * Alle Rechte vorbehalten (§§ 2, 10, 69a UrhG, § 4 Nr. 3 UWG).
+     * Jede unautorisierte Vervielfältigung, Dekompilierung, Extraktion oder Nachbildung ist untersagt.
+     */
     window.frontendConfiguratorData = function(params) {
         return {
             texts: params.wireModels.texts || [],

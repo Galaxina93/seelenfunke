@@ -137,6 +137,13 @@
                                     (9) <strong>Keine rechtliche Vorab-Prüfungspflicht & Ablehnungs-/Rücktrittsrecht des Anbieters:</strong> Eine manuelle Prüfung hochgeladener Dateien durch den Anbieter erfolgt ausschließlich in <strong>technischer Hinsicht</strong> (Auflösung, Kontrast und Gravurfähigkeit); der Anbieter ist nicht verpflichtet, die vom Kunden übermittelten Inhalte auf mögliche Verletzungen von Schutzrechten Dritter zu überprüfen. Der Anbieter behält sich jedoch ausdrücklich das Recht vor, Aufträge und Motive abzulehnen oder von einem bereits geschlossenen Vertrag unverzüglich zurückzutreten, sofern die übermittelten Inhalte gegen geltendes Recht (insbesondere straf- oder verfassungsrechtliche Verbote wie §§ 86, 86a, 130, 184 ff. StGB), die guten Sitten verstoßen oder der begründete Verdacht besteht, dass Urheber-, Marken- oder sonstige Schutzrechte Dritter verletzt werden.
                                 </p>
                             </div>
+
+                            <div id="konfigurator-urheberrecht" class="mt-4 bg-gray-50 border-l-4 border-[#C5A059] p-5 rounded-r-xl space-y-2 scroll-mt-28">
+                                <h4 class="font-bold text-gray-900 text-base">Schutzrechte am 2D/3D-Gravur-Studio, an 3D-Modellen (.glb), Overlays & Design-Vorlagen</h4>
+                                <p class="text-sm leading-relaxed">
+                                    (10) <strong>Urheber- und Leistungsschutz des Anbieters (§§ 2, 10, 69a, 87a UrhG, § 4 Nr. 3 UWG):</strong> Der interaktive 2D/3D-Produktkonfigurator („Mein-Seelenfunke 2D/3D-Gravur-Studio“) einschließlich seiner Benutzeroberfläche, Programmroutinen, Shader- und Berechnungsskripte sowie sämtliche vom Anbieter bereitgestellten dreidimensionalen Produktmodelle (<code>.glb</code>/<code>glTF</code>-Dateien inkl. eingebetteter binärer Urheberrechts-Wasserzeichen), 2D-Overlays, technischen Maßblätter, Vektorsymbole, Spruchsammlungen und Design-Vorlagen sind urheber- und wettbewerbsrechtlich zugunsten von <strong>{{ $companyName }} ({{ $ownerProprietor }})</strong> geschützt. Jede über die unmittelbare Konfiguration einer Bestellung im Online-Shop hinausgehende Nutzung, insbesondere das automatisierte Auslesen (Scraping), Herunterladen, Extrahieren, Dekompilieren, Vervielfältigen, Verändern oder die gewerbliche Nachbildung und Übernahme in Drittsysteme, ist ohne vorherige schriftliche Zustimmung des Anbieters strengstens untersagt und wird zivil- sowie strafrechtlich verfolgt (§§ 97, 106 UrhG).
+                                </p>
+                            </div>
                         </div>
 
                         <div id="preise-zahlung" class="scroll-mt-28">

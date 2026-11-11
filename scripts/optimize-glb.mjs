@@ -189,11 +189,14 @@ async function run() {
 
     const afterStats = countStats(doc);
 
-    // 5. Stamp optimization metadata in asset.extras
+    // 5. Stamp optimization & copyright metadata in asset / asset.extras
     const asset = doc.getRoot().getAsset();
+    asset.copyright = '© Mein-Seelenfunke (Inhaberin: Alina Steinhauer, Gifhorn) - Alle Rechte vorbehalten (§§ 2, 10, 69a UrhG). Unautorisierte Vervielfältigung oder Nutzung untersagt.';
     asset.extras = {
         ...(asset.extras || {}),
         seelenfunke_optimized: true,
+        rights_holder: 'Mein-Seelenfunke (Alina Steinhauer)',
+        protected_under: 'UrhG §§ 2, 10, 69a & UWG § 4 Nr. 3',
         optimized_at: new Date().toISOString(),
         original_size_bytes: originalSizeBytes,
         original_triangles: beforeStats.triangles,

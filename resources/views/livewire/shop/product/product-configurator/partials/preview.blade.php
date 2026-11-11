@@ -338,7 +338,8 @@
         <div wire:ignore
              x-show="config.modelPath"
              x-ref="container3d"
-             class="absolute inset-0 w-full h-full cursor-move transition-opacity duration-500"
+             @contextmenu.prevent
+             class="absolute inset-0 w-full h-full cursor-move transition-opacity duration-500 select-none"
              :class="showDrawingBoard ? 'opacity-0 invisible pointer-events-none z-0' : 'opacity-100 visible z-10'"
              :style="showDrawingBoard ? 'visibility: hidden; z-index: 0;' : 'visibility: visible; z-index: 10;'"></div>
 
@@ -360,6 +361,7 @@
         <div wire:ignore
              x-ref="drawingBoard"
              x-show="showDrawingBoard || !config.modelPath"
+             @contextmenu.prevent
              class="absolute inset-0 w-full h-full z-20 pointer-events-auto"
              :style="isCapturing
                  ? 'isolation: isolate; transform: none; -webkit-transform: none;'
@@ -997,5 +999,16 @@
             Rückseite
         </button>
     </div>
+
+    {{-- DEZENTER URHEBERRECHTS- & KOPIERSCHUTZ-VERMERK (§§ 2, 10, 69a UrhG · § 3 Abs. 10 AGB) --}}
+    @if($context !== 'preview')
+    <div x-show="!config.isBeginnerMode"
+         x-cloak
+         data-snapshot-ignore="true"
+         class="mt-2 flex items-center justify-center gap-1 text-[9px] font-medium tracking-wider select-none {{ $isDark ? 'text-gray-600' : 'text-gray-400' }}"
+         title="Alle 3D-Modelle (.glb), Overlays, Vorlagen und das 2D/3D-Gravur-Studio von Mein-Seelenfunke (Inhaberin: Alina Steinhauer) sind urheber- und wettbewerbsrechtlich geschützt (§§ 2, 10, 69a UrhG, § 4 Nr. 3 UWG, § 3 Abs. 10 AGB).">
+        <span>© Mein-Seelenfunke 2D/3D-Gravur-Studio · Urheberrechtlich geschützt</span>
+    </div>
+    @endif
 
 </div>

@@ -14,6 +14,11 @@ use Illuminate\Support\Facades\File;
 class ProductAssetSeeder extends Seeder
 {
     /**
+     * Offizielles binäres glTF-2.0 Urheberrechts-Wasserzeichen (§§ 2, 10, 69a UrhG) für alle 3D-Modelle (.glb).
+     */
+    public const GLB_COPYRIGHT_NOTICE = '© Mein-Seelenfunke (Inhaberin: Alina Steinhauer, Gifhorn) - Alle Rechte vorbehalten (§§ 2, 10, 69a UrhG). Unautorisierte Vervielfältigung oder Nutzung untersagt.';
+
+    /**
      * Saisonale Farb-Tints für die 2D-Konfigurator-Bühnen.
      */
     private const THEMES = [
@@ -161,6 +166,30 @@ class ProductAssetSeeder extends Seeder
 
         // 7. Wunschsymbole für den Neulings-Modus & Konfigurator-Symbolbibliothek sicherstellen (Kleeblatt, Schutzengel, Lebensbaum, Krone, Anker)
         $this->ensureLaserSymbolVectors();
+
+        // 8. Urheberrechts-Wasserzeichen (glTF 2.0 asset.copyright) in allen .glb-3D-Modellen sicherstellen
+        $this->ensureAllGlbCopyrightWatermarks($publicProductsPath);
+    }
+
+    /**
+     * Bettet das gerichtsfeste glTF-2.0 Urheberrechts-Wasserzeichen (`asset.copyright` & `asset.extras.rights_holder`)
+     * verlustfrei in den Binär-Header sämtlicher bestehenden `.glb`-Dateien ein.
+     */
+    private function ensureAllGlbCopyrightWatermarks(string $publicProductsPath): void
+    {
+        $optimizer = app(\App\Services\Storage\GlbOptimizerService::class);
+        $roots = array_filter([
+            $publicProductsPath,
+            public_path('shop/customer/gamification/images'),
+        ], 'is_dir');
+
+        foreach ($roots as $rootDir) {
+            foreach (File::allFiles($rootDir) as $file) {
+                if (strtolower($file->getExtension()) === 'glb') {
+                    $optimizer->stampCopyrightWatermark($file->getRealPath() ?: $file->getPathname());
+                }
+            }
+        }
     }
 
     /**
@@ -920,7 +949,16 @@ SVG,
         $binBuffer = $bPos . $bNorm . $bUv . $bIdx . $bImg;
 
         $gltf = [
-            'asset' => ['version' => '2.0', 'generator' => 'Seelenfunke-PHP-Seeder-3D-v2'],
+            'asset' => [
+                'version' => '2.0',
+                'generator' => 'Seelenfunke-PHP-Seeder-3D-v2',
+                'copyright' => self::GLB_COPYRIGHT_NOTICE,
+                'extras' => [
+                    'seelenfunke_optimized' => true,
+                    'rights_holder' => 'Mein-Seelenfunke (Alina Steinhauer)',
+                    'protected_under' => 'UrhG §§ 2, 10, 69a & UWG § 4 Nr. 3',
+                ],
+            ],
             'scene' => 0,
             'scenes' => [['nodes' => [0]]],
             'nodes' => [['name' => $meshName, 'mesh' => 0]],
@@ -1884,9 +1922,12 @@ SVG,
             'asset' => [
                 'version' => '2.0',
                 'generator' => 'Seelenfunke-K9-Crystal-CAD-v3',
+                'copyright' => self::GLB_COPYRIGHT_NOTICE,
                 'extras' => [
                     'seelenfunke_optimized' => true,
                     'dimensions_mm' => '180x200x40',
+                    'rights_holder' => 'Mein-Seelenfunke (Alina Steinhauer)',
+                    'protected_under' => 'UrhG §§ 2, 10, 69a & UWG § 4 Nr. 3',
                 ],
             ],
             'extensionsUsed' => [

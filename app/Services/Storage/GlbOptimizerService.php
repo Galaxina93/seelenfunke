@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Log;
 
 class GlbOptimizerService
 {
+    public const COPYRIGHT_WATERMARK = '© Mein-Seelenfunke (Inhaberin: Alina Steinhauer, Gifhorn) - Alle Rechte vorbehalten (§§ 2, 10, 69a UrhG). Unautorisierte Vervielfältigung oder Nutzung untersagt.';
+
     /**
      * Fast, zero-overhead PHP binary header inspection of a .glb file.
      */
@@ -53,6 +55,7 @@ class GlbOptimizerService
         $texturesCount = 0;
         $texturesBytes = 0;
         $generator = 'Unbekannt';
+        $copyright = null;
         $extras = [];
 
         try {
@@ -66,6 +69,7 @@ class GlbOptimizerService
                         $json = json_decode($jsonStr, true);
                         if (is_array($json)) {
                             $generator = $json['asset']['generator'] ?? 'Standard glTF';
+                            $copyright = $json['asset']['copyright'] ?? null;
                             $extras = $json['asset']['extras'] ?? [];
                             $texturesCount = count($json['images'] ?? []);
 
@@ -119,6 +123,8 @@ class GlbOptimizerService
             'textures_count' => $texturesCount,
             'textures_size_kb' => round($texturesBytes / 1024, 1),
             'generator' => $generator,
+            'copyright' => $copyright,
+            'has_copyright_watermark' => !empty($copyright) && str_contains((string) $copyright, 'Mein-Seelenfunke'),
             'is_optimized' => $isOptimized,
             'is_marked_optimized' => $isMarkedOptimized,
             'needs_optimization' => $needsOptimization,
@@ -208,6 +214,7 @@ class GlbOptimizerService
             ];
         }
 
+        $this->stampCopyrightWatermark($absolutePath);
         clearstatcache(true, $absolutePath);
 
         if (class_exists(SystemLog::class)) {
@@ -234,5 +241,86 @@ class GlbOptimizerService
         }
 
         return $jsonResult;
+    }
+
+    /**
+     * Bettet das gerichtsfeste Mein-Seelenfunke Urheberrechts-Wasserzeichen (§§ 2, 10, 69a UrhG)
+     * verlustfrei in den binären glTF-2.0 JSON-Header (`asset.copyright` & `asset.extras`) einer `.glb`-Datei ein.
+     */
+    public function stampCopyrightWatermark(string $absolutePath): bool
+    {
+        if (str_contains($absolutePath, '..') || str_contains($absolutePath, "\0") || strtolower(pathinfo($absolutePath, PATHINFO_EXTENSION)) !== 'glb') {
+            return false;
+        }
+
+        if (is_link($absolutePath) || !is_file($absolutePath) || !is_readable($absolutePath) || !is_writable($absolutePath)) {
+            return false;
+        }
+
+        try {
+            $raw = file_get_contents($absolutePath);
+            if ($raw === false || strlen($raw) < 20) {
+                return false;
+            }
+
+            $header = unpack('a4magic/Vversion/Vlength/VchunkLen/a4chunkType', substr($raw, 0, 20));
+            if (($header['magic'] ?? '') !== 'glTF' || ($header['chunkType'] ?? '') !== 'JSON') {
+                return false;
+            }
+
+            $chunkLen = (int) ($header['chunkLen'] ?? 0);
+            if ($chunkLen <= 0 || (20 + $chunkLen) > strlen($raw)) {
+                return false;
+            }
+
+            $jsonStr = substr($raw, 20, $chunkLen);
+            $json = json_decode($jsonStr, true);
+            if (!is_array($json)) {
+                return false;
+            }
+
+            $existingCopyright = (string) ($json['asset']['copyright'] ?? '');
+            $existingHolder = (string) ($json['asset']['extras']['rights_holder'] ?? '');
+
+            if ($existingCopyright === self::COPYRIGHT_WATERMARK && $existingHolder === 'Mein-Seelenfunke (Alina Steinhauer)') {
+                return true;
+            }
+
+            if (!isset($json['asset']) || !is_array($json['asset'])) {
+                $json['asset'] = ['version' => '2.0'];
+            }
+
+            $json['asset']['copyright'] = self::COPYRIGHT_WATERMARK;
+            if (!isset($json['asset']['extras']) || !is_array($json['asset']['extras'])) {
+                $json['asset']['extras'] = [];
+            }
+            $json['asset']['extras']['rights_holder'] = 'Mein-Seelenfunke (Alina Steinhauer)';
+            $json['asset']['extras']['protected_under'] = 'UrhG §§ 2, 10, 69a & UWG § 4 Nr. 3';
+
+            $newJsonBuf = json_encode($json, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            if ($newJsonBuf === false) {
+                return false;
+            }
+
+            $rem = strlen($newJsonBuf) % 4;
+            if ($rem !== 0) {
+                $newJsonBuf .= str_repeat(' ', 4 - $rem);
+            }
+
+            $restBuf = substr($raw, 20 + $chunkLen);
+            $totalLen = 12 + 8 + strlen($newJsonBuf) + strlen($restBuf);
+
+            $out = 'glTF'
+                . pack('VV', (int) ($header['version'] ?? 2), $totalLen)
+                . pack('V', strlen($newJsonBuf))
+                . 'JSON'
+                . $newJsonBuf
+                . $restBuf;
+
+            return file_put_contents($absolutePath, $out) !== false;
+        } catch (\Throwable $e) {
+            Log::warning('GLB Copyright Watermark Warning: ' . $e->getMessage());
+            return false;
+        }
     }
 }

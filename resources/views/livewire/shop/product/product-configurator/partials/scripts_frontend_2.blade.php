@@ -1,5 +1,10 @@
 @script
 <script>
+    /*!
+     * © Mein-Seelenfunke (Inhaberin: Alina Steinhauer, Gifhorn) - Three.js 3D-Gravur-Engine & GLB-Renderer
+     * Alle Rechte vorbehalten (§§ 2, 10, 69a UrhG, § 4 Nr. 3 UWG).
+     * Sämtliche 3D-Modelle (.glb) und Overlays enthalten binäre Urheberrechts-Wasserzeichen.
+     */
     window._threeEngineInstance = null;
 
     window.Configurator3DEngine = class Configurator3DEngine {
