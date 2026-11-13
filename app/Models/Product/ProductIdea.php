@@ -32,7 +32,7 @@ class ProductIdea extends Model implements HasSystemBlueprint
             navigationNodes: ['admin.products.ideas'],
             lifecycle: LifecycleBehavior::MasterData,
             sensitivity: DataSensitivity::InternalErp,
-            retention: RetentionPolicy::UntilRevoked,
+            retention: RetentionPolicy::PermanentMasterData,
             aiAccess: AiAccessPolicy::ReadOnly,
             actorsRead: [ActorScope::Admin, ActorScope::EmployeeProduction],
             actorsWrite: [ActorScope::Admin],

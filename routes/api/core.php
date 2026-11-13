@@ -37,6 +37,28 @@ Route::post('/device/register', function (Request $request) {
     return response()->json(['success' => true]);
 });
 
+Route::post('/logout', function (Request $request) {
+    $user = $request->user();
+    if ($user) {
+        $fcmToken = trim((string) $request->input('fcm_token', ''));
+        if ($fcmToken !== '') {
+            SystemUserDevice::where('userable_id', $user->id)
+                ->where('userable_type', get_class($user))
+                ->where('fcm_token', $fcmToken)
+                ->delete();
+        }
+        $token = $user->currentAccessToken();
+        if ($token && method_exists($token, 'delete')) {
+            $token->delete();
+        }
+    }
+
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Erfolgreich abgemeldet.',
+    ]);
+});
+
 Route::get('/funki/command', function (Request $request, AiSupportService $bot) {
     $user = $request->user();
     $isAdmin = $user instanceof \App\Models\Admin\Admin;

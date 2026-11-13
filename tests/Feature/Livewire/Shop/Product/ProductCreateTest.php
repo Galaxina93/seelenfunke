@@ -756,6 +756,16 @@ class ProductCreateTest extends TestCase
             ],
         ]);
 
+        $xmasTemplate = \App\Models\Product\ProductTemplate::create([
+            'product_id' => $product->id,
+            'name' => 'Weihnachts-Gravur',
+            'holiday' => 'Weihnachten',
+            'preview_image' => null,
+            'configuration' => ['texts' => [['text' => 'Frohes Fest']]],
+            'is_active' => true,
+            'is_ai_generated' => false,
+        ]);
+
         $component = Livewire::test(ProductCreate::class)
             ->call('edit', $product->id)
             ->set('currentStep', 2);
@@ -767,31 +777,116 @@ class ProductCreateTest extends TestCase
         $this->assertTrue((bool) ($fresh->media_gallery[1]['is_beginner'] ?? false));
         $this->assertSame('produkte/media-test/img-2.jpg', $fresh->resolveBeginnerMediaMeta()['path']);
 
-        // 2. Verify all 8 seasonal slots in overview
+        // 2. Verify all 12 seasonal & holiday slots (4 seasons + 8 holidays) in overview
         $overview = $fresh->getSeasonalMainImagesOverview();
-        $this->assertCount(8, $overview);
-        $this->assertArrayHasKey('Weihnachten', $overview);
-        $this->assertArrayHasKey('Valentinstag', $overview);
+        $this->assertCount(12, $overview);
+        $this->assertSame(
+            ['Winter', 'Sommer', 'Herbst', 'Frühling', 'Weihnachten', 'Ostern', 'Valentinstag', 'Muttertag', 'Vatertag', 'Halloween', 'Hochzeit', 'Geburtstag'],
+            array_keys($overview)
+        );
 
-        // 3. Upload custom seasonal main image for Weihnachten in Step 2
+        $initialSetStatus = $fresh->getSeasonalImageSetStatus();
+        $this->assertFalse($initialSetStatus['is_complete']);
+        $this->assertSame(0, $initialSetStatus['filled_count']);
+        $this->assertSame(12, $initialSetStatus['total_count']);
+
+        // 3. Upload custom seasonal main image for Winter and Weihnachten in Step 2
+        $oldWinterDummyPath = 'produkte/products/medien-saison-test/seasonal/1000000000_medien-saison-test-winter.jpg';
+        Storage::disk('public')->put($oldWinterDummyPath, 'old-winter-binary');
+        $settingsWithOld = $fresh->configurator_settings;
+        $settingsWithOld['seasonal_images'] = [
+            'Winter' => ['path' => $oldWinterDummyPath, 'is_ai_generated' => true],
+        ];
+        $fresh->update(['configurator_settings' => $settingsWithOld]);
+        $component->call('edit', $product->id)->set('currentStep', 2);
+
+        $winterFile = UploadedFile::fake()->image('winter-hauptbild.jpg', 800, 800);
+        $component->set('seasonal_media_uploads.Winter', $winterFile);
+
         $seasonalFile = UploadedFile::fake()->image('weihnachten-hauptbild.jpg', 800, 800);
         $component->set('seasonal_media_uploads.Weihnachten', $seasonalFile);
 
         $freshAfterUpload = $product->fresh();
+        $customWinterPath = $freshAfterUpload->configurator_settings['seasonal_images']['Winter']['path'] ?? null;
         $customSeasonalPath = $freshAfterUpload->configurator_settings['seasonal_images']['Weihnachten']['path'] ?? null;
+        $this->assertNotNull($customWinterPath);
         $this->assertNotNull($customSeasonalPath);
+
+        // Exact storage folder & filename convention check
+        $this->assertStringStartsWith('produkte/products/medien-saison-test/seasonal/', $customWinterPath);
+        $this->assertStringEndsWith('_medien-saison-test-winter.jpg', $customWinterPath);
+        $this->assertStringStartsWith('produkte/products/medien-saison-test/seasonal/', $customSeasonalPath);
+        $this->assertStringEndsWith('_medien-saison-test-weihnachten.jpg', $customSeasonalPath);
+
+        // Old replaced seasonal file is cleaned up from disk, new files exist
+        Storage::disk('public')->assertMissing($oldWinterDummyPath);
+        Storage::disk('public')->assertExists($customWinterPath);
         Storage::disk('public')->assertExists($customSeasonalPath);
+
+        // ProductTemplate for Weihnachten is automatically synchronized
+        $this->assertSame($customSeasonalPath, $xmasTemplate->fresh()->preview_image);
+        $this->assertTrue((bool) $xmasTemplate->fresh()->is_ai_generated);
+
+        $resolvedWinter = $freshAfterUpload->resolveMainImageMeta('Winter', true);
+        $this->assertSame($customWinterPath, $resolvedWinter['path']);
 
         $resolvedXmas = $freshAfterUpload->resolveMainImageMeta('Weihnachten', true);
         $this->assertSame($customSeasonalPath, $resolvedXmas['path']);
         $this->assertTrue($resolvedXmas['is_ai_generated']);
 
-        // 4. Toggle AI flag and remove custom seasonal image
+        $partialSetStatus = $freshAfterUpload->getSeasonalImageSetStatus();
+        $this->assertFalse($partialSetStatus['is_complete']);
+        $this->assertSame(2, $partialSetStatus['filled_count']);
+        $this->assertSame(1, $partialSetStatus['seasons_filled']);
+        $this->assertSame(1, $partialSetStatus['holidays_filled']);
+
+        // 4. Turning off auto_seasonal_main_image makes status green (is_complete = true)
+        $component->call('toggleAutoSeasonalMainImage');
+        $disabledSetStatus = $product->fresh()->getSeasonalImageSetStatus();
+        $this->assertFalse($disabledSetStatus['auto_enabled']);
+        $this->assertTrue($disabledSetStatus['is_complete']);
+
+        // Turn auto_seasonal_main_image back on
+        $component->call('toggleAutoSeasonalMainImage');
+        $this->assertFalse($product->fresh()->getSeasonalImageSetStatus()['is_complete']);
+
+        // 5. Toggle AI flag and remove custom seasonal images (verifying physical deletion + template reset)
         $component->call('toggleSeasonalImageAiGenerated', 'Weihnachten');
         $this->assertFalse((bool) ($product->fresh()->configurator_settings['seasonal_images']['Weihnachten']['is_ai_generated'] ?? true));
+        $this->assertFalse((bool) $xmasTemplate->fresh()->is_ai_generated);
 
         $component->call('removeSeasonalMainImage', 'Weihnachten');
         $this->assertArrayNotHasKey('Weihnachten', $product->fresh()->configurator_settings['seasonal_images'] ?? []);
+        Storage::disk('public')->assertMissing($customSeasonalPath);
+        $this->assertNull($xmasTemplate->fresh()->preview_image);
+
+        $component->call('removeSeasonalMainImage', 'Winter');
+        $this->assertArrayNotHasKey('Winter', $product->fresh()->configurator_settings['seasonal_images'] ?? []);
+        Storage::disk('public')->assertMissing($customWinterPath);
+
+        // 6. When all 12 slots (4 seasons + 8 holidays) have at least 1 image, status turns green (12/12 complete)
+        $allSlotsMap = [];
+        foreach (array_keys(Product::getAllSeasonalAndHolidaySlots()) as $slotKey) {
+            $slugSlot = \Illuminate\Support\Str::slug($slotKey);
+            $slotPath = "produkte/products/medien-saison-test/seasonal/1763025000_medien-saison-test-{$slugSlot}.jpg";
+            Storage::disk('public')->put($slotPath, 'img-data');
+            $allSlotsMap[$slotKey] = [
+                'path' => $slotPath,
+                'is_ai_generated' => false,
+            ];
+        }
+        $settingsAll = $product->fresh()->configurator_settings;
+        $settingsAll['auto_seasonal_main_image'] = true;
+        $settingsAll['seasonal_images'] = $allSlotsMap;
+        $product->update(['configurator_settings' => $settingsAll]);
+
+        $fullSetStatus = $product->fresh()->getSeasonalImageSetStatus();
+        $this->assertTrue($fullSetStatus['auto_enabled']);
+        $this->assertTrue($fullSetStatus['is_complete']);
+        $this->assertSame(12, $fullSetStatus['filled_count']);
+        $this->assertSame(4, $fullSetStatus['seasons_filled']);
+        $this->assertSame(8, $fullSetStatus['holidays_filled']);
+        $this->assertSame([], $fullSetStatus['missing_labels']);
     }
 
     #[\PHPUnit\Framework\Attributes\Test]
@@ -886,5 +981,167 @@ class ProductCreateTest extends TestCase
         $this->assertNotNull($cartItem);
         $this->assertSame("Für immer\nim Herzen", $cartItem->configuration['texts'][0]['text'] ?? null);
         $this->assertSame('vectors/Symbole/kleeblatt.svg', $cartItem->configuration['logos'][0]['value'] ?? null);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_manages_xtool_laser_instruction_parameters_readiness_jumps_and_order_handbook(): void
+    {
+        // 1. Verify PDF guides are linked in catalog and physically present in public/shop/guides/
+        $catalog = Product::getLaserEquipmentCatalog();
+        $this->assertArrayHasKey('flatbed_standard', $catalog);
+        $this->assertArrayHasKey('rotary_ra3', $catalog);
+        $this->assertArrayHasKey('conveyor_batch', $catalog);
+        $this->assertArrayHasKey('inner_3d', $catalog);
+
+        foreach (['rotary_ra3', 'conveyor_batch', 'inner_3d'] as $guideKey) {
+            $this->assertNotEmpty($catalog[$guideKey]['pdf_file']);
+            $this->assertFileExists(public_path($catalog[$guideKey]['pdf_file']));
+        }
+
+        // 2. Physical personalizable product without laser parameters flags 'Laser-Werte fehlen' (Step 4.2)
+        $supplier = \App\Models\Product\ProductSupplier::create([
+            'name' => 'Laser Test Supplier',
+            'company_name' => 'Laser Test GmbH',
+            'country_code' => 'DE',
+            'country' => 'Deutschland',
+            'website' => 'https://example.com',
+            'lead_time_land_days' => 3,
+        ]);
+        $cat = ProductCategory::firstOrCreate(['slug' => 'glas-kristall'], ['name' => 'Glas & Kristall', 'type' => 'physical']);
+
+        $kristall = Product::create([
+            'name' => 'Der Seelen Kristall',
+            'slug' => 'seelen-kristall-laser-test',
+            'sku' => 'MSF-KRISTALL-TEST',
+            'description' => 'Edle K9 Kristalltrophäe mit individueller UV-Lasergravur.',
+            'type' => 'physical',
+            'status' => 'active',
+            'is_personalizable' => true,
+            'three_d_active' => false,
+            'price' => 6990,
+            'purchase_price' => 536,
+            'product_supplier_id' => $supplier->id,
+            'reorder_url' => 'https://example.com/rohling',
+            'weight' => 920,
+            'packaging_weight' => 150,
+            'width' => 180,
+            'height' => 200,
+            'length' => 40,
+            'preview_image_path' => 'produkte/products/seelen-kristall/main.jpg',
+            'media_gallery' => [['type' => 'image', 'path' => 'produkte/products/seelen-kristall/main.jpg']],
+            'completion_step' => 4,
+            'configurator_settings' => [
+                'personalization_mode' => 'studio',
+                'overlay_type' => 'plane',
+                'area_shape' => 'circle',
+                'auto_seasonal_main_image' => false,
+                'origin_badge' => 'handcrafted_in_germany',
+            ],
+        ]);
+        $kristall->categories()->sync([$cat->id]);
+        $kristall->packagings()->create(['material_type' => 'paper', 'weight_grams' => 150]);
+        \App\Models\Product\ProductTemplate::create([
+            'product_id' => $kristall->id,
+            'name' => 'Standard Vorlage',
+            'holiday' => 'Winter',
+            'configuration' => ['texts' => []],
+            'is_active' => true,
+        ]);
+
+        $initialReport = $kristall->fresh()->getReadinessReport();
+        $this->assertFalse($initialReport['is_ready']);
+        $laserCheck = collect($initialReport['missing'])->firstWhere('key', 'xtool_laser');
+        $this->assertNotNull($laserCheck);
+        $this->assertSame('Laser-Werte fehlen', $laserCheck['short_missing']);
+        $this->assertSame(4, $laserCheck['step']);
+        $this->assertSame(2, $laserCheck['sub_step']);
+
+        // 3. Main product overview shows 'Laser-Werte fehlen' and hides 'Handveredelt in DE' toggle
+        $listComp = Livewire::test(ProductCreate::class)
+            ->assertSee('Laser-Werte fehlen')
+            ->assertDontSee('Handveredelt in DE');
+
+        // 4. Direct jump via openProductInStep & smart sub-step jump via goToStep(4) + PDF guides visible & downloadable
+        $listComp->call('openProductInStep', $kristall->id, 4, 2)
+            ->assertSet('viewMode', 'edit')
+            ->assertSet('currentStep', 4)
+            ->assertSet('step4SubStep', 2)
+            ->assertSee('Hinterlegte xTool PDF-Anleitungen')
+            ->assertSee('PDF ziehen')
+            ->assertSee('Anleitung_1_360_Grad_Gravur_xTool_RA3.pdf')
+            ->assertSee('Anleitung_2_Laufband_Massenproduktion_xTool_F2_Ultra_UV.pdf')
+            ->assertSee('Anleitung_3_3D_Innengravur_xTool_F2_Ultra_UV.pdf');
+
+        $listComp->call('goToStep', 1)
+            ->assertSet('currentStep', 1)
+            ->set('step4SubStep', 1)
+            ->call('goToStep', 4)
+            ->assertSet('currentStep', 4)
+            ->assertSet('step4SubStep', 2);
+
+        // 5. Save exact 'Der Seelen Kristall' values via Step 4.2 -> Product reaches 100 % readiness!
+        $listComp
+            ->set('configSettings.xtool_plane_width', 180.0)
+            ->set('configSettings.xtool_plane_height', 180.0)
+            ->set('configSettings.xtool_equipment_key', 'flatbed_standard')
+            ->set('configSettings.xtool_setup_note', 'Standfuß frei über Vorderkante schweben lassen.')
+            ->set('configSettings.xtool_process_mode', 'Prozess auf flacher Oberfläche')
+            ->set('configSettings.xtool_material', 'K9 Kristalltrophäe')
+            ->set('configSettings.xtool_focus_mm', '33,1')
+            ->set('configSettings.xtool_element_type', 'Bild')
+            ->set('configSettings.xtool_engrave_tab', 'Gravieren')
+            ->set('configSettings.xtool_preset_mode', 'Benutzerdefiniert')
+            ->set('configSettings.xtool_dot_duration_us', 500)
+            ->set('configSettings.xtool_power_percent', 100)
+            ->set('configSettings.xtool_dpi', 600)
+            ->set('configSettings.xtool_passes', 1)
+            ->set('configSettings.xtool_frequency_khz', 40)
+            ->set('configSettings.xtool_bitmap_mode', 'Jarvis')
+            ->set('configSettings.xtool_engrave_mode', 'Zweidirektional')
+            ->call('save');
+
+        $completedKristall = $kristall->fresh();
+        $this->assertSame(33.1, (float) $completedKristall->configurator_settings['xtool_focus_mm']);
+        $this->assertTrue($completedKristall->getLaserInstructionSummary()['is_complete']);
+        $finalReport = $completedKristall->getReadinessReport();
+        $this->assertTrue($finalReport['is_ready']);
+        $this->assertSame(100, $finalReport['score']);
+        $this->assertEmpty($finalReport['missing']);
+
+        // 6. OrderOverview (/admin/orders) directly renders the xTool Studio parameter handbook for the order item
+        $order = \App\Models\Order\OrderOrder::create([
+            'order_number' => 'ORD-LASER-GUIDE-01',
+            'status' => 'processing',
+            'payment_status' => 'paid',
+            'email' => 'kunde@example.com',
+            'billing_address' => ['first_name' => 'Anna', 'last_name' => 'Muster', 'address' => 'Ring 1', 'postal_code' => '38518', 'city' => 'Gifhorn', 'country' => 'DE'],
+            'shipping_address' => ['first_name' => 'Anna', 'last_name' => 'Muster', 'address' => 'Ring 1', 'postal_code' => '38518', 'city' => 'Gifhorn', 'country' => 'DE'],
+            'subtotal_price' => 6990,
+            'tax_amount' => 1116,
+            'shipping_price' => 0,
+            'total_price' => 6990,
+        ]);
+        \App\Models\Order\OrderOrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $completedKristall->id,
+            'product_name' => $completedKristall->name,
+            'quantity' => 1,
+            'unit_price' => 6990,
+            'total_price' => 6990,
+            'tax_rate' => 19,
+            'configuration' => [
+                'texts' => [['text' => 'Für immer verbunden', 'font' => 'Cinzel']],
+            ],
+        ]);
+
+        Livewire::test(\App\Livewire\Shop\Order\OrderOverview::class)
+            ->call('openDetail', $order->id)
+            ->assertSee('xTool Anleitung')
+            ->assertSee('K9 Kristalltrophäe')
+            ->assertSee('33,1 mm')
+            ->assertSee('500 µs')
+            ->assertSee('600')
+            ->assertSee('Jarvis')
+            ->assertSee('Zweidirektional');
     }
 }

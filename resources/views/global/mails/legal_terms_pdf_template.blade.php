@@ -207,7 +207,7 @@
 
 <h2>§ 3 Preise, Versandkosten &amp; Zahlungsbedingungen</h2>
 <p>
-    Alle im Online-Shop angegebenen Endpreise verstehen sich in Euro inklusive der gesetzlichen Umsatzsteuer (sofern keine Kleinunternehmerregelung gem. § 19 UStG oder steuerfreie Ausfuhrlieferung greift) zuzüglich der im Bestellprozess ausgewiesenen Versandkosten. Die Zahlung erfolgt wahlweise über die im Checkout angebotenen Zahlungsmethoden (insbesondere Kreditkarte, PayPal, Klarna, Apple Pay / Google Pay, SEPA-Lastschrift oder Überweisung/Vorkasse). Der Kaufpreis ist unmittelbar mit Vertragsschluss zur Zahlung fällig.
+    Alle im Online-Shop angegebenen Endpreise verstehen sich in Euro inklusive der gesetzlichen Umsatzsteuer (sofern keine Kleinunternehmerregelung gem. § 19 UStG oder steuerfreie Ausfuhrlieferung greift) zuzüglich der im Bestellprozess ausgewiesenen Versandkosten. Die Zahlung erfolgt wahlweise über die im Checkout angebotenen Zahlungsmethoden (insbesondere Kreditkarte, PayPal, Klarna, Apple Pay / Google Pay oder SEPA-Lastschrift). Der Kaufpreis ist unmittelbar mit Vertragsschluss zur Zahlung fällig.
 </p>
 
 <h2>§ 4 Lieferung, Lieferzeit &amp; Gefahrübergang</h2>

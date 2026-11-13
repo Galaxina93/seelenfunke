@@ -232,7 +232,7 @@ class ProductTemplateSeeder extends Seeder
             'is_active' => true,
             'is_ai_generated' => true,
             'holiday' => 'Weihnachten',
-            'preview_image' => "produkte/product-templates/{$product->slug}-weihnachten.jpg",
+            'preview_image' => null,
         ]);
     }
 
@@ -290,7 +290,7 @@ class ProductTemplateSeeder extends Seeder
             'is_active' => true,
             'is_ai_generated' => true,
             'holiday' => 'Ostern',
-            'preview_image' => "produkte/product-templates/{$product->slug}-ostern.jpg",
+            'preview_image' => null,
         ]);
     }
 
@@ -348,7 +348,7 @@ class ProductTemplateSeeder extends Seeder
             'is_active' => true,
             'is_ai_generated' => true,
             'holiday' => 'Hochzeit',
-            'preview_image' => "produkte/product-templates/{$product->slug}-hochzeit.jpg",
+            'preview_image' => null,
         ]);
     }
 
@@ -406,7 +406,7 @@ class ProductTemplateSeeder extends Seeder
             'is_active' => true,
             'is_ai_generated' => true,
             'holiday' => 'Geburtstag',
-            'preview_image' => "produkte/product-templates/{$product->slug}-geburtstag.jpg",
+            'preview_image' => null,
         ]);
     }
 
@@ -466,7 +466,7 @@ class ProductTemplateSeeder extends Seeder
             'is_active' => true,
             'is_ai_generated' => true,
             'holiday' => 'Valentinstag',
-            'preview_image' => "produkte/product-templates/{$product->slug}-valentinstag.jpg",
+            'preview_image' => null,
         ]);
     }
 
@@ -531,7 +531,7 @@ class ProductTemplateSeeder extends Seeder
             'is_active' => true,
             'is_ai_generated' => true,
             'holiday' => 'Halloween',
-            'preview_image' => "produkte/product-templates/{$product->slug}-halloween.jpg",
+            'preview_image' => null,
         ]);
     }
 
@@ -589,7 +589,7 @@ class ProductTemplateSeeder extends Seeder
             'is_active' => true,
             'is_ai_generated' => true,
             'holiday' => 'Muttertag',
-            'preview_image' => "produkte/product-templates/{$product->slug}-muttertag.jpg",
+            'preview_image' => null,
         ]);
     }
 
@@ -651,7 +651,7 @@ class ProductTemplateSeeder extends Seeder
             'is_active' => true,
             'is_ai_generated' => true,
             'holiday' => 'Vatertag',
-            'preview_image' => "produkte/product-templates/{$product->slug}-vatertag.jpg",
+            'preview_image' => null,
         ]);
     }
 }

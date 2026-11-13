@@ -676,6 +676,102 @@ class ProductConfiguratorCalculatorIntegrationTest extends TestCase
         $this->assertFalse(Storage::disk('public')->exists($res['value']));
         $this->assertTrue(Storage::disk('public')->exists($origPath));
     }
+
+    #[Test]
+    public function configurator_supports_curved_text_and_exports_arc_svg()
+    {
+        $component = Livewire::test(ProductConfigurator::class, [
+            'product' => $this->product,
+            'context' => 'calculator',
+            'qty' => 1,
+        ])
+            ->set('texts', [
+                [
+                    'id' => 'arc-1',
+                    'text' => 'SEELENFUNKE',
+                    'font' => 'Arial',
+                    'align' => 'center',
+                    'x' => 50,
+                    'y' => 35,
+                    'size' => 1.2,
+                    'rotation' => 0,
+                    'curve' => 65,
+                ],
+                [
+                    'id' => 'arc-2',
+                    'text' => 'MANUFAKTUR',
+                    'font' => 'Arial',
+                    'align' => 'center',
+                    'x' => 50,
+                    'y' => 70,
+                    'size' => 1.0,
+                    'rotation' => 0,
+                    'curve' => -180, // muss auf -100 geklemmt werden
+                ],
+            ])
+            ->call('save', app(\App\Services\CartService::class));
+
+        $component->assertDispatched('calculator-save', function ($event, $params) {
+            $texts = $params['data']['texts'] ?? [];
+            return count($texts) === 2
+                && ($texts[0]['curve'] ?? null) === 65
+                && ($texts[1]['curve'] ?? null) === -100;
+        });
+
+        $order = \App\Models\Order\OrderOrder::create([
+            'order_number' => 'ORD-ARC-' . uniqid(),
+            'email' => 'arc@example.com',
+            'status' => 'pending',
+            'payment_status' => 'paid',
+            'payment_method' => 'invoice',
+            'total_price' => 2500,
+            'subtotal_price' => 2000,
+            'tax_amount' => 500,
+            'shipping_price' => 0,
+            'billing_address' => ['first_name' => 'Alina', 'last_name' => 'Test', 'city' => 'Gifhorn', 'postal_code' => '38518', 'country' => 'DE', 'address' => 'Ring 1'],
+            'shipping_address' => ['first_name' => 'Alina', 'last_name' => 'Test', 'city' => 'Gifhorn', 'postal_code' => '38518', 'country' => 'DE', 'address' => 'Ring 1'],
+        ]);
+
+        $orderItem = \App\Models\Order\OrderOrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $this->product->id,
+            'product_name' => $this->product->name,
+            'quantity' => 1,
+            'unit_price' => 2500,
+            'total_price' => 2500,
+            'configuration' => [
+                'texts' => [
+                    [
+                        'id' => 'arc-svg-1',
+                        'text' => 'BOGEN',
+                        'font' => 'Arial',
+                        'align' => 'center',
+                        'x' => 50,
+                        'y' => 50,
+                        'size' => 1.5,
+                        'rotation' => 0,
+                        'curve' => 60,
+                    ],
+                ],
+            ],
+        ]);
+
+        $service = app(\App\Services\Export\FileDownloadService::class);
+        $response = $service->downloadLaserSvg($orderItem->id);
+        $this->assertEquals(200, $response->getStatusCode());
+
+        ob_start();
+        $response->sendContent();
+        $svgContent = ob_get_clean();
+
+        // Jeder Buchstabe von "BOGEN" wird einzeln mit eigener Kreisbogen-Transformation ausgegeben
+        $this->assertStringContainsString('>B</text>', $svgContent);
+        $this->assertStringContainsString('>O</text>', $svgContent);
+        $this->assertStringContainsString('>G</text>', $svgContent);
+        $this->assertStringContainsString('>E</text>', $svgContent);
+        $this->assertStringContainsString('>N</text>', $svgContent);
+        $this->assertMatchesRegularExpression('/transform="translate\([-0-9.]+, [-0-9.]+\) rotate\([-0-9.]+\)"/', $svgContent);
+    }
 }
 
 

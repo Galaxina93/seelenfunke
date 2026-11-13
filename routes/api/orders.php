@@ -121,9 +121,65 @@ Route::group(['middleware' => [function ($request, $next) {
             ];
         });
         
+        $formatGdprShortName = static function (?string $firstName, ?string $lastName, ?string $fallbackName = null): string {
+            $first = trim((string) $firstName);
+            $last = trim((string) $lastName);
+            if ($first === '' && $last === '' && !empty($fallbackName)) {
+                $parts = preg_split('/\s+/', trim((string) $fallbackName)) ?: [];
+                $first = $parts[0] ?? '';
+                $last = count($parts) > 1 ? (string) end($parts) : '';
+            }
+            if ($first === '') {
+                return 'Kunde';
+            }
+            $firstClean = mb_substr($first, 0, 18);
+            if ($last !== '') {
+                $initial = mb_strtoupper(mb_substr($last, 0, 1));
+                return $firstClean . ' ' . $initial . '.';
+            }
+            return $firstClean;
+        };
+
+        $validOrdersForTop = OrderOrder::query()
+            ->whereNotIn('status', ['cancelled', 'refunded'])
+            ->get(['customer_id', 'email', 'billing_address', 'total_price']);
+
+        $groupedCustomers = [];
+        foreach ($validOrdersForTop as $row) {
+            $key = !empty($row->customer_id)
+                ? 'cid_' . $row->customer_id
+                : 'mail_' . mb_strtolower(trim((string) $row->email));
+            if ($key === 'mail_') {
+                continue;
+            }
+            if (!isset($groupedCustomers[$key])) {
+                $billing = is_array($row->billing_address) ? $row->billing_address : [];
+                $groupedCustomers[$key] = [
+                    'display_name' => $formatGdprShortName(
+                        $billing['first_name'] ?? null,
+                        $billing['last_name'] ?? null,
+                        $row->customer_name ?? null
+                    ),
+                    'total_cents' => 0,
+                    'orders_count' => 0,
+                ];
+            }
+            $groupedCustomers[$key]['total_cents'] += (int) $row->total_price;
+            $groupedCustomers[$key]['orders_count']++;
+        }
+
+        usort($groupedCustomers, static function (array $a, array $b): int {
+            if ($b['total_cents'] !== $a['total_cents']) {
+                return $b['total_cents'] <=> $a['total_cents'];
+            }
+            return $b['orders_count'] <=> $a['orders_count'];
+        });
+
         $responseData = $orders->toArray();
         $responseData['priority_order'] = $priorityOrderData;
         $responseData['open_orders_count'] = OrderOrder::whereNotIn('status', ['completed', 'cancelled', 'refunded', 'shipped'])->count();
+        $responseData['open_carts_count'] = \App\Models\Cart\Cart::whereHas('items')->count();
+        $responseData['top_customers'] = array_slice(array_values($groupedCustomers), 0, 3);
         $responseData['latest_order_id'] = (string) (OrderOrder::max('id') ?? '');
         
         return response()->json($responseData);

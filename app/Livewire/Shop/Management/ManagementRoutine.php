@@ -176,6 +176,61 @@ class ManagementRoutine extends Component
         }
     }
 
+    /**
+     * Ermittelt die dynamische Aufsteh-/Weckzeit und den Minuten-Shift für ein Datum anhand des Wecker-Sync-Pakets.
+     */
+    public static function resolveDynamicShiftForDate(string $dateStr, ?string $earliestRoutineBaseStr = null): array
+    {
+        try {
+            $raw = SystemSetting::where('key', 'funki_alarm_sync_package')->value('value');
+            $pkg = is_string($raw) ? (json_decode($raw, true) ?: []) : [];
+            $wakeLogs = is_array($pkg['wake_up_logs'] ?? null) ? $pkg['wake_up_logs'] : [];
+            $activeAlarmTime = substr((string) ($pkg['active_alarm_time'] ?? '08:30'), 0, 5);
+
+            if ($earliestRoutineBaseStr === null) {
+                $firstRoutine = RoutineModel::where('is_active', true)
+                    ->where(function ($q) {
+                        $q->whereIn('days_of_week', ['all', 'weekdays'])->orWhereNull('days_of_week');
+                    })
+                    ->orderBy('start_time')
+                    ->first();
+                $earliestRoutineBaseStr = $firstRoutine
+                    ? Carbon::parse($firstRoutine->start_time)->format('H:i')
+                    : '07:00';
+            }
+
+            $baseParts = explode(':', substr($earliestRoutineBaseStr, 0, 5));
+            $baseMins = ((int) ($baseParts[0] ?? 7)) * 60 + ((int) ($baseParts[1] ?? 0));
+
+            $logEntry = $wakeLogs[$dateStr] ?? null;
+            $wakeTime = !empty($logEntry['actual_wake_time'])
+                ? substr((string) $logEntry['actual_wake_time'], 0, 5)
+                : (!empty($logEntry['scheduled_time'])
+                    ? substr((string) $logEntry['scheduled_time'], 0, 5)
+                    : $activeAlarmTime);
+
+            $wParts = explode(':', $wakeTime);
+            $wMins = ((int) ($wParts[0] ?? 8)) * 60 + ((int) ($wParts[1] ?? 30));
+            $shiftMinutes = max(-180, min(360, $wMins - $baseMins));
+
+            return [
+                'shift_minutes' => $shiftMinutes,
+                'wake_time' => $wakeTime,
+                'scheduled_time' => substr((string) ($logEntry['scheduled_time'] ?? $activeAlarmTime), 0, 5),
+                'snooze_minutes' => (int) ($logEntry['snooze_minutes'] ?? 0),
+                'has_wake_log' => !empty($logEntry),
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'shift_minutes' => 0,
+                'wake_time' => '08:30',
+                'scheduled_time' => '08:30',
+                'snooze_minutes' => 0,
+                'has_wake_log' => false,
+            ];
+        }
+    }
+
     public function toggleExpandSteps(string $routineId): void
     {
         if (in_array($routineId, $this->expandedSteps)) {
@@ -977,6 +1032,8 @@ class ManagementRoutine extends Component
             ? Carbon::parse($alarmPackage['last_synced_at'])->format('d.m.Y H:i') . ' Uhr'
             : 'Bereit für App-Sync';
 
+        $selLogEntry = $wakeUpLogs[$this->selectedDate ?: $todayStr] ?? null;
+
         $alarmSyncStats = [
             'device_name' => $alarmPackage['device_name'] ?? 'Funkenwerk Android',
             'last_synced_at' => $lastSyncedAtFormatted,
@@ -984,7 +1041,9 @@ class ManagementRoutine extends Component
             'active_alarm_label' => $activeAlarmLabel,
             'earliest_routine_base' => $earliestRoutineStr,
             'selected_date_wake_time' => $selectedDateWakeTime,
-            'selected_date_has_log' => !empty($wakeUpLogs[$this->selectedDate ?: $todayStr]),
+            'selected_date_scheduled_time' => substr((string) ($selLogEntry['scheduled_time'] ?? $activeAlarmTime), 0, 5),
+            'selected_date_snooze_minutes' => (int) ($selLogEntry['snooze_minutes'] ?? 0),
+            'selected_date_has_log' => !empty($selLogEntry),
             'selected_date_shift_minutes' => $selectedDateShiftMinutes,
             'selected_date_shift_label' => $shiftLabel,
             'avg_wake_time_period' => $avgWakeTimeStr,

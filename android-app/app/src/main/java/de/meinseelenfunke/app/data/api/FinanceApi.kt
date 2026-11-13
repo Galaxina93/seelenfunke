@@ -127,6 +127,14 @@ interface FinanceApi {
         @Part("auto_save") autoSave: RequestBody
     ): ReceiptAiScanResponse
 
+    @Multipart
+    @POST("funki/minipc-trichter/enqueue")
+    suspend fun enqueueMiniPcTrichter(
+        @Part file: MultipartBody.Part,
+        @Part("custom_title") customTitle: RequestBody?,
+        @Part("source") source: RequestBody
+    ): SimpleSuccessResponse
+
     @PUT("funki/financials/variable/{id}")
     suspend fun updateVariableItem(
         @Path("id") id: String,

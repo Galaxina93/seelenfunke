@@ -352,21 +352,25 @@ class AccountingSeeder extends Seeder
                 'contract_file_path' => 'buchhaltung/contracts/2026/10/2026-10-19_AXA_Haftpflicht.pdf'
             ],
             [
-                'group'       => 'Versicherungen',
-                'name'        => 'Wohngebäude',
-                'amount'      => -754.60,
-                'interval'    => 12,
-                'start_date'  => '2025-12-14',
-                'provider_company' => 'Barmenia',
-                'provider_street'  => 'Barmenia-Allee 1',
-                'provider_zip'     => '42119',
-                'provider_city'    => 'Wuppertal',
-                'provider_phone'   => '(02 02) 438 - 3850',
-                'provider_website' => 'www.barmenia.de',
-                'contract_number'  => '304734394',
-                'description' => "Kundennummer: 704555407\nGläubiger-Identifikationsnummer: DE63ZZZ0000001057...",
-                'tags'        => ['Versicherung', 'Immobilie', 'Absicherung', 'Wichtig', 'Barmenia'],
-                'contract_file_path' => 'buchhaltung/contracts/2025/12/2025-12-14_Barmenia_Wohngebaeude.pdf'
+                'group'                 => 'Versicherungen',
+                'name'                  => 'Wohngebäude',
+                'amount'                => -552.24,
+                'interval'              => 12,
+                'start_date'            => '2027-01-01',
+                'contract_end_date'     => '2027-12-31',
+                'provider_company'      => 'DEVK Allgemeine Versicherungs-AG',
+                'provider_street'       => 'Hamburger Allee',
+                'provider_house_number' => '22 u. 24',
+                'provider_zip'          => '30161',
+                'provider_city'         => 'Hannover',
+                'provider_phone'        => '0800 4-757-757',
+                'provider_email'        => 'kkc.hannover@devk.de',
+                'provider_website'      => 'https://www.hannover.devk.de',
+                'contract_number'       => '037132900',
+                'notice_period'         => '3 Monate vor Ablauf des Versicherungsjahres (automatische Verlängerung um jeweils 1 Jahr)',
+                'description'           => "Tarif: Komfort-Schutz (Wohnflächentarif, VGB 2026 - Wohnfläche) | Versicherungsform: ortsüblicher Wiederaufbauwert\nVersicherungsschein-Nr.: 037132900 (Ausgestellt am: 10.11.2026, Regionaldirektion Hannover; Postanschrift: DEVK Versicherungen, 50729 Köln) | CHECK24-Antragsnr.: WHG-31186083\nLaufzeit: 01.01.2027 (00:00 Uhr) – 31.12.2027 (24:00 Uhr) | Hauptfälligkeit: 01.01. jeden Jahres\nBeitrag (jährlich): 474,68 € netto zzgl. 77,56 € Versicherungssteuer (16,34 %) = 552,24 € brutto (Abbuchung per SEPA-Lastschrift zum 01.01.2027, Verwendungszweck: 037132900)\nSelbstbeteiligung: 500,00 € je Schaden (Elementar nicht mitversichert)\nVersichertes Objekt: Freistehendes Einfamilienhaus, Carl-Goerdeler-Ring 26, 38518 Gifhorn | Baujahr: 1987 | Wohnfläche: 190 qm | Bauweise: massiv | Keller: nicht vorhanden | Obergeschoss: vorhanden | Satteldach (ausgebaut, harte Dacheindeckung) | Wärmepumpe: vorhanden | Photovoltaikanlage: vorhanden\nWichtige Einschlüsse (Komfort-Schutz): Brand, Blitzschlag, Überspannung durch Blitz, Explosion/Implosion, Leitungswasser (inkl. Zu-/Ableitungsrohre auf/außerhalb des Grundstücks bis 50.000 €, Wartungsfugen bis 2.500 €, Armaturen bis 2.500 €), Sturm/Hagel, grobe Fahrlässigkeit (100 %), Verzicht auf Einwand der Unterversicherung, Nebengebäude bis 25.000 €, 2 Garagen- & 2 Carport-Stellplätze, Grundstücksbestandteile bis 50.000 €, Mietausfall 24 Monate, Hotelkosten 150 €/Tag (150 Tage), Home-Service Assistance\nVorversicherung: Barmenia Wohngebäude (Vertragsnr.: 304734394, Kunden-Nr.: 704555407, -754,60 €/Jahr – gekündigt am 13.11.2026 zum 31.12.2026, Beleg: buchhaltung/contracts/2025/12/2025-12-14_Barmenia_Wohngebaeude.pdf)",
+                'tags'                  => ['Versicherung', 'Immobilie', 'Absicherung', 'Wichtig', 'DEVK', 'CHECK24', 'Wohngebäude'],
+                'contract_file_path'    => 'buchhaltung/contracts/2026/11/2026-11-10_DEVK_Wohngebaeudeversicherung.pdf'
             ],
             [
                 'group'             => 'Versicherungen',
@@ -643,6 +647,32 @@ class AccountingSeeder extends Seeder
 
         $specialIssues = [
             [
+                'title'          => '150x 3D Goldfolien-Kristall-Transferaufkleber mit personalisiertem Logo (Gold, 5 cm, 3x 50 Stück)',
+                'location'       => 'Temu (CustCryst pro / Helingling)',
+                'amount'         => -39.68,
+                'date'           => '2026-11-13',
+                'category'       => 'Verpackungen',
+                'tax_rate'       => 19,
+                'invoice_number' => 'PO-076-08744400860790774',
+                'note'           => "Bestellnummer: PO-076-08744400860790774 | Bestellzeit / Bezahlt am: 13.11.2026 | Zahlungsart: PayPal (a***e@t-online.de) | Zustellung durch: 07.12.2026\nPosition:\n- 3x 50 Stück (gesamt 150 Stück) 3D Goldfolien-Kristall-Transferaufkleber in individueller Größe, personalisiertes Logo, Foto, Text, glänzende, selbstklebende, unregelmäßige, hohle 3D-Etiketten für Markenschilder & Verpackung (Variante: Gold - 5 cm / 50 Stück, Verkauft von Händler: CustCryst pro | Name des Unternehmens: Helingling): je 12,51 € = 37,53 €\nArtikel gesamt: 37,53 € | Versand: KOSTENLOS (0,00 €) | Einfuhrabgaben: 2,15 € | Gesamt (Netto): 33,35 € | Enthält Umsatzsteuer (19 %): 6,33 € | Gesamtsumme (Brutto): 39,68 €",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-13_Temu_150x-3D-Goldfolien-Kristall-Transferaufkleber-Logo-5cm-Order-PO-076-08744400860790774.pdf'
+                ]
+            ],
+            [
+                'title'          => 'Aigostar Steckdosenleiste 3-fach mit Schalter & Kindersicherung (3 m Kabel, Schwarz)',
+                'location'       => 'Amazon (AIGOTECH ONSYNK S.L)',
+                'amount'         => -13.47,
+                'date'           => '2026-11-11',
+                'category'       => 'Arbeitsmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => 'ES609W22G8NPRU (Bestellnr. 303-1151528-6833161)',
+                'note'           => "Rechnungsnummer: ES609W22G8NPRU | Rechnungsdatum / Lieferdatum: 11.11.2026 | Bestelldatum: 11.11.2026 | Bestellnummer: 303-1151528-6833161 | Zahlungsreferenznummer: 46BQ9X0WCIV1DCKS\nVerkauft von: AIGOTECH ONSYNK S.L (Avenida de Ronda 1 Planta 1 Oficina 3, Parla, Madrid, 28981, ES, USt-IdNr.: ESB85712198, EU One-Stop-Shop OSS)\nPosition:\n- 1x Aigostar Steckdosenleiste 3 Fach mit Schalter, Mehrfachsteckdose mit Kindersicherung, Verteilersteckdose mit 3 m Kabel, Schwarz (ASIN: B0BG216DPR): 11,32 € netto (13,47 € brutto)\nZwischensumme (ohne USt.): 11,32 € | Versandkosten: 0,00 € | USt. (19 %): 2,15 € | Gesamtpreis / Zahlbetrag (Brutto): 13,47 €\nProdukt-Link: https://www.amazon.de/dp/B0BG216DPR",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-11_Amazon-AIGOTECH_Aigostar-Steckdosenleiste-3-fach-3m-Schwarz-Rechnung-ES609W22G8NPRU.pdf'
+                ]
+            ],
+            [
                 'title'          => 'Foto- & Deko-Requisiten für Produktfotografie / Fotobox (Eichhörnchen, Schneeflocke, 2 Kugeln weiß, Holzschlitten, Islandmoos, 4 Bäume grün, Haus mit LED u.a.)',
                 'location'       => 'hagebaumarkt Gifhorn (BAUKING Ostfalen GmbH)',
                 'amount'         => -40.28,
@@ -900,10 +930,11 @@ class AccountingSeeder extends Seeder
                 'category'       => 'Beratung & Gründung',
                 'tax_rate'       => 0,
                 'invoice_number' => 'OGAN-2026-00000406',
-                'note'           => "Amtliche Bescheinigung GewA 1 (§ 14 / § 55c GewO) der Stadt Gifhorn (Gemeindekennzahl: 03151009)\nAktenzeichen: gew/28-10-2026/Ce/402 | Vorgangsnummer: gew / 28-10-2026 / Ce / 893 | Bescheinigt am: 28.10.2026 (i.A. Ceylan, Dienstsiegel 68)\nGeschäftsbezeichnung (Feld 3): Mein-Seelenfunke | Inhaberin: Alina Steinhauer (geb. 01.09.1993 in Gifhorn), Betriebsstätte: Carl-Goerdeler-Ring 26, 38518 Gifhorn, Tel.: +49 1590 1966864, E-Mail: kontakt@mein-seelenfunke.de\nAngemeldete Tätigkeit (Feld 18): Online-Einzelhandel mit und Vertrieb von physischen und digitalen Produkten (insbesondere personalisierte Geschenkartikel, Deko- und Wohnaccessoires sowie Design- und digitale Vorlagen); Veredelung und Personalisierung von Waren (mittels Lasergravur und UV-Druck) sowie Erbringung von Dienstleistungen im Bereich Mediengestaltung, Grafikdesign und Veredelung.; Online-Einzelhandel mit physischen und digitalen Produkten (insbesondere Geschenkartikel, Deko- und Wohnaccessoires).; Veredelung und Personalisierung von Waren, Geschenkartikeln und Werkstoffen wie Glas, Schiefer, Holz und Metallen (mittels Lasergravur und UV-Druck).; Dienstleistungen in den Bereichen Mediengestaltung, Grafikdesign sowie Erstellung und Vertrieb digitaler Design- und Druckvorlagen.; Laser-Lohnarbeiten und Gravurservice für Gewerbekunden, Vereine und Agenturen.\nTätigkeitsbeginn (Feld 20): 01.11.2026 (Haupterwerb, Hauptniederlassung, Neugründung, Handel & Sonstiges)\nELSTER Fragebogen zur steuerlichen Erfassung (Finanzamt Gifhorn): Übermittelt am 06.11.2026 um 15:35:38 Uhr | Transferticket: ep3104hvg8fm3b1m4zrwrd3djc6ieugc | ELSTER-Nr.: 2169193168 -B41 (Regelbesteuerung, Istversteuerung, USt-IdNr. beantragt, Geschäftskonto FYRST DE76 2507 0370 0079 8629 00)\nBezahlt via PayPal (Transaktionscode: 7N857731L42389422) | Bankkonto: Volksbank eG Braunschweig Wolfsburg x-6000\nOnline-Transaktionsnummer: OLAV-GEW001317632 | Auftragsnummer: GEWANZ-20261022-000454-KCHAXY | Referenznummer Vorgang: A0007510",
+                'note'           => "Amtliche Bescheinigung GewA 1 (§ 14 / § 55c GewO) der Stadt Gifhorn (Gemeindekennzahl: 03151009)\nAktenzeichen: gew/28-10-2026/Ce/402 | Vorgangsnummer: gew / 28-10-2026 / Ce / 893 | Bescheinigt am: 28.10.2026 (i.A. Ceylan, Dienstsiegel 68)\nGeschäftsbezeichnung (Feld 3): Mein-Seelenfunke | Inhaberin: Alina Steinhauer (geb. 01.09.1993 in Gifhorn), Betriebsstätte: Carl-Goerdeler-Ring 26, 38518 Gifhorn, Tel.: +49 1590 1966864, E-Mail: kontakt@mein-seelenfunke.de\nAngemeldete Tätigkeit (Feld 18): Online-Einzelhandel mit und Vertrieb von physischen und digitalen Produkten (insbesondere personalisierte Geschenkartikel, Deko- und Wohnaccessoires sowie Design- und digitale Vorlagen); Veredelung und Personalisierung von Waren (mittels Lasergravur und UV-Druck) sowie Erbringung von Dienstleistungen im Bereich Mediengestaltung, Grafikdesign und Veredelung.; Online-Einzelhandel mit physischen und digitalen Produkten (insbesondere Geschenkartikel, Deko- und Wohnaccessoires).; Veredelung und Personalisierung von Waren, Geschenkartikeln und Werkstoffen wie Glas, Schiefer, Holz und Metallen (mittels Lasergravur und UV-Druck).; Dienstleistungen in den Bereichen Mediengestaltung, Grafikdesign sowie Erstellung und Vertrieb digitaler Design- und Druckvorlagen.; Laser-Lohnarbeiten und Gravurservice für Gewerbekunden, Vereine und Agenturen.\nTätigkeitsbeginn (Feld 20): 01.11.2026 (Haupterwerb, Hauptniederlassung, Neugründung, Handel & Sonstiges)\nELSTER Fragebogen zur steuerlichen Erfassung (Finanzamt Gifhorn): Übermittelt am 06.11.2026 um 15:35:38 Uhr | Transferticket: ep3104hvg8fm3b1m4zrwrd3djc6ieugc | ELSTER-Nr.: 2169193168 -B41 (Regelbesteuerung, Istversteuerung, USt-IdNr. beantragt, Geschäftskonto FYRST DE76 2507 0370 0079 8629 00)\nVBG Bescheid (Ende der Zuständigkeit nach § 136 Abs. 1 SGB VII): Datum 04.11.2026 | Unternehmensnr.: 5876 5136 8396 001 (Betriebsnr. VBG: 15250094, Einstellung zum 01.11.2026, keine Beschäftigten -> Punkt 3: nichts zu veranlassen)\nBezahlt via PayPal (Transaktionscode: 7N857731L42389422) | Bankkonto: Volksbank eG Braunschweig Wolfsburg x-6000\nOnline-Transaktionsnummer: OLAV-GEW001317632 | Auftragsnummer: GEWANZ-20261022-000454-KCHAXY | Referenznummer Vorgang: A0007510",
                 'file_paths'     => [
                     'buchhaltung/receipts/2026/10/2026-10-28_Stadt-Gifhorn_Gewerbeanmeldung-GewA1-Bescheinigung.pdf',
                     'buchhaltung/receipts/2026/11/2026-11-06_Finanzamt-Gifhorn_ELSTER-Steuerliche-Erfassung-Versandbestaetigung.pdf',
+                    'buchhaltung/contracts/2026/11/2026-11-04_VBG_Ende-der-Zustaendigkeit_587651368396001.pdf',
                     'buchhaltung/receipts/2026/10/2026-10-28_Stadt-Gifhorn_Gewerbeanzeige-Vorgang-Abgeschlossen-A0007510.pdf',
                     'buchhaltung/receipts/2026/10/2026-10-22_Stadt-Gifhorn_Gewerbeanzeige-Zahlungsbeleg.pdf',
                     'buchhaltung/receipts/2026/10/2026-10-22_Stadt-Gifhorn_PayPal-Zahlungsbeleg.pdf'

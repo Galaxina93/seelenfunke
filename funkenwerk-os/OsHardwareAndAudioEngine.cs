@@ -118,7 +118,9 @@ namespace FunkenwerkOS
         public static AudioEndpointState CachedAudioState { get; private set; } = new();
         public static bool CachedMicMuted { get; private set; }
         public static List<OsOpenWindowDto> CachedOpenExtWindows { get; private set; } = new();
+        public static volatile bool IsStartupBtInitRunning;
         private static int _bgRefreshBusy;
+        private static long _lastSlowAudioNetRefreshTick;
 
         public static void TriggerBackgroundTrayRefresh()
         {
@@ -129,9 +131,14 @@ namespace FunkenwerkOS
             {
                 try
                 {
-                    CachedNetworkSummary = ReadLocalNetworkSummary();
-                    CachedAudioState = ReadAudioState();
-                    CachedMicMuted = ReadMicrophoneMuteState();
+                    long nowTick = Environment.TickCount64;
+                    if (nowTick - Interlocked.Read(ref _lastSlowAudioNetRefreshTick) >= 5000)
+                    {
+                        Interlocked.Exchange(ref _lastSlowAudioNetRefreshTick, nowTick);
+                        CachedNetworkSummary = ReadLocalNetworkSummary();
+                        CachedAudioState = ReadAudioState();
+                        CachedMicMuted = ReadMicrophoneMuteState();
+                    }
                     CachedOpenExtWindows = EnumerateFunkenwerkOpenWindows();
                 }
                 catch { }
@@ -293,6 +300,16 @@ namespace FunkenwerkOS
 
         private static void TriggerBtAudioOneShotReconnect(string deviceNameFragment)
         {
+            TriggerBtAudioOneShotProperty(deviceNameFragment, propId: 0); // 0 = KSPROPERTY_ONESHOT_RECONNECT
+        }
+
+        private static void TriggerBtAudioOneShotDisconnect(string deviceNameFragment)
+        {
+            TriggerBtAudioOneShotProperty(deviceNameFragment, propId: 1); // 1 = KSPROPERTY_ONESHOT_DISCONNECT
+        }
+
+        private static void TriggerBtAudioOneShotProperty(string deviceNameFragment, uint propId)
+        {
             try
             {
                 var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
@@ -315,7 +332,7 @@ namespace FunkenwerkOS
                     var ksProp = new KSPROPERTY
                     {
                         Set = KsPropSetIdBtAudio,
-                        Id = 0,   // KSPROPERTY_ONESHOT_RECONNECT
+                        Id = propId,
                         Flags = 1 // KSPROPERTY_TYPE_GET
                     };
 
@@ -371,25 +388,28 @@ namespace FunkenwerkOS
         public static AudioEndpointState ReadAudioState()
         {
             var state = new AudioEndpointState();
+            IMMDeviceEnumerator? enumerator = null;
+            IMMDevice? device = null;
+            object? volObj = null;
             try
             {
-                var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
-                if (enumerator.GetDefaultAudioEndpoint(0, 1, out IMMDevice device) == 0 && device != null)
+                enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+                if (enumerator.GetDefaultAudioEndpoint(0, 1, out device) == 0 && device != null)
                 {
                     if (device.GetId(out string devId) == 0 && devId != null)
                         state.DeviceId = devId;
 
                     string name = ReadDeviceFriendlyName(device);
                     state.DeviceName = name;
-                    state.IsTeufelConnected = name.Contains("Teufel", StringComparison.OrdinalIgnoreCase);
+                    state.IsTeufelConnected = name.Contains("Teufel", StringComparison.OrdinalIgnoreCase)
+                        && !name.Contains("Hands-Free", StringComparison.OrdinalIgnoreCase);
                     state.IsBluetoothAudio = state.IsTeufelConnected
                         || name.Contains("Bluetooth", StringComparison.OrdinalIgnoreCase)
-                        || name.Contains("Hands-Free", StringComparison.OrdinalIgnoreCase)
                         || name.Contains("Kopfhörer", StringComparison.OrdinalIgnoreCase)
                         || name.Contains("Headphones", StringComparison.OrdinalIgnoreCase);
 
                     Guid iidVol = typeof(IAudioEndpointVolume).GUID;
-                    if (device.Activate(ref iidVol, 23, IntPtr.Zero, out object volObj) == 0 && volObj is IAudioEndpointVolume epVol)
+                    if (device.Activate(ref iidVol, 23, IntPtr.Zero, out volObj) == 0 && volObj is IAudioEndpointVolume epVol)
                     {
                         if (epVol.GetMasterVolumeLevelScalar(out float scalar) == 0)
                             state.VolumePercent = Math.Clamp((int)Math.Round(scalar * 100.0f), 0, 100);
@@ -399,7 +419,14 @@ namespace FunkenwerkOS
                 }
             }
             catch { }
+            finally
+            {
+                if (volObj != null && Marshal.IsComObject(volObj)) { try { Marshal.ReleaseComObject(volObj); } catch { } }
+                if (device != null && Marshal.IsComObject(device)) { try { Marshal.ReleaseComObject(device); } catch { } }
+                if (enumerator != null && Marshal.IsComObject(enumerator)) { try { Marshal.ReleaseComObject(enumerator); } catch { } }
+            }
 
+            CachedAudioState = state;
             return state;
         }
 
@@ -413,6 +440,7 @@ namespace FunkenwerkOS
                 if (enumerator.GetDefaultAudioEndpoint(0, 1, out IMMDevice defDev) == 0 && defDev != null)
                 {
                     defDev.GetId(out defaultId);
+                    if (Marshal.IsComObject(defDev)) Marshal.ReleaseComObject(defDev);
                 }
 
                 // eRender = 0, DEVICE_STATE_ACTIVE = 1
@@ -425,6 +453,15 @@ namespace FunkenwerkOS
                         {
                             dev.GetId(out string id);
                             string name = ReadDeviceFriendlyName(dev);
+                            if (Marshal.IsComObject(dev)) Marshal.ReleaseComObject(dev);
+
+                            // Never route music or sounds to a muffled/stuttering 8 kHz Bluetooth Hands-Free telephony endpoint
+                            if (name.Contains("Hands-Free", StringComparison.OrdinalIgnoreCase) ||
+                                name.Contains("Freisprech", StringComparison.OrdinalIgnoreCase))
+                            {
+                                continue;
+                            }
+
                             result.Add(new AudioOutputDeviceDto
                             {
                                 DeviceId = id ?? "",
@@ -433,7 +470,9 @@ namespace FunkenwerkOS
                             });
                         }
                     }
+                    if (Marshal.IsComObject(col)) Marshal.ReleaseComObject(col);
                 }
+                if (Marshal.IsComObject(enumerator)) Marshal.ReleaseComObject(enumerator);
             }
             catch { }
 
@@ -455,6 +494,7 @@ namespace FunkenwerkOS
                 if (enumerator.GetDefaultAudioEndpoint(1, 2, out IMMDevice defDev) == 0 && defDev != null)
                 {
                     defDev.GetId(out defaultId);
+                    if (Marshal.IsComObject(defDev)) Marshal.ReleaseComObject(defDev);
                 }
 
                 if (enumerator.EnumAudioEndpoints(1, 1, out IMMDeviceCollection col) == 0 && col != null)
@@ -466,6 +506,14 @@ namespace FunkenwerkOS
                         {
                             dev.GetId(out string id);
                             string name = ReadDeviceFriendlyName(dev);
+                            if (Marshal.IsComObject(dev)) Marshal.ReleaseComObject(dev);
+
+                            if (name.Contains("Hands-Free", StringComparison.OrdinalIgnoreCase) ||
+                                name.Contains("Teufel", StringComparison.OrdinalIgnoreCase))
+                            {
+                                continue;
+                            }
+
                             result.Add(new AudioOutputDeviceDto
                             {
                                 DeviceId = id ?? "",
@@ -474,7 +522,9 @@ namespace FunkenwerkOS
                             });
                         }
                     }
+                    if (Marshal.IsComObject(col)) Marshal.ReleaseComObject(col);
                 }
+                if (Marshal.IsComObject(enumerator)) Marshal.ReleaseComObject(enumerator);
             }
             catch { }
 
@@ -483,13 +533,26 @@ namespace FunkenwerkOS
 
         public static bool ReadMicrophoneMuteState()
         {
+            IMMDeviceEnumerator? enumerator = null;
+            IMMDevice? device = null;
+            object? volObj = null;
             try
             {
-                var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
-                if (enumerator.GetDefaultAudioEndpoint(1, 2, out IMMDevice device) == 0 && device != null)
+                enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+                if (enumerator.GetDefaultAudioEndpoint(1, 2, out device) == 0 && device != null)
                 {
+                    string micName = ReadDeviceFriendlyName(device);
+                    // CRITICAL: Never activate IAudioEndpointVolume on a Bluetooth Hands-Free / Teufel capture endpoint!
+                    // Touching a Bluetooth Hands-Free capture endpoint wakes SCO telephony and causes A2DP stereo dropouts!
+                    if (micName.Contains("Hands-Free", StringComparison.OrdinalIgnoreCase) ||
+                        micName.Contains("Teufel", StringComparison.OrdinalIgnoreCase) ||
+                        micName.Contains("Bluetooth", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+
                     Guid iidVol = typeof(IAudioEndpointVolume).GUID;
-                    if (device.Activate(ref iidVol, 23, IntPtr.Zero, out object volObj) == 0 && volObj is IAudioEndpointVolume epVol)
+                    if (device.Activate(ref iidVol, 23, IntPtr.Zero, out volObj) == 0 && volObj is IAudioEndpointVolume epVol)
                     {
                         if (epVol.GetMute(out bool muted) == 0)
                             return muted;
@@ -497,6 +560,12 @@ namespace FunkenwerkOS
                 }
             }
             catch { }
+            finally
+            {
+                if (volObj != null && Marshal.IsComObject(volObj)) { try { Marshal.ReleaseComObject(volObj); } catch { } }
+                if (device != null && Marshal.IsComObject(device)) { try { Marshal.ReleaseComObject(device); } catch { } }
+                if (enumerator != null && Marshal.IsComObject(enumerator)) { try { Marshal.ReleaseComObject(enumerator); } catch { } }
+            }
             return false;
         }
 
@@ -828,7 +897,7 @@ namespace FunkenwerkOS
                         ["AccessCheckSupported"] = 0
                     });
 
-                    RunProcessCapture("powershell.exe", "-NoProfile -NonInteractive -Command \"Restart-Service -Name camsvc -Force -ErrorAction SilentlyContinue; Start-Service -Name WlanSvc,bthserv,BTAGService -ErrorAction SilentlyContinue\"");
+                    RunProcessCapture("powershell.exe", "-NoProfile -NonInteractive -Command \"Restart-Service -Name camsvc -Force -ErrorAction SilentlyContinue; Start-Service -Name WlanSvc,bthserv,BthAvctpSvc -ErrorAction SilentlyContinue; Stop-Service -Name BTAGService -Force -ErrorAction SilentlyContinue\"");
                 }
             }
             catch { }
@@ -1379,12 +1448,12 @@ namespace FunkenwerkOS
                 {
                     var radioParams = new BLUETOOTH_FIND_RADIO_PARAMS { dwSize = (uint)Marshal.SizeOf<BLUETOOTH_FIND_RADIO_PARAMS>() };
                     hFindRadio = BluetoothFindFirstRadio(ref radioParams, out hRadio);
-                    if (hRadio != IntPtr.Zero)
+                    if (hRadio != IntPtr.Zero && issueHardwareInquiry)
                     {
                         // CRITICAL FOR CLEAR BLUETOOTH AUDIO:
-                        // Only enable inquiry scan during an explicit user-triggered search!
-                        // Leaving discovery enabled forces the Realtek BT radio to switch off the A2DP channel every 1.28s, causing audio dropouts.
-                        BluetoothEnableDiscovery(hRadio, issueHardwareInquiry);
+                        // Never touch HCI_Write_Scan_Enable during passive cached device reads (issueHardwareInquiry == false)!
+                        // Only enable inquiry/page scan during an explicit user-triggered search, and turn discovery OFF immediately afterwards.
+                        BluetoothEnableDiscovery(hRadio, true);
                         BluetoothEnableIncomingConnections(hRadio, true);
                     }
 
@@ -1565,7 +1634,7 @@ namespace FunkenwerkOS
                                 }
                                 TriggerBtAudioOneShotReconnect(dev.Name);
                                 BluetoothEnableDiscovery(hRadio, false);
-                                BluetoothEnableIncomingConnections(hRadio, false);
+                                BluetoothEnableIncomingConnections(hRadio, true);
 
                                 for (int w = 0; w < 4; w++)
                                 {
@@ -1696,7 +1765,7 @@ namespace FunkenwerkOS
                                 Thread.Sleep(550);
                                 TriggerBtAudioOneShotReconnect(dev.Name);
                                 BluetoothEnableDiscovery(hRadio, false);
-                                BluetoothEnableIncomingConnections(hRadio, false);
+                                BluetoothEnableIncomingConnections(hRadio, true);
                                 BluetoothGetDeviceInfo(hRadio, ref bdi);
 
                                 try
@@ -1740,6 +1809,129 @@ namespace FunkenwerkOS
                     s_btConnectLock.Release();
                 }
             });
+        }
+
+        public static async Task<(bool Success, string Message)> DisconnectBluetoothDeviceAsync(BluetoothDeviceDto dev)
+        {
+            if (dev == null || string.IsNullOrWhiteSpace(dev.Name))
+                return (false, "Ungültiges Bluetooth-Gerät.");
+
+            return await Task.Run(() =>
+            {
+                s_btConnectLock.Wait();
+                try
+                {
+                    if (dev.BluetoothAddress == 0)
+                    {
+                        var known = ScanBluetoothDevicesAsync(issueHardwareInquiry: false).GetAwaiter().GetResult();
+                        var found = known.FirstOrDefault(x =>
+                            x.BluetoothAddress != 0 &&
+                            (string.Equals(x.Name, dev.Name, StringComparison.OrdinalIgnoreCase) ||
+                             (dev.Name.Contains("Teufel", StringComparison.OrdinalIgnoreCase) && x.IsTeufel)));
+                        if (found != null)
+                            dev.BluetoothAddress = found.BluetoothAddress;
+                        else if (dev.Name.Contains("Teufel", StringComparison.OrdinalIgnoreCase))
+                            dev.BluetoothAddress = 0xFC58FAC7F41DUL;
+                    }
+
+                    TriggerBtAudioOneShotDisconnect(dev.Name);
+
+                    IntPtr hRadio = IntPtr.Zero;
+                    IntPtr hFindRadio = IntPtr.Zero;
+                    try
+                    {
+                        var rp = new BLUETOOTH_FIND_RADIO_PARAMS { dwSize = (uint)Marshal.SizeOf<BLUETOOTH_FIND_RADIO_PARAMS>() };
+                        hFindRadio = BluetoothFindFirstRadio(ref rp, out hRadio);
+
+                        if (dev.BluetoothAddress != 0 && hRadio != IntPtr.Zero)
+                        {
+                            var bdi = new BLUETOOTH_DEVICE_INFO
+                            {
+                                dwSize = (uint)Marshal.SizeOf<BLUETOOTH_DEVICE_INFO>(),
+                                Address = dev.BluetoothAddress,
+                                szName = dev.Name
+                            };
+                            BluetoothGetDeviceInfo(hRadio, ref bdi);
+
+                            Guid gSink = GuidAudioSink;
+                            Guid gAv = GuidAvRemote;
+                            Guid gHf = GuidHandsfree;
+                            Guid gHid = GuidHid;
+
+                            BluetoothSetServiceState(hRadio, ref bdi, ref gSink, 0);
+                            BluetoothSetServiceState(hRadio, ref bdi, ref gAv, 0);
+                            BluetoothSetServiceState(hRadio, ref bdi, ref gHf, 0);
+                            if (dev.IsTeufel || dev.Name.Contains("Speaker", StringComparison.OrdinalIgnoreCase) || dev.Name.Contains("Audio", StringComparison.OrdinalIgnoreCase))
+                            {
+                                BluetoothSetServiceState(hRadio, ref bdi, ref gHid, 0);
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        if (hFindRadio != IntPtr.Zero) BluetoothFindRadioClose(hFindRadio);
+                        if (hRadio != IntPtr.Zero) CloseHandle(hRadio);
+                    }
+
+                    TriggerBtAudioOneShotDisconnect(dev.Name);
+
+                    // Switch default audio output to a non-Teufel endpoint if available
+                    try
+                    {
+                        var outputs = ListAudioOutputDevices();
+                        var fallback = outputs.FirstOrDefault(a =>
+                            !a.Name.Contains(dev.Name, StringComparison.OrdinalIgnoreCase) &&
+                            (!dev.Name.Contains("Teufel", StringComparison.OrdinalIgnoreCase) || !a.IsTeufel));
+                        if (fallback != null && !fallback.IsDefault)
+                            SetDefaultAudioOutputDevice(fallback.DeviceId);
+                    }
+                    catch { }
+
+                    Thread.Sleep(250);
+                    return (true, $"Getrennt von '{dev.Name}'");
+                }
+                catch (Exception ex)
+                {
+                    return (false, ex.Message);
+                }
+                finally
+                {
+                    s_btConnectLock.Release();
+                }
+            });
+        }
+
+        public static void EnsureWindowsExplorerTaskbarRunning()
+        {
+            try
+            {
+                using var cuWinlogon = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows NT\CurrentVersion\Winlogon", writable: true);
+                cuWinlogon?.DeleteValue("Shell", throwOnMissingValue: false);
+            }
+            catch { }
+
+            try
+            {
+                using var lmWinlogon = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon", writable: true);
+                if (lmWinlogon != null)
+                {
+                    string? curShell = lmWinlogon.GetValue("Shell") as string;
+                    if (!string.Equals(curShell, "explorer.exe", StringComparison.OrdinalIgnoreCase))
+                        lmWinlogon.SetValue("Shell", "explorer.exe", RegistryValueKind.String);
+                }
+            }
+            catch { }
+
+            try
+            {
+                if (Process.GetProcessesByName("explorer").Length == 0)
+                {
+                    string expExe = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+                    if (!File.Exists(expExe)) expExe = "explorer.exe";
+                    Process.Start(new ProcessStartInfo(expExe) { UseShellExecute = true });
+                }
+            }
+            catch { }
         }
 
         public static void OpenSystemBluetoothPairingDialog()
@@ -2760,12 +2952,25 @@ namespace FunkenwerkOS
                 }
                 if (_rtcWakeTimerHandle != IntPtr.Zero)
                 {
-                    DateTime now = DateTime.Now;
-                    DateTime next0800 = now.Date.AddHours(8);
-                    if (next0800 <= now.AddMinutes(1))
-                        next0800 = next0800.AddDays(1);
+                    TimeZoneInfo.ClearCachedData();
+                    DateTime utcNow = DateTime.UtcNow;
+                    TimeZoneInfo germanTz;
+                    try
+                    {
+                        germanTz = TimeZoneInfo.FindSystemTimeZoneById("W. Europe Standard Time");
+                    }
+                    catch
+                    {
+                        germanTz = TimeZoneInfo.Local;
+                    }
 
-                    long dueTimeFileTimeUtc = next0800.ToUniversalTime().ToFileTimeUtc();
+                    DateTime germanNow = TimeZoneInfo.ConvertTimeFromUtc(utcNow, germanTz);
+                    DateTime next0800German = new DateTime(germanNow.Year, germanNow.Month, germanNow.Day, 8, 0, 0, DateTimeKind.Unspecified);
+                    if (next0800German <= germanNow.AddMinutes(1))
+                        next0800German = next0800German.AddDays(1);
+
+                    DateTime next0800Utc = TimeZoneInfo.ConvertTimeToUtc(next0800German, germanTz);
+                    long dueTimeFileTimeUtc = next0800Utc.ToFileTimeUtc();
                     SetWaitableTimer(_rtcWakeTimerHandle, ref dueTimeFileTimeUtc, 0, IntPtr.Zero, IntPtr.Zero, fResume: true);
                 }
             }
@@ -2877,6 +3082,13 @@ namespace FunkenwerkOS
                         "/SETACVALUEINDEX SCHEME_CURRENT 238c9fa8-0aad-41ed-83f4-97be242c8f20 94ac6d29-73ce-41a6-809f-6363ba21b47e 0",
                         // USB selective suspend = 0 (keep Wi-Fi / Bluetooth USB adapters always powered)
                         "/SETACVALUEINDEX SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0",
+                        "/SETDCVALUEINDEX SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0",
+                        // PCI Express Link State Power Management (ASPM) = 0 (prevent Realtek M.2 8821CE PCIe L1 micro-stutters)
+                        "/SETACVALUEINDEX SCHEME_CURRENT 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5 0",
+                        "/SETDCVALUEINDEX SCHEME_CURRENT 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5 0",
+                        // Wireless Adapter Power Saving Mode = 0 (Maximum Performance)
+                        "/SETACVALUEINDEX SCHEME_CURRENT 19cbb8fa-5279-450e-9fac-8a3d5fedd0c1 12bbebe6-58d6-4636-95bb-3217ef867c1a 0",
+                        "/SETDCVALUEINDEX SCHEME_CURRENT 19cbb8fa-5279-450e-9fac-8a3d5fedd0c1 12bbebe6-58d6-4636-95bb-3217ef867c1a 0",
                         "/setactive SCHEME_CURRENT"
                     };
 
@@ -2902,7 +3114,15 @@ namespace FunkenwerkOS
                     }
                     catch { }
 
-                    // 5. On Mini-PC (C:\Funkenwerk Collection\Funkenwerk OS\FunkenwerkOS.exe): Register Single Clean Shell Autostart + 08:00 AM Hardware RTC Wake + 22:00 PM Night Sleep
+                    // 5. On Mini-PC (C:\Funkenwerk Collection\Funkenwerk OS\FunkenwerkOS.exe): Enforce German Timezone (W. Europe Standard Time), Register Single Clean Shell Autostart + 08:00 AM Hardware RTC Wake
+                    try
+                    {
+                        using var pTz = Process.Start(new ProcessStartInfo("tzutil.exe", "/s \"W. Europe Standard Time\"") { CreateNoWindow = true, UseShellExecute = false });
+                        pTz?.WaitForExit(3000);
+                        TimeZoneInfo.ClearCachedData();
+                    }
+                    catch { }
+
                     ArmHardwareRtcWakeTimerFor0800();
 
                     // Remove any restrictive DataCollection policy so Windows Update, Winget, Store & Driver Updates are never blocked
@@ -2931,7 +3151,8 @@ namespace FunkenwerkOS
                                 winlogon.SetValue("Shell", "explorer.exe", RegistryValueKind.String);
                                 winlogon.SetValue("AutoAdminLogon", "1", RegistryValueKind.String);
                                 winlogon.SetValue("DefaultUserName", "Alina", RegistryValueKind.String);
-                                winlogon.SetValue("DefaultPassword", "", RegistryValueKind.String);
+                                // Security: Never write plaintext DefaultPassword to Registry; AutoLogon reads encrypted Kernel LSA Secret!
+                                winlogon.DeleteValue("DefaultPassword", throwOnMissingValue: false);
                             }
                         }
                         catch { }
@@ -2939,7 +3160,8 @@ namespace FunkenwerkOS
                         RegisterMorning0800WakeTask(miniPcExe);
                     }
 
-                    // 6. Close any hung legacy DevicePairingWizard / rundll32 shell popups, ensure WebView2 Firewall & Realtek BT Power, and auto-activate Teufel A2DP
+                    // 6. Bluetooth A2DP Pure-SBC Optimization, 5 GHz Wi-Fi Separation (Realtek 8821CE), Hands-Free Off & Clean Teufel Activation
+                    IsStartupBtInitRunning = true;
                     try
                     {
                         foreach (var proc in Process.GetProcessesByName("DevicePairingWizard"))
@@ -2947,17 +3169,76 @@ namespace FunkenwerkOS
                             try { proc.Kill(); } catch { }
                         }
 
-                        // Disable Realtek BT USB Selective Suspend & Wi-Fi LowPower IPS + ensure WebView2 outbound internet access
+                        // 6a. Disable Windows Communication Audio Ducking & boost MMCSS Pro-Audio priority
                         try
                         {
-                            using var btParamKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Enum\USB\VID_0BDA&PID_C821\00E04C000001\Device Parameters", writable: true);
-                            btParamKey?.SetValue("DeviceSelectiveSuspended", 0, RegistryValueKind.DWord);
-                            btParamKey?.SetValue("SelectiveSuspendEnabled", 0, RegistryValueKind.DWord);
-                            btParamKey?.SetValue("EnhancedPowerManagementEnabled", 0, RegistryValueKind.DWord);
-                            btParamKey?.SetValue("IdleInWorkingState", 0, RegistryValueKind.DWord);
+                            using var duckKey = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Multimedia\Audio", writable: true);
+                            duckKey?.SetValue("UserDuckingPreference", 3, RegistryValueKind.DWord);
+
+                            using var sysProfKey = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile", writable: true);
+                            sysProfKey?.SetValue("SystemResponsiveness", 10, RegistryValueKind.DWord);
+
+                            using var mmAudioKey = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Audio", writable: true);
+                            mmAudioKey?.SetValue("Priority", 6, RegistryValueKind.DWord);
+                            mmAudioKey?.SetValue("Scheduling Category", "High", RegistryValueKind.String);
+                            mmAudioKey?.SetValue("SFIO Priority", "High", RegistryValueKind.String);
                         }
                         catch { }
 
+                        // 6b. Force rock-solid SBC codec over Bluetooth A2DP (disable buggy Windows 11 AAC framing on Realtek 8821CE + Teufel CSR)
+                        bool aacWriteOk = false;
+                        try
+                        {
+                            using var a2dpKey = Registry.LocalMachine.CreateSubKey(@"SYSTEM\CurrentControlSet\Services\BthA2dp\Parameters", writable: true);
+                            if (a2dpKey != null)
+                            {
+                                a2dpKey.SetValue("BluetoothAacEnable", 0, RegistryValueKind.DWord);
+                                a2dpKey.SetValue("EnableAAC", 0, RegistryValueKind.DWord);
+                                aacWriteOk = true;
+                            }
+
+                            using var bthUsbKey = Registry.LocalMachine.CreateSubKey(@"SYSTEM\CurrentControlSet\Services\BTHUSB\Parameters", writable: true);
+                            bthUsbKey?.SetValue("SelectiveSuspendEnabled", 0, RegistryValueKind.DWord);
+                        }
+                        catch { }
+
+                        // 6c. Disable USB Selective Suspend across ALL Realtek (VID_0BDA) & Bluetooth USB instances (regardless of hardware serial/port)
+                        try
+                        {
+                            using var usbEnumKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Enum\USB", writable: false);
+                            if (usbEnumKey != null)
+                            {
+                                foreach (string vidPid in usbEnumKey.GetSubKeyNames())
+                                {
+                                    if (!vidPid.StartsWith("VID_0BDA", StringComparison.OrdinalIgnoreCase) &&
+                                        !vidPid.Contains("VID_8087", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        continue;
+                                    }
+                                    try
+                                    {
+                                        using var devKey = usbEnumKey.OpenSubKey(vidPid, writable: false);
+                                        if (devKey == null) continue;
+                                        foreach (string instId in devKey.GetSubKeyNames())
+                                        {
+                                            try
+                                            {
+                                                using var paramKey = devKey.OpenSubKey($@"{instId}\Device Parameters", writable: true);
+                                                paramKey?.SetValue("DeviceSelectiveSuspended", 0, RegistryValueKind.DWord);
+                                                paramKey?.SetValue("SelectiveSuspendEnabled", 0, RegistryValueKind.DWord);
+                                                paramKey?.SetValue("EnhancedPowerManagementEnabled", 0, RegistryValueKind.DWord);
+                                                paramKey?.SetValue("IdleInWorkingState", 0, RegistryValueKind.DWord);
+                                            }
+                                            catch { }
+                                        }
+                                    }
+                                    catch { }
+                                }
+                            }
+                        }
+                        catch { }
+
+                        // 6d. Separate Wi-Fi onto 5 GHz (PreferBand = 2) & keep Realtek Hardware BT-Wi-Fi Coexistence active!
                         try
                         {
                             using var netClassKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}", writable: false);
@@ -2974,8 +3255,13 @@ namespace FunkenwerkOS
                                         {
                                             subKey?.SetValue("bLowPowerEnable", "0", RegistryValueKind.String);
                                             subKey?.SetValue("Scan_IPSEnable", "0", RegistryValueKind.String);
-                                            subKey?.SetValue("MultiChannelFcsMode", "0", RegistryValueKind.String);
-                                            subKey?.SetValue("ConcurrentOpPref", "0", RegistryValueKind.String);
+                                            subKey?.SetValue("PowerSaveMode", "0", RegistryValueKind.String);
+                                            subKey?.SetValue("RoamAggressiveness", "1", RegistryValueKind.String);
+                                            subKey?.SetValue("PreferBand", "2", RegistryValueKind.String);
+                                            subKey?.SetValue("PreferredBand", "2", RegistryValueKind.String);
+                                            // Restore Realtek TDM Bluetooth-Wi-Fi coexistence (never zero out ConcurrentOpPref!)
+                                            subKey?.DeleteValue("ConcurrentOpPref", throwOnMissingValue: false);
+                                            subKey?.DeleteValue("MultiChannelFcsMode", throwOnMissingValue: false);
                                         }
                                     }
                                     catch { }
@@ -2989,22 +3275,61 @@ namespace FunkenwerkOS
                         }
                         catch { }
 
-                        var audioDevs = ListAudioOutputDevices();
-                        var teufelAudio = audioDevs.FirstOrDefault(a => a.IsTeufel);
-                        if (teufelAudio != null)
+                        // 6e. On Mini-PC: Stop Hands-Free Telephony (BTAGService) & apply one-time live reload of SBC + 5 GHz Wi-Fi
+                        if (File.Exists(miniPcExe))
                         {
-                            if (!teufelAudio.IsDefault)
-                                SetDefaultAudioOutputDevice(teufelAudio.DeviceId);
+                            try
+                            {
+                                int optVer = 0;
+                                using (var fwKey = Registry.CurrentUser.CreateSubKey(@"Software\FunkenwerkOS", writable: true))
+                                {
+                                    optVer = Convert.ToInt32(fwKey?.GetValue("BtAudioOptimizedVersion", 0) ?? 0);
+                                }
+
+                                using (var pStopHf = Process.Start(new ProcessStartInfo("sc.exe", "stop BTAGService") { CreateNoWindow = true, UseShellExecute = false }))
+                                    pStopHf?.WaitForExit(2000);
+                                using (var pDisHf = Process.Start(new ProcessStartInfo("sc.exe", "config BTAGService start= disabled") { CreateNoWindow = true, UseShellExecute = false }))
+                                    pDisHf?.WaitForExit(2000);
+
+                                if (optVer < 2 && aacWriteOk)
+                                {
+                                    RunProcessCapture("powershell.exe",
+                                        "-NoProfile -NonInteractive -Command \"" +
+                                        "Get-PnpDevice -Class AudioEndpoint -ErrorAction SilentlyContinue | Where-Object { $_.FriendlyName -match 'Hands-Free' } | Disable-PnpDevice -Confirm:$false -ErrorAction SilentlyContinue; " +
+                                        "Get-PnpDevice -ErrorAction SilentlyContinue | Where-Object { $_.InstanceId -match '0000111e-0000-1000-8000-00805f9b34fb' } | Disable-PnpDevice -Confirm:$false -ErrorAction SilentlyContinue; " +
+                                        "Get-NetAdapterAdvancedProperty -ErrorAction SilentlyContinue | Where-Object { $_.RegistryKeyword -in @('PreferBand','PreferredBand') } | Set-NetAdapterAdvancedProperty -RegistryValue 2 -ErrorAction SilentlyContinue; " +
+                                        "Restart-Service -Name bthserv -Force -ErrorAction SilentlyContinue\"");
+                                    Thread.Sleep(1200);
+
+                                    using var fwKeyDone = Registry.CurrentUser.CreateSubKey(@"Software\FunkenwerkOS", writable: true);
+                                    fwKeyDone?.SetValue("BtAudioOptimizedVersion", 2, RegistryValueKind.DWord);
+                                }
+                            }
+                            catch { }
                         }
 
-                        var btList = ScanBluetoothDevicesAsync(issueHardwareInquiry: false).GetAwaiter().GetResult();
-                        var teufelBt = btList.FirstOrDefault(b => b.IsTeufel && b.IsPaired);
-                        if (teufelBt != null)
+                        // 6f. IMPORTANT: Do NOT auto-connect Teufel on startup!
+                        // Keep Teufel A2DP Sink disconnected at boot so the Mini-PC never hijacks the speaker from Alina's other devices.
+                        // Connection only happens manually when Alina clicks the '🔊 Teufel' button.
+                        if (File.Exists(miniPcExe))
                         {
-                            _ = ConnectOrPairBluetoothDeviceAsync(teufelBt).GetAwaiter().GetResult();
+                            try
+                            {
+                                _ = DisconnectBluetoothDeviceAsync(new BluetoothDeviceDto
+                                {
+                                    Name = "Teufel KB 43 CR 19",
+                                    BluetoothAddress = 0xFC58FAC7F41DUL,
+                                    IsPaired = true
+                                }).GetAwaiter().GetResult();
+                            }
+                            catch { }
                         }
                     }
                     catch { }
+                    finally
+                    {
+                        IsStartupBtInitRunning = false;
+                    }
                 }
                 catch { }
             });

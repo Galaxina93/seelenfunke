@@ -63,6 +63,7 @@ class AddSubtaskWidgetActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!de.meinseelenfunke.app.util.SecurityIntentHelper.guardWidgetDialogActivity(this)) return
 
         val parentTaskId = intent.getStringExtra("task_id")
         if (parentTaskId.isNullOrBlank()) {

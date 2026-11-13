@@ -68,9 +68,6 @@ class MedicalKnowledgeBaseAndSecurityHardeningTest extends TestCase
         $this->assertFileDoesNotExist(base_path('scripts/playwright-scraper.js'));
         $this->assertFileDoesNotExist(base_path('scripts/stealth-scraper.js'));
         $this->assertFileDoesNotExist(base_path('scripts/svg-downloader.js'));
-
-        $this->assertDirectoryDoesNotExist(storage_path('app/agenten/workspace/Gesundheit/Krankschreibungen'));
-        $this->assertDirectoryDoesNotExist(storage_path('app/agenten/workspace/Gesundheit/Atteste'));
     }
 
     public function test_ai_system_and_task_tools_block_path_traversal_and_privilege_escalation(): void

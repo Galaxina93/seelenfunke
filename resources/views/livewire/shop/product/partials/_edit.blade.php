@@ -142,7 +142,7 @@
                                 @if($stepAllPassed)
                                     <span class="px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[9px] font-black shrink-0" title="Alle Angaben in diesem Schritt vollständig">✓</span>
                                 @elseif($stepMissingCount > 0)
-                                    <span class="px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 text-[9px] font-bold shrink-0" title="{{ $stepMissingCount }} Angabe(n) in diesem Schritt noch offen">{{ $stepMissingCount }} offen</span>
+                                    <span class="px-1.5 py-0.5 rounded-md bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 border border-red-200/70 dark:border-red-500/30 text-[9px] font-bold shrink-0" title="{{ $stepMissingCount }} Angabe(n) in diesem Schritt noch offen">{{ $stepMissingCount }} offen</span>
                                 @endif
                             </div>
                             <div class="h-1.5 w-full rounded-full transition-all duration-500 overflow-hidden bg-gray-200 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 dark:shadow-inner">

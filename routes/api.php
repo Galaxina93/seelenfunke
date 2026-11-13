@@ -282,9 +282,17 @@ Route::get('/funki/financials/receipt', function (\Illuminate\Http\Request $requ
     $tokenString = $request->query('token');
     if (is_string($tokenString) && $tokenString !== '') {
         $token = \Laravel\Sanctum\PersonalAccessToken::findToken($tokenString);
+        if ($token && !$token->can('*')) {
+            abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
+        }
         if ($token && (!$token->expires_at || !$token->expires_at->isPast()) && $token->tokenable) {
             $user = $token->tokenable;
             $request->setUserResolver(fn() => $user);
+        }
+    } elseif ($request->bearerToken()) {
+        $pat = \Laravel\Sanctum\PersonalAccessToken::findToken((string) $request->bearerToken());
+        if ($pat && !$pat->can('*')) {
+            abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
         }
     }
 
@@ -296,14 +304,17 @@ Route::get('/funki/financials/receipt', function (\Illuminate\Http\Request $requ
     if (!$user instanceof \App\Models\Admin\Admin) {
         abort(403, 'Nur Administratoren dürfen Buchhaltungsbelege einsehen.');
     }
+    if (method_exists($user, 'currentAccessToken') && $user->currentAccessToken() && !$user->tokenCan('*')) {
+        abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
+    }
 
     $path = $request->query('path');
     if (!is_string($path) || $path === '' || str_contains($path, '..') || str_contains($path, "\0") || str_starts_with($path, '/') || str_starts_with($path, '\\')) {
         abort(404, 'Path missing or invalid');
     }
 
-    // Sicherheit: Erlaube nur Pfade innerhalb der Buchhaltungs-/Beleg-Verzeichnisse
-    $allowedPrefixes = ['buchhaltung/', 'invoices/', 'finanzen/', 'receipts/'];
+    // Sicherheit: Erlaube nur Pfade innerhalb der Buchhaltungs-/Beleg- & Aufgaben-Verzeichnisse
+    $allowedPrefixes = ['buchhaltung/', 'invoices/', 'finanzen/', 'receipts/', 'leitung/tasks/'];
     $hasAllowedPrefix = false;
     foreach ($allowedPrefixes as $prefix) {
         if (str_starts_with($path, $prefix)) {
@@ -350,9 +361,17 @@ Route::get('/funki/shop/order-items/{itemId}/laser-file/{side}', function (\Illu
     $tokenString = $request->query('token');
     if (is_string($tokenString) && $tokenString !== '') {
         $token = \Laravel\Sanctum\PersonalAccessToken::findToken($tokenString);
+        if ($token && !$token->can('*')) {
+            abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
+        }
         if ($token && (!$token->expires_at || !$token->expires_at->isPast()) && $token->tokenable) {
             $user = $token->tokenable;
             $request->setUserResolver(fn() => $user);
+        }
+    } elseif ($request->bearerToken()) {
+        $pat = \Laravel\Sanctum\PersonalAccessToken::findToken((string) $request->bearerToken());
+        if ($pat && !$pat->can('*')) {
+            abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
         }
     }
 
@@ -364,6 +383,9 @@ Route::get('/funki/shop/order-items/{itemId}/laser-file/{side}', function (\Illu
     if (!$user instanceof \App\Models\Admin\Admin) {
         abort(403, 'Nur Admins dürfen Bestellungen verwalten.');
     }
+    if (method_exists($user, 'currentAccessToken') && $user->currentAccessToken() && !$user->tokenCan('*')) {
+        abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
+    }
 
     return $downloadService->downloadLaserSvg($itemId, $side);
 })->middleware('throttle:30,1');
@@ -373,15 +395,30 @@ Route::get('/funki/music/stream/{id}', function (\Illuminate\Http\Request $reque
     $tokenString = $request->query('token');
     if (is_string($tokenString) && $tokenString !== '') {
         $token = \Laravel\Sanctum\PersonalAccessToken::findToken($tokenString);
+        if ($token && !$token->can('*')) {
+            abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
+        }
         if ($token && (!$token->expires_at || !$token->expires_at->isPast()) && $token->tokenable) {
             $user = $token->tokenable;
             $request->setUserResolver(fn() => $user);
+        }
+    } elseif ($request->bearerToken()) {
+        $pat = \Laravel\Sanctum\PersonalAccessToken::findToken((string) $request->bearerToken());
+        if ($pat && !$pat->can('*')) {
+            abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
         }
     }
 
     $user = $request->user() ?: $request->user('sanctum');
     if (!$user || !$user instanceof \App\Models\Admin\Admin) {
         abort(401, 'Unauthorized');
+    }
+    if (method_exists($user, 'currentAccessToken') && $user->currentAccessToken() && !$user->tokenCan('*')) {
+        abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
+    }
+
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
     }
 
     $track = \App\Models\Management\ManagementTrack::findOrFail($id);
@@ -403,7 +440,10 @@ Route::get('/funki/music/stream/{id}', function (\Illuminate\Http\Request $reque
     }
 
     if (!$fullPath && !empty($track->external_id)) {
-        $vid = preg_replace('/[^A-Za-z0-9_-]/', '', $track->external_id);
+        $vid = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $track->external_id);
+        if (!preg_match('/^[A-Za-z0-9_-]{6,20}$/', $vid)) {
+            abort(422, 'Ungültige externe Audio-ID.');
+        }
         $rel = "leitung/music/tracks/{$vid}.m4a";
         $cand = storage_path("app/{$rel}");
         if (file_exists($cand) && filesize($cand) > 10000) {
@@ -413,7 +453,7 @@ Route::get('/funki/music/stream/{id}', function (\Illuminate\Http\Request $reque
             }
         } else {
             // Instant on-the-fly download if not yet cached
-            $ytDlp = storage_path('app/bin/yt-dlp');
+            $ytDlp = storage_path('app/leitung/music/bin/yt-dlp');
             $tracksDir = storage_path('app/leitung/music/tracks');
             if (!is_dir($tracksDir)) {
                 @mkdir($tracksDir, 0775, true);
@@ -421,7 +461,7 @@ Route::get('/funki/music/stream/{id}', function (\Illuminate\Http\Request $reque
             $outPattern = storage_path('app/leitung/music/tracks/%(id)s.%(ext)s');
             $cmd = escapeshellarg($ytDlp)
                 . ' --no-playlist -f "140/ba[ext=m4a]/ba" --concurrent-fragments 4 --no-warnings -o '
-                . escapeshellarg($outPattern) . ' '
+                . escapeshellarg($outPattern) . ' -- '
                 . escapeshellarg("https://www.youtube.com/watch?v={$vid}") . ' 2>&1';
             @shell_exec($cmd);
 
@@ -510,62 +550,356 @@ Route::get('/funki/music/stream/{id}', function (\Illuminate\Http\Request $reque
 // --- 2. Geschützte API-Routen (Sanctum) ---
 Route::middleware('auth:sanctum')->group(function () {
 
-    // Basis User- & Geräte-Funktionen (Für alle authentifizierten Benutzer: Admin, Mitarbeiter, Kunde)
-    require __DIR__ . '/api/core.php';
+    // --- 2a. Isolierter Zero-Trust Manufaktur-Monitor Endpunkt (Read-Only, 0 PII / 0 Finanzdaten) ---
+    Route::get('/shop/monitor-pulse', function (\Illuminate\Http\Request $request) {
+        $user = $request->user();
+        if (!$user instanceof \App\Models\Admin\Admin) {
+            abort(403, 'Nur Administratoren dürfen den Manufaktur-Monitor abrufen.');
+        }
+        if (method_exists($user, 'currentAccessToken') && $user->currentAccessToken() && !$user->tokenCan('monitor:pulse') && !$user->tokenCan('*')) {
+            abort(403, 'Unzureichende Token-Berechtigung.');
+        }
 
-    // Admin Back-Office (Ausschließlich für Administratoren zugänglich)
+        $formatGdprShortName = static function (?string $firstName, ?string $lastName, ?string $fallbackName = null): string {
+            $first = trim((string) $firstName);
+            $last = trim((string) $lastName);
+            if ($first === '' && $last === '' && !empty($fallbackName)) {
+                $parts = preg_split('/\s+/', trim((string) $fallbackName)) ?: [];
+                $first = $parts[0] ?? '';
+                $last = count($parts) > 1 ? (string) end($parts) : '';
+            }
+            if ($first === '') {
+                return 'Kunde';
+            }
+            $firstClean = mb_substr($first, 0, 18);
+            if ($last !== '') {
+                $initial = mb_strtoupper(mb_substr($last, 0, 1));
+                return $firstClean . ' ' . $initial . '.';
+            }
+            return $firstClean;
+        };
+
+        $validOrdersForTop = \App\Models\Order\OrderOrder::query()
+            ->whereNotIn('status', ['cancelled', 'refunded'])
+            ->get(['customer_id', 'email', 'billing_address', 'total_price']);
+
+        $groupedCustomers = [];
+        foreach ($validOrdersForTop as $row) {
+            $key = !empty($row->customer_id)
+                ? 'cid_' . $row->customer_id
+                : 'mail_' . mb_strtolower(trim((string) $row->email));
+            if ($key === 'mail_') {
+                continue;
+            }
+            if (!isset($groupedCustomers[$key])) {
+                $billing = is_array($row->billing_address) ? $row->billing_address : [];
+                $groupedCustomers[$key] = [
+                    'display_name' => $formatGdprShortName(
+                        $billing['first_name'] ?? null,
+                        $billing['last_name'] ?? null,
+                        $row->customer_name ?? null
+                    ),
+                    'total_cents' => 0,
+                    'orders_count' => 0,
+                ];
+            }
+            $groupedCustomers[$key]['total_cents'] += (int) $row->total_price;
+            $groupedCustomers[$key]['orders_count']++;
+        }
+
+        usort($groupedCustomers, static function (array $a, array $b): int {
+            if ($b['total_cents'] !== $a['total_cents']) {
+                return $b['total_cents'] <=> $a['total_cents'];
+            }
+            return $b['orders_count'] <=> $a['orders_count'];
+        });
+
+        $topDisplayOnly = array_map(
+            static fn(array $c): array => ['display_name' => $c['display_name']],
+            array_slice(array_values($groupedCustomers), 0, 3)
+        );
+
+        $openBaseQuery = \App\Models\Order\OrderOrder::whereNotIn('status', ['completed', 'cancelled', 'refunded', 'shipped']);
+
+        // Aktive Tagesroutine (Europe/Berlin) für den Manufaktur-Monitor (inkl. Fokus-Modus)
+        $activeRoutinePayload = null;
+        try {
+            $nowBerlin = \Carbon\Carbon::now('Europe/Berlin');
+            $nowMins = ((int) $nowBerlin->format('G')) * 60 + (int) $nowBerlin->format('i');
+            $routines = \App\Models\Management\ManagementDayRoutine::with('steps')
+                ->where('is_active', true)
+                ->orderBy('start_time', 'asc')
+                ->get();
+
+            foreach ($routines as $r) {
+                $st = \Carbon\Carbon::parse($r->start_time);
+                $sMins = ((int) $st->format('G')) * 60 + (int) $st->format('i');
+                $dur = max(1, (int) ($r->duration_minutes ?: 60));
+                $eMins = $sMins + $dur;
+                $inWindow = $eMins <= 1440
+                    ? ($nowMins >= $sMins && $nowMins < $eMins)
+                    : ($nowMins >= $sMins || $nowMins < ($eMins % 1440));
+
+                if ($inWindow) {
+                    $elapsed = $nowMins >= $sMins ? ($nowMins - $sMins) : (1440 - $sMins + $nowMins);
+                    $stepTitle = '';
+                    $acc = 0;
+                    foreach ($r->steps as $step) {
+                        $acc += max(1, (int) ($step->duration_minutes ?: 10));
+                        if ($elapsed < $acc) {
+                            $stepTitle = (string) $step->title;
+                            break;
+                        }
+                    }
+                    $startStr = sprintf('%02d:%02d', intdiv($sMins, 60), $sMins % 60);
+                    $endMod = $eMins % 1440;
+                    $endStr = sprintf('%02d:%02d', intdiv($endMod, 60), $endMod % 60);
+                    $activeRoutinePayload = [
+                        'start_time' => $startStr,
+                        'end_time' => $endStr,
+                        'title' => (string) $r->title,
+                        'type' => (string) ($r->type ?? 'work'),
+                        'current_step' => $stepTitle,
+                        'banner' => $startStr . ' - ' . $endStr . ' · ' . mb_strtoupper((string) $r->title),
+                    ];
+                    break;
+                }
+            }
+        } catch (\Throwable $routineEx) {
+            $activeRoutinePayload = null;
+        }
+
+        // Jahreszeit, Feiertag & Shop-Wachstums-Stufe (1..5) für Funkiras 3D-Atelier
+        $nowB = \Carbon\Carbon::now('Europe/Berlin');
+        $m = (int) $nowB->month;
+        $d = (int) $nowB->day;
+        $season = in_array($m, [12, 1, 2], true) ? 'winter' : (in_array($m, [3, 4, 5], true) ? 'spring' : (in_array($m, [6, 7, 8], true) ? 'summer' : 'autumn'));
+        $occasion = 'standard';
+        if (($m === 12 && $d >= 24 && $d <= 26)) {
+            $occasion = 'christmas';
+        } elseif (($m === 11 && $d >= 24) || ($m === 12 && $d < 24)) {
+            $occasion = 'advent';
+        } elseif (($m === 12 && $d >= 30) || ($m === 1 && $d <= 2)) {
+            $occasion = 'new_year';
+        } elseif ($m === 2 && $d >= 7 && $d <= 14) {
+            $occasion = 'valentines';
+        } elseif ($m === 10 && $d >= 25) {
+            $occasion = 'halloween';
+        } elseif ($m === 11 && $d >= 1 && $d <= 3) {
+            $occasion = 'anniversary';
+        } elseif ($m === 5 && $d >= 8 && $d <= 14) {
+            $occasion = 'mothers_day';
+        } elseif (($m === 3 && $d >= 22) || ($m === 4 && $d <= 22)) {
+            try {
+                if (function_exists('easter_days')) {
+                    $easter = \Carbon\Carbon::create($nowB->year, 3, 21, 0, 0, 0, 'Europe/Berlin')->addDays(easter_days($nowB->year));
+                    if (abs($nowB->diffInDays($easter, false)) <= 5) {
+                        $occasion = 'easter';
+                    }
+                }
+            } catch (\Throwable $e) {
+            }
+        }
+
+        $validOrderCountBase = \App\Models\Order\OrderOrder::whereNotIn('status', ['cancelled', 'refunded']);
+        $ordersToday = (clone $validOrderCountBase)->whereDate('created_at', $nowB->toDateString())->count();
+        $ordersWeek = (clone $validOrderCountBase)->where('created_at', '>=', $nowB->copy()->startOfWeek())->count();
+        $ordersMonth = (clone $validOrderCountBase)->where('created_at', '>=', $nowB->copy()->startOfMonth())->count();
+        $totalValidOrders = count($validOrdersForTop);
+        $growthScore = max($ordersMonth, (int) floor($totalValidOrders / 2));
+        $shopLevel = $growthScore >= 100 ? 5 : ($growthScore >= 50 ? 4 : ($growthScore >= 20 ? 3 : ($growthScore >= 5 ? 2 : 1)));
+        $levelTitles = [
+            1 => 'Gründer-Werkbank',
+            2 => 'Aufstrebende Manufaktur',
+            3 => 'Florierendes Atelier',
+            4 => 'Premium-Manufaktur',
+            5 => 'Seelenfunke Imperium',
+        ];
+
+        return response()->json([
+            'open_orders_count' => (clone $openBaseQuery)->count(),
+            'express_orders_count' => (clone $openBaseQuery)->where('is_express', true)->count(),
+            'open_carts_count' => \App\Models\Cart\Cart::whereHas('items')->count(),
+            'total' => \App\Models\Order\OrderOrder::count(),
+            'latest_order_id' => (string) (\App\Models\Order\OrderOrder::max('id') ?? ''),
+            'top_customers' => $topDisplayOnly,
+            'active_routine' => $activeRoutinePayload,
+            'pending_trichter_count' => \App\Services\System\MiniPcTrichterRelayService::countPending(),
+            'world_state' => [
+                'season' => $season,
+                'occasion' => $occasion,
+                'orders_today' => $ordersToday,
+                'orders_week' => $ordersWeek,
+                'orders_month' => $ordersMonth,
+                'shop_level' => $shopLevel,
+                'level_title' => $levelTitles[$shopLevel] ?? 'Gründer-Werkbank',
+            ],
+        ], 200, [
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    })->middleware('throttle:60,1');
+
+    // --- 2a-bis. Verschlüsselte Eingang-Trichter Abholung für den Werkstatt-Mini-PC (nur Admin mit ai:funkira oder *) ---
+    Route::prefix('shop/minipc-trichter')->middleware('throttle:60,1')->group(function () {
+        $authorizeMiniPcTrichter = static function (\Illuminate\Http\Request $request): void {
+            if ($request->bearerToken()) {
+                $pat = \Laravel\Sanctum\PersonalAccessToken::findToken((string) $request->bearerToken());
+                if (!$pat || (!$pat->can('ai:funkira') && !$pat->can('*'))) {
+                    abort(403, 'Unzureichende Token-Berechtigung für Eingang-Trichter.');
+                }
+            }
+
+            $user = $request->user();
+            if (!$user instanceof \App\Models\Admin\Admin) {
+                abort(403, 'Nur Administratoren dürfen auf die Mini-PC Trichter-Schleuse zugreifen.');
+            }
+            if (method_exists($user, 'currentAccessToken') && $user->currentAccessToken() && !$user->tokenCan('ai:funkira') && !$user->tokenCan('*')) {
+                abort(403, 'Unzureichende Token-Berechtigung für Eingang-Trichter.');
+            }
+        };
+
+        Route::get('/pending', function (\Illuminate\Http\Request $request) use ($authorizeMiniPcTrichter) {
+            $authorizeMiniPcTrichter($request);
+            $items = \App\Services\System\MiniPcTrichterRelayService::listPending();
+            return response()->json([
+                'success' => true,
+                'count' => count($items),
+                'items' => $items,
+            ], 200, ['Cache-Control' => 'no-store, private']);
+        });
+
+        Route::get('/pull/{id}', function (\Illuminate\Http\Request $request, string $id) use ($authorizeMiniPcTrichter) {
+            $authorizeMiniPcTrichter($request);
+            $pulled = \App\Services\System\MiniPcTrichterRelayService::pullDecrypted($id);
+            if (!$pulled) {
+                abort(404, 'Trichter-Dokument nicht gefunden oder bereits abgeholt.');
+            }
+            $meta = $pulled['meta'];
+            return response($pulled['bytes'], 200, [
+                'Content-Type' => (string) ($meta['mime_type'] ?? 'application/octet-stream'),
+                'X-Trichter-Filename' => rawurlencode((string) ($meta['file_name'] ?? 'dokument.pdf')),
+                'X-Trichter-Title' => rawurlencode((string) ($meta['custom_title'] ?? '')),
+                'X-Trichter-Sha256' => (string) ($meta['sha256'] ?? ''),
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
+        });
+
+        Route::delete('/ack/{id}', function (\Illuminate\Http\Request $request, string $id) use ($authorizeMiniPcTrichter) {
+            $authorizeMiniPcTrichter($request);
+            $deleted = \App\Services\System\MiniPcTrichterRelayService::ackAndDelete($id);
+            return response()->json([
+                'success' => true,
+                'deleted' => $deleted,
+                'remaining_count' => \App\Services\System\MiniPcTrichterRelayService::countPending(),
+            ]);
+        });
+    });
+
+    // Selbst-Herabstufung eines Voll-Admin-Tokens auf ein reines Read-Only Manufaktur-Monitor-Token (monitor:pulse)
+    Route::post('/auth/downgrade-to-monitor-token', function (\Illuminate\Http\Request $request) {
+        $user = $request->user();
+        if (!$user instanceof \App\Models\Admin\Admin) {
+            abort(403, 'Nur Administratoren dürfen Monitor-Tokens ausstellen.');
+        }
+
+        $currentToken = method_exists($user, 'currentAccessToken') ? $user->currentAccessToken() : null;
+        if ($currentToken && method_exists($currentToken, 'can') && !$currentToken->can('*') && $currentToken->can('monitor:pulse')) {
+            return response()->json([
+                'status' => 'already_scoped',
+                'scope' => 'monitor:pulse',
+            ]);
+        }
+
+        $deviceSuffix = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $request->input('device_name', 'Kiosk'));
+        $tokenName = 'FunkenwerkMonitor-' . ($deviceSuffix !== '' ? $deviceSuffix : 'Kiosk') . '-admin';
+
+        if ($currentToken && method_exists($currentToken, 'delete')) {
+            $currentToken->delete();
+        }
+        $user->tokens()->where('name', $tokenName)->delete();
+
+        $newToken = $user->createToken($tokenName, ['monitor:pulse'])->plainTextToken;
+
+        return response()->json([
+            'status' => 'downgraded',
+            'scope' => 'monitor:pulse',
+            'token' => $newToken,
+        ], 200, [
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+        ]);
+    })->middleware('throttle:10,1');
+
+    // --- 2b. Vollzugriffs-Schranke: Eingeschränkte Geräte-Tokens (z.B. monitor:pulse) werden für das gesamte restliche Portal blockiert ---
     Route::group(['middleware' => [function ($request, $next) {
-        if (!$request->user() instanceof \App\Models\Admin\Admin) {
-            abort(403, 'Zugriff verweigert. Nur Administratoren dürfen auf das Back-Office zugreifen.');
+        $user = $request->user();
+        if ($user && method_exists($user, 'currentAccessToken') && $user->currentAccessToken() && !$user->tokenCan('*')) {
+            if (!$request->is('api/logout')) {
+                abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
+            }
         }
         return $next($request);
     }]], function () {
 
-        // Finanz-Manager
-        require __DIR__ . '/api/finance.php';
+        // Basis User- & Geräte-Funktionen (Für alle authentifizierten Benutzer: Admin, Mitarbeiter, Kunde)
+        require __DIR__ . '/api/core.php';
 
-        // Tagesroutine
-        require __DIR__ . '/api/routine.php';
+        // Admin Back-Office (Ausschließlich für Administratoren zugänglich)
+        Route::group(['middleware' => [function ($request, $next) {
+            if (!$request->user() instanceof \App\Models\Admin\Admin) {
+                abort(403, 'Zugriff verweigert. Nur Administratoren dürfen auf das Back-Office zugreifen.');
+            }
+            return $next($request);
+        }]], function () {
 
-        // Tasks (Aufgaben)
-        require __DIR__ . '/api/tasks.php';
+            // Finanz-Manager
+            require __DIR__ . '/api/finance.php';
 
-        // E-Mails
-        require __DIR__ . '/api/emails.php';
+            // Tagesroutine
+            require __DIR__ . '/api/routine.php';
 
-        // Kontakte
-        require __DIR__ . '/api/contacts.php';
+            // Tasks (Aufgaben)
+            require __DIR__ . '/api/tasks.php';
 
-        // Einkaufsliste
-        require __DIR__ . '/api/shopping.php';
+            // E-Mails
+            require __DIR__ . '/api/emails.php';
 
-        // Calender & Termine
-        require __DIR__ . '/api/calendar.php';
+            // Kontakte
+            require __DIR__ . '/api/contacts.php';
 
-        // Musik & Soundplayer
-        require __DIR__ . '/api/music.php';
+            // Einkaufsliste
+            require __DIR__ . '/api/shopping.php';
 
-        // Shop Orders (Bestellungen)
-        require __DIR__ . '/api/orders.php';
+            // Calender & Termine
+            require __DIR__ . '/api/calendar.php';
 
-        // Dateiverwaltung (Workspace & Dateitrichter)
-        require __DIR__ . '/api/files.php';
+            // Musik & Soundplayer
+            require __DIR__ . '/api/music.php';
 
-        // Marketing & Content-Planer Live-Kontext (Shop-Produkte, Margen, Jahreszeiten & Feiertage)
-        Route::get('/funki/marketing/live-context', function (\App\Services\Marketing\HolidayOfferAutopilotService $autopilot) {
-            return response()->json([
-                'success' => true,
-                'data' => $autopilot->buildLiveMarketingPlanContext(),
-            ]);
+            // Shop Orders (Bestellungen)
+            require __DIR__ . '/api/orders.php';
+
+            // Dateiverwaltung (Workspace & Dateitrichter)
+            require __DIR__ . '/api/files.php';
+
+            // Marketing & Content-Planer Live-Kontext (Shop-Produkte, Margen, Jahreszeiten & Feiertage)
+            Route::get('/funki/marketing/live-context', function (\App\Services\Marketing\HolidayOfferAutopilotService $autopilot) {
+                return response()->json([
+                    'success' => true,
+                    'data' => $autopilot->buildLiveMarketingPlanContext(),
+                ]);
+            });
+
+            // AI Chat
+            Route::get('/ai/agents', function() {
+                return response()->json([
+                    'success' => true,
+                    'data' => \App\Models\Ai\AiAgent::where('is_active', true)->orderBy('name')->get()
+                ]);
+            });
         });
 
-        // AI Chat
-        Route::get('/ai/agents', function() {
-            return response()->json([
-                'success' => true,
-                'data' => \App\Models\Ai\AiAgent::where('is_active', true)->orderBy('name')->get()
-            ]);
-        });
     });
 
 });

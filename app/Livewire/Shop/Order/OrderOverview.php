@@ -756,24 +756,45 @@ class OrderOverview extends Component
             abort(403, 'Nur Administratoren dürfen Bestellungen löschen.');
         }
 
-        $order = OrderOrder::with('invoices')->find($orderId);
-        if ($order) {
-            if ($order->payment_status === 'paid' || $order->invoices->isNotEmpty()) {
-                session()->flash('error', 'Bezahlte oder bereits abgerechnete Bestellungen dürfen gemäß GoBD nicht gelöscht werden.');
-                return;
-            }
+        $order = OrderOrder::with(['invoices', 'shipments', 'items'])->find($orderId);
+        if (!$order) {
+            return;
+        }
 
-            try {
-                DB::transaction(function () use ($order) {
-                    $order->delete();
-                    $this->invalidateSmartQueueCache();
-                    $this->closeDetail();
-                    session()->flash('success', 'Bestellung gelöscht.');
-                });
-            } catch (\Exception $e) {
-                $this->logAdminOrderError('delete_order', $e, ['order_id' => $orderId]);
-                session()->flash('error', 'Fehler beim Löschen der Bestellung.');
-            }
+        if (!$order->canBePermanentlyDeleted()) {
+            session()->flash('error', 'Bezahlte, versendete oder bereits abgerechnete Bestellungen dürfen gemäß GoBD nicht gelöscht werden (bitte stattdessen stornieren).');
+            return;
+        }
+
+        try {
+            DB::transaction(function () use ($order, $orderId) {
+                $orderNumber = (string) $order->order_number;
+                $orderEmail = (string) $order->email;
+                $deletedFiles = $order->permanentlyDeleteUnpaidOrder();
+
+                SystemLog::create([
+                    'type' => 'system',
+                    'ai_agent_id' => null,
+                    'action_id' => 'admin_order_force_delete',
+                    'title' => "Unbezahlte Bestellung gelöscht: {$orderNumber}",
+                    'message' => "Unbezahlte Bestellung {$orderNumber} ({$orderEmail}) wurde inkl. Positionen und " . count($deletedFiles) . " temporären Upload-/Snapshot-Dateien unwiderruflich gelöscht.",
+                    'status' => 'success',
+                    'payload' => [
+                        'order_id' => $orderId,
+                        'order_number' => $orderNumber,
+                        'deleted_files' => $deletedFiles,
+                    ],
+                    'started_at' => now(),
+                    'finished_at' => now(),
+                ]);
+
+                $this->invalidateSmartQueueCache();
+                $this->closeDetail();
+                session()->flash('success', 'Bestellung gelöscht.');
+            });
+        } catch (\Exception $e) {
+            $this->logAdminOrderError('delete_order', $e, ['order_id' => $orderId]);
+            session()->flash('error', 'Fehler beim Löschen der Bestellung.');
         }
     }
 

@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <cache-path name="camera_photos" path="." />
+    <cache-path name="camera_captures" path="camera_captures/" />
+    <cache-path name="mail_attachments" path="mail_attachments/" />
+    <cache-path name="calendar_exports" path="calendar_exports/" />
+    <cache-path name="secure_downloads" path="secure_downloads/" />
 </paths>

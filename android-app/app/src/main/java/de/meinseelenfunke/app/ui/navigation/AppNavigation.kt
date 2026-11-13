@@ -91,7 +91,52 @@ fun AppNavigation(
         mutableStateOf(!requiresBiometricUnlock)
     }
 
-    android.util.Log.d("BiometricDebug", "isLoggedIn: $isLoggedIn, isBiometricEnabled: $isBiometricEnabled, isBiometricAvailable: $isBiometricAvailable, requiresBiometricUnlock: $requiresBiometricUnlock, isBiometricUnlocked: $isBiometricUnlocked")
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    var backgroundedAtElapsedMs by rememberSaveable { androidx.compose.runtime.mutableLongStateOf(0L) }
+
+    // Auto-relock after 3 minutes in background & shield screen while locked
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner, isLoggedIn) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
+                    backgroundedAtElapsedMs = android.os.SystemClock.elapsedRealtime()
+                }
+                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> {
+                    val nowElapsed = android.os.SystemClock.elapsedRealtime()
+                    val shouldRelock = ServiceLocator.authRepository.isLoggedIn()
+                        && ServiceLocator.isBiometricEnabled()
+                        && BiometricHelper.isBiometricAvailable(context)
+                        && backgroundedAtElapsedMs > 0L
+                        && (nowElapsed - backgroundedAtElapsedMs) >= 180_000L
+                        && !de.meinseelenfunke.app.util.FunkenwerkAlarmManager.isAlarmRingingFlow.value
+                        && !de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive
+                    if (shouldRelock) {
+                        isBiometricUnlocked = false
+                    }
+                    backgroundedAtElapsedMs = 0L
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    LaunchedEffect(isLoggedIn, isBiometricUnlocked) {
+        var ctx = context
+        while (ctx is android.content.ContextWrapper) {
+            if (ctx is android.app.Activity) break
+            ctx = ctx.baseContext
+        }
+        val activity = ctx as? android.app.Activity
+        if (isLoggedIn && !isBiometricUnlocked) {
+            activity?.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            activity?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        }
+    }
 
     LaunchedEffect(navController) {
         de.meinseelenfunke.app.util.NavigationBridge.wakeWordTrigger.collect {
@@ -402,7 +447,9 @@ fun MainTabbedScreen(
                     Screen.Chat -> ChatScreen(
                         onLogout = onLogout
                     )
-                    Screen.Settings -> SettingsScreen()
+                    Screen.Settings -> SettingsScreen(
+                        onLogout = onLogout
+                    )
                     Screen.Orders -> OrdersTabContent()
                     else -> {}
                 }

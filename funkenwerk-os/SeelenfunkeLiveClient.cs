@@ -27,15 +27,18 @@ namespace FunkenwerkOS
         {
             "127.0.0.1",
             "localhost",
-            "192.168.188.119",
             "seelenfunke.test",
             "stage.mein-seelenfunke.de",
             "mein-seelenfunke.de"
         };
 
-        private static string s_preferredLocalBaseUrl = "http://127.0.0.1/api";
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> s_lastMonitorScopeCheckUtc = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> s_monitorScopeVerified = new(StringComparer.OrdinalIgnoreCase);
 
         private static readonly HttpClient Http = CreateHardenedHttpClient();
+
+        public static bool IsDedicatedMiniPcKiosk() =>
+            System.IO.File.Exists(@"C:\Funkenwerk Collection\Funkenwerk OS\FunkenwerkOS.exe");
 
         private static HttpClient CreateHardenedHttpClient()
         {
@@ -47,20 +50,24 @@ namespace FunkenwerkOS
                 ConnectTimeout = TimeSpan.FromSeconds(8),
                 SslOptions =
                 {
-                    EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13
+                    EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
+                    CertificateRevocationCheckMode = System.Security.Cryptography.X509Certificates.X509RevocationMode.Online
                 }
             };
 
             return new HttpClient(handler)
             {
                 Timeout = TimeSpan.FromSeconds(14),
-                MaxResponseContentBufferSize = 4L * 1024L * 1024L
+                MaxResponseContentBufferSize = 2L * 1024L * 1024L
             };
         }
 
         public static string GetBaseUrlForEnvironment(string? env)
         {
             string norm = (env ?? "live").Trim().ToLowerInvariant();
+            if (IsDedicatedMiniPcKiosk() && norm == "local")
+                norm = "stage";
+
             return norm switch
             {
                 "local" => "http://127.0.0.1/api",
@@ -76,20 +83,26 @@ namespace FunkenwerkOS
             if (!Uri.TryCreate(rawUrl.Trim(), UriKind.Absolute, out Uri? uri)) return false;
             if (!string.IsNullOrEmpty(uri.UserInfo)) return false;
 
-            bool isLanDev = uri.Host.StartsWith("192.168.188.", StringComparison.OrdinalIgnoreCase);
-            bool hostAllowed = isLanDev || AllowedHosts.Any(h => string.Equals(h, uri.Host, StringComparison.OrdinalIgnoreCase));
+            bool hostAllowed = AllowedHosts.Any(h => string.Equals(h, uri.Host, StringComparison.OrdinalIgnoreCase));
             if (!hostAllowed) return false;
 
-            bool isLocal = isLanDev
-                        || uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
-                        || uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
-                        || uri.Host.Equals("seelenfunke.test", StringComparison.OrdinalIgnoreCase);
+            bool isLoopback = uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
+                           || uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+                           || uri.Host.Equals("seelenfunke.test", StringComparison.OrdinalIgnoreCase);
 
-            if (!isLocal && !uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
-                return false;
-
-            if (isLocal && !uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase) && !uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
-                return false;
+            // Security: Never allow plaintext HTTP on the Manufactory Mini-PC or to any non-loopback host!
+            if (IsDedicatedMiniPcKiosk())
+            {
+                if (isLoopback || !uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
+                    return false;
+            }
+            else
+            {
+                if (!isLoopback && !uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
+                    return false;
+                if (isLoopback && !uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase) && !uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
+                    return false;
+            }
 
             normalizedBase = uri.GetLeftPart(UriPartial.Authority) + uri.AbsolutePath.TrimEnd('/');
             return true;
@@ -103,12 +116,16 @@ namespace FunkenwerkOS
 
             try
             {
+                bool monitorOnly = IsDedicatedMiniPcKiosk();
                 var payload = new Dictionary<string, string>
                 {
                     ["email"] = email.Trim(),
                     ["password"] = password,
-                    ["device_name"] = $"FunkenwerkOS ({Environment.MachineName})"
+                    ["device_name"] = monitorOnly ? $"FunkenwerkMonitor-{Environment.MachineName}" : $"FunkenwerkOS ({Environment.MachineName})"
                 };
+
+                if (monitorOnly)
+                    payload["scope"] = "monitor_only";
 
                 if (!string.IsNullOrWhiteSpace(twoFactorCode))
                     payload["two_factor_code"] = twoFactorCode.Trim();
@@ -215,6 +232,9 @@ namespace FunkenwerkOS
         {
             var snap = new OsDashboardSnapshot();
             string normEnv = (env ?? "live").Trim().ToLowerInvariant();
+            if (IsDedicatedMiniPcKiosk() && normEnv == "local")
+                normEnv = "stage";
+
             string baseUrl = GetBaseUrlForEnvironment(normEnv);
             if (!IsTrustedApiUrl(baseUrl, out string safeBase))
             {
@@ -229,12 +249,23 @@ namespace FunkenwerkOS
                 return snap;
             }
 
+            if (IsDedicatedMiniPcKiosk())
+            {
+                bearer = await TryEnsureMonitorOnlyTokenScopeAsync(settings, normEnv, safeBase, bearer).ConfigureAwait(false);
+            }
+
             var sw = Stopwatch.StartNew();
             try
             {
-                string? ordersBody = normEnv == "local"
-                    ? await SendGetLocalWithLanFallbackAsync("/shop/orders?status=all", bearer).ConfigureAwait(false)
-                    : await SendGetAsync($"{safeBase}/shop/orders?status=all", bearer).ConfigureAwait(false);
+                var (pulseStatus, pulseBody) = await SendGetWithStatusAsync($"{safeBase}/shop/monitor-pulse", bearer).ConfigureAwait(false);
+                string? ordersBody = pulseBody;
+
+                // Fallback only if server has not received /shop/monitor-pulse route deployment yet (HTTP 404)
+                if (pulseStatus == 404 && string.IsNullOrWhiteSpace(ordersBody))
+                {
+                    ordersBody = await SendGetAsync($"{safeBase}/shop/orders?status=all", bearer).ConfigureAwait(false);
+                }
+
                 sw.Stop();
                 snap.LatencyMs = sw.ElapsedMilliseconds;
 
@@ -256,6 +287,57 @@ namespace FunkenwerkOS
             }
 
             return snap;
+        }
+
+        private static async Task<string> TryEnsureMonitorOnlyTokenScopeAsync(OsSettings settings, string normEnv, string safeBase, string currentBearer)
+        {
+            if (s_monitorScopeVerified.TryGetValue(normEnv, out bool verified) && verified)
+                return currentBearer;
+
+            DateTime nowUtc = DateTime.UtcNow;
+            if (s_lastMonitorScopeCheckUtc.TryGetValue(normEnv, out DateTime lastCheck) && (nowUtc - lastCheck).TotalMinutes < 15.0)
+                return currentBearer;
+
+            s_lastMonitorScopeCheckUtc[normEnv] = nowUtc;
+
+            try
+            {
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(6));
+                using var req = new HttpRequestMessage(HttpMethod.Post, $"{safeBase}/auth/downgrade-to-monitor-token");
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", currentBearer);
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                string payload = JsonSerializer.Serialize(new { device_name = Environment.MachineName });
+                req.Content = new StringContent(payload, new UTF8Encoding(false), "application/json");
+
+                using var resp = await Http.SendAsync(req, cts.Token).ConfigureAwait(false);
+                if (!resp.IsSuccessStatusCode)
+                    return currentBearer;
+
+                string body = await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(body) ? "{}" : body);
+                var root = doc.RootElement;
+                string status = GetStr(root, "status", "");
+
+                if (string.Equals(status, "already_scoped", StringComparison.OrdinalIgnoreCase))
+                {
+                    s_monitorScopeVerified[normEnv] = true;
+                    return currentBearer;
+                }
+
+                if (string.Equals(status, "downgraded", StringComparison.OrdinalIgnoreCase))
+                {
+                    string newTok = GetStr(root, "token", "").Trim();
+                    if (!string.IsNullOrWhiteSpace(newTok))
+                    {
+                        OsVaultAndStorage.StoreBearerTokenUnified(settings, normEnv, newTok, switchActiveEnv: false);
+                        s_monitorScopeVerified[normEnv] = true;
+                        return newTok;
+                    }
+                }
+            }
+            catch { }
+
+            return currentBearer;
         }
 
         public static Task<OsDashboardSnapshot> FetchActiveEnvOrdersPulseAsync(OsSettings settings)
@@ -314,27 +396,7 @@ namespace FunkenwerkOS
             }
         }
 
-        private static async Task<string?> SendGetLocalWithLanFallbackAsync(string relativePath, string bearer)
-        {
-            string primaryLocal = s_preferredLocalBaseUrl;
-            string fallbackLocal = string.Equals(primaryLocal, "http://127.0.0.1/api", StringComparison.OrdinalIgnoreCase)
-                ? "http://192.168.188.119/api"
-                : "http://127.0.0.1/api";
-
-            string? body = await SendGetAsync($"{primaryLocal}{relativePath}", bearer, timeoutSec: 2.5).ConfigureAwait(false);
-            if (!string.IsNullOrWhiteSpace(body))
-                return body;
-
-            string? fallbackBody = await SendGetAsync($"{fallbackLocal}{relativePath}", bearer, timeoutSec: 3.5).ConfigureAwait(false);
-            if (!string.IsNullOrWhiteSpace(fallbackBody))
-            {
-                s_preferredLocalBaseUrl = fallbackLocal;
-                return fallbackBody;
-            }
-            return null;
-        }
-
-        private static async Task<string?> SendGetAsync(string url, string bearer, double timeoutSec = 10.0)
+        private static async Task<(int StatusCode, string? Body)> SendGetWithStatusAsync(string url, string bearer, double timeoutSec = 10.0)
         {
             try
             {
@@ -343,13 +405,21 @@ namespace FunkenwerkOS
                 req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
                 req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                 using var resp = await Http.SendAsync(req, cts.Token).ConfigureAwait(false);
-                if (!resp.IsSuccessStatusCode) return null;
-                return await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                int status = (int)resp.StatusCode;
+                if (!resp.IsSuccessStatusCode) return (status, null);
+                string body = await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                return (status, body);
             }
             catch
             {
-                return null;
+                return (0, null);
             }
+        }
+
+        private static async Task<string?> SendGetAsync(string url, string bearer, double timeoutSec = 10.0)
+        {
+            var (_, body) = await SendGetWithStatusAsync(url, bearer, timeoutSec).ConfigureAwait(false);
+            return body;
         }
 
         private static int ComputeStablePositiveId(string key)
@@ -459,6 +529,8 @@ namespace FunkenwerkOS
                     hasArr = true;
                 }
 
+                var fallbackTopMap = new Dictionary<string, (string DisplayName, long TotalCents, int Count)>(StringComparer.OrdinalIgnoreCase);
+
                 if (hasArr)
                 {
                     int openCount = 0;
@@ -483,7 +555,23 @@ namespace FunkenwerkOS
 
                         string rawStatus = GetStr(o, "status", "pending").ToLowerInvariant();
                         bool isClosed = rawStatus is "completed" or "cancelled" or "refunded" or "shipped";
+                        bool isCancelledOrRefunded = rawStatus is "cancelled" or "refunded";
                         bool isExpress = o.TryGetProperty("is_express", out var exProp) && exProp.ValueKind == JsonValueKind.True;
+                        int orderCents = GetSafeInt32(o, "total_price", 0);
+                        string rawCustName = GetStr(o, "customer_name", "");
+
+                        if (!isCancelledOrRefunded && !string.IsNullOrWhiteSpace(rawCustName))
+                        {
+                            string custKey = GetStr(o, "email", rawCustName).Trim();
+                            string gdprName = AnonymizeCustomerNameGdpr(rawCustName);
+                            if (!string.IsNullOrWhiteSpace(gdprName))
+                            {
+                                if (fallbackTopMap.TryGetValue(custKey, out var prev))
+                                    fallbackTopMap[custKey] = (prev.DisplayName, prev.TotalCents + orderCents, prev.Count + 1);
+                                else
+                                    fallbackTopMap[custKey] = (gdprName, orderCents, 1);
+                            }
+                        }
 
                         if (!isClosed)
                         {
@@ -493,17 +581,16 @@ namespace FunkenwerkOS
 
                         if (snap.ActiveOrders.Count < 14)
                         {
-                            int cents = GetSafeInt32(o, "total_price", 0);
                             snap.ActiveOrders.Add(new OsOrderItemDto
                             {
                                 Id = idVal,
                                 OrderUuid = oKey,
                                 OrderNumber = GetStr(o, "order_number", "#"),
-                                CustomerName = GetStr(o, "customer_name", ""),
+                                CustomerName = rawCustName,
                                 StatusLabel = TranslateOrderStatus(rawStatus),
                                 StatusBadgeHex = GetStatusHex(rawStatus),
                                 ItemCount = GetSafeInt32(o, "item_count", 1),
-                                TotalFormatted = FormatEuroFromCents(cents),
+                                TotalFormatted = FormatEuroFromCents(orderCents),
                                 IsExpress = isExpress
                             });
                         }
@@ -516,6 +603,38 @@ namespace FunkenwerkOS
                 int explicitOpen = GetSafeInt32(root, "open_orders_count", -1);
                 if (explicitOpen >= 0)
                     snap.OpenOrdersCount = explicitOpen;
+
+                int explicitExpress = GetSafeInt32(root, "express_orders_count", -1);
+                if (explicitExpress >= 0)
+                    snap.ExpressOrdersCount = explicitExpress;
+
+                int explicitCarts = GetSafeInt32(root, "open_carts_count", -1);
+                if (explicitCarts >= 0)
+                    snap.OpenCartsCount = explicitCarts;
+
+                if (root.TryGetProperty("top_customers", out var topCustProp) && topCustProp.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var tc in topCustProp.EnumerateArray())
+                    {
+                        string rawDisp = tc.ValueKind == JsonValueKind.String
+                            ? (tc.GetString() ?? "")
+                            : GetStr(tc, "display_name", "");
+                        string safeName = AnonymizeCustomerNameGdpr(rawDisp);
+                        if (!string.IsNullOrWhiteSpace(safeName) && snap.TopCustomersGdpr.Count < 3)
+                            snap.TopCustomersGdpr.Add(safeName);
+                    }
+                }
+
+                if (snap.TopCustomersGdpr.Count == 0 && fallbackTopMap.Count > 0)
+                {
+                    foreach (var item in fallbackTopMap.Values
+                        .OrderByDescending(x => x.TotalCents)
+                        .ThenByDescending(x => x.Count)
+                        .Take(3))
+                    {
+                        snap.TopCustomersGdpr.Add(item.DisplayName);
+                    }
+                }
 
                 if (root.TryGetProperty("latest_order_id", out var explicitLatestProp))
                 {
@@ -616,6 +735,19 @@ namespace FunkenwerkOS
         };
 
         private static string FormatEuroFromCents(int cents) => (cents / 100.0).ToString("N2", DeCulture) + " €";
+
+        private static string AnonymizeCustomerNameGdpr(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return "";
+            string[] parts = raw.Trim().Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0) return "";
+            string first = parts[0];
+            if (first.Length > 18) first = first.Substring(0, 18);
+            if (parts.Length == 1) return first;
+            string last = parts[parts.Length - 1].Trim('.');
+            if (string.IsNullOrEmpty(last)) return first;
+            return $"{first} {char.ToUpperInvariant(last[0])}.";
+        }
 
         private static string GetStr(JsonElement el, string prop, string fallback)
         {

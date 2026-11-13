@@ -259,6 +259,10 @@ fun FinanceScreen(
                             }
                         }
                     },
+                    onSendToTrichter = { bytes, name, mime, customTitle ->
+                        viewModel.sendToMiniPcTrichter(bytes, name, mime, customTitle, "android_app")
+                        showQuickEntryDialog = false
+                    },
                     onSubmit = { title, amt, cat, isBiz, date, loc, bytes, name, mime ->
                         viewModel.submitQuickEntry(title, amt, cat, isBiz, date, loc, bytes, name, mime)
                         showQuickEntryDialog = false
@@ -640,15 +644,11 @@ fun VariableExpensesList(
                                         IconButton(
                                             onClick = {
                                                 val path = item.file_paths.first()
-                                                val token = ServiceLocator.getAuthToken() ?: ""
-                                                val baseUrl = ServiceLocator.getBaseUrl()
-                                                val url = "${baseUrl}funki/financials/receipt?path=${android.net.Uri.encode(path)}&token=${android.net.Uri.encode(token)}"
-                                                try {
-                                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                                    context.startActivity(intent)
-                                                } catch (e: Exception) {
-                                                    e.printStackTrace()
-                                                }
+                                                de.meinseelenfunke.app.util.SecureFileOpener.openAuthenticatedApiFile(
+                                                    context = context,
+                                                    relativeApiEndpoint = "funki/financials/receipt?path=${android.net.Uri.encode(path)}",
+                                                    fallbackFileName = path.substringAfterLast('/').ifBlank { "beleg.pdf" }
+                                                )
                                             },
                                             modifier = Modifier.size(24.dp)
                                         ) {
@@ -1317,15 +1317,11 @@ fun FixedExpensesList(
                                                     Spacer(modifier = Modifier.width(6.dp))
                                                     IconButton(
                                                         onClick = {
-                                                            val token = ServiceLocator.getAuthToken() ?: ""
-                                                            val baseUrl = ServiceLocator.getBaseUrl()
-                                                            val url = "${baseUrl}funki/financials/receipt?path=${android.net.Uri.encode(cost.contract_file_path)}&token=${android.net.Uri.encode(token)}"
-                                                            try {
-                                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                                                context.startActivity(intent)
-                                                            } catch (e: Exception) {
-                                                                e.printStackTrace()
-                                                            }
+                                                            de.meinseelenfunke.app.util.SecureFileOpener.openAuthenticatedApiFile(
+                                                                context = context,
+                                                                relativeApiEndpoint = "funki/financials/receipt?path=${android.net.Uri.encode(cost.contract_file_path)}",
+                                                                fallbackFileName = cost.contract_file_path.substringAfterLast('/').ifBlank { "vertrag.pdf" }
+                                                            )
                                                         },
                                                         modifier = Modifier.size(20.dp)
                                                     ) {
@@ -1652,6 +1648,8 @@ fun QuickEntryForm(
     isAiScanning: Boolean = false,
     showCard: Boolean = true,
     showTitle: Boolean = false,
+    initialTrichterMode: Boolean = false,
+    initialSharedUris: List<Uri> = emptyList(),
     onDismiss: () -> Unit,
     onScanReceipt: (
         fileBytes: ByteArray,
@@ -1660,6 +1658,12 @@ fun QuickEntryForm(
         autoSave: Boolean,
         onComplete: (ReceiptAiScanData?) -> Unit
     ) -> Unit = { _, _, _, _, _ -> },
+    onSendToTrichter: (
+        fileBytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+        customTitle: String?
+    ) -> Unit = { _, _, _, _ -> },
     onSubmit: (
         title: String,
         amount: Double,
@@ -1672,6 +1676,17 @@ fun QuickEntryForm(
         mimeType: String?
     ) -> Unit
 ) {
+    var trichterMode by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(initialTrichterMode) }
+    var trichterTitle by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    var trichterCameraUriString by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    var trichterScannedPages by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
+    var trichterFileBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var trichterFileName by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    var trichterFileMime by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    var trichterStatusNote by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    var localCompilingPdf by remember { mutableStateOf(false) }
+    var sharedUrisConsumed by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+
     var title by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     var amountText by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     var selectedCategory by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
@@ -1787,7 +1802,22 @@ fun QuickEntryForm(
                             }
                             Triple(compressed, jpgName, "image/jpeg")
                         } else {
-                            val rawBytes = contentResolver.openInputStream(it)?.use { input -> input.readBytes() }
+                            val maxUploadBytes = 25 * 1024 * 1024
+                            val rawBytes = contentResolver.openInputStream(it)?.use { input ->
+                                val out = java.io.ByteArrayOutputStream()
+                                val buf = ByteArray(8192)
+                                var total = 0
+                                while (true) {
+                                    val read = input.read(buf)
+                                    if (read == -1) break
+                                    total += read
+                                    if (total > maxUploadBytes) {
+                                        throw IllegalArgumentException("Datei ist größer als 25 MB.")
+                                    }
+                                    out.write(buf, 0, read)
+                                }
+                                out.toByteArray()
+                            }
                             Triple(rawBytes, resolvedName ?: "beleg.bin", mime ?: "application/octet-stream")
                         }
                     }
@@ -1814,17 +1844,20 @@ fun QuickEntryForm(
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
+        val uri = cameraTempUriString?.let { Uri.parse(it) }
         if (success) {
-            val uri = cameraTempUriString?.let { Uri.parse(it) }
             if (uri != null) {
                 localIsScanning = true
                 aiScanResultNote = null
                 formScope.launch {
                     try {
                         val finalBytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            de.meinseelenfunke.app.util.ImageUtils.compressImageUri(context, uri)
+                            val bytes = de.meinseelenfunke.app.util.ImageUtils.compressImageUri(context, uri)
                                 ?: context.contentResolver.openInputStream(uri)?.use { input -> input.readBytes() }
+                            try { context.contentResolver.delete(uri, null, null) } catch (_: Exception) {}
+                            bytes
                         }
+                        cameraTempUriString = null
 
                         if (finalBytes != null && finalBytes.isNotEmpty()) {
                             pickedFileBytes = finalBytes
@@ -1842,9 +1875,10 @@ fun QuickEntryForm(
                             aiScanResultNote = "⚠️ Kamerabild konnte nicht geladen werden. Bitte erneut versuchen."
                         }
                     } catch (e: Exception) {
+                        try { context.contentResolver.delete(uri, null, null) } catch (_: Exception) {}
+                        cameraTempUriString = null
                         localIsScanning = false
                         aiScanResultNote = "⚠️ Fehler beim Verarbeiten des Kamerafotos."
-                        e.printStackTrace()
                     }
                 }
             } else {
@@ -1852,7 +1886,168 @@ fun QuickEntryForm(
                 aiScanResultNote = "⚠️ Kamerabild-Pfad nicht gefunden. Bitte erneut versuchen."
             }
         } else {
+            if (uri != null) {
+                try { context.contentResolver.delete(uri, null, null) } catch (_: Exception) {}
+            }
+            cameraTempUriString = null
             localIsScanning = false
+        }
+    }
+
+    val readUriRawBytesLimited: (Uri) -> Triple<ByteArray, String, String>? = { targetUri ->
+        val mime = contentResolver.getType(targetUri) ?: "application/octet-stream"
+        var resolvedName: String? = null
+        contentResolver.query(targetUri, null, null, null, null)?.use { c ->
+            val nameIdx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (nameIdx != -1 && c.moveToFirst()) {
+                resolvedName = c.getString(nameIdx)
+            }
+        }
+        if (resolvedName.isNullOrBlank()) {
+            val ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: "pdf"
+            resolvedName = "Dokument_${System.currentTimeMillis()}.$ext"
+        }
+        val maxUploadBytes = 25 * 1024 * 1024
+        val bytes = contentResolver.openInputStream(targetUri)?.use { input ->
+            val out = java.io.ByteArrayOutputStream()
+            val buf = ByteArray(8192)
+            var total = 0
+            while (true) {
+                val read = input.read(buf)
+                if (read == -1) break
+                total += read
+                if (total > maxUploadBytes) {
+                    throw IllegalArgumentException("Datei ist größer als 25 MB.")
+                }
+                out.write(buf, 0, read)
+            }
+            out.toByteArray()
+        }
+        if (bytes != null && bytes.isNotEmpty()) Triple(bytes, resolvedName!!, mime) else null
+    }
+
+    LaunchedEffect(initialSharedUris) {
+        if (initialSharedUris.isNotEmpty() && !sharedUrisConsumed) {
+            sharedUrisConsumed = true
+            trichterMode = true
+            trichterStatusNote = null
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val singleNonImage = initialSharedUris.size == 1 &&
+                        (contentResolver.getType(initialSharedUris.first())?.startsWith("image/") != true)
+                    if (singleNonImage) {
+                        val loaded = readUriRawBytesLimited(initialSharedUris.first())
+                        if (loaded != null) {
+                            trichterScannedPages = emptyList()
+                            trichterFileBytes = loaded.first
+                            trichterFileName = loaded.second
+                            trichterFileMime = loaded.third
+                        }
+                    } else {
+                        val pages = mutableListOf<ByteArray>()
+                        initialSharedUris.forEach { u ->
+                            val compressed = de.meinseelenfunke.app.util.ImageUtils.compressImageUri(
+                                context, u, maxDimension = 1800, quality = 82
+                            )
+                            if (compressed != null && compressed.isNotEmpty()) {
+                                pages.add(compressed)
+                            }
+                        }
+                        if (pages.isNotEmpty()) {
+                            trichterFileBytes = null
+                            trichterFileName = null
+                            trichterFileMime = null
+                            trichterScannedPages = pages
+                        } else if (initialSharedUris.isNotEmpty()) {
+                            val loaded = readUriRawBytesLimited(initialSharedUris.first())
+                            if (loaded != null) {
+                                trichterScannedPages = emptyList()
+                                trichterFileBytes = loaded.first
+                                trichterFileName = loaded.second
+                                trichterFileMime = loaded.third
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    trichterStatusNote = "⚠️ ${e.localizedMessage ?: "Datei konnte nicht gelesen werden."}"
+                }
+            }
+        }
+    }
+
+    val trichterCameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        val uri = trichterCameraUriString?.let { Uri.parse(it) }
+        if (success && uri != null) {
+            trichterStatusNote = null
+            formScope.launch {
+                try {
+                    val pageBytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        val bytes = de.meinseelenfunke.app.util.ImageUtils.compressImageUri(
+                            context, uri, maxDimension = 1800, quality = 82
+                        ) ?: context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        try { context.contentResolver.delete(uri, null, null) } catch (_: Exception) {}
+                        bytes
+                    }
+                    trichterCameraUriString = null
+                    if (pageBytes != null && pageBytes.isNotEmpty()) {
+                        trichterFileBytes = null
+                        trichterFileName = null
+                        trichterFileMime = null
+                        trichterScannedPages = trichterScannedPages + pageBytes
+                    } else {
+                        trichterStatusNote = "⚠️ Aufnahme fehlgeschlagen."
+                    }
+                } catch (e: Exception) {
+                    try { context.contentResolver.delete(uri, null, null) } catch (_: Exception) {}
+                    trichterCameraUriString = null
+                    trichterStatusNote = "⚠️ Fehler beim Verarbeiten der Seite."
+                }
+            }
+        } else {
+            if (uri != null) {
+                try { context.contentResolver.delete(uri, null, null) } catch (_: Exception) {}
+            }
+            trichterCameraUriString = null
+        }
+    }
+
+    val trichterFilePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let { targetUri ->
+            trichterStatusNote = null
+            formScope.launch {
+                try {
+                    val mime = contentResolver.getType(targetUri)
+                    if (mime?.startsWith("image/") == true) {
+                        val pageBytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            de.meinseelenfunke.app.util.ImageUtils.compressImageUri(
+                                context, targetUri, maxDimension = 1800, quality = 82
+                            )
+                        }
+                        if (pageBytes != null && pageBytes.isNotEmpty()) {
+                            trichterFileBytes = null
+                            trichterFileName = null
+                            trichterFileMime = null
+                            trichterScannedPages = trichterScannedPages + pageBytes
+                        }
+                    } else {
+                        val loaded = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            readUriRawBytesLimited(targetUri)
+                        }
+                        if (loaded != null) {
+                            trichterScannedPages = emptyList()
+                            trichterFileBytes = loaded.first
+                            trichterFileName = loaded.second
+                            trichterFileMime = loaded.third
+                        }
+                    }
+                } catch (e: Exception) {
+                    trichterStatusNote = "⚠️ ${e.localizedMessage ?: "Datei konnte nicht gelesen werden."}"
+                }
+            }
         }
     }
 
@@ -1865,13 +2060,288 @@ fun QuickEntryForm(
         ) {
             if (showTitle) {
                 Text(
-                    text = "Schnelleintrag hinzufügen",
+                    text = if (trichterMode) "Eingang-Trichter" else "Schnelleintrag hinzufügen",
                     color = AppTheme.colors.textPrimary,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
 
+            // Clean 2-Tab Pill Toggle: [ 🧾 Beleg buchen ] | [ 📥 In Trichter ]
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(AppTheme.colors.glassSurface)
+                    .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(10.dp))
+                    .padding(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (!trichterMode) Gold else Color.Transparent)
+                        .clickable { trichterMode = false }
+                        .padding(vertical = 7.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "🧾 Beleg buchen",
+                        color = if (!trichterMode) SpaceBlack else AppTheme.colors.textPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = if (!trichterMode) FontWeight.Bold else FontWeight.Medium
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (trichterMode) Gold else Color.Transparent)
+                        .clickable { trichterMode = true }
+                        .padding(vertical = 7.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "📥 In Trichter",
+                        color = if (trichterMode) SpaceBlack else AppTheme.colors.textPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = if (trichterMode) FontWeight.Bold else FontWeight.Medium
+                    )
+                }
+            }
+
+            if (trichterMode) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0x22C5A059))
+                            .border(1.dp, Gold, RoundedCornerShape(8.dp))
+                            .clickable {
+                                try {
+                                    val cameraDir = java.io.File(context.cacheDir, "camera_captures").apply { mkdirs() }
+                                    val tempFile = java.io.File.createTempFile("trichter_page_", ".jpg", cameraDir).apply {
+                                        deleteOnExit()
+                                    }
+                                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                                        context,
+                                        "de.meinseelenfunke.app.fileprovider",
+                                        tempFile
+                                    )
+                                    trichterCameraUriString = uri.toString()
+                                    trichterCameraLauncher.launch(uri)
+                                } catch (_: Exception) {
+                                    trichterStatusNote = "⚠️ Kamera konnte nicht gestartet werden."
+                                }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PhotoCamera,
+                            contentDescription = "Seite scannen",
+                            tint = Gold,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (trichterScannedPages.isEmpty()) "Seite scannen" else "+ Seite (${trichterScannedPages.size})",
+                            color = Gold,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(AppTheme.colors.glassSurface)
+                            .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
+                            .clickable { trichterFilePickerLauncher.launch("*/*") }
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AttachFile,
+                            contentDescription = "Datei",
+                            tint = AppTheme.colors.textMuted,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Datei",
+                            color = AppTheme.colors.textPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
+                if (trichterScannedPages.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0x14C5A059), RoundedCornerShape(8.dp))
+                            .border(1.dp, Gold.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "📄 ${trichterScannedPages.size} ${if (trichterScannedPages.size == 1) "Seite" else "Seiten"} (PDF)",
+                            color = Gold,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            if (trichterScannedPages.size > 1) {
+                                Text(
+                                    text = "-1 Seite",
+                                    color = AppTheme.colors.textMuted,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.clickable {
+                                        trichterScannedPages = trichterScannedPages.dropLast(1)
+                                    }
+                                )
+                            }
+                            Text(
+                                text = "Leeren",
+                                color = Rose500,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clickable {
+                                    trichterScannedPages = emptyList()
+                                }
+                            )
+                        }
+                    }
+                } else if (trichterFileName != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0x14C5A059), RoundedCornerShape(8.dp))
+                            .border(1.dp, Gold.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "📎 $trichterFileName",
+                            color = Gold,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "Löschen",
+                            color = Rose500,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable {
+                                trichterFileBytes = null
+                                trichterFileName = null
+                                trichterFileMime = null
+                            }
+                        )
+                    }
+                }
+
+                OutlinedTextField(
+                    value = trichterTitle,
+                    onValueChange = { trichterTitle = it },
+                    label = { Text("Titel / Stichwort (optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Gold,
+                        unfocusedBorderColor = AppTheme.colors.inputBorder,
+                        focusedTextColor = AppTheme.colors.textPrimary,
+                        unfocusedTextColor = AppTheme.colors.textPrimary
+                    )
+                )
+
+                if (trichterStatusNote != null) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0x22EF4444)),
+                        border = BorderStroke(1.dp, Color(0xFFEF4444)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = trichterStatusNote ?: "",
+                            color = AppTheme.colors.textPrimary,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(10.dp)
+                        )
+                    }
+                }
+
+                val hasTrichterPayload = trichterScannedPages.isNotEmpty() || (trichterFileBytes != null && trichterFileBytes!!.isNotEmpty())
+                val busyTrichter = isUploading || localCompilingPdf
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = { onDismiss() },
+                        enabled = !busyTrichter
+                    ) {
+                        Text("Abbrechen", color = AppTheme.colors.textMuted, fontSize = 13.sp)
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Button(
+                        onClick = {
+                            trichterStatusNote = null
+                            if (trichterScannedPages.isNotEmpty()) {
+                                localCompilingPdf = true
+                                val pagesSnapshot = trichterScannedPages
+                                val cleanHint = trichterTitle.trim().ifBlank { null }
+                                formScope.launch {
+                                    val pdfBytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                                        de.meinseelenfunke.app.util.ImageUtils.buildPdfFromJpegPages(pagesSnapshot)
+                                    }
+                                    localCompilingPdf = false
+                                    if (pdfBytes != null && pdfBytes.isNotEmpty()) {
+                                        val stamp = java.text.SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.US).format(java.util.Date())
+                                        onSendToTrichter(pdfBytes, "Scan_$stamp.pdf", "application/pdf", cleanHint)
+                                    } else {
+                                        trichterStatusNote = "⚠️ PDF konnte nicht erzeugt werden."
+                                    }
+                                }
+                            } else if (trichterFileBytes != null) {
+                                onSendToTrichter(
+                                    trichterFileBytes!!,
+                                    trichterFileName ?: "Dokument.pdf",
+                                    trichterFileMime ?: "application/pdf",
+                                    trichterTitle.trim().ifBlank { null }
+                                )
+                            }
+                        },
+                        enabled = !busyTrichter && hasTrichterPayload,
+                        colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        if (busyTrichter) {
+                            CircularProgressIndicator(color = SpaceBlack, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text("📥 In Trichter senden", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                    }
+                }
+            } else {
             // Zeile 1: Titel (1.3f) + Betrag (0.9f)
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -2027,8 +2497,14 @@ fun QuickEntryForm(
                             .border(1.dp, Gold, RoundedCornerShape(8.dp))
                             .clickable {
                                 try {
-                                    val cacheDir = context.cacheDir
-                                    val tempFile = java.io.File.createTempFile("camera_temp_", ".jpg", cacheDir).apply {
+                                    val cameraDir = java.io.File(context.cacheDir, "camera_captures").apply { mkdirs() }
+                                    val cutoff = System.currentTimeMillis() - 15 * 60 * 1000L
+                                    cameraDir.listFiles()?.forEach { f ->
+                                        if (f.lastModified() < cutoff) {
+                                            try { f.delete() } catch (_: Exception) {}
+                                        }
+                                    }
+                                    val tempFile = java.io.File.createTempFile("camera_temp_", ".jpg", cameraDir).apply {
                                         deleteOnExit()
                                     }
                                     val uri = androidx.core.content.FileProvider.getUriForFile(
@@ -2039,7 +2515,7 @@ fun QuickEntryForm(
                                     cameraTempUriString = uri.toString()
                                     cameraLauncher.launch(uri)
                                 } catch (e: Exception) {
-                                    e.printStackTrace()
+                                    aiScanResultNote = "⚠️ Kamera konnte nicht gestartet werden."
                                 }
                             }
                             .padding(horizontal = 10.dp, vertical = 7.dp),
@@ -2245,6 +2721,7 @@ fun QuickEntryForm(
                         Text("Eintragen", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
+            }
             }
         }
     }

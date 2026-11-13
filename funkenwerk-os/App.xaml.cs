@@ -62,88 +62,8 @@ namespace FunkenwerkOS
                 return;
             }
 
-            for (int i = 0; i < e.Args.Length; i++)
-            {
-                if (string.Equals(e.Args[i], "--export-tokens", StringComparison.OrdinalIgnoreCase) && i + 1 < e.Args.Length)
-                {
-                    string outFile = e.Args[i + 1];
-                    try
-                    {
-                        var s = OsVaultAndStorage.LoadSettings();
-                        var dict = new System.Collections.Generic.Dictionary<string, string>
-                        {
-                            ["local"] = OsVaultAndStorage.ResolveBearerToken(s, "local"),
-                            ["stage"] = OsVaultAndStorage.ResolveBearerToken(s, "stage"),
-                            ["live"] = OsVaultAndStorage.ResolveBearerToken(s, "live"),
-                            ["active_env"] = s.ApiEnvironment ?? "live"
-                        };
-                        File.WriteAllText(outFile, System.Text.Json.JsonSerializer.Serialize(dict), new System.Text.UTF8Encoding(false));
-                    }
-                    catch { }
-                    Environment.Exit(0);
-                    return;
-                }
-
-                if (string.Equals(e.Args[i], "--import-tokens", StringComparison.OrdinalIgnoreCase) && i + 1 < e.Args.Length)
-                {
-                    string inFile = e.Args[i + 1];
-                    try
-                    {
-                        if (File.Exists(inFile))
-                        {
-                            var dict = System.Text.Json.JsonSerializer.Deserialize<System.Collections.Generic.Dictionary<string, string>>(File.ReadAllText(inFile));
-                            if (dict != null)
-                            {
-                                var s = OsVaultAndStorage.LoadSettings();
-                                s.OrderChimeEnabled = true;
-                                if (dict.TryGetValue("local", out string? tLocal) && !string.IsNullOrWhiteSpace(tLocal))
-                                    OsVaultAndStorage.StoreBearerTokenUnified(s, "local", tLocal, switchActiveEnv: false);
-                                if (dict.TryGetValue("stage", out string? tStage) && !string.IsNullOrWhiteSpace(tStage))
-                                    OsVaultAndStorage.StoreBearerTokenUnified(s, "stage", tStage, switchActiveEnv: false);
-                                if (dict.TryGetValue("live", out string? tLive) && !string.IsNullOrWhiteSpace(tLive))
-                                    OsVaultAndStorage.StoreBearerTokenUnified(s, "live", tLive, switchActiveEnv: false);
-
-                                string activeEnv = dict.TryGetValue("active_env", out string? ae) && !string.IsNullOrWhiteSpace(ae) ? ae : "live";
-                                if (!string.IsNullOrWhiteSpace(OsVaultAndStorage.ResolveBearerToken(s, activeEnv)))
-                                    s.ApiEnvironment = activeEnv;
-                                else if (!string.IsNullOrWhiteSpace(OsVaultAndStorage.ResolveBearerToken(s, "live")))
-                                    s.ApiEnvironment = "live";
-                                else if (!string.IsNullOrWhiteSpace(OsVaultAndStorage.ResolveBearerToken(s, "stage")))
-                                    s.ApiEnvironment = "stage";
-
-                                OsVaultAndStorage.SaveSettings(s);
-                            }
-                        }
-                    }
-                    catch { }
-                    Environment.Exit(0);
-                    return;
-                }
-
-                if (string.Equals(e.Args[i], "--diag-orders", StringComparison.OrdinalIgnoreCase) && i + 1 < e.Args.Length)
-                {
-                    string outFile = e.Args[i + 1];
-                    try
-                    {
-                        var s = OsVaultAndStorage.LoadSettings();
-                        var sn = SeelenfunkeLiveClient.FetchActiveEnvOrdersPulseAsync(s).GetAwaiter().GetResult();
-                        var lines = new System.Collections.Generic.List<string>
-                        {
-                            $"ACTIVE_ENV={s.ApiEnvironment} | CHIME={s.OrderChimeEnabled}",
-                            $"ENV={s.ApiEnvironment} | CONNECTED={sn.IsConnected} | STATUS={sn.StatusSummary} | OPEN={sn.OpenOrdersCount} | TOTAL={sn.TotalOrdersCount} | ACTIVE_ITEMS={sn.ActiveOrders.Count} | LATEST_KEY={sn.LatestOrderKey}"
-                        };
-                        File.WriteAllLines(outFile, lines, new System.Text.UTF8Encoding(false));
-                    }
-                    catch (Exception ex)
-                    {
-                        File.WriteAllText(outFile, "ERROR: " + ex.Message);
-                    }
-                    Environment.Exit(0);
-                    return;
-                }
-            }
-
             bool isShellMode = e.Args.Any(a => string.Equals(a, "--shell", StringComparison.OrdinalIgnoreCase));
+            OsHardwareAndAudioEngine.EnsureWindowsExplorerTaskbarRunning();
 
             _singleInstanceMutex = new System.Threading.Mutex(true, @"Local\FunkenwerkOS_SingleInstance_Mutex", out bool isFirstInstance);
             if (!isFirstInstance)

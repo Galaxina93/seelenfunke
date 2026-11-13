@@ -11,6 +11,7 @@ class OrderProductionBatchService
 {
     public const SETUP_CRYSTAL_3D = 'crystal_3d';
     public const SETUP_ROTARY_RA3 = 'rotary_ra3';
+    public const SETUP_CONVEYOR   = 'conveyor_batch';
     public const SETUP_FLATBED    = 'flatbed_laser';
     public const SETUP_PACK_ONLY  = 'pack_only';
     public const SETUP_DIGITAL    = 'digital_only';
@@ -702,11 +703,25 @@ class OrderProductionBatchService
         $attrs = ($product && is_array($product->attributes)) ? $product->attributes : [];
         $material = mb_strtolower((string) ($attrs['Material'] ?? $attrs['material'] ?? $product->material ?? ''));
         $cfgSettings = ($product && is_array($product->configurator_settings)) ? $product->configurator_settings : [];
+        $equipmentKey = trim((string) ($cfgSettings['xtool_equipment_key'] ?? ''));
+
+        if ($equipmentKey === 'rotary_ra3') {
+            return self::SETUP_ROTARY_RA3;
+        }
+        if ($equipmentKey === 'conveyor_batch') {
+            return self::SETUP_CONVEYOR;
+        }
+        if ($equipmentKey === 'inner_3d') {
+            return self::SETUP_CRYSTAL_3D;
+        }
+
         $areaShape = mb_strtolower((string) ($cfgSettings['area_shape'] ?? ''));
+        $overlayType = mb_strtolower((string) ($cfgSettings['overlay_type'] ?? ''));
 
         // RA3 Rotationsaufsatz (Gläser, Becher, Tassen, Flaschen, Zylinder)
         if (
-            $areaShape === 'cylinder'
+            $overlayType === 'cylinder'
+            || $areaShape === 'cylinder'
             || str_starts_with($sku, 'GLASS-')
             || str_contains($slug, 'glas')
             || str_contains($slug, 'becher')
@@ -774,6 +789,7 @@ class OrderProductionBatchService
     {
         $base = match ($itemSummary['setup_group'] ?? self::SETUP_FLATBED) {
             self::SETUP_ROTARY_RA3 => 'RA3-Rotationsaufsatz',
+            self::SETUP_CONVEYOR   => 'Laufband-Serie',
             self::SETUP_CRYSTAL_3D => '3D-Kristallfokus',
             default                => 'Flachbett',
         };
@@ -789,6 +805,7 @@ class OrderProductionBatchService
     {
         return match ($setupGroup) {
             self::SETUP_ROTARY_RA3 => 'RA3-Rotation',
+            self::SETUP_CONVEYOR   => 'Laufband',
             self::SETUP_CRYSTAL_3D => '3D-Kristall',
             self::SETUP_FLATBED    => 'Flachbett',
             self::SETUP_PACK_ONLY  => 'Lagerware',

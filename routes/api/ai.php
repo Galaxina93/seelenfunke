@@ -35,6 +35,16 @@ Route::prefix('ai')->group(function () {
             abort(403, 'Zugriff verweigert. Nur Administratoren und interne Mitarbeiter.');
         }
 
+        if ($user && method_exists($user, 'currentAccessToken') && $user->currentAccessToken() && !$user->tokenCan('*') && !$user->tokenCan('ai:funkira')) {
+            abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
+        }
+        if ($request->bearerToken()) {
+            $pat = \Laravel\Sanctum\PersonalAccessToken::findToken((string) $request->bearerToken());
+            if ($pat && !$pat->can('*') && !$pat->can('ai:funkira')) {
+                abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
+            }
+        }
+
         // CSRF- & Cross-Origin-Schutz für Cookie-basierte (nicht-Bearer) schreibende Anfragen
         if (!$request->isMethodSafe() && !$request->bearerToken()) {
             $secFetchSite = strtolower((string) $request->header('Sec-Fetch-Site', ''));

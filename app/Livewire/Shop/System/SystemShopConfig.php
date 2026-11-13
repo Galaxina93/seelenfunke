@@ -124,7 +124,7 @@ class SystemShopConfig extends Component
         'owner_bank_name' => 'Der Name deines Kreditinstituts (z.B. Volksbank BraWo).',
         'owner_bank_address' => 'Die Adresse deiner Bankfiliale (oft für internationale Überweisungen wichtig).',
         'owner_bic' => 'Der BIC (Business Identifier Code) bzw. SWIFT-Code deiner Bank.',
-        'owner_iban' => 'Die IBAN, auf die Kunden ihre Vorkasse-Zahlungen überweisen sollen.',
+        'owner_iban' => 'Die IBAN deines Geschäftskontos (wird im Rechnungs-Footer und bei B2B-Rechnungskauf ausgewiesen).',
         'shipping_cost' => 'Standardversandkosten pro Bestellung (Eingabe in Euro).',
         'shipping_free_threshold' => 'Ab diesem Brutto-Warenwert entfallen die Versandkosten automatisch (Eingabe in Euro).',
         'shipping_cost_voucher' => 'Versandkostenaufpreis für den postalischen Versand von gedruckten Gutscheinen (Eingabe in Euro).',

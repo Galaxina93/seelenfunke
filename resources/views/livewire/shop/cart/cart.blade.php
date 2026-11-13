@@ -220,7 +220,7 @@
                                                 @if(!empty($item->configuration['is_gift_voucher']))
                                                     @if(($item->configuration['card_color'] ?? 'gold') === 'black')
                                                         <span class="text-white inline-flex items-center gap-1.5 bg-gray-900 border border-gray-700 px-2.5 py-1 rounded-lg font-bold">
-                                                            <span>🖤 Schwarze Edition{{ ($item->configuration['delivery_method'] ?? 'email') === 'post' ? ' (+ 1,50 € Metallkarte)' : ' (PDF Gratis)' }}</span>
+                                                            <span>🖤 Schwarze Edition{{ ($item->configuration['delivery_method'] ?? 'email') === 'post' ? ' (+ 1,50 € Aluminiumkarte)' : ' (PDF Gratis)' }}</span>
                                                         </span>
                                                     @else
                                                         <span class="text-primary inline-flex items-center gap-1.5 bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-lg font-bold">

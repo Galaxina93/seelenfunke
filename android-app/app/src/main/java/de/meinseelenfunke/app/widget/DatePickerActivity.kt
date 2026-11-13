@@ -54,6 +54,7 @@ class DatePickerActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!de.meinseelenfunke.app.util.SecurityIntentHelper.guardWidgetDialogActivity(this)) return
 
         val prefKey = intent.getStringExtra("pref_key")
         val taskId = intent.getStringExtra("task_id")
@@ -65,7 +66,7 @@ class DatePickerActivity : ComponentActivity() {
             rawInitialDateStr
         }
 
-        if (prefKey.isNullOrBlank() && taskId.isNullOrBlank()) {
+        if ((prefKey.isNullOrBlank() && taskId.isNullOrBlank()) || (!prefKey.isNullOrBlank() && !prefKey.startsWith("widget_tasks_"))) {
             finish()
             return
         }

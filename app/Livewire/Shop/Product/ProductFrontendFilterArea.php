@@ -402,7 +402,7 @@ class ProductFrontendFilterArea extends Component
             $shopCanonical = route('shop', ['collectionWorld' => 'atelier']);
         } elseif ($activeWorld === 'voucher') {
             $shopTitle = "Geschenkgutscheine – Sofort-Freude & Edel-Umschlag | {$companyName}";
-            $shopMetaDesc = "Verschenke den Seelenfunke-Geschenkgutschein digital als Sofort-PDF oder als lasergravierte goldene Metallkarte im schwarzen Edel-Umschlag mit Wachssiegel.";
+            $shopMetaDesc = "Verschenke den Seelenfunke-Geschenkgutschein digital als Sofort-PDF oder als lasergravierte Aluminiumkarte im schwarzen Edel-Umschlag mit Wachssiegel.";
             $shopCanonical = route('shop', ['collectionWorld' => 'voucher']);
         } elseif (!empty($this->filterHoliday)) {
             $normH = mb_strtolower(trim((string) $this->filterHoliday));

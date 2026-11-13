@@ -21,12 +21,6 @@ class ManagementTaskSeeder extends Seeder
                     'color' => '#818CF8',
                 ],
                 'taks' => [
-                    [
-                        'title' => 'Barmenia Wohngebäude (Nr. 304734394) zum 31.12.2026 kündigen, sobald DEVK-Police da ist',
-                        'priority' => 'hoch',
-                        'ai_plan' => "Vertragsnummer Barmenia: 304734394 (Kunden-Nr. 704555407).\nCHECK24-Antragsnummer: WHG-31186083 (weitergeleitet an DEVK, Tarif: DEVK Komfort, 552,24 €/Jahr ab 01.01.2027).\nWICHTIG: Erst kündigen, sobald der offizielle Versicherungsschein (Police) direkt von der DEVK vorliegt (Barmenia hat keine 3-Monats-Frist, sondern ist bis 31.12.2026 bzw. danach täglich kündbar).",
-                    ],
-                    ['title' => 'Wohngebäude Versicherung prüfen', 'priority' => 'niedrig'],
                     ['title' => 'Burger was noch fehlt', 'priority' => 'niedrig'],
                 ],
             ],
@@ -259,12 +253,12 @@ class ManagementTaskSeeder extends Seeder
                         ],
                     ],
                     [
-                        'title' => 'Produkt 9: Geschenkgutschein (Lasergravierte Gold-Metallkarte im schwarzen Edel-Umschlag mit Wachssiegel) -> Echte Fotos & 4 Saison-Editions',
+                        'title' => 'Produkt 9: Geschenkgutschein (Lasergravierte Gold-Aluminiumkarte im schwarzen Edel-Umschlag mit Wachssiegel) -> Echte Fotos & 4 Saison-Editions',
                         'priority' => 'mittel',
-                        'ai_plan' => "Slug: geschenkgutschein | SKU: MSF-GUTSCHEIN-001\nAblauf: 1x goldene Metall-Gutscheinkarte als Muster lasern und zusammen mit dem schwarzen Umschlag und goldenem Wachssiegel fotografieren.\nZielpfade: storage/app/public/produkte/products/geschenkgutschein/",
+                        'ai_plan' => "Slug: geschenkgutschein | SKU: MSF-GUTSCHEIN-001\nAblauf: 1x goldene Aluminium-Gutscheinkarte als Muster lasern und zusammen mit dem schwarzen Umschlag und goldenem Wachssiegel fotografieren.\nZielpfade: storage/app/public/produkte/products/geschenkgutschein/",
                         'subtasks' => [
-                            '2D-Vorschau-Basis (envelope.png): Schwarzer Edel-Umschlag mit goldenem Wachssiegel & Gold-Metallkarte frontal',
-                            'Standardbild 1 (Hauptbild Standard): Echte gelaserte Gold-Metallkarte mit Umschlag & Wachssiegel (gutschein-main.jpg)',
+                            '2D-Vorschau-Basis (envelope.png): Schwarzer Edel-Umschlag mit goldenem Wachssiegel & Gold-Aluminiumkarte frontal',
+                            'Standardbild 1 (Hauptbild Standard): Echte gelaserte Gold-Aluminiumkarte mit Umschlag & Wachssiegel (gutschein-main.jpg)',
                             'Standardbild 2 (Lifestyle / Hover): Persönliche Übergabe des Gutschein-Umschlags in den Händen (gutschein-lifestyle.jpg)',
                             'Saison-Edition Weihnachten (gutschein-weihnachten.jpg): Echtes Foto des Gutschein-Sets im Weihnachts-Setup',
                             'Saison-Edition Valentinstag (gutschein-valentinstag.jpg): Echtes Foto des Gutschein-Sets im Romantik-Setup',
@@ -364,6 +358,17 @@ class ManagementTaskSeeder extends Seeder
                     ['title' => 'GOOGLE_PLACES_API_KEY in der Google Cloud Console auf den Live Server anpassen (Domain-Einschränkungen einrichten)', 'priority' => 'hoch'],
                     ['title' => 'Google Bewertungen implementieren - TEMPORÄRER TEST-MODUS', 'priority' => 'mittel'],
                     ['title' => 'Die Archivrechnungen entfernen für einen cleanen start', 'priority' => 'hoch'],
+                    [
+                        'title' => 'Nach Livegang (sobald alle Produkte gelasert & online sind): Erste 2 UGC-Creatorinnen (@content.by.lea & @anna_lena_plz) für PR-Sample + 15 % Partner-Deal anschreiben',
+                        'priority' => 'mittel',
+                        'ai_plan' => "WICHTIG: Erst starten, wenn alle Produkte einmal echt gelasert, fotografiert und im Live-Shop aktiv sind!\n\nKandidatin 1 (Top-Empfehlung Schmuck & Lifestyle, direkt aus Niedersachsen):\n- Name: Lea Heitmann (@content.by.lea, Winsen)\n- Instagram: https://www.instagram.com/content.by.lea/\n- Portfolio: https://collabstr.com/contentbylea\n\nKandidatin 2 (Ideal für Familien-, Kinder- & Haustier-Gravuren wie Schiefer/Glas/Anhänger):\n- Name: Anna-Lena Palazzo (@anna_lena_plz)\n- Instagram: https://www.instagram.com/anna_lena_plz/\n\nKonditionen (0 € Fixkosten vorab über /admin/marketing-influencers):\n- 100 % Gratis-Muster (SAMPLE-... Code für den 3D-Konfigurator, Pflicht zur Verlinkung/Reel innerhalb von 14 Tagen)\n- 15 % Netto-Provision auf jeden vermittelten Verkauf (30 Tage Cookie + Code)\n- 10 % Rabattcode für ihre Community\n\nDM-Vorlage für Instagram:\n\"Hey [Lea / Anna-Lena], ich bin Alina aus Gifhorn und bin gerade mit meiner Laser-Manufaktur Mein Seelenfunke (personalisierter Edelstahl-Goldschmuck & gravierte Unikate mit eigenem 3D-Konfigurator) gestartet. Mir gefällt dein heller, natürlicher Unboxing-Stil extrem gut! Hättest du Lust, dir in unserem 3D-Konfigurator kostenlos dein eigenes Unikat mit Wunschgravur zu gestalten? Du bekommst es gratis im edlen Geschenk-Etui zugeschickt, zeigst es in einem kurzen Unboxing-Video und erhältst über unser Creator-Portal zusätzlich 15 % Provision auf jeden Verkauf sowie einen 10 % Code für deine Community. Sag gern Bescheid, dann schicke ich dir direkt deinen persönlichen Einladungslink!\"",
+                        'subtasks' => [
+                            'Im Admin unter /admin/marketing-influencers 1-Klick-Einladungslink + 6-stelligen PIN (15 % Provision, 10 % Follower-Rabatt, Gratis-Muster aktiv) generieren',
+                            'Kandidatin 1 anschreiben: Lea Heitmann (@content.by.lea -> https://www.instagram.com/content.by.lea/ | Portfolio: https://collabstr.com/contentbylea)',
+                            'Kandidatin 2 anschreiben: Anna-Lena Palazzo (@anna_lena_plz -> https://www.instagram.com/anna_lena_plz/)',
+                            'Nach Zusage Einladungslink + PIN senden und Gratis-Muster nach Bestellung im 3D-Konfigurator lasern & versenden',
+                        ],
+                    ],
                 ],
             ],
             [

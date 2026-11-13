@@ -112,8 +112,7 @@ data class AlarmSyncPackagePayload(
     val timers: List<TimerPresetItem>? = null,
     @SerializedName("smart_plugs") val smartPlugs: List<SmartPlugDevice>? = null,
     @SerializedName("wake_up_logs") val wakeUpLogs: Map<String, WakeUpLogEntry>? = null,
-    @SerializedName("funkira_voice") val funkiraVoice: String? = "Aoede",
-    @SerializedName("gemini_tts_key") val geminiTtsKey: String? = null
+    @SerializedName("funkira_voice") val funkiraVoice: String? = "Aoede"
 )
 
 data class AlarmSyncPackageResponse(

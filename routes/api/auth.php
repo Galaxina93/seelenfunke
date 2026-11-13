@@ -105,19 +105,34 @@ Route::post('/login', function (Request $request) {
 
             \App\Services\System\SystemSecurityService::recordLoginAttempt($credentials['email'], $request->ip(), true, 'api');
 
+            $requestedScope = trim((string) $request->input('scope', ''));
+            $isMonitorOnly = ($requestedScope === 'monitor_only');
+            $isManufakturFunkira = ($requestedScope === 'manufaktur_funkira');
+            if (($isMonitorOnly || $isManufakturFunkira) && $guard !== 'admin') {
+                return response()->json(['message' => 'Monitor-Tokens sind ausschließlich für Administratoren zulässig.'], 403);
+            }
+
             // Nur alte Tokens desselben Gerätetyps ersetzen (Funkenwerk-Desktop & Android-App stören sich gegenseitig nicht!)
             $rawDevice = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $request->input('device_name', ''));
-            $tokenName = $rawDevice !== '' ? ($rawDevice . '-' . $guard) : ('FunkiApp-' . $guard);
+            $defaultPrefix = ($isMonitorOnly || $isManufakturFunkira) ? 'FunkenwerkMonitor' : 'FunkiApp';
+            $tokenName = $rawDevice !== '' ? ($rawDevice . '-' . $guard) : ($defaultPrefix . '-' . $guard);
             $user->tokens()->where('name', $tokenName)->delete();
 
-            // Token erstellen
-            $token = $user->createToken($tokenName)->plainTextToken;
+            // Token mit minimalen Rechten erstellen (Zero-Trust für Werkstatt-Monitor / Manufaktur-Funkira)
+            $abilities = $isMonitorOnly
+                ? ['monitor:pulse']
+                : ($isManufakturFunkira ? ['monitor:pulse', 'ai:funkira'] : ['*']);
+            $scopeLabel = $isMonitorOnly
+                ? 'monitor:pulse'
+                : ($isManufakturFunkira ? 'manufaktur_funkira' : '*');
+            $token = $user->createToken($tokenName, $abilities)->plainTextToken;
 
             return response()->json([
                 'status' => 'success',
                 'token' => $token,
+                'scope' => $scopeLabel,
                 'user_type' => $guard,
-                'user' => $user
+                'user' => ($isMonitorOnly || $isManufakturFunkira) ? ['id' => $user->id] : $user,
             ]);
         }
     }

@@ -188,8 +188,7 @@
                                 <strong class="block text-gray-900 mb-1">Fertigungszeit</strong>
                                 <p class="text-sm text-gray-600">
                                     Die Anfertigung personalisierter Produkte erfolgt in der Regel innerhalb von
-                                    <strong>1–3 Werktagen</strong> nach Zahlungseingang (bei Vorkasse)
-                                    bzw. nach Vertragsschluss.
+                                    <strong>1–3 Werktagen</strong> nach Vertragsschluss und Zahlungseingang.
                                 </p>
                             </li>
 

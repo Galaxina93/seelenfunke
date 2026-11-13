@@ -33,15 +33,23 @@ class TasksWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
+        val rawAction = intent.action
+        val clickAction = try { intent.getStringExtra(EXTRA_CLICK_ACTION) } catch (_: Exception) { null }
+        if (((rawAction != null && rawAction.startsWith("de.meinseelenfunke.app.widget.")) || clickAction != null) &&
+            !de.meinseelenfunke.app.util.SecurityIntentHelper.isTrustedInternalIntent(context, intent)
+        ) {
+            return
+        }
         super.onReceive(context, intent)
 
         val appContext = context.applicationContext
+        ServiceLocator.ensureInitialized(appContext)
         val appWidgetManager = AppWidgetManager.getInstance(appContext)
         val componentName = ComponentName(appContext, TasksWidgetProvider::class.java)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
         val sharedPrefs = appContext.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
 
-        val resolvedAction = intent.getStringExtra(EXTRA_CLICK_ACTION) ?: intent.action
+        val resolvedAction = clickAction ?: rawAction
 
         when (resolvedAction) {
             ACTION_REFRESH -> {
@@ -328,6 +336,7 @@ class TasksWidgetProvider : AppWidgetProvider() {
                     action = ACTION_BACK
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                     data = Uri.parse("funkenwerk://tasks/back/$appWidgetId")
+                    de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
                 }
                 val backPendingIntent = PendingIntent.getBroadcast(
                     appContext,
@@ -369,6 +378,7 @@ class TasksWidgetProvider : AppWidgetProvider() {
                     putExtra("open_subtab", 0)
                     data = Uri.parse("funkenwerk://tasks/open_app/$appWidgetId")
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
                 }
                 val openAppPendingIntent = PendingIntent.getActivity(
                     appContext,
@@ -398,6 +408,7 @@ class TasksWidgetProvider : AppWidgetProvider() {
                 action = ACTION_REFRESH
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 data = Uri.parse("funkenwerk://tasks/refresh/$appWidgetId")
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
             }
             val refreshPendingIntent = PendingIntent.getBroadcast(
                 appContext,
@@ -421,6 +432,7 @@ class TasksWidgetProvider : AppWidgetProvider() {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 data = Uri.parse("funkenwerk://tasks/item_click/$appWidgetId")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
             }
             val clickPendingIntent = PendingIntent.getActivity(
                 appContext,

@@ -1,159 +1,534 @@
-<div class="bg-gray-50 dark:bg-gray-950 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-inner">
-    <div class="flex items-center justify-between mb-6 border-b border-gray-200 dark:border-gray-800 pb-4">
-        <div class="flex items-center gap-3">
-            <svg class="w-6 h-6 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-            </svg>
-            <div>
-                <h4 class="text-sm font-black text-gray-900 dark:text-white uppercase tracking-widest">xTool Laser-Parameter</h4>
-                <p class="text-[10px] text-gray-500 mt-1">Physische Millimeter-Maße für den fehlerfreien SVG-Export.</p>
-            </div>
-        </div>
-        <span class="px-2.5 py-1 text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-lg" x-text="configSettings.overlay_type === 'cylinder' ? 'Rotary (Rund)' : 'Flachbett'"></span>
-    </div>
+@php
+    $laserCatalog = \App\Models\Product\Product::getLaserEquipmentCatalog();
+    $laserPdfGuides = \App\Models\Product\Product::getLaserPdfGuides();
+@endphp
 
-    {{-- MODUS: ZYLINDER / RUND --}}
-    <div x-show="configSettings.overlay_type === 'cylinder'" x-transition class="space-y-6">
-        {{-- KERN-MAßE --}}
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Ø Arbeitsbereich Oben</label>
-                    @include('components.alerts.info-tooltip', ['key' => 'xtool_rotary_diameter_help'])
-                </div>
-                <div class="relative">
-                    <input type="number" x-model.number="configSettings.xtool_d_top" step="0.1" class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all shadow-inner" placeholder="z.B. 80">
-                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>
-                </div>
-            </div>
+<div class="space-y-8">
 
-            <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Ø Arbeitsbereich Unten</label>
-                    @include('components.alerts.info-tooltip', ['key' => 'xtool_rotary_diameter_help'])
-                </div>
-                <div class="relative">
-                    <input type="number" x-model.number="configSettings.xtool_d_bottom" step="0.1" class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all shadow-inner" placeholder="z.B. 60">
-                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>
-                </div>
-            </div>
-
-            <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Reine Gravierhöhe</label>
-                    @include('components.alerts.info-tooltip', ['key' => 'xtool_plane_height_help'])
-                </div>
-                <div class="relative">
-                    <input type="number" x-model.number="configSettings.xtool_height" step="0.1" class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all shadow-inner" placeholder="z.B. 150">
-                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>
-                </div>
-            </div>
-        </div>
-
-        {{-- SPERRZONEN (Abstände) --}}
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 border-t border-gray-200 dark:border-gray-800 pt-6">
-            <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Sperrzone Oben (Trinkrand)</label>
-                    @include('components.alerts.info-tooltip', ['key' => 'xtool_safezone_help'])
-                </div>
-                <div class="relative">
-                    <input type="number" x-model.number="configSettings.xtool_offset_top" step="0.1" class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 focus:border-amber-500 rounded-xl px-4 py-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500/50 outline-none transition-all shadow-inner" placeholder="z.B. 30">
-                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>
-                </div>
-                <p class="text-[9px] text-gray-500">Abstand vom oberen Glasrand bis zum Beginn der Gravur.</p>
-            </div>
-
-            <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Sperrzone Unten (Boden)</label>
-                    @include('components.alerts.info-tooltip', ['key' => 'xtool_safezone_help'])
-                </div>
-                <div class="relative">
-                    <input type="number" x-model.number="configSettings.xtool_offset_bottom" step="0.1" class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 focus:border-amber-500 rounded-xl px-4 py-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500/50 outline-none transition-all shadow-inner" placeholder="z.B. 40">
-                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>
-                </div>
-                <p class="text-[9px] text-gray-500">Abstand vom Boden bis zum Ende der Gravur (Bereich der Rollen).</p>
-            </div>
-        </div>
-
-        {{-- INFOGRAFIK --}}
-        <div class="mt-8 bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 flex flex-col lg:flex-row gap-8 items-center shadow-inner">
-            <div class="relative w-48 shrink-0">
-                <svg viewBox="0 0 200 300" class="w-full h-auto dark:drop-shadow-2xl font-sans" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M40 20 L160 20 L140 280 L60 280 Z" fill="rgba(128,128,128,0.05)" stroke="#9ca3af" class="dark:stroke-gray-600" stroke-width="2"/>
-                    <ellipse cx="100" cy="20" rx="60" ry="10" fill="none" stroke="#9ca3af" class="dark:stroke-gray-600" stroke-width="2"/>
-                    <ellipse cx="100" cy="280" rx="40" ry="8" fill="none" stroke="#9ca3af" class="dark:stroke-gray-600" stroke-width="2"/>
-                    <path d="M48 80 L152 80 L132 230 L68 230 Z" fill="rgba(16, 185, 129, 0.2)" stroke="#10b981" stroke-width="2" stroke-dasharray="4"/>
-                    <ellipse cx="100" cy="80" rx="52" ry="8" fill="rgba(16, 185, 129, 0.1)" stroke="#10b981" stroke-width="2"/>
-                    <ellipse cx="100" cy="230" rx="32" ry="6" fill="rgba(16, 185, 129, 0.1)" stroke="#10b981" stroke-width="2"/>
-                    <line x1="100" y1="20" x2="100" y2="80" stroke="#d97706" class="dark:stroke-amber-400" stroke-width="2" stroke-dasharray="2" marker-start="url(#arrowYellow)" marker-end="url(#arrowYellow)"/>
-                    <text x="105" y="55" fill="#d97706" class="dark:fill-amber-400" font-size="9" font-weight="bold">SPERRZONE</text>
-                    <line x1="100" y1="230" x2="100" y2="280" stroke="#d97706" class="dark:stroke-amber-400" stroke-width="2" stroke-dasharray="2" marker-start="url(#arrowYellow)" marker-end="url(#arrowYellow)"/>
-                    <text x="105" y="260" fill="#d97706" class="dark:fill-amber-400" font-size="9" font-weight="bold">SPERRZONE</text>
-                    <line x1="48" y1="80" x2="10" y2="80" stroke="#ef4444" stroke-width="1.5"/>
-                    <line x1="152" y1="80" x2="190" y2="80" stroke="#ef4444" stroke-width="1.5"/>
-                    <line x1="48" y1="70" x2="152" y2="70" stroke="#ef4444" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
-                    <text x="100" y="62" fill="#ef4444" font-size="10" font-weight="bold" text-anchor="middle">Ø OBEN</text>
-                    <line x1="68" y1="230" x2="10" y2="230" stroke="#ef4444" stroke-width="1.5"/>
-                    <line x1="132" y1="230" x2="190" y2="230" stroke="#ef4444" stroke-width="1.5"/>
-                    <line x1="68" y1="240" x2="132" y2="240" stroke="#ef4444" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
-                    <text x="100" y="252" fill="#ef4444" font-size="10" font-weight="bold" text-anchor="middle">Ø UNTEN</text>
-                    <line x1="20" y1="80" x2="20" y2="230" stroke="#3b82f6" stroke-width="2" marker-start="url(#arrowBlue)" marker-end="url(#arrowBlue)"/>
-                    <text x="12" y="155" fill="#3b82f6" font-size="10" font-weight="bold" transform="rotate(-90 12 155)" text-anchor="middle">GRAVIERHÖHE</text>
-                    <defs>
-                        <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444" /></marker>
-                        <marker id="arrowBlue" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#3b82f6" /></marker>
-                        <marker id="arrowYellow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#d97706" /></marker>
-                    </defs>
+    {{-- ================================================================= --}}
+    {{-- KACHEL 1: XTOOL LASER-PARAMETER (PHYSISCHE SVG-EXPORT-GEOMETRIE)  --}}
+    {{-- ================================================================= --}}
+    <div class="bg-gray-50 dark:bg-gray-950 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-inner">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6 border-b border-gray-200 dark:border-gray-800 pb-4">
+            <div class="flex items-center gap-2.5">
+                <svg class="w-5 h-5 text-[var(--theme-color)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                 </svg>
+                <h4 class="text-sm font-black text-gray-900 dark:text-white uppercase tracking-widest">xTool Laser-Parameter (SVG-Geometrie)</h4>
+                @include('components.alerts.info-tooltip', ['text' => 'Physische Millimeter-Maße der Arbeitsfläche für den maßstabsgetreuen 1:1 SVG-Export an xTool Studio.'])
             </div>
-            <div class="flex-1 space-y-4">
-                <h5 class="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-widest flex items-center gap-2">So stellst du den Konfigurator perfekt ein:</h5>
-                <ul class="space-y-3">
-                    <li class="flex items-start gap-3"><span class="w-5 h-5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-500 dark:text-amber-400 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">1</span><p class="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed"><strong class="text-amber-700 dark:text-amber-300">Sperrzonen:</strong> Miss am Glas, wie viele Millimeter oben (Trinkrand) und unten (Rollen-Einspannung) nicht graviert werden können.</p></li>
-                    <li class="flex items-start gap-3"><span class="w-5 h-5 rounded bg-red-500/10 border border-red-500/30 text-red-500 dark:text-red-400 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">2</span><p class="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed"><strong class="text-red-700 dark:text-red-300">Durchmesser:</strong> Miss den Durchmesser exakt an den Stellen, wo der freie Arbeitsbereich beginnt und endet.</p></li>
-                </ul>
+
+            <div class="inline-flex items-center p-1 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+                <button type="button"
+                        @click="configSettings.overlay_type = 'plane'"
+                        :class="configSettings.overlay_type !== 'cylinder' ? 'bg-[var(--theme-color)] text-white dark:text-gray-900 shadow-2xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'"
+                        class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer">
+                    Flachbett
+                </button>
+                <button type="button"
+                        @click="configSettings.overlay_type = 'cylinder'"
+                        :class="configSettings.overlay_type === 'cylinder' ? 'bg-[var(--theme-color)] text-white dark:text-gray-900 shadow-2xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'"
+                        class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer">
+                    Rotary (Rund)
+                </button>
+            </div>
+        </div>
+
+        {{-- MODUS: ZYLINDER / RUND --}}
+        <div x-show="configSettings.overlay_type === 'cylinder'" x-transition class="space-y-6">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Ø Arbeitsbereich Oben *</label>
+                        @include('components.alerts.info-tooltip', ['key' => 'xtool_rotary_diameter_help'])
+                    </div>
+                    <div class="relative">
+                        <input type="number" x-model.number="configSettings.xtool_d_top" step="0.1"
+                               :class="!(Number(configSettings.xtool_d_top) > 0) ? 'border-red-300 dark:border-red-500/40' : 'border-gray-300 dark:border-gray-700'"
+                               class="w-full bg-white dark:bg-gray-900 border rounded-xl px-4 py-3 text-sm font-mono font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner" placeholder="80">
+                        <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Ø Arbeitsbereich Unten</label>
+                        @include('components.alerts.info-tooltip', ['key' => 'xtool_rotary_diameter_help'])
+                    </div>
+                    <div class="relative">
+                        <input type="number" x-model.number="configSettings.xtool_d_bottom" step="0.1"
+                               class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm font-mono font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner" placeholder="60">
+                        <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Reine Gravierhöhe *</label>
+                        @include('components.alerts.info-tooltip', ['key' => 'xtool_plane_height_help'])
+                    </div>
+                    <div class="relative">
+                        <input type="number" x-model.number="configSettings.xtool_height" step="0.1"
+                               :class="!(Number(configSettings.xtool_height) > 0) ? 'border-red-300 dark:border-red-500/40' : 'border-gray-300 dark:border-gray-700'"
+                               class="w-full bg-white dark:bg-gray-900 border rounded-xl px-4 py-3 text-sm font-mono font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner" placeholder="150">
+                        <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 border-t border-gray-200 dark:border-gray-800 pt-5">
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Sperrzone Oben (Trinkrand)</label>
+                        @include('components.alerts.info-tooltip', ['text' => 'Abstand in Millimetern vom oberen Glasrand bis zum Beginn der Gravurzone.'])
+                    </div>
+                    <div class="relative">
+                        <input type="number" x-model.number="configSettings.xtool_offset_top" step="0.1"
+                               class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm font-mono font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner" placeholder="30">
+                        <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Sperrzone Unten (Boden)</label>
+                        @include('components.alerts.info-tooltip', ['text' => 'Abstand in Millimetern vom Glasboden bis zum Ende der Gravurzone (Rollenbereich).'])
+                    </div>
+                    <div class="relative">
+                        <input type="number" x-model.number="configSettings.xtool_offset_bottom" step="0.1"
+                               class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm font-mono font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner" placeholder="40">
+                        <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- MODUS: FLACHBETT (EBENE) --}}
+        <div x-show="configSettings.overlay_type !== 'cylinder'" x-transition class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Gravier-Breite (X) *</label>
+                    @include('components.alerts.info-tooltip', ['text' => 'Physische Breite (X) der 100 %-Bühne in Millimetern für den 1:1 SVG-Export.'])
+                </div>
+                <div class="relative">
+                    <input type="number" x-model.number="configSettings.xtool_plane_width" step="0.1"
+                           :class="!(Number(configSettings.xtool_plane_width) > 0) ? 'border-red-300 dark:border-red-500/40' : 'border-gray-300 dark:border-gray-700'"
+                           class="w-full bg-white dark:bg-gray-900 border rounded-xl px-4 py-3 text-sm font-mono font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner" placeholder="180">
+                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Gravier-Höhe (Y) *</label>
+                    @include('components.alerts.info-tooltip', ['text' => 'Physische Höhe (Y) der 100 %-Bühne in Millimetern für den 1:1 SVG-Export.'])
+                </div>
+                <div class="relative">
+                    <input type="number" x-model.number="configSettings.xtool_plane_height" step="0.1"
+                           :class="!(Number(configSettings.xtool_plane_height) > 0) ? 'border-red-300 dark:border-red-500/40' : 'border-gray-300 dark:border-gray-700'"
+                           class="w-full bg-white dark:bg-gray-900 border rounded-xl px-4 py-3 text-sm font-mono font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner" placeholder="180">
+                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>
+                </div>
             </div>
         </div>
     </div>
 
-    {{-- MODUS: FLACHBETT (Ebene) --}}
-    <div x-show="configSettings.overlay_type === 'plane'" x-transition style="display: none;" class="space-y-6">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">Gravier-Breite (X)</label>
-                    @include('components.alerts.info-tooltip', ['key' => 'xtool_plane_width_help'])
-                </div>
-                <div class="relative">
-                    <input type="number" x-model.number="configSettings.xtool_plane_width" step="0.1" class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 focus:border-blue-500 rounded-xl px-4 py-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all shadow-inner" placeholder="z.B. 50">
-                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>
-                </div>
-                <p class="text-[9px] text-gray-500">Physikalische Breite des 100% Bereiches.</p>
+    {{-- ================================================================= --}}
+    {{-- KACHEL 2: ANLEITUNG (VORAUSSETZUNGEN & XTOOL STUDIO BEARBEITUNG)  --}}
+    {{-- ================================================================= --}}
+    <div class="bg-gray-50 dark:bg-gray-950 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-inner space-y-7"
+         x-data="{
+             isLaserGuideComplete() {
+                 return Boolean(
+                     configSettings.xtool_equipment_key &&
+                     String(configSettings.xtool_process_mode || '').trim() !== '' &&
+                     String(configSettings.xtool_material || '').trim() !== '' &&
+                     Number(String(configSettings.xtool_focus_mm || '').replace(',', '.')) > 0 &&
+                     Number(configSettings.xtool_dot_duration_us) > 0 &&
+                     Number(configSettings.xtool_power_percent) > 0 &&
+                     Number(configSettings.xtool_dpi) > 0 &&
+                     Number(configSettings.xtool_passes) > 0 &&
+                     Number(configSettings.xtool_frequency_khz) > 0 &&
+                     String(configSettings.xtool_bitmap_mode || '').trim() !== '' &&
+                     String(configSettings.xtool_engrave_mode || '').trim() !== ''
+                 );
+             },
+             selectEquipment(key, defaultMode) {
+                 configSettings.xtool_equipment_key = key;
+                 if (!String(configSettings.xtool_process_mode || '').trim()) {
+                     configSettings.xtool_process_mode = defaultMode;
+                 }
+             }
+         }">
+
+        {{-- Header Kachel 2 --}}
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 dark:border-gray-800 pb-4">
+            <div class="flex items-center gap-2.5">
+                <svg class="w-5 h-5 text-[var(--theme-color)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+                <h4 class="text-sm font-black text-gray-900 dark:text-white uppercase tracking-widest">Anleitung: Voraussetzungen &amp; xTool Bearbeitung</h4>
+                @include('components.alerts.info-tooltip', ['text' => 'Definiert das benötigte Laser-Equipment (inkl. PDF-Aufbauanleitung) und die exakten xTool Studio Gravurwerte. Diese Anleitung erscheint automatisch auch in jeder Bestellung unter /admin/orders.'])
             </div>
 
-            <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">Gravier-Höhe (Y)</label>
-                    @include('components.alerts.info-tooltip', ['key' => 'xtool_plane_height_help'])
+            <span x-show="isLaserGuideComplete()" x-cloak
+                  class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
+                ✓ Anleitung vollständig
+            </span>
+            <span x-show="!isLaserGuideComplete()" x-cloak
+                  class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30">
+                ✕ Laser-Werte fehlen
+            </span>
+        </div>
+
+        {{-- TEIL A: VORAUSSETZUNGEN (EQUIPMENT & PDF-ANLEITUNG) --}}
+        <div class="space-y-4">
+            <div class="flex items-center justify-between">
+                <label class="text-[10px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-300">1. Voraussetzungen &amp; Equipment-Aufbau *</label>
+                @include('components.alerts.info-tooltip', ['text' => 'Wähle den physischen Aufbau am xTool F2 Ultra UV. Bei Spezial-Equipment lässt sich die bebilderte PDF-Anleitung direkt per Klick öffnen.'])
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                @foreach($laserCatalog as $eqKey => $eqMeta)
+                    <div @click="selectEquipment(@js($eqKey), @js($eqMeta['default_process_mode']))"
+                         :class="configSettings.xtool_equipment_key === @js($eqKey)
+                             ? 'border-[var(--theme-color)] bg-[var(--theme-color-10)] shadow-xs'
+                             : (!configSettings.xtool_equipment_key ? 'border-red-300 dark:border-red-500/40 bg-white dark:bg-gray-900 hover:border-gray-400' : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-gray-300 dark:hover:border-gray-700')"
+                         class="p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between gap-3">
+                        <div class="space-y-1.5">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-xs font-black text-gray-900 dark:text-white">{{ $eqMeta['title'] }}</span>
+                                <div class="flex items-center gap-1.5 shrink-0">
+                                    @include('components.alerts.info-tooltip', ['text' => $eqMeta['tooltip']])
+                                    <span x-show="configSettings.xtool_equipment_key === @js($eqKey)" x-cloak
+                                          class="w-4 h-4 rounded-full bg-[var(--theme-color)] text-white dark:text-gray-900 flex items-center justify-center text-[9px] font-black">✓</span>
+                                </div>
+                            </div>
+                            <span class="inline-block text-[9px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{{ $eqMeta['badge'] }}</span>
+                        </div>
+
+                        @if(!empty($eqMeta['pdf_file']))
+                            <div class="flex items-center gap-1.5" @click.stop>
+                                <a href="{{ asset($eqMeta['pdf_file']) }}"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   class="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-[var(--theme-color)] hover:text-white dark:hover:text-gray-900 text-gray-700 dark:text-gray-300 text-[9px] font-black uppercase tracking-wider transition-all border border-gray-200 dark:border-gray-700">
+                                    <span>Öffnen</span>
+                                </a>
+                                <a href="{{ asset($eqMeta['pdf_file']) }}"
+                                   download="{{ $eqMeta['pdf_filename'] }}"
+                                   title="PDF-Anleitung herunterladen"
+                                   class="inline-flex items-center justify-center px-2.5 py-1.5 rounded-xl bg-white dark:bg-gray-900 hover:bg-[var(--theme-color)] hover:text-white dark:hover:text-gray-900 text-gray-700 dark:text-gray-300 text-[9px] font-black uppercase tracking-wider transition-all border border-gray-200 dark:border-gray-700">
+                                    <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                </a>
+                            </div>
+                        @else
+                            <span class="text-[9px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Kein Umbau nötig</span>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+
+            {{-- Zentrale Leiste aller 3 hinterlegten PDF-Anleitungen zum direkten Öffnen & Herunterladen --}}
+            <div class="p-4 rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-4 h-4 text-[var(--theme-color)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        <span class="text-[10px] font-black uppercase tracking-widest text-gray-800 dark:text-gray-200">Hinterlegte xTool PDF-Anleitungen</span>
+                        @include('components.alerts.info-tooltip', ['text' => 'Alle 3 PDF-Anleitungen liegen fest im System unter storage/app/public/produkte/laser-anleitungen/ sowie im KI-Workspace (/admin/ai-workspace -> Berufsleben/Laser-Anleitungen) und können hier jederzeit geöffnet oder heruntergeladen werden.'])
+                    </div>
                 </div>
-                <div class="relative">
-                    <input type="number" x-model.number="configSettings.xtool_plane_height" step="0.1" class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 focus:border-blue-500 rounded-xl px-4 py-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all shadow-inner" placeholder="z.B. 50">
-                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-gray-600">mm</span>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                    @foreach($laserPdfGuides as $pdfGuide)
+                        <div :class="configSettings.xtool_equipment_key === @js($pdfGuide['equipment_key'])
+                                 ? 'border-[var(--theme-color)] bg-[var(--theme-color-10)]'
+                                 : 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950'"
+                             class="p-3 rounded-xl border flex flex-col justify-between gap-2.5 transition-all">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="min-w-0">
+                                    <span class="block text-[9px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500">{{ $pdfGuide['badge'] }}</span>
+                                    <span class="block text-xs font-black text-gray-900 dark:text-white truncate mt-0.5" title="{{ $pdfGuide['title'] }}">{{ $pdfGuide['title'] }}</span>
+                                </div>
+                                <span x-show="configSettings.xtool_equipment_key === @js($pdfGuide['equipment_key'])" x-cloak
+                                      class="shrink-0 px-2 py-0.5 rounded-md bg-[var(--theme-color)] text-white dark:text-gray-900 text-[8px] font-black uppercase tracking-wider">
+                                    Aktiv
+                                </span>
+                            </div>
+
+                            <div class="flex items-center gap-1.5">
+                                <a href="{{ $pdfGuide['url'] }}"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   class="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-wider transition-all">
+                                    <span>Öffnen</span>
+                                </a>
+                                <a href="{{ $pdfGuide['url'] }}"
+                                   download="{{ $pdfGuide['filename'] }}"
+                                   class="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-[var(--theme-color)] hover:opacity-90 text-white dark:text-gray-900 text-[9px] font-black uppercase tracking-wider transition-all">
+                                    <svg class="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.25">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                    <span>PDF ziehen</span>
+                                </a>
+                            </div>
+                        </div>
+                    @endforeach
                 </div>
-                <p class="text-[9px] text-gray-500">Physikalische Höhe des 100% Bereiches.</p>
+            </div>
+
+            {{-- Kurzer Praxis-/Einlege-Hinweis --}}
+            <div class="pt-1">
+                <div class="flex items-center justify-between mb-1.5">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Einlege-Hinweis / Besonderheit (Optional)</label>
+                    @include('components.alerts.info-tooltip', ['text' => 'Kurzer Praxishinweis zur Ausrichtung im Laser, z. B. Standfuß frei schweben lassen oder Shop-SVG nicht invertieren.'])
+                </div>
+                <input type="text"
+                       x-model="configSettings.xtool_setup_note"
+                       placeholder="z.B. Schwarze Unterlegplatte nutzen, Standfuß frei über Vorderkante schweben lassen"
+                       class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner">
             </div>
         </div>
 
-        <div class="mt-4 p-4 bg-blue-500/5 border border-blue-200 dark:border-blue-500/20 rounded-xl flex gap-4 items-start">
-            <svg class="w-5 h-5 text-blue-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            <div class="space-y-1">
-                <p class="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">Flache Gravur</p>
-                <p class="text-[10px] text-gray-600 dark:text-gray-400 leading-relaxed">
-                    Da es sich um ein flaches Objekt handelt (z.B. Schlüsselanhänger, Holzbrett), wird kein Zylinder berechnet. Gib hier exakt die Breite und Höhe in Millimetern an, die dem voll aufgezogenen grünen Arbeitsbereich (100%) entsprechen. Das Skript erzeugt daraus eine maßstabsgetreue 1:1 SVG für den xTool.
-                </p>
+        {{-- TEIL B: WIE MAN ES BEARBEITET (1:1 XTOOL STUDIO MASKE) --}}
+        <div class="border-t border-gray-200 dark:border-gray-800 pt-6 space-y-5">
+            <div class="flex items-center justify-between">
+                <label class="text-[10px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-300">2. Wie man es bearbeitet (xTool Studio Parameter) *</label>
+                @include('components.alerts.info-tooltip', ['text' => '1:1 Übernahme der Felder aus dem rechten Parameter-Panel von xTool Studio.'])
             </div>
+
+            {{-- Zeile 1: Modus | Material | Fokus (mm) --}}
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                <div class="md:col-span-5 space-y-1.5">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 block">Modus *</label>
+                    <input type="text"
+                           list="xtoolProcessModesList"
+                           x-model="configSettings.xtool_process_mode"
+                           placeholder="z.B. Prozess auf flacher Oberfläche"
+                           :class="!String(configSettings.xtool_process_mode || '').trim() ? 'border-red-300 dark:border-red-500/40' : 'border-gray-300 dark:border-gray-700'"
+                           class="w-full bg-white dark:bg-gray-900 border rounded-xl px-4 py-2.5 text-xs font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner">
+                    <datalist id="xtoolProcessModesList">
+                        <option value="Prozess auf flacher Oberfläche"></option>
+                        <option value="Walze - Rotationsaufsatz"></option>
+                        <option value="Spannfutter - Rotationsaufsatz"></option>
+                        <option value="Gleiches Design - Stapelverarbeitung"></option>
+                        <option value="Innengravur - 3D-Miniatur"></option>
+                    </datalist>
+                </div>
+
+                <div class="md:col-span-4 space-y-1.5">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 block">Material *</label>
+                    <input type="text"
+                           list="xtoolMaterialsList"
+                           x-model="configSettings.xtool_material"
+                           placeholder="z.B. K9 Kristalltrophäe"
+                           :class="!String(configSettings.xtool_material || '').trim() ? 'border-red-300 dark:border-red-500/40' : 'border-gray-300 dark:border-gray-700'"
+                           class="w-full bg-white dark:bg-gray-900 border rounded-xl px-4 py-2.5 text-xs font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner">
+                    <datalist id="xtoolMaterialsList">
+                        <option value="K9 Kristalltrophäe"></option>
+                        <option value="0,2 mm Aluminiumlegierung"></option>
+                        <option value="Edelstahl"></option>
+                        <option value="Messing"></option>
+                        <option value="Klares Glas"></option>
+                        <option value="Schieferstein"></option>
+                        <option value="Holz"></option>
+                    </datalist>
+                </div>
+
+                <div class="md:col-span-3 space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Fokus / Abstand *</label>
+                        @include('components.alerts.info-tooltip', ['text' => 'Brennpunkt-Wert im mm-Feld von xTool Studio (z. B. 33.1 mm oder 19.9 mm).'])
+                    </div>
+                    <div class="relative">
+                        <input type="number"
+                               step="0.1"
+                               x-model.number="configSettings.xtool_focus_mm"
+                               placeholder="33.1"
+                               :class="!(Number(String(configSettings.xtool_focus_mm || '').replace(',', '.')) > 0) ? 'border-red-300 dark:border-red-500/40' : 'border-gray-300 dark:border-gray-700'"
+                               class="w-full bg-white dark:bg-gray-900 border rounded-xl px-4 py-2.5 pr-12 text-xs font-mono font-black text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner">
+                        <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-[11px] font-bold text-gray-400 dark:text-gray-500">mm</span>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Zeile 2: Ebene (Bild/Vektor/3D) | Tab (Gravieren/Farbgravur) | Einstellung (Benutzerdefiniert/Referenz) --}}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 block">Element-Typ</label>
+                    <div class="grid grid-cols-3 gap-1 p-1 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+                        @foreach(['Bild', 'Vektor', '3D-Modell'] as $elOpt)
+                            <button type="button"
+                                    @click="configSettings.xtool_element_type = @js($elOpt)"
+                                    :class="(configSettings.xtool_element_type || 'Bild') === @js($elOpt) ? 'bg-[var(--theme-color)] text-white dark:text-gray-900 shadow-2xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'"
+                                    class="py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer">
+                                {{ $elOpt }}
+                            </button>
+                        @endforeach
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 block">Gravur-Tab</label>
+                    <div class="grid grid-cols-3 gap-1 p-1 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+                        @foreach(['Gravieren', 'Farbgravur', 'Konturgravur'] as $tabOpt)
+                            <button type="button"
+                                    @click="configSettings.xtool_engrave_tab = @js($tabOpt)"
+                                    :class="(configSettings.xtool_engrave_tab || 'Gravieren') === @js($tabOpt) ? 'bg-[var(--theme-color)] text-white dark:text-gray-900 shadow-2xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'"
+                                    class="py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer truncate px-1">
+                                {{ $tabOpt }}
+                            </button>
+                        @endforeach
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 block">Einstellungs-Art</label>
+                    <select x-model="configSettings.xtool_preset_mode"
+                            class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all cursor-pointer">
+                        <option value="Benutzerdefiniert">Benutzerdefiniert</option>
+                        <option value="Referenz">Referenz</option>
+                    </select>
+                </div>
+            </div>
+
+            {{-- Zeile 3: Punktdauer (µs) | Leistung (%) | DPI | Bearbeitungsanzahl | Frequenz (kHz) --}}
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 block">Punktdauer *</label>
+                    <div class="relative">
+                        <input type="number"
+                               min="1"
+                               step="1"
+                               x-model.number="configSettings.xtool_dot_duration_us"
+                               placeholder="500"
+                               :class="!(Number(configSettings.xtool_dot_duration_us) > 0) ? 'border-red-300 dark:border-red-500/40' : 'border-gray-300 dark:border-gray-700'"
+                               class="w-full bg-white dark:bg-gray-900 border rounded-xl px-3.5 py-2.5 pr-10 text-xs font-mono font-black text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner">
+                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-gray-400 dark:text-gray-500">µs</span>
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 block">Leistung *</label>
+                    <div class="relative">
+                        <input type="number"
+                               min="1"
+                               max="100"
+                               step="1"
+                               x-model.number="configSettings.xtool_power_percent"
+                               placeholder="100"
+                               :class="!(Number(configSettings.xtool_power_percent) > 0) ? 'border-red-300 dark:border-red-500/40' : 'border-gray-300 dark:border-gray-700'"
+                               class="w-full bg-white dark:bg-gray-900 border rounded-xl px-3.5 py-2.5 pr-9 text-xs font-mono font-black text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner">
+                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-gray-400 dark:text-gray-500">%</span>
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 block">DPI *</label>
+                    <div class="relative">
+                        <input type="number"
+                               min="1"
+                               step="1"
+                               x-model.number="configSettings.xtool_dpi"
+                               placeholder="600"
+                               :class="!(Number(configSettings.xtool_dpi) > 0) ? 'border-red-300 dark:border-red-500/40' : 'border-gray-300 dark:border-gray-700'"
+                               class="w-full bg-white dark:bg-gray-900 border rounded-xl px-3.5 py-2.5 pr-12 text-xs font-mono font-black text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner">
+                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 dark:text-gray-500">DPI</span>
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 block">Bearbeitungsanzahl *</label>
+                    <div class="relative">
+                        <input type="number"
+                               min="1"
+                               max="20"
+                               step="1"
+                               x-model.number="configSettings.xtool_passes"
+                               placeholder="1"
+                               :class="!(Number(configSettings.xtool_passes) > 0) ? 'border-red-300 dark:border-red-500/40' : 'border-gray-300 dark:border-gray-700'"
+                               class="w-full bg-white dark:bg-gray-900 border rounded-xl px-3.5 py-2.5 pr-8 text-xs font-mono font-black text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner">
+                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-gray-400 dark:text-gray-500">&times;</span>
+                    </div>
+                </div>
+
+                <div class="space-y-1.5 col-span-2 sm:col-span-1">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 block">Frequenz *</label>
+                    <div class="relative">
+                        <input type="number"
+                               min="1"
+                               step="1"
+                               x-model.number="configSettings.xtool_frequency_khz"
+                               placeholder="40"
+                               :class="!(Number(configSettings.xtool_frequency_khz) > 0) ? 'border-red-300 dark:border-red-500/40' : 'border-gray-300 dark:border-gray-700'"
+                               class="w-full bg-white dark:bg-gray-900 border rounded-xl px-3.5 py-2.5 pr-12 text-xs font-mono font-black text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner">
+                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 dark:text-gray-500">kHz</span>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Zeile 4: Bitmap-Modus | Gravurmodus | Vektor-Zusatz (Optional) --}}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 block">Bitmap-Modus *</label>
+                    <select x-model="configSettings.xtool_bitmap_mode"
+                            :class="!String(configSettings.xtool_bitmap_mode || '').trim() ? 'border-red-300 dark:border-red-500/40' : 'border-gray-300 dark:border-gray-700'"
+                            class="w-full bg-white dark:bg-gray-900 border rounded-xl px-4 py-2.5 text-xs font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all cursor-pointer">
+                        <option value="">Bitte wählen...</option>
+                        <option value="Jarvis">Jarvis</option>
+                        <option value="Stucki">Stucki</option>
+                        <option value="Floyd">Floyd</option>
+                        <option value="Atkinson">Atkinson</option>
+                        <option value="Graustufen">Graustufen</option>
+                        <option value="Schwellenwert">Schwellenwert</option>
+                        <option value="Konturgravur (3D)">Konturgravur (3D)</option>
+                        <option value="Flächenfüllung (Vektor)">Flächenfüllung (Vektor)</option>
+                    </select>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 block">Gravurmodus *</label>
+                    <select x-model="configSettings.xtool_engrave_mode"
+                            :class="!String(configSettings.xtool_engrave_mode || '').trim() ? 'border-red-300 dark:border-red-500/40' : 'border-gray-300 dark:border-gray-700'"
+                            class="w-full bg-white dark:bg-gray-900 border rounded-xl px-4 py-2.5 text-xs font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all cursor-pointer">
+                        <option value="">Bitte wählen...</option>
+                        <option value="Zweidirektional">Zweidirektional</option>
+                        <option value="Eindirektional">Eindirektional</option>
+                    </select>
+                </div>
+
+                <div class="space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <label class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Vektor-Text / Symbole (Opt.)</label>
+                        @include('components.alerts.info-tooltip', ['text' => 'Optionaler Zusatzwert für separate Vektor-Textebenen in derselben SVG (z. B. 60 % · 80 mm/s · 300 L/cm · 40 kHz).'])
+                    </div>
+                    <input type="text"
+                           x-model="configSettings.xtool_vector_note"
+                           placeholder="z.B. Gravieren · 60 % · 80 mm/s · 300 L/cm · 40 kHz"
+                           class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner">
+                </div>
+            </div>
+        </div>
+
+        {{-- Direkt-Speichern Button am Ende der Kachel --}}
+        <div class="flex items-center justify-end pt-3 border-t border-gray-200 dark:border-gray-800">
+            <button type="button"
+                    wire:click="save"
+                    class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--theme-color)] text-white dark:text-gray-900 text-[10px] font-black uppercase tracking-widest shadow-xs hover:opacity-90 transition-all cursor-pointer">
+                <svg wire:loading.remove wire:target="save" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                <svg wire:loading wire:target="save" class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                </svg>
+                <span>Laser-Werte &amp; Anleitung speichern</span>
+            </button>
         </div>
     </div>
+
 </div>

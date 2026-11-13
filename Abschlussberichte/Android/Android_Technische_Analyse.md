@@ -14,10 +14,13 @@ Zuvor nutzte die App den standardmäßigen Intent-Capture-Vertrag `ActivityResul
 ### Hochauflösende Lösung via FileProvider
 Um Bilder in voller Auflösung aufzunehmen, muss Android die Datei über eine Datei-URI direkt auf einen Speicherpfad schreiben.
 1. **FileProvider-Registrierung:** Definiert in `AndroidManifest.xml` unter der Authority `de.meinseelenfunke.app.fileprovider`.
-2. **Pfadkonfiguration (`res/xml/file_paths.xml`):**
+2. **Pfadkonfiguration (`res/xml/file_paths.xml`):** Streng auf isolierte Unterordner statt auf das gesamte Cache-Root begrenzt:
    ```xml
-   <paths>
-       <cache-path name="camera_photos" path="." />
+   <paths xmlns:android="http://schemas.android.com/apk/res/android">
+       <cache-path name="camera_captures" path="camera_captures/" />
+       <cache-path name="mail_attachments" path="mail_attachments/" />
+       <cache-path name="calendar_exports" path="calendar_exports/" />
+       <cache-path name="secure_downloads" path="secure_downloads/" />
    </paths>
    ```
 3. **Ablauf:**
@@ -225,5 +228,42 @@ Die Startseite (`ZentrumScreen`) konzentriert sich im aufgeräumten „Alle Kach
 * **E-Mail-Anhänge (`📎 Anhänge`):** Anzeige aller Anhänge mit Dateigröße im Reader sowie 1-Tap-Download & Öffnen über `OkHttpClient` + `FileProvider` (`GET /api/funki/emails/attachments/{id}`).
 * **Vollständiges 3-Punkte-Kontextmenü & Reader-Aktionen:** `Öffnen`, `Aufgabe erledigt / Als Wichtig markieren`, `Gelesen / Ungelesen`, `↩ Antworten` (inkl. Zitat), `↪ Weiterleiten` (inkl. Übernahme bestehender Anhänge), `📝 Entwurf speichern & weiterbearbeiten`, `📋 Als Aufgabe (To-Do) anlegen`, `👤 Absender als Kontakt speichern`, `📁 Verschieben nach...`, `⚡ Absender-Regel (Auto-Ordner)...`, `🛡 Als Spam markieren` und `🗑 Löschen`.
 
+---
+
+## 10. Umfassende Sicherheits-Härtung (Security-Audit & Defense-in-Depth)
+
+Im Rahmen des vollständigen Sicherheits-Audits wurden sämtliche Angriffsflächen zwischen Android-App, Homescreen-Widgets, lokalem Smart-Home-Netz und Laravel-API geschlossen:
+
+1. **Zero Hardcoded Secrets & Hardware-Keystore-Zwang ([`ServiceLocator.kt`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/di/ServiceLocator.kt), [`MusicPlayerManager.kt`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/util/MusicPlayerManager.kt), [`FunkenwerkAlarmManager.kt`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/util/FunkenwerkAlarmManager.kt)):**
+   * Vollständige Entfernung hartkodierter Zugangsdaten und Fallback-Tokens sowie Entfernung von `gemini_tts_key` aus `/api/funki/routine/alarm-sync`.
+   * Keine Passwort-Persistenz auf dem Gerät (`KEY_SAVED_PASSWORD` wird beim Start bereinigt).
+   * Alle sensitiven Werte (`auth_token`, `gemini_api_key`, `fcm_token`, `saved_email`, `tapo_email`, `tapo_pass`, `_fw_sec_token`) werden ausschließlich AES-256-GCM-verschlüsselt über den `AndroidKeyStore` gespeichert; ein Klartext-Fallback in `SharedPreferences` existiert nicht mehr (nur flüchtiger RAM-Fallback bei Hardware-Keystore-Fehlern).
+2. **TLS-Standard, Host-Allowlist & Geschützte Datei-Downloads ([`SecureFileOpener.kt`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/util/SecureFileOpener.kt)):**
+   * Standard-Endpunkt für physische Geräte ist `https://stage.mein-seelenfunke.de/api/`; benutzerdefinierte Server-URLs werden strikt gegen eine Host-Allowlist geprüft (`mein-seelenfunke.de`, `stage.mein-seelenfunke.de` sowie explizite lokale Entwicklungs-Hosts).
+   * Gemini-Live-WebSockets erzwingen bei HTTPS automatisch `wss://` inklusive Host-Abgleich.
+   * Keine Sanctum-Bearer-Tokens mehr in Browser-Query-Strings (`?token=`): Belege, Verträge, Aufgaben-Dateien und Laser-SVGs werden über `SecureFileOpener.openAuthenticatedApiFile` per `Authorization: Bearer`-Header in `cacheDir/secure_downloads/` (25 MB Limit, Pfad-Kanonisierung, 15-Minuten-Auto-Purge) geladen und per `FileProvider` geöffnet.
+   * Lokale Tapo-Steckdosen-IPs werden strikt auf private RFC-1918-IPv4-Adressen geprüft.
+3. **Kryptografische Intent-Signierung & Widget-/Lockscreen-Schutz ([`SecurityIntentHelper.kt`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/util/SecurityIntentHelper.kt), [`AndroidManifest.xml`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/AndroidManifest.xml)):**
+   * Alle 6 `AppWidgetProvider` akzeptieren im Manifest nur noch `android.appwidget.action.APPWIDGET_UPDATE`. Alle internen Widget- und Notification-`PendingIntent`s werden mit einem 256-Bit-Keystore-Token (`MessageDigest.isEqual`) signiert und in `onReceive`, `TasksWidgetActionActivity` sowie `MainActivity.handleIntent` verifiziert.
+   * Sämtliche Widget-Dialog-Activities prüfen über `guardWidgetDialogActivity`, dass das Gerät entsperrt (`!isDeviceLocked`) und eine gültige Sitzung vorhanden ist.
+4. **Biometrische App-Sperre, `FLAG_SECURE` & Echter Server-Logout ([`AppNavigation.kt`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/ui/navigation/AppNavigation.kt), [`AuthRepository.kt`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/data/repository/AuthRepository.kt)):**
+   * Bevorzugung von `BIOMETRIC_STRONG`, automatische Nachsperre nach 3 Minuten im Hintergrund, `FLAG_SECURE` im gesperrten Zustand sowie `setRecentsScreenshotEnabled(false)` ab Android 13.
+   * Beim Logout wird `POST /api/logout` aufgerufen (widerruft das aktuelle Sanctum-Token und entfernt das `fcm_token`), laufende Dienste/WebSockets werden gestoppt und sämtliche lokalen Widget- und Datei-Caches restlos gelöscht.
+5. **Gehärtete E-Mail-WebView, Upload-Limits, Redacted Notifications & R8-Release-Build:**
+   * HTML-E-Mails rendern in einer strikt isolierten `WebView` (`allowFileAccess = false`, `allowContentAccess = false`, Cookies aus, strenge Content-Security-Policy, Filterung gefährlicher Tags/Event-Handler, Blockierung unverschlüsselter Sub-Requests).
+   * Serverseitige Sperrliste ausführbarer Dateiendungen in `POST /api/funki/files/upload`, strikte YouTube-ID-Validierung + `--`-Argumenttrennung in `GET /api/funki/music/stream/{id}`, 25-MB-/40-MB-Streaming-Limits in der App, `VISIBILITY_PRIVATE` mit neutraler Sperrbildschirm-Vorschau für Benachrichtigungen, Debug-Gating in `AppLogger` sowie aktivierte R8-Minifizierung (`isMinifyEnabled = true`, `isShrinkResources = true`) mit Logcat-Stripping im Release-Build.
 
 
+
+
+---
+
+## 11. Direkter Mehrseiten-PDF-Scanner & Share-Target für den Werkstatt-Mini-PC (`📥 In Trichter`)
+
+* **2-Wege-Umschalter in `BELEG & SCHNELLEINTRAG` ([`FinanceScreen.kt`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/ui/screens/FinanceScreen.kt), [`QuickEntryWidgetActivity.kt`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/widget/QuickEntryWidgetActivity.kt)):**
+  * Schlanker Pill-Toggle (`🧾 Beleg buchen` vs. `📥 In Trichter`) im Homescreen-Widget-Dialog und im Finanzzentrum ohne erklärende Subtexte.
+  * Im Modus `📥 In Trichter` lassen sich `1..N` Briefseiten nacheinander abfotografieren (`Seite scannen` / `+ Seite (N)`) und lokal per `android.graphics.pdf.PdfDocument` ([`ImageUtils.buildPdfFromJpegPages`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/util/ImageUtils.kt)) speicherschonend zu einer einzigen mehrseitigen A4-PDF (`Scan_YYYY-MM-DD_HHmmss.pdf`) bündeln oder beliebige PDF-/Bilddateien anhängen.
+* **Systemweites Android Share-Target ([`TrichterShareActivity.kt`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/widget/TrichterShareActivity.kt), [`AndroidManifest.xml`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/AndroidManifest.xml)):**
+  * Nimmt `ACTION_SEND` und `ACTION_SEND_MULTIPLE` (`application/pdf`, `image/*`) aus Mail-, Browser- oder Messenger-Apps direkt im Modus `📥 In Trichter` entgegen, während `QuickEntryWidgetActivity` weiterhin `exported="false"` bleibt und `extractSafeExternalUris` eigene `fileprovider`-/`dataDir`-Pfade gegen Confused-Deputy-Angriffe blockiert.
+* **Verschlüsselte Zero-Port-Forwarding-Übergabe ([`FinanceApi.kt`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app/app/src/main/java/de/meinseelenfunke/app/data/api/FinanceApi.kt), [`MiniPcTrichterRelayService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/System/MiniPcTrichterRelayService.php)):**
+  * Übergibt Dokumente per `POST /api/funki/minipc-trichter/enqueue` (`Crypt::encryptString` at rest), sodass der Werkstatt-Mini-PC sie beim nächsten Pulse (`GET /api/shop/minipc-trichter/pull/{id}` + `DELETE /api/shop/minipc-trichter/ack/{id}`) automatisch in `/home/alina/Meine_Daten/00_Eingang_Trichter` abholt, per OCR/FTS5 einsortiert und sofort rückstandslos vom Webserver löscht.

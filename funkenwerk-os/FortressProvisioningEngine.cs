@@ -419,12 +419,30 @@ USB-Stick '3_NOTFALL_WINDOWS_ZURUECKSETZEN.cmd' starten.
 ====================================================================
 ";
             File.WriteAllText(Path.Combine(targetDir, "LIESMICH_MINIPC.txt"), readme, new UTF8Encoding(false));
+
+            string btFixCmd =
+@"@echo off
+chcp 65001 >nul
+title FUNKENWERK OS - BLUETOOTH & AUDIO STABILITAETS-UPDATE
+echo ================================================================
+echo   FUNKENWERK OS - BLUETOOTH SBC + 5 GHz AUDIO-OPTIMIERUNG
+echo ================================================================
+echo.
+net session >nul 2>&1
+if %errorLevel% == 0 (
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File ""%~dp0Funkenwerk_Fortress_Installer.ps1"" -Mode BluetoothFix
+) else (
+    echo Startet die Bluetooth-Optimierung mit Administratorrechten...
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ""Start-Process powershell.exe -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File \""%~dp0Funkenwerk_Fortress_Installer.ps1\"" -Mode BluetoothFix'""
+)
+";
+            File.WriteAllText(Path.Combine(targetDir, "4_BLUETOOTH_AUDIO_FIX_MINIPC.cmd"), btFixCmd, new UTF8Encoding(false));
         }
 
         private static string BuildFortressPowerShellScript()
         {
             return @"param(
-    [ValidateSet('FullFortress', 'DebloatOnly', 'FirewallOn', 'FirewallOff', 'RestoreWindows', 'BackupKeyOnly')]
+    [ValidateSet('FullFortress', 'DebloatOnly', 'FirewallOn', 'FirewallOff', 'RestoreWindows', 'BackupKeyOnly', 'BluetoothFix')]
     [string]$Mode = 'FullFortress'
 )
 
@@ -469,9 +487,13 @@ if ($Mode -eq 'BackupKeyOnly') {
 
 if ($Mode -eq 'RestoreWindows') {
     Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name 'Shell' -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name 'Shell' -Value 'explorer.exe' -ErrorAction SilentlyContinue
     Get-NetFirewallRule -Name 'FunkenwerkFortress_*' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
     Set-NetFirewallProfile -Profile Domain,Private,Public -DefaultOutboundAction Allow
-    Write-Host '[OK] Standard Windows-Oberflaeche & Standard-Firewall wiederhergestellt.' -ForegroundColor Green
+    Stop-Process -Name 'explorer' -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 400
+    Start-Process -FilePath 'explorer.exe'
+    Write-Host '[OK] Standard Windows-Oberflaeche, Taskleiste & Standard-Firewall wiederhergestellt.' -ForegroundColor Green
     exit 0
 }
 
@@ -482,41 +504,43 @@ if ($Mode -eq 'FirewallOff') {
     exit 0
 }
 
-# 1. Backup License Key first
-Backup-OemKey
+if ($Mode -eq 'FullFortress') {
+    # 1. Backup License Key first
+    Backup-OemKey
 
-# 1b. Ensure .NET 8 & .NET 9 Windows Desktop Runtimes are present BEFORE activating strict Outbound Firewall
-$installedRuntimes = ''
-try { $installedRuntimes = (& dotnet --list-runtimes 2>$null) -join ""`n"" } catch { }
+    # 1b. Ensure .NET 8 & .NET 9 Windows Desktop Runtimes are present BEFORE activating strict Outbound Firewall
+    $installedRuntimes = ''
+    try { $installedRuntimes = (& dotnet --list-runtimes 2>$null) -join ""`n"" } catch { }
 
-if ($installedRuntimes -notmatch 'Microsoft\.WindowsDesktop\.App 8\.') {
-    Write-Host '[..] Installiere .NET 8 Desktop Runtime fuer Funkenwerk Collection...' -ForegroundColor Cyan
-    $localRt8 = Join-Path $ScriptRoot 'Runtimes\windowsdesktop-runtime-8-x64.exe'
-    if (-not (Test-Path $localRt8)) { $localRt8 = Join-Path $ParentBundleRoot 'Runtimes\windowsdesktop-runtime-8-x64.exe' }
-    if (Test-Path $localRt8) {
-        Start-Process -FilePath $localRt8 -ArgumentList '/install /quiet /norestart' -Wait
-    } else {
-        $rt8Installer = Join-Path $env:TEMP 'windowsdesktop-runtime-8-x64.exe'
-        Invoke-WebRequest -Uri 'https://aka.ms/dotnet/8.0/windowsdesktop-runtime-win-x64.exe' -OutFile $rt8Installer -UseBasicParsing
-        if (Test-Path $rt8Installer) {
-            Start-Process -FilePath $rt8Installer -ArgumentList '/install /quiet /norestart' -Wait
-            Remove-Item $rt8Installer -Force -ErrorAction SilentlyContinue
+    if ($installedRuntimes -notmatch 'Microsoft\.WindowsDesktop\.App 8\.') {
+        Write-Host '[..] Installiere .NET 8 Desktop Runtime fuer Funkenwerk Collection...' -ForegroundColor Cyan
+        $localRt8 = Join-Path $ScriptRoot 'Runtimes\windowsdesktop-runtime-8-x64.exe'
+        if (-not (Test-Path $localRt8)) { $localRt8 = Join-Path $ParentBundleRoot 'Runtimes\windowsdesktop-runtime-8-x64.exe' }
+        if (Test-Path $localRt8) {
+            Start-Process -FilePath $localRt8 -ArgumentList '/install /quiet /norestart' -Wait
+        } else {
+            $rt8Installer = Join-Path $env:TEMP 'windowsdesktop-runtime-8-x64.exe'
+            Invoke-WebRequest -Uri 'https://aka.ms/dotnet/8.0/windowsdesktop-runtime-win-x64.exe' -OutFile $rt8Installer -UseBasicParsing
+            if (Test-Path $rt8Installer) {
+                Start-Process -FilePath $rt8Installer -ArgumentList '/install /quiet /norestart' -Wait
+                Remove-Item $rt8Installer -Force -ErrorAction SilentlyContinue
+            }
         }
     }
-}
 
-if ($installedRuntimes -notmatch 'Microsoft\.WindowsDesktop\.App 9\.') {
-    Write-Host '[..] Installiere .NET 9 Desktop Runtime fuer Funkenwerk Collection...' -ForegroundColor Cyan
-    $localRt9 = Join-Path $ScriptRoot 'Runtimes\windowsdesktop-runtime-9-x64.exe'
-    if (-not (Test-Path $localRt9)) { $localRt9 = Join-Path $ParentBundleRoot 'Runtimes\windowsdesktop-runtime-9-x64.exe' }
-    if (Test-Path $localRt9) {
-        Start-Process -FilePath $localRt9 -ArgumentList '/install /quiet /norestart' -Wait
-    } else {
-        $rt9Installer = Join-Path $env:TEMP 'windowsdesktop-runtime-9-x64.exe'
-        Invoke-WebRequest -Uri 'https://aka.ms/dotnet/9.0/windowsdesktop-runtime-win-x64.exe' -OutFile $rt9Installer -UseBasicParsing
-        if (Test-Path $rt9Installer) {
-            Start-Process -FilePath $rt9Installer -ArgumentList '/install /quiet /norestart' -Wait
-            Remove-Item $rt9Installer -Force -ErrorAction SilentlyContinue
+    if ($installedRuntimes -notmatch 'Microsoft\.WindowsDesktop\.App 9\.') {
+        Write-Host '[..] Installiere .NET 9 Desktop Runtime fuer Funkenwerk Collection...' -ForegroundColor Cyan
+        $localRt9 = Join-Path $ScriptRoot 'Runtimes\windowsdesktop-runtime-9-x64.exe'
+        if (-not (Test-Path $localRt9)) { $localRt9 = Join-Path $ParentBundleRoot 'Runtimes\windowsdesktop-runtime-9-x64.exe' }
+        if (Test-Path $localRt9) {
+            Start-Process -FilePath $localRt9 -ArgumentList '/install /quiet /norestart' -Wait
+        } else {
+            $rt9Installer = Join-Path $env:TEMP 'windowsdesktop-runtime-9-x64.exe'
+            Invoke-WebRequest -Uri 'https://aka.ms/dotnet/9.0/windowsdesktop-runtime-win-x64.exe' -OutFile $rt9Installer -UseBasicParsing
+            if (Test-Path $rt9Installer) {
+                Start-Process -FilePath $rt9Installer -ArgumentList '/install /quiet /norestart' -Wait
+                Remove-Item $rt9Installer -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 }
@@ -573,6 +597,23 @@ if (Test-Path $usbCollectionSource) {
         }
     }
     Write-Host '[OK] Funkenwerk Collection installiert.' -ForegroundColor Green
+} elseif ($Mode -eq 'BluetoothFix') {
+    Stop-Process -Name 'FunkenwerkOS' -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 500
+    $osTargetDir = Join-Path $systemCollectionTarget 'Funkenwerk OS'
+    foreach ($candDir in @($ScriptRoot, $ParentBundleRoot)) {
+        $candDll = Join-Path $candDir 'FunkenwerkOS.dll'
+        $candExe = Join-Path $candDir 'FunkenwerkOS.exe'
+        if ((Test-Path $candDll) -and ($candDir.TrimEnd('\') -ine $osTargetDir.TrimEnd('\'))) {
+            New-Item -ItemType Directory -Path $osTargetDir -Force | Out-Null
+            Copy-Item -Path $candDll -Destination (Join-Path $osTargetDir 'FunkenwerkOS.dll') -Force
+            if (Test-Path $candExe) {
+                Copy-Item -Path $candExe -Destination (Join-Path $osTargetDir 'FunkenwerkOS.exe') -Force
+            }
+            Write-Host '[OK] Funkenwerk OS Programmdateien aktualisiert.' -ForegroundColor Green
+            break
+        }
+    }
 }
 
 if (-not (Test-Path $desktopCollectionTarget) -and (Test-Path $systemCollectionTarget)) {
@@ -626,11 +667,13 @@ if ($Mode -in @('FullFortress', 'DebloatOnly')) {
     New-Item -Path 'HKCU:\Software\FunkenwerkOS' -Force | Out-Null
     Set-ItemProperty -Path 'HKCU:\Software\FunkenwerkOS' -Name 'WallPowerConfigured' -Type DWord -Value 1
 
-    # Enable WLAN, Location Consent (required by Windows 11 24H2 for Wi-Fi scanning) & Bluetooth Services
-    foreach ($svc in @('WlanSvc', 'lfsvc', 'bthserv', 'BTAGService')) {
+    # Enable WLAN, Location Consent & Stereo Bluetooth Services (keep Hands-Free BTAGService DISABLED to prevent A2DP audio stuttering!)
+    foreach ($svc in @('WlanSvc', 'lfsvc', 'bthserv', 'BthAvctpSvc')) {
         Set-Service -Name $svc -StartupType Automatic -ErrorAction SilentlyContinue
         Start-Service -Name $svc -ErrorAction SilentlyContinue
     }
+    Stop-Service -Name 'BTAGService' -Force -ErrorAction SilentlyContinue
+    Set-Service -Name 'BTAGService' -StartupType Disabled -ErrorAction SilentlyContinue
     foreach ($cap in @('location', 'wifiData', 'bluetooth', 'bluetoothSync')) {
         New-Item -Path ""HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\$cap"" -Force | Out-Null
         Set-ItemProperty -Path ""HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\$cap"" -Name 'Value' -Type String -Value 'Allow'
@@ -648,32 +691,29 @@ if ($Mode -in @('FullFortress', 'DebloatOnly')) {
         }
     }
 
-    # Enable Local Manufaktur-LAN Remote Management (WinRM / SMB from 192.168.188.0/24)
+    # Zero-Trust Hardening: Block Blank Passwords, Disable Remote Local Admin Token Filter, Disable WinRM & Remote Assistance
     Get-NetConnectionProfile -ErrorAction SilentlyContinue | Set-NetConnectionProfile -NetworkCategory Private -ErrorAction SilentlyContinue
-    Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name 'LimitBlankPasswordUse' -Type DWord -Value 0
-    Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'LocalAccountTokenFilterPolicy' -Type DWord -Value 1
-    Set-Service -Name 'WinRM' -StartupType Automatic -ErrorAction SilentlyContinue
-    Start-Service -Name 'WinRM' -ErrorAction SilentlyContinue
-    Enable-PSRemoting -Force -SkipNetworkProfileCheck 2>$null | Out-Null
-    & winrm.cmd quickconfig -q -force 2>$null | Out-Null
-    Set-Item -Path WSMan:\localhost\Service\AllowUnencrypted -Value $true -Force 2>$null | Out-Null
-    Set-Item -Path WSMan:\localhost\Service\Auth\Basic -Value $true -Force 2>$null | Out-Null
-    Set-Item -Path WSMan:\localhost\Client\TrustedHosts -Value '192.168.188.*' -Force 2>$null | Out-Null
+    Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name 'LimitBlankPasswordUse' -Type DWord -Value 1
+    Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'LocalAccountTokenFilterPolicy' -Type DWord -Value 0
+    Stop-Service -Name 'WinRM' -Force -ErrorAction SilentlyContinue
+    Set-Service -Name 'WinRM' -StartupType Disabled -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Remote Assistance' -Name 'fAllowToGetHelp' -Type DWord -Value 0 -ErrorAction SilentlyContinue
 
-    Write-Host '[OK] Entkernung, WLAN/BT-Freigabe & 24/7-Energieplan aktiv.' -ForegroundColor Green
+    Write-Host '[OK] Entkernung, Zero-Trust-Haertung, WLAN/BT-Freigabe & 24/7-Energieplan aktiv.' -ForegroundColor Green
 }
 
-if ($Mode -in @('FullFortress', 'FirewallOn')) {
-    Write-Host '[..] Aktiviere Festungs-Firewall (Default-Deny Outbound + Funkenwerk-Whitelist)...' -ForegroundColor Cyan
+if ($Mode -in @('FullFortress', 'FirewallOn', 'BluetoothFix')) {
+    Write-Host '[..] Aktiviere Festungs-Firewall (Zero-Inbound + Strikte Programm-Whitelist Outbound)...' -ForegroundColor Cyan
     Get-NetFirewallRule -Name 'FunkenwerkFortress_*' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+    Get-NetFirewallRule -Direction Inbound -Action Allow -Enabled True -ErrorAction SilentlyContinue | Disable-NetFirewallRule -ErrorAction SilentlyContinue
 
-    # Core networking essentials (DNS, DHCP, NTP, Loopback, Local Gifhorn Subnet Outbound + Inbound)
+    # Core networking essentials (DNS, DHCP, NTP, Loopback Outbound ONLY - ZERO Inbound!)
     New-NetFirewallRule -Name 'FunkenwerkFortress_AllowCore_DNS_UDP' -DisplayName 'Funkenwerk OS: DNS (UDP)' -Direction Outbound -Action Allow -Protocol UDP -RemotePort 53 | Out-Null
     New-NetFirewallRule -Name 'FunkenwerkFortress_AllowCore_DNS_TCP' -DisplayName 'Funkenwerk OS: DNS (TCP)' -Direction Outbound -Action Allow -Protocol TCP -RemotePort 53 | Out-Null
     New-NetFirewallRule -Name 'FunkenwerkFortress_AllowCore_DHCP' -DisplayName 'Funkenwerk OS: DHCP' -Direction Outbound -Action Allow -Protocol UDP -LocalPort 68 -RemotePort 67 | Out-Null
     New-NetFirewallRule -Name 'FunkenwerkFortress_AllowCore_NTP' -DisplayName 'Funkenwerk OS: Zeit-Sync' -Direction Outbound -Action Allow -Protocol UDP -RemotePort 123 | Out-Null
-    New-NetFirewallRule -Name 'FunkenwerkFortress_AllowCore_LAN' -DisplayName 'Funkenwerk OS: Lokales Manufaktur-LAN (Outbound)' -Direction Outbound -Action Allow -RemoteAddress LocalSubnet,'192.168.188.0/24','127.0.0.1' | Out-Null
-    New-NetFirewallRule -Name 'FunkenwerkFortress_AllowCore_LAN_In' -DisplayName 'Funkenwerk OS: Lokales Manufaktur-LAN (Inbound)' -Direction Inbound -Action Allow -RemoteAddress LocalSubnet,'192.168.188.0/24','127.0.0.1' | Out-Null
+    New-NetFirewallRule -Name 'FunkenwerkFortress_AllowCore_Loopback' -DisplayName 'Funkenwerk OS: Loopback' -Direction Outbound -Action Allow -RemoteAddress '127.0.0.1','::1' | Out-Null
+    New-NetFirewallRule -Name 'FunkenwerkFortress_AllowCore_Svchost_HTTPS' -DisplayName 'Funkenwerk OS: Windows Update & Defender HTTPS' -Direction Outbound -Action Allow -Program ""$env:SystemRoot\System32\svchost.exe"" -Protocol TCP -RemotePort 80,443 | Out-Null
 
     $fwExes = @(
         @{ Id = 'OS';      Rel = 'Funkenwerk OS\FunkenwerkOS.exe' },
@@ -727,11 +767,178 @@ if ($Mode -in @('FullFortress', 'FirewallOn')) {
             }
         }
     }
-    New-NetFirewallRule -Name 'FunkenwerkFortress_AllowCore_HTTPS_QUIC' -DisplayName 'Funkenwerk OS: HTTPS/HTTP/QUIC Web' -Direction Outbound -Action Allow -Protocol TCP -RemotePort 80,443 | Out-Null
-    New-NetFirewallRule -Name 'FunkenwerkFortress_AllowCore_QUIC_UDP' -DisplayName 'Funkenwerk OS: QUIC UDP 443' -Direction Outbound -Action Allow -Protocol UDP -RemotePort 443 | Out-Null
+    $defPlatform = 'C:\ProgramData\Microsoft\Windows Defender\Platform'
+    if (Test-Path $defPlatform) {
+        $mpIdx = 0
+        Get-ChildItem -Path $defPlatform -Filter 'MsMpEng.exe' -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+            $mpIdx++
+            New-NetFirewallRule -Name ""FunkenwerkFortress_AllowDefender_$mpIdx"" -DisplayName ""Funkenwerk OS: Windows Defender ($mpIdx)"" -Direction Outbound -Action Allow -Program $_.FullName -Protocol TCP -RemotePort 80,443 | Out-Null
+        }
+    }
 
-    Set-NetFirewallProfile -Profile Domain,Private,Public -DefaultInboundAction Block -DefaultOutboundAction Allow
-    Write-Host '[OK] Festungs-Firewall scharfgeschaltet.' -ForegroundColor Green
+    # Allow Ed25519 Key-Only OpenSSH Server (Port 22) strictly from Local LAN ('192.168.188.0/24','LocalSubnet')
+    if ((Test-Path 'C:\Program Files\OpenSSH\sshd.exe') -or (Test-Path ""$env:SystemRoot\System32\OpenSSH\sshd.exe"") -or (Test-Path (Join-Path $ScriptRoot 'OpenSSH-Win64\sshd.exe'))) {
+        New-NetFirewallRule -Name 'FunkenwerkFortress_AllowInbound_SSH_LAN' -DisplayName 'Funkenwerk OS: Ed25519 SSH Wartung (Nur LAN)' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 22 -RemoteAddress '192.168.188.0/24','LocalSubnet' | Out-Null
+    }
+
+    Set-NetFirewallProfile -Profile Domain,Private,Public -DefaultInboundAction Block -DefaultOutboundAction Block
+    Write-Host '[OK] Festungs-Firewall (LAN-SSH Key-Only + Outbound-Whitelist) scharfgeschaltet.' -ForegroundColor Green
+}
+
+if ($Mode -in @('FullFortress', 'BluetoothFix')) {
+    $usbOpenSshDir = Join-Path $ScriptRoot 'OpenSSH-Win64'
+    if (-not (Test-Path (Join-Path $usbOpenSshDir 'sshd.exe'))) {
+        $usbOpenSshDir = Join-Path $ScriptRoot 'Payload\OpenSSH-Win64'
+    }
+    $usbPubKeyFile = Join-Path $ScriptRoot 'authorized_notebook_ed25519.pub'
+    if (-not (Test-Path $usbPubKeyFile)) {
+        $usbPubKeyFile = Join-Path $ScriptRoot 'Payload\authorized_notebook_ed25519.pub'
+    }
+
+    if ((Test-Path (Join-Path $usbOpenSshDir 'sshd.exe')) -and (Test-Path $usbPubKeyFile)) {
+        Write-Host '[..] Installiere Microsoft OpenSSH Server (Ed25519 Key-Only, Passwort-Login AUS)...' -ForegroundColor Cyan
+        $targetSshDir = 'C:\Program Files\OpenSSH'
+        Stop-Service -Name 'sshd' -Force -ErrorAction SilentlyContinue
+        Stop-Service -Name 'ssh-agent' -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 400
+        New-Item -ItemType Directory -Path $targetSshDir -Force | Out-Null
+        Copy-Item -Path (Join-Path $usbOpenSshDir '*') -Destination $targetSshDir -Recurse -Force
+
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $targetSshDir 'install-sshd.ps1') -Confirm:$false | Out-Null
+
+        $sshDataDir = 'C:\ProgramData\ssh'
+        New-Item -ItemType Directory -Path $sshDataDir -Force | Out-Null
+        & (Join-Path $targetSshDir 'ssh-keygen.exe') -A 2>$null | Out-Null
+
+        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+        $sshdCfgLines = @(
+            'Port 22',
+            'AddressFamily any',
+            'ListenAddress 0.0.0.0',
+            'PubkeyAuthentication yes',
+            'AuthorizedKeysFile .ssh/authorized_keys',
+            'PasswordAuthentication no',
+            'PermitEmptyPasswords no',
+            'KbdInteractiveAuthentication no',
+            'GSSAPIAuthentication no',
+            'StrictModes yes',
+            'MaxAuthTries 4',
+            'Subsystem sftp sftp-server.exe',
+            '',
+            'Match Group administrators',
+            '       AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys',
+            ''
+        ) -join ""`n""
+        [System.IO.File]::WriteAllText((Join-Path $sshDataDir 'sshd_config'), $sshdCfgLines, $utf8NoBom)
+
+        $pubKeyText = ([System.IO.File]::ReadAllText($usbPubKeyFile).Trim()) + ""`n""
+        $adminKeysPath = Join-Path $sshDataDir 'administrators_authorized_keys'
+        [System.IO.File]::WriteAllText($adminKeysPath, $pubKeyText, $utf8NoBom)
+
+        $userSshDir = Join-Path $env:USERPROFILE '.ssh'
+        New-Item -ItemType Directory -Path $userSshDir -Force | Out-Null
+        $userKeysPath = Join-Path $userSshDir 'authorized_keys'
+        [System.IO.File]::WriteAllText($userKeysPath, $pubKeyText, $utf8NoBom)
+
+        Import-Module (Join-Path $targetSshDir 'OpenSSHUtils.psm1') -Force
+        Repair-SSHFolderPermission -FilePath $sshDataDir -Confirm:$false | Out-Null
+        Repair-SshdConfigPermission -FilePath (Join-Path $sshDataDir 'sshd_config') -Confirm:$false | Out-Null
+        Get-ChildItem -Path (Join-Path $sshDataDir 'ssh_host_*_key') -ErrorAction SilentlyContinue | ForEach-Object {
+            Repair-SshdHostKeyPermission -FilePath $_.FullName -Confirm:$false | Out-Null
+        }
+        Repair-AuthorizedKeyPermission -FilePath $userKeysPath -Confirm:$false | Out-Null
+        Repair-AdministratorsAuthorizedKeysPermission -FilePath $adminKeysPath -Confirm:$false | Out-Null
+        & icacls.exe $adminKeysPath /inheritance:r /grant '*S-1-5-18:(F)' /grant '*S-1-5-32-544:(F)' 2>$null | Out-Null
+
+        Set-Service -Name 'sshd' -StartupType Automatic -ErrorAction SilentlyContinue
+        & sc.exe failure sshd reset= 0 actions= restart/5000/restart/5000/restart/5000 2>$null | Out-Null
+        Start-Service -Name 'sshd' -ErrorAction SilentlyContinue
+
+        Remove-NetFirewallRule -Name 'FunkenwerkFortress_AllowInbound_SSH_LAN' -ErrorAction SilentlyContinue
+        New-NetFirewallRule -Name 'FunkenwerkFortress_AllowInbound_SSH_LAN' -DisplayName 'Funkenwerk OS: Ed25519 SSH Wartung (Nur LAN)' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 22 -RemoteAddress '192.168.188.0/24','LocalSubnet' | Out-Null
+        Get-NetConnectionProfile -ErrorAction SilentlyContinue | Set-NetConnectionProfile -NetworkCategory Private -ErrorAction SilentlyContinue
+
+        $sshdState = (Get-Service -Name 'sshd' -ErrorAction SilentlyContinue).Status
+        Write-Host ""[OK] OpenSSH Server (Ed25519 Key-Only) aktiv! Status: $sshdState"" -ForegroundColor Green
+    }
+
+    Write-Host '[..] Optimiere Bluetooth A2DP (Pure-SBC), 5 GHz WLAN-Trennung & USB/PCIe Echtzeit-Audio...' -ForegroundColor Cyan
+
+    # 1. Disable buggy Windows 11 AAC over Bluetooth A2DP -> force glitch-free hardware SBC!
+    New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\BthA2dp\Parameters' -Force | Out-Null
+    Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\BthA2dp\Parameters' -Name 'BluetoothAacEnable' -Type DWord -Value 0
+    Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\BthA2dp\Parameters' -Name 'EnableAAC' -Type DWord -Value 0
+
+    New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\BTHUSB\Parameters' -Force | Out-Null
+    Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\BTHUSB\Parameters' -Name 'SelectiveSuspendEnabled' -Type DWord -Value 0
+
+    # 2. Stop & disable Bluetooth Hands-Free Telephony (BTAGService) + Hands-Free PnP endpoints + Audio Ducking
+    Stop-Service -Name 'BTAGService' -Force -ErrorAction SilentlyContinue
+    Set-Service -Name 'BTAGService' -StartupType Disabled -ErrorAction SilentlyContinue
+    Get-PnpDevice -Class AudioEndpoint -ErrorAction SilentlyContinue | Where-Object { $_.FriendlyName -match 'Hands-Free|Freisprech' } | Disable-PnpDevice -Confirm:$false -ErrorAction SilentlyContinue
+    Get-PnpDevice -ErrorAction SilentlyContinue | Where-Object { $_.InstanceId -match '0000111e-0000-1000-8000-00805f9b34fb' } | Disable-PnpDevice -Confirm:$false -ErrorAction SilentlyContinue
+
+    New-Item -Path 'HKCU:\Software\Microsoft\Multimedia\Audio' -Force | Out-Null
+    Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Multimedia\Audio' -Name 'UserDuckingPreference' -Type DWord -Value 3
+
+    # 3. Disable USB Selective Suspend across ALL Realtek / Intel Bluetooth USB controllers + disable PCIe ASPM & WLAN PowerSave
+    powercfg /SETACVALUEINDEX SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
+    powercfg /SETACVALUEINDEX SCHEME_CURRENT 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5 0
+    powercfg /SETACVALUEINDEX SCHEME_CURRENT 19cbb8fa-5279-450e-9fac-8a3d5fedd0c1 12bbebe6-58d6-4636-95bb-3217ef867c1a 0
+    powercfg /setactive SCHEME_CURRENT
+
+    Get-ChildItem -Path 'HKLM:\SYSTEM\CurrentControlSet\Enum\USB' -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -match 'VID_0BDA|VID_8087' } | ForEach-Object {
+        Get-ChildItem -Path $_.PSPath -ErrorAction SilentlyContinue | ForEach-Object {
+            $dp = Join-Path $_.PSPath 'Device Parameters'
+            if (Test-Path $dp) {
+                Set-ItemProperty -Path $dp -Name 'DeviceSelectiveSuspended' -Type DWord -Value 0 -ErrorAction SilentlyContinue
+                Set-ItemProperty -Path $dp -Name 'SelectiveSuspendEnabled' -Type DWord -Value 0 -ErrorAction SilentlyContinue
+                Set-ItemProperty -Path $dp -Name 'EnhancedPowerManagementEnabled' -Type DWord -Value 0 -ErrorAction SilentlyContinue
+                Set-ItemProperty -Path $dp -Name 'IdleInWorkingState' -Type DWord -Value 0 -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    # 4. Switch Realtek RTL8821CE Wi-Fi to 5 GHz Preferred (PreferBand = 2) & restore hardware BT-Wi-Fi coexistence
+    Get-ChildItem -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}' -ErrorAction SilentlyContinue | ForEach-Object {
+        $desc = (Get-ItemProperty -Path $_.PSPath -ErrorAction SilentlyContinue).DriverDesc
+        if ($desc -match '8821|Wireless') {
+            Set-ItemProperty -Path $_.PSPath -Name 'bLowPowerEnable' -Type String -Value '0' -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $_.PSPath -Name 'Scan_IPSEnable' -Type String -Value '0' -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $_.PSPath -Name 'PowerSaveMode' -Type String -Value '0' -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $_.PSPath -Name 'RoamAggressiveness' -Type String -Value '1' -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $_.PSPath -Name 'PreferBand' -Type String -Value '2' -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $_.PSPath -Name 'PreferredBand' -Type String -Value '2' -ErrorAction SilentlyContinue
+            Remove-ItemProperty -Path $_.PSPath -Name 'ConcurrentOpPref' -ErrorAction SilentlyContinue
+            Remove-ItemProperty -Path $_.PSPath -Name 'MultiChannelFcsMode' -ErrorAction SilentlyContinue
+        }
+    }
+    Get-NetAdapterAdvancedProperty -ErrorAction SilentlyContinue | Where-Object { $_.RegistryKeyword -in @('PreferBand','PreferredBand') } | Set-NetAdapterAdvancedProperty -RegistryValue 2 -ErrorAction SilentlyContinue
+
+    New-Item -Path 'HKCU:\Software\FunkenwerkOS' -Force | Out-Null
+    Set-ItemProperty -Path 'HKCU:\Software\FunkenwerkOS' -Name 'BtAudioOptimizedVersion' -Type DWord -Value 2
+
+    Restart-Service -Name 'bthserv' -Force -ErrorAction SilentlyContinue
+    Start-Service -Name 'BthAvctpSvc' -ErrorAction SilentlyContinue
+    Write-Host '[OK] Bluetooth Pure-SBC + 5 GHz WLAN-Trennung + Echtzeit-Audio aktiviert!' -ForegroundColor Green
+
+    if ($Mode -eq 'BluetoothFix') {
+        Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name 'Shell' -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name 'Shell' -Value 'explorer.exe' -ErrorAction SilentlyContinue
+        if (-not (Get-Process -Name 'explorer' -ErrorAction SilentlyContinue)) {
+            Start-Process -FilePath 'explorer.exe'
+        }
+        $osExeFix = Join-Path $systemCollectionTarget 'Funkenwerk OS\FunkenwerkOS.exe'
+        if (Test-Path $osExeFix) {
+            New-Item -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Force | Out-Null
+            Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'FunkenwerkOS' -Value ""`""$osExeFix`"" --shell --workspace gewerbe""
+            Start-Sleep -Seconds 1
+            Start-Process -FilePath $osExeFix -ArgumentList '--shell --workspace gewerbe'
+        }
+        Write-Host '[OK] Windows-Taskleiste aktiviert & Funkenwerk OS neu gestartet!' -ForegroundColor Green
+        Start-Sleep -Seconds 2
+        exit 0
+    }
 }
 
 if ($Mode -eq 'FullFortress') {
@@ -739,13 +946,14 @@ if ($Mode -eq 'FullFortress') {
     if (-not (Test-Path $osExe)) {
         $osExe = Join-Path $desktopCollectionTarget 'Funkenwerk OS\FunkenwerkOS.exe'
     }
-    $shellCmdValue = ""`""$osExe`"" --shell""
+    $shellCmdValue = ""`""$osExe`"" --shell --workspace gewerbe""
 
     if (Test-Path $osExe) {
-        New-Item -Path 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon' -Force | Out-Null
-        Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name 'Shell' -Value $shellCmdValue
-        Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name 'Shell' -Value $shellCmdValue
-        Write-Host '[OK] Funkenwerk OS als direkte System-Shell (HKLM + HKCU) gesetzt.' -ForegroundColor Green
+        Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name 'Shell' -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name 'Shell' -Value 'explorer.exe' -ErrorAction SilentlyContinue
+        New-Item -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Force | Out-Null
+        Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'FunkenwerkOS' -Value $shellCmdValue
+        Write-Host '[OK] Windows-Taskleiste (explorer.exe) & Funkenwerk OS Autostart gesetzt.' -ForegroundColor Green
     }
 
     # Falls direkt im Boot / Windows-Einrichtungs-Modus (OOBE / Shift+F10) gestartet:
@@ -820,8 +1028,10 @@ if ($Mode -eq 'FullFortress') {
     }
 
     if (Test-Path $osExe) {
-        Stop-Process -Name 'explorer' -Force -ErrorAction SilentlyContinue
-        Start-Process -FilePath $osExe -ArgumentList '--shell'
+        if (-not (Get-Process -Name 'explorer' -ErrorAction SilentlyContinue)) {
+            Start-Process -FilePath 'explorer.exe'
+        }
+        Start-Process -FilePath $osExe -ArgumentList '--shell --workspace gewerbe'
     }
     Write-Host ''
     Write-Host '[OK] FERTIG! Funkenwerk OS laeuft und Netzwerk-Fernwartung ist aktiv.' -ForegroundColor Green
@@ -886,6 +1096,11 @@ if ($Mode -eq 'FullFortress') {
                         "chcp 65001 >nul\r\n" +
                         "call \"%~dp0Funkenwerk-MiniPC-Festung\\2_START_FUNKENWERK_OS_AUF_MINIPC.cmd\"\r\n";
                     File.WriteAllText(Path.Combine(fullTarget, "FUNKENWERK_OS_AUF_MINIPC_INSTALLIEREN.cmd"), rootStarterCmd, new UTF8Encoding(false));
+
+                    string rootBtFixCmd = "@echo off\r\n" +
+                        "chcp 65001 >nul\r\n" +
+                        "call \"%~dp0Funkenwerk-MiniPC-Festung\\4_BLUETOOTH_AUDIO_FIX_MINIPC.cmd\"\r\n";
+                    File.WriteAllText(Path.Combine(fullTarget, "BLUETOOTH_FIX_MINIPC.cmd"), rootBtFixCmd, new UTF8Encoding(false));
 
                     string srcRoot = OsVaultAndStorage.CollectionRootDir;
                     if (!Directory.Exists(srcRoot))

@@ -56,6 +56,7 @@ class ConfirmDeleteListActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!de.meinseelenfunke.app.util.SecurityIntentHelper.guardWidgetDialogActivity(this)) return
 
         val listId = intent.getStringExtra("list_id")
         if (listId.isNullOrBlank()) {

@@ -122,7 +122,7 @@ Route::prefix('funki/music')->group(function () {
             ], 422);
         }
 
-        $ytDlp = storage_path('app/bin/yt-dlp');
+        $ytDlp = storage_path('app/leitung/music/bin/yt-dlp');
         if (!file_exists($ytDlp)) {
             return response()->json(['success' => false, 'message' => 'yt-dlp Binary nicht gefunden.'], 500);
         }

@@ -1075,7 +1075,7 @@ class EmailViewModel : ViewModel() {
                 val htmlFormattedBody = if (body.contains("<br") || body.contains("<p")) {
                     body
                 } else {
-                    body.replace("\n", "<br>")
+                    android.text.TextUtils.htmlEncode(body).replace("\n", "<br>")
                 }
 
                 repository.sendEmail(

@@ -513,6 +513,7 @@ class MarketingVoucherTest extends TestCase
             ->set('title', 'Wunderschöne Gravur')
             ->set('content', 'Das Produkt ist absolut hochwertig und kam sehr schnell an!')
             ->set('isAnonymous', true)
+            ->set('acceptReviewTerms', true)
             ->call('submitReview')
             ->assertHasNoErrors();
 

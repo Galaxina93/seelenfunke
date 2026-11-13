@@ -23,11 +23,11 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        Log.d(tag, "Refreshed token: $token")
-        
-        // Save the token locally in SharedPreferences
+        ServiceLocator.ensureInitialized(applicationContext)
+
+        // Save the token locally in AndroidKeyStore-backed storage
         ServiceLocator.saveFcmToken(token)
-        
+
         // If logged in, upload it to the backend immediately
         if (ServiceLocator.authRepository.isLoggedIn()) {
             CoroutineScope(Dispatchers.IO).launch {
@@ -39,17 +39,18 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
         val context = applicationContext
-        de.meinseelenfunke.app.util.AppLogger.info(context, "FCM", "onMessageReceived from: ${remoteMessage.from}")
+        ServiceLocator.ensureInitialized(context)
+        if (!ServiceLocator.authRepository.isLoggedIn()) {
+            return
+        }
 
         // Check if it's a silent sync command
         if (remoteMessage.data["action"] == "sync_calendar") {
-            de.meinseelenfunke.app.util.AppLogger.info(context, "FCM", "Received silent calendar sync push command")
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     ServiceLocator.organizerRepository.getCalendarEvents()
-                    de.meinseelenfunke.app.util.AppLogger.info(context, "FCM", "Silent calendar sync completed successfully and alarms rescheduled")
                 } catch (e: Exception) {
-                    de.meinseelenfunke.app.util.AppLogger.error(context, "FCM", "Silent calendar sync failed: ${e.message}", e)
+                    de.meinseelenfunke.app.util.AppLogger.error(context, "FCM", "Silent calendar sync failed", e)
                 }
             }
             return
@@ -57,16 +58,11 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
         // Check if message contains data payload
         if (remoteMessage.data.isNotEmpty()) {
-            Log.d(tag, "Message data payload: " + remoteMessage.data)
             val title = remoteMessage.data["title"] ?: "Neue Meldung"
             val body = remoteMessage.data["body"] ?: ""
-            de.meinseelenfunke.app.util.AppLogger.info(context, "FCM", "Received data push payload. Title: $title, Body: $body")
             sendNotification(title, body, remoteMessage.data)
         } else {
-            // Check if message contains notification payload
             remoteMessage.notification?.let {
-                Log.d(tag, "Message Notification Body: ${it.body}")
-                de.meinseelenfunke.app.util.AppLogger.info(context, "FCM", "Received visual push notification. Title: ${it.title}, Body: ${it.body}")
                 sendNotification(it.title ?: "Neue Meldung", it.body ?: "", emptyMap())
             }
         }
@@ -76,26 +72,36 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             if (data.containsKey("open_tab")) {
-                putExtra("open_tab", data["open_tab"]?.toIntOrNull() ?: 0)
+                putExtra("open_tab", (data["open_tab"]?.toIntOrNull() ?: 0).coerceIn(0, 5))
             }
             if (data.containsKey("open_subtab")) {
-                putExtra("open_subtab", data["open_subtab"]?.toIntOrNull() ?: 0)
+                putExtra("open_subtab", (data["open_subtab"]?.toIntOrNull() ?: 0).coerceIn(0, 6))
             }
+            de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(this@MyFirebaseMessagingService, this)
         }
-        
+
         val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
+            this, (System.currentTimeMillis() and 0x7FFFFFFF).toInt(), intent,
             PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val isNewOrder = data.containsKey("order_id")
         val channelId = if (isNewOrder) "orders_notification_channel_v4" else "default_notification_channel"
+        val publicNotification = NotificationCompat.Builder(this, channelId)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle("Funkenwerk")
+            .setContentText(if (isNewOrder) "Neue Bestellung eingegangen" else "Neue Benachrichtigung")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(messageBody)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicNotification)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
 
         if (isNewOrder) {

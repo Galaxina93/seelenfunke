@@ -112,6 +112,13 @@ class SystemCronjobSeeder extends Seeder
                 'schedule' => '0 0 * * *',
                 'is_active' => true,
             ],
+            [
+                'name' => 'Automatische Sicherheitsprüfung (Pakete & CVEs)',
+                'description' => 'Prüft täglich um 04:30 Uhr alle Laravel/Composer-, NPM-, Funkenwerk- & Android-Pakete auf Sicherheitslücken (CVEs) und System-Schranken',
+                'command' => 'system:security-audit',
+                'schedule' => '30 4 * * *',
+                'is_active' => true,
+            ],
         ];
     }
 

@@ -178,8 +178,8 @@ class SeoAndAiSearchTest extends TestCase
                 'Größe' => 'Klein, Groß',
             ],
             'variants_data' => [
-                ['id' => 'v1', 'name' => 'Klein', 'price' => '29.90', 'is_active' => true],
-                ['id' => 'v2', 'name' => 'Groß', 'price' => '39.90', 'is_active' => true],
+                ['id' => 'v1', 'name' => 'Klein', 'price' => '0.00', 'is_active' => true],
+                ['id' => 'v2', 'name' => 'Groß', 'price' => '10.00', 'is_active' => true],
             ],
         ]);
 

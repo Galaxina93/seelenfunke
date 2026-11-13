@@ -750,6 +750,7 @@
                                 let startY = -totalHeight / 2;
 
                                 const yOffset = fontSize * 0.12;
+                                const curve = Math.max(-100, Math.min(100, Number(item.curve || 0)));
 
                                 if (safeLogos.length > 0) {
                                     ctx.lineJoin = 'round';
@@ -758,13 +759,64 @@
                                     ctx.strokeStyle = isLightMetal ? 'rgba(255,252,240,0.85)' : 'rgba(15,23,42,0.85)';
                                 }
 
-                                lines.forEach(line => {
+                                if (Math.abs(curve) >= 0.5) {
+                                    ctx.textAlign = 'center';
+                                    const lineWidths = lines.map(l => ctx.measureText(l || ' ').width);
+                                    const maxLineW = Math.max(fontSize * 1.5, ...lineWidths);
+                                    const thetaMax = (Math.abs(curve) / 100) * Math.PI;
+                                    const rBase = maxLineW / Math.max(0.01, thetaMax);
+                                    const cy = (curve > 0 ? 1 : -1) * rBase * ((1 + Math.cos(thetaMax / 2)) / 2);
+
+                                    const curvedChars = [];
+                                    lines.forEach((line, lineIdx) => {
+                                        const charsArr = Array.from(line || '');
+                                        if (charsArr.length === 0) return;
+                                        const lineW = lineWidths[lineIdx] || 0;
+                                        const deltaY = (lineIdx - (lines.length - 1) / 2) * lineHeight;
+                                        const rLine = Math.max(fontSize * 0.8, curve > 0 ? (rBase - deltaY) : (rBase + deltaY));
+
+                                        let prefixStr = '';
+                                        charsArr.forEach(ch => {
+                                            const prefixW = ctx.measureText(prefixStr).width;
+                                            const charW = ctx.measureText(ch).width;
+                                            prefixStr += ch;
+
+                                            const u = prefixW + (charW / 2) - (lineW / 2);
+                                            const alpha = u / rLine;
+                                            const cx = rLine * Math.sin(alpha);
+                                            const cyPos = (curve > 0) ? (cy - rLine * Math.cos(alpha)) : (cy + rLine * Math.cos(alpha));
+                                            const cRot = (curve > 0) ? alpha : -alpha;
+
+                                            curvedChars.push({ ch, cx, cyPos, cRot });
+                                        });
+                                    });
+
                                     if (safeLogos.length > 0) {
-                                        ctx.strokeText(line, 0, startY + yOffset);
+                                        curvedChars.forEach(({ ch, cx, cyPos, cRot }) => {
+                                            ctx.save();
+                                            ctx.translate(cx, cyPos + yOffset);
+                                            ctx.rotate(cRot);
+                                            ctx.strokeText(ch, 0, 0);
+                                            ctx.restore();
+                                        });
                                     }
-                                    ctx.fillText(line, 0, startY + yOffset);
-                                    startY += lineHeight;
-                                });
+
+                                    curvedChars.forEach(({ ch, cx, cyPos, cRot }) => {
+                                        ctx.save();
+                                        ctx.translate(cx, cyPos + yOffset);
+                                        ctx.rotate(cRot);
+                                        ctx.fillText(ch, 0, 0);
+                                        ctx.restore();
+                                    });
+                                } else {
+                                    lines.forEach(line => {
+                                        if (safeLogos.length > 0) {
+                                            ctx.strokeText(line, 0, startY + yOffset);
+                                        }
+                                        ctx.fillText(line, 0, startY + yOffset);
+                                        startY += lineHeight;
+                                    });
+                                }
 
                                 ctx.restore();
                                 ctx.filter = 'none';

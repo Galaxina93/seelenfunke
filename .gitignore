@@ -31,5 +31,7 @@ crash.log
 /funkenwerk/obj/
 /funkenwerk-*/bin/
 /funkenwerk-*/obj/
+__pycache__/
+*.pyc
 
 

@@ -329,12 +329,17 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
         return withContext(Dispatchers.IO) {
             try {
                 val baseUrl = serviceLocator.getBaseUrl().let { if (it.endsWith("/")) it else "$it/" }
+                if (!serviceLocator.isAllowedBaseUrl(baseUrl)) {
+                    return@withContext Result.failure(Exception("Nicht vertrauenswürdiger Server-Endpunkt."))
+                }
                 val token = serviceLocator.getAuthToken()
                 val url = "${baseUrl}funki/emails/attachments/$attachmentId"
 
                 val client = OkHttpClient.Builder()
                     .connectTimeout(30, TimeUnit.SECONDS)
                     .readTimeout(60, TimeUnit.SECONDS)
+                    .followRedirects(false)
+                    .followSslRedirects(false)
                     .build()
 
                 val requestBuilder = Request.Builder().url(url)
@@ -343,22 +348,51 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
                 }
 
                 val response = client.newCall(requestBuilder.build()).execute()
-                if (!response.isSuccessful) {
-                    return@withContext Result.failure(Exception("Download fehlgeschlagen (HTTP ${response.code})."))
+                response.use { resp ->
+                    if (!resp.isSuccessful) {
+                        return@withContext Result.failure(Exception("Download fehlgeschlagen (HTTP ${resp.code})."))
+                    }
+
+                    val body = resp.body
+                        ?: return@withContext Result.failure(Exception("Leere Datei vom Server erhalten."))
+
+                    val maxAttachmentBytes = 25L * 1024L * 1024L
+                    if (body.contentLength() > maxAttachmentBytes) {
+                        return@withContext Result.failure(Exception("Anhang ist größer als 25 MB."))
+                    }
+
+                    val safeName = filename
+                        .replace("..", "_")
+                        .replace(Regex("[^a-zA-Z0-9._\\-äöüÄÖÜß ()]"), "_")
+                        .trim()
+                        .trimStart('.')
+                        .take(120)
+                        .ifBlank { "Anhang_$attachmentId.dat" }
+
+                    val dir = File(context.cacheDir, "mail_attachments").apply { mkdirs() }
+                    val targetFile = File(dir, safeName)
+                    if (!targetFile.canonicalPath.startsWith(dir.canonicalPath + File.separator)) {
+                        return@withContext Result.failure(SecurityException("Ungültiger Dateipfad."))
+                    }
+
+                    body.byteStream().use { input ->
+                        targetFile.outputStream().use { output ->
+                            val buf = ByteArray(8192)
+                            var total = 0L
+                            while (true) {
+                                val read = input.read(buf)
+                                if (read == -1) break
+                                total += read
+                                if (total > maxAttachmentBytes) {
+                                    targetFile.delete()
+                                    return@withContext Result.failure(Exception("Anhang überschreitet das Limit von 25 MB."))
+                                }
+                                output.write(buf, 0, read)
+                            }
+                        }
+                    }
+                    Result.success(targetFile)
                 }
-
-                val bodyBytes = response.body?.bytes()
-                    ?: return@withContext Result.failure(Exception("Leere Datei vom Server erhalten."))
-
-                val safeName = filename
-                    .replace(Regex("[^a-zA-Z0-9._\\-äöüÄÖÜß ()]"), "_")
-                    .trim()
-                    .ifBlank { "Anhang_$attachmentId.dat" }
-
-                val dir = File(context.cacheDir, "mail_attachments").apply { mkdirs() }
-                val targetFile = File(dir, safeName)
-                targetFile.writeBytes(bodyBytes)
-                Result.success(targetFile)
             } catch (e: Exception) {
                 AppLogger.error(context, "EmailRepo", "downloadAttachmentToFile failed: id=$attachmentId", e)
                 Result.failure(e)
@@ -417,9 +451,24 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
 
     private fun readUriBytes(context: Context, uri: Uri): ByteArray? {
         return try {
-            context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            val maxUploadBytes = 25 * 1024 * 1024
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                val out = java.io.ByteArrayOutputStream()
+                val buf = ByteArray(8192)
+                var total = 0
+                while (true) {
+                    val read = stream.read(buf)
+                    if (read == -1) break
+                    total += read
+                    if (total > maxUploadBytes) {
+                        throw IllegalArgumentException("Anhang ist größer als 25 MB.")
+                    }
+                    out.write(buf, 0, read)
+                }
+                out.toByteArray()
+            }
         } catch (e: Exception) {
-            AppLogger.error(context, "EmailRepo", "readUriBytes failed: uri=$uri", e)
+            AppLogger.error(context, "EmailRepo", "readUriBytes failed", e)
             null
         }
     }

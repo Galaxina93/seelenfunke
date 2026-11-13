@@ -106,5 +106,19 @@ Für Bestellpositionen, die über die **Schnell-Personalisierung (`personalizati
 - Physische Produkte können optionale digitale Begleitdokumente (`configurator_settings['digital_documents']`) mitführen, die beim Kauf in `order_order_items.configuration['digital_documents']` gesichert und über `OrderOrderItem::resolveDigitalDocuments()` aufgelöst werden.
 - Im Kundenportal (`/orders`) werden diese Dateien im Bereich **Dokumente** nach Zahlungseingang (`payment_status === 'paid'`) über [`DigitalProductDownloadController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/Customer/DigitalProductDownloadController.php) zum Download bereitgestellt; alle Bestell-E-Mails weisen den Kunden automatisch darauf hin. Siehe [`Produkte_Digitale_Begleitdokumente.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Produkte/Produkte_Digitale_Begleitdokumente.md).
 
+### 8. GoBD-konforme Löschlogik („Bestellung unwiderruflich löschen“) & Automatische Datei-Bereinigung (13.11.2026)
+- **Zentrale Prüfmethode [`OrderOrder::canBePermanentlyDeleted()`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Order/OrderOrder.php#L1008-L1035):**
+  - Eine Bestellung darf gemäß GoBD / § 147 AO ausschließlich dann gelöscht werden, wenn es sich um einen **unbezahlten Kaufabbruch, Zahlungsfehlversuch oder Testauftrag** handelt:
+    1. `payment_status` liegt in `['unpaid', 'failed', 'open', 'pending']` (niemals `paid` oder `refunded`).
+    2. `status` liegt in `['pending', 'failed', 'cancelled']` (niemals `processing`, `shipped` oder `completed`).
+    3. Es existiert **keine** Rechnung oder Gutschrift (`invoices`) und **kein** Versandlabel (`shipments`).
+  - Sobald Geld geflossen ist, eine Rechnung existiert oder versendet wurde, ist das Löschen im Backend hart gesperrt; der Vorgang darf dann ausschließlich über **Stornieren (`cancelled`)** bzw. **Erstatten (`refunded`)** rückabgewickelt werden ([`handleCancellation()`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Order/OrderOrder.php#L835-L900)).
+- **Clean-UI-Sichtbarkeit ([`left.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-offer-detail-partials/left.blade.php#L737-L744)):**
+  - Der rote Button **„Bestellung unwiderruflich löschen“** wird im Bestell-Detail-Drawer ausschließlich für Administratoren (`auth('admin')->check()`) und nur dann gerendert, wenn `$model->canBePermanentlyDeleted()` erfüllt ist. Bei GoBD-geschützten Bestellungen ist der Button komplett ausgeblendet.
+- **Rückstandsloses `forceDelete()` inkl. Storage-Bereinigung ([`OrderOrder::permanentlyDeleteUnpaidOrder()`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Order/OrderOrder.php#L1042-L1055) & [`CartFileCleanupService::cleanupOrderFilesAfterDeletion()`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/CartFileCleanupService.php#L315-L348)):**
+  - Statt eines bloßen `SoftDelete` auf `order_orders` (bei dem früher die `order_order_items` und deren Dateien dauerhaft als Dateileichen erhalten blieben), werden zunächst alle `order_order_items` gelöscht, der Auftrag per `forceDelete()` endgültig entfernt und anschließend alle nicht mehr anderweitig referenzierten Kunden-Uploads (`bestellungen/cart-uploads`) und 3D-Snapshots (`system/snapshots`) physisch von `Storage::disk('public')` bereinigt.
+  - Jeder Löschvorgang wird revisionssicher mit Bestellnummer und Anzahl bereinigter Dateien in [`SystemLog`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/System/SystemLog.php) (`action_id = 'admin_order_force_delete'`) protokolliert.
+
+
 
 

@@ -58,13 +58,14 @@ class TextInputActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!de.meinseelenfunke.app.util.SecurityIntentHelper.guardWidgetDialogActivity(this)) return
 
         val title = intent.getStringExtra("title") ?: "TEXT EINGEBEN"
         val prefKey = intent.getStringExtra("pref_key")
         val appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
 
-        if (prefKey.isNullOrBlank()) {
-            Toast.makeText(this, "Kein Zielschlüssel übergeben.", Toast.LENGTH_SHORT).show()
+        if (prefKey.isNullOrBlank() || !prefKey.startsWith("widget_tasks_")) {
+            Toast.makeText(this, "Ungültiger Zielschlüssel.", Toast.LENGTH_SHORT).show()
             finish()
             return
         }

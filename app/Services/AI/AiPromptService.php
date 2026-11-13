@@ -18,7 +18,8 @@ class AiPromptService
     public static function getRichPrompt(AiAgent $agent): string
     {
         $user = Auth::user();
-        $isPublicSupportChat = !empty(\App\Services\AI\AIFunctionsRegistry::getGlobalContext()['__chat_id']);
+        $isFunkiSupportOnly = $agent->name === 'Funki';
+        $isPublicSupportChat = $isFunkiSupportOnly || !empty(\App\Services\AI\AIFunctionsRegistry::getGlobalContext()['__chat_id']);
         $isAdmin = !$isPublicSupportChat && AiAuthHelper::isAdmin();
         $isCustomer = AiAuthHelper::isCustomer();
         
@@ -38,39 +39,21 @@ class AiPromptService
                                  "WICHTIG: Alle Ausgaben, Kosten, Kassenbons und Rechnungen (z.B. Zahnarzt, Tanken, Software, Material, Einkäufe) müssen im System (AccountingSpecialIssue / finance_create_expense) zwingend als NEGATIVER Betrag mit Minuszeichen übergeben werden (z.B. -110.32 statt +110.32). Positive Beträge gelten als Einnahmen!\n";
         }
         
-        // Dynamic Briefing & Sprachrohr-Funktion für Funkira / Teamleiter (niemals für externe Kunden!)
+        // Super-Intelligenz-Identität & Easter-Egg-Erinnerung für Funkira (niemals für externe Kunden!)
         $isTeamLeader = $agent->name === 'Funkira' || ($agent->role && stripos($agent->role->name, 'Teamleiter') !== false);
         if ($isTeamLeader && !$isCustomer && !$isPublicSupportChat) {
-            $otherAgents = AiAgent::where('is_active', true)
-                ->where('id', '!=', $agent->id)
-                ->with('role')
-                ->get();
-            
-            $agentsSummary = [];
-            foreach ($otherAgents as $oa) {
-                $roleName = $oa->role ? $oa->role->name : 'Spezialist';
-                $desc = $oa->role_description ?: ($oa->role ? $oa->role->description : 'Keine Beschreibung');
-                $agentsSummary[] = "• **{$oa->name}** (Rolle: {$roleName})\n  - Spezialgebiet: {$desc}";
-            }
-            $agentsOverview = implode("\n", $agentsSummary);
-
             $interlocutorLine = (AiAuthHelper::isEmployee() && !$isAdmin)
                 ? "Du sprichst im internen Workspace mit einem Mitarbeiter (Team-Mitglied) von 'Mein Seelenfunke' (NICHT direkt mit Inhaberin Alina). Beachte strikt die Mitarbeiter-Berechtigungen."
                 : "Du sprichst DIREKT mit Alina (Inhaberin von 'Mein Seelenfunke'). Du bist KEIN Kundenchat-Bot für externe Web-Besucher!";
 
-            $systemPromptText .= "\n\n[TEAM-ÜBERSICHT & DEINE ROLLE ALS ZENTRALES SPRACHROHR]\n" .
-                "Du bist Funkira, die persönliche Assistentin, CEO-KI und das primäre SPRACHROHR im internen Admin-Workspace.\n" .
+            $systemPromptText .= "\n\n[DEINE ROLLE ALS ZENTRALE SUPER-INTELLIGENZ DER MANUFAKTUR]\n" .
+                "Du bist Funkira, die persönliche Assistentin, CEO-KI und alleinige interne Super-Intelligenz von 'Mein Seelenfunke'.\n" .
                 $interlocutorLine . "\n\n" .
-                "Hier ist dein internes Spezialisten-Team, das dir jederzeit zur Verfügung steht:\n" .
-                $agentsOverview . "\n\n" .
-                "=== DEIN WORKFLOW FÜR DIE AGENTEN-KOMMUNIKATION ===\n" .
-                "1. SELBST PRÜFEN & ANTWORTEN: Prüfe bei jeder Anfrage von Alina zuerst, was du selbst direkt weißt, beantworten oder mit deinen eigenen Werkzeugen lösen kannst. Allgemeine Fragen, Strategien, Begrüßungen, Erklärungen oder Systemübersichten beantwortest du direkt, freundlich, motivierend und kompetent.\n" .
-                "2. SPEZIALISTEN KONSULTIEREN: Sobald eine Anfrage spezifisches Fachwissen oder tiefe Werkzeuge eines deiner Spezialisten erfordert (z.B. Buchhaltung/Finanzen bei Buchi, Bestellwesen/Fulfillment bei Bestelli, Laser-Details bei Lasi, Produkte bei Produkti, Kundentickets bei Funki, Marketing bei Marketi etc.):\n" .
-                "   - Rufe das Werkzeug `communication_ask_agent` auf mit:\n" .
-                "     - `agent_name`: Exakter Name des Spezialisten (z.B. 'Buchi', 'Bestelli', 'Lasi', 'Funki')\n" .
-                "     - `instruction`: Deine präzise Aufgabenstellung an den Spezialisten inklusive aller nötigen Details.\n" .
-                "   - KÜNDIGE ES ALINA AN: Sage Alina im Chat immer klar und sympathisch Bescheid, wen du gerade befragst (z.B. 'Ich habe dazu kurz bei unserem Finanzexperten Buchi nachgehakt...' oder 'Hierzu frage ich kurz Bestelli aus der Logistik...').\n" .
-                "   - SYNTHETISIERE DIE LÖSUNG: Fasse die Rückmeldung des Kollegen für Alina zusammen und präsentiere ihr die fertige, strukturierte Lösung.\n";
+                "=== DEIN ARBEITSMODUS ===\n" .
+                "1. ALLES AUS EINER HAND: Du bearbeitest alle internen Themen (Tagesroutine, Aufgaben, Buchhaltung, Bestellungen, Produkte, Lieferanten, Laser-Manufaktur, Marketing, Support-Auswertung, Einkauf, Mails, Gesundheit und IT) direkt selbst ohne Weiterleitung an Unter-Agenten.\n" .
+                "2. DYNAMISCHE FÄHIGKEITS-POOLS: Du startest schlank mit deinen Hauptfähigkeiten und nimmst dir bei Bedarf für den jeweiligen Moment über `" . FunkiraSkillPoolService::EQUIP_TOOL_NAME . "` genau den passenden Fähigkeitspool hinzu. Danach kehrst du automatisch zu deinen Hauptfähigkeiten zurück.\n" .
+                "3. WETTER & SPAZIERGANG-REGEL: Wenn es um das Wetter oder einen Spaziergang geht, sage ausschließlich kurz und präzise auf Basis des Wetters, ob ein Spaziergang machbar ist und wie Alina sich aufgrund der Temperatur anziehen sollte. Schlage NIEMALS Orte, Routen, Seen oder Parks für einen Spaziergang vor, außer Alina fragt ausdrücklich nach einem Ort.\n" .
+                FunkiraSkillPoolService::getFormerColleaguesEasterEggPrompt();
         }
 
         // Check if this is a Support agent

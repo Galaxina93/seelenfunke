@@ -195,11 +195,18 @@ class MarketingVoucherPurchasePage extends Component
 
     public function nextStep(): void
     {
-        $this->validateStep($this->currentStep);
+        try {
+            $this->validateStep($this->currentStep);
+        } catch (ValidationException $e) {
+            $firstField = array_key_first($e->errors());
+            $this->dispatch('voucher-scroll-to-error', field: $firstField);
+            throw $e;
+        }
 
         if ($this->currentStep < 3) {
             $this->currentStep++;
             $this->maxReachedStep = max($this->maxReachedStep, $this->currentStep);
+            $this->dispatch('voucher-scroll-to-wizard');
         }
     }
 
@@ -207,6 +214,7 @@ class MarketingVoucherPurchasePage extends Component
     {
         if ($this->currentStep > 1) {
             $this->currentStep--;
+            $this->dispatch('voucher-scroll-to-wizard');
         }
     }
 
@@ -218,6 +226,7 @@ class MarketingVoucherPurchasePage extends Component
 
         if ($targetStep < $this->currentStep) {
             $this->currentStep = $targetStep;
+            $this->dispatch('voucher-scroll-to-wizard');
             return;
         }
 
@@ -228,9 +237,13 @@ class MarketingVoucherPurchasePage extends Component
                 $this->maxReachedStep = max($this->maxReachedStep, $this->currentStep);
             } catch (ValidationException $e) {
                 $this->currentStep = $step;
+                $firstField = array_key_first($e->errors());
+                $this->dispatch('voucher-scroll-to-error', field: $firstField);
                 throw $e;
             }
         }
+
+        $this->dispatch('voucher-scroll-to-wizard');
     }
 
     public function setAmount($val)
@@ -300,6 +313,8 @@ class MarketingVoucherPurchasePage extends Component
                 $this->validateStep($step);
             } catch (ValidationException $e) {
                 $this->currentStep = $step;
+                $firstField = array_key_first($e->errors());
+                $this->dispatch('voucher-scroll-to-error', field: $firstField);
                 throw $e;
             }
         }

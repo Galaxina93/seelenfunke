@@ -31,7 +31,7 @@ class FinanceApiSecurityTest extends TestCase
             'is_business' => true,
         ]);
 
-        Sanctum::actingAs($adminA);
+        Sanctum::actingAs($adminA, ['*']);
 
         $response = $this->putJson("/api/funki/financials/variable/{$issueB->id}", [
             'title' => 'Gehackt von A',
@@ -61,7 +61,7 @@ class FinanceApiSecurityTest extends TestCase
             'is_business' => true,
         ]);
 
-        Sanctum::actingAs($adminA);
+        Sanctum::actingAs($adminA, ['*']);
 
         $response = $this->deleteJson("/api/funki/financials/variable/{$issueB->id}");
 
@@ -93,7 +93,7 @@ class FinanceApiSecurityTest extends TestCase
             'is_business' => true,
         ]);
 
-        Sanctum::actingAs($adminA);
+        Sanctum::actingAs($adminA, ['*']);
 
         // A tries to insert item into B's group
         $insertResponse = $this->postJson('/api/funki/financials/fixed-item', [

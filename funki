@@ -66,6 +66,7 @@ case "$1" in
         echo -e "  \033[1;32m📧 mails\033[0m         Ruft per IMAP neue E-Mails von Konten ab."
         echo -e "  \033[1;32m🤖 mailworker\033[0m    Lässt die KI autonom E-Mails lesen, sortieren und beantworten."
         echo -e "  \033[1;32m📞 telefon\033[0m       Startet die KI-Telefonie Audio-Bridge (Twilio WebSocket)."
+        echo -e "  \033[1;32m🛡️ security\033[0m      Prüft Pakete & CVEs (oder 'funki security update' für sichere Paket-Updates + Test)."
         echo -e "  \033[1;32m🧪 test\033[0m          Führt automatisierte Tests aus (z.B. 'funki test --filter ShopProcessTest')."
         echo -e "  \033[1;32m🔐 rights\033[0m        Repariere die Dateiberechtigungen (www-data) und leert Caches sicher."
         echo -e "  \033[1;32m🧹 cache\033[0m         Leert alle Anwendungs- und System-Caches auf einen Schlag restlos aus."
@@ -370,6 +371,21 @@ case "$1" in
         $PREFIX_DEFAULT php artisan route:clear
         $PREFIX_DEFAULT php artisan cache:clear
         echo "✅ Alle Caches für Views, Routen, Configs und App-Daten wurden geflusht!"
+        ;;
+    security)
+        shift
+        if [ "$1" == "update" ]; then
+            echo "🛡️ Starte sicheren Paket-Update-Prozess (Composer + NPM)..."
+            $PREFIX_DEFAULT composer update --with-all-dependencies --ignore-platform-req=ext-calendar --no-interaction
+            $PREFIX_DEFAULT npm update --legacy-peer-deps
+            $PREFIX_DEFAULT npm audit fix --omit=dev --legacy-peer-deps || true
+            echo "🔍 Führe anschließende Sicherheits- & CVE-Prüfung aus..."
+            $PREFIX_DEFAULT php artisan system:security-audit --no-alert
+            echo "🧪 Starte automatisierten Sicherheitstest..."
+            "$0" test SystemSecurityAuditCommandTest
+        else
+            $PREFIX_DEFAULT php artisan system:security-audit "$@"
+        fi
         ;;
     test)
         shift

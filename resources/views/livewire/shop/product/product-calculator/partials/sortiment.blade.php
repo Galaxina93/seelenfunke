@@ -733,7 +733,7 @@
             {{-- Paginierung --}}
             @if(isset($catalogProducts) && $catalogProducts->hasPages())
                 <div class="mt-10 pt-6 border-t border-gray-200">
-                    {{ $catalogProducts->links() }}
+                    {{ $catalogProducts->links(data: ['scrollTo' => '#calculator-anchor']) }}
                 </div>
             @endif
         </div>

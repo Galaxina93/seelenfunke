@@ -78,6 +78,7 @@ class AddTaskWidgetActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!de.meinseelenfunke.app.util.SecurityIntentHelper.guardWidgetDialogActivity(this)) return
 
         val defaultListId = intent.getStringExtra("list_id")
 

@@ -184,6 +184,7 @@
                         $percentComplete = $readiness['score'];
                         $isComplete = $readiness['is_ready'];
                         $missingChecks = $readiness['missing'];
+                        $seasonalStatus = $prod->getSeasonalImageSetStatus();
                         $ratingAvg = round((float) ($prod->approved_reviews_avg ?? 0), 1);
                         $ratingCount = (int) ($prod->approved_reviews_count ?? 0);
                         $pendingReviewsCount = (int) ($prod->pending_reviews_count ?? 0);
@@ -199,8 +200,26 @@
                             <div class="w-full transition-all duration-500 {{ $isComplete ? 'bg-[var(--theme-color)]' : 'bg-red-500' }}" style="height: {{ $percentComplete }}%"></div>
                         </div>
 
-                        {{-- Links: Vorschaubild + Name + Typ/SKU --}}
-                        <div class="flex items-center gap-4 min-w-0 pl-2 flex-1">
+                        {{-- Links: Gesamt-Status (! / ✓) + Vorschaubild + Name + Typ/SKU --}}
+                        @php
+                            $firstMissRow = $missingChecks[0] ?? ['step' => 1, 'sub_step' => 1];
+                            $rowStatusTooltip = $isComplete
+                                ? '100 % vollständig (' . $readiness['passed_count'] . '/' . $readiness['total_count'] . ' Prüfpunkte erfüllt)'
+                                : ($percentComplete . ' % bereit · Offen: ' . implode(', ', array_column($missingChecks, 'short_missing')));
+                        @endphp
+                        <div class="flex items-center gap-3.5 min-w-0 pl-2 flex-1">
+                            <button type="button"
+                                    wire:click="openProductInStep('{{ $prod->id }}', {{ $firstMissRow['step'] }}, {{ $firstMissRow['sub_step'] ?? 1 }})"
+                                    title="{{ $rowStatusTooltip }}"
+                                    aria-label="{{ $rowStatusTooltip }}"
+                                    class="w-6 h-6 rounded-full border flex items-center justify-center shrink-0 text-[11px] font-black transition-all hover:scale-110 cursor-pointer {{ $isComplete ? 'bg-emerald-50 dark:bg-emerald-500/15 border-emerald-300 dark:border-emerald-500/40 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-500/15 border-red-300 dark:border-red-500/40 text-red-600 dark:text-red-400' }}">
+                                @if($isComplete)
+                                    <span>✓</span>
+                                @else
+                                    <span>!</span>
+                                @endif
+                            </button>
+
                             <div class="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 overflow-hidden shrink-0 relative">
                                 @php $prodMainUrl = $prod->resolveMainImageUrl(); @endphp
                                 @if($prodMainUrl)
@@ -354,26 +373,6 @@
                                 <span>{{ $prod->status == 'active' ? 'Im Sortiment' : 'Pausiert' }}</span>
                             </button>
 
-                            {{-- 1-Klick Herkunfts-Siegel Switch (Handveredelt in DE / Aus) --}}
-                            @if($prod->type === 'physical')
-                                @php $originMode = $prod->getOriginBadgeMode(); @endphp
-                                <button type="button"
-                                        wire:click="toggleOriginBadge('{{ $prod->id }}')"
-                                        title="Per Klick umschalten: Handveredelt in Deutschland ↔ Aus"
-                                        class="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-xl border flex items-center gap-1.5 transition-all cursor-pointer {{ $originMode !== 'none' ? 'bg-stone-50 dark:bg-stone-800/70 text-stone-700 dark:text-stone-200 border-stone-300 dark:border-stone-600 hover:border-amber-400' : 'bg-white dark:bg-gray-950 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-800 hover:border-gray-400 opacity-75' }}">
-                                    @if($originMode !== 'none')
-                                        <span class="inline-flex flex-col w-3.5 h-2.5 rounded-[2px] overflow-hidden shrink-0 border border-black/15">
-                                            <span class="h-1/3 w-full bg-black"></span>
-                                            <span class="h-1/3 w-full bg-[#DD0000]"></span>
-                                            <span class="h-1/3 w-full bg-[#FFCE00]"></span>
-                                        </span>
-                                    @else
-                                        <span class="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600"></span>
-                                    @endif
-                                    <span>{{ $originMode !== 'none' ? 'Handveredelt in DE' : 'Herkunft: Aus' }}</span>
-                                </button>
-                            @endif
-
                             @if(!empty($prod->reorder_url))
                                 <a href="{{ $prod->reorder_url }}" target="_blank" rel="noopener noreferrer"
                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 hover:bg-blue-600 hover:text-white transition-all"
@@ -385,7 +384,7 @@
 
                             {{-- Echter Erstell-Status & klickbare Fehl-Angaben --}}
                             <div class="flex flex-wrap items-center gap-1.5">
-                                <span class="text-[10px] font-black uppercase tracking-widest {{ $isComplete ? 'text-[var(--theme-color)]' : 'text-amber-600 dark:text-amber-400' }}"
+                                <span class="text-[10px] font-black uppercase tracking-widest {{ $isComplete ? 'text-[var(--theme-color)]' : 'text-red-600 dark:text-red-400' }}"
                                       title="Erstell-Status: {{ $readiness['passed_count'] }}/{{ $readiness['total_count'] }} Prüfpunkte erfüllt">
                                     @if($isComplete)
                                         <span class="inline-flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> 100&nbsp;% Fertig</span>
@@ -394,12 +393,13 @@
                                     @endif
                                 </span>
                                 @if(!$isComplete)
-                                    @foreach(array_slice($missingChecks, 0, 3) as $miss)
+                                    @foreach($missingChecks as $miss)
                                         <button type="button"
                                                 wire:click="openProductInStep('{{ $prod->id }}', {{ $miss['step'] }}, {{ $miss['sub_step'] ?? 1 }})"
-                                                title="{{ $miss['detail'] }} – Klicken für Schritt {{ $miss['step'] }}"
-                                                class="px-2 py-0.5 rounded-md bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30 text-[9px] font-bold hover:bg-red-600 hover:text-white transition-colors cursor-pointer">
-                                            {{ $miss['short_missing'] }}
+                                                title="{{ $miss['detail'] }} (Schritt {{ $miss['step'] }}{{ !empty($miss['sub_step']) ? '.' . $miss['sub_step'] : '' }})"
+                                                class="px-2 py-0.5 rounded-md bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30 text-[9px] font-bold hover:bg-red-600 hover:text-white transition-colors cursor-pointer inline-flex items-center gap-1">
+                                            <span>✕</span>
+                                            <span>{{ $miss['short_missing'] }}</span>
                                         </button>
                                     @endforeach
                                 @endif
@@ -440,6 +440,7 @@
                         $percentComplete = $readiness['score'];
                         $isComplete = $readiness['is_ready'];
                         $missingChecks = $readiness['missing'];
+                        $seasonalStatus = $prod->getSeasonalImageSetStatus();
                         $ratingAvg = round((float) ($prod->approved_reviews_avg ?? 0), 1);
                         $ratingCount = (int) ($prod->approved_reviews_count ?? 0);
                         $pendingReviewsCount = (int) ($prod->pending_reviews_count ?? 0);
@@ -500,7 +501,24 @@
                             @endif
                         </div>
 
+                        @php
+                            $firstMissCard = $missingChecks[0] ?? ['step' => 1, 'sub_step' => 1];
+                            $cardStatusTooltip = $isComplete
+                                ? '100 % vollständig (' . $readiness['passed_count'] . '/' . $readiness['total_count'] . ' Prüfpunkte erfüllt)'
+                                : ($percentComplete . ' % bereit · Offen: ' . implode(', ', array_column($missingChecks, 'short_missing')));
+                        @endphp
                         <div class="flex items-center gap-1.5 min-w-0 {{ $currentLayout === 'medium' ? 'mb-1' : 'mb-1.5' }}" x-data="{ copied: false }">
+                            <button type="button"
+                                    wire:click="openProductInStep('{{ $prod->id }}', {{ $firstMissCard['step'] }}, {{ $firstMissCard['sub_step'] ?? 1 }})"
+                                    title="{{ $cardStatusTooltip }}"
+                                    aria-label="{{ $cardStatusTooltip }}"
+                                    class="w-5 h-5 rounded-full border flex items-center justify-center shrink-0 text-[10px] font-black transition-all hover:scale-110 cursor-pointer {{ $isComplete ? 'bg-emerald-50 dark:bg-emerald-500/15 border-emerald-300 dark:border-emerald-500/40 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-500/15 border-red-300 dark:border-red-500/40 text-red-600 dark:text-red-400' }}">
+                                @if($isComplete)
+                                    <span>✓</span>
+                                @else
+                                    <span>!</span>
+                                @endif
+                            </button>
                             <h3 class="font-serif {{ $currentLayout === 'medium' ? 'text-base' : 'text-lg md:text-xl' }} font-bold text-gray-900 dark:text-white truncate tracking-wide select-none cursor-default">{{ $prod->name }}</h3>
                             <button type="button"
                                     @click.stop="navigator.clipboard.writeText(@js($prod->name)); copied = true; setTimeout(() => copied = false, 2000)"
@@ -658,26 +676,6 @@
                                     Unbegrenzt
                                 </span>
                             @endif
-
-                            {{-- 1-Klick Herkunfts-Siegel Switch (Handveredelt in DE / Aus) --}}
-                            @if($prod->type === 'physical')
-                                @php $cardOriginMode = $prod->getOriginBadgeMode(); @endphp
-                                <button type="button"
-                                        wire:click="toggleOriginBadge('{{ $prod->id }}')"
-                                        title="Per Klick umschalten: Handveredelt in Deutschland ↔ Aus"
-                                        class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all cursor-pointer z-10 {{ $cardOriginMode !== 'none' ? 'bg-stone-50 dark:bg-stone-800/70 text-stone-700 dark:text-stone-200 border-stone-300 dark:border-stone-600 hover:border-amber-400' : 'bg-white dark:bg-gray-950 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-800 hover:border-gray-400 opacity-75' }}">
-                                    @if($cardOriginMode !== 'none')
-                                        <span class="inline-flex flex-col w-3.5 h-2.5 rounded-[2px] overflow-hidden shrink-0 border border-black/15">
-                                            <span class="h-1/3 w-full bg-black"></span>
-                                            <span class="h-1/3 w-full bg-[#DD0000]"></span>
-                                            <span class="h-1/3 w-full bg-[#FFCE00]"></span>
-                                        </span>
-                                    @else
-                                        <span class="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600"></span>
-                                    @endif
-                                    <span>{{ $cardOriginMode !== 'none' ? 'Handveredelt in DE' : 'Herkunft: Aus' }}</span>
-                                </button>
-                            @endif
                         </div>
 
                         @if(!$isComplete && count($missingChecks) > 0)
@@ -685,9 +683,9 @@
                                 @foreach($missingChecks as $miss)
                                     <button type="button"
                                             wire:click="openProductInStep('{{ $prod->id }}', {{ $miss['step'] }}, {{ $miss['sub_step'] ?? 1 }})"
-                                            title="{{ $miss['detail'] }} – Klicken für Schritt {{ $miss['step'] }}"
+                                            title="{{ $miss['detail'] }} (Schritt {{ $miss['step'] }}{{ !empty($miss['sub_step']) ? '.' . $miss['sub_step'] : '' }})"
                                             class="px-2 py-1 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30 text-[9px] font-bold hover:bg-red-600 hover:text-white transition-colors cursor-pointer flex items-center gap-1">
-                                        <span>⚠️</span>
+                                        <span>✕</span>
                                         <span>{{ $miss['short_missing'] }}</span>
                                     </button>
                                 @endforeach
@@ -696,7 +694,7 @@
 
                         {{-- Footer Steps (Echter Erstell-Status) --}}
                         <div class="mt-auto {{ $currentLayout === 'medium' ? 'pt-3.5' : 'pt-5' }} border-t border-gray-200 dark:border-gray-800 flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
-                            <span class="{{ $isComplete ? 'text-[var(--theme-color)] dark:drop-shadow-[0_0_5px_currentColor]' : 'text-amber-600 dark:text-amber-400' }}"
+                            <span class="{{ $isComplete ? 'text-[var(--theme-color)] dark:drop-shadow-[0_0_5px_currentColor]' : 'text-red-600 dark:text-red-400' }}"
                                   title="Erstell-Status: {{ $readiness['passed_count'] }}/{{ $readiness['total_count'] }} Prüfpunkte erfüllt">
                                 @if($isComplete)
                                     <span class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> 100&nbsp;% Fertig ({{ $readiness['passed_count'] }}/{{ $readiness['total_count'] }})</span>

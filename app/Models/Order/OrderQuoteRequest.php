@@ -106,6 +106,37 @@ use HasUuids, SoftDeletes, FormatsECommerceData;
         return is_null($this->customer_id);
     }
 
+    public function getCountryAttribute($value): string
+    {
+        if (!empty($value)) {
+            return (string) $value;
+        }
+        $shipAddr = $this->attributes['shipping_address'] ?? null;
+        if (is_string($shipAddr)) {
+            $shipAddr = json_decode($shipAddr, true);
+        }
+        if (is_array($shipAddr) && !empty($shipAddr['country'])) {
+            return (string) $shipAddr['country'];
+        }
+        $billAddr = $this->attributes['billing_address'] ?? null;
+        if (is_string($billAddr)) {
+            $billAddr = json_decode($billAddr, true);
+        }
+        if (is_array($billAddr) && !empty($billAddr['country'])) {
+            return (string) $billAddr['country'];
+        }
+        if ($this->relationLoaded('items') || $this->exists) {
+            $firstConf = $this->items->first()?->configuration;
+            if (is_array($firstConf) && !empty($firstConf['quote_country'])) {
+                return (string) $firstConf['quote_country'];
+            }
+        }
+        if ($this->customer && $this->customer->profile && !empty($this->customer->profile->country)) {
+            return (string) $this->customer->profile->country;
+        }
+        return 'DE';
+    }
+
     public function isValid()
     {
         return $this->status === 'open' && (!$this->expires_at || $this->expires_at->isFuture());

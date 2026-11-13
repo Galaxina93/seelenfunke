@@ -18,8 +18,15 @@ class TasksWidgetActionActivity : Activity() {
         super.onCreate(savedInstanceState)
         overridePendingTransition(0, 0)
 
-        val resolvedAction = intent.getStringExtra(TasksWidgetProvider.EXTRA_CLICK_ACTION) ?: intent.action
+        if (!de.meinseelenfunke.app.util.SecurityIntentHelper.isTrustedInternalIntent(this, intent)) {
+            finish()
+            overridePendingTransition(0, 0)
+            return
+        }
+
+        val resolvedAction = try { intent.getStringExtra(TasksWidgetProvider.EXTRA_CLICK_ACTION) } catch (_: Exception) { null } ?: intent.action
         val appContext = applicationContext
+        de.meinseelenfunke.app.di.ServiceLocator.ensureInitialized(appContext)
 
         when (resolvedAction) {
             TasksWidgetProvider.ACTION_EDIT_TASK -> {
@@ -80,6 +87,7 @@ class TasksWidgetActionActivity : Activity() {
                             putExtra("selected_date", selectedDate)
                         }
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
                     }
                 )
             }
@@ -89,6 +97,7 @@ class TasksWidgetActionActivity : Activity() {
                 val broadcastIntent = Intent(appContext, MasterWidgetProvider::class.java).apply {
                     action = resolvedAction
                     intent.extras?.let { putExtras(it) }
+                    de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
                 }
                 appContext.sendBroadcast(broadcastIntent)
             }
@@ -98,6 +107,7 @@ class TasksWidgetActionActivity : Activity() {
                 val broadcastIntent = Intent(appContext, ShoppingListWidgetProvider::class.java).apply {
                     action = resolvedAction
                     intent.extras?.let { putExtras(it) }
+                    de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
                 }
                 appContext.sendBroadcast(broadcastIntent)
             }
@@ -106,6 +116,7 @@ class TasksWidgetActionActivity : Activity() {
                 val broadcastIntent = Intent(appContext, TasksWidgetProvider::class.java).apply {
                     action = resolvedAction ?: TasksWidgetProvider.ACTION_ITEM_CLICK
                     intent.extras?.let { putExtras(it) }
+                    de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
                 }
                 appContext.sendBroadcast(broadcastIntent)
             }

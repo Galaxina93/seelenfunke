@@ -18,21 +18,21 @@ class OrderRevocations extends Component
 
     public function boot(): void
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
 
     public function mount()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
 
     public function markAsProcessed($id)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -47,6 +47,7 @@ class OrderRevocations extends Component
         // Verknüpfte Bestellung und zugehörige Rechnungen GoBD-konform stornieren (nur bei verifizierter E-Mail-Übereinstimmung)
         $order = $revocation->linked_order;
         $orderCancelled = false;
+        $emailMismatchWarning = false;
         if ($order) {
             $revEmail = trim((string) $revocation->email);
             $orderEmail = trim((string) $order->email);
@@ -54,48 +55,59 @@ class OrderRevocations extends Component
             $emailMatches = $revEmail !== '' && (strcasecmp($revEmail, $orderEmail) === 0 || ($customerEmail !== '' && strcasecmp($revEmail, $customerEmail) === 0));
 
             if ($emailMatches) {
+                $previousStatus = $order->status;
+                $previousPaymentStatus = $order->payment_status;
+
+                if (!in_array($order->status, ['cancelled', 'refunded'], true) && $order->payment_status !== 'refunded') {
+                    $order->handleCancellation('Widerruf akzeptiert und abgewickelt', $previousStatus, $previousPaymentStatus);
+                }
+
+                $updateData = [
+                    'status' => 'cancelled',
+                    'cancellation_reason' => 'Widerruf akzeptiert und abgewickelt',
+                ];
+                if ($previousPaymentStatus === 'paid') {
+                    $updateData['payment_status'] = 'refunded';
+                }
+                // OrderOrder::booted() static::updated storniert aktive Rechnungen (inkl. GoBD-Stornobeleg) automatisch
+                $order->update($updateData);
+
                 $invoiceService = app(\App\Services\InvoiceService::class);
-                $activeInvoices = $order->invoices()
+                $remainingActiveInvoices = $order->invoices()
                     ->where('type', 'invoice')
                     ->whereNotIn('status', ['cancelled', 'draft'])
                     ->get();
-                foreach ($activeInvoices as $inv) {
+                foreach ($remainingActiveInvoices as $inv) {
                     try {
-                        $invoiceService->cancelInvoice($inv, 'Widerruf akzeptiert und abgewickelt');
+                        $invoiceService->cancelInvoice($inv);
                     } catch (\Throwable $e) {
                         \Illuminate\Support\Facades\Log::warning('Revocation invoice cancellation warning: ' . $e->getMessage());
                     }
                 }
 
-                $order->refresh();
-                if (!in_array($order->status, ['cancelled', 'refunded'], true)) {
-                    $order->handleCancellation('Widerruf akzeptiert und abgewickelt', $order->status, $order->payment_status);
-                }
-                $updateData = [
-                    'status' => 'cancelled',
-                    'cancellation_reason' => 'Widerruf akzeptiert und abgewickelt',
-                ];
-                if ($order->payment_status === 'paid') {
-                    $updateData['payment_status'] = 'refunded';
-                }
-                $order->update($updateData);
                 $orderCancelled = true;
+            } else {
+                $emailMismatchWarning = true;
             }
         }
 
         \Illuminate\Support\Facades\Mail::to($revocation->email)
             ->send(new \App\Mail\Order\RevocationProcessedMail($revocation));
 
-        $toastMsg = $orderCancelled
-            ? 'Abwicklung abgeschlossen, Bestellung storniert & Erfolgs-Mail gesendet.'
-            : 'Abwicklung abgeschlossen und Erfolgs-Mail gesendet.';
+        if ($orderCancelled) {
+            $toastMsg = 'Abwicklung abgeschlossen, Bestellung & Rechnung GoBD-konform storniert und Erfolgs-Mail gesendet.';
+        } elseif ($emailMismatchWarning) {
+            $toastMsg = 'Widerruf abgeschlossen & Mail gesendet (Hinweis: E-Mail wich von der Bestellung ab, bitte Bestellung manuell prüfen).';
+        } else {
+            $toastMsg = 'Widerruf abgeschlossen & Mail gesendet (Hinweis: Keine passende Bestellung zur Nummer gefunden).';
+        }
 
         $this->dispatch('toast', message: $toastMsg, type: 'success');
     }
 
     public function markAsPending($id)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -106,7 +118,7 @@ class OrderRevocations extends Component
 
     public function markLegalCheck($id, $type)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -124,7 +136,7 @@ class OrderRevocations extends Component
 
     public function undoLegalCheck($id)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -141,7 +153,7 @@ class OrderRevocations extends Component
 
     public function markCustomerNotified($id)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -152,7 +164,7 @@ class OrderRevocations extends Component
 
     public function undoCustomerNotified($id)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -167,7 +179,7 @@ class OrderRevocations extends Component
 
     public function rejectRevocation($id, $reason)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 

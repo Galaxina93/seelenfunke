@@ -146,7 +146,7 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
                     );
                     $mailData['password_setup_url'] = url('/customer/password-reset/' . $rawActivationToken . '?email=' . urlencode($targetEmail));
                 } else {
-                    $mailData['password_setup_url'] = route('password.request');
+                    $mailData['password_setup_url'] = route('login');
                 }
             }
 

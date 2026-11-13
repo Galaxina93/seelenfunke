@@ -81,7 +81,8 @@ namespace FunkenwerkMcp
                 ("pdf", "Funkenwerk PDF", "Funkenwerk PDF", "FunkenwerkPdf.exe", "FunkenwerkPdf"),
                 ("drucker", "Funkenwerk Drucker", "Funkenwerk Drucker", "FunkenwerkDrucker.exe", "FunkenwerkDrucker"),
                 ("os", "Funkenwerk OS", "Funkenwerk OS", "FunkenwerkOS.exe", "FunkenwerkOS"),
-                ("browser", "Funkenwerk Browser", "Funkenwerk Browser", "FunkenwerkBrowser.exe", "FunkenwerkBrowser")
+                ("browser", "Funkenwerk Browser", "Funkenwerk Browser", "FunkenwerkBrowser.exe", "FunkenwerkBrowser"),
+                ("craft", "Funkenwerk Craft", "Funkenwerk Craft", "FunkenwerkCraft.exe", "FunkenwerkCraft")
             };
 
             var appsReport = new List<object>();

@@ -778,7 +778,12 @@ class ProductCalculator extends Component
                 ]);
 
                 foreach($this->cartItems as $item) {
-                    $conf = $item['configuration'] ?? [];
+                    $conf = is_array($item['configuration'] ?? null) ? $item['configuration'] : [];
+                    $productModel = Product::find($item['product_id']);
+                    if ($productModel) {
+                        $conf = app(\App\Services\CartService::class)->sanitizeConfiguration($productModel, $conf) ?? $conf;
+                    }
+                    $conf['quote_country'] = $this->form['country'] ?? 'DE';
                     OrderQuoteRequestItem::create([
                         'quote_request_id' => $quote->id,
                         'product_id' => $item['product_id'],

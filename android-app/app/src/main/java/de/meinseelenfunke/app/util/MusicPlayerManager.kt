@@ -68,8 +68,8 @@ data class MusicImportProgress(
 
 object MusicPlayerManager {
     private const val TAG = "MusicPlayerManager"
-    private const val FALLBACK_TOKEN = "1|CTIWGm2Ryb0d60ixSJPME2J6uSUkR1tm6Ga6DEfBd86476e9"
     private const val FAV_SYNC_PLAYLIST_NAME = "__FUNKENWERK_FAV_SYNC__"
+    private const val MAX_AUDIO_TRACK_BYTES = 40 * 1024 * 1024 // 40 MB
 
     @Volatile
     private var lastFavSyncTimestamp: Long = 0L
@@ -414,8 +414,12 @@ object MusicPlayerManager {
         }
     }
 
+    private fun safeTrackFileId(rawId: String): String {
+        return rawId.replace(Regex("[^A-Za-z0-9_-]"), "_").take(80).ifBlank { "track" }
+    }
+
     fun isTrackCached(context: Context, trackId: String): Boolean {
-        val f = File(getCacheDir(context), "$trackId.m4a")
+        val f = File(getCacheDir(context), "${safeTrackFileId(trackId)}.m4a")
         return isValidAudioFile(f)
     }
 
@@ -456,7 +460,7 @@ object MusicPlayerManager {
             return if (validFiles.isNotEmpty()) validFiles.random() else null
         }
 
-        val exactFile = File(cacheDir, "$trackId.m4a")
+        val exactFile = File(cacheDir, "${safeTrackFileId(trackId)}.m4a")
         if (isValidAudioFile(exactFile)) {
             return exactFile
         }
@@ -545,19 +549,14 @@ object MusicPlayerManager {
 
     private fun getCandidateTokens(): List<String> {
         val primary = try { ServiceLocator.getAuthToken() } catch (_: Exception) { null }
-        return if (!primary.isNullOrBlank() && primary != FALLBACK_TOKEN) {
-            listOf(primary, FALLBACK_TOKEN)
-        } else {
-            listOf(FALLBACK_TOKEN)
-        }
+        return if (!primary.isNullOrBlank()) listOf(primary) else emptyList()
     }
 
     private fun getCandidateBaseUrls(): List<String> {
-        val primary = try { ServiceLocator.getBaseUrl().trimEnd('/') } catch (_: Exception) { "http://192.168.188.119/api" }
+        val primary = try { ServiceLocator.getBaseUrl().trimEnd('/') } catch (_: Exception) { "https://stage.mein-seelenfunke.de/api" }
         val list = mutableListOf(primary)
-        if (primary != "http://192.168.188.119/api") list.add("http://192.168.188.119/api")
         if (primary != "https://stage.mein-seelenfunke.de/api") list.add("https://stage.mein-seelenfunke.de/api")
-        if (primary != "http://127.0.0.1/api") list.add("http://127.0.0.1/api")
+        if (primary != "https://mein-seelenfunke.de/api") list.add("https://mein-seelenfunke.de/api")
         return list.distinct()
     }
 
@@ -730,7 +729,8 @@ object MusicPlayerManager {
 
     private suspend fun ensureTrackCached(context: Context, track: MusicTrackDto): File? = withContext(Dispatchers.IO) {
         val cacheDir = getCacheDir(context)
-        val file = File(cacheDir, "${track.id}.m4a")
+        val safeId = safeTrackFileId(track.id)
+        val file = File(cacheDir, "$safeId.m4a")
         if (isValidAudioFile(file)) {
             return@withContext file
         }
@@ -738,12 +738,15 @@ object MusicPlayerManager {
             try { file.delete() } catch (_: Exception) { }
         }
 
-        val tmpFile = File(cacheDir, "${track.id}.m4a.tmp")
+        val tokens = getCandidateTokens()
+        if (tokens.isEmpty()) return@withContext null
+
+        val tmpFile = File(cacheDir, "$safeId.m4a.tmp")
         for (baseUrl in getCandidateBaseUrls()) {
-            for (token in getCandidateTokens()) {
+            for (token in tokens) {
                 try {
                     val req = Request.Builder()
-                        .url("$baseUrl/funki/music/stream/${track.id}")
+                        .url("$baseUrl/funki/music/stream/$safeId")
                         .header("Authorization", "Bearer $token")
                         .header("Accept", "application/json")
                         .get()
@@ -754,16 +757,36 @@ object MusicPlayerManager {
                         if (contentType.contains("text/html") || contentType.contains("application/json")) {
                             return@use
                         }
-                        val bytes = res.body?.bytes() ?: return@use
-                        if (bytes.size <= 10240) return@use
-                        tmpFile.writeBytes(bytes)
+                        val body = res.body ?: return@use
+                        if (body.contentLength() > MAX_AUDIO_TRACK_BYTES) return@use
+
+                        var totalRead = 0
+                        var exceeded = false
+                        body.byteStream().use { input ->
+                            tmpFile.outputStream().use { output ->
+                                val buf = ByteArray(16 * 1024)
+                                while (true) {
+                                    val r = input.read(buf)
+                                    if (r <= 0) break
+                                    totalRead += r
+                                    if (totalRead > MAX_AUDIO_TRACK_BYTES) {
+                                        exceeded = true
+                                        break
+                                    }
+                                    output.write(buf, 0, r)
+                                }
+                            }
+                        }
+                        if (exceeded || totalRead <= 10240) {
+                            tmpFile.delete()
+                            return@use
+                        }
                         if (isValidAudioFile(tmpFile)) {
                             if (file.exists()) file.delete()
                             if (tmpFile.renameTo(file)) {
-                                Log.d(TAG, "Successfully cached track ${track.title} (${bytes.size} bytes)")
                                 return@withContext file
                             } else {
-                                file.writeBytes(bytes)
+                                tmpFile.copyTo(file, overwrite = true)
                                 tmpFile.delete()
                                 return@withContext file
                             }
@@ -772,7 +795,7 @@ object MusicPlayerManager {
                         }
                     }
                 } catch (e: Exception) {
-                    Log.w(TAG, "Stream download attempt failed ($baseUrl): ${e.message}")
+                    Log.w(TAG, "Stream download attempt failed: ${e.message}")
                 }
             }
         }
@@ -1199,8 +1222,8 @@ object MusicPlayerManager {
     fun createPlaylist(context: Context, name: String, onDone: (Boolean) -> Unit) {
         scope.launch {
             try {
-                val baseUrl = getCandidateBaseUrls().first()
-                val token = getCandidateTokens().first()
+                val baseUrl = getCandidateBaseUrls().firstOrNull() ?: run { onDone(false); return@launch }
+                val token = getCandidateTokens().firstOrNull() ?: run { onDone(false); return@launch }
                 val json = JSONObject().apply { put("name", name) }
                 val req = Request.Builder()
                     .url("$baseUrl/funki/music/playlists")
@@ -1228,8 +1251,16 @@ object MusicPlayerManager {
                     label = "Verbinde mit Musik-Importer...",
                     subLabel = "Analysiere Playlist / Song..."
                 )
-                val baseUrl = getCandidateBaseUrls().first()
-                val token = getCandidateTokens().first()
+                val baseUrl = getCandidateBaseUrls().firstOrNull() ?: run {
+                    _importProgress.value = MusicImportProgress(active = false)
+                    onDone(false)
+                    return@launch
+                }
+                val token = getCandidateTokens().firstOrNull() ?: run {
+                    _importProgress.value = MusicImportProgress(active = false)
+                    onDone(false)
+                    return@launch
+                }
                 val pid = _activePlaylistId.value.takeIf { it != "all" && it != "favorites" }
                 val json = JSONObject().apply {
                     put("url", url)
@@ -1264,8 +1295,8 @@ object MusicPlayerManager {
             try {
                 while (isActive) {
                     delay(1200)
-                    val baseUrl = getCandidateBaseUrls().first()
-                    val token = getCandidateTokens().first()
+                    val baseUrl = getCandidateBaseUrls().firstOrNull() ?: break
+                    val token = getCandidateTokens().firstOrNull() ?: break
                     val req = Request.Builder()
                         .url("$baseUrl/funki/music/import-status")
                         .header("Authorization", "Bearer $token")
@@ -1361,5 +1392,22 @@ object MusicPlayerManager {
                 delay(400)
             }
         }
+    }
+
+    fun stopAndClearSession(context: Context) {
+        favPollJob?.cancel()
+        backgroundSyncJob?.cancel()
+        importPollJob?.cancel()
+        preCacheJob?.cancel()
+        progressJob?.cancel()
+        playJob?.cancel()
+        try { mediaPlayer?.stop() } catch (_: Exception) {}
+        try { mediaPlayer?.release() } catch (_: Exception) {}
+        mediaPlayer = null
+        _isPlaying.value = false
+        try { if (wakeLock?.isHeld == true) wakeLock?.release() } catch (_: Exception) {}
+        try {
+            context.stopService(android.content.Intent(context.applicationContext, MusicPlaybackService::class.java))
+        } catch (_: Exception) {}
     }
 }

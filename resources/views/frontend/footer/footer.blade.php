@@ -198,7 +198,7 @@
                 ['file' => 'amex.svg',       'name' => 'American Express',              'img_class' => 'h-5 w-auto'],
                 ['file' => 'apple-pay.svg',  'name' => 'Apple Pay',                     'img_class' => 'h-4 w-auto'],
                 ['file' => 'google-pay.svg', 'name' => 'Google Pay',                    'img_class' => 'h-4 w-auto'],
-                ['file' => 'sepa.svg',       'name' => 'SEPA-Lastschrift & Vorkasse',   'img_class' => 'h-5 w-auto'],
+                ['file' => 'sepa.svg',       'name' => 'SEPA-Lastschrift',              'img_class' => 'h-5 w-auto'],
             ];
         @endphp
         <div class="border-t border-white/15 mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">

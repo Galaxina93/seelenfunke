@@ -78,6 +78,7 @@ class OrderQuoteAcceptance extends Component
 
         if ($this->editingItem && $this->editingItem->product) {
             $this->viewState = 'editor';
+            $this->dispatch('scroll-top');
         }
     }
 
@@ -88,6 +89,7 @@ class OrderQuoteAcceptance extends Component
     {
         $this->editingItem = null;
         $this->viewState = 'dashboard';
+        $this->dispatch('scroll-top');
     }
 
     /**
@@ -106,20 +108,29 @@ class OrderQuoteAcceptance extends Component
         $data = is_array($data) ? $data : [];
         $qty = min(10000, max(1, (int) ($data['qty'] ?? 1)));
         $data['qty'] = $qty;
+        $quoteCountry = $this->editingItem->configuration['quote_country'] ?? $this->quote->country;
         $data = app(\App\Services\CartService::class)->sanitizeConfiguration($product, $data) ?? $data;
+        if (!empty($quoteCountry)) {
+            $data['quote_country'] = $quoteCountry;
+        }
 
         $this->editingItem->quantity = $qty;
         $this->editingItem->configuration = $data;
 
-        // 2. Einzelpreis neu berechnen (Staffelpreise & Varianten beachten!)
-        $unitPriceCents = $this->calculateTierPrice($product, $qty, $data);
+        // 2. Einzelpreis vorab aktualisieren (Staffelpreise über alle Positionen werden in recalculateQuoteTotals final synchronisiert)
+        $totalProductQty = (int) $this->quote->items
+            ->where('product_id', $product->id)
+            ->where('id', '!=', $this->editingItem->id)
+            ->sum('quantity') + $qty;
+        $unitPriceCents = $this->calculateTierPrice($product, $totalProductQty, $data);
 
         $this->editingItem->unit_price = $unitPriceCents;
         $this->editingItem->tax_rate = ((bool) shop_setting('is_small_business', false)) ? 0.0 : ($product->tax_rate ?? shop_setting('default_tax_rate', 19.0));
         $this->editingItem->total_price = $unitPriceCents * $qty;
         $this->editingItem->save();
 
-        // 3. Gesamtangebot neu berechnen (INKL. VERSAND & STEUERN)
+        // 3. Gesamtangebot neu berechnen (INKL. STAFFELRABATT, VERSAND & STEUERN)
+        $this->quote->load('items.product');
         $this->recalculateQuoteTotals();
 
         // 4. Zurück zum Dashboard
@@ -128,6 +139,7 @@ class OrderQuoteAcceptance extends Component
         $this->editingItem = null;
 
         session()->flash('success', 'Position erfolgreich aktualisiert und Angebot neu berechnet.');
+        $this->dispatch('scroll-top');
     }
 
     /**
@@ -147,6 +159,7 @@ class OrderQuoteAcceptance extends Component
         $netTotalProducts = 0; // Nur Produkte Netto
         $taxTotalProducts = 0; // Nur Produkte Steuer
         $grossTotalProducts = 0; // Nur Produkte Brutto (für Versandfreigrenze)
+        $volumeDiscountTotal = 0; // Mengenrabatt über alle Positionen
 
         $totalWeight = 0; // Gesamtgewicht für Versandberechnung
 
@@ -154,10 +167,33 @@ class OrderQuoteAcceptance extends Component
         $isSmallBusiness = (bool) shop_setting('is_small_business', false);
         $defaultTaxRate = (float) shop_setting('default_tax_rate', 19.0);
 
+        // Gesamtmenge pro Produkt ermitteln (für korrekte Staffelpreise bei mehreren Positionen desselben Produkts)
+        $productQtys = [];
+        foreach ($this->quote->items as $qItem) {
+            if ($qItem->product_id) {
+                $productQtys[$qItem->product_id] = ($productQtys[$qItem->product_id] ?? 0) + (int) $qItem->quantity;
+            }
+        }
+
         // 1. Produkte durchgehen
         foreach($this->quote->items as $item) {
             $product = $item->product;
             if(!$product) continue;
+
+            $itemConfig = is_array($item->configuration) ? $item->configuration : [];
+            $totalProdQty = $productQtys[$product->id] ?? (int) $item->quantity;
+            $freshUnitPrice = $this->calculateTierPrice($product, $totalProdQty, $itemConfig);
+            $baseSinglePrice = $this->calculateTierPrice($product, 1, $itemConfig);
+
+            if ($freshUnitPrice !== (int) $item->unit_price || ($freshUnitPrice * (int) $item->quantity) !== (int) $item->total_price) {
+                $item->unit_price = $freshUnitPrice;
+                $item->total_price = $freshUnitPrice * (int) $item->quantity;
+                $item->save();
+            }
+
+            if ($baseSinglePrice > $freshUnitPrice) {
+                $volumeDiscountTotal += ($baseSinglePrice - $freshUnitPrice) * (int) $item->quantity;
+            }
 
             // Gewicht summieren
             $weight = $product->weight ?? 0;
@@ -183,8 +219,8 @@ class OrderQuoteAcceptance extends Component
         }
 
         // 2. Versandberechnung
-        // Wir nutzen die neue Adress-Struktur (Lieferadresse vor Rechnungsadresse)
-        $countryCode = $this->quote->shipping_address['country'] ?? ($this->quote->billing_address['country'] ?? 'DE');
+        // Wir nutzen das gespeicherte Angebots-Land (Liefer-/Rechnungsadresse oder Calculator-Auswahl)
+        $countryCode = $this->quote->country;
 
         $shippingCostCents = 0;
         $needsShipping = app(\App\Services\ShippingCalculatorService::class)->needsShipping($this->quote->items);
@@ -287,6 +323,7 @@ class OrderQuoteAcceptance extends Component
             'gross_total' => (int) round($finalGross),
             'shipping_price' => (int) round($shippingCostCents),
             'express_price' => $expressGross,
+            'volume_discount' => (int) round($volumeDiscountTotal),
         ]);
 
         // Speichern der Versandkosten als temporäres Attribut für die View

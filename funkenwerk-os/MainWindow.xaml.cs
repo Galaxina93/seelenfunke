@@ -359,10 +359,8 @@ namespace FunkenwerkOS
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            if (_isShellBoot)
-                SetBorderlessFullscreen(true);
-            else
-                WindowState = WindowState.Maximized;
+            OsHardwareAndAudioEngine.EnsureWindowsExplorerTaskbarRunning();
+            WindowState = WindowState.Maximized;
 
             try
             {
@@ -2955,11 +2953,20 @@ namespace FunkenwerkOS
             }
             else
             {
-                AddContextBtn("▶   Öffnen", () =>
+                string entryExt = Path.GetExtension(dto.FullPath).ToLowerInvariant();
+                bool isScriptOrExe = !dto.IsDirectory && entryExt is ".cmd" or ".bat" or ".ps1" or ".exe";
+
+                AddContextBtn(isScriptOrExe ? "▶   Ausführen" : "▶   Öffnen", () =>
                 {
                     if (dto.IsDirectory) NavigateExplorer(dto.FullPath, recordHistory: true);
                     else OpenFileWithConfiguredDefaultProgram(dto.FullPath);
                 });
+                if (isScriptOrExe)
+                {
+                    AddContextBtn("🛡   Als Administrator ausführen", () => ExecuteLocalScriptOrExecutable(dto.FullPath, runAsAdmin: true));
+                    if (entryExt is ".cmd" or ".bat" or ".ps1")
+                        AddContextBtn("✎   Im Text-Editor bearbeiten", () => OpenTextFileInBuiltInEditor(dto.FullPath));
+                }
                 if (!dto.IsDirectory)
                 {
                     AddContextBtn("⚙   Standardprogramm...", () => { SwitchSettingsTab("defaults"); OpenInternalWindowAnimated("SettingsWin"); });
@@ -3165,7 +3172,75 @@ namespace FunkenwerkOS
                 return;
             }
 
+            if (ext is ".cmd" or ".bat" or ".ps1" or ".exe" or ".lnk")
+            {
+                ExecuteLocalScriptOrExecutable(fullPath, runAsAdmin: ShouldAutoElevateScript(fullPath));
+                return;
+            }
+
             OpenTextFileInBuiltInEditor(fullPath);
+        }
+
+        private static bool ShouldAutoElevateScript(string fullPath)
+        {
+            string name = Path.GetFileName(fullPath);
+            return name.Contains("UPDATE", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("INSTALL", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("FIX", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("SETUP", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("NOTFALL", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("FORTRESS", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void ExecuteLocalScriptOrExecutable(string fullPath, bool runAsAdmin)
+        {
+            try
+            {
+                if (!File.Exists(fullPath)) return;
+                string ext = Path.GetExtension(fullPath).ToLowerInvariant();
+                string workDir = Path.GetDirectoryName(fullPath) ?? "";
+
+                ProcessStartInfo psi;
+                if (ext is ".cmd" or ".bat")
+                {
+                    psi = new ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = $"/c \"\"{fullPath}\"\"",
+                        WorkingDirectory = workDir,
+                        UseShellExecute = true
+                    };
+                }
+                else if (ext == ".ps1")
+                {
+                    psi = new ProcessStartInfo
+                    {
+                        FileName = "powershell.exe",
+                        Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{fullPath}\"",
+                        WorkingDirectory = workDir,
+                        UseShellExecute = true
+                    };
+                }
+                else
+                {
+                    psi = new ProcessStartInfo
+                    {
+                        FileName = fullPath,
+                        WorkingDirectory = workDir,
+                        UseShellExecute = true
+                    };
+                }
+
+                if (runAsAdmin && ext != ".lnk")
+                    psi.Verb = "runas";
+
+                Process.Start(psi);
+                ShowToast($"✓ Starte '{Path.GetFileName(fullPath)}'...");
+            }
+            catch (Exception ex)
+            {
+                ShowToast($"Start abgebrochen: {ex.Message}");
+            }
         }
 
         private void OpenTextFileInBuiltInEditor(string filePath)
@@ -4637,8 +4712,18 @@ namespace FunkenwerkOS
                 btDev = new BluetoothDeviceDto { Name = devName, IsPaired = true };
             if (btDev == null) return;
 
-            ShowToast($"Verbinde '{btDev.Name}'...");
-            var (ok, msg) = await OsHardwareAndAudioEngine.ConnectOrPairBluetoothDeviceAsync(btDev);
+            bool ok;
+            string msg;
+            if (btDev.IsConnected)
+            {
+                ShowToast($"Trenne '{btDev.Name}'...");
+                (ok, msg) = await OsHardwareAndAudioEngine.DisconnectBluetoothDeviceAsync(btDev);
+            }
+            else
+            {
+                ShowToast($"Verbinde '{btDev.Name}'...");
+                (ok, msg) = await OsHardwareAndAudioEngine.ConnectOrPairBluetoothDeviceAsync(btDev);
+            }
             RefreshAudioUi(forceDirectRead: true);
             BluetoothListControl.ItemsSource = await OsHardwareAndAudioEngine.ScanBluetoothDevicesAsync(issueHardwareInquiry: false);
             ShowToast(ok ? $"✓ {msg}" : msg);
@@ -5236,11 +5321,13 @@ namespace FunkenwerkOS
 
         private void RestoreStandardWindows_Click(object sender, RoutedEventArgs e)
         {
+            SetBorderlessFullscreen(false);
             FortressProvisioningEngine.SetCustomShellForCurrentUser(false);
+            OsHardwareAndAudioEngine.EnsureWindowsExplorerTaskbarRunning();
             FortressProvisioningEngine.RunElevatedFortressScript("RestoreWindows");
             FortressProvisioningEngine.StartMaintenanceExplorer();
             RefreshFortressAuditUi();
-            ShowToast("✓ Standard-Windows wiederhergestellt");
+            ShowToast("✓ Standard-Windows & Taskleiste wiederhergestellt");
         }
 
         // =====================================================================

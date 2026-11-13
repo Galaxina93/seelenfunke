@@ -39,8 +39,9 @@ class CalendarAlarmReceiver : BroadcastReceiver() {
 
         val clickIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(context, this)
         }
-        
+
         val pendingIntent = PendingIntent.getActivity(
             context,
             eventId.hashCode(),
@@ -48,12 +49,21 @@ class CalendarAlarmReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val publicNotification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle("Funkenwerk Kalender")
+            .setContentText("Anstehender Termin")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+
         val contentText = if (eventTime.isNotBlank()) "Beginnt um $eventTime. $eventDesc" else eventDesc
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle(eventTitle)
             .setContentText(contentText)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicNotification)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .build()

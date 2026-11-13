@@ -64,7 +64,8 @@ class AiAgentEditor extends Component
         'gemini-3.5-flash' => 'Google Gemini 3.5 Flash (Stabil / Empfohlen)',
         'gemini-3.5-flash-lite' => 'Google Gemini 3.5 Flash-Lite (Ultra-Speed)',
         'gemini-3.8-flash' => 'Google Gemini 3.8 Flash (Next-Gen / Auto-Fallback)',
-        'gemini-3.1-pro-preview' => 'Google Gemini 3.1 Pro (Deep Reasoning, Code & Audit)',
+        'gemini-3.1-pro' => 'Google Gemini 3.1 Pro (Deep Reasoning, Code & Audit)',
+        'gemini-3.1-pro-preview' => 'Google Gemini 3.1 Pro Preview (Deep Reasoning, Code & Audit)',
         'gemini-3-flash-preview' => 'Google Gemini 3.0 Flash (Schnell)'
     ];
 
@@ -198,16 +199,26 @@ class AiAgentEditor extends Component
         }
     }
 
+    public static function sanitizeSvgIcon(string $svg): string
+    {
+        $clean = preg_replace('/<\s*(script|iframe|object|embed|applet|meta|base|form|foreignObject)\b[^>]*>.*?<\s*\/\s*\1\s*>/is', '', $svg) ?? $svg;
+        $clean = preg_replace('/<\s*\/?\s*(script|iframe|object|embed|applet|meta|base|form|foreignObject)\b[^>]*>/i', '', $clean) ?? $clean;
+        $clean = preg_replace('/\s+on[a-z]+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $clean) ?? $clean;
+        $clean = preg_replace('/\b(href|src|action|formaction|xlink:href)\s*=\s*(["\']?)\s*(?:javascript|vbscript|data\s*:\s*text\/html)[^"\'>\s]*\2/i', '$1="#"', $clean) ?? $clean;
+
+        return $clean;
+    }
+
     public function boot(): void
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
 
     public function mount($id = 'new')
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 

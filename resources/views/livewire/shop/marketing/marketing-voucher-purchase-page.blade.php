@@ -1,4 +1,37 @@
-<div class="bg-white min-h-screen text-gray-800" style="--theme-color: #C9A66B; --theme-color-10: #C9A66B1A; --theme-color-20: #C9A66B33; --theme-color-30: #C9A66B4D; --theme-color-50: #C9A66B80;">
+<div class="bg-white min-h-screen text-gray-800"
+     style="--theme-color: #C9A66B; --theme-color-10: #C9A66B1A; --theme-color-20: #C9A66B33; --theme-color-30: #C9A66B4D; --theme-color-50: #C9A66B80;"
+     x-data="{
+         scrollToVoucherWizard() {
+             const doScroll = () => {
+                 const el = document.getElementById('voucher-wizard-top');
+                 if (!el) return;
+                 const navHeight = document.getElementById('navbar')?.offsetHeight || 88;
+                 const rect = el.getBoundingClientRect();
+                 const targetY = Math.max(0, window.pageYOffset + rect.top - navHeight - 16);
+                 window.scrollTo({ top: targetY, behavior: 'smooth' });
+             };
+             doScroll();
+             setTimeout(doScroll, 80);
+             setTimeout(doScroll, 220);
+         },
+         scrollToVoucherError(field) {
+             const doScroll = () => {
+                 const targetEl = (field && document.getElementById('voucher-field-' + field))
+                     || document.querySelector('#voucher-wizard-top .border-red-500')
+                     || document.getElementById('voucher-wizard-top');
+                 if (!targetEl) return;
+                 const navHeight = document.getElementById('navbar')?.offsetHeight || 88;
+                 const rect = targetEl.getBoundingClientRect();
+                 const targetY = Math.max(0, window.pageYOffset + rect.top - navHeight - 24);
+                 window.scrollTo({ top: targetY, behavior: 'smooth' });
+             };
+             doScroll();
+             setTimeout(doScroll, 80);
+             setTimeout(doScroll, 220);
+         }
+     }"
+     @voucher-scroll-to-wizard.window="scrollToVoucherWizard()"
+     @voucher-scroll-to-error.window="scrollToVoucherError($event.detail?.field || $event.detail?.[0]?.field)">
     {{-- Header / Hero Section (Analog zur Kollektion/Blog) --}}
     <div class="bg-gray-50 border-b border-gray-100 py-16 md:py-20 text-center">
         <h1 class="text-3xl sm:text-4xl md:text-5xl font-serif font-bold text-gray-900 mb-4 tracking-wide">
@@ -103,7 +136,7 @@
                             <svg class="w-5 h-5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5a2 2 0 10-2 2h2zm-2 4h12M5 15h14" /></svg>
                             <div>
                                 <strong class="text-gray-800">Postalischer Versand (+ {{ number_format($this->shippingCost, 2, ',', '.') }} €):</strong>
-                                <p class="mt-0.5">Wir gravieren deinen Gutschein per Laser auf eine edle {{ $isBlackCard ? 'schwarze' : 'goldene' }} Metallkarte und versenden sie im schwarzen Umschlag mit goldenen Linien und goldenem Wachssiegel-Aufkleber an deine Lieferadresse.</p>
+                                <p class="mt-0.5">Wir gravieren deinen Gutschein per Laser auf eine edle {{ $isBlackCard ? 'schwarze' : 'goldene' }} Aluminiumkarte und versenden sie im schwarzen Umschlag mit goldenen Linien und goldenem Wachssiegel-Aufkleber an deine Lieferadresse.</p>
                             </div>
                         @endif
                     </div>
@@ -253,7 +286,7 @@
                             </button>
 
                             @if($amount === 'custom')
-                                <div class="mt-4 animate-fade-in">
+                                <div id="voucher-field-customAmount" class="mt-4 animate-fade-in">
                                     <label class="block text-xs uppercase tracking-wider text-gray-600 font-semibold mb-2 ml-1">
                                         Dein Wunschbetrag in Euro <span class="text-red-500">*</span>
                                     </label>
@@ -297,7 +330,7 @@
                         <div class="mt-8 pt-6 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
                             <div class="text-xs text-gray-500">
                                 <div>Gewählter Gutscheinwert: <strong class="text-gray-900 font-serif text-base ml-1">{{ number_format($this->selectedAmount, 2, ',', '.') }} €</strong></div>
-                                <div class="text-[11px] text-gray-400 mt-0.5">Mehrzweck-Gutschein (§ 3 Abs. 14 UStG) · E-Mail-Versand gratis (Goldene Metallkarte im Edel-Umschlag <a href="{{ route('versand') }}" target="_blank" class="underline hover:text-gray-600">zzgl. {{ number_format($this->postShippingCost, 2, ',', '.') }} € Versand</a>)</div>
+                                <div class="text-[11px] text-gray-400 mt-0.5">Mehrzweck-Gutschein (§ 3 Abs. 14 UStG) · E-Mail-Versand gratis (Goldene Aluminiumkarte im Edel-Umschlag <a href="{{ route('versand') }}" target="_blank" class="underline hover:text-gray-600">zzgl. {{ number_format($this->postShippingCost, 2, ',', '.') }} € Versand</a>)</div>
                             </div>
                             <button type="button"
                                     wire:click="nextStep"
@@ -326,7 +359,7 @@
                         </p>
 
                         <div class="space-y-6">
-                            <div>
+                            <div id="voucher-field-recipientName">
                                 <label class="block text-xs uppercase tracking-wider text-gray-700 font-bold mb-2 ml-1">
                                     Für wen ist der Gutschein? (Empfänger-Name) <span class="text-red-500">*</span>
                                 </label>
@@ -351,7 +384,7 @@
                                 @enderror
                             </div>
 
-                            <div>
+                            <div id="voucher-field-personalMessage">
                                 <label class="block text-xs uppercase tracking-wider text-gray-700 font-bold mb-2 ml-1">
                                     Deine persönliche Grußbotschaft <span class="text-gray-400 font-normal">(Optional)</span>
                                 </label>
@@ -389,7 +422,7 @@
                                         <span class="text-xs text-gray-500 leading-relaxed">Klassisches Champagner-Gold mit feinen goldenen Linien.</span>
                                     </button>
 
-                                    {{-- Schwarze Edition (+ 1,50 € nur bei physischer Metallkarte per Post) --}}
+                                    {{-- Schwarze Edition (+ 1,50 € nur bei physischer Aluminiumkarte per Post) --}}
                                     <button type="button"
                                             wire:click="$set('cardColor', 'black')"
                                             class="p-4 rounded-2xl border-2 text-left transition-all duration-300 flex flex-col justify-between cursor-pointer {{ $cardColor === 'black' ? 'border-primary bg-primary/10 shadow-xs' : 'border-gray-200 bg-white hover:border-gray-300' }}">
@@ -399,10 +432,10 @@
                                                 <span class="text-sm font-bold {{ $cardColor === 'black' ? 'text-primary' : 'text-gray-900' }}">Schwarze Edition</span>
                                             </div>
                                             <span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-bold whitespace-nowrap">
-                                                {{ $deliveryMethod === 'post' ? '+ 1,50 € (Metallkarte)' : 'PDF Gratis · Post + 1,50 €' }}
+                                                {{ $deliveryMethod === 'post' ? '+ 1,50 € (Aluminiumkarte)' : 'PDF Gratis · Post + 1,50 €' }}
                                             </span>
                                         </div>
-                                        <span class="text-xs text-gray-500 leading-relaxed">Als E-Mail-PDF kostenlos. Als echte schwarze Metallkarte per Post + 1,50 €.</span>
+                                        <span class="text-xs text-gray-500 leading-relaxed">Als E-Mail-PDF kostenlos. Als echte schwarze Aluminiumkarte per Post + 1,50 €.</span>
                                     </button>
                                 </div>
                             </div>
@@ -441,7 +474,7 @@
                                 <span class="text-xs font-semibold text-gray-400">Schritt 3 von 3</span>
                             </div>
                             <p class="text-xs sm:text-sm text-gray-500">
-                                Entscheide, ob dein Gutschein sofort digital per E-Mail oder als lasergravierte {{ $cardColor === 'black' ? 'schwarze' : 'goldene' }} Metallkarte im edlen schwarzen Umschlag mit goldenem Siegel per Post versendet werden soll.
+                                Entscheide, ob dein Gutschein sofort digital per E-Mail oder als lasergravierte {{ $cardColor === 'black' ? 'schwarze' : 'goldene' }} Aluminiumkarte im edlen schwarzen Umschlag mit goldenem Siegel per Post versendet werden soll.
                             </p>
                         </div>
 
@@ -463,12 +496,12 @@
                                     <span class="text-sm font-bold {{ $deliveryMethod === 'post' ? 'text-primary' : 'text-gray-800' }}">✉️ Per Post im Umschlag</span>
                                     <span class="text-xs px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-bold">+ {{ number_format($this->postShippingCost, 2, ',', '.') }} €</span>
                                 </div>
-                                <span class="text-xs text-gray-500 leading-relaxed">Lasergravierte {{ $cardColor === 'black' ? 'schwarze' : 'goldene' }} Metallkarte im schwarzen Umschlag mit goldenem Siegel.</span>
+                                <span class="text-xs text-gray-500 leading-relaxed">Lasergravierte {{ $cardColor === 'black' ? 'schwarze' : 'goldene' }} Aluminiumkarte im schwarzen Umschlag mit goldenem Siegel.</span>
                             </button>
                         </div>
 
                         @if($deliveryMethod === 'email')
-                            <div class="animate-fade-in">
+                            <div id="voucher-field-recipientEmail" class="animate-fade-in">
                                 <label class="block text-xs uppercase tracking-wider text-gray-700 font-bold mb-2 ml-1">
                                     E-Mail-Adresse für den Gutschein-Empfang <span class="text-red-500">*</span>
                                 </label>
@@ -496,10 +529,10 @@
                                     <div class="mt-3 p-3.5 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-700 flex items-start justify-between gap-3">
                                         <div>
                                             <strong class="text-gray-900">Schwarze Edition als E-Mail-PDF (0,00 € Aufpreis):</strong>
-                                            <p class="mt-0.5 text-gray-600">Der Aufpreis von 1,50 € fällt nur an, wenn du dich für die echte lasergravierte schwarze Metallkarte per Post entscheidest.</p>
+                                            <p class="mt-0.5 text-gray-600">Der Aufpreis von 1,50 € fällt nur an, wenn du dich für die echte lasergravierte schwarze Aluminiumkarte per Post entscheidest.</p>
                                         </div>
                                         <button type="button" wire:click="$set('deliveryMethod', 'post')" class="shrink-0 px-3 py-1.5 rounded-lg bg-white border border-gray-300 hover:border-primary text-gray-800 hover:text-primary font-bold text-[11px] transition-colors cursor-pointer">
-                                            Metallkarte wählen
+                                            Aluminiumkarte wählen
                                         </button>
                                     </div>
                                 @endif
@@ -507,14 +540,14 @@
                         @else
                             <div class="p-5 rounded-2xl bg-gray-50 border border-gray-200 text-xs text-gray-600 animate-fade-in space-y-4">
                                 <div>
-                                    <span class="font-bold text-gray-800 block mb-2">Gewählte Metallkarte für den Postversand:</span>
+                                    <span class="font-bold text-gray-800 block mb-2">Gewählte Aluminiumkarte für den Postversand:</span>
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <button type="button"
                                                 wire:click="$set('cardColor', 'gold')"
                                                 class="p-3 rounded-xl border-2 text-left transition-all flex items-center justify-between gap-2 cursor-pointer {{ $cardColor === 'gold' ? 'border-primary bg-white shadow-2xs' : 'border-gray-200 bg-white/70 hover:border-gray-300' }}">
                                             <span class="flex items-center gap-2 font-bold {{ $cardColor === 'gold' ? 'text-primary' : 'text-gray-800' }}">
                                                 <span class="w-4 h-4 rounded-full bg-gradient-to-br from-[#FAF7F2] via-[#E8D5B5] to-[#C5A059] border border-primary/50 shrink-0"></span>
-                                                <span>Goldene Metallkarte</span>
+                                                <span>Goldene Aluminiumkarte</span>
                                             </span>
                                             <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">Inklusive</span>
                                         </button>
@@ -523,7 +556,7 @@
                                                 class="p-3 rounded-xl border-2 text-left transition-all flex items-center justify-between gap-2 cursor-pointer {{ $cardColor === 'black' ? 'border-primary bg-white shadow-2xs' : 'border-gray-200 bg-white/70 hover:border-gray-300' }}">
                                             <span class="flex items-center gap-2 font-bold {{ $cardColor === 'black' ? 'text-primary' : 'text-gray-800' }}">
                                                 <span class="w-4 h-4 rounded-full bg-gradient-to-br from-[#2B2B2B] via-[#1A1A1A] to-[#0A0A0A] border border-gray-400 shrink-0"></span>
-                                                <span>Schwarze Metallkarte</span>
+                                                <span>Schwarze Aluminiumkarte</span>
                                             </span>
                                             <span class="text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">+ 1,50 €</span>
                                         </button>
@@ -548,7 +581,7 @@
                                         </li>
                                         <li class="flex items-center gap-2 text-gray-700">
                                             <svg class="w-4 h-4 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
-                                            <span>Lasergravierte {{ $cardColor === 'black' ? 'schwarze' : 'goldene' }} Metallkarte (Scheckkartenformat)</span>
+                                            <span>Lasergravierte {{ $cardColor === 'black' ? 'schwarze' : 'goldene' }} Aluminiumkarte (Scheckkartenformat)</span>
                                         </li>
                                     </ul>
                                 </div>
@@ -589,7 +622,7 @@
                                 <div>
                                     <p class="text-xs uppercase tracking-wider text-gray-500 font-bold">Gesamtsumme</p>
                                     @if($cardColor === 'black' && $deliveryMethod === 'post')
-                                        <span class="text-xs text-gray-600 font-semibold block">inkl. Schwarze Metallkarte (+ 1,50 €)</span>
+                                        <span class="text-xs text-gray-600 font-semibold block">inkl. Schwarze Aluminiumkarte (+ 1,50 €)</span>
                                     @elseif($cardColor === 'black' && $deliveryMethod === 'email')
                                         <span class="text-xs text-gray-600 font-semibold block">Schwarze Edition als E-Mail-PDF (0,00 € Aufpreis)</span>
                                     @endif
@@ -612,7 +645,7 @@
 
                             @if($deliveryMethod === 'post')
                                 <p class="text-[11px] text-gray-500 leading-relaxed bg-white/80 border border-gray-200/70 rounded-xl px-3.5 py-2.5">
-                                    <strong>Hersteller &amp; Produktsicherheit (GPSR):</strong> {{ shop_setting('company_name', 'Mein Seelenfunke') }}, {{ shop_setting('company_street', 'achtern Heben 9') }}, {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}, {{ shop_setting('company_email', 'kontakt@mein-seelenfunke.de') }}. Hinweis: Dekorative Metall-Gutscheinplakette, kein Spielzeug.
+                                    <strong>Hersteller &amp; Produktsicherheit (GPSR):</strong> {{ shop_setting('company_name', 'Mein Seelenfunke') }}, {{ shop_setting('company_street', 'achtern Heben 9') }}, {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}, {{ shop_setting('company_email', 'kontakt@mein-seelenfunke.de') }}. Hinweis: Dekorative Aluminium-Gutscheinplakette, kein Spielzeug.
                                 </p>
                             @endif
 

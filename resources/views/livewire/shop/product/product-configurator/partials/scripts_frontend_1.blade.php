@@ -43,6 +43,9 @@
             isDragging: false,
             isResizing: false,
             isRotating: false,
+            isAdjustingCurve: false,
+            liveCurveValue: null,
+            _curveRafId: null,
             _justTransformed: false,
             dragStartX: 0,
             dragStartY: 0,
@@ -713,7 +716,7 @@
                                         engine.rotateToSide(this.activeSide, false);
                                     }
                                     engine.animate();
-                                    this.updateTexture();
+                                    this.updateTexture(true);
                                 }
                                 requestAnimationFrame(() => {
                                     if(engine) engine.resize();
@@ -725,6 +728,7 @@
             },
 
             destroy() {
+                if (this._curveRafId) cancelAnimationFrame(this._curveRafId);
                 if (this._onCartUpdated) window.removeEventListener('cart-updated', this._onCartUpdated);
                 if (this._onToggleHints) window.removeEventListener('toggle-configurator-hints', this._onToggleHints);
                 if (this._onToggleAnim) window.removeEventListener('toggle-configurator-animation', this._onToggleAnim);
@@ -748,16 +752,209 @@
                 }
             },
 
-            ensureTextDims(item) {
+            getEffectiveTextCurve(item, index = null) {
+                if (
+                    this.isAdjustingCurve &&
+                    this.liveCurveValue !== null &&
+                    this.selectedType === 'text' &&
+                    item &&
+                    (
+                        (index !== null && Number(this.selectedIndex) === Number(index)) ||
+                        (this.currentTexts && this.currentTexts[this.selectedIndex] && this.currentTexts[this.selectedIndex].id === item.id)
+                    )
+                ) {
+                    return Number(this.liveCurveValue);
+                }
+                return Number((item && item.curve) || 0);
+            },
+
+            isTextCurved(item, index = null) {
+                return Boolean(item && Math.abs(this.getEffectiveTextCurve(item, index)) >= 0.5 && item.text && String(item.text).trim() !== '');
+            },
+
+            computeCurvedTextLayout(item, overrideFontSizePx = null, overrideCurve = null) {
+                if (!item || !item.text || String(item.text).trim() === '') {
+                    return { chars: [], widthPx: 120, heightPx: 36 };
+                }
+
+                const rawCurve = overrideCurve !== null && overrideCurve !== undefined
+                    ? Number(overrideCurve)
+                    : this.getEffectiveTextCurve(item);
+                const curve = Math.max(-100, Math.min(100, rawCurve));
+                const fontSizePx = Number((overrideFontSizePx || this.getEffectiveTextareaFontSizePx(item)).toFixed(2));
+                const fontFamily = (this.fontMap && this.fontMap[item.font]) ? this.fontMap[item.font] : 'Arial';
+                const rawText = String(item.text);
+
+                if (!this._charMeasureCache) {
+                    this._charMeasureCache = new Map();
+                }
+                if (!this._curvedLayoutCache) {
+                    this._curvedLayoutCache = new Map();
+                }
+
+                const measureKey = fontFamily + '|' + fontSizePx + '|' + rawText;
+                const layoutKey = measureKey + '|' + curve;
+
+                const cachedLayout = this._curvedLayoutCache.get(layoutKey);
+                if (cachedLayout) {
+                    return cachedLayout;
+                }
+
+                let measured = this._charMeasureCache.get(measureKey);
+                if (!measured) {
+                    if (!this._measureCanvas) {
+                        this._measureCanvas = document.createElement('canvas');
+                    }
+                    const ctx = this._measureCanvas.getContext('2d');
+                    if (ctx) {
+                        ctx.font = 'bold ' + fontSizePx + 'px ' + fontFamily;
+                    }
+
+                    const measure = (str) => {
+                        if (!str) return 0;
+                        if (!ctx) return str.length * fontSizePx * 0.58;
+                        return ctx.measureText(str).width;
+                    };
+
+                    const textLines = rawText.split('\n');
+                    const lineWidths = textLines.map(line => measure(line || ' '));
+                    const maxLineW = Math.max(fontSizePx * 1.5, ...lineWidths);
+                    const lineHeight = fontSizePx * 1.15;
+
+                    const lineEntries = [];
+                    textLines.forEach((line, lineIdx) => {
+                        const charsArr = Array.from(line || '');
+                        if (charsArr.length === 0) return;
+
+                        const lineW = lineWidths[lineIdx] || 0;
+                        const deltaY = (lineIdx - (textLines.length - 1) / 2) * lineHeight;
+                        const charOffsets = [];
+
+                        let prefixStr = '';
+                        charsArr.forEach((ch) => {
+                            const prefixW = measure(prefixStr);
+                            const charW = measure(ch);
+                            prefixStr += ch;
+                            charOffsets.push({
+                                ch,
+                                u: prefixW + (charW / 2) - (lineW / 2),
+                            });
+                        });
+
+                        lineEntries.push({ deltaY, charOffsets });
+                    });
+
+                    measured = { maxLineW, lineEntries };
+                    if (this._charMeasureCache.size > 150) {
+                        this._charMeasureCache.clear();
+                    }
+                    this._charMeasureCache.set(measureKey, measured);
+                }
+
+                const thetaMax = (Math.abs(curve) / 100) * Math.PI;
+                const rBase = measured.maxLineW / Math.max(0.01, thetaMax);
+                const cy = (curve > 0 ? 1 : -1) * rBase * ((1 + Math.cos(thetaMax / 2)) / 2);
+
+                const chars = [];
+                let maxAbsX = fontSizePx;
+                let maxAbsY = fontSizePx * 0.7;
+
+                for (let i = 0; i < measured.lineEntries.length; i++) {
+                    const entry = measured.lineEntries[i];
+                    const rLine = Math.max(fontSizePx * 0.8, curve > 0 ? (rBase - entry.deltaY) : (rBase + entry.deltaY));
+                    const offsets = entry.charOffsets;
+
+                    for (let j = 0; j < offsets.length; j++) {
+                        const { ch, u } = offsets[j];
+                        const alpha = u / rLine;
+                        const x = rLine * Math.sin(alpha);
+                        const y = (curve > 0) ? (cy - rLine * Math.cos(alpha)) : (cy + rLine * Math.cos(alpha));
+                        const deg = ((curve > 0) ? alpha : -alpha) * (180 / Math.PI);
+
+                        chars.push({
+                            char: ch,
+                            x: Number(x.toFixed(2)),
+                            y: Number(y.toFixed(2)),
+                            deg: Number(deg.toFixed(2)),
+                            fontSizePx,
+                        });
+
+                        const ax = Math.abs(x) + fontSizePx * 0.65;
+                        const ay = Math.abs(y) + fontSizePx * 0.72;
+                        if (ax > maxAbsX) maxAbsX = ax;
+                        if (ay > maxAbsY) maxAbsY = ay;
+                    }
+                }
+
+                const widthPx = Math.max(60, Math.ceil(maxAbsX * 2) + 24);
+                const heightPx = Math.max(32, Math.ceil(maxAbsY * 2) + 16);
+
+                const result = { chars, widthPx, heightPx };
+                if (this._curvedLayoutCache.size > 300) {
+                    this._curvedLayoutCache.clear();
+                }
+                this._curvedLayoutCache.set(layoutKey, result);
+                return result;
+            },
+
+            getCurvedTextChars(item, index = null) {
+                if (!this.isTextCurved(item, index)) return [];
+                return this.computeCurvedTextLayout(item, null, this.getEffectiveTextCurve(item, index)).chars;
+            },
+
+            ensureTextDims(item, force = false) {
                 if (!item || !item.id) {
                     return { width: '120px', height: '36px' };
                 }
-                if (this.textDims[item.id] && this.textDims[item.id].width && this.textDims[item.id].height) {
-                    return this.textDims[item.id];
+                if (!this._textDimsMap) {
+                    this._textDimsMap = new Map();
+                }
+                const rawDims = (window.Alpine && typeof window.Alpine.raw === 'function')
+                    ? window.Alpine.raw(this.textDims)
+                    : this.textDims;
+
+                // Während der Bogen-Schieberegler aktiv gezogen wird, die Box-Größe konstant halten,
+                // damit keinerlei Layout-Reflow oder Backdrop-Blur-Reallokation über dem Hintergrundvideo ausgelöst wird.
+                const existing = this._textDimsMap.get(item.id) || (rawDims && rawDims[item.id]);
+                if (this.isAdjustingCurve && existing && existing.width && existing.height && !force) {
+                    return existing;
+                }
+
+                const curCurve = Number(item.curve || 0);
+                const curScale = Number((this.scaleFactor || 1).toFixed(4));
+                if (
+                    !force &&
+                    existing &&
+                    existing.width &&
+                    existing.height &&
+                    existing._text === String(item.text || '') &&
+                    existing._size === Number(item.size || 0) &&
+                    existing._font === String(item.font || 'Arial') &&
+                    existing._curve === curCurve &&
+                    existing._scale === curScale
+                ) {
+                    return existing;
                 }
 
                 const hasText = item.text !== undefined && item.text !== null && String(item.text).length > 0;
                 const fontSizePx = this.getEffectiveTextareaFontSizePx(item);
+
+                if (hasText && Math.abs(curCurve) >= 0.5 && String(item.text).trim() !== '') {
+                    const curvedLayout = this.computeCurvedTextLayout(item, fontSizePx, curCurve);
+                    const computed = {
+                        width: curvedLayout.widthPx + 'px',
+                        height: curvedLayout.heightPx + 'px',
+                        _text: String(item.text || ''),
+                        _size: Number(item.size || 0),
+                        _font: String(item.font || 'Arial'),
+                        _curve: curCurve,
+                        _scale: curScale,
+                    };
+                    this._textDimsMap.set(item.id, computed);
+                    if (rawDims) rawDims[item.id] = computed;
+                    return computed;
+                }
+
                 const fontFamily = (this.fontMap && this.fontMap[item.font]) ? this.fontMap[item.font] : 'Arial';
                 const rawText = hasText ? String(item.text) : 'Text eingeben...';
                 const textLines = rawText.split('\n');
@@ -787,8 +984,18 @@
                 }
                 const finalWidth = widthPx + 'px';
                 const finalHeight = Math.max(32, canvasHeight + 14) + 'px';
-                this.textDims[item.id] = { width: finalWidth, height: finalHeight };
-                return this.textDims[item.id];
+                const computed = {
+                    width: finalWidth,
+                    height: finalHeight,
+                    _text: String(item.text || ''),
+                    _size: Number(item.size || 0),
+                    _font: String(item.font || 'Arial'),
+                    _curve: curCurve,
+                    _scale: curScale,
+                };
+                this._textDimsMap.set(item.id, computed);
+                if (rawDims) rawDims[item.id] = computed;
+                return computed;
             },
 
             switchSide(side) {
@@ -807,6 +1014,7 @@
                         x: this.areaCenterX,
                         y: this.areaCenterY,
                         rotation: 0,
+                        curve: 0,
                         align: 'center',
                         font: this.getPreferredFont()
                     };
@@ -884,6 +1092,7 @@
                     x: targetX,
                     y: targetY,
                     rotation: 0,
+                    curve: 0,
                     align: 'center',
                     font: this.getPreferredFont(),
                     zIndex: Math.min(95, maxZ + 1)
@@ -1244,6 +1453,7 @@
                 let snapshotBackBase64 = null;
 
                 try {
+                    this.flushPendingCurve();
                     this.syncStageTextareasToState();
                     this.focusedTextId = null;
                     this.selectedIndex = null;
@@ -1404,6 +1614,10 @@
                                             ignoreElements: (el) => Boolean(el && el.hasAttribute && el.hasAttribute('data-snapshot-ignore')),
                                             onclone: (clonedDoc) => {
                                                 clonedDoc.querySelectorAll('textarea[data-id]').forEach(ta => {
+                                                    if (ta.getAttribute('data-curved') === '1') {
+                                                        ta.remove();
+                                                        return;
+                                                    }
                                                     const div = clonedDoc.createElement('div');
                                                     div.textContent = ta.value || '';
                                                     div.className = ta.className;
@@ -1492,9 +1706,18 @@
                 setTimeout(() => { this.showMessage = false; }, 3500);
             },
 
-            updateTexture() {
+            updateTexture(forceImmediate = false) {
                 let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
                 if (!engine || !engine.isReady || !engine.textureFront) return;
+
+                // Im 2D-Modus (showDrawingBoard = true) ist die 3D-Bühne ausgeblendet (visibility: hidden).
+                // Das aufwendige 2048x2048 3D-Canvas-Rendering erst beim Wechsel auf 3D oder beim Speichern ausführen,
+                // damit die 2D-Interaktion und das Hintergrundvideo zu 100 % ruckelfrei mit 60 FPS laufen.
+                if (this.showDrawingBoard && !this.isCapturing && !forceImmediate) {
+                    this._needs3DTextureSync = true;
+                    return;
+                }
+                this._needs3DTextureSync = false;
 
                 if (this._renderTimeout) clearTimeout(this._renderTimeout);
 
@@ -1524,7 +1747,7 @@
                                     this._isRendering = false;
                                     if (this._needsAnotherRender) {
                                         this._needsAnotherRender = false;
-                                        this.updateTexture();
+                                        this.updateTexture(forceImmediate);
                                     }
                                 }, 100);
                             }
@@ -1537,7 +1760,7 @@
                         executeCanvasRender();
                     }
 
-                }, 100);
+                }, forceImmediate ? 16 : 100);
             },
 
             refitAllTextareas() {
@@ -1593,6 +1816,7 @@
                     e.target.closest('.configurator-storage-ui'))
                     return;
 
+                this.flushPendingCurve();
                 this.isCropping = false;
                 this.activeCropHandle = null;
                 this.selectedType = null;
@@ -1604,6 +1828,7 @@
             selectItem(type, index) {
                 if(this.context === 'preview' || this.config.isBeginnerMode) return;
                 if (this.selectedType !== type || this.selectedIndex !== index) {
+                    this.flushPendingCurve();
                     this.isCropping = false;
                     this.activeCropHandle = null;
                     this.showFontMenu = this.showSizeMenu = this.showAlignMenu = this.showPosMenu = false;
@@ -1810,6 +2035,94 @@
                 this.showAlignMenu = false;
                 this.updateTexture();
                 this.recordHistory();
+            },
+
+            previewTextCurve(newCurve) {
+                if (this.selectedType !== 'text' || this.selectedIndex === null) return;
+                const item = this.currentTexts[this.selectedIndex];
+                if (!item) return;
+
+                const numVal = Math.max(-100, Math.min(100, Math.round(Number(newCurve) || 0)));
+
+                if (Math.abs(numVal) >= 1 && item.align && item.align !== 'center') {
+                    const oldAlign = item.align;
+                    const boxW = this.getTextBoxWidthPercent(item);
+                    if (boxW > 0) {
+                        item.x = oldAlign === 'left'
+                            ? (Number(item.x ?? this.areaCenterX) + boxW / 2)
+                            : (Number(item.x ?? this.areaCenterX) - boxW / 2);
+                    }
+                    item.align = 'center';
+                }
+
+                this._pendingCurveVal = numVal;
+                if (this._curveRafId) return;
+
+                this._curveRafId = requestAnimationFrame(() => {
+                    this._curveRafId = null;
+                    this.isAdjustingCurve = true;
+                    this.liveCurveValue = this._pendingCurveVal;
+                    if (!this.showDrawingBoard) {
+                        const activeItem = this.currentTexts ? this.currentTexts[this.selectedIndex] : null;
+                        if (activeItem) {
+                            activeItem.curve = this._pendingCurveVal;
+                        }
+                    }
+                });
+            },
+
+            flushPendingCurve() {
+                if (this._curveRafId) {
+                    cancelAnimationFrame(this._curveRafId);
+                    this._curveRafId = null;
+                }
+                if (this.isAdjustingCurve && this.liveCurveValue !== null) {
+                    const val = this.liveCurveValue;
+                    this.isAdjustingCurve = false;
+                    this.liveCurveValue = null;
+                    this.setTextCurve(val, true);
+                }
+            },
+
+            setTextCurve(newCurve, saveHistory = false) {
+                if (this._curveRafId) {
+                    cancelAnimationFrame(this._curveRafId);
+                    this._curveRafId = null;
+                }
+                this.isAdjustingCurve = false;
+                this.liveCurveValue = null;
+
+                if (this.selectedType !== 'text' || this.selectedIndex === null) return;
+                const item = this.currentTexts[this.selectedIndex];
+                if (!item) return;
+
+                const numVal = Math.max(-100, Math.min(100, Math.round(Number(newCurve) || 0)));
+
+                if (Math.abs(numVal) >= 1 && item.align && item.align !== 'center') {
+                    const oldAlign = item.align;
+                    const boxW = this.getTextBoxWidthPercent(item);
+                    if (boxW > 0) {
+                        item.x = oldAlign === 'left'
+                            ? (Number(item.x ?? this.areaCenterX) + boxW / 2)
+                            : (Number(item.x ?? this.areaCenterX) - boxW / 2);
+                    }
+                    item.align = 'center';
+                }
+
+                item.curve = numVal;
+                const dims = this.ensureTextDims(item, true);
+                const root = this.$root || document;
+                const ta = root.querySelector(`textarea[data-id="${item.id}"]`);
+                if (ta && dims) {
+                    ta.style.width = dims.width;
+                    ta.style.height = dims.height;
+                }
+                this.updateTexture();
+                if (saveHistory) {
+                    this.recordHistory();
+                } else {
+                    this.scheduleDebouncedHistory();
+                }
             },
 
             centerHorizontal() {
@@ -2449,7 +2762,8 @@
                     }
                 } catch (e) {}
 
-                const isVisible = this.showDrawingBoard && el.offsetParent !== null && el.getClientRects().length > 0;
+                const isCurved = Boolean(hasText && item && this.isTextCurved(item));
+                const isVisible = !isCurved && this.showDrawingBoard && el.offsetParent !== null && el.getClientRects().length > 0;
 
                 let newWidth = canvasWidth;
                 let newHeight = canvasHeight;
@@ -2474,16 +2788,37 @@
                 // Großzügiger Puffer links/rechts (+24px) und oben/unten (+14px), damit geschwungene Schreibschriften
                 // (z. B. Lobster Two, Great Vibes, Alex Brush) an den Rändern des Textfelds niemals abgeschnitten werden
                 let widthPx = Math.max(60, newWidth + 24);
+                let heightPx = Math.max(32, newHeight + 14);
                 if (!hasText) {
                     widthPx = Math.min(widthPx, this.getMaxEmptyTextWidthPx());
+                } else if (isCurved) {
+                    const curvedLayout = this.computeCurvedTextLayout(item, fontSizePx);
+                    widthPx = curvedLayout.widthPx;
+                    heightPx = curvedLayout.heightPx;
                 }
                 const finalWidth = widthPx + 'px';
-                const finalHeight = Math.max(32, newHeight + 14) + 'px';
+                const finalHeight = heightPx + 'px';
 
                 el.style.width = finalWidth;
                 el.style.height = finalHeight;
 
-                this.textDims[id] = { width: finalWidth, height: finalHeight };
+                const computed = {
+                    width: finalWidth,
+                    height: finalHeight,
+                    _text: String((item && item.text) || el.value || ''),
+                    _size: Number((item && item.size) || 0),
+                    _font: String((item && item.font) || 'Arial'),
+                    _curve: Number((item && item.curve) || 0),
+                    _scale: Number((this.scaleFactor || 1).toFixed(4)),
+                };
+                if (!this._textDimsMap) {
+                    this._textDimsMap = new Map();
+                }
+                this._textDimsMap.set(id, computed);
+                const rawDims = (window.Alpine && typeof window.Alpine.raw === 'function')
+                    ? window.Alpine.raw(this.textDims)
+                    : this.textDims;
+                if (rawDims) rawDims[id] = computed;
 
                 if (isVisible) {
                     el.scrollTop = 0;

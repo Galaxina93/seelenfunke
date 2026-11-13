@@ -185,7 +185,7 @@
             </a>
 
             <p style="font-size: 11px; color: #999; margin-top: 12px;">
-                (Kreditkarte, Apple Pay, Google Pay, Klarna, SEPA-Lastschrift)
+                (Kreditkarte, PayPal, Apple Pay, Google Pay, Klarna, SEPA-Lastschrift)
             </p>
         </div>
     @endif

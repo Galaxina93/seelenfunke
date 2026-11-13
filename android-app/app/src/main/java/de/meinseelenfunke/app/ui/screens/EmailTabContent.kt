@@ -1914,26 +1914,73 @@ fun EmailDetailDialog(
                         AndroidView(
                             factory = { ctx ->
                                 WebView(ctx).apply {
-                                    webViewClient = WebViewClient()
-                                    settings.javaScriptEnabled = false
-                                    settings.loadsImagesAutomatically = true
-                                    settings.useWideViewPort = true
-                                    settings.loadWithOverviewMode = true
+                                    android.webkit.CookieManager.getInstance().setAcceptCookie(false)
+                                    android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
+                                    settings.apply {
+                                        javaScriptEnabled = false
+                                        allowFileAccess = false
+                                        allowContentAccess = false
+                                        domStorageEnabled = false
+                                        databaseEnabled = false
+                                        saveFormData = false
+                                        mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                                        loadsImagesAutomatically = true
+                                        useWideViewPort = true
+                                        loadWithOverviewMode = true
+                                    }
+                                    webViewClient = object : WebViewClient() {
+                                        override fun shouldOverrideUrlLoading(
+                                            view: WebView?,
+                                            request: android.webkit.WebResourceRequest?
+                                        ): Boolean {
+                                            val targetUrl = request?.url?.toString() ?: return true
+                                            de.meinseelenfunke.app.util.SecureFileOpener.openSafeExternalUrl(ctx, targetUrl)
+                                            return true
+                                        }
+
+                                        @Deprecated("Deprecated in Java")
+                                        override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                                            if (!url.isNullOrBlank()) {
+                                                de.meinseelenfunke.app.util.SecureFileOpener.openSafeExternalUrl(ctx, url)
+                                            }
+                                            return true
+                                        }
+
+                                        override fun shouldInterceptRequest(
+                                            view: WebView?,
+                                            request: android.webkit.WebResourceRequest?
+                                        ): android.webkit.WebResourceResponse? {
+                                            val scheme = request?.url?.scheme?.lowercase() ?: return android.webkit.WebResourceResponse("text/plain", "UTF-8", java.io.ByteArrayInputStream(ByteArray(0)))
+                                            if (scheme != "https" && scheme != "data" && scheme != "about") {
+                                                return android.webkit.WebResourceResponse("text/plain", "UTF-8", java.io.ByteArrayInputStream(ByteArray(0)))
+                                            }
+                                            return super.shouldInterceptRequest(view, request)
+                                        }
+                                    }
                                 }
                             },
                             update = { webView ->
+                                val sanitizedHtml = rawHtml
+                                    .replace(Regex("(?is)<script\\b[^>]*>.*?</script>"), "")
+                                    .replace(Regex("(?is)<iframe\\b[^>]*>.*?</iframe>"), "")
+                                    .replace(Regex("(?is)<object\\b[^>]*>.*?</object>"), "")
+                                    .replace(Regex("(?is)<embed\\b[^>]*>"), "")
+                                    .replace(Regex("(?is)<form\\b[^>]*>.*?</form>"), "")
+                                    .replace(Regex("(?is)<meta\\b[^>]*http-equiv\\s*=\\s*['\"]?refresh['\"]?[^>]*>"), "")
+                                    .replace(Regex("(?i)\\bon[a-z]+\\s*=\\s*(['\"].*?['\"]|[^\\s>]+)"), "")
                                 val wrappedHtml = """
                                     <!DOCTYPE html>
                                     <html>
                                     <head>
                                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                                    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src https: data:; font-src data:;">
                                     <style>
                                         body { font-family: sans-serif; word-wrap: break-word; margin: 12px; color: #0F172A; background: #FFFFFF; }
                                         img { max-width: 100%; height: auto; }
                                         table { max-width: 100% !important; }
                                     </style>
                                     </head>
-                                    <body>$rawHtml</body>
+                                    <body>$sanitizedHtml</body>
                                     </html>
                                 """.trimIndent()
                                 webView.loadDataWithBaseURL(null, wrappedHtml, "text/html", "UTF-8", null)

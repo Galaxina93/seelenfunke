@@ -15,6 +15,12 @@ class GeminiAgent implements AiProviderInterface
     protected string $apiKey;
     protected \App\Models\Ai\AiAgent $agent;
     public string $dynamicSystemPrompt = '';
+    protected array $ephemeralEquippedPools = [];
+
+    public function getEphemeralEquippedPools(): array
+    {
+        return $this->ephemeralEquippedPools;
+    }
 
     public function __construct(\App\Models\Ai\AiAgent $agent)
     {
@@ -58,9 +64,19 @@ class GeminiAgent implements AiProviderInterface
         }
         $isOverride = str_contains($latestUserMessage, 'ich befehle dir');
 
-        $isPublicSupportChat = !empty(\App\Services\AI\AIFunctionsRegistry::getGlobalContext()['__chat_id']);
+        // Panzerglas-Isolation: 'Funki' agiert ausschließlich als externer Shop-Support-Bot, niemals mit Admin-/Mitarbeiter-Kontext
+        $isFunkiSupportOnly = ($this->agent->name ?? '') === 'Funki';
+        $isPublicSupportChat = $isFunkiSupportOnly || !empty(\App\Services\AI\AIFunctionsRegistry::getGlobalContext()['__chat_id']);
         $isAdmin = !$isPublicSupportChat && \App\Services\AI\AiAuthHelper::isAdmin();
         $isEmployee = !$isPublicSupportChat && !$isAdmin && \App\Services\AI\AiAuthHelper::isEmployee();
+
+        // Ephemere Skill-Pool-Vordistanz für Funkira (wird im finally-Block garantiert wieder geleert)
+        $this->ephemeralEquippedPools = [];
+        $isFunkiraInternal = ($this->agent->name ?? '') === 'Funkira' && !$isPublicSupportChat && ($isAdmin || $isEmployee);
+        if ($isFunkiraInternal) {
+            $currentRoutePath = \Illuminate\Support\Facades\Route::currentRouteName() ?? request()->path();
+            $this->ephemeralEquippedPools = FunkiraSkillPoolService::detectPoolsForRequest($latestUserMessage, $currentRoutePath);
+        }
         
         $aiCommand = null;
         if ($isAdmin) {
@@ -97,12 +113,19 @@ class GeminiAgent implements AiProviderInterface
         $hasSwitchAgentTool = $this->agent->tools->contains('identifier', 'system_switch_agent');
         
         $delegationsregel = "";
-        if ($hasAskAgentTool && $hasSwitchAgentTool) {
+        if ($isFunkiraInternal) {
+            $delegationsregel = "SELBSTSTÄNDIGKEITS-REGEL: Du bist die alleinige interne Super-Intelligenz und delegierst NICHT an Unter-Agenten. Wenn dir im aktuellen Schritt ein Spezialwerkzeug fehlt, rufe sofort '" . FunkiraSkillPoolService::EQUIP_TOOL_NAME . "' mit dem benötigten Fähigkeitspool auf und führe die Aufgabe direkt selbst aus!\n";
+        } elseif (!$isPublicSupportChat && $hasAskAgentTool && $hasSwitchAgentTool) {
             $delegationsregel = "DELEGATIONSREGEL: Wenn dir eine Aufgabe gegeben wird, für die dir das passende Werkzeug fehlt, darfst du dich NICHT hilflos entschuldigen! Nutze direkt 'communication_ask_agent', um im Hintergrund einen spezialisierten Kollegen zu fragen und sofort die Antwort zu präsentieren. Alternativ: Nutze 'system_switch_agent', um komplett an den passenden Agenten abzugeben!\n";
-        } elseif ($hasAskAgentTool) {
+        } elseif (!$isPublicSupportChat && $hasAskAgentTool) {
             $delegationsregel = "DELEGATIONSREGEL: Wenn dir eine Aufgabe gegeben wird, für die dir das passende Werkzeug fehlt, nutze 'communication_ask_agent', um im Hintergrund einen spezialisierten Kollegen zu fragen.\n";
         } else {
             $delegationsregel = "ANTI-HALLUZINATIONS-REGEL: Wenn dir ein Werkzeug oder eine Fähigkeit für eine Anfrage fehlt (z.B. E-Mails senden, Preise ändern), entschuldige dich höflich und weise darauf hin, dass du als KI-Support-Bot diese Aktion nicht ausführen kannst. TUE NIEMALS SO, als ob du eine Aktion im Hintergrund ausführst oder an einen Kollegen weiterleitest, wenn du die Werkzeuge dafür nicht hast!\n";
+        }
+
+        if ($isFunkiraInternal) {
+            $systemPromptText .= FunkiraSkillPoolService::getSuperIntelligenceDirective($this->ephemeralEquippedPools);
+            $systemPromptText .= FunkiraSkillPoolService::getActivePoolBriefings($this->ephemeralEquippedPools);
         }
 
         // --- Globale Regel zur reaktiven Natur des KI-Systems ---
@@ -258,7 +281,12 @@ class GeminiAgent implements AiProviderInterface
         $calledTools = [];
 
         $startTime = microtime(true);
-        $textResponse = $this->chatLoop($messages, $contextData, $usageData, $eventsData, 0, $calledTools, $streamCallback);
+        try {
+            $textResponse = $this->chatLoop($messages, $contextData, $usageData, $eventsData, 0, $calledTools, $streamCallback);
+        } finally {
+            // Automatischer Snap-Back: Nach dieser Anfrage springt Funkira wieder zu ihren schlanken Hauptfähigkeiten zurück
+            $this->ephemeralEquippedPools = [];
+        }
         $totalTimeMs = (int) round((microtime(true) - $startTime) * 1000);
 
         // Clean response by removing <speak> and </speak> tags
@@ -302,12 +330,25 @@ class GeminiAgent implements AiProviderInterface
             return "Fehler: Meine internen Denkprozesse haben sich in einer Endlosschleife verfangen (Max Tool Depth Limit).";
         }
         $globalSchema = AIFunctionsRegistry::getSchema();
-        $allowedIdentifiers = $this->agent->tools->pluck('identifier')->toArray();
-        $allowedIdentifiers[] = 'system_get_current_time';
         $isEmployeeRestricted = AiAuthHelper::check() && !AiAuthHelper::isAdmin();
         $globalCtx = AIFunctionsRegistry::getGlobalContext();
-        $isPublicCustomerSupport = !empty($globalCtx['__chat_id'])
+        $isFunkiSupportOnly = ($this->agent->name ?? '') === 'Funki';
+        $isPublicCustomerSupport = $isFunkiSupportOnly
+            || !empty($globalCtx['__chat_id'])
             || (AiAuthHelper::check() && AiAuthHelper::isCustomer() && !AiAuthHelper::isAdmin() && !AiAuthHelper::isEmployee());
+
+        if ($isFunkiSupportOnly) {
+            $allowedIdentifiers = array_values(array_filter(
+                array_column(AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
+                fn (string $n) => str_starts_with($n, 'support_')
+            ));
+            $allowedIdentifiers[] = 'system_get_current_time';
+        } elseif (($this->agent->name ?? '') === 'Funkira' && !$isPublicCustomerSupport) {
+            $allowedIdentifiers = FunkiraSkillPoolService::getActiveToolIdentifiers($this->ephemeralEquippedPools);
+        } else {
+            $allowedIdentifiers = $this->agent->tools->pluck('identifier')->toArray();
+            $allowedIdentifiers[] = 'system_get_current_time';
+        }
 
         $filteredSchema = array_values(array_filter($globalSchema, function ($t) use ($allowedIdentifiers, $isEmployeeRestricted, $isPublicCustomerSupport) {
             $fnName = $t['function']['name'] ?? '';
@@ -798,12 +839,15 @@ class GeminiAgent implements AiProviderInterface
                     // --- SECURITY: HALT UNAUTHORIZED TOOL CALLS ---
                     if (!in_array($functionName, $allowedIdentifiers)) {
                         Log::warning("AI Security Block: Unauthorized tool call attempted: {$functionName} by Agent ID {$this->agent->id}");
+                        $guardHint = (($this->agent->name ?? '') === 'Funkira' && !$isPublicCustomerSupport)
+                            ? "SYSTEM GUARDRAIL BLOCK: Das Werkzeug '{$functionName}' ist noch nicht in deinem aktiven Fähigkeitspool geladen! Rufe zuerst '" . FunkiraSkillPoolService::EQUIP_TOOL_NAME . "' mit dem passenden Pool auf, dann steht es dir im nächsten Schritt sofort bereit."
+                            : "SYSTEM GUARDRAIL BLOCK: Zugriff auf das Werkzeug '{$functionName}' verweigert! Dieses Werkzeug existiert in deinem aktuellen Kontext nicht.";
                         $messages[] = [
                             'role' => 'tool',
                             'tool_call_id' => $toolCallId,
                             'content' => json_encode([
                                 'status' => 'error', 
-                                'message' => "SYSTEM GUARDRAIL BLOCK: Zugriff auf das Werkzeug '{$functionName}' verweigert! Dieses Werkzeug existiert in deinem aktuellen Kontext nicht. Nutze stattdessen 'communication_ask_agent', um einen passenden Kollegen zu beauftragen, falls dir die Berechtigung fehlt."
+                                'message' => $guardHint
                             ], JSON_UNESCAPED_UNICODE)
                         ];
                         continue;
@@ -893,6 +937,20 @@ class GeminiAgent implements AiProviderInterface
 
                     // Execute via our safe registry
                     $result = AIFunctionsRegistry::execute($functionName, $executeArgs, $this->agent);
+
+                    // Dynamisches Nachrüsten von Fähigkeitspools mitten im laufenden Request (nur im RAM für diesen Durchlauf!)
+                    if (
+                        $functionName === FunkiraSkillPoolService::EQUIP_TOOL_NAME
+                        && ($this->agent->name ?? '') === 'Funkira'
+                        && !$isPublicCustomerSupport
+                        && !empty($result['equipped_pools'])
+                        && is_array($result['equipped_pools'])
+                    ) {
+                        $this->ephemeralEquippedPools = array_values(array_unique(array_merge(
+                            $this->ephemeralEquippedPools,
+                            $result['equipped_pools']
+                        )));
+                    }
 
                     if ($toolUsageRecord && isset($result['status']) && $result['status'] === 'error') {
                         $toolUsageRecord->update([

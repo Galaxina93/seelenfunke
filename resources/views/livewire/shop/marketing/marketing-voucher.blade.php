@@ -637,7 +637,7 @@
                                 <div class="inline-flex items-center justify-end gap-2">
                                     <a href="{{ route('customer.gift-voucher.download', ['voucher' => $gv->id, 'format' => 'laser_svg']) }}"
                                        class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500 hover:text-gray-950 transition-all shadow-sm"
-                                       title="86×54mm Laser-SVG für goldene Metallkarte herunterladen ({{ $gv->code }})">
+                                       title="86×54mm Laser-SVG für Aluminiumkarte herunterladen ({{ $gv->code }})">
                                         <x-heroicon-m-bolt class="w-4 h-4" />
                                     </a>
                                     <a href="{{ route('customer.gift-voucher.download', $gv->id) }}"

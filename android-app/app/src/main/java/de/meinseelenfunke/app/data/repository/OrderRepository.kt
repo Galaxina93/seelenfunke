@@ -15,7 +15,7 @@ class OrderRepository(private val serviceLocator: ServiceLocator) {
         try {
             Result.success(serviceLocator.getOrderApi().getOrders(status, search, page))
         } catch (e: Exception) {
-            AppLogger.error(serviceLocator.context, "OrderRepo", "getOrders failed: status=$status, search=$search, page=$page", e)
+            AppLogger.error(serviceLocator.context, "OrderRepo", "getOrders failed: status=$status, page=$page", e)
             Result.failure(e)
         }
     }

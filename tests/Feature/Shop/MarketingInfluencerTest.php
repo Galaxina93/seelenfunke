@@ -932,16 +932,18 @@ class MarketingInfluencerTest extends TestCase
         ]);
 
         // 4. Geschenkgutschein (Wertgutschein -> darf NICHT rabattiert oder im Produkt-Grid beworben werden)
-        $giftVoucherProduct = \App\Models\Product\Product::create([
-            'name' => 'Seelenfunke Geschenkgutschein',
-            'slug' => 'geschenkgutschein',
-            'sku' => 'VOUCHER-MAIN',
-            'type' => 'digital',
-            'status' => 'active',
-            'price' => 5000,
-            'track_quantity' => false,
-            'quantity' => 999,
-        ]);
+        $giftVoucherProduct = \App\Models\Product\Product::updateOrCreate(
+            ['slug' => 'geschenkgutschein'],
+            [
+                'name' => 'Seelenfunke Geschenkgutschein',
+                'sku' => 'VOUCHER-MAIN',
+                'type' => 'digital',
+                'status' => 'active',
+                'price' => 5000,
+                'track_quantity' => false,
+                'quantity' => 999,
+            ]
+        );
 
         // Zentrale Modell-Helfer prüfen
         $this->assertTrue($regularProduct->isPromotableByInfluencer());

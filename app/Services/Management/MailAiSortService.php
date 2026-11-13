@@ -53,7 +53,11 @@ class MailAiSortService
 
     public static function getDeletedMessageIdsPath(): string
     {
-        return storage_path('app/deleted_mail_ids.json');
+        $dir = storage_path('app/leitung/mail');
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+        }
+        return storage_path('app/leitung/mail/deleted_mail_ids.json');
     }
 
     public static function rememberDeletedMessageIds(array $messageIds): void
@@ -265,7 +269,10 @@ class MailAiSortService
         $expiredTrashDeletedCount = $this->purgeExpiredTrashMessages();
 
         // Step 6: Clean up folder ordering file so only standard folders + active manual folders remain
-        $orderFile = storage_path('app/funkenwerk_mail_order.json');
+        $orderFile = storage_path('app/leitung/mail/funkenwerk_mail_order.json');
+        if (!is_dir(dirname($orderFile))) {
+            @mkdir(dirname($orderFile), 0775, true);
+        }
         $orderData = file_exists($orderFile) ? (json_decode((string) file_get_contents($orderFile), true) ?: []) : [];
         $orderData['folders'] = [];
         $baseFolderKeys = ['INBOX', 'Sent', 'Drafts', 'Archive', 'Junk', 'Trash'];

@@ -590,7 +590,7 @@ class AIController extends Controller
             return response()->json(['error' => 'No Gemini API Key configured.'], 500);
         }
 
-        if ($aiAgent && array_key_exists('tools', $payload)) {
+        if ($aiAgent && array_key_exists('tools', $payload) && !\App\Services\AI\FunkiraSkillPoolService::isFunkira($aiAgent)) {
             $schemaTools = $payload['tools'] ?: [];
         } else {
             $schemaTools = \App\Services\AI\AIFunctionsRegistry::getSchema();
@@ -635,7 +635,7 @@ class AIController extends Controller
         // um Token-Overhead und Inferenz-Latenzen auf TPU-Seite minimal zu halten (Reaktionszeit wie in der mobilen Gemini-App).
         $voiceAllowedTools = [
             'system_open_nav_item', 'system_open_zentrum', 'system_close_zentrum', 'system_close_ui', 
-            'system_trigger_ui_element', 'system_switch_agent', 'system_search_web', 'system_read_web_url',
+            'system_trigger_ui_element', 'system_search_web', 'system_read_web_url',
             'task_get_all', 'task_get_lists', 'task_create', 'task_add_subtask', 'task_update', 'task_complete',
         ];
         if ($isAdminUser) {
@@ -646,6 +646,9 @@ class AIController extends Controller
                 'routine_create', 'routine_update', 'routine_delete', 'routine_manage_steps',
                 'email_send_message', 'mail_list_pending', 'mail_read',
                 'contact_search', 'contact_get_all',
+                'finance_get_liquidity_status', 'finance_get_fixed_costs', 'finance_create_expense',
+                'order_get_current_express_status', 'order_get_urgent_tasks', 'order_get_details',
+                'product_check_inventory', 'brain_search',
             ]);
         }
         $filteredDeclarations = [];

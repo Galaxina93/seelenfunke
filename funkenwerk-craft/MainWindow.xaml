@@ -1,0 +1,328 @@
+<Window x:Class="FunkenwerkCraft.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Funkenwerk Craft"
+        Icon="funkenwerk_craft.ico"
+        Width="1480" Height="900"
+        MinWidth="1120" MinHeight="700"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource BgMainBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
+        FontFamily="Segoe UI"
+        AllowDrop="True"
+        DragOver="Window_DragOver"
+        Drop="Window_Drop">
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="BgMainBrush" Color="#0F1117"/>
+        <SolidColorBrush x:Key="BgPanelBrush" Color="#141720"/>
+        <SolidColorBrush x:Key="BgCardBrush" Color="#1B1F2B"/>
+        <SolidColorBrush x:Key="BgInputBrush" Color="#0F1219"/>
+        <SolidColorBrush x:Key="BorderSubtleBrush" Color="#262B3A"/>
+        <SolidColorBrush x:Key="GoldBrush" Color="#C5A059"/>
+        <SolidColorBrush x:Key="GoldTintBgBrush" Color="#26221B"/>
+        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F9FAFB"/>
+        <SolidColorBrush x:Key="TextMutedBrush" Color="#9CA3AF"/>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="62"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="84"/>
+        </Grid.RowDefinitions>
+
+        <!-- HEADER -->
+        <Border Grid.Row="0" Background="{DynamicResource BgPanelBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,0,1" Padding="22,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="10" Height="10" Fill="{DynamicResource GoldBrush}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <TextBlock Text="FUNKENWERK CRAFT" FontSize="15.5" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Storytold Engine Quick-Launchers -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Button Click="LaunchArtCraft_Click" Background="{DynamicResource BgCardBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                            Padding="13,6" Margin="0,0,8,0" Cursor="Hand" FontSize="12" FontWeight="SemiBold" Content="◆ ArtCraft">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                    </Button>
+                    <Button Click="LaunchFilmCraft_Click" Background="{DynamicResource GoldTintBgBrush}" Foreground="{DynamicResource GoldBrush}" BorderBrush="{DynamicResource GoldBrush}" BorderThickness="1"
+                            Padding="13,6" Margin="0,0,8,0" Cursor="Hand" FontSize="12" FontWeight="Bold" Content="🎬 FilmCraft">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                    </Button>
+                    <Button Click="LaunchSoundCraft_Click" Background="{DynamicResource BgCardBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                            Padding="13,6" Margin="0,0,8,0" Cursor="Hand" FontSize="12" FontWeight="SemiBold" Content="🔊 SoundCraft">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                    </Button>
+                    <Button Click="OpenMedienDrive_Click" Background="{DynamicResource BgCardBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                            Padding="13,6" Cursor="Hand" FontSize="12" FontWeight="SemiBold" Content="📁 Y:\Medien">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                    </Button>
+                </StackPanel>
+
+                <!-- Format + Theme -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="Aspect916Btn" Click="Aspect916_Click" Background="{DynamicResource GoldTintBgBrush}" Foreground="{DynamicResource GoldBrush}" BorderBrush="{DynamicResource GoldBrush}" BorderThickness="1"
+                            Padding="11,6" Margin="0,0,6,0" Cursor="Hand" FontSize="11.5" FontWeight="Bold" Content="9:16 Reel">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                    </Button>
+                    <Button x:Name="Aspect11Btn" Click="Aspect11_Click" Background="{DynamicResource BgCardBrush}" Foreground="{DynamicResource TextMutedBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                            Padding="11,6" Margin="0,0,6,0" Cursor="Hand" FontSize="11.5" FontWeight="SemiBold" Content="1:1 Post">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                    </Button>
+                    <Button x:Name="Aspect169Btn" Click="Aspect169_Click" Background="{DynamicResource BgCardBrush}" Foreground="{DynamicResource TextMutedBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                            Padding="11,6" Margin="0,0,14,0" Cursor="Hand" FontSize="11.5" FontWeight="SemiBold" Content="16:9 Breit">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                    </Button>
+
+                    <Button x:Name="ThemeToggleBtn" Click="ThemeToggle_Click"
+                            Background="{DynamicResource BgCardBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                            Padding="13,6" Cursor="Hand" FontSize="12" FontWeight="SemiBold" Content="🌙 Darkmode">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- MAIN 3-COLUMN STUDIO -->
+        <Grid Grid.Row="1" Margin="20,16,20,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="340"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="400"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- COLUMN 0: PROJEKTE + SOUND POOL -->
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="240"/>
+                    <RowDefinition Height="14"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- PROJEKTE -->
+                <Border Grid.Row="0" Background="{DynamicResource BgPanelBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="14" Padding="16">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0" Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="PROJEKTE" Foreground="{DynamicResource GoldBrush}" FontSize="13" FontWeight="Bold" VerticalAlignment="Center"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <Button Click="NewProject_Click" Background="{DynamicResource BgCardBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                                        Padding="9,5" Margin="0,0,6,0" Cursor="Hand" FontSize="11" FontWeight="Bold" Content="＋ Projekt">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                </Button>
+                                <Button Click="ImportMedia_Click" Background="{DynamicResource GoldTintBgBrush}" Foreground="{DynamicResource GoldBrush}" BorderBrush="{DynamicResource GoldBrush}" BorderThickness="1"
+                                        Padding="9,5" Margin="0,0,6,0" Cursor="Hand" FontSize="11" FontWeight="Bold" Content="＋ Medien">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                </Button>
+                                <Button Click="RefreshWorkspace_Click" Background="{DynamicResource BgCardBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                                        Padding="8,5" Cursor="Hand" FontSize="11" FontWeight="Bold" Content="↻">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="ProjectsListPanel"/>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+
+                <!-- SOUND POOL -->
+                <Border Grid.Row="2" Background="{DynamicResource BgPanelBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="14" Padding="16">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0" Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="SOUND POOL (CC0)" Foreground="{DynamicResource GoldBrush}" FontSize="13" FontWeight="Bold" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Click="StopAudioPreview_Click" Background="{DynamicResource BgCardBrush}" Foreground="{DynamicResource TextMutedBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                                    Padding="8,4" Cursor="Hand" FontSize="11" FontWeight="SemiBold" Content="⏹ Ton">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                            </Button>
+                        </Grid>
+
+                        <WrapPanel Grid.Row="1" Margin="0,0,0,10">
+                            <Button Click="FilterSoundsAll_Click" Background="{DynamicResource GoldTintBgBrush}" Foreground="{DynamicResource GoldBrush}" BorderBrush="{DynamicResource GoldBrush}" BorderThickness="1"
+                                    Padding="9,4" Margin="0,0,6,6" Cursor="Hand" FontSize="11" FontWeight="Bold" Content="Alle">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                            </Button>
+                            <Button Click="FilterSoundsWhoosh_Click" Background="{DynamicResource BgCardBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                                    Padding="9,4" Margin="0,0,6,6" Cursor="Hand" FontSize="11" FontWeight="SemiBold" Content="Übergänge">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                            </Button>
+                            <Button Click="FilterSoundsSfx_Click" Background="{DynamicResource BgCardBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                                    Padding="9,4" Margin="0,0,6,6" Cursor="Hand" FontSize="11" FontWeight="SemiBold" Content="Effekte">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                            </Button>
+                            <Button Click="FilterSoundsBeats_Click" Background="{DynamicResource BgCardBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                                    Padding="9,4" Margin="0,0,0,6" Cursor="Hand" FontSize="11" FontWeight="SemiBold" Content="Beats">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                            </Button>
+                        </WrapPanel>
+
+                        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="SoundPoolPanel"/>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- COLUMN 2: SZENEN & TIMELINE -->
+            <Border Grid.Column="2" Background="{DynamicResource BgPanelBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="14" Padding="18">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="TIMELINE" Foreground="{DynamicResource GoldBrush}" FontSize="13.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock x:Name="ActiveProjectTitleTxt" Text="Projekt 1" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button Click="AddSceneFromProjectMedia_Click" Background="{DynamicResource BgCardBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                                    Padding="11,5" Margin="0,0,8,0" Cursor="Hand" FontSize="11.5" FontWeight="SemiBold" Content="＋ Szene">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                            </Button>
+                            <Button Click="SaveProjectBtn_Click" Background="{DynamicResource GoldTintBgBrush}" Foreground="{DynamicResource GoldBrush}" BorderBrush="{DynamicResource GoldBrush}" BorderThickness="1"
+                                    Padding="12,5" Cursor="Hand" FontSize="11.5" FontWeight="Bold" Content="💾 Speichern">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Active Music & Brand Header Strip -->
+                    <Border Grid.Row="1" Background="{DynamicResource BgCardBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="10" Padding="12,9" Margin="0,0,0,12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="150"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="🎵" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="ActiveMusicLabelTxt" Text="Emotion_Romantic_Inspiration_CC0.mp3" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="310"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <TextBlock Text="Musik" Foreground="{DynamicResource TextMutedBrush}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <Slider x:Name="MusicVolSlider" Width="82" Minimum="0" Maximum="100" Value="38" IsSnapToTickEnabled="True" TickFrequency="1" ValueChanged="MusicVolSlider_ValueChanged" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Scenes Stack -->
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="ScenesListPanel"/>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <!-- COLUMN 4: VORSCHAU -->
+            <Border Grid.Column="4" Background="{DynamicResource BgPanelBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="14" Padding="16">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="VORSCHAU" Foreground="{DynamicResource GoldBrush}" FontSize="13.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button x:Name="PlayPreviewBtn" Click="PlayRenderedOrFirst_Click" Background="{DynamicResource GoldTintBgBrush}" Foreground="{DynamicResource GoldBrush}" BorderBrush="{DynamicResource GoldBrush}" BorderThickness="1"
+                                    Padding="11,5" Margin="0,0,6,0" Cursor="Hand" FontSize="11.5" FontWeight="Bold" Content="▶ Play">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                            </Button>
+                            <Button Click="StopPreview_Click" Background="{DynamicResource BgCardBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                                    Padding="9,5" Margin="0,0,6,0" Cursor="Hand" FontSize="11.5" FontWeight="SemiBold" Content="⏹">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                            </Button>
+                            <Button Click="OpenProjectFolder_Click" Background="{DynamicResource BgCardBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                                    Padding="10,5" Cursor="Hand" FontSize="11.5" FontWeight="SemiBold" Content="📁 Ordner">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Grid.Row="1" Background="#07090D" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="12" ClipToBounds="True">
+                        <Grid>
+                            <MediaElement x:Name="PreviewPlayer" LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                          Stretch="Uniform" MediaEnded="PreviewPlayer_MediaEnded"/>
+                            <Image x:Name="PreviewStillImage" Stretch="Uniform" Visibility="Collapsed"/>
+                            <StackPanel x:Name="PreviewEmptyPanel" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <TextBlock Text="◆" Foreground="{DynamicResource GoldBrush}" FontSize="36" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                                <TextBlock x:Name="PreviewEmptyTxt" Text="Vorschau bereit" Foreground="#9CA3AF" FontSize="12.5" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <TextBlock x:Name="NowPlayingLabelTxt" Grid.Row="2" Text="" Foreground="{DynamicResource TextMutedBrush}" FontSize="11.5" Margin="2,10,2,0" TextTrimming="CharacterEllipsis"/>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- FOOTER RENDER ACTION -->
+        <Border Grid.Row="2" Background="{DynamicResource BgPanelBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,1,0,0" Padding="24,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="StatusBannerTxt" Grid.Column="0" Text="Bereit" Foreground="{DynamicResource TextMutedBrush}" FontSize="12.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Width="440">
+                    <ProgressBar x:Name="RenderProgressBar" Visibility="Collapsed" Height="5" Minimum="0" Maximum="100" Value="0" Foreground="#C5A059" Background="#232734" BorderThickness="0" Margin="0,0,0,7"/>
+                    <Button x:Name="RenderMasterBtn" Click="RenderMasterBtn_Click"
+                            Background="#C5A059" Foreground="#0F1117" BorderThickness="0"
+                            Height="44" Cursor="Hand" FontSize="13.5" FontWeight="Bold"
+                            Content="✨ SOCIAL MEDIA VIDEO RENDERN">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="10"/></Style></Button.Resources>
+                    </Button>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button Click="ExportFilmCraftBtn_Click" Background="{DynamicResource BgCardBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                            Padding="13,8" Cursor="Hand" FontSize="12" FontWeight="SemiBold" Content="🎬 .fcproj aktualisieren">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

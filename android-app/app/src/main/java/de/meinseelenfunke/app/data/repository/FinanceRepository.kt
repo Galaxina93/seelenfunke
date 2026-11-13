@@ -88,7 +88,6 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
             val dateBody = date?.toRequestBody(textType)
             val locationBody = location?.toRequestBody(textType)
 
-            android.util.Log.d("FinanceRepository", "quickEntry - title: $title, amount: $amount, category: $category, isBusiness: $isBusiness, date: $date, location: $location, fileBytes size: ${fileBytes?.size}, fileName: $fileName, mimeType: $mimeType")
             val filePart = if (fileBytes != null) {
                 val resolvedMime = mimeType ?: "application/octet-stream"
                 val resolvedName = fileName ?: "upload.bin"
@@ -115,7 +114,7 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception(response.message ?: "Schnelleintrag fehlgeschlagen."))
             }
         } catch (e: Exception) {
-            AppLogger.error(serviceLocator.context, "FinanceRepo", "quickEntry failed: title=$title, amount=$amount", e)
+            AppLogger.error(serviceLocator.context, "FinanceRepo", "quickEntry failed", e)
             Result.failure(e)
         }
     }
@@ -144,7 +143,7 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
                 }
             }
         } catch (e: Exception) {
-            AppLogger.error(serviceLocator.context, "FinanceRepo", "scanReceipt failed: fileName=$fileName", e)
+            AppLogger.error(serviceLocator.context, "FinanceRepo", "scanReceipt failed", e)
             val directFallback = tryDirectGeminiReceiptScan(fileBytes, mimeType)
             if (directFallback != null) {
                 return Result.success(directFallback)
@@ -289,7 +288,7 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception(response.message ?: "Update fehlgeschlagen."))
             }
         } catch (e: Exception) {
-            AppLogger.error(serviceLocator.context, "FinanceRepo", "updateVariableItem failed: id=$id, title=$title", e)
+            AppLogger.error(serviceLocator.context, "FinanceRepo", "updateVariableItem failed: id=$id", e)
             Result.failure(e)
         }
     }
@@ -320,7 +319,7 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception(response.message ?: "Speichern fehlgeschlagen."))
             }
         } catch (e: Exception) {
-            AppLogger.error(serviceLocator.context, "FinanceRepo", "createFixedItem failed: name=$name, amount=$amount", e)
+            AppLogger.error(serviceLocator.context, "FinanceRepo", "createFixedItem failed", e)
             Result.failure(e)
         }
     }
@@ -352,7 +351,7 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception(response.message ?: "Update fehlgeschlagen."))
             }
         } catch (e: Exception) {
-            AppLogger.error(serviceLocator.context, "FinanceRepo", "updateFixedItem failed: id=$id, name=$name", e)
+            AppLogger.error(serviceLocator.context, "FinanceRepo", "updateFixedItem failed: id=$id", e)
             Result.failure(e)
         }
     }
@@ -368,6 +367,53 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
         } catch (e: Exception) {
             AppLogger.error(serviceLocator.context, "FinanceRepo", "deleteFixedItem failed: id=$id", e)
             Result.failure(e)
+        }
+    }
+
+    suspend fun sendToMiniPcTrichter(
+        fileBytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+        customTitle: String?,
+        source: String = "android"
+    ): Result<String> {
+        return try {
+            val textType = "text/plain".toMediaTypeOrNull()
+            val mediaType = mimeType.ifBlank { "application/pdf" }.toMediaTypeOrNull()
+            val requestFile = fileBytes.toRequestBody(mediaType)
+            val filePart = MultipartBody.Part.createFormData(
+                "file",
+                fileName.ifBlank { "scan_trichter.pdf" },
+                requestFile
+            )
+            val titlePart = customTitle?.trim()?.takeIf { it.isNotEmpty() }?.toRequestBody(textType)
+            val sourcePart = source.toRequestBody(textType)
+
+            val response = serviceLocator.getFinanceApi().enqueueMiniPcTrichter(
+                file = filePart,
+                customTitle = titlePart,
+                source = sourcePart
+            )
+            if (response.success) {
+                Result.success(response.message ?: "Im Eingang-Trichter abgelegt.")
+            } else {
+                Result.failure(Exception(response.message ?: "Trichter-Übergabe fehlgeschlagen."))
+            }
+        } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "FinanceRepo", "sendToMiniPcTrichter failed", e)
+            val friendlyMsg = when (e) {
+                is retrofit2.HttpException -> {
+                    val errBody = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null }
+                    val parsedMsg = try {
+                        if (!errBody.isNullOrBlank()) org.json.JSONObject(errBody).optString("message") else null
+                    } catch (_: Exception) { null }
+                    if (!parsedMsg.isNullOrBlank()) parsedMsg else "Trichter-Upload fehlgeschlagen (HTTP ${e.code()})."
+                }
+                is java.net.SocketTimeoutException -> "Zeitüberschreitung beim Trichter-Upload."
+                is java.net.ConnectException, is java.net.UnknownHostException -> "Server nicht erreichbar (${serviceLocator.getBaseUrl()})."
+                else -> e.localizedMessage ?: "Trichter-Upload fehlgeschlagen."
+            }
+            Result.failure(Exception(friendlyMsg))
         }
     }
 }

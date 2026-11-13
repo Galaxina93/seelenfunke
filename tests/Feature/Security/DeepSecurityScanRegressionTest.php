@@ -3747,6 +3747,7 @@ class DeepSecurityScanRegressionTest extends TestCase
         $reviewComp->set('rating', 5)
             ->set('title', 'Tolle Gravur')
             ->set('content', 'Sehr schöne Arbeit und schneller Versand!')
+            ->set('acceptReviewTerms', true)
             ->call('submitReview');
 
         $profile = \App\Models\Customer\CustomerGamification::where('customer_id', $customer->id)->first();
@@ -3760,6 +3761,7 @@ class DeepSecurityScanRegressionTest extends TestCase
         $reviewComp->set('rating', 5)
             ->set('title', 'Zweiter Versuch')
             ->set('content', 'Immer noch eine sehr schöne Arbeit und schneller Versand!')
+            ->set('acceptReviewTerms', true)
             ->call('submitReview');
 
         $this->assertSame(1, $profile->fresh()->titles_progress['botschafter'] ?? 0);

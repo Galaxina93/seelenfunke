@@ -24,8 +24,15 @@ class MusicWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
+        val action = intent.action
+        if (action != null && action.startsWith("de.meinseelenfunke.app.widget.") &&
+            !de.meinseelenfunke.app.util.SecurityIntentHelper.isTrustedInternalIntent(context, intent)
+        ) {
+            return
+        }
         super.onReceive(context, intent)
-        when (intent.action) {
+        de.meinseelenfunke.app.di.ServiceLocator.ensureInitialized(context.applicationContext)
+        when (action) {
             ACTION_PLAY_PAUSE -> {
                 MusicPlayerManager.togglePlayPause(context)
             }
@@ -41,12 +48,6 @@ class MusicWidgetProvider : AppWidgetProvider() {
             ACTION_REFRESH -> {
                 MusicPlayerManager.fetchPlaylists(context)
             }
-            ACTION_SEEK_NEAR_END -> {
-                val dur = MusicPlayerManager.durationSec.value
-                if (dur > 4) {
-                    MusicPlayerManager.seekToSeconds(dur - 2)
-                }
-            }
         }
         updateAllWidgets(context)
     }
@@ -57,7 +58,6 @@ class MusicWidgetProvider : AppWidgetProvider() {
         const val ACTION_PREV = "de.meinseelenfunke.app.widget.ACTION_MUSIC_PREV"
         const val ACTION_SHUFFLE = "de.meinseelenfunke.app.widget.ACTION_MUSIC_SHUFFLE"
         const val ACTION_REFRESH = "de.meinseelenfunke.app.widget.ACTION_MUSIC_REFRESH"
-        const val ACTION_SEEK_NEAR_END = "de.meinseelenfunke.app.widget.ACTION_MUSIC_SEEK_NEAR_END"
 
         fun updateAllWidgets(context: Context) {
             val appWidgetManager = AppWidgetManager.getInstance(context)
@@ -127,6 +127,7 @@ class MusicWidgetProvider : AppWidgetProvider() {
                 putExtra("open_tab", 2)
                 putExtra("open_subtab", 5)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(context, this)
             }
             val openPending = PendingIntent.getActivity(
                 context,
@@ -144,6 +145,7 @@ class MusicWidgetProvider : AppWidgetProvider() {
         private fun getBroadcastPendingIntent(context: Context, action: String, reqCode: Int): PendingIntent {
             val intent = Intent(context, MusicWidgetProvider::class.java).apply {
                 this.action = action
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(context, this)
             }
             return PendingIntent.getBroadcast(
                 context,

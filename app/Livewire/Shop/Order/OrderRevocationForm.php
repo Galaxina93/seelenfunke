@@ -140,6 +140,14 @@ class OrderRevocationForm extends Component
 
         $this->validate();
 
+        $normalizedOrderNumber = preg_replace('/^(bestellung|order|nr\.?|rechnung)\s*/i', '', trim((string) $this->order_number));
+        $normalizedOrderNumber = trim(ltrim((string) $normalizedOrderNumber, '#'));
+        if ($normalizedOrderNumber !== '') {
+            $this->order_number = $normalizedOrderNumber;
+        }
+        $this->email = trim((string) $this->email);
+        $this->name = trim((string) $this->name);
+
         $data = [
             'name' => $this->name,
             'email' => $this->email,

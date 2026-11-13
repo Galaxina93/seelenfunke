@@ -117,7 +117,8 @@ trait HandlesConfiguratorLogic
             'x' => $x ?? $centerX,
             'y' => $y ?? $centerY,
             'size' => $defaultSize,
-            'rotation' => 0
+            'rotation' => 0,
+            'curve' => 0,
         ];
 
         // Prüft, welche Seite aktiv ist

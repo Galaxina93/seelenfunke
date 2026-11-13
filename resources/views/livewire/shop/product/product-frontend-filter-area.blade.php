@@ -32,7 +32,7 @@
                         Geschenkgutscheine
                     </h1>
                     <p class="text-gray-200 max-w-2xl mx-auto text-lg leading-relaxed px-4 drop-shadow">
-                        Verschenke freie Auswahl in unserer Manufaktur, wahlweise als Sofort-PDF oder als lasergravierte goldene Metallkarte im Edel-Umschlag mit Wachssiegel.
+                        Verschenke freie Auswahl in unserer Manufaktur, wahlweise als Sofort-PDF oder als lasergravierte Aluminiumkarte im Edel-Umschlag mit Wachssiegel.
                     </p>
                 @else
                     <span class="text-[var(--theme-color)] font-bold uppercase tracking-[0.2em] text-xs mb-3 block drop-shadow">Handveredelt in Gifhorn</span>

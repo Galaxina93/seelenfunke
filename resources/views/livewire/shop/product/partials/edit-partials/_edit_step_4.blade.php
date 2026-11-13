@@ -4,19 +4,20 @@
             $productTemplates = $product->templates ?? collect();
             $activeTemplatesCount = $productTemplates->where('is_active', true)->count();
 
+            $isStudioPersonalizable = $is_personalizable && (($configSettings['personalization_mode'] ?? 'studio') === 'studio');
+
             $sub1Done = !empty($product->preview_image_path) || !empty($product->three_d_model_path);
-            $overlayType = $configSettings['overlay_type'] ?? 'cylinder';
-            $sub2Done = $overlayType === 'cylinder'
-                ? (!empty($configSettings['xtool_d_top']) && !empty($configSettings['xtool_height']))
-                : (!empty($configSettings['xtool_plane_width']) && !empty($configSettings['xtool_plane_height']));
+            $laserEval = \App\Models\Product\Product::evaluateLaserInstructionSettings(
+                is_array($configSettings) ? $configSettings : [],
+                $isStudioPersonalizable
+            );
+            $sub2Done = $laserEval['is_complete'];
             $sub3Done = !empty($configSettings['area_width']) && !empty($configSettings['area_height']);
             $sub4Done = $activeTemplatesCount > 0;
 
-            $isStudioPersonalizable = $is_personalizable && (($configSettings['personalization_mode'] ?? 'studio') === 'studio');
-
             $step4Tabs = [
                 1 => ['title' => 'Dateien & 3D-Assets', 'done' => $sub1Done, 'required' => $isStudioPersonalizable],
-                2 => ['title' => 'xTool Laser-Parameter', 'done' => $sub2Done, 'required' => false],
+                2 => ['title' => 'xTool Laser-Parameter', 'done' => $sub2Done, 'required' => (bool) $is_personalizable],
                 3 => ['title' => 'Live-Konfigurator', 'done' => $sub3Done, 'required' => false],
                 4 => ['title' => 'Gravur- & Saison-Vorlagen', 'done' => $sub4Done, 'required' => $isStudioPersonalizable],
             ];
@@ -24,23 +25,30 @@
 
         @if(!$isStudioPersonalizable)
             <div class="mb-6 p-5 rounded-[2rem] bg-emerald-50/80 dark:bg-emerald-950/25 border border-emerald-200 dark:border-emerald-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div class="flex items-start gap-3.5">
+                <div class="flex items-center gap-3.5">
                     <div class="w-10 h-10 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 font-bold text-lg">✓</div>
-                    <div class="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
+                    <div class="text-xs text-gray-700 dark:text-gray-300">
                         @if(!$is_personalizable)
-                            <span class="font-bold text-gray-900 dark:text-white block text-sm mb-0.5">Standard-Produkt (Sofortkauf ohne Konfigurator)</span>
-                            Für dieses vorproduzierte Produkt werden keine 3D-Modelle (.glb) oder 2D-Konfigurator-Overlays benötigt. Du kannst die xTool-Laser-Parameter (4.2) optional für deine interne Produktion hinterlegen oder das Produkt direkt veröffentlichen.
+                            <span class="font-bold text-gray-900 dark:text-white block text-sm">Standard-Produkt ohne Konfigurator</span>
                         @else
-                            <span class="font-bold text-gray-900 dark:text-white block text-sm mb-0.5">Schnell-Personalisierung mit dynamischen Eingabefeldern aktiv</span>
-                            Deine individuellen Eingabefelder sind bereits in Schritt 1.1 eingerichtet. Es werden keine 3D-Modelle (.glb) oder 2D-Konfigurator-Overlays benötigt. Du kannst optional xTool-Laser-Parameter (4.2) hinterlegen oder das Produkt direkt veröffentlichen.
+                            <span class="font-bold text-gray-900 dark:text-white block text-sm">Schnell-Personalisierung aktiv (xTool-Anleitung unter 4.2 pflegen)</span>
                         @endif
                     </div>
                 </div>
-                <button type="button"
-                        wire:click="finish"
-                        class="shrink-0 px-5 py-3 rounded-xl bg-[var(--theme-color)] text-white dark:text-gray-900 text-[10px] font-black uppercase tracking-widest shadow-sm hover:opacity-90 transition-all cursor-pointer">
-                    Jetzt veröffentlichen &rarr;
-                </button>
+                <div class="flex items-center gap-2.5 shrink-0">
+                    @if($is_personalizable && !$sub2Done)
+                        <button type="button"
+                                wire:click="goToStep4SubStep(2)"
+                                class="px-4 py-3 rounded-xl bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30 text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all cursor-pointer">
+                            ✕ Zu 4.2 Laser-Werte
+                        </button>
+                    @endif
+                    <button type="button"
+                            wire:click="finish"
+                            class="px-5 py-3 rounded-xl bg-[var(--theme-color)] text-white dark:text-gray-900 text-[10px] font-black uppercase tracking-widest shadow-sm hover:opacity-90 transition-all cursor-pointer">
+                        Jetzt veröffentlichen &rarr;
+                    </button>
+                </div>
             </div>
         @endif
 
@@ -73,11 +81,11 @@
                             </div>
 
                             @if($subTab['done'])
-                                <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Vollständig"></span>
+                                <span class="px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[9px] font-black shrink-0" title="Vollständig">✓</span>
                             @elseif($subTab['required'])
-                                <span class="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shrink-0">Offen</span>
+                                <span class="px-1.5 py-0.5 rounded-md bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 border border-red-200/70 dark:border-red-500/30 text-[8px] font-black uppercase tracking-wider shrink-0">Offen</span>
                             @else
-                                <span class="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-gray-200/70 dark:bg-gray-800 text-gray-500 shrink-0">Opt.</span>
+                                <span class="px-1.5 py-0.5 rounded-md bg-gray-200/70 dark:bg-gray-800 text-gray-500 text-[8px] font-bold uppercase tracking-wider shrink-0">Opt.</span>
                             @endif
                         </button>
                     @endforeach
@@ -107,10 +115,7 @@
                 <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-5 mb-8">
                     <div class="flex items-center gap-3">
                         <span class="w-8 h-8 rounded-xl bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-20)] flex items-center justify-center shadow-inner font-bold text-xs shrink-0">4.2</span>
-                        <div>
-                            <h2 class="text-xl sm:text-2xl font-serif font-bold text-gray-900 dark:text-white tracking-wide">xTool Laser-Parameter</h2>
-                            <p class="text-[11px] text-gray-500">Physische Millimeter-Maße für den maßstabsgetreuen 1:1 SVG-Laser-Export.</p>
-                        </div>
+                        <h2 class="text-xl sm:text-2xl font-serif font-bold text-gray-900 dark:text-white tracking-wide">xTool Laser-Parameter &amp; Anleitung</h2>
                     </div>
                     @include('components.alerts.info-tooltip', ['key' => 'xtool_params_help'])
                 </div>

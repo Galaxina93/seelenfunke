@@ -37,9 +37,11 @@ class MasterAnalyticsHealthFilterTest extends TestCase
         // 2. Setup B2B und B2C Kunden
         $b2bCustomer = Customer::factory()->create();
         CustomerProfile::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'customer_id' => $b2bCustomer->id, 'is_business' => true]);
+        \App\Models\Marketing\MarketingNewsletterSubscriber::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'email' => $b2bCustomer->email, 'is_verified' => true]);
 
         $b2cCustomer = Customer::factory()->create();
         CustomerProfile::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'customer_id' => $b2cCustomer->id, 'is_business' => false]);
+        \App\Models\Marketing\MarketingNewsletterSubscriber::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'email' => $b2cCustomer->email, 'is_verified' => true]);
 
         // 3. Generiere operative Daten: Bestellungen (Pending)
         OrderOrder::forceCreate([

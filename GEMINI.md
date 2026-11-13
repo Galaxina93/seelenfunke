@@ -60,12 +60,16 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 10. **Verbindliche Pflege der `Abschlussberichte/` & Verzeichnis-Reinigung:**
     - Vor und nach Aufgaben `Abschlussberichte/README.md` sowie die Fachberichte in `Abschlussberichte/<Abteilung>/`, `Workflows/` und `Konzepte/` prüfen/aktualisieren. Keine losen Test-Skripte im Projekt-Root (`Workflow_Verzeichnis_Reinigung.md`).
     - Nach neuen Models/Livewire/Controllern/Services/Seedern `php artisan ai:generate-map` ausführen (synchronisiert automatisch `ai_map.md` und diese `GEMINI.md`).
+11. **Live-Screen „Augen & Hände“-Brücke (`C:\Users\konta\Desktop\AgyLiveBridge\`):**
+    - Für Live-Sprachführung und direkte Steuerung von Desktop-Apps (insb. **xTool Studio** am F2 Ultra UV) liegt auf dem Desktop die Direkt-Schnittstelle `C:\Users\konta\Desktop\AgyLiveBridge\invoke_hands.ps1` (gekoppelt an den Hintergrund-Task `AgyLiveScreen`).
+    - **Sofort-Blick (Augen, `< 1,5 Sek.`):** `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Users\konta\Desktop\AgyLiveBridge\invoke_hands.ps1" -Action capture` -> liefert sofort das unverdeckte `xTool Studio`-Fenster unter `C:\Users\konta\Desktop\AgyLiveBridge\xtool_live.png` sowie den Gesamtdesktop unter `desktop_live.png`.
+    - **Direkt-Steuerung (Hände):** Unterstützt `-Action click -X <int> -Y <int>`, `-Action dblclick -X <int> -Y <int>`, `-Action drag -X <int> -Y <int> -X2 <int> -Y2 <int>` und `-Action type -X <int> -Y <int> -Text "<wert>"` inkl. automatischem Kontroll-Screenshot nach jeder Aktion.
 
 ---
 
 <!-- AI_MAP_START -->
 # Seelenfunke System-Architektur & AI Map (`ai_map.md`)
-> Generiert via `php artisan ai:generate-map` (2026-11-11 13:38)
+> Generiert via `php artisan ai:generate-map` (2026-11-13 15:03)
 
 ## 1. Ökosystem-Pfade & Umgebungen
 - **Hauptportal (`Mein-Seelenfunke`)**: Win-UNC `\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke` | WSL `/home/ubuntuxina/meine-projekte/seelenfunke` (Docker PHP: `mein_php_server`) | Lokal `http://127.0.0.1` (`http://seelenfunke.test`) | Stage `https://stage.mein-seelenfunke.de` | Live `https://mein-seelenfunke.de`
@@ -160,7 +164,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 - **Root**: `AIController, CartReminderUnsubscribeController, Controller, GoogleAuthController, NewsletterController, RevocationFileController, RevocationPdfController, SeoController, StripeWebhookController`
 
 ## 7. Services & Geschäftslogik (`app/Services/<Domain>/*.php`)
-- **AI**: `AIFunctionsRegistry, AiAgentFactory, AiAgentRouter, AiAgentService, AiAuthHelper, AiPromptService, AiSupportService, GeminiAgent, GeminiTtsService, ReceiptAiScannerService`
+- **AI**: `AIFunctionsRegistry, AiAgentFactory, AiAgentRouter, AiAgentService, AiAuthHelper, AiPromptService, AiSupportService, FunkiraSkillPoolService, GeminiAgent, GeminiTtsService, ReceiptAiScannerService`
 - **AI\Contracts**: `AiProviderInterface`
 - **AI\Functions**: `AiAgentsFuncs, AiBrainFuncs, AiCalendarFuncs, AiContactFuncs, AiFinanceFuncs, AiHealthFuncs, AiHolidayPlannerFuncs, AiLaserFuncs, AiMailFuncs, AiMapControlFuncs, AiMapNewsFuncs, AiMarketingBlogFuncs, AiMarketingFuncs, AiMarketingNewsletterFuncs, AiMarketingVoucherFuncs, AiMasterFuncs, AiNewsFuncs, AiOrderFuncs, AiPersonaFuncs, AiProductFuncs, AiRoutineFuncs, AiScoutFuncs, AiShoppingListFuncs, AiSuppliersFuncs, AiSupportFuncs, AiSystemFuncs, AiTaskFuncs, AiTelefonyFuncs`
 - **AI\Mails**: `AiAgentMessageMail, AiHolidayPlanMail, AiMapSummaryMail`
@@ -175,6 +179,6 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 - **Order**: `OrderProductionBatchService`
 - **Root**: `AccountingEInvoiceParserService, AccountingXmlInvoiceService, AnalyticsService, BankApiService, CartFileCleanupService, CartService, ConfiguratorService, DhlService, ElsterEricService, FinancialService, FirebaseService, GoogleReviewsService, HerzensprojektService, InvoiceService, PriceCalcService, ProductConfiguratorService, ProductTrackingService, ReferralService, ShippingCalculatorService, StealthCrawlerService, WishlistService`
 - **Storage**: `GlbOptimizerService`
-- **System**: `FunkenwerkPrintService, SystemBlueprintService, SystemErrorLogger, SystemSecurityService`
+- **System**: `FunkenwerkPrintService, MiniPcTrichterRelayService, SystemBlueprintService, SystemErrorLogger, SystemSecurityService`
 - **Tax**: `TaxSettingService`
 <!-- AI_MAP_END -->

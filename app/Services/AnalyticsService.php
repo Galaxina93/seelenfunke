@@ -48,7 +48,59 @@ class AnalyticsService
             'open_abandoned_carts' => $this->checkAbandonedCarts(),
             'storage' => $this->checkStorage(),
             'system_logs' => $this->checkSystemLogs(),
+            'security_audit' => $this->checkSecurityAudit(),
         ]);
+    }
+
+    private function checkSecurityAudit(): ?array
+    {
+        $reportPath = \App\Console\Commands\SystemSecurityAuditCommand::REPORT_STORAGE_PATH;
+
+        if (!\Illuminate\Support\Facades\Storage::disk('local')->exists($reportPath)) {
+            return [
+                'status' => 'success',
+                'icon' => 'shield-check',
+                'title' => 'Paket- & CVE-Prüfung',
+                'message' => 'Bereit für automatischen Sicherheits-Scan',
+                'count' => 0,
+                'data' => [],
+            ];
+        }
+
+        $report = json_decode(\Illuminate\Support\Facades\Storage::disk('local')->get($reportPath), true) ?: [];
+        $cveCount = (int) ($report['cve_count'] ?? 0);
+        $guardrailErrors = (int) ($report['guardrail_errors_count'] ?? 0);
+        $outdatedCount = (int) ($report['outdated_count'] ?? 0);
+        $scannedAt = !empty($report['scanned_at']) ? Carbon::parse($report['scanned_at']) : null;
+        $isStale = $scannedAt ? $scannedAt->lt(now()->subDays(7)) : false;
+
+        if ($cveCount > 0 || $guardrailErrors > 0) {
+            $issues = $cveCount + $guardrailErrors;
+            $status = 'error';
+            $msg = $cveCount > 0
+                ? "{$cveCount} Paket-Sicherheitslücke(n) (CVE) erkannt!"
+                : "{$guardrailErrors} System-Schranke(n) verletzt!";
+            $count = $issues;
+        } elseif ($isStale) {
+            $status = 'todo';
+            $msg = 'Sicherheitsprüfung älter als 7 Tage';
+            $count = 1;
+        } else {
+            $status = 'success';
+            $msg = $outdatedCount > 0
+                ? "0 CVEs • {$outdatedCount} sichere Paket-Update(s) verfügbar"
+                : '0 Sicherheitslücken (CVEs) • Alle Pakete & Schranken geprüft';
+            $count = 0;
+        }
+
+        return [
+            'status' => $status,
+            'icon' => 'shield-check',
+            'title' => 'Paket- & CVE-Prüfung',
+            'message' => $msg,
+            'count' => $count,
+            'data' => $report,
+        ];
     }
 
     private function checkProductReadiness(): ?array
@@ -98,13 +150,13 @@ class AnalyticsService
             }
         } else {
             $status = 'success';
-            $msg = 'Alle Produkte 100% vollständig (9/9)';
+            $msg = 'Alle Produkte 100 % vollständig';
         }
 
         return [
             'status' => $status,
             'icon' => 'sparkles',
-            'title' => 'Produkt-Daten (9/9)',
+            'title' => 'Produkt-Daten & Laser-Werte',
             'message' => $msg,
             'count' => $incompleteCount,
             'data' => $incompleteItems,

@@ -326,9 +326,6 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
                 deviceName = payload["device_name"] ?: "Funkenwerk Android"
             )
             if (response.success) {
-                response.data?.geminiTtsKey?.takeIf { it.isNotBlank() }?.let { key ->
-                    serviceLocator.saveGeminiApiKey(key)
-                }
                 val stamp = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.GERMANY).format(java.util.Date())
                 de.meinseelenfunke.app.util.FunkenwerkAlarmManager.markSyncCompleted(context, stamp)
                 Result.success(stamp)
@@ -345,9 +342,6 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             val response = serviceLocator.getOrganizerApi().getAlarmSyncPackage()
             if (response.success && response.data != null) {
                 val pkg = response.data
-                pkg.geminiTtsKey?.takeIf { it.isNotBlank() }?.let { key ->
-                    serviceLocator.saveGeminiApiKey(key)
-                }
                 de.meinseelenfunke.app.util.FunkenwerkAlarmManager.applyRemotePackage(
                     context = context,
                     alarms = pkg.alarms,

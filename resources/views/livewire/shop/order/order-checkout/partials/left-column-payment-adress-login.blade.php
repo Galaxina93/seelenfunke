@@ -142,32 +142,32 @@
          @checkout-open-billing.window="isOpen = true; manuallyOpened = true"
          @checkout-processing-done.window="checkCompletion(false)">
 
-        <div class="p-6 sm:p-8 flex justify-between items-center cursor-pointer hover:bg-gray-50/50 transition-colors" @click="toggleHeader()">
-            <h2 class="text-xl font-serif font-bold text-gray-900 flex items-center gap-2">
-                <span class="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary text-sm font-bold">1</span>
-                Rechnungsdetails
+        <div class="p-4 sm:p-8 flex justify-between items-center gap-2 cursor-pointer hover:bg-gray-50/50 transition-colors" @click="toggleHeader()">
+            <h2 class="text-lg sm:text-xl font-serif font-bold text-gray-900 flex items-center gap-2 min-w-0">
+                <span class="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-primary/10 text-primary text-xs sm:text-sm font-bold shrink-0">1</span>
+                <span class="truncate">Rechnungsdetails</span>
             </h2>
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2 sm:gap-3 shrink-0">
                 <template x-if="!isOpen">
-                    <div class="text-right mr-2 animate-fade-in">
+                    <div class="text-right animate-fade-in">
                         <template x-if="isBillingComplete">
                             <div class="flex flex-col items-end">
-                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] uppercase font-bold bg-green-50 text-green-700 border border-green-200">
-                                    <svg class="w-3 h-3 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                                    Fertig ausgefüllt
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] uppercase font-bold bg-green-50 text-green-700 border border-green-200 whitespace-nowrap shrink-0">
+                                    <svg class="w-3 h-3 text-green-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                    <span>Ausgefüllt</span>
                                 </span>
-                                <p class="text-xs text-gray-500 font-medium mt-0.5" x-text="(typeof $wire.first_name !== 'undefined' && $wire.first_name !== null ? String($wire.first_name) : '') + ' ' + (typeof $wire.last_name !== 'undefined' && $wire.last_name !== null ? String($wire.last_name) : '')"></p>
+                                <p class="hidden sm:block text-xs text-gray-500 font-medium mt-0.5" x-text="(typeof $wire.first_name !== 'undefined' && $wire.first_name !== null ? String($wire.first_name) : '') + ' ' + (typeof $wire.last_name !== 'undefined' && $wire.last_name !== null ? String($wire.last_name) : '')"></p>
                             </div>
                         </template>
                         <template x-if="!isBillingComplete">
                             <div>
-                                <p class="text-[10px] uppercase font-bold text-red-500">Nicht Vollständig</p>
-                                <p class="text-xs text-red-400 font-medium">Bitte Daten ergänzen</p>
+                                <p class="text-[10px] uppercase font-bold text-red-500 whitespace-nowrap">Unvollständig</p>
+                                <p class="hidden sm:block text-xs text-red-400 font-medium">Bitte Daten ergänzen</p>
                             </div>
                         </template>
                     </div>
                 </template>
-                <svg class="w-5 h-5 text-gray-400 transition-transform duration-300" :class="isOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg class="w-5 h-5 text-gray-400 transition-transform duration-300 shrink-0" :class="isOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                 </svg>
             </div>

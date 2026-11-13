@@ -61,7 +61,7 @@ Route::middleware(['auth:admin'])->group(function () {
                         ]);
                     }
                 } else {
-                    $ytDlp = storage_path('app/bin/yt-dlp');
+                    $ytDlp = storage_path('app/leitung/music/bin/yt-dlp');
                     if (file_exists($ytDlp)) {
                         $tracksDir = storage_path('app/leitung/music/tracks');
                         if (!is_dir($tracksDir)) {
@@ -366,36 +366,7 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/shopping-carts', \App\Livewire\Shop\Order\OrderShoppingCarts::class)->name('admin.shopping-carts');
     Route::get('/admin/quote-requests', \App\Livewire\Shop\Order\OrderQuoteRequests::class)->name('admin.quote-requests');
     Route::get('/admin/widerruf', \App\Livewire\Shop\Order\OrderRevocations::class)->name('admin.widerruf');
-    Route::get('/admin/widerruf/file/{revocation}/{fileName}', function (\App\Models\Order\OrderRevocation $revocation, $fileName) {
-        if (!is_string($fileName) || str_contains($fileName, '..') || str_contains($fileName, '/') || str_contains($fileName, '\\') || str_contains($fileName, "\0")) {
-            abort(404);
-        }
-        $path = "bestellungen/private/revocations/{$revocation->id}/{$fileName}";
-        if (!is_array($revocation->attachments) || !in_array($path, $revocation->attachments, true)) {
-            $legacyPath = "revocations/{$revocation->id}/{$fileName}";
-            if (is_array($revocation->attachments) && in_array($legacyPath, $revocation->attachments, true)) {
-                $path = $legacyPath;
-            } else {
-                abort(404);
-            }
-        }
-        if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
-            $fullPath = \Illuminate\Support\Facades\Storage::disk('local')->path($path);
-            if (is_link($fullPath)) {
-                abort(404);
-            }
-            $mime = \Illuminate\Support\Facades\Storage::disk('local')->mimeType($path) ?: 'application/octet-stream';
-            $safeMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'];
-            $disposition = in_array(strtolower($mime), $safeMimes, true) ? 'inline' : 'attachment';
-            $cleanFilename = str_replace(['"', "\r", "\n", "\0"], '', basename($fileName));
-            return response()->file($fullPath, [
-                'Content-Type' => $mime,
-                'Content-Disposition' => $disposition . '; filename="' . $cleanFilename . '"',
-                'X-Content-Type-Options' => 'nosniff',
-            ]);
-        }
-        abort(404);
-    })->name('admin.widerruf.file');
+    Route::get('/admin/widerruf/file/{revocation}/{fileName}', [\App\Http\Controllers\RevocationFileController::class, 'show'])->name('admin.widerruf.file');
 
     // -----------------------------------------------------------------------
     // Accounting

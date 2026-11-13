@@ -231,7 +231,7 @@ trait ManagesAiChat
 
     public function getAgentsProperty()
     {
-        return AiAgent::where('is_active', true)->orderBy('name')->get();
+        return AiAgent::where('is_active', true)->where('name', '!=', 'Funki')->orderBy('name')->get();
     }
 
     #[Computed]
@@ -662,15 +662,15 @@ trait ManagesAiChat
 
         // Respect the user's manual selection of active agents exclusively
         if (empty($this->activeAgentIds)) {
-            $this->activeAgentIds = AiAgent::where('is_in_chat', true)->pluck('id')->toArray();
+            $this->activeAgentIds = AiAgent::where('is_in_chat', true)->where('name', '!=', 'Funki')->pluck('id')->toArray();
         }
 
         // Fallback to Teamleiter (Funkira) if no agent is selected
         if (empty($this->activeAgentIds)) {
-            $teamLeader = AiAgent::where('is_active', true)->whereHas('role', function($q) {
+            $teamLeader = AiAgent::where('is_active', true)->where('name', '!=', 'Funki')->whereHas('role', function($q) {
                 $q->where('name', 'like', '%Teamleiter%');
             })->first();
-            $fallback = $teamLeader ?? AiAgent::where('is_active', true)->first();
+            $fallback = $teamLeader ?? AiAgent::where('is_active', true)->where('name', '!=', 'Funki')->first();
             if ($fallback) {
                 $fallback->update(['is_in_chat' => true]);
                 $this->activeAgentIds = [$fallback->id];

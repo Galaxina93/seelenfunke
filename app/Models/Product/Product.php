@@ -1397,7 +1397,7 @@ use HasFactory, HasUuids, SoftDeletes;
             ];
         }
 
-        // 4. Medien / Hauptbild (Schritt 2)
+        // 4. Medien / Hauptbild & Saison-Bildersatz (Schritt 2)
         $hasGalleryImage = false;
         foreach ($this->media_gallery ?? [] as $media) {
             if (is_array($media) && ($media['type'] ?? '') === 'image' && !empty($media['path'])) {
@@ -1409,19 +1409,35 @@ use HasFactory, HasUuids, SoftDeletes;
             ? $this->templates->where('is_active', true)
             : $this->templates()->where('is_active', true)->get();
 
-        $hasSeasonalImage = $activeTemplates->filter(fn ($t) => !empty($t->preview_image))->isNotEmpty();
-        $mediaPassed = $hasGalleryImage || $hasSeasonalImage || !empty($this->preview_image_path);
+        $customSeasonalMap = is_array($this->configurator_settings['seasonal_images'] ?? null)
+            ? $this->configurator_settings['seasonal_images']
+            : [];
+        $hasCustomSeasonalImage = collect($customSeasonalMap)->contains(function ($entry) {
+            $p = is_array($entry) ? ($entry['path'] ?? null) : (is_string($entry) ? $entry : null);
+            return !empty($p);
+        });
+
+        $hasSeasonalImage = $hasCustomSeasonalImage || $activeTemplates->filter(fn ($t) => !empty($t->preview_image))->isNotEmpty();
+        $hasNonOverlayPreview = !empty($this->preview_image_path)
+            && !str_ends_with((string) $this->preview_image_path, '/overlay.png')
+            && !str_ends_with((string) $this->preview_image_path, '/envelope.png');
+        $hasAnyMainImage = $hasGalleryImage || $hasSeasonalImage || $hasNonOverlayPreview;
+        $seasonalSetStatus = $this->getSeasonalImageSetStatus();
+        $mediaPassed = $hasAnyMainImage && $seasonalSetStatus['is_complete'];
 
         $checks[] = [
             'key'           => 'media',
             'step'          => 2,
+            'sub_step'      => 1,
             'section'       => 'collection',
             'label'         => 'Medien & Galerie',
-            'short_missing' => 'Hauptbild fehlt',
+            'short_missing' => !$hasAnyMainImage
+                ? 'Hauptbild fehlt'
+                : 'Saison-Bilder (' . $seasonalSetStatus['filled_count'] . '/' . $seasonalSetStatus['total_count'] . ')',
             'passed'        => $mediaPassed,
             'detail'        => $mediaPassed
-                ? 'Produktbilder vorhanden'
-                : 'Mindestens 1 Galeriebild oder Saison-Vorlagenbild erforderlich',
+                ? ($seasonalSetStatus['auto_enabled'] ? 'Hauptbild & alle 12 Saisonbilder gepflegt' : 'Produktbilder vorhanden')
+                : (!$hasAnyMainImage ? 'Mindestens 1 Galeriebild oder Saison-Vorlagenbild erforderlich' : $seasonalSetStatus['tooltip']),
         ];
 
         // 5. Kategorien (Schritt 3)
@@ -1483,7 +1499,7 @@ use HasFactory, HasUuids, SoftDeletes;
 
         if ($isPhysical && $isPersonalizable) {
             if ($this->usesCustomFieldsPersonalization()) {
-                // 9. Schnell-Personalisierung: Dynamische Eingabefelder (Schritt 1 -> Unter-Step 1)
+                // 8. Schnell-Personalisierung: Dynamische Eingabefelder (Schritt 1 -> Unter-Step 1)
                 $customFields = $this->getCustomFieldsDefinition();
                 $customFieldsCount = count($customFields);
                 $customFieldsPassed = $customFieldsCount > 0;
@@ -1501,7 +1517,7 @@ use HasFactory, HasUuids, SoftDeletes;
                         : 'Mindestens 1 Eingabefeld für die Schnell-Personalisierung in Schritt 1.1 anlegen',
                 ];
             } else {
-                // 9. 3D/2D Konfigurator Setup (Schritt 4 -> Unter-Step 1)
+                // 8. 3D/2D Konfigurator Setup (Schritt 4 -> Unter-Step 1)
                 $has3dOr2d = (!$this->three_d_active || !empty($this->three_d_model_path)) && !empty($this->preview_image_path);
                 $checks[] = [
                     'key'           => 'configurator',
@@ -1515,7 +1531,24 @@ use HasFactory, HasUuids, SoftDeletes;
                         ? ($this->three_d_active ? '3D-Modell (.glb) & Overlay aktiv' : '2D-Konfigurator aktiv')
                         : '3D-Modell (.glb) oder Konfigurator-Vorschaubild fehlt',
                 ];
+            }
 
+            // 9. xTool Laser-Parameter & Bearbeitungs-Anleitung (Schritt 4 -> Unter-Step 2)
+            $laserSummary = $this->getLaserInstructionSummary();
+            $checks[] = [
+                'key'           => 'xtool_laser',
+                'step'          => 4,
+                'sub_step'      => 2,
+                'section'       => 'collection',
+                'label'         => 'xTool Laser-Anleitung & Werte',
+                'short_missing' => 'Laser-Werte fehlen',
+                'passed'        => $laserSummary['is_complete'],
+                'detail'        => $laserSummary['is_complete']
+                    ? ($laserSummary['equipment_title'] . ' · ' . $laserSummary['focus_formatted'] . ' · ' . $laserSummary['power_percent'] . ' % · ' . $laserSummary['dpi'] . ' DPI')
+                    : 'Fehlt in Schritt 4.2: ' . implode(', ', array_slice($laserSummary['missing_labels'], 0, 4)),
+            ];
+
+            if (!$this->usesCustomFieldsPersonalization()) {
                 // 10. Gravur-Vorlagen (Schritt 4 -> Unter-Step 4 / Tab Vorlagen)
                 $activeTplCount = $activeTemplates->count();
                 $templatesPassed = $activeTplCount > 0;
@@ -1553,6 +1586,234 @@ use HasFactory, HasUuids, SoftDeletes;
             'missing'      => $missing,
             'by_step'      => $byStep,
         ];
+    }
+
+    /**
+     * Liefert die 3 zentral im System hinterlegten xTool F2 Ultra UV PDF-Anleitungen
+     * (gespeichert unter storage/app/public/produkte/laser-anleitungen/ sowie im KI-Workspace unter Berufsleben/Laser-Anleitungen/).
+     *
+     * @return array<int, array{number: int, equipment_key: string, title: string, badge: string, filename: string, asset_path: string, url: string}>
+     */
+    public static function getLaserPdfGuides(): array
+    {
+        return [
+            [
+                'number'        => 1,
+                'equipment_key' => 'rotary_ra3',
+                'title'         => '360° Gravur (xTool RA3)',
+                'badge'         => 'Anleitung 1 · RA3 Rotationsaufsatz',
+                'filename'      => 'Anleitung_1_360_Grad_Gravur_xTool_RA3.pdf',
+                'asset_path'    => 'storage/produkte/laser-anleitungen/Anleitung_1_360_Grad_Gravur_xTool_RA3.pdf',
+                'url'           => asset('storage/produkte/laser-anleitungen/Anleitung_1_360_Grad_Gravur_xTool_RA3.pdf'),
+            ],
+            [
+                'number'        => 2,
+                'equipment_key' => 'conveyor_batch',
+                'title'         => 'Laufband Serienproduktion',
+                'badge'         => 'Anleitung 2 · Förderband',
+                'filename'      => 'Anleitung_2_Laufband_Massenproduktion_xTool_F2_Ultra_UV.pdf',
+                'asset_path'    => 'storage/produkte/laser-anleitungen/Anleitung_2_Laufband_Massenproduktion_xTool_F2_Ultra_UV.pdf',
+                'url'           => asset('storage/produkte/laser-anleitungen/Anleitung_2_Laufband_Massenproduktion_xTool_F2_Ultra_UV.pdf'),
+            ],
+            [
+                'number'        => 3,
+                'equipment_key' => 'inner_3d',
+                'title'         => '3D-Innengravur Effekt',
+                'badge'         => 'Anleitung 3 · Gold-Linse + Riser',
+                'filename'      => 'Anleitung_3_3D_Innengravur_xTool_F2_Ultra_UV.pdf',
+                'asset_path'    => 'storage/produkte/laser-anleitungen/Anleitung_3_3D_Innengravur_xTool_F2_Ultra_UV.pdf',
+                'url'           => asset('storage/produkte/laser-anleitungen/Anleitung_3_3D_Innengravur_xTool_F2_Ultra_UV.pdf'),
+            ],
+        ];
+    }
+
+    /**
+     * Katalog der verfügbaren xTool F2 Ultra UV Equipment-Aufbauten inkl. verknüpfter PDF-Kurzanleitungen.
+     *
+     * @return array<string, array{key: string, title: string, badge: string, default_process_mode: string, pdf_file: ?string, pdf_filename: ?string, pdf_label: ?string, tooltip: string}>
+     */
+    public static function getLaserEquipmentCatalog(): array
+    {
+        return [
+            'flatbed_standard' => [
+                'key'                  => 'flatbed_standard',
+                'title'                => 'Flachbett Standard',
+                'badge'                => 'Standard-Linse · Lamellenrost',
+                'default_process_mode' => 'Prozess auf flacher Oberfläche',
+                'pdf_file'             => null,
+                'pdf_filename'         => null,
+                'pdf_label'            => null,
+                'tooltip'              => 'Schwarze Standard-Linse im Laserkopf und schwarzes Lamellenrost auf der Bodenplatte.',
+            ],
+            'rotary_ra3' => [
+                'key'                  => 'rotary_ra3',
+                'title'                => '360° Rotation (xTool RA3)',
+                'badge'                => 'Anleitung 1 · RA3 Aufsatz',
+                'default_process_mode' => 'Walze - Rotationsaufsatz',
+                'pdf_file'             => 'storage/produkte/laser-anleitungen/Anleitung_1_360_Grad_Gravur_xTool_RA3.pdf',
+                'pdf_filename'         => 'Anleitung_1_360_Grad_Gravur_xTool_RA3.pdf',
+                'pdf_label'            => 'Anleitung 1: 360° RA3',
+                'tooltip'              => 'Für Gläser, Becher, Tassen, Flaschen und Ringe mit dem xTool RA3 Rotationsaufsatz.',
+            ],
+            'conveyor_batch' => [
+                'key'                  => 'conveyor_batch',
+                'title'                => 'Laufband Serie',
+                'badge'                => 'Anleitung 2 · Förderband',
+                'default_process_mode' => 'Gleiches Design - Stapelverarbeitung',
+                'pdf_file'             => 'storage/produkte/laser-anleitungen/Anleitung_2_Laufband_Massenproduktion_xTool_F2_Ultra_UV.pdf',
+                'pdf_filename'         => 'Anleitung_2_Laufband_Massenproduktion_xTool_F2_Ultra_UV.pdf',
+                'pdf_label'            => 'Anleitung 2: Laufband',
+                'tooltip'              => 'Für Seriengravuren (Kugelschreiber, Anhänger, Marken) auf dem xTool Förderband.',
+            ],
+            'inner_3d' => [
+                'key'                  => 'inner_3d',
+                'title'                => '3D-Innengravur',
+                'badge'                => 'Anleitung 3 · Gold-Linse + Riser',
+                'default_process_mode' => 'Innengravur - 3D-Miniatur',
+                'pdf_file'             => 'storage/produkte/laser-anleitungen/Anleitung_3_3D_Innengravur_xTool_F2_Ultra_UV.pdf',
+                'pdf_filename'         => 'Anleitung_3_3D_Innengravur_xTool_F2_Ultra_UV.pdf',
+                'pdf_label'            => 'Anleitung 3: 3D-Innengravur',
+                'tooltip'              => 'Für tiefe K9-Kristallblöcke mit goldener Innengravur-Linse und schwarzem Riser-Tisch.',
+            ],
+        ];
+    }
+
+    /**
+     * Wertet ein configurator_settings-Array hinsichtlich Geometrie, Equipment-Voraussetzung und xTool Studio Parametern aus.
+     */
+    public static function evaluateLaserInstructionSettings(array $settings, bool $requireStudioGeometry = true): array
+    {
+        $catalog = self::getLaserEquipmentCatalog();
+        $overlayType = (string) ($settings['overlay_type'] ?? 'plane');
+
+        $hasGeometry = $overlayType === 'cylinder'
+            ? ((float) ($settings['xtool_d_top'] ?? 0) > 0 && (float) ($settings['xtool_height'] ?? 0) > 0)
+            : ((float) ($settings['xtool_plane_width'] ?? 0) > 0 && (float) ($settings['xtool_plane_height'] ?? 0) > 0);
+
+        $equipmentKey = trim((string) ($settings['xtool_equipment_key'] ?? ''));
+        $equipmentMeta = $catalog[$equipmentKey] ?? null;
+        $setupNote = trim((string) ($settings['xtool_setup_note'] ?? ''));
+        $processMode = trim((string) ($settings['xtool_process_mode'] ?? ''));
+        $material = trim((string) ($settings['xtool_material'] ?? ''));
+        $focusRaw = str_replace(',', '.', trim((string) ($settings['xtool_focus_mm'] ?? '')));
+        $focusMm = is_numeric($focusRaw) ? (float) $focusRaw : 0.0;
+
+        $elementType = trim((string) ($settings['xtool_element_type'] ?? 'Bild')) ?: 'Bild';
+        $engraveTab = trim((string) ($settings['xtool_engrave_tab'] ?? 'Gravieren')) ?: 'Gravieren';
+        $presetMode = trim((string) ($settings['xtool_preset_mode'] ?? 'Benutzerdefiniert')) ?: 'Benutzerdefiniert';
+
+        $dotDurationUs = (int) ($settings['xtool_dot_duration_us'] ?? 0);
+        $powerPercent = (int) ($settings['xtool_power_percent'] ?? 0);
+        $dpi = (int) ($settings['xtool_dpi'] ?? 0);
+        $passes = (int) ($settings['xtool_passes'] ?? 0);
+        $frequencyKhz = (int) ($settings['xtool_frequency_khz'] ?? 0);
+        $bitmapMode = trim((string) ($settings['xtool_bitmap_mode'] ?? ''));
+        $engraveMode = trim((string) ($settings['xtool_engrave_mode'] ?? ''));
+        $vectorNote = trim((string) ($settings['xtool_vector_note'] ?? ''));
+
+        $missingLabels = [];
+        if ($requireStudioGeometry && !$hasGeometry) {
+            $missingLabels[] = 'SVG-Geometrie (mm)';
+        }
+        if ($equipmentMeta === null) {
+            $missingLabels[] = 'Voraussetzung / Equipment';
+        }
+        if ($processMode === '') {
+            $missingLabels[] = 'Modus';
+        }
+        if ($material === '') {
+            $missingLabels[] = 'Material';
+        }
+        if ($focusMm <= 0) {
+            $missingLabels[] = 'Fokus (mm)';
+        }
+        if ($dotDurationUs <= 0) {
+            $missingLabels[] = 'Punktdauer (µs)';
+        }
+        if ($powerPercent <= 0) {
+            $missingLabels[] = 'Leistung (%)';
+        }
+        if ($dpi <= 0) {
+            $missingLabels[] = 'DPI';
+        }
+        if ($passes <= 0) {
+            $missingLabels[] = 'Bearbeitungsanzahl';
+        }
+        if ($frequencyKhz <= 0) {
+            $missingLabels[] = 'Frequenz (kHz)';
+        }
+        if ($bitmapMode === '') {
+            $missingLabels[] = 'Bitmap-Modus';
+        }
+        if ($engraveMode === '') {
+            $missingLabels[] = 'Gravurmodus';
+        }
+
+        $isComplete = count($missingLabels) === 0;
+        $focusFormatted = $focusMm > 0 ? number_format($focusMm, 1, ',', '.') . ' mm' : '';
+        $pdfUrl = !empty($equipmentMeta['pdf_file']) ? asset($equipmentMeta['pdf_file']) : null;
+
+        $copyLines = [];
+        if ($equipmentMeta !== null) {
+            $copyLines[] = 'Equipment: ' . $equipmentMeta['title'] . ' (' . $equipmentMeta['badge'] . ')';
+        }
+        if ($setupNote !== '') {
+            $copyLines[] = 'Hinweis: ' . $setupNote;
+        }
+        if ($processMode !== '') {
+            $copyLines[] = 'Modus: ' . $processMode;
+        }
+        if ($material !== '') {
+            $copyLines[] = 'Material: ' . $material;
+        }
+        if ($focusMm > 0) {
+            $copyLines[] = 'Fokus: ' . $focusFormatted;
+        }
+        if ($dotDurationUs > 0 || $powerPercent > 0 || $dpi > 0) {
+            $copyLines[] = "{$elementType} ({$engraveTab} / {$presetMode}): {$dotDurationUs} µs · {$powerPercent} % · {$dpi} DPI · {$passes}x · {$frequencyKhz} kHz · {$bitmapMode} · {$engraveMode}";
+        }
+        if ($vectorNote !== '') {
+            $copyLines[] = 'Vektor: ' . $vectorNote;
+        }
+
+        return [
+            'is_complete'       => $isComplete,
+            'has_geometry'      => $hasGeometry,
+            'missing_labels'    => $missingLabels,
+            'equipment_key'     => $equipmentKey,
+            'equipment_title'   => $equipmentMeta['title'] ?? '',
+            'equipment_badge'   => $equipmentMeta['badge'] ?? '',
+            'pdf_file'          => $equipmentMeta['pdf_file'] ?? null,
+            'pdf_filename'      => $equipmentMeta['pdf_filename'] ?? null,
+            'pdf_url'           => $pdfUrl,
+            'pdf_label'         => $equipmentMeta['pdf_label'] ?? null,
+            'setup_note'        => $setupNote,
+            'process_mode'      => $processMode,
+            'material'          => $material,
+            'focus_mm'          => $focusMm,
+            'focus_formatted'   => $focusFormatted,
+            'element_type'      => $elementType,
+            'engrave_tab'       => $engraveTab,
+            'preset_mode'       => $presetMode,
+            'dot_duration_us'   => $dotDurationUs,
+            'power_percent'     => $powerPercent,
+            'dpi'               => $dpi,
+            'passes'            => $passes,
+            'frequency_khz'     => $frequencyKhz,
+            'bitmap_mode'       => $bitmapMode,
+            'engrave_mode'      => $engraveMode,
+            'vector_note'       => $vectorNote,
+            'copy_summary'      => implode("\n", $copyLines),
+        ];
+    }
+
+    /**
+     * Liefert die aufbereitete xTool Laser-Anleitung inkl. Vollständigkeitsprüfung für dieses Produkt.
+     */
+    public function getLaserInstructionSummary(): array
+    {
+        $settings = is_array($this->configurator_settings) ? $this->configurator_settings : [];
+        return self::evaluateLaserInstructionSettings($settings, $this->usesStudioConfigurator());
     }
 
     /**
@@ -1696,15 +1957,16 @@ use HasFactory, HasUuids, SoftDeletes;
 
                     if ($now->between($winStart, $winEnd)) {
                         $mapped = match ($eventKey) {
-                            'valentines'  => ['Valentinstag', 'Hochzeit'],
-                            'womens_day'  => ['Muttertag', 'Valentinstag', 'Ostern'],
-                            'easter'      => ['Ostern', 'Muttertag'],
-                            'mothers_day' => ['Muttertag', 'Hochzeit'],
-                            'fathers_day' => ['Vatertag', 'Geburtstag'],
-                            'sale_summer' => ['Hochzeit', 'Geburtstag'],
-                            'halloween'   => ['Halloween', 'Geburtstag'],
-                            'advent_1', 'christmas', 'sale_winter' => ['Weihnachten'],
-                            'new_year'    => ['Geburtstag', 'Weihnachten'],
+                            'valentines'  => ['Valentinstag', 'Winter', 'Hochzeit'],
+                            'womens_day'  => ['Frühling', 'Muttertag', 'Valentinstag', 'Ostern'],
+                            'easter'      => ['Ostern', 'Frühling', 'Muttertag'],
+                            'mothers_day' => ['Muttertag', 'Frühling', 'Hochzeit'],
+                            'fathers_day' => ['Vatertag', 'Frühling', 'Geburtstag'],
+                            'sale_summer' => ['Sommer', 'Hochzeit', 'Geburtstag'],
+                            'halloween'   => ['Halloween', 'Herbst', 'Geburtstag'],
+                            'advent_1', 'christmas' => ['Weihnachten', 'Winter'],
+                            'sale_winter' => ['Winter', 'Weihnachten'],
+                            'new_year'    => ['Winter', 'Geburtstag', 'Weihnachten'],
                             default       => [],
                         };
                         foreach ($mapped as $m) {
@@ -1721,23 +1983,23 @@ use HasFactory, HasUuids, SoftDeletes;
                 $seasonKey = match ((int) $now->month) {
                     3, 4, 5  => 'ostern',
                     6, 7, 8  => 'sommer',
-                    9, 10    => 'herbst',
+                    9, 10, 11 => 'herbst',
                     default  => 'winter',
                 };
             }
             $seasonFallback = match ($seasonKey) {
-                'ostern' => ['Ostern', 'Muttertag', 'Vatertag', 'Hochzeit'],
-                'sommer' => ['Hochzeit', 'Geburtstag', 'Vatertag', 'Muttertag'],
-                'herbst' => ['Halloween', 'Geburtstag', 'Hochzeit'],
-                'winter' => ['Weihnachten', 'Valentinstag', 'Geburtstag'],
-                default  => ['Halloween', 'Weihnachten', 'Ostern', 'Hochzeit'],
+                'ostern' => ['Frühling', 'Ostern', 'Muttertag', 'Vatertag', 'Hochzeit'],
+                'sommer' => ['Sommer', 'Hochzeit', 'Geburtstag', 'Vatertag', 'Muttertag'],
+                'herbst' => ['Herbst', 'Halloween', 'Geburtstag', 'Hochzeit'],
+                'winter' => ['Winter', 'Weihnachten', 'Valentinstag', 'Geburtstag'],
+                default  => ['Winter', 'Sommer', 'Herbst', 'Frühling', 'Weihnachten', 'Ostern', 'Hochzeit'],
             };
             foreach ($seasonFallback as $s) {
                 $candidates[] = $s;
             }
         } catch (\Throwable $e) {
             // Fallback bei DB-/Service-Bootstrapping
-            $candidates = array_merge($candidates, ['Halloween', 'Weihnachten', 'Ostern', 'Hochzeit', 'Geburtstag']);
+            $candidates = array_merge($candidates, ['Winter', 'Sommer', 'Herbst', 'Frühling', 'Halloween', 'Weihnachten', 'Ostern', 'Hochzeit', 'Geburtstag']);
         }
 
         return array_values(array_unique($candidates));
@@ -1863,18 +2125,37 @@ use HasFactory, HasUuids, SoftDeletes;
     }
 
     /**
-     * Die 8 festen System-Anlässe für das „Automatische Saison- & Feiertags-Hauptbild“.
+     * Die 4 festen Jahreszeiten-Kacheln für das „Automatische Saison- & Feiertags-Hauptbild“
+     * in der gewünschten Reihenfolge: Winter, Sommer, Herbst, Frühling.
+     */
+    public const SEASONAL_SEASON_SLOTS = [
+        'Winter'   => ['label' => 'Winter',   'hint' => '01.12. bis 28.02.', 'icon' => '❄️', 'group' => 'season'],
+        'Sommer'   => ['label' => 'Sommer',   'hint' => '01.06. bis 31.08.', 'icon' => '☀️', 'group' => 'season'],
+        'Herbst'   => ['label' => 'Herbst',   'hint' => '01.09. bis 30.11.', 'icon' => '🍂', 'group' => 'season'],
+        'Frühling' => ['label' => 'Frühling', 'hint' => '01.03. bis 31.05.', 'icon' => '🌸', 'group' => 'season'],
+    ];
+
+    /**
+     * Die 8 festen Feiertags- & Anlass-Kacheln für das „Automatische Saison- & Feiertags-Hauptbild“.
      */
     public const SEASONAL_HOLIDAY_SLOTS = [
-        'Weihnachten'  => ['label' => 'Weihnachten',  'hint' => 'Winter / Advent'],
-        'Ostern'       => ['label' => 'Ostern',       'hint' => 'Frühling'],
-        'Hochzeit'     => ['label' => 'Hochzeit',     'hint' => 'Sommer'],
-        'Geburtstag'   => ['label' => 'Geburtstag',   'hint' => 'Ganzjährig'],
-        'Valentinstag' => ['label' => 'Valentinstag', 'hint' => 'Februar'],
-        'Muttertag'    => ['label' => 'Muttertag',    'hint' => 'Mai'],
-        'Vatertag'     => ['label' => 'Vatertag',     'hint' => 'Mai'],
-        'Halloween'    => ['label' => 'Halloween',    'hint' => 'Herbst / Oktober'],
+        'Weihnachten'  => ['label' => 'Weihnachten',  'hint' => 'Advent bis 26.12.',   'icon' => '🎄', 'group' => 'holiday'],
+        'Ostern'       => ['label' => 'Ostern',       'hint' => 'Osterzeit',           'icon' => '🐰', 'group' => 'holiday'],
+        'Valentinstag' => ['label' => 'Valentinstag', 'hint' => '04.02. bis 15.02.',   'icon' => '❤️', 'group' => 'holiday'],
+        'Muttertag'    => ['label' => 'Muttertag',    'hint' => 'Mai (2. Sonntag)',    'icon' => '💐', 'group' => 'holiday'],
+        'Vatertag'     => ['label' => 'Vatertag',     'hint' => 'Christi Himmelfahrt', 'icon' => '🍻', 'group' => 'holiday'],
+        'Halloween'    => ['label' => 'Halloween',    'hint' => '19.10. bis 01.11.',   'icon' => '🎃', 'group' => 'holiday'],
+        'Hochzeit'     => ['label' => 'Hochzeit',     'hint' => 'Ganzjährig',          'icon' => '💍', 'group' => 'holiday'],
+        'Geburtstag'   => ['label' => 'Geburtstag',   'hint' => 'Ganzjährig',          'icon' => '🎂', 'group' => 'holiday'],
     ];
+
+    /**
+     * Liefert alle 12 Saison- & Feiertags-Kacheln (4 Jahreszeiten + 8 Feiertage).
+     */
+    public static function getAllSeasonalAndHolidaySlots(): array
+    {
+        return array_merge(self::SEASONAL_SEASON_SLOTS, self::SEASONAL_HOLIDAY_SLOTS);
+    }
 
     /**
      * Liefert strukturierte Metadaten zum aufgelösten Hauptbild (Pfad, URL, KI-Kennzeichnung, Label).
@@ -1897,6 +2178,25 @@ use HasFactory, HasUuids, SoftDeletes;
                             if (mb_strtolower(trim((string) $hKey)) !== $normCandidate) {
                                 continue;
                             }
+                            $sPath = is_array($sEntry) ? ($sEntry['path'] ?? null) : (is_string($sEntry) ? $sEntry : null);
+                            if (empty($sPath) || in_array($sPath, $excludeImagePaths, true)) {
+                                continue;
+                            }
+                            $sUrl = ProductTemplate::resolveImageUrl($sPath);
+                            if ($sUrl) {
+                                return [
+                                    'path'            => $sPath,
+                                    'url'             => $sUrl,
+                                    'is_ai_generated' => is_array($sEntry) ? filter_var($sEntry['is_ai_generated'] ?? true, FILTER_VALIDATE_BOOLEAN) : true,
+                                    'label'           => $this->name . ' (' . $hKey . ')',
+                                ];
+                            }
+                        }
+                    }
+
+                    // Falls noch nicht alle Jahreszeiten befüllt sind, nutze das erste gepflegte Saisonbild als Fallback
+                    if ($explicitHoliday === null) {
+                        foreach ($customSeasonalMap as $hKey => $sEntry) {
                             $sPath = is_array($sEntry) ? ($sEntry['path'] ?? null) : (is_string($sEntry) ? $sEntry : null);
                             if (empty($sPath) || in_array($sPath, $excludeImagePaths, true)) {
                                 continue;
@@ -1992,7 +2292,11 @@ use HasFactory, HasUuids, SoftDeletes;
             }
         }
 
-        if (!empty($this->preview_image_path) && !in_array($this->preview_image_path, $excludeImagePaths, true)) {
+        $isConfiguratorCutout = !empty($this->preview_image_path)
+            && (str_ends_with((string) $this->preview_image_path, '/overlay.png')
+                || str_ends_with((string) $this->preview_image_path, '/envelope.png'));
+
+        if (!empty($this->preview_image_path) && !$isConfiguratorCutout && !in_array($this->preview_image_path, $excludeImagePaths, true)) {
             return [
                 'type'            => 'image',
                 'path'            => $this->preview_image_path,
@@ -2119,7 +2423,7 @@ use HasFactory, HasUuids, SoftDeletes;
                 'path'            => $media['path'],
                 'url'             => $url,
                 'is_ai_generated' => filter_var($media['is_ai_generated'] ?? ($type === 'image'), FILTER_VALIDATE_BOOLEAN),
-                'label'           => $media['alt'] ?? ($this->name . ' – Hover-Ansicht'),
+                'label'           => $media['alt'] ?? ($this->name . ': Hover-Ansicht'),
             ];
         }
 
@@ -2151,12 +2455,12 @@ use HasFactory, HasUuids, SoftDeletes;
                     'path'            => $media['path'],
                     'url'             => $url,
                     'is_ai_generated' => filter_var($media['is_ai_generated'] ?? ($type === 'image'), FILTER_VALIDATE_BOOLEAN),
-                    'label'           => $media['alt'] ?? ($this->name . ' – Neulingsvorschau'),
+                    'label'           => $media['alt'] ?? ($this->name . ': Neulingsvorschau'),
                 ];
             }
         }
 
-        // Fallback: Erste aktive Vorlage oder Hauptbild
+        // Fallback: Erste aktive Vorlage oder saisonales/reguläres Hauptbild
         $seasonalTpl = $this->resolveSeasonalTemplate(null, [], null, null);
         if ($seasonalTpl && !empty($seasonalTpl->preview_image)) {
             $url = ProductTemplate::resolveImageUrl($seasonalTpl->preview_image);
@@ -2166,19 +2470,19 @@ use HasFactory, HasUuids, SoftDeletes;
                     'path'            => $seasonalTpl->preview_image,
                     'url'             => $url,
                     'is_ai_generated' => (bool) ($seasonalTpl->is_ai_generated ?? true),
-                    'label'           => $this->name . ' – Neulingsvorschau',
+                    'label'           => $this->name . ': Neulingsvorschau',
                 ];
             }
         }
 
-        $mainMeta = $this->resolveMainImageMeta(null, false);
+        $mainMeta = $this->resolveMainImageMeta(null, true);
         if (!empty($mainMeta['url']) && !empty($mainMeta['path'])) {
             return [
                 'type'            => 'image',
                 'path'            => $mainMeta['path'],
                 'url'             => $mainMeta['url'],
                 'is_ai_generated' => (bool) ($mainMeta['is_ai_generated'] ?? true),
-                'label'           => $this->name . ' – Neulingsvorschau',
+                'label'           => $this->name . ': Neulingsvorschau',
             ];
         }
 
@@ -2186,11 +2490,11 @@ use HasFactory, HasUuids, SoftDeletes;
     }
 
     /**
-     * Liefert die strukturierte Übersicht aller 8 Saison- & Feiertags-Hauptbilder für Schritt 2 ("Medien").
-     * Berücksichtigt sowohl direkt im Produkt hinterlegte Saisonbilder (configurator_settings['seasonal_images'] / media_gallery)
-     * als auch vorhandene Produktvorlagen (ProductTemplate).
+     * Liefert die strukturierte Übersicht aller 12 Saison- & Feiertags-Hauptbilder (4 Jahreszeiten + 8 Feiertage)
+     * für Schritt 2 ("Medien"). Berücksichtigt sowohl direkt im Produkt hinterlegte Saisonbilder
+     * (configurator_settings['seasonal_images'] / media_gallery) als auch vorhandene Produktvorlagen (ProductTemplate).
      *
-     * @return array<string, array{holiday: string, label: string, hint: string, path: ?string, url: ?string, is_ai_generated: bool, source: ?string, is_active_today: bool}>
+     * @return array<string, array{holiday: string, label: string, hint: string, icon: string, group: string, path: ?string, url: ?string, is_ai_generated: bool, source: ?string, is_active_today: bool}>
      */
     public function getSeasonalMainImagesOverview(): array
     {
@@ -2210,7 +2514,7 @@ use HasFactory, HasUuids, SoftDeletes;
 
         $overview = [];
 
-        foreach (self::SEASONAL_HOLIDAY_SLOTS as $holidayKey => $slotMeta) {
+        foreach (self::getAllSeasonalAndHolidaySlots() as $holidayKey => $slotMeta) {
             $normKey = mb_strtolower(trim($holidayKey));
             $resolvedPath = null;
             $resolvedIsAi = true;
@@ -2262,6 +2566,8 @@ use HasFactory, HasUuids, SoftDeletes;
                 'holiday'         => $holidayKey,
                 'label'           => $slotMeta['label'],
                 'hint'            => $slotMeta['hint'],
+                'icon'            => $slotMeta['icon'] ?? '',
+                'group'           => $slotMeta['group'] ?? 'holiday',
                 'path'            => $resolvedPath,
                 'url'             => $resolvedUrl,
                 'is_ai_generated' => $resolvedIsAi,
@@ -2271,6 +2577,76 @@ use HasFactory, HasUuids, SoftDeletes;
         }
 
         return $overview;
+    }
+
+    /**
+     * Berechnet den Vollständigkeits-Status des Saison- & Feiertags-Bildersatzes (für die ! / ✓ Anzeige in der Produktübersicht).
+     * - Ist der Schalter "Automatisch nach Jahreszeit / Feiertag" deaktiviert, ist der Status automatisch grün (is_complete = true).
+     * - Ist der Schalter aktiviert, müssen alle 4 Jahreszeiten + alle 8 Feiertage mindestens 1 Bild besitzen.
+     *
+     * @return array{is_complete: bool, auto_enabled: bool, filled_count: int, total_count: int, seasons_filled: int, seasons_total: int, holidays_filled: int, holidays_total: int, missing_labels: array<int, string>, tooltip: string}
+     */
+    public function getSeasonalImageSetStatus(): array
+    {
+        $autoEnabled = $this->isAutoSeasonalMainImageEnabled();
+        $overview = $this->getSeasonalMainImagesOverview();
+
+        $seasonsTotal = count(self::SEASONAL_SEASON_SLOTS);
+        $holidaysTotal = count(self::SEASONAL_HOLIDAY_SLOTS);
+        $totalCount = $seasonsTotal + $holidaysTotal;
+
+        $seasonsFilled = 0;
+        $holidaysFilled = 0;
+        $missingLabels = [];
+
+        foreach ($overview as $slot) {
+            $hasImg = !empty($slot['path']);
+            $isSeason = ($slot['group'] ?? 'holiday') === 'season';
+            if ($hasImg) {
+                if ($isSeason) {
+                    $seasonsFilled++;
+                } else {
+                    $holidaysFilled++;
+                }
+            } else {
+                $missingLabels[] = $slot['label'];
+            }
+        }
+
+        $filledCount = $seasonsFilled + $holidaysFilled;
+
+        if (!$autoEnabled) {
+            return [
+                'is_complete'     => true,
+                'auto_enabled'    => false,
+                'filled_count'    => $filledCount,
+                'total_count'     => $totalCount,
+                'seasons_filled'  => $seasonsFilled,
+                'seasons_total'   => $seasonsTotal,
+                'holidays_filled' => $holidaysFilled,
+                'holidays_total'  => $holidaysTotal,
+                'missing_labels'  => [],
+                'tooltip'         => 'Saison-Automatik aus (Kein Saison-Bildersatz erforderlich)',
+            ];
+        }
+
+        $isComplete = ($filledCount === $totalCount);
+        $tooltip = $isComplete
+            ? "Bildersatz komplett ({$filledCount}/{$totalCount} Jahreszeiten- & Feiertagsbilder gepflegt)"
+            : "Bildersatz unvollständig ({$filledCount}/{$totalCount} gepflegt) | Offen: " . implode(', ', $missingLabels);
+
+        return [
+            'is_complete'     => $isComplete,
+            'auto_enabled'    => true,
+            'filled_count'    => $filledCount,
+            'total_count'     => $totalCount,
+            'seasons_filled'  => $seasonsFilled,
+            'seasons_total'   => $seasonsTotal,
+            'holidays_filled' => $holidaysFilled,
+            'holidays_total'  => $holidaysTotal,
+            'missing_labels'  => $missingLabels,
+            'tooltip'         => $tooltip,
+        ];
     }
 
     /**
@@ -2740,7 +3116,7 @@ use HasFactory, HasUuids, SoftDeletes;
 
         $companyCityFaq = shop_setting('company_city', shop_setting('owner_city', 'Gifhorn'));
         if ($this->slug === 'geschenkgutschein') {
-            $deliveryFaqAnswer = 'Digitale Geschenkgutscheine stehen nach Zahlungseingang sofort als PDF-Download bereit. Bei Wahl des Postversands wird die lasergravierte goldene Metallkarte im schwarzen Edel-Umschlag mit goldenem Siegel innerhalb von 3 bis 5 Werktagen versendet.';
+            $deliveryFaqAnswer = 'Digitale Geschenkgutscheine stehen nach Zahlungseingang sofort als PDF-Download bereit. Bei Wahl des Postversands wird die lasergravierte Aluminiumkarte im schwarzen Edel-Umschlag mit goldenem Siegel innerhalb von 3 bis 5 Werktagen versendet.';
         } elseif ($this->type === 'digital') {
             $deliveryFaqAnswer = 'Digitale Produkte stehen unmittelbar nach Zahlungseingang als Sofort-Download bereit.';
         } else {

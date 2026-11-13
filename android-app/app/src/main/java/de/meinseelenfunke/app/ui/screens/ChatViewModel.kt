@@ -37,6 +37,7 @@ class ChatViewModel : ViewModel() {
     val selectedAgent: StateFlow<de.meinseelenfunke.app.data.api.AiAgent?> = _selectedAgent.asStateFlow()
 
     private var mediaPlayer: MediaPlayer? = null
+    private var currentTempAudioFile: File? = null
 
     init {
         loadAgents()
@@ -183,9 +184,11 @@ class ChatViewModel : ViewModel() {
             // Decode base64 string
             val audioBytes = Base64.decode(base64Wav, Base64.DEFAULT)
 
-            // Save to temp file
-            val tempFile = File.createTempFile("seelenfunke_tts_", ".wav", ServiceLocator.context.cacheDir)
+            // Save to scoped temp file
+            val ttsDir = File(ServiceLocator.context.cacheDir, "tts_temp").apply { mkdirs() }
+            val tempFile = File.createTempFile("seelenfunke_tts_", ".wav", ttsDir)
             tempFile.deleteOnExit()
+            currentTempAudioFile = tempFile
 
             FileOutputStream(tempFile).use { fos ->
                 fos.write(audioBytes)
@@ -199,22 +202,31 @@ class ChatViewModel : ViewModel() {
                 setOnCompletionListener {
                     it.release()
                     mediaPlayer = null
-                    try { tempFile.delete() } catch(e: Exception) {}
+                    try { tempFile.delete() } catch (e: Exception) {}
+                    if (currentTempAudioFile == tempFile) {
+                        currentTempAudioFile = null
+                    }
                 }
             }
         } catch (e: Exception) {
-            Log.e("ChatViewModel", "Fehler bei der Audio-Wiedergabe", e)
+            Log.e("ChatViewModel", "Fehler bei der Audio-Wiedergabe")
         }
     }
 
     fun stopAudio() {
         mediaPlayer?.let {
-            if (it.isPlaying) {
-                it.stop()
-            }
-            it.release()
+            try {
+                if (it.isPlaying) {
+                    it.stop()
+                }
+            } catch (_: Exception) {}
+            try { it.release() } catch (_: Exception) {}
         }
         mediaPlayer = null
+        currentTempAudioFile?.let { file ->
+            try { file.delete() } catch (_: Exception) {}
+        }
+        currentTempAudioFile = null
     }
 
     fun logout() {

@@ -1,4 +1,7 @@
-<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="space-y-6 text-gray-700 dark:text-gray-300">
+<div x-data="{ lightboxUrl: null, lightboxName: '', lightboxIsPdf: false }"
+     @keydown.escape.window="lightboxUrl = null"
+     style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;"
+     class="space-y-6 text-gray-700 dark:text-gray-300">
 
     {{-- EDUCATIONAL SECTION --}}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
@@ -52,7 +55,7 @@
     <!-- LIST VIEW: WORKFLOW STYLE -->
     <div class="mt-8">
         <h2 class="text-xl font-bold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
-            <i class="solar-clipboard-list-bold-duotone text-[var(--theme-color)]"></i>
+            <x-heroicon-o-clipboard-document-list class="w-6 h-6 text-[var(--theme-color)]" />
             Widerrufsprotokolle
         </h2>
 
@@ -105,24 +108,39 @@
                         $barTextColor = 'text-amber-400';
                         $barBgColor = 'bg-gradient-to-r from-amber-500 to-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.5)]';
                     }
+
+                    $order = $revocation->linked_order;
+                    $emailMatchesOrder = false;
+                    if ($order) {
+                        $revEmail = trim((string) $revocation->email);
+                        $ordEmail = trim((string) $order->email);
+                        $custEmail = trim((string) ($order->customer->email ?? ''));
+                        $emailMatchesOrder = $revEmail !== '' && (strcasecmp($revEmail, $ordEmail) === 0 || ($custEmail !== '' && strcasecmp($revEmail, $custEmail) === 0));
+                    }
                 @endphp
 
                 <div x-data="{ expanded: false }" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 hover:border-[var(--theme-color-40)] transition-all flex flex-col shadow-sm dark:shadow-inner {{ $isDone ? 'opacity-60' : '' }}">
                     <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 w-full cursor-pointer" @click="expanded = !expanded">
                         <div class="pl-2 flex-1">
                             <div class="flex items-center gap-2 mb-1 flex-wrap">
-                                <i class="bi bi-chevron-down text-gray-500 transition-transform" :class="expanded ? 'rotate-180' : ''"></i>
+                                <x-heroicon-o-chevron-down class="w-4 h-4 text-gray-500 transition-transform duration-200 shrink-0" ::class="expanded ? 'rotate-180' : ''" />
                                 <h3 class="font-bold text-gray-900 dark:text-gray-100 text-lg line-clamp-1">Bestellung {{ $revocation->order_number }}</h3>
                                 <span class="text-[10px] px-2 py-0.5 rounded-full uppercase tracking-widest font-bold border {{ $statusColor }}">
                                     {{ $statusLabel }}
                                 </span>
-                                @if($order = $revocation->linked_order)
+                                @if($order)
                                     <a href="{{ route('admin.orders', ['search' => $order->order_number]) }}" 
                                        class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:underline border border-amber-500/20" 
-                                       title="Zur Bestellung springen" 
+                                       title="Zur Bestellung springen ({{ number_format($order->total_price / 100, 2, ',', '.') }} €)" 
                                        @click.stop>
-                                        <i class="bi bi-box-arrow-up-right"></i> Order #{{ $order->order_number }}
+                                        <x-heroicon-o-arrow-top-right-on-square class="w-3.5 h-3.5" />
+                                        Order #{{ $order->order_number }} ({{ number_format($order->total_price / 100, 2, ',', '.') }} €)
                                     </a>
+                                    @if(!$emailMatchesOrder)
+                                        <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30" title="Widerrufs-E-Mail ({{ $revocation->email }}) weicht von Bestell-E-Mail ({{ $order->email }}) ab">
+                                            <x-heroicon-o-exclamation-triangle class="w-3.5 h-3.5" /> Abweichende E-Mail
+                                        </span>
+                                    @endif
                                     @php
                                         $revOrderSparks = app(\App\Services\Gamification\GamificationService::class)->calculateOrderSparks($order);
                                     @endphp
@@ -131,14 +149,18 @@
                                             ✨ {{ $isRefunded ? '-' : '' }}{{ number_format($revOrderSparks, 0, ',', '.') }} Funken {{ $isRefunded ? '(abgezogen)' : '(Widerrufs-Abzug)' }}
                                         </span>
                                     @endif
+                                @else
+                                    <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-700" title="Zur angegebenen Nummer wurde keine Bestellung im System gefunden">
+                                        <x-heroicon-o-question-mark-circle class="w-3.5 h-3.5" /> Keine Order gefunden
+                                    </span>
                                 @endif
                             </div>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 ml-7">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 ml-6">
                                 Kunde: <span class="font-bold text-gray-900 dark:text-white">{{ $revocation->name }}</span> ({{ $revocation->email }})
                             </p>
                         </div>
 
-                        <div class="flex items-center gap-2 pl-7 sm:pl-0 shrink-0">
+                        <div class="flex items-center gap-2 pl-6 sm:pl-0 shrink-0">
                             @if(!$isDone)
                                 <button wire:click.stop="deleteRevocation('{{ $revocation->id }}')" wire:confirm="Soll dieser Widerruf unwiderruflich gelöscht werden?" class="btn btn-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-red-500 p-2.5 rounded-lg shadow-sm dark:shadow-lg flex items-center justify-center transition-colors" title="Löschen">
                                     <x-heroicon-o-trash class="w-4 h-4" />
@@ -171,11 +193,18 @@
                                     @if(!empty($revocation->attachments) && is_array($revocation->attachments) && count($revocation->attachments) > 0)
                                         <div class="flex flex-col gap-1 items-end">
                                             @foreach($revocation->attachments as $attachment)
-                                                @php $fileName = basename($attachment); @endphp
-                                                <a href="{{ route('admin.widerruf.file', ['revocation' => $revocation->id, 'fileName' => $fileName]) }}" target="_blank" class="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-[10px] font-medium text-gray-700 dark:text-gray-300 rounded border border-gray-200 dark:border-gray-700 transition-colors" title="{{ $fileName }}">
-                                                    <i class="bi bi-paperclip"></i>
-                                                    <span class="truncate max-w-[150px]">{{ $fileName }}</span>
-                                                </a>
+                                                @php
+                                                    $fileName = basename($attachment);
+                                                    $fileUrl = route('admin.widerruf.file', ['revocation' => $revocation->id, 'fileName' => $fileName]);
+                                                    $isPdfFile = strtolower(pathinfo($fileName, PATHINFO_EXTENSION)) === 'pdf';
+                                                @endphp
+                                                <button type="button"
+                                                        @click.stop="lightboxUrl = @js($fileUrl); lightboxName = @js($fileName); lightboxIsPdf = {{ $isPdfFile ? 'true' : 'false' }}"
+                                                        class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-[10px] font-medium text-gray-700 dark:text-gray-300 rounded border border-gray-200 dark:border-gray-700 transition-colors cursor-zoom-in"
+                                                        title="Beleg in Lightbox öffnen ({{ $fileName }})">
+                                                    <x-heroicon-o-paper-clip class="w-3.5 h-3.5 text-[var(--theme-color)] shrink-0" />
+                                                    <span class="truncate max-w-[160px]">{{ $fileName }}</span>
+                                                </button>
                                             @endforeach
                                         </div>
                                     @else
@@ -186,8 +215,8 @@
 
                             <!-- STEP 1: Auto -->
                             <div class="flex items-start gap-3 p-3 rounded-xl transition-colors opacity-50 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800/50">
-                                <div class="mt-1 shrink-0">
-                                    <i class="solar-check-circle-bold text-emerald-500 text-2xl drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]"></i>
+                                <div class="mt-0.5 shrink-0">
+                                    <x-heroicon-s-check-circle class="w-6 h-6 text-emerald-500" />
                                 </div>
                                 <div class="flex-1 w-full overflow-hidden">
                                     <p class="text-sm font-semibold line-through text-gray-500">Bestätigung (Auto)</p>
@@ -200,11 +229,11 @@
 
                             <!-- STEP 2: Rechtliche Prüfung -->
                             <div class="flex items-start gap-3 p-3 rounded-xl transition-colors {{ $isLegalChecked ? 'opacity-50 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800/50' : 'bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-sm' }}">
-                                <div class="mt-1 shrink-0">
+                                <div class="mt-0.5 shrink-0">
                                     @if($isLegalChecked)
-                                        <i class="solar-check-circle-bold text-emerald-500 text-2xl drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]"></i>
+                                        <x-heroicon-s-check-circle class="w-6 h-6 text-emerald-500" />
                                     @else
-                                        <i class="solar-danger-circle-bold-duotone text-red-500 text-2xl"></i>
+                                        <x-heroicon-o-exclamation-circle class="w-6 h-6 text-red-500" />
                                     @endif
                                 </div>
                                 <div class="flex-1">
@@ -214,11 +243,11 @@
                                             Handelt es sich um personalisierte Waren (§ 312g)? Oder ein normales Standard-Produkt?
                                         </div>
                                         <div class="mt-3 flex flex-wrap gap-2">
-                                            <button wire:click="markLegalCheck('{{ $revocation->id }}', 'standard')" class="bg-blue-500/10 hover:bg-blue-500 text-blue-400 hover:text-white border border-blue-500/30 px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5">
-                                                <i class="solar-box-bold-duotone"></i> Standard
+                                            <button wire:click="markLegalCheck('{{ $revocation->id }}', 'standard')" class="bg-blue-500/10 hover:bg-blue-500 text-blue-500 dark:text-blue-400 hover:text-white border border-blue-500/30 px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5">
+                                                <x-heroicon-o-cube class="w-3.5 h-3.5" /> Standard
                                             </button>
-                                            <button wire:click="markLegalCheck('{{ $revocation->id }}', 'personalized')" class="bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/30 px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5">
-                                                <i class="solar-magic-stick-3-bold-duotone"></i> Personalisiert
+                                            <button wire:click="markLegalCheck('{{ $revocation->id }}', 'personalized')" class="bg-rose-500/10 hover:bg-rose-500 text-rose-500 dark:text-rose-400 hover:text-white border border-rose-500/30 px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5">
+                                                <x-heroicon-o-sparkles class="w-3.5 h-3.5" /> Personalisiert
                                             </button>
                                         </div>
                                     @else
@@ -231,7 +260,7 @@
                                                     <span class="bg-blue-500/10 border border-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded text-[9px] uppercase tracking-widest font-bold">Standard Produkt</span>
                                                 @endif
                                             </div>
-                                            <button wire:click.stop="undoLegalCheck('{{ $revocation->id }}')" class="text-red-500 hover:text-red-400 text-[9px] font-bold uppercase tracking-widest flex items-center gap-1 transition-colors"><i class="bi bi-x-circle"></i> Lösen</button>
+                                            <button wire:click.stop="undoLegalCheck('{{ $revocation->id }}')" class="text-red-500 hover:text-red-400 text-[9px] font-bold uppercase tracking-widest flex items-center gap-1 transition-colors"><x-heroicon-o-x-circle class="w-3.5 h-3.5" /> Lösen</button>
                                         </div>
                                     @endif
                                 </div>
@@ -239,11 +268,11 @@
 
                             <!-- STEP 3: Mail an Kunde -->
                             <div class="flex items-start gap-3 p-3 rounded-xl transition-colors {{ !$isLegalChecked ? 'opacity-30 pointer-events-none' : ($isCustomerNotified ? 'opacity-50 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800/50' : 'bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-sm') }}">
-                                <div class="mt-1 shrink-0">
+                                <div class="mt-0.5 shrink-0">
                                     @if($isCustomerNotified)
-                                        <i class="solar-check-circle-bold text-emerald-500 text-2xl drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]"></i>
+                                        <x-heroicon-s-check-circle class="w-6 h-6 text-emerald-500" />
                                     @else
-                                        <i class="solar-letter-opened-bold-duotone text-amber-500 text-2xl"></i>
+                                        <x-heroicon-o-envelope-open class="w-6 h-6 text-amber-500" />
                                     @endif
                                 </div>
                                 <div class="flex-1 w-full overflow-hidden">
@@ -256,12 +285,12 @@
                                         <div class="mt-3 flex flex-wrap justify-end gap-2" x-data="{ rejectMode: false, rejectReason: '{{ $revocation->product_type === 'personalized' ? 'personalized' : 'other' }}' }">
                                             <template x-if="!rejectMode">
                                                 <div class="flex gap-2">
-                                                    <button @click="rejectMode = true" class="bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/30 px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5">
-                                                        <i class="solar-close-circle-bold-duotone"></i> Widerruf ablehnen
+                                                    <button @click="rejectMode = true" class="bg-rose-500/10 hover:bg-rose-500 text-rose-500 dark:text-rose-400 hover:text-white border border-rose-500/30 px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5">
+                                                        <x-heroicon-o-x-circle class="w-3.5 h-3.5" /> Widerruf ablehnen
                                                     </button>
                                                     
-                                                    <button wire:click="markCustomerNotified('{{ $revocation->id }}')" class="bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-white border border-amber-500/30 px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5">
-                                                        <i class="bi bi-send-check"></i> Label gesendet
+                                                    <button wire:click="markCustomerNotified('{{ $revocation->id }}')" class="bg-amber-500/10 hover:bg-amber-500 text-amber-600 dark:text-amber-400 hover:text-white border border-amber-500/30 px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5">
+                                                        <x-heroicon-o-paper-airplane class="w-3.5 h-3.5" /> Label gesendet
                                                     </button>
                                                 </div>
                                             </template>
@@ -275,7 +304,7 @@
                                                         <option value="other">Sonstiges</option>
                                                     </select>
                                                     <button @click="$wire.rejectRevocation('{{ $revocation->id }}', rejectReason)" class="bg-rose-600 hover:bg-rose-500 text-white shadow-[0_0_10px_rgba(225,29,72,0.3)] border border-rose-400/30 px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-all gap-1.5 flex items-center">
-                                                        <i class="bi bi-send-x"></i> Senden
+                                                        <x-heroicon-o-paper-airplane class="w-3.5 h-3.5" /> Senden
                                                     </button>
                                                     <button @click="rejectMode = false" class="text-gray-500 hover:text-gray-300 px-2 py-1.5 rounded text-[10px] font-bold uppercase tracking-widest transition-colors">
                                                         Abbrechen
@@ -286,7 +315,7 @@
                                     @elseif($isCustomerNotified)
                                         <div class="flex items-center justify-between mt-1">
                                             <div class="text-[10px] text-gray-500 font-mono">Info gesendet am: {{ $revocation->customer_notified_at->format('d.m.Y H:i') }}</div>
-                                            <button wire:click.stop="undoCustomerNotified('{{ $revocation->id }}')" class="text-amber-500 hover:text-amber-400 text-[9px] font-bold uppercase tracking-widest flex items-center gap-1 transition-colors"><i class="bi bi-arrow-counterclockwise"></i> Zurücksetzen</button>
+                                            <button wire:click.stop="undoCustomerNotified('{{ $revocation->id }}')" class="text-amber-500 hover:text-amber-400 text-[9px] font-bold uppercase tracking-widest flex items-center gap-1 transition-colors"><x-heroicon-o-arrow-uturn-left class="w-3.5 h-3.5" /> Zurücksetzen</button>
                                         </div>
                                     @endif
                                 </div>
@@ -294,35 +323,35 @@
 
                             <!-- STEP 4: Abwicklung / Erstattung -->
                             <div class="flex items-start gap-3 p-3 rounded-xl transition-colors {{ !$isCustomerNotified ? 'opacity-30 pointer-events-none' : ($isDone ? 'opacity-50 bg-gray-50 dark:bg-gray-950 border ' . ($isDeclined ? 'border-rose-200 dark:border-rose-500/20' : 'border-emerald-200 dark:border-emerald-500/20') : 'bg-gray-50 dark:bg-gray-900 border border-emerald-300 dark:border-emerald-500/50 shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.1)]') }}">
-                                <div class="mt-1 shrink-0">
+                                <div class="mt-0.5 shrink-0">
                                     @if($isRefunded)
-                                        <i class="solar-check-circle-bold text-emerald-500 text-2xl drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]"></i>
+                                        <x-heroicon-s-check-circle class="w-6 h-6 text-emerald-500" />
                                     @elseif($isDeclined)
-                                        <i class="solar-danger-circle-bold-duotone text-rose-500 text-2xl"></i>
+                                        <x-heroicon-o-x-circle class="w-6 h-6 text-rose-500" />
                                     @else
-                                        <i class="solar-wallet-bold-duotone text-emerald-500 text-2xl animate-pulse"></i>
+                                        <x-heroicon-o-banknotes class="w-6 h-6 text-emerald-500 animate-pulse" />
                                     @endif
                                 </div>
                                 <div class="flex-1 w-full overflow-hidden">
-                                    <p class="text-sm font-semibold {{ $isRefunded ? 'line-through text-gray-500' : ($isDeclined ? 'text-rose-400' : 'text-emerald-400') }}">Endgültiger Abschluss</p>
+                                    <p class="text-sm font-semibold {{ $isRefunded ? 'line-through text-gray-500' : ($isDeclined ? 'text-rose-400' : 'text-emerald-600 dark:text-emerald-400') }}">Endgültiger Abschluss</p>
                                     
                                     @if($isCustomerNotified && !$isDone)
                                         <div class="mt-2 text-[11px] text-gray-600 dark:text-gray-400">
-                                            Warte, bis die Retoure physisch eingetroffen ist. Erstelle dann eine Gutschrift und schließe diesen Vorgang final ab.
+                                            Warte, bis die Retoure physisch eingetroffen ist. Mit Klick auf Abschluss wird die verknüpfte Bestellung samt Rechnung automatisch GoBD-konform storniert und der Kunde per E-Mail informiert.
                                         </div>
                                         <div class="mt-3 flex justify-end">
-                                            <button wire:click="markAsProcessed('{{ $revocation->id }}')" wire:confirm="Wurde die Retoure ordnungsgemäß abgewickelt und das Geld gutgeschrieben?" class="bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)] border border-emerald-400/30 px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-all gap-1.5 flex items-center">
-                                                <i class="bi bi-check-circle-fill"></i> Abwicklung abgeschlossen
+                                            <button wire:click="markAsProcessed('{{ $revocation->id }}')" wire:confirm="Wurde die Retoure ordnungsgemäß geprüft und das Geld erstattet?" class="bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)] border border-emerald-400/30 px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-all gap-1.5 flex items-center">
+                                                <x-heroicon-s-check-circle class="w-4 h-4" /> Abwicklung abgeschlossen
                                             </button>
                                         </div>
                                     @elseif($isDone)
                                         <div class="flex items-center justify-between mt-1">
                                             @if($isDeclined)
                                                 <div class="text-[10px] text-rose-500/70 font-mono">Status: Abgelehnt / Geschlossen</div>
-                                                <button wire:click.stop="markAsPending('{{ $revocation->id }}')" class="text-rose-500 hover:text-rose-400 text-[9px] font-bold uppercase tracking-widest flex items-center gap-1 transition-colors"><i class="bi bi-arrow-counterclockwise"></i> Öffnen</button>
+                                                <button wire:click.stop="markAsPending('{{ $revocation->id }}')" class="text-rose-500 hover:text-rose-400 text-[9px] font-bold uppercase tracking-widest flex items-center gap-1 transition-colors"><x-heroicon-o-arrow-uturn-left class="w-3.5 h-3.5" /> Öffnen</button>
                                             @else
                                                 <div class="text-[10px] text-emerald-500/70 font-mono">Status: Erledigt / Erstattet</div>
-                                                <button wire:click.stop="markAsPending('{{ $revocation->id }}')" class="text-emerald-500 hover:text-emerald-400 text-[9px] font-bold uppercase tracking-widest flex items-center gap-1 transition-colors"><i class="bi bi-arrow-counterclockwise"></i> Zurücksetzen</button>
+                                                <button wire:click.stop="markAsPending('{{ $revocation->id }}')" class="text-emerald-500 hover:text-emerald-400 text-[9px] font-bold uppercase tracking-widest flex items-center gap-1 transition-colors"><x-heroicon-o-arrow-uturn-left class="w-3.5 h-3.5" /> Zurücksetzen</button>
                                             @endif
                                         </div>
                                     @endif
@@ -345,6 +374,34 @@
                 {{ $revocations->links('pagination::tailwind') }}
             </div>
         @endif
+    </div>
+
+    {{-- LIGHTBOX MODAL FÜR BELEGE & BILDER (IM SELBEN FENSTER) --}}
+    <div x-show="lightboxUrl"
+         x-cloak
+         style="display: none;"
+         x-transition.opacity
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 sm:p-6"
+         @click.self="lightboxUrl = null">
+        <div class="relative max-w-5xl w-full flex flex-col items-center">
+            <div class="w-full flex items-center justify-between mb-3 px-2">
+                <span class="text-xs font-mono text-gray-300 truncate max-w-md" x-text="lightboxName"></span>
+                <div class="flex items-center gap-2">
+                    <a :href="lightboxUrl" download class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors">
+                        <x-heroicon-o-arrow-down-tray class="w-4 h-4" /> Herunterladen
+                    </a>
+                    <button type="button" @click="lightboxUrl = null" class="p-1.5 rounded-lg bg-white/10 hover:bg-rose-600 text-white transition-colors" title="Schließen">
+                        <x-heroicon-o-x-mark class="w-5 h-5" />
+                    </button>
+                </div>
+            </div>
+            <template x-if="lightboxUrl && !lightboxIsPdf">
+                <img :src="lightboxUrl" :alt="lightboxName" class="max-w-full max-h-[82vh] object-contain rounded-2xl shadow-2xl border border-gray-800 bg-gray-900">
+            </template>
+            <template x-if="lightboxUrl && lightboxIsPdf">
+                <iframe :src="lightboxUrl" class="w-full h-[82vh] rounded-2xl shadow-2xl border border-gray-800 bg-white"></iframe>
+            </template>
+        </div>
     </div>
 
 </div>

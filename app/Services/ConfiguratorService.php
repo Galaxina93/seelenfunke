@@ -237,6 +237,31 @@ class ConfiguratorService
             'default_background_theme' => 'standard',
             'background_video_path'    => null,
             'auto_seasonal_main_image' => true,
+
+            // xTool Laser-Geometrie & Werkstatthandbuch (Schritt 4.2)
+            'xtool_plane_width'        => null,
+            'xtool_plane_height'       => null,
+            'xtool_d_top'              => null,
+            'xtool_d_bottom'           => null,
+            'xtool_height'             => null,
+            'xtool_offset_top'         => null,
+            'xtool_offset_bottom'      => null,
+            'xtool_equipment_key'      => '',
+            'xtool_setup_note'         => '',
+            'xtool_process_mode'       => '',
+            'xtool_material'           => '',
+            'xtool_focus_mm'           => null,
+            'xtool_element_type'       => 'Bild',
+            'xtool_engrave_tab'        => 'Gravieren',
+            'xtool_preset_mode'        => 'Benutzerdefiniert',
+            'xtool_dot_duration_us'    => null,
+            'xtool_power_percent'      => null,
+            'xtool_dpi'                => null,
+            'xtool_passes'             => null,
+            'xtool_frequency_khz'      => null,
+            'xtool_bitmap_mode'        => '',
+            'xtool_engrave_mode'       => '',
+            'xtool_vector_note'        => '',
         ];
     }
 

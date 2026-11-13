@@ -1471,7 +1471,7 @@ class InfluencerService
             $origEuro = number_format($compareAtGrossCents / 100, 2, ',', '.');
             $saleEuro = number_format($grossPriceCents / 100, 2, ',', '.');
             $commEuro = number_format($estimatedCommissionCents / 100, 2, ',', '.');
-            $reasonText = "Aktions-Unikat (im Shop bereits von {$origEuro} € auf {$saleEuro} € reduziert): Nicht mit zusätzlichem Rabattcode kombinierbar – bewirb dieses Produkt direkt über deinen Kurzlink ({$cookieDays} Tage Cookie-Tracking) für +{$commEuro} € Provision.";
+            $reasonText = "Aktions-Unikat (im Shop bereits von {$origEuro} € auf {$saleEuro} € reduziert): Nicht mit zusätzlichem Rabattcode kombinierbar. Bewirb dieses Produkt direkt über deinen Kurzlink ({$cookieDays} Tage Cookie-Tracking) für +{$commEuro} € Provision.";
         }
 
         $targetPath = '/produkt/' . $product->slug;

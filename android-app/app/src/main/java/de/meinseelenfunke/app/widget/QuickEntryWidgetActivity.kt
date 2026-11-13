@@ -53,6 +53,7 @@ class QuickEntryWidgetActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!de.meinseelenfunke.app.util.SecurityIntentHelper.guardWidgetDialogActivity(this)) return
 
         setContent {
             SeelenfunkeTheme(darkTheme = true) {
@@ -118,20 +119,13 @@ class QuickEntryWidgetActivity : ComponentActivity() {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column {
-                                    Text(
-                                        text = "BELEG & SCHNELLEINTRAG",
-                                        color = Gold,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        letterSpacing = 1.sp
-                                    )
-                                    Text(
-                                        text = "KI-Beleg-Scanner (Kamera / Datei) oder manuell",
-                                        color = Color(0xFF94A3B8),
-                                        fontSize = 11.sp
-                                    )
-                                }
+                                Text(
+                                    text = "BELEG & SCHNELLEINTRAG",
+                                    color = Gold,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp
+                                )
                                 IconButton(
                                     onClick = { if (!isUploading && !isAiScanning) finish() },
                                     modifier = Modifier.size(32.dp)
@@ -155,6 +149,15 @@ class QuickEntryWidgetActivity : ComponentActivity() {
                                     viewModel.scanReceipt(bytes, fileName, mime, autoSave) { scanData ->
                                         onResult(scanData)
                                     }
+                                },
+                                onSendToTrichter = { bytes, name, mime, customTitle ->
+                                    viewModel.sendToMiniPcTrichter(
+                                        fileBytes = bytes,
+                                        fileName = name,
+                                        mimeType = mime,
+                                        customTitle = customTitle,
+                                        source = "android_widget"
+                                    )
                                 },
                                 onSubmit = { title, amt, cat, isBiz, date, loc, bytes, name, mime ->
                                     viewModel.submitQuickEntry(

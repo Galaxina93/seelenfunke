@@ -194,14 +194,27 @@ class FunkiraLiveViewModel : ViewModel() {
                     if (connectJob?.isActive != true) return@onSuccess
                     addLog("Authentifiziert. Verbindung wird aufgebaut...")
                     val baseUrl = de.meinseelenfunke.app.di.ServiceLocator.getBaseUrl()
-                    val parsedUri = try { java.net.URI(baseUrl) } catch(e: java.lang.Exception) { null }
-                    val host = parsedUri?.host ?: "10.0.2.2"
-                    val fallbackWsUrl = "ws://$host:8089/gemini-live"
+                    val parsedUri = try { java.net.URI(baseUrl) } catch (e: java.lang.Exception) { null }
+                    val host = parsedUri?.host ?: "stage.mein-seelenfunke.de"
+                    val useSecureWs = baseUrl.startsWith("https://", ignoreCase = true)
+                    val defaultScheme = if (useSecureWs) "wss" else "ws"
+                    val fallbackWsUrl = if (useSecureWs) "$defaultScheme://$host/gemini-live" else "$defaultScheme://$host:8089/gemini-live"
                     var rawWsUrl = creds.ws_url ?: fallbackWsUrl
                     if (host != "127.0.0.1" && host != "localhost") {
                         rawWsUrl = rawWsUrl
                             .replace("127.0.0.1", host)
                             .replace("localhost", host)
+                    }
+                    if (useSecureWs && rawWsUrl.startsWith("ws://", ignoreCase = true)) {
+                        rawWsUrl = "wss://" + rawWsUrl.substring(5)
+                    }
+                    val wsHost = try { java.net.URI(rawWsUrl).host?.lowercase() } catch (_: Exception) { null }
+                    if (wsHost == null || !wsHost.equals(host, ignoreCase = true)) {
+                        _isConnecting.value = false
+                        de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive = false
+                        _error.value = "Ungültiger Live-Server-Host blockiert."
+                        addLog("Sicherheitsabbruch: Abweichender Live-Host blockiert.")
+                        return@onSuccess
                     }
                     val wsUrl = rawWsUrl
                     establishWebSocket(creds.token ?: "", wsUrl, creds.system_instruction, creds.voice_name, creds.tools?.toString())
@@ -217,10 +230,11 @@ class FunkiraLiveViewModel : ViewModel() {
     }
 
     private fun establishWebSocket(token: String, wsUrl: String, systemInstruction: String, voiceName: String, toolsJson: String?) {
+        val encodedToken = android.net.Uri.encode(token)
         val url = if (wsUrl.contains("?")) {
-            "$wsUrl&token=$token"
+            "$wsUrl&token=$encodedToken"
         } else {
-            "$wsUrl?token=$token"
+            "$wsUrl?token=$encodedToken"
         }
         val request = Request.Builder().url(url).build()
 
@@ -232,7 +246,7 @@ class FunkiraLiveViewModel : ViewModel() {
                 if (ws != this@FunkiraLiveViewModel.webSocket) return
                 _isConnecting.value = false
                 _isConnected.value = true
-                val maskedUrl = if (token.isNotEmpty()) url.replace(token, "XXXX_TOKEN_XXXX") else url
+                val maskedUrl = if (encodedToken.isNotEmpty()) url.replace(encodedToken, "XXXX_TOKEN_XXXX") else url
                 addLog("[WS-Setup]: URL: $maskedUrl")
 
                 // Send Setup configuration payload
@@ -254,10 +268,14 @@ class FunkiraLiveViewModel : ViewModel() {
                         add("systemInstruction", JsonObject().apply {
                             add("parts", JsonArray().apply {
                                 add(JsonObject().apply {
-                                    val strictPrompt = if (!systemInstruction.contains("STRIKTE SPRACHREGEL")) {
+                                    val walkRule = "WETTER & SPAZIERGANG-REGEL: Wenn es um das Wetter oder einen Spaziergang geht, sage nur kurz auf Basis des Wetters, ob ein Spaziergang machbar ist und wie man sich für die Temperatur anziehen sollte. Schlage NIEMALS Orte, Seen, Parks oder Routen für einen Spaziergang vor, außer Alina fragt ausdrücklich danach."
+                                    var strictPrompt = if (!systemInstruction.contains("STRIKTE SPRACHREGEL")) {
                                         "STRIKTE SPRACHREGEL (HÖCHSTE PRIORITÄT): Sprich und antworte ZU 100% AUSSCHLIESSLICH auf DEUTSCH! Gib NIEMALS englische Statusmeldungen, Bestätigungen oder Floskeln wie 'Confirming Operational Context' oder 'I acknowledge...' aus. Antworte sofort direkt und natürlich auf Deutsch.\n\n" + systemInstruction
                                     } else {
                                         systemInstruction
+                                    }
+                                    if (!strictPrompt.contains("SPAZIERGANG-REGEL")) {
+                                        strictPrompt = "$strictPrompt\n\n$walkRule"
                                     }
                                     addProperty("text", strictPrompt)
                                 })
@@ -270,23 +288,7 @@ class FunkiraLiveViewModel : ViewModel() {
                                     val firstTool = parsed.asJsonArray.get(0).asJsonObject
                                     if (firstTool.has("functionDeclarations")) {
                                         val decls = firstTool.getAsJsonArray("functionDeclarations")
-                                        var exists = false
-                                        for (i in 0 until decls.size()) {
-                                            if (decls.get(i).asJsonObject.get("name").asString == "end_call") {
-                                                exists = true
-                                                break
-                                            }
-                                        }
-                                        if (!exists) {
-                                            decls.add(JsonObject().apply {
-                                                addProperty("name", "end_call")
-                                                addProperty("description", "Beendet das aktuelle Live-Gespräch sofort, wenn sich der Nutzer verabschiedet hat.")
-                                                add("parameters", JsonObject().apply {
-                                                    addProperty("type", "OBJECT")
-                                                    add("properties", JsonObject())
-                                                })
-                                            })
-                                        }
+                                        appendLocalClientDeclarations(decls)
                                     }
                                 }
                                 parsed
@@ -303,12 +305,7 @@ class FunkiraLiveViewModel : ViewModel() {
                 }
 
                 val setupStr = gson.toJson(setup)
-                android.util.Log.d("FunkiraLive", "[WS-Setup]: Configuration string length: ${setupStr.length}")
-                setupStr.chunked(2000).forEachIndexed { i, chunk ->
-                    android.util.Log.d("FunkiraLive-Payload", "Chunk $i: $chunk")
-                }
                 val sent = ws.send(setupStr)
-                android.util.Log.d("FunkiraLive", "[WS-Setup]: send(setupStr) returned: $sent")
                 val agentName = _selectedAgent.value?.name ?: "Funkira"
                 addLog("$agentName-Sitzung wird konfiguriert...")
                 if (!sent) {
@@ -328,9 +325,8 @@ class FunkiraLiveViewModel : ViewModel() {
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                 if (ws != this@FunkiraLiveViewModel.webSocket) return
-                val respBody = try { response?.body?.string() } catch(e: Exception) { null }
                 val errorMsg = "Verbindungsfehler: ${t.localizedMessage}" +
-                        (if (response != null) " (Code: ${response.code}, Message: ${response.message}, Body: $respBody)" else "")
+                        (if (response != null) " (HTTP ${response.code})" else "")
                 handleDisconnect(errorMsg)
             }
 
@@ -347,8 +343,6 @@ class FunkiraLiveViewModel : ViewModel() {
     }
 
     private fun handleServerMessage(jsonText: String) {
-        val sanitized = sanitizeJson(jsonText)
-        android.util.Log.d("FunkiraLive", "Received (Sanitized): $sanitized")
         try {
             val root = gson.fromJson(jsonText, JsonObject::class.java) ?: return
             val agentName = _selectedAgent.value?.name ?: "Funkira"
@@ -508,6 +502,30 @@ class FunkiraLiveViewModel : ViewModel() {
                                     _shouldCloseScreen.value = true
                                 }
                             }
+                            return@forEach
+                        }
+
+                        if (name == "alarm_shift_or_snooze") {
+                            val argsObj = if (callObj.has("args") && callObj.get("args").isJsonObject) callObj.getAsJsonObject("args") else null
+                            val mins = argsObj?.get("minutes")?.asInt ?: 10
+                            val msg = de.meinseelenfunke.app.util.FunkenwerkAlarmManager.shiftActiveOrNextAlarmFromTool(ServiceLocator.context, mins)
+                            addLog("[Wecker-Steuerung]: $msg")
+                            val resultObj = JsonObject().apply {
+                                addProperty("status", "success")
+                                addProperty("message", msg)
+                            }
+                            sendToolResponse(callId, name, resultObj)
+                            return@forEach
+                        }
+
+                        if (name == "alarm_disable_today") {
+                            val msg = de.meinseelenfunke.app.util.FunkenwerkAlarmManager.disableAlarmTodayFromTool(ServiceLocator.context)
+                            addLog("[Wecker-Steuerung]: $msg")
+                            val resultObj = JsonObject().apply {
+                                addProperty("status", "success")
+                                addProperty("message", msg)
+                            }
+                            sendToolResponse(callId, name, resultObj)
                             return@forEach
                         }
                         
@@ -920,19 +938,56 @@ class FunkiraLiveViewModel : ViewModel() {
         disconnectLiveChat()
     }
 
+    private fun appendLocalClientDeclarations(decls: JsonArray) {
+        val existingNames = mutableSetOf<String>()
+        for (i in 0 until decls.size()) {
+            val n = decls.get(i)?.asJsonObject?.get("name")?.asString
+            if (!n.isNullOrBlank()) existingNames.add(n)
+        }
+        if (!existingNames.contains("end_call")) {
+            decls.add(JsonObject().apply {
+                addProperty("name", "end_call")
+                addProperty("description", "Beendet das aktuelle Live-Gespräch sofort, wenn sich der Nutzer verabschiedet hat.")
+                add("parameters", JsonObject().apply {
+                    addProperty("type", "OBJECT")
+                    add("properties", JsonObject())
+                })
+            })
+        }
+        if (!existingNames.contains("alarm_shift_or_snooze")) {
+            decls.add(JsonObject().apply {
+                addProperty("name", "alarm_shift_or_snooze")
+                addProperty("description", "Verschiebt den aktuellen oder nächsten Wecker in der Android-App um die gewünschte Anzahl an Minuten nach hinten (Schlummern/Verschieben) und synchronisiert die neue Aufstehzeit mit /admin/routine.")
+                add("parameters", JsonObject().apply {
+                    addProperty("type", "OBJECT")
+                    add("properties", JsonObject().apply {
+                        add("minutes", JsonObject().apply {
+                            addProperty("type", "INTEGER")
+                            addProperty("description", "Anzahl der Minuten, um die der Wecker nach hinten verschoben werden soll (z.B. 10, 15, 20, 30).")
+                        })
+                    })
+                    add("required", JsonArray().apply { add("minutes") })
+                })
+            })
+        }
+        if (!existingNames.contains("alarm_disable_today")) {
+            decls.add(JsonObject().apply {
+                addProperty("name", "alarm_disable_today")
+                addProperty("description", "Schaltet den klingelnden oder verschobenen Wecker für heute komplett aus, sodass er heute überhaupt nicht mehr klingelt, und synchronisiert die Aufstehzeit mit /admin/routine.")
+                add("parameters", JsonObject().apply {
+                    addProperty("type", "OBJECT")
+                    add("properties", JsonObject())
+                })
+            })
+        }
+    }
+
     private fun createDefaultToolsWithEndCall(): JsonArray {
         return JsonArray().apply {
             add(JsonObject().apply {
-                add("functionDeclarations", JsonArray().apply {
-                    add(JsonObject().apply {
-                        addProperty("name", "end_call")
-                        addProperty("description", "Beendet das aktuelle Live-Gespräch sofort, wenn sich der Nutzer verabschiedet hat.")
-                        add("parameters", JsonObject().apply {
-                            addProperty("type", "OBJECT")
-                            add("properties", JsonObject())
-                        })
-                    })
-                })
+                val decls = JsonArray()
+                appendLocalClientDeclarations(decls)
+                add("functionDeclarations", decls)
             })
         }
     }

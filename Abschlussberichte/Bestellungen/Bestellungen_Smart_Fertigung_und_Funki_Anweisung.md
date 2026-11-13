@@ -29,7 +29,7 @@ Offene Bestellungen (`pending`, `processing`) werden vollautomatisch nach folgen
    * Sofort ausführbare Aufträge (`ready_laser` im aktiven Fokus, `ready_ship`, `ready_laser`, `ready_pack`, `ready_digital`) stehen strikt vor administrativen Beschaffungs-Schritten (`action_supplier_order`) und vor extern blockierten Aufträgen (`blocked_supplier_wait`, `blocked_photo_issue`, `blocked_unpaid`).
 3. **Stufe 3: Automatischer Laser-Fokus & Rüstgruppen-Affinität**
    * Sobald eine Bestellposition abgehakt wird (`toggleItemCompletion`, `incrementCompletedQuantity`, `setAllCompletedQuantity`) oder oben ein Artikel-Chip angeklickt wird (`selectBatchProduct`), merkt sich die Session den aktiven Serien-Artikel (`activeBatchProductId`).
-   * Alle weiteren sofort fertigbaren Aufträge mit demselben Artikel ziehen geschlossen an die Spitze; danach folgen Aufträge derselben **xTool-Rüstgruppe** (`flatbed_laser`, `crystal_3d`, `rotary_ra3`, `pack_only`).
+   * Alle weiteren sofort fertigbaren Aufträge mit demselben Artikel ziehen geschlossen an die Spitze; danach folgen Aufträge derselben **xTool-Rüstgruppe** (`flatbed_laser`, `crystal_3d`, `rotary_ra3`, `conveyor_batch`, `pack_only`), gesteuert über `xtool_equipment_key` am Produkt.
    * Sobald der letzte offene Artikel einer Serie erledigt ist, löscht sich der Fokus automatisch und wechselt nahtlos zur nächsten Serie.
 4. **Stufe 4: Natürliche Serien-Bündelung beim Tagesstart**
    * Auch ohne aktiven Fokus werden gleiche Artikel automatisch gebündelt (z. B. `Trophäe → Anhänger → Trophäe` wird automatisch zu `Trophäe 1 → Trophäe 2 → Anhänger`), geordnet nach dem ältesten Auftrag der jeweiligen Artikelgruppe.
@@ -58,3 +58,12 @@ Funki gibt direkt unter der Begrüßung für **jede** denkbare Konstellation in 
 | **Unbezahlt (`unpaid`)** | *„Noch nicht lasern (Zahlung offen): Kontrolliere den Geldeingang für #ORD-... und klicke erst bei Eingang auf ‚Bezahlt‘.“* |
 | **Kritischer Fehlbestand** | *„Lagerbestand sofort prüfen: Für #ORD-... fehlen physisch X× ‚Artikel‘ im Bestand.“* |
 | **Rein digital (`isOnlyDigital`)** | *„Keine Handarbeit nötig: Digitale Bestellung #ORD-... ist bereitgestellt, setze den Status auf ‚Abgeschlossen‘.“* |
+
+---
+
+## 5. Integriertes xTool-Handbuch & 1:1 Laser-Werte in der Bestellabwicklung (`right.blade.php`)
+
+Direkt im Fertigungsbereich jeder Bestellposition unter `/admin/orders` ([`right.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-offer-detail-partials/right.blade.php)) wird automatisch die Karte **`xTool Anleitung & Laser-Werte`** des jeweiligen Produkts (`Product::getLaserInstructionSummary()`) ausgespielt:
+
+* **Vollständig gepflegtes Produkt:** Zeigt Equipment-Badge (`Flachbett`, `360° RA3`, `Laufband`, `3D-Innengravur`), **1-Klick-Buttons zum Öffnen und Herunterladen (`PDF ziehen`) der PDF-Aufbauanleitungen** (`/storage/produkte/laser-anleitungen/...` inkl. Schnellzugriff `PDF-Anleitungen (3)`), optionalen Einlege-Hinweis (`xtool_setup_note`), das kompakte 1:1 Parameter-Raster (`Material`, `Fokus mm`, `Punktdauer µs`, `Leistung %`, `DPI`, `Durchgänge`, `kHz`, `Bitmap-Modus`, `Gravurmodus`, Vektor-Zusatz) sowie einen **`Werte kopieren`**-Button.
+* **Fehlende Laser-Werte am Produkt:** Zeigt eine rote Warnbox **`✕ Laser-Werte am Produkt unvollständig`** mit 1-Klick-Deep-Link (`/admin/products?editProduct=<id>&step=4&subStep=2`) direkt in Schritt `4.2` des Produkt-Editors.

@@ -284,7 +284,7 @@
                     </div>
 
                     <div class="pt-4 border-t border-[var(--theme-color)]/10">
-                        <p class="text-[9px] font-black uppercase tracking-widest text-[var(--theme-color)]/60 text-center">Hinweis: Diese Daten werden auf Rechnungen für Vorkasse-Zahlungen angezeigt.</p>
+                        <p class="text-[9px] font-black uppercase tracking-widest text-[var(--theme-color)]/60 text-center">Hinweis: Diese Daten werden im Rechnungs-Footer sowie bei B2B-Rechnungskauf angezeigt.</p>
                     </div>
                 </div>
             </div>

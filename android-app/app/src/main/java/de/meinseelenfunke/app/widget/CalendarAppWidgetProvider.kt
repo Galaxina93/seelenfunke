@@ -35,8 +35,15 @@ class CalendarAppWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
+        val action = intent.action
+        if (action != null && action.startsWith("de.meinseelenfunke.app.widget.") &&
+            !de.meinseelenfunke.app.util.SecurityIntentHelper.isTrustedInternalIntent(context, intent)
+        ) {
+            return
+        }
         super.onReceive(context, intent)
         val appContext = context.applicationContext
+        ServiceLocator.ensureInitialized(appContext)
         val appWidgetManager = AppWidgetManager.getInstance(appContext)
         val componentName = ComponentName(appContext, CalendarAppWidgetProvider::class.java)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
@@ -165,6 +172,7 @@ class CalendarAppWidgetProvider : AppWidgetProvider() {
                 putExtra("open_subtab", 1)
                 data = Uri.parse("funkenwerk://calendar/open_app/$appWidgetId")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
             }
             val pendingAppIntent = PendingIntent.getActivity(
                 appContext,
@@ -181,6 +189,7 @@ class CalendarAppWidgetProvider : AppWidgetProvider() {
                 putExtra("create_event", true)
                 data = Uri.parse("funkenwerk://calendar/add_event/$appWidgetId")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
             }
             val pendingAddEvent = PendingIntent.getActivity(
                 appContext,
@@ -195,6 +204,7 @@ class CalendarAppWidgetProvider : AppWidgetProvider() {
                 action = Intent.ACTION_VIEW
                 data = Uri.parse("funkenwerk://calendar/item_click/$appWidgetId")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
             }
             val clickPendingIntent = PendingIntent.getActivity(
                 appContext,
@@ -208,6 +218,7 @@ class CalendarAppWidgetProvider : AppWidgetProvider() {
             val refreshIntent = Intent(appContext, CalendarAppWidgetProvider::class.java).apply {
                 action = ACTION_REFRESH
                 data = Uri.parse("funkenwerk://calendar/refresh/$appWidgetId")
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
             }
             val pendingRefreshIntent = PendingIntent.getBroadcast(
                 appContext,

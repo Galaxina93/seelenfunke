@@ -30,13 +30,21 @@ class ShoppingListWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
+        val rawAction = intent.action
+        val clickAction = try { intent.getStringExtra(EXTRA_CLICK_ACTION) } catch (_: Exception) { null }
+        if (((rawAction != null && rawAction.startsWith("de.meinseelenfunke.app.widget.")) || clickAction != null) &&
+            !de.meinseelenfunke.app.util.SecurityIntentHelper.isTrustedInternalIntent(context, intent)
+        ) {
+            return
+        }
         super.onReceive(context, intent)
         val appContext = context.applicationContext
+        ServiceLocator.ensureInitialized(appContext)
         val appWidgetManager = AppWidgetManager.getInstance(appContext)
         val componentName = ComponentName(appContext, ShoppingListWidgetProvider::class.java)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
 
-        val resolvedAction = intent.getStringExtra(EXTRA_CLICK_ACTION) ?: intent.action
+        val resolvedAction = clickAction ?: rawAction
 
         when (resolvedAction) {
             ACTION_REFRESH -> {
@@ -143,6 +151,7 @@ class ShoppingListWidgetProvider : AppWidgetProvider() {
                 putExtra("open_subtab", 3)
                 data = Uri.parse("funkenwerk://shopping/open_app/$appWidgetId")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
             }
             val openAppPending = PendingIntent.getActivity(
                 appContext,
@@ -165,6 +174,7 @@ class ShoppingListWidgetProvider : AppWidgetProvider() {
                 action = ACTION_ITEM_CLICK
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 data = Uri.parse("funkenwerk://shopping/item_click/$appWidgetId")
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
             }
             val itemClickPendingIntent = PendingIntent.getBroadcast(
                 appContext,
@@ -178,6 +188,7 @@ class ShoppingListWidgetProvider : AppWidgetProvider() {
             val refreshIntent = Intent(appContext, ShoppingListWidgetProvider::class.java).apply {
                 action = ACTION_REFRESH
                 data = Uri.parse("funkenwerk://shopping/refresh/$appWidgetId")
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
             }
             val pendingRefresh = PendingIntent.getBroadcast(
                 appContext,

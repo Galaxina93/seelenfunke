@@ -616,15 +616,15 @@ use HasFactory;
             [
                 'key' => 'geschenksets',
                 'title' => 'Geschenkgutscheine',
-                'subtitle' => 'SOFORT ODER METALLKARTE',
+                'subtitle' => 'SOFORT ODER ALUMINIUMKARTE',
                 'collection_line' => 'voucher',
                 'collection_world_label' => 'Geschenkgutscheine',
                 'image' => asset('shop/product/geschenkpapier.webp'),
                 'alt' => 'Exklusive Geschenksets und Wertgutscheine von Mein Seelenfunke',
-                'description' => 'Das Auspacken ist Teil des Erlebnisses. Entdecken Sie flexible <strong>Seelenfunken-Wertgutscheine digital per E-Mail oder als lasergravierte Metallkarte</strong> im Edel-Umschlag.',
+                'description' => 'Das Auspacken ist Teil des Erlebnisses. Entdecken Sie flexible <strong>Seelenfunken-Wertgutscheine digital per E-Mail oder als lasergravierte Aluminiumkarte</strong> im Edel-Umschlag.',
                 'features' => [
                     'Sofort verschenkfertig vorbereitet',
-                    'Digital als PDF oder als edle Metallkarte',
+                    'Digital als PDF oder als edle Aluminiumkarte',
                     'Für Geburtstage, Hochzeiten & Feste',
                 ],
                 'category_names' => ['Gutscheine', 'Wertgutscheine'],

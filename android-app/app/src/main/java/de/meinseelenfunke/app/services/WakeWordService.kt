@@ -58,8 +58,12 @@ class WakeWordService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(TAG, "onStartCommand triggered")
-        
+        ServiceLocator.ensureInitialized(applicationContext)
+        if (ServiceLocator.getAuthToken().isNullOrBlank()) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
         val notification = createNotification()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
@@ -155,6 +159,7 @@ class WakeWordService : Service() {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("start_voice_call", true)
+            de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(context, this)
         }
         
         val pendingIntent = PendingIntent.getActivity(
@@ -173,7 +178,7 @@ class WakeWordService : Service() {
                 "Seelenfunke Aktivierung",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                lockscreenVisibility = Notification.VISIBILITY_PRIVATE
                 enableVibration(true)
             }
             manager.createNotificationChannel(channel)
@@ -189,6 +194,7 @@ class WakeWordService : Service() {
             setSmallIcon(android.R.drawable.ic_btn_speak_now)
             setPriority(Notification.PRIORITY_MAX)
             setCategory(Notification.CATEGORY_CALL)
+            setVisibility(Notification.VISIBILITY_PRIVATE)
             setFullScreenIntent(pendingIntent, true)
             setAutoCancel(true)
         }.build()
@@ -199,7 +205,7 @@ class WakeWordService : Service() {
         try {
             context.startActivity(intent)
         } catch (e: Exception) {
-            Log.e(TAG, "Standard background activity launch blocked as expected, relying on fullScreenIntent", e)
+            Log.e(TAG, "Standard background activity launch blocked as expected, relying on fullScreenIntent")
         }
     }
 
@@ -211,12 +217,14 @@ class WakeWordService : Service() {
             audioRecord?.release()
             audioRecord = null
         } catch (e: Exception) {
-            Log.e(TAG, "Error releasing AudioRecord", e)
+            Log.e(TAG, "Error releasing AudioRecord")
         }
     }
 
     private fun createNotification(): Notification {
-        val intent = Intent(this, MainActivity::class.java)
+        val intent = Intent(this, MainActivity::class.java).apply {
+            de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(this@WakeWordService, this)
+        }
         val pendingIntent = PendingIntent.getActivity(
             this,
             0,

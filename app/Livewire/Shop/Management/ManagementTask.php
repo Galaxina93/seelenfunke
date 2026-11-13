@@ -5,8 +5,10 @@ namespace App\Livewire\Shop\Management;
 use App\Livewire\Traits\WithDepartmentTheming;
 use App\Models\Management\ManagementTask as TaskModel;
 use App\Models\Management\ManagementTaskList as TaskListModel;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -28,6 +30,7 @@ class ManagementTask extends Component
     public bool $showCompletedSection = true;
 
     // Right-side Detail Inspector Panel (Microsoft To Do style)
+    #[Locked]
     public ?string $selectedTaskId = null;
     public string $detailTitle = '';
     public string $detailAiPlan = '';
@@ -42,6 +45,7 @@ class ManagementTask extends Component
     public string $newListColor = '#818CF8';
     public bool $showNewListModal = false;
 
+    #[Locked]
     public ?string $editingListId = null;
     public string $editingListName = '';
     public string $editingListColor = '#818CF8';
@@ -52,6 +56,7 @@ class ManagementTask extends Component
     public ?string $newTaskRelevantFrom = null;
 
     // Inline editing (fallback)
+    #[Locked]
     public ?string $editingTaskId = null;
     public string $editingTaskTitle = '';
     public string $editingTaskPriority = 'niedrig';
@@ -66,8 +71,19 @@ class ManagementTask extends Component
 
     protected $listeners = ['refreshComponent' => '$refresh'];
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+    }
+
     public function mount(): void
     {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+
         $this->activeListId = 'all';
     }
 
@@ -498,6 +514,10 @@ class ManagementTask extends Component
         }
 
         if (Storage::disk('local')->exists($pathStr)) {
+            $fullPath = Storage::disk('local')->path($pathStr);
+            if (is_link($fullPath)) {
+                abort(403, 'Unzulässiger Dateipfad.');
+            }
             return Storage::disk('local')->download($pathStr);
         }
 

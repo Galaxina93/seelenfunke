@@ -1,15 +1,20 @@
 package de.meinseelenfunke.app.util
 
+import android.Manifest
 import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
+import android.media.AudioFormat
 import android.media.AudioManager
+import android.media.AudioRecord
 import android.media.MediaPlayer
+import android.media.MediaRecorder
 import android.media.Ringtone
 import android.media.RingtoneManager
 import android.os.Build
@@ -18,11 +23,15 @@ import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Base64
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.google.gson.reflect.TypeToken
@@ -44,8 +53,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.net.CookieHandler
@@ -66,13 +77,23 @@ import android.net.wifi.WifiManager
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 import kotlin.coroutines.resume
+import kotlin.math.roundToInt
+import kotlin.math.sqrt
 import de.meinseelenfunke.app.services.MusicPlaybackService
 
+sealed class AlarmVoiceIntent {
+    data class ShiftMinutes(val minutes: Int) : AlarmVoiceIntent()
+    object DisableToday : AlarmVoiceIntent()
+    object YesAskDuration : AlarmVoiceIntent()
+    object No : AlarmVoiceIntent()
+    object Unknown : AlarmVoiceIntent()
+}
+
 data class SmartAlarmItem(
-    val id: String,
-    val hour: Int,
-    val minute: Int,
-    val label: String,
+    @SerializedName("id") val id: String = "",
+    @SerializedName("hour") val hour: Int = 7,
+    @SerializedName("minute") val minute: Int = 30,
+    @SerializedName("label") val label: String = "Wecker",
     @SerializedName("schedule_text") val scheduleText: String = "Jeden Tag",
     @SerializedName("days_of_week") val daysOfWeek: List<Int> = listOf(1, 2, 3, 4, 5, 6, 7), // 1=Mo..7=So
     @SerializedName("is_enabled") val isEnabled: Boolean = false,
@@ -95,29 +116,29 @@ data class SmartAlarmItem(
 }
 
 data class TimerPresetItem(
-    val id: String,
-    val label: String,
-    @SerializedName("duration_seconds") val durationSeconds: Int
+    @SerializedName("id") val id: String = "",
+    @SerializedName("label") val label: String = "",
+    @SerializedName("duration_seconds") val durationSeconds: Int = 300
 )
 
 data class SmartPlugDevice(
-    val name: String,
-    val ip: String,
-    val room: String = "easy-AP · Heimnetz",
-    val model: String = "Tapo P100/P110"
+    @SerializedName("name") val name: String = "",
+    @SerializedName("ip") val ip: String = "",
+    @SerializedName("room") val room: String = "easy-AP · Heimnetz",
+    @SerializedName("model") val model: String = "Tapo P100/P110"
 )
 
 data class SmartCameraDevice(
-    val name: String,
-    val ip: String,
-    val model: String,
-    val description: String
+    @SerializedName("name") val name: String = "",
+    @SerializedName("ip") val ip: String = "",
+    @SerializedName("model") val model: String = "",
+    @SerializedName("description") val description: String = ""
 )
 
 data class WakeUpLogEntry(
-    val date: String,
-    @SerializedName("scheduled_time") val scheduledTime: String,
-    @SerializedName("actual_wake_time") val actualWakeTime: String,
+    @SerializedName("date") val date: String = "",
+    @SerializedName("scheduled_time") val scheduledTime: String = "",
+    @SerializedName("actual_wake_time") val actualWakeTime: String = "",
     @SerializedName("snooze_minutes") val snoozeMinutes: Int = 0,
     @SerializedName("plugs_triggered") val plugsTriggered: Boolean = false,
     @SerializedName("ai_briefing_spoken") val aiBriefingSpoken: Boolean = false
@@ -135,8 +156,8 @@ object FunkenwerkAlarmManager {
     private const val KEY_TAPO_PASS = "tapo_local_password"
     private const val KEY_TIMER_END_MILLIS = "timer_end_millis_json"
     private const val KEY_TIMER_PAUSED_REM = "timer_paused_rem_json"
-    private const val DEFAULT_TAPO_EMAIL = "alina.stone@t-online.de"
-    private const val DEFAULT_TAPO_PASS = "Assstar20mkj7!!!"
+    private const val KEY_LAST_WEATHER_SENTENCE = "gifhorn_weather_sentence_v2"
+    private const val KEY_LAST_WEATHER_DATE = "gifhorn_weather_date"
 
     const val STATUS_CHANNEL_ID = "funkenwerk_alarm_status_channel"
     const val STATUS_CHANNEL_NAME = "Aktive Wecker & Laufende Timer"
@@ -192,7 +213,21 @@ object FunkenwerkAlarmManager {
 
     private val _activeRingingAlarmInfoFlow = MutableStateFlow<Triple<String, String, String>?>(null)
     val activeRingingAlarmInfoFlow: StateFlow<Triple<String, String, String>?> = _activeRingingAlarmInfoFlow.asStateFlow()
+
+    private val _alarmDialogStateFlow = MutableStateFlow<String?>(null)
+    val alarmDialogStateFlow: StateFlow<String?> = _alarmDialogStateFlow.asStateFlow()
+
+    private val _snoozedUntilTimeFlow = MutableStateFlow<String?>(null)
+    val snoozedUntilTimeFlow: StateFlow<String?> = _snoozedUntilTimeFlow.asStateFlow()
+
     private val activeAlarmNotificationIds = mutableSetOf<Int>()
+
+    @Volatile
+    private var cachedGifhornWeatherSentence: String? = null
+    @Volatile
+    private var cachedGifhornWeatherAtMs: Long = 0L
+    @Volatile
+    private var lastTriggerPlugsSwitched: Boolean = false
 
     fun registerActiveAlarmNotification(notificationId: Int, alarmId: String, alarmLabel: String, scheduledTime: String) {
         synchronized(activeAlarmNotificationIds) {
@@ -229,30 +264,107 @@ object FunkenwerkAlarmManager {
             result[def.ip] = def
         }
         for (item in raw.orEmpty()) {
-            val cleanIp = when (val ipTrimmed = item.ip.trim()) {
+            val rawIp = (item.ip as String?)?.trim().orEmpty()
+            val rawName = (item.name as String?)?.trim().orEmpty()
+            val cleanIp = when (rawIp) {
                 "192.168.188.106" -> "192.168.188.110"
-                else -> ipTrimmed
+                else -> rawIp
             }
             if (cleanIp.isBlank()) continue
             val canonical = canonicalByIp[cleanIp]
-            val isLegacyName = item.name.contains("Test-Steckdose", ignoreCase = true) ||
-                item.name.startsWith("Smart Plug #", ignoreCase = true) ||
-                item.name.isBlank()
+            val isLegacyName = rawName.contains("Test-Steckdose", ignoreCase = true) ||
+                rawName.startsWith("Smart Plug #", ignoreCase = true) ||
+                rawName.isBlank()
             if (canonical != null) {
                 result[cleanIp] = if (isLegacyName) canonical else canonical.copy(name = canonical.name)
             } else if (!isLegacyName) {
-                result[cleanIp] = item.copy(ip = cleanIp)
+                result[cleanIp] = item.copy(
+                    name = rawName,
+                    ip = cleanIp,
+                    room = (item.room as String?)?.ifBlank { "easy-AP · Heimnetz" } ?: "easy-AP · Heimnetz",
+                    model = (item.model as String?)?.ifBlank { "Tapo P100/P110" } ?: "Tapo P100/P110"
+                )
             }
         }
         return result.values.toList()
     }
 
     fun normalizeAlarms(raw: List<SmartAlarmItem>): List<SmartAlarmItem> {
-        return raw.map { alarm ->
-            val fixedIps = alarm.smartPlugIps.map { ip ->
+        return raw.mapIndexed { idx, alarm ->
+            val safeId = (alarm.id as String?)?.trim()?.takeIf { it.isNotBlank() }
+                ?: String.format(Locale.US, "alarm_%02d%02d_%d", alarm.hour, alarm.minute, idx)
+            val safeLabel = (alarm.label as String?)?.trim()?.takeIf { it.isNotBlank() } ?: "Wecker"
+            val safeSchedule = (alarm.scheduleText as String?)?.trim()?.takeIf { it.isNotBlank() } ?: "Jeden Tag"
+            val safeDays = (alarm.daysOfWeek as List<Int>?) ?: listOf(1, 2, 3, 4, 5, 6, 7)
+            val safePlugList = (alarm.smartPlugIps as List<String>?) ?: emptyList()
+            val fixedIps = safePlugList.map { ip ->
                 if (ip.trim() == "192.168.188.106") "192.168.188.110" else ip.trim()
-            }.distinct()
-            alarm.copy(smartPlugIps = fixedIps)
+            }.filter { it.isNotBlank() }.distinct()
+            alarm.copy(
+                id = safeId,
+                label = safeLabel,
+                scheduleText = safeSchedule,
+                daysOfWeek = safeDays,
+                smartPlugIps = fixedIps
+            )
+        }.distinctBy { it.id }
+    }
+
+    fun normalizeTimers(raw: List<TimerPresetItem>?): List<TimerPresetItem> {
+        if (raw.isNullOrEmpty()) return defaultTimers()
+        val canonicalByDuration = defaultTimers().associateBy { it.durationSeconds }
+        val usedIds = HashSet<String>()
+        val result = ArrayList<TimerPresetItem>(raw.size)
+
+        raw.forEachIndexed { idx, item ->
+            val dur = item.durationSeconds.coerceAtLeast(5)
+            val canonical = canonicalByDuration[dur]
+            val rawId = (item.id as String?)?.trim()
+            val rawLabel = (item.label as String?)?.trim()
+
+            var resolvedId = when {
+                !rawId.isNullOrBlank() && rawId != "null" -> rawId
+                canonical != null && !usedIds.contains(canonical.id) -> canonical.id
+                else -> "timer_${dur}_$idx"
+            }
+            if (!usedIds.add(resolvedId)) {
+                resolvedId = "${resolvedId}_$idx"
+                usedIds.add(resolvedId)
+            }
+
+            val resolvedLabel = when {
+                !rawLabel.isNullOrBlank() && rawLabel != "null" -> rawLabel
+                canonical != null -> canonical.label
+                dur % 60 == 0 -> "Timer: ${dur / 60} Min."
+                dur > 60 -> "Timer: ${dur / 60}m ${dur % 60}s"
+                else -> "Timer: ${dur}s"
+            }
+
+            result.add(TimerPresetItem(id = resolvedId, label = resolvedLabel, durationSeconds = dur))
+        }
+
+        return if (result.isEmpty()) defaultTimers() else result.sortedBy { it.durationSeconds }
+    }
+
+    private fun parseTimersJsonSelfHealing(timersJson: String): List<TimerPresetItem> {
+        return try {
+            val arr = JSONArray(timersJson)
+            val parsed = ArrayList<TimerPresetItem>(arr.length())
+            for (i in 0 until arr.length()) {
+                val obj = arr.optJSONObject(i) ?: continue
+                val id = obj.optString("id", "").trim().ifBlank { obj.optString("a", "").trim() }
+                val label = obj.optString("label", "").trim().ifBlank { obj.optString("b", "").trim() }
+                val dur = obj.optInt("duration_seconds", obj.optInt("c", 300)).coerceAtLeast(5)
+                parsed.add(TimerPresetItem(id = id, label = label, durationSeconds = dur))
+            }
+            normalizeTimers(parsed)
+        } catch (_: Exception) {
+            try {
+                val type = object : TypeToken<List<TimerPresetItem>>() {}.type
+                normalizeTimers(gson.fromJson(timersJson, type))
+            } catch (_: Exception) {
+                defaultTimers()
+            }
         }
     }
 
@@ -262,14 +374,20 @@ object FunkenwerkAlarmManager {
             return
         }
         val appCtx = context.applicationContext
+        ServiceLocator.ensureInitialized(appCtx)
         val prefs = appCtx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-        // Ensure local Tapo KLAP v2 credentials are populated if empty
-        if (prefs.getString(KEY_TAPO_EMAIL, "").isNullOrBlank() || prefs.getString(KEY_TAPO_PASS, "").isNullOrBlank()) {
-            prefs.edit()
-                .putString(KEY_TAPO_EMAIL, DEFAULT_TAPO_EMAIL)
-                .putString(KEY_TAPO_PASS, DEFAULT_TAPO_PASS)
-                .apply()
+        // Migrate any legacy plaintext Tapo credentials into AndroidKeyStore AES-256-GCM and wipe from prefs
+        val legacyTapoEmail = prefs.getString(KEY_TAPO_EMAIL, null)
+        val legacyTapoPass = prefs.getString(KEY_TAPO_PASS, null)
+        if (!legacyTapoEmail.isNullOrBlank() && ServiceLocator.getTapoEmail().isBlank()) {
+            ServiceLocator.saveTapoEmail(legacyTapoEmail)
+        }
+        if (!legacyTapoPass.isNullOrBlank() && ServiceLocator.getTapoPassword().isBlank()) {
+            ServiceLocator.saveTapoPassword(legacyTapoPass)
+        }
+        if (prefs.contains(KEY_TAPO_EMAIL) || prefs.contains(KEY_TAPO_PASS)) {
+            prefs.edit().remove(KEY_TAPO_EMAIL).remove(KEY_TAPO_PASS).apply()
         }
 
         // 1. Load or seed default Alarms and migrate legacy plug IPs
@@ -288,21 +406,15 @@ object FunkenwerkAlarmManager {
         _alarmsFlow.value = loadedAlarms
         prefs.edit().putString(KEY_ALARMS, gson.toJson(loadedAlarms)).apply()
 
-        // 2. Load or seed default Timers
+        // 2. Load or seed default Timers (self-heals any R8-corrupted or missing IDs/labels)
         val timersJson = prefs.getString(KEY_TIMERS, null)
         val loadedTimers: List<TimerPresetItem> = if (!timersJson.isNullOrBlank()) {
-            try {
-                val type = object : TypeToken<List<TimerPresetItem>>() {}.type
-                gson.fromJson(timersJson, type) ?: defaultTimers()
-            } catch (_: Exception) {
-                defaultTimers()
-            }
+            parseTimersJsonSelfHealing(timersJson)
         } else {
-            val defaults = defaultTimers()
-            prefs.edit().putString(KEY_TIMERS, gson.toJson(defaults)).apply()
-            defaults
+            defaultTimers()
         }
         _timersFlow.value = loadedTimers
+        prefs.edit().putString(KEY_TIMERS, gson.toJson(loadedTimers)).apply()
         restorePersistedTimerState(appCtx, loadedTimers)
 
         // 3. Load and normalize Smart Plugs to match PC Funkenwerk SmartHome
@@ -338,47 +450,7 @@ object FunkenwerkAlarmManager {
         isInitialized = true
 
         scheduleAllActiveAlarms(appCtx, _alarmsFlow.value)
-        autoSyncFunkiraVoiceKeyAsync(appCtx)
         prewarmAlarmBriefingsAsync(appCtx)
-    }
-
-    private fun autoSyncFunkiraVoiceKeyAsync(context: Context) {
-        scope.launch(Dispatchers.IO) {
-            try {
-                val appCtx = context.applicationContext
-                ServiceLocator.init(appCtx)
-                if (ServiceLocator.getGeminiApiKey().isNotBlank()) return@launch
-
-                val token = ServiceLocator.getAuthToken()
-                for (base in apiBaseCandidates(appCtx)) {
-                    try {
-                        val isLan = base.contains("192.168.") || base.contains("10.0.")
-                        val conn = (URL("$base/funki/routine/alarm-sync").openConnection() as HttpURLConnection).apply {
-                            requestMethod = "GET"
-                            connectTimeout = if (isLan) 2000 else 4000
-                            readTimeout = 4000
-                            setRequestProperty("Accept", "application/json")
-                            if (!token.isNullOrBlank()) {
-                                setRequestProperty("Authorization", "Bearer $token")
-                            }
-                        }
-                        if (conn.responseCode in 200..299) {
-                            val bodyStr = conn.inputStream.bufferedReader().use { it.readText() }
-                            conn.disconnect()
-                            val key = JSONObject(bodyStr).optJSONObject("data")?.optString("gemini_tts_key", "") ?: ""
-                            if (key.isNotBlank()) {
-                                ServiceLocator.saveGeminiApiKey(key)
-                                break
-                            }
-                        } else {
-                            conn.disconnect()
-                        }
-                    } catch (_: Exception) {
-                    }
-                }
-            } catch (_: Exception) {
-            }
-        }
     }
 
     private fun syncTimerMapsWithPresets(presets: List<TimerPresetItem>) {
@@ -842,10 +914,27 @@ object FunkenwerkAlarmManager {
         }
     }
 
+    fun isValidPrivateLanIpv4(ip: String): Boolean {
+        val parts = ip.trim().split('.')
+        if (parts.size != 4) return false
+        val octets = parts.map { part ->
+            if (part.isEmpty() || part.length > 3 || !part.all { it.isDigit() }) return false
+            val v = part.toIntOrNull() ?: return false
+            if (v !in 0..255) return false
+            v
+        }
+        return when (octets[0]) {
+            10 -> true
+            172 -> octets[1] in 16..31
+            192 -> octets[1] == 168
+            else -> false
+        }
+    }
+
     fun addSmartPlug(context: Context, name: String, ip: String, room: String = "Heimnetz") {
         ensureInitialized(context)
         val cleanIp = ip.trim()
-        if (cleanIp.isBlank()) return
+        if (!isValidPrivateLanIpv4(cleanIp)) return
         val current = _smartPlugsFlow.value.toMutableList()
         val existingIdx = current.indexOfFirst { it.ip == cleanIp }
         val device = SmartPlugDevice(name = name.ifBlank { "Smart Plug ($cleanIp)" }, ip = cleanIp, room = room)
@@ -862,18 +951,21 @@ object FunkenwerkAlarmManager {
     }
 
     fun saveTapoCredentials(context: Context, email: String, password: String) {
-        context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val appCtx = context.applicationContext
+        ServiceLocator.ensureInitialized(appCtx)
+        ServiceLocator.saveTapoEmail(email)
+        ServiceLocator.saveTapoPassword(password)
+        appCtx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
-            .putString(KEY_TAPO_EMAIL, email.trim())
-            .putString(KEY_TAPO_PASS, password)
+            .remove(KEY_TAPO_EMAIL)
+            .remove(KEY_TAPO_PASS)
             .apply()
     }
 
     fun getTapoCredentials(context: Context): Pair<String, String> {
-        val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val email = prefs.getString(KEY_TAPO_EMAIL, "")?.trim().orEmpty().ifBlank { DEFAULT_TAPO_EMAIL }
-        val pass = prefs.getString(KEY_TAPO_PASS, "").orEmpty().ifBlank { DEFAULT_TAPO_PASS }
-        return Pair(email, pass)
+        val appCtx = context.applicationContext
+        ServiceLocator.ensureInitialized(appCtx)
+        return Pair(ServiceLocator.getTapoEmail(), ServiceLocator.getTapoPassword())
     }
 
     fun recordWakeUpLog(
@@ -887,9 +979,10 @@ object FunkenwerkAlarmManager {
         ensureInitialized(context)
         val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
         val existing = _wakeLogsFlow.value[todayStr]
+        val baseScheduled = existing?.scheduledTime?.takeIf { it.isNotBlank() } ?: scheduledTime
         val entry = WakeUpLogEntry(
             date = todayStr,
-            scheduledTime = scheduledTime,
+            scheduledTime = baseScheduled,
             actualWakeTime = actualWakeTime,
             snoozeMinutes = (existing?.snoozeMinutes ?: 0) + snoozeMinutes,
             plugsTriggered = plugsTriggered || (existing?.plugsTriggered == true),
@@ -945,8 +1038,10 @@ object FunkenwerkAlarmManager {
             scheduleAllActiveAlarms(context, sorted)
         }
         if (!timers.isNullOrEmpty()) {
-            _timersFlow.value = timers
-            editor.putString(KEY_TIMERS, gson.toJson(timers))
+            val normalizedTimers = normalizeTimers(timers)
+            _timersFlow.value = normalizedTimers
+            syncTimerMapsWithPresets(normalizedTimers)
+            editor.putString(KEY_TIMERS, gson.toJson(normalizedTimers))
         }
         if (!plugs.isNullOrEmpty()) {
             val normalizedPlugs = normalizeSmartPlugs(plugs)
@@ -1132,12 +1227,12 @@ object FunkenwerkAlarmManager {
             } ?: enabledAlarms.first()
             val nextTriggerMs = computeNextTriggerMillis(nextAlarm.hour, nextAlarm.minute, nextAlarm.daysOfWeek)
 
-            val openIntent = Intent(appCtx, MainActivity::class.java).apply {
+            val openIntent = SecurityIntentHelper.signIntent(appCtx, Intent(appCtx, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 putExtra("open_tab", 2)
                 putExtra("open_subtab", 6)
                 putExtra("alarm_inner_tab", 0)
-            }
+            })
             val openPending = PendingIntent.getActivity(
                 appCtx,
                 91010,
@@ -1156,10 +1251,11 @@ object FunkenwerkAlarmManager {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            val title = if (enabledAlarms.size == 1) {
-                "⏰ Wecker gestellt: ${nextAlarm.timeFormatted} Uhr"
-            } else {
-                "⏰ Nächster Wecker: ${nextAlarm.timeFormatted} Uhr (${enabledAlarms.size} aktiv)"
+            val snoozedUntil = _snoozedUntilTimeFlow.value
+            val title = when {
+                !snoozedUntil.isNullOrBlank() -> "⏰ Wecker verschoben auf $snoozedUntil Uhr"
+                enabledAlarms.size == 1 -> "⏰ Wecker gestellt: ${nextAlarm.timeFormatted} Uhr"
+                else -> "⏰ Nächster Wecker: ${nextAlarm.timeFormatted} Uhr (${enabledAlarms.size} aktiv)"
             }
 
             val badges = buildList {
@@ -1231,12 +1327,12 @@ object FunkenwerkAlarmManager {
             val secs = remSec % 60
             val formattedCountdown = String.format(Locale.GERMANY, "%02d:%02d", mins, secs)
 
-            val openIntent = Intent(appCtx, MainActivity::class.java).apply {
+            val openIntent = SecurityIntentHelper.signIntent(appCtx, Intent(appCtx, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 putExtra("open_tab", 2)
                 putExtra("open_subtab", 6)
                 putExtra("alarm_inner_tab", 1)
-            }
+            })
             val openPending = PendingIntent.getActivity(
                 appCtx,
                 91020,
@@ -1327,12 +1423,12 @@ object FunkenwerkAlarmManager {
                 notificationManager.createNotificationChannel(channel)
             }
 
-            val openIntent = Intent(appCtx, MainActivity::class.java).apply {
+            val openIntent = SecurityIntentHelper.signIntent(appCtx, Intent(appCtx, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 putExtra("open_tab", 2)
                 putExtra("open_subtab", 6)
                 putExtra("alarm_inner_tab", 1)
-            }
+            })
             val openPending = PendingIntent.getActivity(
                 appCtx,
                 91030,
@@ -1392,12 +1488,12 @@ object FunkenwerkAlarmManager {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val showIntent = Intent(context, MainActivity::class.java).apply {
+        val showIntent = SecurityIntentHelper.signIntent(context, Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("open_tab", 2)
             putExtra("open_subtab", 6)
             putExtra("alarm_inner_tab", 0)
-        }
+        })
         val showPendingIntent = PendingIntent.getActivity(
             context,
             alarm.id.hashCode() + 1000,
@@ -1422,15 +1518,19 @@ object FunkenwerkAlarmManager {
         }
     }
 
-    fun scheduleSnoozeAlarm(context: Context, alarmId: String, label: String, scheduledTime: String, minutes: Int = 5) {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-        val triggerAtMillis = System.currentTimeMillis() + minutes * 60_000L
+    fun scheduleSnoozeAlarm(context: Context, alarmId: String, label: String, scheduledTime: String, minutes: Int = 5): String {
+        val appCtx = context.applicationContext
+        val alarmManager = appCtx.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+        val cleanMinutes = minutes.coerceIn(1, 360)
+        val triggerAtMillis = System.currentTimeMillis() + cleanMinutes * 60_000L
+        val targetTimeStr = SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date(triggerAtMillis))
         val existingAlarm = _alarmsFlow.value.find { it.id == alarmId }
+        val baseLabel = label.replace(" (Schlummern)", "").trim().ifBlank { existingAlarm?.label ?: "Wecker" }
 
-        val intent = Intent(context, SmartAlarmReceiver::class.java).apply {
+        val intent = Intent(appCtx, SmartAlarmReceiver::class.java).apply {
             action = SmartAlarmReceiver.ACTION_ALARM_TRIGGER
             putExtra("alarm_id", alarmId)
-            putExtra("alarm_label", "$label (Schlummern)")
+            putExtra("alarm_label", "$baseLabel (Schlummern)")
             putExtra("alarm_time", scheduledTime)
             putExtra("trigger_plugs", existingAlarm?.triggerPlugOnRing ?: true)
             putExtra("plug_ips", (existingAlarm?.smartPlugIps ?: emptyList()).toTypedArray())
@@ -1439,21 +1539,58 @@ object FunkenwerkAlarmManager {
             putExtra("alarm_sound_track_id", existingAlarm?.alarmSoundTrackId ?: "")
         }
 
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            (alarmId + "_snooze").hashCode(),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        if (alarmManager != null) {
+            val pendingIntent = PendingIntent.getBroadcast(
+                appCtx,
+                (alarmId + "_snooze").hashCode(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
 
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
-            } else {
-                alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+                } else {
+                    alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+                }
+            } catch (_: Exception) {
             }
-        } catch (_: Exception) {
         }
+
+        _snoozedUntilTimeFlow.value = targetTimeStr
+        recordWakeUpLog(
+            context = appCtx,
+            scheduledTime = scheduledTime,
+            actualWakeTime = targetTimeStr,
+            snoozeMinutes = cleanMinutes
+        )
+        updateActiveAlarmStatusNotification(appCtx)
+        pushAlarmPackageToAllEndpointsAsync(appCtx)
+        return targetTimeStr
+    }
+
+    fun cancelSnoozeAlarm(context: Context, alarmId: String? = null) {
+        val appCtx = context.applicationContext
+        val alarmManager = appCtx.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+        val ids = if (!alarmId.isNullOrBlank()) {
+            listOf(alarmId)
+        } else {
+            (_alarmsFlow.value.map { it.id } + listOf("alarm_0830", "alarm_0645", "alarm_1300")).distinct()
+        }
+        for (id in ids) {
+            val intent = Intent(appCtx, SmartAlarmReceiver::class.java).apply {
+                action = SmartAlarmReceiver.ACTION_ALARM_TRIGGER
+            }
+            val pendingIntent = PendingIntent.getBroadcast(
+                appCtx,
+                (id + "_snooze").hashCode(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pendingIntent)
+        }
+        _snoozedUntilTimeFlow.value = null
+        updateActiveAlarmStatusNotification(appCtx)
     }
 
     fun cancelAlarm(context: Context, alarmId: String) {
@@ -1468,6 +1605,7 @@ object FunkenwerkAlarmManager {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         alarmManager.cancel(pendingIntent)
+        cancelSnoozeAlarm(context, alarmId)
     }
 
     fun formatTimeUntilAlarm(alarm: SmartAlarmItem): String {
@@ -1879,12 +2017,21 @@ object FunkenwerkAlarmManager {
         }
     }
 
+    private const val INITIAL_ALARM_QUESTION = "Guten Morgen! Soll ich den Wecker direkt verschieben?"
+    private const val FOLLOWUP_DURATION_QUESTION = "Um wie viele Minuten soll ich ihn verschieben, oder soll er heute gar nicht mehr klingeln?"
+    private const val DISABLE_TODAY_CONFIRMATION = "Alles klar, der Wecker klingelt heute nicht mehr. Ruh dich noch gut aus, bis später!"
+
     /**
      * Triggered by SmartAlarmReceiver at alarm time:
      * 1. Promotes process to Foreground Service + acquires WakeLock & WifiLock + ducks running music + starts chosen Wecksound.
-     * 2. If aiBriefing is enabled, resolves Funkira's real voice (Aoede) while the Wecksound plays for ~3.5 seconds.
-     * 3. Pauses the Wecksound completely (0% overlap!) and plays Funkira's Morning Briefing on USAGE_ALARM.
-     * 4. Resumes the Wecksound after Funkira finishes speaking if the user hasn't dismissed/snoozed yet.
+     * 2. If aiBriefing is enabled, plays Wecksound for ~3.2s while resolving Funkira's opening question ("Guten Morgen! Soll ich den Wecker direkt verschieben?") and Gifhorn weather.
+     * 3. Pauses the Wecksound completely (0% overlap!) and asks if the alarm should be shifted.
+     * 4. Listens for user response ("Ja" + minutes / "gar nicht klingeln" / "Nein"):
+     *    - On "Ja" + minutes: shifts alarm via scheduleSnoozeAlarm, updates /admin/routine, confirms & stops ringing.
+     *    - On "Ja" + "gar nicht klingeln": disables/stops alarm for today, updates /admin/routine, confirms & stops ringing.
+     *    - On "Ja" without duration: asks how many minutes or if it shouldn't ring at all, listens again, and executes.
+     *    - On "Nein": stops alarm ringtone, logs actual wake-up time to /admin/routine, and continues with the Morning Briefing
+     *      (including current weekday/date, Gifhorn weather, 1-sentence evening walk outfit recommendation, Smart-Home, calendar, tasks, routine alignment, and warm goodbye).
      */
     fun triggerAlarmSequence(
         context: Context,
@@ -1898,10 +2045,13 @@ object FunkenwerkAlarmManager {
         val appCtx = context.applicationContext
         stopAlarmSound(appCtx)
         isAlarmDismissed = false
+        lastTriggerPlugsSwitched = plugsSwitched
         _isAlarmRingingFlow.value = true
+        _snoozedUntilTimeFlow.value = null
         val effTime = scheduledTime?.takeIf { it.isNotBlank() } ?: SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date())
         _activeRingingAlarmInfoFlow.value = Triple(alarmId, alarmLabel, effTime)
-        acquireAlarmWakeLock(appCtx, 240_000L)
+        _alarmDialogStateFlow.value = "Wecker klingelt..."
+        acquireAlarmWakeLock(appCtx, 300_000L)
         // Promote process via MusicPlaybackService so Android 14 never freezes the coroutine after BroadcastReceiver returns
         MusicPlaybackService.startOrUpdate(appCtx)
         requestAlarmAudioDucking(appCtx)
@@ -1913,15 +2063,22 @@ object FunkenwerkAlarmManager {
             return
         }
 
-        val briefingText = buildMorningBriefingText(appCtx, alarmLabel, plugsSwitched, effTime)
         alarmSequenceJob = scope.launch {
+            val prevLiveCallState = NavigationBridge.isLiveCallActive
             try {
-                // Fetch pre-warmed or live-synthesized Funkira (Aoede) WAV in parallel while wake-up sound rings for 3.5s
-                val wavDeferred = async(Dispatchers.IO) {
-                    fetchOrSynthesizeFunkiraWav(appCtx, briefingText, alarmId)
+                // Prevent background WakeWordService from colliding with microphone or false-triggering during alarm dialog
+                NavigationBridge.isLiveCallActive = true
+
+                // Pre-fetch opening question WAV & live Gifhorn weather in parallel while alarm tone rings for 3.2s
+                val askWavDeferred = async(Dispatchers.IO) {
+                    fetchOrSynthesizeFunkiraWav(appCtx, INITIAL_ALARM_QUESTION, "alarm_ask_shift")
                 }
-                delay(3500L)
-                val wavFile = wavDeferred.await()
+                val weatherDeferred = async(Dispatchers.IO) {
+                    fetchGifhornWeatherAndWalkSentence(appCtx)
+                }
+
+                delay(3200L)
+                val askWavFile = withTimeoutOrNull(8000L) { askWavDeferred.await() }
 
                 if (isAlarmDismissed) return@launch
 
@@ -1933,28 +2090,328 @@ object FunkenwerkAlarmManager {
 
                 if (isAlarmDismissed) return@launch
 
-                // 3. Play Funkira's voice briefing and wait until she finishes speaking
-                playBriefingAndAwaitCompletion(appCtx, wavFile, briefingText)
+                // 3. Funkira asks right at the start: "Guten Morgen! Soll ich den Wecker direkt verschieben?"
+                _alarmDialogStateFlow.value = "Funkira: „Guten Morgen, soll ich den Wecker direkt verschieben?“"
+                playBriefingAndAwaitCompletion(appCtx, askWavFile, INITIAL_ALARM_QUESTION)
 
                 if (isAlarmDismissed) return@launch
 
-                // 4. Brief pause, then resume wake-up sound until user taps Aufstehen or Schlummern
-                delay(1200L)
-                if (!isAlarmDismissed) {
-                    withContext(Dispatchers.Main) {
-                        resumeAlarmRingtoneOnly(appCtx)
+                // 4. Listen for user answer ("Ja", "Ja um 15 Minuten", "Gar nicht klingeln", or "Nein")
+                _alarmDialogStateFlow.value = "🎙️ Höre zu: „Ja (+Minuten / gar nicht)“ oder „Nein“..."
+                val transcript1 = listenForAlarmVoiceCommand(appCtx, timeoutMs = 8000L)
+
+                if (isAlarmDismissed) return@launch
+
+                when (val decision1 = parseAlarmVoiceCommand(transcript1, defaultNumberAsMinutes = false)) {
+                    is AlarmVoiceIntent.DisableToday -> {
+                        executeDisableAlarmTodayFlow(appCtx, alarmId, effTime, plugsSwitched)
+                        return@launch
+                    }
+                    is AlarmVoiceIntent.ShiftMinutes -> {
+                        executeShiftAlarmMinutesFlow(appCtx, alarmId, alarmLabel, effTime, decision1.minutes, plugsSwitched)
+                        return@launch
+                    }
+                    is AlarmVoiceIntent.YesAskDuration -> {
+                        _alarmDialogStateFlow.value = "Funkira: „Wie viele Minuten später oder gar nicht klingeln?“"
+                        val followWav = withTimeoutOrNull(8000L) {
+                            fetchOrSynthesizeFunkiraWav(appCtx, FOLLOWUP_DURATION_QUESTION, "alarm_ask_duration")
+                        }
+                        if (isAlarmDismissed) return@launch
+                        playBriefingAndAwaitCompletion(appCtx, followWav, FOLLOWUP_DURATION_QUESTION)
+                        if (isAlarmDismissed) return@launch
+
+                        _alarmDialogStateFlow.value = "🎙️ Höre zu: Minuten nennen oder „Gar nicht klingeln“..."
+                        val transcript2 = listenForAlarmVoiceCommand(appCtx, timeoutMs = 8000L)
+                        if (isAlarmDismissed) return@launch
+
+                        when (val decision2 = parseAlarmVoiceCommand(transcript2, defaultNumberAsMinutes = true)) {
+                            is AlarmVoiceIntent.DisableToday -> {
+                                executeDisableAlarmTodayFlow(appCtx, alarmId, effTime, plugsSwitched)
+                                return@launch
+                            }
+                            is AlarmVoiceIntent.ShiftMinutes -> {
+                                executeShiftAlarmMinutesFlow(appCtx, alarmId, alarmLabel, effTime, decision2.minutes, plugsSwitched)
+                                return@launch
+                            }
+                            is AlarmVoiceIntent.No -> {
+                                val weatherStr = withTimeoutOrNull(4000L) { weatherDeferred.await() }
+                                executeContinueRoutineBriefingFlow(appCtx, alarmId, alarmLabel, effTime, plugsSwitched, weatherStr)
+                                return@launch
+                            }
+                            else -> {
+                                // User said "Ja" to shifting but gave no clear duration on second prompt -> default to 10 minutes
+                                executeShiftAlarmMinutesFlow(appCtx, alarmId, alarmLabel, effTime, 10, plugsSwitched)
+                                return@launch
+                            }
+                        }
+                    }
+                    is AlarmVoiceIntent.No -> {
+                        val weatherStr = withTimeoutOrNull(4000L) { weatherDeferred.await() }
+                        executeContinueRoutineBriefingFlow(appCtx, alarmId, alarmLabel, effTime, plugsSwitched, weatherStr)
+                        return@launch
+                    }
+                    is AlarmVoiceIntent.Unknown -> {
+                        // Silence / no spoken answer: speak the full morning briefing (with date, Gifhorn weather & walk outfit)
+                        // and then resume the wake-up ringtone so the user doesn't oversleep accidentally.
+                        val weatherStr = withTimeoutOrNull(4000L) { weatherDeferred.await() }
+                        val nowWakeStr = SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date())
+                        val briefingText = buildMorningBriefingText(
+                            context = appCtx,
+                            alarmLabel = alarmLabel,
+                            plugsSwitched = plugsSwitched,
+                            overrideTimeStr = nowWakeStr,
+                            isContinuationAfterNo = false,
+                            preloadedWeatherSentence = weatherStr
+                        )
+                        _alarmDialogStateFlow.value = "🌅 Morgen-Briefing & Wetter Gifhorn..."
+                        val wavFile = withTimeoutOrNull(12000L) {
+                            fetchOrSynthesizeFunkiraWav(appCtx, briefingText, alarmId)
+                        }
+                        if (isAlarmDismissed) return@launch
+                        playBriefingAndAwaitCompletion(appCtx, wavFile, briefingText)
+                        if (isAlarmDismissed) return@launch
+
+                        _alarmDialogStateFlow.value = "Wecker klingelt (Aufstehen oder Verschieben wählen)"
+                        delay(1200L)
+                        if (!isAlarmDismissed) {
+                            withContext(Dispatchers.Main) {
+                                resumeAlarmRingtoneOnly(appCtx)
+                            }
+                        }
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error in triggerAlarmSequence", e)
+            } finally {
+                NavigationBridge.isLiveCallActive = prevLiveCallState
             }
         }
+    }
+
+    private suspend fun executeShiftAlarmMinutesFlow(
+        context: Context,
+        alarmId: String,
+        alarmLabel: String,
+        scheduledTime: String,
+        minutes: Int,
+        plugsSwitched: Boolean
+    ) {
+        val appCtx = context.applicationContext
+        val cleanMin = minutes.coerceIn(1, 360)
+        val newTargetTimeStr = scheduleSnoozeAlarm(appCtx, alarmId, alarmLabel, scheduledTime, cleanMin)
+        recordWakeUpLog(
+            context = appCtx,
+            scheduledTime = scheduledTime,
+            actualWakeTime = newTargetTimeStr,
+            snoozeMinutes = 0, // already added inside scheduleSnoozeAlarm
+            plugsTriggered = plugsSwitched,
+            aiBriefingSpoken = false
+        )
+        pushAlarmPackageToAllEndpointsAsync(appCtx)
+
+        val confirmText = "Alles klar, ich verschiebe den Wecker um $cleanMin Minuten auf $newTargetTimeStr Uhr. Bis gleich!"
+        _alarmDialogStateFlow.value = "⏰ Verschoben um +$cleanMin Min. auf $newTargetTimeStr Uhr"
+        val confirmWav = withTimeoutOrNull(8000L) {
+            fetchOrSynthesizeFunkiraWav(appCtx, confirmText, "alarm_shift_$cleanMin")
+        }
+        if (!isAlarmDismissed) {
+            playBriefingAndAwaitCompletion(appCtx, confirmWav, confirmText)
+        }
+        stopAlarmSound(appCtx)
+    }
+
+    private suspend fun executeDisableAlarmTodayFlow(
+        context: Context,
+        alarmId: String,
+        scheduledTime: String,
+        plugsSwitched: Boolean
+    ) {
+        val appCtx = context.applicationContext
+        cancelSnoozeAlarm(appCtx, alarmId)
+        val existing = _alarmsFlow.value.find { it.id == alarmId }
+        if (existing != null && existing.daysOfWeek.isEmpty() && existing.isEnabled) {
+            toggleAlarm(appCtx, alarmId)
+        }
+        val nowTimeStr = SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date())
+        recordWakeUpLog(
+            context = appCtx,
+            scheduledTime = scheduledTime,
+            actualWakeTime = nowTimeStr,
+            snoozeMinutes = 0,
+            plugsTriggered = plugsSwitched,
+            aiBriefingSpoken = true
+        )
+        pushAlarmPackageToAllEndpointsAsync(appCtx)
+
+        _alarmDialogStateFlow.value = "🔕 Wecker für heute beendet"
+        val confirmWav = withTimeoutOrNull(8000L) {
+            fetchOrSynthesizeFunkiraWav(appCtx, DISABLE_TODAY_CONFIRMATION, "alarm_disable_today")
+        }
+        if (!isAlarmDismissed) {
+            playBriefingAndAwaitCompletion(appCtx, confirmWav, DISABLE_TODAY_CONFIRMATION)
+        }
+        stopAlarmSound(appCtx)
+    }
+
+    private suspend fun executeContinueRoutineBriefingFlow(
+        context: Context,
+        alarmId: String,
+        alarmLabel: String,
+        scheduledTime: String,
+        plugsSwitched: Boolean,
+        preloadedWeatherSentence: String? = null
+    ) {
+        val appCtx = context.applicationContext
+        cancelSnoozeAlarm(appCtx, alarmId)
+        val nowWakeTimeStr = SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date())
+        recordWakeUpLog(
+            context = appCtx,
+            scheduledTime = scheduledTime,
+            actualWakeTime = nowWakeTimeStr,
+            snoozeMinutes = 0,
+            plugsTriggered = plugsSwitched,
+            aiBriefingSpoken = true
+        )
+        pushAlarmPackageToAllEndpointsAsync(appCtx)
+
+        val briefingText = buildMorningBriefingText(
+            context = appCtx,
+            alarmLabel = alarmLabel,
+            plugsSwitched = plugsSwitched,
+            overrideTimeStr = nowWakeTimeStr,
+            isContinuationAfterNo = true,
+            preloadedWeatherSentence = preloadedWeatherSentence
+        )
+        _alarmDialogStateFlow.value = "🌅 Morgen-Routine, Wetter Gifhorn & Spaziergang-Tipp..."
+        val wavFile = withTimeoutOrNull(12000L) {
+            fetchOrSynthesizeFunkiraWav(appCtx, briefingText, "${alarmId}_cont")
+        }
+        if (!isAlarmDismissed) {
+            playBriefingAndAwaitCompletion(appCtx, wavFile, briefingText)
+        }
+        stopAlarmSound(appCtx)
+    }
+
+    /**
+     * Interactive UI & Tool Actions so the user can also tap quick buttons or ask Funkira in Live Call.
+     */
+    fun userRespondShiftAlarm(context: Context, minutes: Int) {
+        val appCtx = context.applicationContext
+        val info = _activeRingingAlarmInfoFlow.value
+        val fallbackAlarm = getNextActiveAlarm(appCtx) ?: _alarmsFlow.value.firstOrNull()
+        val alarmId = info?.first ?: fallbackAlarm?.id ?: "alarm_0830"
+        val alarmLabel = info?.second ?: fallbackAlarm?.label ?: "Seelenfunke Fokus-Start"
+        val scheduledTime = info?.third ?: fallbackAlarm?.timeFormatted ?: SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date())
+        val plugs = lastTriggerPlugsSwitched
+
+        try { alarmSequenceJob?.cancel() } catch (_: Exception) {}
+        pauseAlarmRingtoneOnly(appCtx)
+        isAlarmDismissed = false
+
+        alarmSequenceJob = scope.launch {
+            executeShiftAlarmMinutesFlow(appCtx, alarmId, alarmLabel, scheduledTime, minutes, plugs)
+        }
+    }
+
+    fun userRespondDisableAlarmToday(context: Context) {
+        val appCtx = context.applicationContext
+        val info = _activeRingingAlarmInfoFlow.value
+        val fallbackAlarm = getNextActiveAlarm(appCtx) ?: _alarmsFlow.value.firstOrNull()
+        val alarmId = info?.first ?: fallbackAlarm?.id ?: "alarm_0830"
+        val scheduledTime = info?.third ?: fallbackAlarm?.timeFormatted ?: SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date())
+        val plugs = lastTriggerPlugsSwitched
+
+        try { alarmSequenceJob?.cancel() } catch (_: Exception) {}
+        pauseAlarmRingtoneOnly(appCtx)
+        isAlarmDismissed = false
+
+        alarmSequenceJob = scope.launch {
+            executeDisableAlarmTodayFlow(appCtx, alarmId, scheduledTime, plugs)
+        }
+    }
+
+    fun userRespondContinueRoutineNow(context: Context) {
+        val appCtx = context.applicationContext
+        val info = _activeRingingAlarmInfoFlow.value
+        val fallbackAlarm = getNextActiveAlarm(appCtx) ?: _alarmsFlow.value.firstOrNull()
+        val alarmId = info?.first ?: fallbackAlarm?.id ?: "alarm_0830"
+        val alarmLabel = info?.second ?: fallbackAlarm?.label ?: "Seelenfunke Fokus-Start"
+        val scheduledTime = info?.third ?: fallbackAlarm?.timeFormatted ?: SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date())
+        val plugs = lastTriggerPlugsSwitched
+
+        try { alarmSequenceJob?.cancel() } catch (_: Exception) {}
+        pauseAlarmRingtoneOnly(appCtx)
+        isAlarmDismissed = false
+        _isAlarmRingingFlow.value = true
+        acquireAlarmWakeLock(appCtx, 120_000L)
+        requestAlarmAudioDucking(appCtx)
+
+        alarmSequenceJob = scope.launch {
+            val prevLive = NavigationBridge.isLiveCallActive
+            try {
+                NavigationBridge.isLiveCallActive = true
+                val weatherStr = withTimeoutOrNull(4000L) { fetchGifhornWeatherAndWalkSentence(appCtx) }
+                executeContinueRoutineBriefingFlow(appCtx, alarmId, alarmLabel, scheduledTime, plugs, weatherStr)
+            } finally {
+                NavigationBridge.isLiveCallActive = prevLive
+            }
+        }
+    }
+
+    fun shiftActiveOrNextAlarmFromTool(context: Context, minutes: Int): String {
+        val appCtx = context.applicationContext
+        ensureInitialized(appCtx)
+        val cleanMin = minutes.coerceIn(1, 360)
+        val info = _activeRingingAlarmInfoFlow.value
+        val targetAlarm = if (info != null) {
+            _alarmsFlow.value.find { it.id == info.first }
+        } else {
+            getNextActiveAlarm(appCtx) ?: _alarmsFlow.value.firstOrNull()
+        }
+        val alarmId = info?.first ?: targetAlarm?.id ?: "alarm_0830"
+        val alarmLabel = info?.second ?: targetAlarm?.label ?: "Seelenfunke Fokus-Start"
+        val scheduledTime = info?.third ?: targetAlarm?.timeFormatted ?: SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date())
+
+        stopAlarmSound(appCtx)
+        val newTargetTimeStr = scheduleSnoozeAlarm(appCtx, alarmId, alarmLabel, scheduledTime, cleanMin)
+        return "Wecker '$alarmLabel' wurde um $cleanMin Minuten auf $newTargetTimeStr Uhr verschoben und mit /admin/routine synchronisiert."
+    }
+
+    fun disableAlarmTodayFromTool(context: Context): String {
+        val appCtx = context.applicationContext
+        ensureInitialized(appCtx)
+        val info = _activeRingingAlarmInfoFlow.value
+        val targetAlarm = if (info != null) {
+            _alarmsFlow.value.find { it.id == info.first }
+        } else {
+            getNextActiveAlarm(appCtx) ?: _alarmsFlow.value.firstOrNull()
+        }
+        val alarmId = info?.first ?: targetAlarm?.id ?: "alarm_0830"
+        val scheduledTime = info?.third ?: targetAlarm?.timeFormatted ?: SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date())
+
+        stopAlarmSound(appCtx)
+        cancelSnoozeAlarm(appCtx, alarmId)
+        if (targetAlarm != null && targetAlarm.daysOfWeek.isEmpty() && targetAlarm.isEnabled) {
+            toggleAlarm(appCtx, alarmId)
+        }
+        val nowTimeStr = SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date())
+        recordWakeUpLog(
+            context = appCtx,
+            scheduledTime = scheduledTime,
+            actualWakeTime = nowTimeStr,
+            snoozeMinutes = 0,
+            plugsTriggered = lastTriggerPlugsSwitched,
+            aiBriefingSpoken = true
+        )
+        pushAlarmPackageToAllEndpointsAsync(appCtx)
+        return "Der Wecker wurde für heute komplett gestoppt, es klingelt kein Schlummer-Wecker mehr und die Aufstehzeit ($nowTimeStr Uhr) wurde an /admin/routine übermittelt."
     }
 
     fun stopAlarmSound(context: Context? = null) {
         isAlarmDismissed = true
         _isAlarmRingingFlow.value = false
         _activeRingingAlarmInfoFlow.value = null
+        _alarmDialogStateFlow.value = null
         try {
             alarmSequenceJob?.cancel()
         } catch (_: Exception) {
@@ -1982,12 +2439,552 @@ object FunkenwerkAlarmManager {
         }
     }
 
+    fun formatTodayGermanDateSentence(): String {
+        val formatted = SimpleDateFormat("EEEE, 'der' d. MMMM", Locale.GERMANY).format(Date())
+        return "Heute ist $formatted."
+    }
+
+    /**
+     * Fetches live weather for Gifhorn (52.4886° N, 10.5458° E) via Open-Meteo and builds a single concise German sentence
+     * stating today's weather in Gifhorn, whether an evening walk works based on the weather, and how to dress for the evening temperature.
+     * Strictly never suggests walking locations, parks, lakes, or routes.
+     */
+    suspend fun fetchGifhornWeatherAndWalkSentence(context: Context): String = withContext(Dispatchers.IO) {
+        val appCtx = context.applicationContext
+        val nowMs = System.currentTimeMillis()
+        val cached = cachedGifhornWeatherSentence
+        if (!cached.isNullOrBlank() && (nowMs - cachedGifhornWeatherAtMs) < 25 * 60_000L) {
+            return@withContext cached
+        }
+
+        val todayIso = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        val prefs = appCtx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+        try {
+            val urlStr = "https://api.open-meteo.com/v1/forecast?latitude=52.4886&longitude=10.5458&current=temperature_2m,weather_code&hourly=temperature_2m,precipitation_probability,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Europe%2FBerlin&forecast_days=1"
+            val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 3500
+                readTimeout = 3500
+                setRequestProperty("Accept", "application/json")
+            }
+            if (conn.responseCode in 200..299) {
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                conn.disconnect()
+                val root = JSONObject(body)
+
+                val daily = root.optJSONObject("daily")
+                val dailyMax = daily?.optJSONArray("temperature_2m_max")?.optDouble(0, 12.0)?.roundToInt() ?: 12
+                val dailyCode = daily?.optJSONArray("weather_code")?.optInt(0, 2) ?: 2
+
+                val hourly = root.optJSONObject("hourly")
+                val hourlyTemps = hourly?.optJSONArray("temperature_2m")
+                val hourlyRain = hourly?.optJSONArray("precipitation_probability")
+                val hourlyWind = hourly?.optJSONArray("wind_speed_10m")
+                val hourlyCodes = hourly?.optJSONArray("weather_code")
+
+                // Evaluate evening window between 18:00 and 20:00 for Gifhorn weather & walk feasibility
+                val eveningHours = listOf(18, 19, 20)
+                val eveningTempList = eveningHours.mapNotNull { h ->
+                    if (hourlyTemps != null && h < hourlyTemps.length()) {
+                        val v = hourlyTemps.optDouble(h, Double.NaN)
+                        if (!v.isNaN()) v else null
+                    } else null
+                }
+                val eveningTemp = if (eveningTempList.isNotEmpty()) {
+                    eveningTempList.average().roundToInt()
+                } else {
+                    (dailyMax - 4)
+                }
+
+                var eveningRainProb = 0
+                var eveningWindMax = 0.0
+                var eveningHasThunderstorm = false
+                var eveningHasHeavyPrecip = false
+                var eveningHasLightPrecip = false
+                for (h in eveningHours) {
+                    if (hourlyRain != null && h < hourlyRain.length()) {
+                        eveningRainProb = maxOf(eveningRainProb, hourlyRain.optInt(h, 0))
+                    }
+                    if (hourlyWind != null && h < hourlyWind.length()) {
+                        eveningWindMax = maxOf(eveningWindMax, hourlyWind.optDouble(h, 0.0))
+                    }
+                    if (hourlyCodes != null && h < hourlyCodes.length()) {
+                        when (hourlyCodes.optInt(h, 0)) {
+                            95, 96, 99 -> eveningHasThunderstorm = true
+                            65, 67, 75, 82, 86 -> eveningHasHeavyPrecip = true
+                            51, 53, 55, 56, 57, 61, 63, 66, 71, 73, 77, 80, 81, 85 -> eveningHasLightPrecip = true
+                        }
+                    }
+                }
+
+                val weatherCondition = mapWmoCodeToGerman(dailyCode)
+                val outfitRecommendation = when {
+                    eveningTemp <= 2 -> "eine dicke Winterjacke, Schal und Mütze"
+                    eveningTemp in 3..8 -> "eine warme Jacke und einen Pullover"
+                    eveningTemp in 9..14 -> "eine Übergangsjacke oder einen warmen Hoodie"
+                    eveningTemp in 15..19 -> "eine leichte Jacke oder einen dünnen Pullover"
+                    else -> "leichte Kleidung"
+                }
+
+                val walkFeasibilityClause = when {
+                    eveningHasThunderstorm || eveningHasHeavyPrecip || eveningRainProb >= 65 || eveningWindMax >= 42.0 -> {
+                        val reason = when {
+                            eveningHasThunderstorm -> "wegen Gewittergefahr"
+                            eveningWindMax >= 42.0 -> "wegen starkem Wind"
+                            else -> "wegen Regen"
+                        }
+                        "ein Spaziergang heute Abend bietet sich $reason leider eher nicht an, falls du bei rund $eveningTemp Grad doch kurz rausgehst, nimm wetterfest $outfitRecommendation"
+                    }
+                    eveningRainProb >= 40 || eveningHasLightPrecip || eveningWindMax >= 28.0 -> {
+                        val protection = if (eveningRainProb >= 40 || eveningHasLightPrecip) "mit Schirm oder Regenjacke" else "mit etwas Windschutz"
+                        "ein Spaziergang heute Abend geht vom Wetter her $protection, zieh dir bei rund $eveningTemp Grad am besten $outfitRecommendation an"
+                    }
+                    else -> {
+                        "ein Spaziergang heute Abend geht vom Wetter her sehr gut, zieh dir bei rund $eveningTemp Grad am besten $outfitRecommendation an"
+                    }
+                }
+
+                val sentence = "In Gifhorn wird es heute $weatherCondition bei bis zu $dailyMax Grad, und $walkFeasibilityClause."
+                cachedGifhornWeatherSentence = sentence
+                cachedGifhornWeatherAtMs = nowMs
+                prefs.edit()
+                    .putString(KEY_LAST_WEATHER_SENTENCE, sentence)
+                    .putString(KEY_LAST_WEATHER_DATE, todayIso)
+                    .apply()
+                return@withContext sentence
+            } else {
+                conn.disconnect()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to fetch Gifhorn weather from Open-Meteo: ${e.message}")
+        }
+
+        val savedDate = prefs.getString(KEY_LAST_WEATHER_DATE, null)
+        val savedSentence = prefs.getString(KEY_LAST_WEATHER_SENTENCE, null)
+        if (savedDate == todayIso && !savedSentence.isNullOrBlank()) {
+            return@withContext savedSentence
+        }
+
+        return@withContext "In Gifhorn begleitet dich heute typisches Regionswetter, ein Spaziergang heute Abend ist je nach Schauern machbar, zieh dir der Temperatur entsprechend eine passende Jacke an."
+    }
+
+    private fun mapWmoCodeToGerman(code: Int): String {
+        return when (code) {
+            0 -> "sonnig und klar"
+            1 -> "überwiegend heiter"
+            2 -> "leicht bewölkt"
+            3 -> "bedeckt"
+            45, 48 -> "neblig"
+            51, 53, 55, 56, 57 -> "leicht regnerisch mit Nieselregen"
+            61, 63, 65, 66, 67, 80, 81, 82 -> "wechselhaft mit Regenschauern"
+            71, 73, 75, 77, 85, 86 -> "winterlich mit Schneeschauern"
+            95, 96, 99 -> "unbeständig mit Gewitterneigung"
+            else -> "wechselhaft bewölkt"
+        }
+    }
+
+    /**
+     * Listens for the user's spoken response after Funkira's alarm question.
+     * Uses Android SpeechRecognizer on Main thread, and falls back to AudioRecord + Gemini multimodal transcription
+     * if SpeechRecognizer fails or returns empty (e.g. on lockscreen).
+     */
+    private suspend fun listenForAlarmVoiceCommand(context: Context, timeoutMs: Long = 7500L): String {
+        val appCtx = context.applicationContext
+        if (ContextCompat.checkSelfPermission(appCtx, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "RECORD_AUDIO permission not granted for alarm voice command")
+            return ""
+        }
+
+        // Wait briefly so WakeWordService releases its AudioRecord instance
+        delay(250L)
+
+        val startMs = System.currentTimeMillis()
+        val speechResult = withTimeoutOrNull(timeoutMs) {
+            listenViaAndroidSpeechRecognizer(appCtx)
+        }?.trim().orEmpty()
+
+        if (speechResult.isNotBlank()) {
+            return speechResult
+        }
+
+        // If Android SpeechRecognizer failed immediately (e.g. < 2000ms on lockscreen), use AudioRecord + Gemini audio fallback
+        val elapsed = System.currentTimeMillis() - startMs
+        if (!isAlarmDismissed && elapsed < 2500L) {
+            Log.d(TAG, "SpeechRecognizer returned empty quickly (${elapsed}ms), using AudioRecord + Gemini fallback")
+            return recordAndTranscribeViaGemini(appCtx, maxDurationMs = 5000L)
+        }
+        return ""
+    }
+
+    private suspend fun listenViaAndroidSpeechRecognizer(context: Context): String = withContext(Dispatchers.Main) {
+        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+            return@withContext ""
+        }
+        suspendCancellableCoroutine { cont ->
+            var recognizer: SpeechRecognizer? = null
+            var lastPartial = ""
+            var completed = false
+
+            fun finish(text: String) {
+                if (completed) return
+                completed = true
+                try {
+                    recognizer?.stopListening()
+                    recognizer?.destroy()
+                } catch (_: Exception) {
+                }
+                recognizer = null
+                if (cont.isActive) {
+                    cont.resume(text)
+                }
+            }
+
+            try {
+                val sr = SpeechRecognizer.createSpeechRecognizer(context)
+                recognizer = sr
+                sr.setRecognitionListener(object : RecognitionListener {
+                    override fun onReadyForSpeech(params: Bundle?) {}
+                    override fun onBeginningOfSpeech() {}
+                    override fun onRmsChanged(rmsdB: Float) {}
+                    override fun onBufferReceived(buffer: ByteArray?) {}
+                    override fun onEndOfSpeech() {}
+                    override fun onEvent(eventType: Int, params: Bundle?) {}
+
+                    override fun onPartialResults(partialResults: Bundle?) {
+                        val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        val candidate = matches?.firstOrNull()?.trim().orEmpty()
+                        if (candidate.isNotBlank()) {
+                            lastPartial = candidate
+                            _alarmDialogStateFlow.value = "🎙️ Verstanden: „$candidate“"
+                        }
+                    }
+
+                    override fun onResults(results: Bundle?) {
+                        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        val best = matches?.firstOrNull()?.trim().orEmpty().ifBlank { lastPartial }
+                        finish(best)
+                    }
+
+                    override fun onError(error: Int) {
+                        finish(lastPartial)
+                    }
+                })
+
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "de-DE")
+                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1400L)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1200L)
+                }
+                sr.startListening(intent)
+
+                cont.invokeOnCancellation {
+                    try {
+                        sr.cancel()
+                        sr.destroy()
+                    } catch (_: Exception) {
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "listenViaAndroidSpeechRecognizer failed: ${e.message}")
+                finish(lastPartial)
+            }
+        }
+    }
+
+    private suspend fun recordAndTranscribeViaGemini(context: Context, maxDurationMs: Long = 5000L): String = withContext(Dispatchers.IO) {
+        val sampleRate = 16000
+        val channelConfig = AudioFormat.CHANNEL_IN_MONO
+        val audioFormat = AudioFormat.ENCODING_PCM_16BIT
+        val minBuf = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat).coerceAtLeast(3200)
+
+        var recorder: AudioRecord? = null
+        val pcmOut = ByteArrayOutputStream()
+        var maxRms = 0.0
+        var speechDetectedAtMs = 0L
+        var lastAboveThresholdAtMs = 0L
+
+        try {
+            recorder = AudioRecord(
+                MediaRecorder.AudioSource.MIC,
+                sampleRate,
+                channelConfig,
+                audioFormat,
+                minBuf * 2
+            )
+            if (recorder.state != AudioRecord.STATE_INITIALIZED) {
+                return@withContext ""
+            }
+            recorder.startRecording()
+            val shortBuf = ShortArray(1600) // 100ms chunks at 16kHz
+            val startAt = System.currentTimeMillis()
+
+            while (!isAlarmDismissed && (System.currentTimeMillis() - startAt) < maxDurationMs) {
+                val read = recorder.read(shortBuf, 0, shortBuf.size)
+                if (read > 0) {
+                    var sum = 0.0
+                    val byteBuf = ByteBuffer.allocate(read * 2).order(ByteOrder.LITTLE_ENDIAN)
+                    for (i in 0 until read) {
+                        val s = shortBuf[i]
+                        sum += s * s
+                        byteBuf.putShort(s)
+                    }
+                    pcmOut.write(byteBuf.array())
+                    val rms = sqrt(sum / read)
+                    if (rms > maxRms) maxRms = rms
+                    val now = System.currentTimeMillis()
+                    if (rms > 550.0) {
+                        if (speechDetectedAtMs == 0L) speechDetectedAtMs = now
+                        lastAboveThresholdAtMs = now
+                    } else if (speechDetectedAtMs > 0L && (now - lastAboveThresholdAtMs) > 1200L) {
+                        // User finished speaking (1.2s of silence after speech)
+                        break
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "AudioRecord fallback failed: ${e.message}")
+            return@withContext ""
+        } finally {
+            try {
+                recorder?.stop()
+                recorder?.release()
+            } catch (_: Exception) {
+            }
+        }
+
+        val pcmBytes = pcmOut.toByteArray()
+        if (pcmBytes.size < 6400 || maxRms < 450.0) {
+            return@withContext ""
+        }
+
+        val wavBytes = wrapPcmMono16BitToWav(pcmBytes, sampleRate)
+        val b64Wav = Base64.encodeToString(wavBytes, Base64.NO_WRAP)
+
+        try {
+            val appCtx = context.applicationContext
+            ServiceLocator.ensureInitialized(appCtx)
+            val apiKey = ServiceLocator.getGeminiApiKey().trim()
+            if (apiKey.isNotBlank()) {
+                val prompt = "Transkribiere exakt auf Deutsch, was die Person auf die Frage 'Soll ich den Wecker direkt verschieben?' geantwortet hat (z.B. Ja, Nein, um 15 Minuten, gar nicht klingeln). Gib ausschließlich den gehörten deutschen Text ohne Anführungszeichen zurück."
+                val reqJson = JSONObject().apply {
+                    put("contents", JSONArray().put(
+                        JSONObject().apply {
+                            put("role", "user")
+                            put("parts", JSONArray().apply {
+                                put(JSONObject().put("text", prompt))
+                                put(JSONObject().put("inlineData", JSONObject().apply {
+                                    put("mimeType", "audio/wav")
+                                    put("data", b64Wav)
+                                }))
+                            })
+                        }
+                    ))
+                }.toString()
+
+                val conn = (URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 4000
+                    readTimeout = 6000
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/json")
+                    setRequestProperty("x-goog-api-key", apiKey)
+                }
+                conn.outputStream.use { it.write(reqJson.toByteArray(Charsets.UTF_8)) }
+                if (conn.responseCode in 200..299) {
+                    val resp = conn.inputStream.bufferedReader().use { it.readText() }
+                    conn.disconnect()
+                    val text = JSONObject(resp)
+                        .optJSONArray("candidates")
+                        ?.optJSONObject(0)
+                        ?.optJSONObject("content")
+                        ?.optJSONArray("parts")
+                        ?.optJSONObject(0)
+                        ?.optString("text", "")
+                        ?.trim()
+                        .orEmpty()
+                    if (text.isNotBlank()) {
+                        _alarmDialogStateFlow.value = "🎙️ Verstanden: „$text“"
+                        return@withContext text
+                    }
+                } else {
+                    conn.disconnect()
+                }
+            }
+
+            // Authenticated Server-Side Fallback (keeps Master GEMINI_API_KEY strictly on server)
+            val token = ServiceLocator.getAuthToken()
+            if (!token.isNullOrBlank()) {
+                val payload = JSONObject().apply {
+                    put("audio_base64", b64Wav)
+                    put("mime_type", "audio/wav")
+                }.toString()
+                for (base in apiBaseCandidates(appCtx)) {
+                    try {
+                        val conn = (URL("$base/funki/routine/alarm-transcribe").openConnection() as HttpURLConnection).apply {
+                            requestMethod = "POST"
+                            connectTimeout = 3500
+                            readTimeout = 7500
+                            doOutput = true
+                            setRequestProperty("Content-Type", "application/json")
+                            setRequestProperty("Accept", "application/json")
+                            setRequestProperty("Authorization", "Bearer $token")
+                        }
+                        conn.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+                        if (conn.responseCode in 200..299) {
+                            val resp = conn.inputStream.bufferedReader().use { it.readText() }
+                            conn.disconnect()
+                            val text = JSONObject(resp).optString("transcript", "").trim()
+                            if (text.isNotBlank()) {
+                                _alarmDialogStateFlow.value = "🎙️ Verstanden: „$text“"
+                                return@withContext text
+                            }
+                        } else {
+                            conn.disconnect()
+                        }
+                    } catch (_: Exception) {
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Alarm audio transcription failed: ${e.message}")
+        }
+        return@withContext ""
+    }
+
+    fun parseAlarmVoiceCommand(rawTranscript: String, defaultNumberAsMinutes: Boolean = false): AlarmVoiceIntent {
+        val t = rawTranscript.lowercase(Locale.GERMANY).trim()
+        if (t.isBlank()) return AlarmVoiceIntent.Unknown
+
+        // 1. Check "gar nicht klingeln" / disable for today
+        if (t.contains("gar nicht") ||
+            t.contains("nicht mehr klingeln") ||
+            t.contains("nicht klingeln") ||
+            t.contains("überhaupt nicht") ||
+            t.contains("heute nicht") ||
+            t.contains("ausschalten") ||
+            t.contains("ausmachen") ||
+            t.contains("auslassen") ||
+            t.contains("komplett aus") ||
+            t.contains("wecker aus") ||
+            t == "aus"
+        ) {
+            return AlarmVoiceIntent.DisableToday
+        }
+
+        // 2. Check if specific minutes or hours were mentioned (e.g. "Ja, 15 Minuten später", "um 20 Minuten", "halbe Stunde")
+        val extractedMinutes = extractMinutesFromGermanText(t, defaultNumberAsMinutes)
+        if (extractedMinutes != null && extractedMinutes in 1..360) {
+            return AlarmVoiceIntent.ShiftMinutes(extractedMinutes)
+        }
+
+        // 3. Check "Nein" -> do not shift, continue with morning routine
+        if (t.contains("nein") ||
+            t.contains("nee") ||
+            t == "ne" ||
+            t.startsWith("ne ") ||
+            t.contains("nicht verschieben") ||
+            t.contains("stehe auf") ||
+            t.contains("steh auf") ||
+            t.contains("aufstehen") ||
+            t.contains("bin wach") ||
+            t.contains("schon wach") ||
+            t.contains("routine") ||
+            t.contains("weiter")
+        ) {
+            return AlarmVoiceIntent.No
+        }
+
+        // 4. Check "Ja" without duration -> ask how many minutes or disable
+        if (t.contains("ja") ||
+            t.contains("jap") ||
+            t.contains("jepp") ||
+            t.contains("gerne") ||
+            t.contains("bitte") ||
+            t.contains("verschieb") ||
+            t.contains("später") ||
+            t.contains("schlummern") ||
+            t.contains("snooze")
+        ) {
+            return AlarmVoiceIntent.YesAskDuration
+        }
+
+        return AlarmVoiceIntent.Unknown
+    }
+
+    private fun extractMinutesFromGermanText(t: String, defaultNumberAsMinutes: Boolean): Int? {
+        if (t.contains("anderthalb stunde") || t.contains("eineinhalb stunde")) return 90
+        if (t.contains("dreiviertelstunde") || t.contains("dreiviertel stunde")) return 45
+        if (t.contains("halbe stunde") || t.contains("halben stunde")) return 30
+        if (t.contains("viertelstunde") || t.contains("viertel stunde")) return 15
+        if (t.contains("zwei stunden")) return 120
+        if (t.contains("eine stunde") || t.contains("einer stunde")) return 60
+
+        val digitMatch = Regex("""(\d{1,3})\s*(minuten|minute|min|stunden|stunde|std)?""").find(t)
+        if (digitMatch != null) {
+            val num = digitMatch.groupValues[1].toIntOrNull()
+            val unit = digitMatch.groupValues.getOrNull(2).orEmpty()
+            if (num != null && num > 0) {
+                if (unit.startsWith("st")) {
+                    return (num * 60).coerceIn(1, 360)
+                }
+                if (unit.startsWith("min") ||
+                    defaultNumberAsMinutes ||
+                    t.contains("ja") ||
+                    t.contains("später") ||
+                    t.contains("verschieb") ||
+                    t.contains("um ") ||
+                    t.contains("in ") ||
+                    t.trim().all { it.isDigit() }
+                ) {
+                    return num.coerceIn(1, 360)
+                }
+            }
+        }
+
+        val wordNumbers = listOf(
+            "neunzig" to 90,
+            "sechzig" to 60,
+            "fünfundvierzig" to 45,
+            "vierzig" to 40,
+            "fünfunddreißig" to 35,
+            "dreißig" to 30,
+            "dreissig" to 30,
+            "fünfundzwanzig" to 25,
+            "zwanzig" to 20,
+            "fünfzehn" to 15,
+            "zehn" to 10,
+            "neun" to 9,
+            "acht" to 8,
+            "sieben" to 7,
+            "sechs" to 6,
+            "fünf" to 5,
+            "vier" to 4,
+            "drei" to 3,
+            "zwei" to 2,
+            "eine minute" to 1,
+            "eins" to 1
+        )
+        for ((word, mins) in wordNumbers) {
+            if (Regex("""\b$word\b""").containsMatchIn(t)) {
+                return mins
+            }
+        }
+        return null
+    }
+
     fun buildMorningBriefingText(
         context: Context,
         alarmLabel: String = "Seelenfunke Fokus-Start",
         plugsSwitched: Boolean = false,
-        overrideTimeStr: String? = null
+        overrideTimeStr: String? = null,
+        isContinuationAfterNo: Boolean = false,
+        preloadedWeatherSentence: String? = null
     ): String {
+        val appCtx = context.applicationContext
         val timeStr = overrideTimeStr?.take(5)?.takeIf { it.isNotBlank() }
             ?: SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date())
         val hourInt = timeStr.substringBefore(":").toIntOrNull() ?: 8
@@ -1997,11 +2994,21 @@ object FunkenwerkAlarmManager {
             else -> "Guten Abend Alina!"
         }
 
+        val todayDateSentence = formatTodayGermanDateSentence()
+        val todayIso = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        val prefs = appCtx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val weatherSentence = preloadedWeatherSentence?.takeIf { it.isNotBlank() }
+            ?: cachedGifhornWeatherSentence?.takeIf { it.isNotBlank() }
+            ?: prefs.getString(KEY_LAST_WEATHER_SENTENCE, null)?.takeIf {
+                prefs.getString(KEY_LAST_WEATHER_DATE, null) == todayIso && it.isNotBlank()
+            }
+            ?: "In Gifhorn begleitet dich heute typisches Regionswetter, zieh dir heute Abend für den Spaziergang der Temperatur entsprechend eine bequeme Jacke an."
+
         // Read cached tasks & calendar events for personalized briefing
         var openTasksCount = 0
         var highPrioTasksCount = 0
         try {
-            val taskPrefs = context.applicationContext.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
+            val taskPrefs = appCtx.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
             val tasksJson = taskPrefs.getString("tasks_cache", null)
             if (!tasksJson.isNullOrBlank()) {
                 val type = object : TypeToken<List<ManagementTask>>() {}.type
@@ -2016,9 +3023,8 @@ object FunkenwerkAlarmManager {
         var todayEventsCount = 0
         var firstEventTitle: String? = null
         try {
-            val calPrefs = context.applicationContext.getSharedPreferences("calendar_widget_prefs", Context.MODE_PRIVATE)
+            val calPrefs = appCtx.getSharedPreferences("calendar_widget_prefs", Context.MODE_PRIVATE)
             val calJson = calPrefs.getString("calendar_events_cache", null)
-            val todayIso = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
             if (!calJson.isNullOrBlank()) {
                 val type = object : TypeToken<List<CalendarEvent>>() {}.type
                 val events: List<CalendarEvent> = gson.fromJson(calJson, type) ?: emptyList()
@@ -2030,10 +3036,19 @@ object FunkenwerkAlarmManager {
         }
 
         val sb = StringBuilder()
-        sb.append("$greeting Es ist $timeStr Uhr. ")
-        if (alarmLabel.isNotBlank()) {
-            sb.append("Dein Wecker $alarmLabel ist aktiv. ")
+        if (isContinuationAfterNo) {
+            sb.append("Alles klar, dann starten wir um $timeStr Uhr direkt in deine Morgenroutine! ")
+        } else {
+            sb.append("$greeting Es ist $timeStr Uhr. ")
+            if (alarmLabel.isNotBlank()) {
+                sb.append("Dein Wecker $alarmLabel ist aktiv. ")
+            }
         }
+
+        // 1. Current day / date + 2. Gifhorn weather & evening walk outfit in one concise sentence
+        sb.append("$todayDateSentence ")
+        sb.append("$weatherSentence ")
+
         if (plugsSwitched) {
             sb.append("Deine Smart-Home Steckdosen wurden im WLAN eingeschaltet. ")
         }
@@ -2055,12 +3070,12 @@ object FunkenwerkAlarmManager {
             sb.append(". ")
         }
 
-        sb.append("Deine Tagesroutine wird auf $timeStr Uhr getaktet. Starte entspannt und erfolgreich in deinen Tag!")
+        sb.append("Deine Tagesroutine richtet sich jetzt nach $timeStr Uhr aus. Wenn sonst nichts weiter ist, geht deine Routine jetzt weiter und ich wünsche dir einen wundervollen Tag, bis später!")
         return sb.toString()
     }
 
     /**
-     * Pre-synthesizes Funkira's (Aoede) Morning Briefing WAV file for all enabled alarms in the background
+     * Pre-synthesizes Funkira's (Aoede) Morning Dialog & Briefing WAV files in the background
      * so that when the alarm rings, Funkira's voice is immediately ready on disk with 0ms network latency.
      */
     fun prewarmAlarmBriefingsAsync(context: Context) {
@@ -2072,11 +3087,37 @@ object FunkenwerkAlarmManager {
                 briefingsDir.listFiles { _, name -> name.startsWith("briefing_") && name.endsWith(".wav") }
                     ?.forEach { try { it.delete() } catch (_: Exception) {} }
 
+                // 1. Pre-fetch Gifhorn weather so it's warm in cache
+                val weatherSentence = fetchGifhornWeatherAndWalkSentence(appCtx)
+
+                // 2. Pre-warm interactive alarm dialog questions
+                fetchOrSynthesizeFunkiraWav(appCtx, INITIAL_ALARM_QUESTION, "alarm_ask_shift")
+                fetchOrSynthesizeFunkiraWav(appCtx, FOLLOWUP_DURATION_QUESTION, "alarm_ask_duration")
+                fetchOrSynthesizeFunkiraWav(appCtx, DISABLE_TODAY_CONFIRMATION, "alarm_disable_today")
+
+                // 3. Pre-warm full morning briefings for enabled alarms
                 val enabledBriefingAlarms = _alarmsFlow.value.filter { it.isEnabled && it.aiBriefingEnabled }
                 for (alarm in enabledBriefingAlarms) {
                     val plugsSwitched = alarm.triggerPlugOnRing && alarm.smartPlugIps.isNotEmpty()
-                    val text = buildMorningBriefingText(appCtx, alarm.label, plugsSwitched, alarm.timeFormatted)
-                    fetchOrSynthesizeFunkiraWav(appCtx, text, alarm.id)
+                    val textCont = buildMorningBriefingText(
+                        context = appCtx,
+                        alarmLabel = alarm.label,
+                        plugsSwitched = plugsSwitched,
+                        overrideTimeStr = alarm.timeFormatted,
+                        isContinuationAfterNo = true,
+                        preloadedWeatherSentence = weatherSentence
+                    )
+                    fetchOrSynthesizeFunkiraWav(appCtx, textCont, "${alarm.id}_cont")
+
+                    val textFull = buildMorningBriefingText(
+                        context = appCtx,
+                        alarmLabel = alarm.label,
+                        plugsSwitched = plugsSwitched,
+                        overrideTimeStr = alarm.timeFormatted,
+                        isContinuationAfterNo = false,
+                        preloadedWeatherSentence = weatherSentence
+                    )
+                    fetchOrSynthesizeFunkiraWav(appCtx, textFull, alarm.id)
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "prewarmAlarmBriefingsAsync failed: ${e.message}")
@@ -2098,9 +3139,17 @@ object FunkenwerkAlarmManager {
         ensureAlarmStreamVolume(appCtx)
         requestAlarmAudioDucking(appCtx)
 
-        val text = buildMorningBriefingText(appCtx, alarmLabel, plugsSwitched, overrideTimeStr)
         alarmSequenceJob = scope.launch {
             try {
+                val weatherSentence = withTimeoutOrNull(3800L) { fetchGifhornWeatherAndWalkSentence(appCtx) }
+                val text = buildMorningBriefingText(
+                    context = appCtx,
+                    alarmLabel = alarmLabel,
+                    plugsSwitched = plugsSwitched,
+                    overrideTimeStr = overrideTimeStr,
+                    isContinuationAfterNo = false,
+                    preloadedWeatherSentence = weatherSentence
+                )
                 val wavFile = fetchOrSynthesizeFunkiraWav(appCtx, text, "preview")
                 if (!isAlarmDismissed) {
                     playBriefingAndAwaitCompletion(appCtx, wavFile, text)
@@ -2210,12 +3259,12 @@ object FunkenwerkAlarmManager {
     private fun apiBaseCandidates(context: Context): List<String> {
         val list = mutableListOf<String>()
         try {
-            ServiceLocator.init(context.applicationContext)
+            ServiceLocator.ensureInitialized(context.applicationContext)
             val saved = ServiceLocator.getBaseUrl().trim().removeSuffix("/")
             if (saved.isNotBlank()) list.add(saved)
         } catch (_: Exception) {
         }
-        list.add("http://192.168.188.119/api")
+        // Never blindly broadcast Bearer tokens over cleartext LAN HTTP unless the user explicitly selected LAN mode
         list.add("https://stage.mein-seelenfunke.de/api")
         list.add("https://mein-seelenfunke.de/api")
         return list.distinct()
@@ -2306,7 +3355,7 @@ object FunkenwerkAlarmManager {
 
     private fun synthesizeGeminiAoedeDirect(apiKey: String, text: String): ByteArray? {
         val models = listOf("gemini-3.1-flash-tts-preview", "gemini-2.5-flash-preview-tts")
-        val promptText = "Lies folgenden Text freundlich und natürlich vor: $text"
+        val promptText = "Lies ausschließlich den folgenden Text Wort für Wort freundlich und natürlich vor, ohne eigene Sätze oder Ortsangaben zu ergänzen: $text"
 
         val reqJson = JSONObject().apply {
             put("contents", JSONArray().put(
@@ -2365,7 +3414,10 @@ object FunkenwerkAlarmManager {
     }
 
     private fun wrapPcm24kMono16BitToWav(pcmData: ByteArray): ByteArray {
-        val sampleRate = 24000
+        return wrapPcmMono16BitToWav(pcmData, 24000)
+    }
+
+    private fun wrapPcmMono16BitToWav(pcmData: ByteArray, sampleRate: Int): ByteArray {
         val numChannels = 1
         val bitsPerSample = 16
         val byteRate = sampleRate * numChannels * (bitsPerSample / 8)
@@ -2432,19 +3484,23 @@ object FunkenwerkAlarmManager {
 
     suspend fun setPlugStateKlapV2(ip: String, email: String, password: String, turnOn: Boolean): Pair<Boolean, String> =
         withContext(Dispatchers.IO) {
-            if (!ip.startsWith("192.168.") && !ip.startsWith("10.") && !ip.startsWith("172.")) {
-                return@withContext Pair(false, "Nur lokale Heimnetz-IPs erlaubt.")
+            val cleanIp = ip.trim()
+            if (!isValidPrivateLanIpv4(cleanIp)) {
+                return@withContext Pair(false, "Nur gültige lokale Heimnetz-IPv4-Adressen erlaubt.")
             }
 
-            val effEmail = email.trim().ifBlank { DEFAULT_TAPO_EMAIL }
-            val effPass = password.ifBlank { DEFAULT_TAPO_PASS }
+            val effEmail = email.trim()
+            val effPass = password
+            if (effEmail.isBlank() || effPass.isBlank()) {
+                return@withContext Pair(false, "Bitte Tapo-Zugangsdaten unter Smart-Home & KI hinterlegen.")
+            }
 
             try {
                 val localSeed = ByteArray(16)
                 SecureRandom().nextBytes(localSeed)
 
                 // 1. Handshake 1 (explicitly capture TP_SESSIONID cookie per plug IP so multi-plug calls never collide)
-                val (hs1Bytes, sessionCookie) = postRawBytesWithCookie("http://$ip/app/handshake1", localSeed, "application/octet-stream", null)
+                val (hs1Bytes, sessionCookie) = postRawBytesWithCookie("http://$cleanIp/app/handshake1", localSeed, "application/octet-stream", null)
                 if (hs1Bytes == null) {
                     return@withContext Pair(false, "Handshake1 fehlgeschlagen")
                 }
@@ -2466,7 +3522,7 @@ object FunkenwerkAlarmManager {
 
                 // 2. Handshake 2
                 val clientHash = sha256(combine(remoteSeed, localSeed, authHash))
-                val (hs2Bytes, hs2Cookie) = postRawBytesWithCookie("http://$ip/app/handshake2", clientHash, "application/octet-stream", sessionCookie)
+                val (hs2Bytes, hs2Cookie) = postRawBytesWithCookie("http://$cleanIp/app/handshake2", clientHash, "application/octet-stream", sessionCookie)
                 if (hs2Bytes == null) {
                     return@withContext Pair(false, "Handshake2 fehlgeschlagen")
                 }
@@ -2490,7 +3546,7 @@ object FunkenwerkAlarmManager {
                 val sig = sha256(combine(sigKey, seqBytes, cipherBytes))
                 val reqBody = combine(sig, cipherBytes)
 
-                val (resp, _) = postRawBytesWithCookie("http://$ip/app/request?seq=$seq", reqBody, "application/octet-stream", activeCookie)
+                val (resp, _) = postRawBytesWithCookie("http://$cleanIp/app/request?seq=$seq", reqBody, "application/octet-stream", activeCookie)
                 if (resp != null) {
                     Pair(true, if (turnOn) "EIN geschaltet" else "AUS geschaltet")
                 } else {

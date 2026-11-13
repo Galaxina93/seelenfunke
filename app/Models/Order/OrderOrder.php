@@ -604,6 +604,7 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
             $updateData = [
                 'payment_status' => 'paid',
                 'status' => $newStatus,
+                'payment_url' => null,
             ];
 
             if ($stripePaymentIntentId) {
@@ -615,6 +616,7 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
             // Synchronize the current instance status
             $this->payment_status = 'paid';
             $this->status = $newStatus;
+            $this->payment_url = null;
 
             // --- LAGERBESTAND REDUZIEREN ---
             foreach ($order->items as $item) {
@@ -843,8 +845,8 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
         $alreadyCancelledOrRefunded = in_array($effectiveStatus, ['cancelled', 'refunded'], true)
             || $effectivePaymentStatus === 'refunded';
 
-        // 1. Lagerbestand: NUR für bezahlte, unpersonalisierte Produkte und nur wenn vorher pending/processing (nicht bereits storniert/ausgeliefert)
-        if ($wasPaid && !$alreadyCancelledOrRefunded && in_array($effectiveStatus, ['pending', 'processing'], true)) {
+        // 1. Lagerbestand: NUR für bezahlte, unpersonalisierte Standardware und nur beim ersten Storno-/Widerrufs-Durchlauf
+        if ($wasPaid && !$alreadyCancelledOrRefunded && in_array($effectiveStatus, ['pending', 'processing', 'shipped', 'completed'], true)) {
             foreach ($this->items as $item) {
                 $customConfig = is_array($item->configuration)
                     ? array_diff_key($item->configuration, array_flip(['digital_documents', 'purchased_image_path', 'variant_id', 'variant_name', 'selected_attributes']))
@@ -994,6 +996,63 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
     {
         $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();
         return $items->filter(fn (OrderOrderItem $item) => $item->requiresSupplierProcurement() && !$item->isSupplierOrderPlaced() && !$item->is_completed)->values();
+    }
+
+    /**
+     * Prüft, ob diese Bestellung gemäß GoBD / AO unwiderruflich aus der Datenbank gelöscht werden darf.
+     * Erlaubt ist dies ausschließlich bei unbezahlten Kaufabbrüchen, Fehlversuchen oder Testbestellungen:
+     * - Zahlungsstatus muss 'unpaid' oder 'failed' sein (niemals 'paid' oder 'refunded')
+     * - Bestellstatus darf nicht produziert/versendet sein ('pending', 'failed' oder 'cancelled')
+     * - Es darf weder eine Rechnung/Gutschrift noch ein DHL-Versandlabel existieren
+     */
+    public function canBePermanentlyDeleted(): bool
+    {
+        if (!in_array((string) $this->payment_status, ['unpaid', 'failed', 'open', 'pending'], true)) {
+            return false;
+        }
+
+        if (!in_array((string) $this->status, ['pending', 'failed', 'cancelled'], true)) {
+            return false;
+        }
+
+        $hasInvoices = $this->relationLoaded('invoices')
+            ? $this->invoices->isNotEmpty()
+            : $this->invoices()->exists();
+
+        if ($hasInvoices) {
+            return false;
+        }
+
+        $hasShipments = $this->relationLoaded('shipments')
+            ? $this->shipments->isNotEmpty()
+            : $this->shipments()->exists();
+
+        if ($hasShipments) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Löscht eine unbezahlte Abbruch-/Testbestellung rückstandslos (inkl. Positionen und nicht mehr anderweitig
+     * benötigter Kunden-Uploads & 3D-Snapshots) per forceDelete().
+     *
+     * @return array<int, string> Liste der gelöschten Dateipfade
+     */
+    public function permanentlyDeleteUnpaidOrder(): array
+    {
+        if (!$this->canBePermanentlyDeleted()) {
+            throw new \DomainException('Bezahlte, versendete oder bereits abgerechnete Bestellungen dürfen gemäß GoBD nicht gelöscht werden (bitte stattdessen stornieren).');
+        }
+
+        $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();
+        $itemConfigurations = $items->pluck('configuration')->all();
+
+        $this->items()->delete();
+        $this->forceDelete();
+
+        return app(\App\Services\CartFileCleanupService::class)->cleanupOrderFilesAfterDeletion($itemConfigurations);
     }
 }
 

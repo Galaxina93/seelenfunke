@@ -33,8 +33,15 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
+        val action = intent.action
+        if (action != null && action.startsWith("de.meinseelenfunke.app.widget.") &&
+            !de.meinseelenfunke.app.util.SecurityIntentHelper.isTrustedInternalIntent(context, intent)
+        ) {
+            return
+        }
         super.onReceive(context, intent)
         val appContext = context.applicationContext
+        ServiceLocator.ensureInitialized(appContext)
         val sharedPrefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val offset = sharedPrefs.getInt(KEY_MONTH_OFFSET, 0)
 
@@ -256,6 +263,7 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
                 putExtra("open_subtab", 1)
                 data = Uri.parse("funkenwerk://calendar_month/open_app/$appWidgetId")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
             }
             val pendingOpenApp = PendingIntent.getActivity(
                 appContext,
@@ -269,6 +277,7 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
             val resetIntent = Intent(appContext, CalendarMonthWidgetProvider::class.java).apply {
                 action = ACTION_RESET_MONTH
                 data = Uri.parse("funkenwerk://calendar_month/reset/$appWidgetId")
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
             }
             val pendingReset = PendingIntent.getBroadcast(
                 appContext,
@@ -282,6 +291,7 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
             val prevIntent = Intent(appContext, CalendarMonthWidgetProvider::class.java).apply {
                 action = ACTION_PREV_MONTH
                 data = Uri.parse("funkenwerk://calendar_month/prev/$appWidgetId")
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
             }
             val pendingPrev = PendingIntent.getBroadcast(
                 appContext,
@@ -294,6 +304,7 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
             val nextIntent = Intent(appContext, CalendarMonthWidgetProvider::class.java).apply {
                 action = ACTION_NEXT_MONTH
                 data = Uri.parse("funkenwerk://calendar_month/next/$appWidgetId")
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
             }
             val pendingNext = PendingIntent.getBroadcast(
                 appContext,
@@ -307,6 +318,7 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
             val refreshIntent = Intent(appContext, CalendarMonthWidgetProvider::class.java).apply {
                 action = ACTION_REFRESH
                 data = Uri.parse("funkenwerk://calendar_month/refresh/$appWidgetId")
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
             }
             val pendingRefresh = PendingIntent.getBroadcast(
                 appContext,
@@ -326,6 +338,7 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
                 putExtra("selected_date", targetDateStr)
                 data = Uri.parse("funkenwerk://calendar_month/add_event/$appWidgetId/$targetDateStr")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
             }
             val pendingAddEvent = PendingIntent.getActivity(
                 appContext,
@@ -417,6 +430,7 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
                             action = ACTION_SELECT_DAY
                             putExtra("selected_date", dateString)
                             data = Uri.parse("funkenwerk://calendar_month/day/$appWidgetId/$dateString")
+                            de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
                         }
                         val cellRequestCode = appWidgetId * 10000 + row * 100 + col + 5000
                         val pendingCellClick = PendingIntent.getBroadcast(
@@ -471,6 +485,7 @@ class CalendarMonthWidgetProvider : AppWidgetProvider() {
                             putExtra("selected_date", targetDateStr)
                             data = Uri.parse("funkenwerk://calendar_month/event/$appWidgetId/$i/$targetDateStr")
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                            de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
                         }
                         val pendingRowClick = PendingIntent.getActivity(
                             appContext,

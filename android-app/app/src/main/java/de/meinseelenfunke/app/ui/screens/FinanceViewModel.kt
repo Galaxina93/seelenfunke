@@ -207,6 +207,37 @@ class FinanceViewModel : ViewModel() {
         }
     }
 
+    fun sendToMiniPcTrichter(
+        fileBytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+        customTitle: String?,
+        source: String = "android"
+    ) {
+        if (fileBytes.isEmpty()) {
+            _actionResult.value = Result.failure(Exception("Bitte zuerst eine Seite scannen oder Datei wählen."))
+            return
+        }
+
+        viewModelScope.launch {
+            _isUploading.value = true
+            _actionResult.value = null
+            financeRepository.sendToMiniPcTrichter(
+                fileBytes = fileBytes,
+                fileName = fileName,
+                mimeType = mimeType,
+                customTitle = customTitle,
+                source = source
+            ).onSuccess { msg ->
+                _actionResult.value = Result.success(msg)
+                _isUploading.value = false
+            }.onFailure { error ->
+                _actionResult.value = Result.failure(error)
+                _isUploading.value = false
+            }
+        }
+    }
+
     fun updateVariableEntry(
         id: String,
         title: String,

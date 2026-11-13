@@ -40,12 +40,12 @@ class AiWidget extends Component
         $this->loadDefaultChatSession();
         $this->agentId = $agentId;
         
-        $this->activeAgentIds = \App\Models\Ai\AiAgent::where('is_in_chat', true)->pluck('id')->toArray();
+        $this->activeAgentIds = \App\Models\Ai\AiAgent::where('is_in_chat', true)->where('name', '!=', 'Funki')->pluck('id')->toArray();
         $this->forcedAgentIds = $this->activeAgentIds;
 
         // Ensure we have at least one fallback agent initialized if none are in chat yet
         if (empty($this->activeAgentIds)) {
-            $fallbackAgent = \App\Models\Ai\AiAgent::where('is_active', true)->first();
+            $fallbackAgent = \App\Models\Ai\AiAgent::where('is_active', true)->where('name', '!=', 'Funki')->first();
             if ($fallbackAgent) {
                 $fallbackAgent->update(['is_in_chat' => true]);
                 $this->activeAgentIds[] = $fallbackAgent->id;
@@ -241,7 +241,7 @@ class AiWidget extends Component
                         ->latest('created_at')
                         ->take(5) // Just the latest 5 in the widget to save space
                         ->get(),
-            'availableAgents' => \App\Models\Ai\AiAgent::where('is_active', true)->get(),
+            'availableAgents' => \App\Models\Ai\AiAgent::where('is_active', true)->where('name', '!=', 'Funki')->get(),
         ]);
     }
 }

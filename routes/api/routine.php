@@ -317,14 +317,121 @@ Route::prefix('funki/routine')->group(function () {
         $raw = SystemSetting::where('key', 'funki_alarm_sync_package')->value('value');
         $decoded = is_string($raw) ? json_decode($raw, true) : null;
         $pkg = is_array($decoded) ? array_merge($defaultAlarmPackage(), $decoded) : $defaultAlarmPackage();
+        if (isset($pkg['timers']) && is_array($pkg['timers'])) {
+            $sanitizedTimers = [];
+            foreach (array_values($pkg['timers']) as $idx => $t) {
+                if (!is_array($t)) {
+                    continue;
+                }
+                $dur = max(5, (int) ($t['duration_seconds'] ?? $t['c'] ?? 300));
+                $id = trim((string) ($t['id'] ?? $t['a'] ?? ''));
+                $label = trim((string) ($t['label'] ?? $t['b'] ?? ''));
+                if ($id === '' || $id === 'null') {
+                    $id = ($dur % 60 === 0 && in_array((int) ($dur / 60), [5, 10, 15, 20, 30], true))
+                        ? 'timer_' . ((int) ($dur / 60))
+                        : "timer_{$dur}_{$idx}";
+                }
+                if ($label === '' || $label === 'null') {
+                    $label = ($dur % 60 === 0)
+                        ? 'Timer: ' . ((int) ($dur / 60)) . ' Min.'
+                        : "Timer: {$dur}s";
+                }
+                $sanitizedTimers[] = [
+                    'id' => substr($id, 0, 64),
+                    'label' => substr($label, 0, 80),
+                    'duration_seconds' => $dur,
+                ];
+            }
+            $pkg['timers'] = !empty($sanitizedTimers) ? $sanitizedTimers : $defaultAlarmPackage()['timers'];
+        }
         $pkg['funkira_voice'] = 'Aoede';
-        $pkg['gemini_tts_key'] = (string) (config('services.gemini.key') ?: config('services.gemini.api_key') ?: env('GEMINI_API_KEY', ''));
+        unset($pkg['gemini_tts_key']);
 
         return response()->json([
             'success' => true,
             'data' => $pkg,
         ]);
     });
+
+    Route::post('/alarm-transcribe', function (Request $request) {
+        $validated = $request->validate([
+            'audio_base64' => 'required|string|max:2200000',
+            'mime_type' => 'nullable|string|max:64',
+        ]);
+
+        $audioBase64 = trim($validated['audio_base64']);
+        $decodedBytes = base64_decode($audioBase64, true);
+        if ($decodedBytes === false || strlen($decodedBytes) < 200 || strlen($decodedBytes) > 1650000) {
+            return response()->json([
+                'success' => false,
+                'transcript' => '',
+                'message' => 'Ungültige Audiodaten.',
+            ], 422);
+        }
+
+        $apiKey = (string) (config('services.gemini.key') ?: config('services.gemini.api_key') ?: '');
+        if ($apiKey === '') {
+            return response()->json([
+                'success' => false,
+                'transcript' => '',
+                'message' => 'Kein Server-Sprachschlüssel konfiguriert.',
+            ], 503);
+        }
+
+        $mimeType = in_array($validated['mime_type'] ?? 'audio/wav', ['audio/wav', 'audio/x-wav', 'audio/pcm', 'audio/mp4', 'audio/ogg'], true)
+            ? ($validated['mime_type'] ?? 'audio/wav')
+            : 'audio/wav';
+
+        $payload = [
+            'contents' => [[
+                'role' => 'user',
+                'parts' => [
+                    ['inlineData' => ['mimeType' => $mimeType, 'data' => $audioBase64]],
+                    ['text' => "Transkribiere exakt die gesprochene deutsche Antwort auf die Wecker-Frage 'Soll ich den Wecker direkt verschieben?' (z.B. 'ja 15 Minuten', 'ja gar nicht mehr klingeln', 'nein', 'ich bin wach'). Antworte NUR mit dem gesprochenen Text ohne Satzzeichen oder Erklärungen. Wenn nur Stille oder Rauschen zu hören ist, antworte exakt mit LEER."],
+                ],
+            ]],
+            'generationConfig' => [
+                'temperature' => 0.0,
+                'maxOutputTokens' => 60,
+            ],
+        ];
+
+        try {
+            $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent');
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'x-goog-api-key: ' . $apiKey,
+            ]);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+            curl_setopt($ch, CURLOPT_TIMEOUT, 9);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+            curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+            $rawResp = curl_exec($ch);
+            $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($httpCode >= 200 && $httpCode < 300 && is_string($rawResp)) {
+                $json = json_decode($rawResp, true);
+                $text = trim((string) ($json['candidates'][0]['content']['parts'][0]['text'] ?? ''));
+                if ($text !== '' && strcasecmp($text, 'LEER') !== 0) {
+                    return response()->json([
+                        'success' => true,
+                        'transcript' => mb_substr($text, 0, 200),
+                    ]);
+                }
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Alarm voice transcribe failed: ' . \App\Services\System\SystemErrorLogger::sanitizeSensitiveText($e->getMessage()));
+        }
+
+        return response()->json([
+            'success' => false,
+            'transcript' => '',
+        ]);
+    })->middleware('throttle:30,1');
 
     Route::match(['get', 'post'], '/morning-briefing-tts', function (Request $request) {
         $text = trim((string) $request->input('text', ''));
@@ -366,7 +473,33 @@ Route::prefix('funki/routine')->group(function () {
             $timersInput = json_decode((string) $request->input('timers_json'), true);
         }
         if (is_array($timersInput)) {
-            $pkg['timers'] = array_values($timersInput);
+            $sanitizedTimers = [];
+            foreach (array_values($timersInput) as $idx => $t) {
+                if (!is_array($t)) {
+                    continue;
+                }
+                $dur = max(5, (int) ($t['duration_seconds'] ?? $t['c'] ?? 300));
+                $id = trim((string) ($t['id'] ?? $t['a'] ?? ''));
+                $label = trim((string) ($t['label'] ?? $t['b'] ?? ''));
+                if ($id === '' || $id === 'null') {
+                    $id = ($dur % 60 === 0 && in_array((int) ($dur / 60), [5, 10, 15, 20, 30], true))
+                        ? 'timer_' . ((int) ($dur / 60))
+                        : "timer_{$dur}_{$idx}";
+                }
+                if ($label === '' || $label === 'null') {
+                    $label = ($dur % 60 === 0)
+                        ? 'Timer: ' . ((int) ($dur / 60)) . ' Min.'
+                        : "Timer: {$dur}s";
+                }
+                $sanitizedTimers[] = [
+                    'id' => substr($id, 0, 64),
+                    'label' => substr($label, 0, 80),
+                    'duration_seconds' => $dur,
+                ];
+            }
+            if (!empty($sanitizedTimers)) {
+                $pkg['timers'] = $sanitizedTimers;
+            }
         }
 
         $plugsInput = $request->input('smart_plugs');
@@ -435,13 +568,13 @@ Route::prefix('funki/routine')->group(function () {
         }
         $pkg['last_synced_at'] = Carbon::now()->toIso8601String();
 
+        unset($pkg['gemini_tts_key']);
         SystemSetting::updateOrCreate(
             ['key' => 'funki_alarm_sync_package'],
             ['value' => json_encode($pkg, JSON_UNESCAPED_UNICODE)]
         );
 
         $pkg['funkira_voice'] = 'Aoede';
-        $pkg['gemini_tts_key'] = (string) (config('services.gemini.key') ?: config('services.gemini.api_key') ?: env('GEMINI_API_KEY', ''));
 
         return response()->json([
             'success' => true,
@@ -463,7 +596,13 @@ Route::prefix('funki/routine')->group(function () {
         ->where('is_active', true)
         ->orderBy('start_time', 'asc')
         ->get();
-        return response()->json(['success' => true, 'date' => $date, 'data' => $routines]);
+        $shiftInfo = \App\Livewire\Shop\Management\ManagementRoutine::resolveDynamicShiftForDate($date);
+        return response()->json([
+            'success' => true,
+            'date' => $date,
+            'shift_info' => $shiftInfo,
+            'data' => $routines,
+        ]);
     });
 
     // 2. Create routine

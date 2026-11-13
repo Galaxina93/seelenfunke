@@ -577,8 +577,8 @@ namespace FunkenwerkMcp
                   "type": "object",
                   "properties": {
                     "action": { "type": "string", "enum": ["status", "launch", "stammdaten", "security_audit"] },
-                    "app": { "type": "string", "enum": ["funkenwerk", "tresor", "player", "video", "ftp", "ssh", "pdf", "drucker", "os", "browser"], "description": "Ziel-App bei action='launch'." },
-                    "filePath": { "type": "string", "description": "Optionaler sicherer Dateipfad (für 'pdf'/'drucker'/'player') oder '--scan' (für 'drucker')." }
+                    "app": { "type": "string", "enum": ["funkenwerk", "tresor", "player", "video", "craft", "ftp", "ssh", "pdf", "drucker", "os", "browser"], "description": "Ziel-App bei action='launch'." },
+                    "filePath": { "type": "string", "description": "Optionaler sicherer Dateipfad (für 'pdf'/'drucker'/'player') oder Projektname (für 'craft') oder '--scan' (für 'drucker')." }
                   },
                   "required": ["action"],
                   "additionalProperties": false
@@ -621,6 +621,139 @@ namespace FunkenwerkMcp
                     "target": { "type": "string", "description": "Name der Steckdose (z. B. 'Packtisch Warm Licht', 'alle') oder Kamera ('Terasse', 'Einfahrt', 'Garage', 'Gewerbe')." },
                     "direction": { "type": "string", "enum": ["left", "right", "up", "down", "stop"], "description": "PTZ-Bewegungsrichtung bei action='camera_ptz'." },
                     "autoStartApp": { "type": "boolean", "description": "Startet Funkenwerk automatisch, falls geschlossen (Standard: true)." }
+                  },
+                  "required": ["action"],
+                  "additionalProperties": false
+                }
+                """)
+            },
+            new
+            {
+                name = "craft_workspace_status",
+                description = "Prüft den kompletten Status von Funkenwerk Craft (ArtCraft v0.41.1, FilmCraft v0.20.1, SoundCraft v0.20.1, angelegte Video-Projekte, CC0-Soundpool sowie optional die Produkt- & Saisonbild-Abdeckung unter Y:\\Medien\\Produkte).",
+                inputSchema = JsonNode.Parse("""
+                {
+                  "type": "object",
+                  "properties": {
+                    "includeMedienCoverage": { "type": "boolean", "description": "Scannt zusätzlich Y:\\Medien\\Produkte und zeigt für alle 9 Seelenfunke-Produkte vorhandene sowie noch fehlende Saison-/Feiertags-Hauptbilder (Standard: true)." }
+                  },
+                  "additionalProperties": false
+                }
+                """)
+            },
+            new
+            {
+                name = "craft_project_manage",
+                description = "Verwaltet Video-Projekte in Funkenwerk Craft ('Funkenwerk Collection\\Funkenwerk Craft\\Videos\\<Projekt>'): Projekte auflisten ('list'), Projektdetails abrufen ('get'), Projekt anlegen/aktualisieren ('save'), Quelldateien aus Y:\\Medien sicher in das Projekt kopieren ('import_media').",
+                inputSchema = JsonNode.Parse("""
+                {
+                  "type": "object",
+                  "properties": {
+                    "action": { "type": "string", "enum": ["list", "get", "save", "import_media"] },
+                    "projectName": { "type": "string", "description": "Name des Projekts unter Videos\\<Projektname>, z. B. 'Projekt 1'." },
+                    "aspectRatio": { "type": "string", "enum": ["9:16", "1:1", "16:9"], "description": "Zielformat: '9:16' (Instagram Reel / TikTok / Shorts), '1:1' (Feed), '16:9' (YouTube)." },
+                    "backgroundMusic": { "type": "string", "description": "Relativer Pfad im CC0-Soundpool, z. B. 'Beats_und_Ambient\\Emotion_Romantic_Inspiration_CC0.mp3'." },
+                    "musicVolume": { "type": "number", "minimum": 0, "maximum": 1.5, "description": "Lautstärke des Musikbetts (0.0 bis 1.5, Standard 0.38)." },
+                    "sfxVolume": { "type": "number", "minimum": 0, "maximum": 1.5, "description": "Lautstärke der Übergangs- und Akzent-Sounds (0.0 bis 1.5, Standard 0.68)." },
+                    "brandHeaderText": { "type": "string", "description": "Optionaler Schwarz-Gold Marken-Header oben im Video." },
+                    "outputFileName": { "type": "string", "description": "Zieldateiname für das fertige MP4 im Projektordner." },
+                    "sourcePaths": {
+                      "type": "array",
+                      "items": { "type": "string" },
+                      "description": "Liste sicherer Mediendateipfade (z. B. aus Y:\\Medien) bei action='import_media'."
+                    },
+                    "scenes": {
+                      "type": "array",
+                      "description": "Geordnete Szenen-Timeline bei action='save'.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "fileName": { "type": "string" },
+                          "mediaType": { "type": "string", "enum": ["video", "image"] },
+                          "startSec": { "type": "number", "minimum": 0 },
+                          "durationSec": { "type": "number", "minimum": 0.8, "maximum": 45 },
+                          "fitMode": { "type": "string", "enum": ["fill", "contain_blur"] },
+                          "overlayBadge": { "type": "string" },
+                          "overlayTitle": { "type": "string" },
+                          "overlaySubtitle": { "type": "string" },
+                          "transition": { "type": "string", "enum": ["smoothleft", "fadeblack", "dissolve", "circleopen", "wiperight", "smoothup"] },
+                          "transitionSfx": { "type": "string" },
+                          "keepOriginalAudio": { "type": "boolean" },
+                          "originalAudioVolume": { "type": "number", "minimum": 0, "maximum": 1.5 }
+                        },
+                        "required": ["fileName"]
+                      }
+                    }
+                  },
+                  "required": ["action"],
+                  "additionalProperties": false
+                }
+                """)
+            },
+            new
+            {
+                name = "craft_media_inspect",
+                description = "Analysiert Foto- und Videodateien oder ganze Ordner in Y:\\Medien bzw. Funkenwerk Craft\\Videos per ffprobe/EXIF (Auflösung, Hoch-/Querformat, Dauer, FPS, Tonspur, Dateigröße).",
+                inputSchema = JsonNode.Parse("""
+                {
+                  "type": "object",
+                  "properties": {
+                    "targetPath": { "type": "string", "description": "Pfad zu einer Mediendatei oder einem Ordner innerhalb von Y:\\Medien oder Funkenwerk Craft\\Videos." },
+                    "maxFiles": { "type": "integer", "minimum": 1, "maximum": 100, "description": "Maximale Dateianzahl bei Ordner-Scan (Standard: 40)." }
+                  },
+                  "required": ["targetPath"],
+                  "additionalProperties": false
+                }
+                """)
+            },
+            new
+            {
+                name = "craft_soundpool_browser",
+                description = "Durchsucht den lokalen, lizenzfreien & gewerblich nutzbaren CC0-Soundpool von Funkenwerk Craft (Übergangs-Whooshes, Kristall-/Gold-Akzente, Social-Media-Beats & Ambient-Tracks inkl. Lizenznachweis).",
+                inputSchema = JsonNode.Parse("""
+                {
+                  "type": "object",
+                  "properties": {
+                    "category": { "type": "string", "enum": ["all", "Uebergaenge_Whoosh", "Effekte_Akzente", "Beats_und_Ambient"], "description": "Kategorie-Filter (Standard: 'all')." },
+                    "inspectAudioFile": { "type": "string", "description": "Optionaler Pfad einer Sounddatei für detaillierte SoundCraft-CLI Formatprüfung." }
+                  },
+                  "additionalProperties": false
+                }
+                """)
+            },
+            new
+            {
+                name = "craft_render_social_video",
+                description = "Verarbeitet und rendert ein Funkenwerk Craft Projekt ('Videos\\<Projektname>') zu einem postbereiten Social-Media-Mastervideo (H.264 Main Profile, yuv420p, bt709, 60fps, AAC 48kHz, FastStart, xfade-Übergänge, CC0-Sounddesign & Schwarz-Gold Typografie) und aktualisiert synchron die FilmCraft .fcproj Datei.",
+                inputSchema = JsonNode.Parse("""
+                {
+                  "type": "object",
+                  "properties": {
+                    "projectName": { "type": "string", "description": "Projektname unter Videos\\<Projektname>, z. B. 'Projekt 1'." },
+                    "openInCraftUi": { "type": "boolean", "description": "Öffnet nach erfolgreichem Rendern optional Funkenwerk Craft zur Live-Vorschau (Standard: false)." }
+                  },
+                  "required": ["projectName"],
+                  "additionalProperties": false
+                }
+                """)
+            },
+            new
+            {
+                name = "craft_storytold_engine",
+                description = "Direkte Profi-Schnittstelle zu den integrierten Storytold Engines (ArtCraft, FilmCraft, SoundCraft): Desktop-App mit geschützter Control-Bridge starten ('launch'), FilmCraft-Befehle abfragen ('filmcraft_commands'), .fcproj Projekt exportieren ('export_fcproj'), Live-TCP-Bridge Befehl senden ('filmcraft_bridge') oder SoundCraft-CLI nutzen ('soundcraft_commands' / 'soundcraft_plugins').",
+                inputSchema = JsonNode.Parse("""
+                {
+                  "type": "object",
+                  "properties": {
+                    "action": {
+                      "type": "string",
+                      "enum": ["launch", "filmcraft_commands", "export_fcproj", "filmcraft_bridge", "soundcraft_commands", "soundcraft_plugins"]
+                    },
+                    "engine": { "type": "string", "enum": ["artcraft", "filmcraft", "soundcraft"], "description": "Ziel-Engine bei action='launch'." },
+                    "projectName": { "type": "string", "description": "Optionaler Projektname für action='export_fcproj' oder 'launch' (öffnet die .fcproj in FilmCraft)." },
+                    "filter": { "type": "string", "description": "Optionaler Befehlsfilter bei action='filmcraft_commands' (z. B. 'timeline', 'sequence', 'graphics')." },
+                    "bridgeMethod": { "type": "string", "description": "JSON-RPC Methode für action='filmcraft_bridge' (z. B. 'engine.execute', 'ui.screenshot')." },
+                    "bridgeParams": { "type": "object", "description": "Optionale Parameter für action='filmcraft_bridge'." }
                   },
                   "required": ["action"],
                   "additionalProperties": false
@@ -906,6 +1039,13 @@ namespace FunkenwerkMcp
                                 {
                                     safeArg = "--scan";
                                 }
+                                else if (appKey == "craft")
+                                {
+                                    string cleanProj = rawFile.Trim();
+                                    if (cleanProj.Length > 80 || cleanProj.Contains("..") || cleanProj.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+                                        throw new UnauthorizedAccessException("Ungültiger Craft-Projektname.");
+                                    safeArg = cleanProj;
+                                }
                                 else
                                 {
                                     string[] allowedExts = appKey switch
@@ -966,6 +1106,231 @@ namespace FunkenwerkMcp
                         direction: direction,
                         volume: null,
                         autoStartApp: autoStart);
+                }
+
+                case "craft_workspace_status":
+                {
+                    bool includeCov = GetBool(args, "includeMedienCoverage", true);
+                    var craftStatus = await McpCraftBridge.InvokeCraftActionAsync(new JsonObject { ["action"] = "status" });
+                    return new
+                    {
+                        craft = craftStatus,
+                        medienCoverage = includeCov ? McpCraftBridge.ScanMedienProductCoverage() : null
+                    };
+                }
+
+                case "craft_project_manage":
+                {
+                    string action = GetString(args, "action").ToLowerInvariant();
+                    switch (action)
+                    {
+                        case "list":
+                            return await McpCraftBridge.InvokeCraftActionAsync(new JsonObject { ["action"] = "list_projects" });
+
+                        case "get":
+                            return await McpCraftBridge.InvokeCraftActionAsync(new JsonObject
+                            {
+                                ["action"] = "get_project",
+                                ["projectName"] = GetOptString(args, "projectName", 120) ?? "Projekt 1"
+                            });
+
+                        case "save":
+                        {
+                            var req = new JsonObject
+                            {
+                                ["action"] = "save_project",
+                                ["projectName"] = GetOptString(args, "projectName", 120) ?? "Projekt 1"
+                            };
+                            if (args["aspectRatio"] != null) req["aspectRatio"] = GetOptString(args, "aspectRatio", 16);
+                            if (args["backgroundMusic"] != null) req["backgroundMusic"] = GetOptString(args, "backgroundMusic", 260);
+                            if (args["musicVolume"] != null) req["musicVolume"] = args["musicVolume"]!.GetValue<double>();
+                            if (args["sfxVolume"] != null) req["sfxVolume"] = args["sfxVolume"]!.GetValue<double>();
+                            if (args["brandHeaderText"] != null) req["brandHeaderText"] = GetOptString(args, "brandHeaderText", 160);
+                            if (args["outputFileName"] != null) req["outputFileName"] = GetOptString(args, "outputFileName", 160);
+                            if (args["scenes"] is JsonArray scArr)
+                            {
+                                if (scArr.Count > 60)
+                                    throw new InvalidOperationException("Maximal 60 Szenen pro Projekt erlaubt.");
+                                req["scenes"] = scArr.DeepClone();
+                            }
+                            return await McpCraftBridge.InvokeCraftActionAsync(req);
+                        }
+
+                        case "import_media":
+                        {
+                            string projName = GetOptString(args, "projectName", 120) ?? "Projekt 1";
+                            var validatedPaths = new JsonArray();
+                            if (args["sourcePaths"] is JsonArray spArr)
+                            {
+                                if (spArr.Count > 50)
+                                    throw new InvalidOperationException("Maximal 50 Mediendateien pro Import-Aufruf erlaubt.");
+                                foreach (var item in spArr)
+                                {
+                                    string raw = item?.GetValue<string>() ?? "";
+                                    string safe = McpCraftBridge.ValidateSafeMediaSourceOrCraftPath(raw, allowAudio: false, allowDirectories: false);
+                                    validatedPaths.Add(safe);
+                                }
+                            }
+                            return await McpCraftBridge.InvokeCraftActionAsync(new JsonObject
+                            {
+                                ["action"] = "import_media",
+                                ["projectName"] = projName,
+                                ["sourcePaths"] = validatedPaths
+                            });
+                        }
+
+                        default:
+                            throw new ArgumentException("Erlaubte craft_project_manage Aktionen: list, get, save, import_media.");
+                    }
+                }
+
+                case "craft_media_inspect":
+                {
+                    string rawTarget = GetString(args, "targetPath");
+                    string safeTarget = McpCraftBridge.ValidateSafeMediaSourceOrCraftPath(rawTarget, allowAudio: true, allowDirectories: true);
+                    int maxFiles = args["maxFiles"] != null ? Math.Clamp(args["maxFiles"]!.GetValue<int>(), 1, 100) : 40;
+
+                    if (Directory.Exists(safeTarget))
+                    {
+                        var files = Directory.GetFiles(safeTarget, "*", SearchOption.AllDirectories)
+                            .Where(f =>
+                            {
+                                string ext = Path.GetExtension(f).ToLowerInvariant();
+                                return ext is ".mp4" or ".mov" or ".mkv" or ".webm" or ".jpg" or ".jpeg" or ".png" or ".webp";
+                            })
+                            .OrderBy(f => f)
+                            .Take(maxFiles)
+                            .ToList();
+
+                        var items = new List<JsonNode?>();
+                        foreach (string f in files)
+                        {
+                            var res = await McpCraftBridge.InvokeCraftActionAsync(new JsonObject
+                            {
+                                ["action"] = "inspect_media",
+                                ["filePath"] = f
+                            });
+                            items.Add(res["media"]?.DeepClone());
+                        }
+                        return new { directory = safeTarget, inspectedCount = items.Count, items };
+                    }
+                    else
+                    {
+                        return await McpCraftBridge.InvokeCraftActionAsync(new JsonObject
+                        {
+                            ["action"] = "inspect_media",
+                            ["filePath"] = safeTarget
+                        });
+                    }
+                }
+
+                case "craft_soundpool_browser":
+                {
+                    string? cat = GetOptString(args, "category", 64);
+                    string? inspectFile = GetOptString(args, "inspectAudioFile");
+                    var pool = await McpCraftBridge.InvokeCraftActionAsync(new JsonObject
+                    {
+                        ["action"] = "list_sounds",
+                        ["category"] = cat ?? "all"
+                    });
+
+                    string? scInfo = null;
+                    if (!string.IsNullOrWhiteSpace(inspectFile))
+                    {
+                        scInfo = await McpCraftBridge.RunSoundCraftCliSafeAsync("info", inspectFile);
+                    }
+
+                    return new { soundPool = pool, soundCraftFileInfo = scInfo };
+                }
+
+                case "craft_render_social_video":
+                {
+                    string projName = GetString(args, "projectName", 120);
+                    bool openUi = GetBool(args, "openInCraftUi", false);
+                    var renderRes = await McpCraftBridge.InvokeCraftActionAsync(new JsonObject
+                    {
+                        ["action"] = "render_video",
+                        ["projectName"] = projName
+                    }, timeoutSec: 420);
+
+                    if (openUi && renderRes["ok"]?.GetValue<bool>() == true)
+                    {
+                        LaunchCollectionExecutable("craft", projName);
+                    }
+                    return renderRes;
+                }
+
+                case "craft_storytold_engine":
+                {
+                    string action = GetString(args, "action").ToLowerInvariant();
+                    switch (action)
+                    {
+                        case "launch":
+                        {
+                            string eng = GetOptString(args, "engine", 32) ?? "artcraft";
+                            string? proj = GetOptString(args, "projectName", 120);
+                            string? targetPath = null;
+                            if (eng == "filmcraft" && !string.IsNullOrWhiteSpace(proj))
+                            {
+                                var exp = await McpCraftBridge.InvokeCraftActionAsync(new JsonObject
+                                {
+                                    ["action"] = "export_filmcraft",
+                                    ["projectName"] = proj
+                                });
+                                targetPath = exp["filmcraftProjectPath"]?.GetValue<string>();
+                            }
+                            return await McpCraftBridge.InvokeCraftActionAsync(new JsonObject
+                            {
+                                ["action"] = "launch_engine",
+                                ["engine"] = eng,
+                                ["targetPath"] = targetPath,
+                                ["enableControlBridge"] = true
+                            });
+                        }
+
+                        case "filmcraft_commands":
+                        {
+                            string? filter = GetOptString(args, "filter", 64);
+                            var cliArgs = new JsonArray("commands");
+                            if (!string.IsNullOrWhiteSpace(filter))
+                                cliArgs.Add(filter);
+                            return await McpCraftBridge.InvokeCraftActionAsync(new JsonObject
+                            {
+                                ["action"] = "filmcraft_cli",
+                                ["args"] = cliArgs
+                            });
+                        }
+
+                        case "export_fcproj":
+                        {
+                            string proj = GetOptString(args, "projectName", 120) ?? "Projekt 1";
+                            return await McpCraftBridge.InvokeCraftActionAsync(new JsonObject
+                            {
+                                ["action"] = "export_filmcraft",
+                                ["projectName"] = proj
+                            });
+                        }
+
+                        case "filmcraft_bridge":
+                        {
+                            string method = GetString(args, "bridgeMethod", 120);
+                            return await McpCraftBridge.InvokeCraftActionAsync(new JsonObject
+                            {
+                                ["action"] = "filmcraft_bridge",
+                                ["method"] = method,
+                                ["params"] = args["bridgeParams"]?.DeepClone() ?? new JsonObject()
+                            });
+                        }
+
+                        case "soundcraft_commands":
+                            return new { ok = true, output = await McpCraftBridge.RunSoundCraftCliSafeAsync("commands") };
+
+                        case "soundcraft_plugins":
+                            return new { ok = true, output = await McpCraftBridge.RunSoundCraftCliSafeAsync("plugins") };
+
+                        default:
+                            throw new ArgumentException("Unbekannte craft_storytold_engine Aktion.");
+                    }
                 }
 
                 default:
@@ -1056,6 +1421,7 @@ namespace FunkenwerkMcp
                 "tresor" => ("Funkenwerk Tresor", "FunkenwerkTresor.exe"),
                 "player" => ("Funkenwerk Player", "FunkenwerkPlayer.exe"),
                 "video" => ("Funkenwerk Video", "FunkenwerkVideo.exe"),
+                "craft" => ("Funkenwerk Craft", "FunkenwerkCraft.exe"),
                 "ftp" => ("Funkenwerk FTP", "FunkenwerkFtp.exe"),
                 "ssh" => ("Funkenwerk SSH", "FunkenwerkSsh.exe"),
                 "pdf" => ("Funkenwerk PDF", "FunkenwerkPdf.exe"),
@@ -1073,19 +1439,14 @@ namespace FunkenwerkMcp
             {
                 FileName = exePath,
                 WorkingDirectory = Path.GetDirectoryName(exePath)!,
-                UseShellExecute = false
+                UseShellExecute = true
             };
 
             if (!string.IsNullOrWhiteSpace(rawArguments))
             {
-                if (rawArguments == "--handoff")
-                {
-                    psi.ArgumentList.Add("--handoff");
-                }
-                else
-                {
-                    psi.ArgumentList.Add(rawArguments.Trim('"'));
-                }
+                psi.Arguments = rawArguments == "--handoff"
+                    ? "--handoff"
+                    : $"\"{rawArguments.Trim('"').Replace("\"", "")}\"";
             }
 
             Process.Start(psi);
@@ -1385,8 +1746,19 @@ namespace FunkenwerkMcp
                 && healthJson.Contains("FunkenwerkFtp.exe\"")
                 && healthJson.Contains("FunkenwerkSsh.exe\"")
                 && healthJson.Contains("FunkenwerkPlayer.exe\"")
-                && healthJson.Contains("FunkenwerkVideo.exe\""),
+                && healthJson.Contains("FunkenwerkVideo.exe\"")
+                && healthJson.Contains("FunkenwerkCraft.exe\""),
                 healthJson);
+
+            // 25. Craft Media Sandbox Guard & Storytold ArtCraft/FilmCraft/SoundCraft + CC0 SoundPool Verification
+            AssertThrowsSecurity("25. Block Craft Media Escape Outside Allowed Media Roots (C:\\Windows\\win.ini)", () =>
+                McpCraftBridge.ValidateSafeMediaSourceOrCraftPath(@"C:\Windows\win.ini", allowAudio: true));
+
+            string? craftStatusResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":26,"method":"tools/call","params":{"name":"craft_workspace_status","arguments":{"includeMedienCoverage":true}}}""");
+            string? craftSoundResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":27,"method":"tools/call","params":{"name":"craft_soundpool_browser","arguments":{"category":"Uebergaenge_Whoosh"}}}""");
+            AssertTest("26. Funkenwerk Craft MCP Tools (ArtCraft + FilmCraft + SoundCraft + 32 CC0 Sounds + Y:\\Medien Coverage)",
+                craftStatusResp != null && craftStatusResp.Contains("\"isError\":false") && craftStatusResp.Contains("artcraft.exe") && craftStatusResp.Contains("filmcraft.exe")
+                && craftSoundResp != null && craftSoundResp.Contains("Whoosh_Klassisch_Schnell_01.wav"));
 
             Console.WriteLine($"=== RESULT: {passed} PASSED, {failed} FAILED ===");
             return failed == 0 ? 0 : 1;

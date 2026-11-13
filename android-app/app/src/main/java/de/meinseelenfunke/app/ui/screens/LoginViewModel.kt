@@ -32,9 +32,14 @@ class LoginViewModel : ViewModel() {
     private val _passwordResetState = MutableStateFlow<Result<String>?>(null)
     val passwordResetState: StateFlow<Result<String>?> = _passwordResetState.asStateFlow()
 
-    fun updateBaseUrl(url: String) {
-        _baseUrl.value = url
-        ServiceLocator.saveBaseUrl(url)
+    fun updateBaseUrl(url: String): Boolean {
+        val accepted = ServiceLocator.saveBaseUrl(url)
+        if (accepted) {
+            _baseUrl.value = ServiceLocator.getBaseUrl()
+        } else {
+            _loginState.value = LoginState.Error("Unzulässige Server-URL blockiert. Erlaubt sind nur offizielle Seelenfunke-Domains oder das lokale Heimnetz.")
+        }
+        return accepted
     }
 
     fun isRememberMeEnabled(): Boolean = ServiceLocator.isRememberMeEnabled()

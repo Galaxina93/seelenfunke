@@ -26573,6 +26573,7 @@ namespace Funkenwerk
                         (string exeRel, string label) = appKey switch
                         {
                             "tresor" => (@"Funkenwerk Tresor\FunkenwerkTresor.exe", "Funkenwerk Tresor"),
+                            "craft" => (@"Funkenwerk Craft\FunkenwerkCraft.exe", "Funkenwerk Craft"),
                             "pdf" => (@"Funkenwerk PDF\FunkenwerkPdf.exe", "Funkenwerk PDF"),
                             "drucker" => (@"Funkenwerk Drucker\FunkenwerkDrucker.exe", "Funkenwerk Drucker"),
                             "os" => (@"Funkenwerk OS\FunkenwerkOS.exe", "Funkenwerk OS"),

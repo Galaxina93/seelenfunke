@@ -8,7 +8,17 @@ use Illuminate\Support\Facades\Storage;
 
 class RevocationFileController extends Controller
 {
+    public function show(OrderRevocation $revocation, $fileName)
+    {
+        return $this->serveFile($revocation, $fileName, (bool) request()->boolean('download', false));
+    }
+
     public function download(OrderRevocation $revocation, $fileName)
+    {
+        return $this->serveFile($revocation, $fileName, true);
+    }
+
+    protected function serveFile(OrderRevocation $revocation, $fileName, bool $forceDownload = false)
     {
         if (!AiAuthHelper::isAdmin() && !AiAuthHelper::isEmployee() && !auth()->guard('admin')->check()) {
             abort(403, 'Zugriff verweigert.');
@@ -39,6 +49,16 @@ class RevocationFileController extends Controller
             abort(404, 'Ungültige Datei.');
         }
 
-        return Storage::disk('local')->download($path);
+        $mime = Storage::disk('local')->mimeType($path) ?: 'application/octet-stream';
+        $safeInlineMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+        $disposition = (!$forceDownload && in_array(strtolower($mime), $safeInlineMimes, true)) ? 'inline' : 'attachment';
+        $cleanFilename = preg_replace('/[^A-Za-z0-9._-]/', '_', basename($fileName)) ?: 'anhang';
+
+        return response()->file($fullPath, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => $disposition . '; filename="' . $cleanFilename . '"',
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, no-store, no-cache, must-revalidate',
+        ]);
     }
 }

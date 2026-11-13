@@ -84,16 +84,19 @@ use HasFactory;
      */
     public function getLinkedOrderAttribute(): ?OrderOrder
     {
-        $rawNumber = trim($this->order_number ?? '');
+        $rawNumber = trim((string) ($this->order_number ?? ''));
         if ($rawNumber === '') {
             return null;
         }
 
-        $cleanNumber = trim(ltrim($rawNumber, '#'));
+        $cleanNumber = preg_replace('/^(bestellung|order|nr\.?|rechnung)\s*/i', '', $rawNumber);
+        $cleanNumber = strtoupper(trim(ltrim((string) $cleanNumber, '#')));
 
-        return OrderOrder::where('order_number', $rawNumber)
+        return OrderOrder::with(['invoices', 'customer'])
+            ->where('order_number', $rawNumber)
             ->orWhere('order_number', $cleanNumber)
             ->orWhere('order_number', 'ORD-' . $cleanNumber)
+            ->orWhere('order_number', 'SF-' . $cleanNumber)
             ->first();
     }
 }

@@ -317,20 +317,20 @@
 
         {{-- MAXIMIZED STUDIO TOP BAR --}}
         <div x-show="isMaximized" x-cloak
-             class="configurator-studio-topbar w-full px-4 sm:px-6 py-3 border-b flex items-center justify-between shrink-0 z-50 backdrop-blur-md {{ $isDark ? 'bg-gray-950/95 border-gray-800 text-white' : 'bg-white/95 border-gray-200 text-gray-900' }}">
+             class="configurator-studio-topbar w-full px-3.5 sm:px-6 py-2.5 sm:py-3 border-b flex flex-wrap sm:flex-nowrap items-center justify-between gap-y-2 gap-x-2 shrink-0 z-50 backdrop-blur-md {{ $isDark ? 'bg-gray-950/95 border-gray-800 text-white' : 'bg-white/95 border-gray-200 text-gray-900' }}">
             
             {{-- Linke Seite: Badge & Titel --}}
-            <div class="flex items-center gap-3 min-w-0">
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest {{ $isDark ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-primary/10 text-primary border border-primary/20' }}">
-                    <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-                    Studio-Modus
+            <div class="order-1 flex items-center gap-2.5 sm:gap-3 min-w-0 shrink-0">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap shrink-0 {{ $isDark ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-primary/10 text-primary border border-primary/20' }}">
+                    <span class="w-2 h-2 rounded-full bg-primary animate-pulse shrink-0"></span>
+                    <span>Studio-Modus</span>
                 </span>
-                <h3 class="text-sm font-bold truncate hidden sm:block max-w-xs md:max-w-md">{{ $product->name }}</h3>
+                <h3 class="text-sm font-bold truncate hidden lg:block max-w-xs xl:max-w-md">{{ $product->name }}</h3>
             </div>
 
             {{-- Mitte: Varianten Auswahl wenn vorhanden --}}
             @if(!empty($this->activeVariants) && $context !== 'preview')
-                <div class="hidden md:flex items-center gap-2 max-w-xs">
+                <div class="hidden xl:flex sm:order-2 items-center gap-2 max-w-xs">
                     <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 shrink-0">Ausführung:</span>
                     <select wire:model.live="variantId" class="text-xs font-bold rounded-xl border py-1.5 px-3 truncate outline-none cursor-pointer {{ $isDark ? 'bg-gray-900 border-gray-800 text-white' : 'bg-gray-50 border-gray-200 text-gray-900' }}">
                         @if($context === 'template_admin')
@@ -355,55 +355,57 @@
                 </div>
             @endif
 
-            {{-- Rechte Seite: Hinweis, Animation & Normalansicht / Esc --}}
-            <div class="flex items-center gap-2">
-                @if(!$isDigital && !$isService)
-                <button type="button"
-                        @click="toggleNotice()"
-                        :class="showNotice
-                            ? '{{ $isDark ? 'bg-gray-900 border-gray-700 text-gray-200 hover:text-white' : 'bg-white border-gray-200 text-gray-700 hover:text-gray-900 shadow-2xs' }}'
-                            : '{{ $isDark ? 'bg-gray-900/50 border-gray-800 text-gray-500 hover:text-gray-300' : 'bg-gray-100/80 border-gray-200/60 text-gray-400 hover:text-gray-600' }}'"
-                        class="px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none"
-                        :title="showNotice ? 'Hinweis ausblenden' : 'Hinweis einblenden'">
-                    <span x-show="showNotice" class="flex items-center text-blue-500 shrink-0">
-                        <x-heroicon-o-eye class="w-3.5 h-3.5" />
-                    </span>
-                    <span x-show="!showNotice" x-cloak class="flex items-center text-gray-400 shrink-0">
-                        <x-heroicon-o-eye-slash class="w-3.5 h-3.5" />
-                    </span>
-                    <span>Hinweis</span>
-                </button>
+            {{-- Hinweis & Animation (Mobil in sauberer 2. Zeile ohne Überlappung, ab sm: in einer Zeile rechts) --}}
+            @if(!$isDigital && !$isService)
+                <div class="order-3 sm:order-2 w-full sm:w-auto sm:ml-auto flex items-center gap-2 pt-1.5 sm:pt-0 border-t sm:border-t-0 {{ $isDark ? 'border-gray-800/70' : 'border-gray-200/70' }}">
+                    <button type="button"
+                            @click="toggleNotice()"
+                            :class="showNotice
+                                ? '{{ $isDark ? 'bg-gray-900 border-gray-700 text-gray-200 hover:text-white' : 'bg-white border-gray-200 text-gray-700 hover:text-gray-900 shadow-2xs' }}'
+                                : '{{ $isDark ? 'bg-gray-900/50 border-gray-800 text-gray-500 hover:text-gray-300' : 'bg-gray-100/80 border-gray-200/60 text-gray-400 hover:text-gray-600' }}'"
+                            class="px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none shrink-0"
+                            :title="showNotice ? 'Hinweis ausblenden' : 'Hinweis einblenden'">
+                        <span x-show="showNotice" class="flex items-center text-blue-500 shrink-0">
+                            <x-heroicon-o-eye class="w-3.5 h-3.5" />
+                        </span>
+                        <span x-show="!showNotice" x-cloak class="flex items-center text-gray-400 shrink-0">
+                            <x-heroicon-o-eye-slash class="w-3.5 h-3.5" />
+                        </span>
+                        <span>Hinweis</span>
+                    </button>
 
-                <button type="button"
-                        @click="toggleAnimation()"
-                        :class="videoEnabled
-                            ? '{{ $isDark ? 'bg-gray-900 border-gray-700 text-gray-200 hover:text-white' : 'bg-white border-gray-200 text-gray-700 hover:text-gray-900 shadow-2xs' }}'
-                            : '{{ $isDark ? 'bg-gray-900/50 border-gray-800 text-gray-500 hover:text-gray-300' : 'bg-gray-100/80 border-gray-200/60 text-gray-400 hover:text-gray-600' }}'"
-                        class="px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none"
-                        :title="videoEnabled ? 'Jahreszeiten-Animation ausblenden' : 'Jahreszeiten-Animation einblenden'">
-                    <span x-show="videoEnabled" class="flex items-center text-primary shrink-0">
-                        <x-heroicon-o-eye class="w-3.5 h-3.5" />
-                    </span>
-                    <span x-show="!videoEnabled" x-cloak class="flex items-center text-gray-400 shrink-0">
-                        <x-heroicon-o-eye-slash class="w-3.5 h-3.5" />
-                    </span>
-                    <span>Animation</span>
-                </button>
-                @endif
+                    <button type="button"
+                            @click="toggleAnimation()"
+                            :class="videoEnabled
+                                ? '{{ $isDark ? 'bg-gray-900 border-gray-700 text-gray-200 hover:text-white' : 'bg-white border-gray-200 text-gray-700 hover:text-gray-900 shadow-2xs' }}'
+                                : '{{ $isDark ? 'bg-gray-900/50 border-gray-800 text-gray-500 hover:text-gray-300' : 'bg-gray-100/80 border-gray-200/60 text-gray-400 hover:text-gray-600' }}'"
+                            class="px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none shrink-0"
+                            :title="videoEnabled ? 'Jahreszeiten-Animation ausblenden' : 'Jahreszeiten-Animation einblenden'">
+                        <span x-show="videoEnabled" class="flex items-center text-primary shrink-0">
+                            <x-heroicon-o-eye class="w-3.5 h-3.5" />
+                        </span>
+                        <span x-show="!videoEnabled" x-cloak class="flex items-center text-gray-400 shrink-0">
+                            <x-heroicon-o-eye-slash class="w-3.5 h-3.5" />
+                        </span>
+                        <span>Animation</span>
+                    </button>
+                </div>
+            @endif
 
-                {{-- Design laden & Design Sichern im Studio-Vollbildmodus (feste Breite, kein Springen) --}}
+            {{-- Rechte Seite: Design laden/sichern & Normalansicht / Esc --}}
+            <div class="order-2 sm:order-3 flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto sm:ml-0">
                 <div x-show="!config.isBeginnerMode" class="flex items-center gap-1.5 shrink-0">
                     <button type="button"
+                            x-show="draftExists"
+                            x-cloak
                             @click.stop="if (draftExists) loadDraft()"
                             :disabled="!draftExists"
                             :tabindex="draftExists ? 0 : -1"
                             title="Gespeichertes Design laden"
                             aria-label="Gespeichertes Design laden"
-                            :class="!draftExists
-                                ? 'opacity-0 pointer-events-none border-transparent'
-                                : (isDraftLoading
-                                    ? 'opacity-100 border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                                    : 'opacity-100 {{ $isDark ? 'bg-gray-900 border-gray-700 text-[#C5A059] hover:border-[#C5A059]' : 'bg-white border-[#C5A059]/45 text-[#9A7B3E] hover:bg-[#C5A059]/10 hover:border-[#C5A059]' }}')"
+                            :class="isDraftLoading
+                                ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                : '{{ $isDark ? 'bg-gray-900 border-gray-700 text-[#C5A059] hover:border-[#C5A059]' : 'bg-white border-[#C5A059]/45 text-[#9A7B3E] hover:bg-[#C5A059]/10 hover:border-[#C5A059]' }}'"
                             class="w-8 h-8 rounded-xl border transition-all duration-200 flex items-center justify-center cursor-pointer select-none shrink-0">
                         <template x-if="!isDraftLoading">
                             <svg class="w-4 h-4 text-[#C5A059]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
@@ -442,8 +444,8 @@
 
                 <button type="button"
                         @click="toggleMaximize()"
-                        class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-sm cursor-pointer {{ $isDark ? 'bg-gray-900 hover:bg-gray-800 text-gray-200 border-gray-700 hover:text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-200' }}">
-                    <x-heroicon-m-arrows-pointing-in class="w-4 h-4 text-primary" />
+                        class="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap shrink-0 {{ $isDark ? 'bg-gray-900 hover:bg-gray-800 text-gray-200 border-gray-700 hover:text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-200' }}">
+                    <x-heroicon-m-arrows-pointing-in class="w-4 h-4 text-primary shrink-0" />
                     <span>Normalansicht</span>
                     <kbd class="hidden sm:inline-block px-1.5 py-0.5 text-[9px] font-mono rounded border {{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-400' : 'bg-white border-gray-300 text-gray-500' }}">Esc</kbd>
                 </button>
@@ -452,10 +454,12 @@
 
         {{-- GESTALTUNGS-LEISTE (direkt im Alpine-Scope des Konfigurators für Produktseite, Warenkorb & Bestell-Bearbeitung) --}}
         @if($context !== 'preview' && !$isDigital && !$isService && ($isEffectiveStudio || $isBeginnerStudioMode))
-            <div x-show="!isMaximized" class="px-4 sm:px-6 py-2.5 border-b flex items-center justify-between gap-2 shrink-0 {{ $isDark ? 'bg-gray-900/80 border-gray-800' : 'bg-gray-50 border-gray-200' }}">
-                <div class="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div x-show="!isMaximized" class="px-3.5 sm:px-6 py-2.5 border-b flex flex-wrap sm:flex-nowrap items-center justify-between gap-y-2 gap-x-2 shrink-0 {{ $isDark ? 'bg-gray-900/80 border-gray-800' : 'bg-gray-50 border-gray-200' }}">
+                <div class="order-1 flex items-center shrink-0">
                     <span class="text-sm font-medium mr-0.5 shrink-0 {{ $isDark ? 'text-gray-300' : 'text-gray-600' }}">{{ $isBeginnerStudioMode ? 'Vorschau' : 'Gestaltung' }}</span>
+                </div>
 
+                <div class="order-3 sm:order-2 w-full sm:w-auto flex items-center gap-2 pt-1.5 sm:pt-0 border-t sm:border-t-0 {{ $isDark ? 'border-gray-800/70' : 'border-gray-200/70' }}">
                     <button type="button"
                             @click="toggleNotice()"
                             :class="showNotice
@@ -490,26 +494,25 @@
                 </div>
 
                 {{-- RECHTS AM RAND: Andere Vorlage wählen + Design laden + Design Sichern (Diskette ganz außen rechts, ohne Springen) --}}
-                <div class="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0 ml-auto">
+                <div class="order-2 sm:order-3 flex items-center justify-end gap-1.5 sm:gap-2 shrink-0 ml-auto">
                     @if($context === 'add')
                         <button type="button" @click="$dispatch('cancel-configurator')" class="text-xs text-gray-500 hover:text-red-500 transition-colors cursor-pointer whitespace-nowrap mr-0.5">
                             Andere Vorlage wählen
                         </button>
                     @endif
 
-                    {{-- Fester Platzhalter für „Design laden“, damit beim Speichern nichts springt oder verschoben wird --}}
                     <div x-show="!config.isBeginnerMode" class="flex items-center gap-1.5 shrink-0">
                         <button type="button"
+                                x-show="draftExists"
+                                x-cloak
                                 @click.stop="if (draftExists) loadDraft()"
                                 :disabled="!draftExists"
                                 :tabindex="draftExists ? 0 : -1"
                                 title="Gespeichertes Design laden"
                                 aria-label="Gespeichertes Design laden"
-                                :class="!draftExists
-                                    ? 'opacity-0 pointer-events-none border-transparent'
-                                    : (isDraftLoading
-                                        ? 'opacity-100 border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                                        : 'opacity-100 {{ $isDark ? 'bg-gray-800 border-gray-700 text-[#C5A059] hover:border-[#C5A059]' : 'bg-white border-[#C5A059]/45 text-[#9A7B3E] hover:bg-[#C5A059]/10 hover:border-[#C5A059] shadow-2xs' }}')"
+                                :class="isDraftLoading
+                                    ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                    : '{{ $isDark ? 'bg-gray-800 border-gray-700 text-[#C5A059] hover:border-[#C5A059]' : 'bg-white border-[#C5A059]/45 text-[#9A7B3E] hover:bg-[#C5A059]/10 hover:border-[#C5A059] shadow-2xs' }}'"
                                 class="w-7 h-7 rounded-lg border transition-all duration-200 flex items-center justify-center cursor-pointer select-none shrink-0">
                             <template x-if="!isDraftLoading">
                                 <svg class="w-3.5 h-3.5 text-[#C5A059]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">

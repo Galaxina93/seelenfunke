@@ -10,7 +10,7 @@ import de.meinseelenfunke.app.util.FunkenwerkAlarmManager
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            Log.d("BootReceiver", "Boot completed. Rescheduling all calendar & smart alarms from cache...")
+            de.meinseelenfunke.app.di.ServiceLocator.ensureInitialized(context.applicationContext)
             CalendarAlarmScheduler.rescheduleAlarmsFromCache(context)
             FunkenwerkAlarmManager.ensureInitialized(context)
             FunkenwerkAlarmManager.scheduleAllActiveAlarms(context)

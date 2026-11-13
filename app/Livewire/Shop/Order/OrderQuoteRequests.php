@@ -37,14 +37,14 @@ class OrderQuoteRequests extends Component
 
     public function boot(): void
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
 
     public function mount()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
@@ -132,7 +132,7 @@ class OrderQuoteRequests extends Component
      */
     public function convertToOrder($quoteId, $type = 'invoice')
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -179,6 +179,12 @@ class OrderQuoteRequests extends Component
             // Wir speichern in der DB, was gewählt wurde
             $methodDbString = ($type === 'stripe_link') ? 'stripe_link' : 'invoice';
 
+            $profile = $customer->profile;
+            $resolvedStreet = trim(($quote->street ?? ($profile->street ?? '')) . ' ' . ($quote->house_number ?? ($profile->house_number ?? '')));
+            $resolvedPostal = $quote->postal ?: ($profile->postal ?? '');
+            $resolvedCity = $quote->city ?: ($profile->city ?? '');
+            $resolvedCountry = $quote->country ?: ($profile->country ?? 'DE');
+
             $order = OrderOrder::create([
                 'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(Str::random(6)),
                 'customer_id' => $customer->id,
@@ -197,23 +203,23 @@ class OrderQuoteRequests extends Component
                 'is_small_business' => $isSmallBusiness,
 
                 'billing_address' => [
-                    'first_name' => $quote->first_name,
-                    'last_name' => $quote->last_name,
+                    'first_name' => $quote->first_name ?: ($customer->first_name ?? ''),
+                    'last_name' => $quote->last_name ?: ($customer->last_name ?? ''),
                     'company' => $quote->company,
-                    'address' => trim(($quote->street ?? '') . ' ' . ($quote->house_number ?? '')),
-                    'postal_code' => $quote->postal,
-                    'city' => $quote->city,
-                    'country' => $quote->country ?? 'DE'
+                    'address' => $resolvedStreet,
+                    'postal_code' => $resolvedPostal,
+                    'city' => $resolvedCity,
+                    'country' => $resolvedCountry,
                 ],
                 // Lieferadresse initial identisch zur Rechnungsadresse
                 'shipping_address' => [
-                    'first_name' => $quote->first_name,
-                    'last_name' => $quote->last_name,
+                    'first_name' => $quote->first_name ?: ($customer->first_name ?? ''),
+                    'last_name' => $quote->last_name ?: ($customer->last_name ?? ''),
                     'company' => $quote->company,
-                    'address' => trim(($quote->street ?? '') . ' ' . ($quote->house_number ?? '')),
-                    'postal_code' => $quote->postal,
-                    'city' => $quote->city,
-                    'country' => $quote->country ?? 'DE'
+                    'address' => $resolvedStreet,
+                    'postal_code' => $resolvedPostal,
+                    'city' => $resolvedCity,
+                    'country' => $resolvedCountry,
                 ],
 
                 // Rabatte exakt aus dem Angebot übernehmen
@@ -291,13 +297,23 @@ class OrderQuoteRequests extends Component
                     'metadata' => [
                         'order_id' => $order->id,
                         'quote_number' => $quote->quote_number
-                    ]
+                    ],
+                    'payment_intent_data' => [
+                        'metadata' => [
+                            'order_id' => $order->id,
+                            'quote_number' => $quote->quote_number
+                        ]
+                    ],
                 ]);
 
                 $paymentUrl = $session->url;
+                $stripeUpdate = ['payment_url' => $paymentUrl];
+                if (!empty($session->payment_intent) && is_string($session->payment_intent)) {
+                    $stripeUpdate['stripe_payment_intent_id'] = $session->payment_intent;
+                }
 
                 // Link in der Order speichern (Der Job zieht sich den später da raus)
-                $order->update(['payment_url' => $paymentUrl]);
+                $order->update($stripeUpdate);
             }
         } catch (\Exception $e) {
             Log::error("Stripe Link Fehler bei Umwandlung: " . $e->getMessage());
@@ -316,7 +332,7 @@ class OrderQuoteRequests extends Component
     }
 
     public function markAsRejected($id) {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
         OrderQuoteRequest::where('id', $id)->where('status', '!=', 'converted')->update(['status' => 'rejected']);
@@ -324,7 +340,7 @@ class OrderQuoteRequests extends Component
     }
 
     public function markAsOpen($id) {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
         $quote = OrderQuoteRequest::find($id);
@@ -336,7 +352,7 @@ class OrderQuoteRequests extends Component
 
     public function downloadLaserFile($itemId, $side, \App\Services\Export\FileDownloadService $exportService)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
         return $exportService->downloadLaserSvg($itemId, $side);

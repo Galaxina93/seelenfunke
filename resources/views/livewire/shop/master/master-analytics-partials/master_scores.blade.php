@@ -418,6 +418,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
             'open_abandoned_carts' => '/admin/shopping-carts',
             'storage' => '/admin/system/backups',
             'system_logs' => '/admin/global-logs',
+            'security_audit' => '/admin/dashboard',
         ];
 
         // Sortier-Helfer nach Dringlichkeit: error (1) -> warning (2) -> todo (3) -> success (4)
@@ -2313,6 +2314,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                         'open_abandoned_carts' => 'Kunden haben ihren Einkaufsprozess abgebrochen. Überprüfe die Warenkörbe und sende ggf. eine Erinnerung.',
                         'storage' => 'Überwacht die Belegung der Server-Festplatte und warnt rechtzeitig vor Speicherplatzmangel.',
                         'system_logs' => 'Aktuelle System-Fehler der letzten 48 Stunden, die im Hintergrund-Prozess protokolliert wurden.',
+                        'security_audit' => 'Täglicher Watchdog-Scan (04:30 Uhr) aller Laravel/Composer-, NPM-, Funkenwerk- & Android-App-Pakete auf Sicherheitslücken (CVEs) sowie Prüfung der zentralen System-Schranken.',
                     ];
 
                     $actionNeeded = [];
@@ -2368,7 +2370,11 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
 
                             <tr @if(!$needsAction) x-show="showAllOperative" x-transition.opacity @endif
                                 class="bg-gray-50/80 dark:bg-gray-950 hover:bg-gray-100/90 dark:hover:bg-gray-900/80 transition-all group cursor-pointer relative"
-                                onclick="window.open('{{ $actionUrl }}', '_blank')">
+                                @if($key === 'security_audit')
+                                    @click="activeTab = 'security'"
+                                @else
+                                    onclick="window.open('{{ $actionUrl }}', '_blank')"
+                                @endif>
 
                                 <td class="py-4 pl-4 rounded-l-xl border-y border-l border-gray-200 dark:border-gray-800/80 group-hover:border-gray-300 dark:group-hover:border-gray-700 relative w-full">
                                     <div class="flex items-center gap-4">
@@ -2996,6 +3002,206 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                     </div>
                 </div>
 
+                @php
+                    $auditReport = $defStats['audit_report'] ?? [];
+                    $auditScannedAt = !empty($auditReport['scanned_at']) ? \Carbon\Carbon::parse($auditReport['scanned_at']) : null;
+                    $auditCveCount = (int) ($auditReport['cve_count'] ?? 0);
+                    $auditGuardrailErrors = (int) ($auditReport['guardrail_errors_count'] ?? 0);
+                    $composerAudit = $auditReport['composer'] ?? [];
+                    $npmAudit = $auditReport['npm'] ?? [];
+                    $appsAudit = $auditReport['apps'] ?? [];
+                    $guardrailsAudit = $auditReport['guardrails'] ?? [];
+                @endphp
+
+                <!-- AUTOMATISCHE PAKET- & SICHERHEITSPRÜFUNG (COMPOSER, NPM, APPS & SYSTEM-SCHRANKEN) -->
+                <div class="bg-gray-50/60 dark:bg-gray-950/40 rounded-[2rem] border border-gray-200 dark:border-gray-800 p-6 shadow-inner mb-8">
+                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 mb-6 border-b border-gray-200 dark:border-gray-800">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <h3 class="text-sm font-black text-gray-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
+                                <x-heroicon-o-cpu-chip class="w-5 h-5 text-[#C5A059]" />
+                                Automatische Paket- & Sicherheitsprüfung
+                            </h3>
+                            <div class="relative" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
+                                <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-[#C5A059] cursor-help transition-colors" />
+                                <div x-show="tooltip" x-transition.opacity.duration.150ms class="absolute left-0 top-full mt-2 w-80 p-3.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-30 text-left pointer-events-none" style="display: none;">
+                                    <p class="text-[10px] font-black uppercase tracking-wider text-[#C5A059] mb-1">Zentrales Sicherheitskonzept</p>
+                                    <p class="text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed">Prüft täglich um 04:30 Uhr automatisch alle Laravel/Composer-, NPM-, Funkenwerk- (.NET) und Android-Pakete auf bekannte Sicherheitslücken (CVEs) sowie die 6 zentralen System-Schranken. Updates via CLI: <code>./funki security update</code></p>
+                                </div>
+                            </div>
+                            @if($auditScannedAt)
+                                <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full {{ ($auditCveCount > 0 || $auditGuardrailErrors > 0) ? 'bg-rose-500/10 text-rose-500 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' }}">
+                                    {{ $auditCveCount === 0 && $auditGuardrailErrors === 0 ? '0 CVEs • Geprüft ' . $auditScannedAt->format('d.m. H:i') : $auditCveCount . ' CVE(s) • ' . $auditScannedAt->format('d.m. H:i') }}
+                                </span>
+                            @endif
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <span class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-500 dark:text-gray-400">
+                                <x-heroicon-o-clock class="w-3.5 h-3.5 text-[#C5A059]" />
+                                Täglich 04:30 Uhr
+                            </span>
+                            <button type="button"
+                                    wire:click="runSecurityAudit"
+                                    wire:loading.attr="disabled"
+                                    class="text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl bg-[#C5A059] hover:brightness-110 text-gray-950 transition-all flex items-center gap-2 shrink-0 cursor-pointer">
+                                <x-heroicon-o-arrow-path class="w-3.5 h-3.5" wire:loading.class="animate-spin" wire:target="runSecurityAudit" />
+                                <span wire:loading.remove wire:target="runSecurityAudit">Jetzt prüfen</span>
+                                <span wire:loading wire:target="runSecurityAudit">Prüfe Pakete...</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                        <!-- 1. LARAVEL & COMPOSER PAKETE -->
+                        <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 flex flex-col justify-between gap-3">
+                            <div>
+                                <div class="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-2.5 mb-3">
+                                    <span class="text-[10px] font-black uppercase tracking-wider text-gray-900 dark:text-white">Laravel & Composer</span>
+                                    <span class="text-[10px] font-black px-2 py-0.5 rounded-full {{ ($composerAudit['cve_count'] ?? 0) > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500' }}">
+                                        {{ $composerAudit['cve_count'] ?? 0 }} CVEs
+                                    </span>
+                                </div>
+                                <div class="space-y-1.5 text-[11px]">
+                                    <div class="flex justify-between text-gray-500 dark:text-gray-400">
+                                        <span>Framework / PHP:</span>
+                                        <span class="font-bold text-gray-900 dark:text-white">v{{ $composerAudit['laravel_version'] ?? app()->version() }} / {{ $composerAudit['php_version'] ?? PHP_VERSION }}</span>
+                                    </div>
+                                    <div class="flex justify-between text-gray-500 dark:text-gray-400">
+                                        <span>Geprüfte Pakete:</span>
+                                        <span class="font-bold text-gray-900 dark:text-white">{{ $composerAudit['locked_count'] ?? 0 }} ({{ $composerAudit['direct_count'] ?? 0 }} direkt)</span>
+                                    </div>
+                                    <div class="flex justify-between text-gray-500 dark:text-gray-400">
+                                        <span>Minor-Updates:</span>
+                                        <span class="font-bold {{ ($composerAudit['semver_safe_count'] ?? 0) > 0 ? 'text-[#C5A059]' : 'text-emerald-500' }}">{{ $composerAudit['semver_safe_count'] ?? 0 }} verfügbar</span>
+                                    </div>
+                                </div>
+                                @if(!empty($composerAudit['advisories']))
+                                    <div class="mt-3 pt-2.5 border-t border-gray-100 dark:border-gray-800 max-h-28 overflow-y-auto custom-scrollbar space-y-1">
+                                        @foreach(array_slice($composerAudit['advisories'], 0, 5) as $adv)
+                                            <div class="text-[10px] text-rose-500 font-bold truncate" title="{{ $adv['title'] ?? '' }}">
+                                                • {{ $adv['package'] }} ({{ $adv['cve'] }})
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @elseif(!empty($composerAudit['outdated']))
+                                    <div class="mt-3 pt-2.5 border-t border-gray-100 dark:border-gray-800 max-h-28 overflow-y-auto custom-scrollbar space-y-1">
+                                        @foreach(array_slice($composerAudit['outdated'], 0, 4) as $out)
+                                            <div class="flex justify-between text-[10px] text-gray-500 dark:text-gray-400">
+                                                <span class="truncate pr-2">{{ $out['name'] }}</span>
+                                                <span class="font-mono text-[#C5A059] shrink-0">{{ $out['version'] }} → {{ $out['latest'] }}</span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+
+                        <!-- 2. FRONTEND & NPM PAKETE -->
+                        <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 flex flex-col justify-between gap-3">
+                            <div>
+                                <div class="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-2.5 mb-3">
+                                    <span class="text-[10px] font-black uppercase tracking-wider text-gray-900 dark:text-white">Frontend & NPM</span>
+                                    <span class="text-[10px] font-black px-2 py-0.5 rounded-full {{ ($npmAudit['cve_count'] ?? 0) > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500' }}">
+                                        {{ $npmAudit['cve_count'] ?? 0 }} CVEs
+                                    </span>
+                                </div>
+                                <div class="space-y-1.5 text-[11px]">
+                                    <div class="flex justify-between text-gray-500 dark:text-gray-400">
+                                        <span>Lockfile Pakete:</span>
+                                        <span class="font-bold text-gray-900 dark:text-white">{{ $npmAudit['locked_count'] ?? 0 }}</span>
+                                    </div>
+                                    <div class="flex justify-between text-gray-500 dark:text-gray-400">
+                                        <span>Prod-Abhängigkeiten:</span>
+                                        <span class="font-bold text-gray-900 dark:text-white">{{ $npmAudit['direct_prod_count'] ?? 0 }} Pakete</span>
+                                    </div>
+                                    <div class="flex justify-between text-gray-500 dark:text-gray-400">
+                                        <span>Dev-Abhängigkeiten:</span>
+                                        <span class="font-bold text-gray-900 dark:text-white">{{ $npmAudit['direct_dev_count'] ?? 0 }} Pakete</span>
+                                    </div>
+                                </div>
+                                @if(!empty($npmAudit['advisories']))
+                                    <div class="mt-3 pt-2.5 border-t border-gray-100 dark:border-gray-800 max-h-28 overflow-y-auto custom-scrollbar space-y-1">
+                                        @foreach(array_slice($npmAudit['advisories'], 0, 5) as $nAdv)
+                                            <div class="text-[10px] text-rose-500 font-bold truncate" title="{{ $nAdv['title'] ?? '' }}">
+                                                • {{ $nAdv['package'] }} ({{ strtoupper($nAdv['severity'] ?? 'WARN') }})
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @elseif(!empty($npmAudit['direct_packages']))
+                                    <div class="mt-3 pt-2.5 border-t border-gray-100 dark:border-gray-800 max-h-28 overflow-y-auto custom-scrollbar space-y-1">
+                                        @foreach(array_slice($npmAudit['direct_packages'], 0, 4) as $npkg)
+                                            <div class="flex justify-between text-[10px] text-gray-500 dark:text-gray-400">
+                                                <span class="truncate pr-2">{{ $npkg['name'] }}</span>
+                                                <span class="font-mono text-gray-700 dark:text-gray-300 shrink-0">{{ $npkg['version'] }}</span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+
+                        <!-- 3. FUNKENWERK & ANDROID APP PAKETE -->
+                        <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 flex flex-col justify-between gap-3">
+                            <div>
+                                <div class="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-2.5 mb-3">
+                                    <span class="text-[10px] font-black uppercase tracking-wider text-gray-900 dark:text-white">App-Ökosystem</span>
+                                    <span class="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500">
+                                        Geprüft
+                                    </span>
+                                </div>
+                                <div class="space-y-1.5 text-[11px]">
+                                    <div class="flex justify-between text-gray-500 dark:text-gray-400">
+                                        <span>Funkenwerk (WPF):</span>
+                                        <span class="font-bold text-gray-900 dark:text-white">{{ $appsAudit['funkenwerk']['target_framework'] ?? 'net9.0' }} (v{{ $appsAudit['funkenwerk']['version'] ?? '2.1.0' }})</span>
+                                    </div>
+                                    <div class="flex justify-between text-gray-500 dark:text-gray-400">
+                                        <span>Android Suite:</span>
+                                        <span class="font-bold text-gray-900 dark:text-white">SDK {{ $appsAudit['android']['compile_sdk'] ?? 34 }} (v{{ $appsAudit['android']['version_name'] ?? '1.3' }})</span>
+                                    </div>
+                                    <div class="flex justify-between text-gray-500 dark:text-gray-400">
+                                        <span>Android Libraries:</span>
+                                        <span class="font-bold text-gray-900 dark:text-white">{{ $appsAudit['android']['libraries_count'] ?? 28 }} gepinnt</span>
+                                    </div>
+                                </div>
+                                @if(!empty($appsAudit['android']['key_versions']))
+                                    <div class="mt-3 pt-2.5 border-t border-gray-100 dark:border-gray-800 max-h-28 overflow-y-auto custom-scrollbar space-y-1">
+                                        @foreach(array_slice($appsAudit['android']['key_versions'], 0, 4, true) as $kName => $kVer)
+                                            <div class="flex justify-between text-[10px] text-gray-500 dark:text-gray-400">
+                                                <span>{{ $kName }}</span>
+                                                <span class="font-mono text-gray-700 dark:text-gray-300">{{ $kVer }}</span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+
+                        <!-- 4. ZENTRALE SYSTEM-SCHRANKEN -->
+                        <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 flex flex-col justify-between gap-3">
+                            <div>
+                                <div class="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-2.5 mb-3">
+                                    <span class="text-[10px] font-black uppercase tracking-wider text-gray-900 dark:text-white">System-Schranken</span>
+                                    <span class="text-[10px] font-black px-2 py-0.5 rounded-full {{ ($guardrailsAudit['failed_count'] ?? 0) > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500' }}">
+                                        {{ $guardrailsAudit['passed_count'] ?? 6 }}/{{ $guardrailsAudit['total_count'] ?? 6 }} OK
+                                    </span>
+                                </div>
+                                <div class="space-y-1.5">
+                                    @foreach($guardrailsAudit['checks'] ?? [] as $gCheck)
+                                        <div class="flex items-center justify-between text-[10px] gap-2">
+                                            <span class="text-gray-600 dark:text-gray-300 truncate">{{ $gCheck['label'] }}</span>
+                                            @if($gCheck['passed'] ?? false)
+                                                <span class="text-[#C5A059] font-black shrink-0">✓</span>
+                                            @else
+                                                <span class="text-rose-500 font-black shrink-0">✗</span>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- AKTIVE IP-FIREWALL & MANUELLE SPERRE -->
                 <div class="bg-gray-50/60 dark:bg-gray-950/40 rounded-[2rem] border border-gray-200 dark:border-gray-800 p-6 shadow-inner mb-8">
                     <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 mb-5 border-b border-gray-200 dark:border-gray-800">
@@ -3058,26 +3264,26 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                 </div>
 
                 <!-- THREAT MONITOR -->
-                <div class="bg-gray-50/60 dark:bg-gray-950/40 rounded-[2rem] border border-gray-200 dark:border-gray-800 p-6 shadow-inner">
+                <div class="bg-gray-50/60 dark:bg-gray-950/40 rounded-[2rem] border border-gray-200 dark:border-gray-800 p-4 sm:p-6 shadow-inner overflow-hidden">
                     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-                        <div class="flex items-center gap-2">
-                            <h3 class="text-sm font-black text-gray-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
-                                <x-heroicon-s-eye class="w-5 h-5 text-purple-500" />
-                                Threat Monitor (Aktuelle Bedrohungen & Abwehr-Log)
+                        <div class="flex items-start sm:items-center gap-2 min-w-0">
+                            <h3 class="text-xs sm:text-sm font-black text-gray-900 dark:text-white uppercase tracking-widest flex items-start sm:items-center gap-2 leading-snug">
+                                <x-heroicon-s-eye class="w-5 h-5 text-purple-500 shrink-0 mt-0.5 sm:mt-0" />
+                                <span>Threat Monitor (Aktuelle Bedrohungen & Abwehr-Log)</span>
                             </h3>
-                            <div class="relative" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
+                            <div class="relative shrink-0 mt-0.5 sm:mt-0" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
                                 <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-purple-500 cursor-help transition-colors" />
-                                <div x-show="tooltip" x-transition.opacity.duration.150ms class="absolute left-0 top-full mt-2 w-72 p-3.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-30 text-left pointer-events-none" style="display: none;">
+                                <div x-show="tooltip" x-transition.opacity.duration.150ms class="absolute right-0 sm:left-0 top-full mt-2 w-64 sm:w-72 p-3.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-30 text-left pointer-events-none" style="display: none;">
                                     <p class="text-[10px] font-black uppercase tracking-wider text-purple-500 mb-1">Was zeigt der Threat Monitor?</p>
                                     <p class="text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed">Bündelt fehlgeschlagene Logins (gruppiert nach Angreifer-IP) und abgewehrte Sicherheitsvorfälle der letzten 48 Stunden. Über „KI-Threat-Scan“ erstellt Funkira einen tiefgehenden Bedrohungsbericht.</p>
                                 </div>
                             </div>
                         </div>
-                        <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                        <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:justify-end">
                             <button wire:click="triggerAiSecurityThreatAudit" 
                                     wire:loading.attr="disabled"
                                     class="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border border-purple-400/50 dark:border-purple-500/40 text-purple-600 dark:text-purple-300 hover:text-purple-900 dark:hover:text-white hover:bg-purple-100/50 dark:hover:bg-purple-900/30 bg-purple-50 dark:bg-purple-950/40 transition-colors flex items-center gap-2">
-                                <x-heroicon-o-sparkles class="w-3.5 h-3.5 text-purple-500 dark:text-purple-400" />
+                                <x-heroicon-o-sparkles class="w-3.5 h-3.5 text-purple-500 dark:text-purple-400 shrink-0" />
                                 <span wire:loading.remove wire:target="triggerAiSecurityThreatAudit">KI-Threat-Scan</span>
                                 <span wire:loading wire:target="triggerAiSecurityThreatAudit">Analysiere...</span>
                             </button>
@@ -3086,38 +3292,38 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                                     x-on:click="$wire.clearSecurityLogs().then(() => { success = true; setTimeout(() => success = false, 3000) })" 
                                     :class="success ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 bg-gray-100 dark:bg-gray-900'" 
                                     class="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-2">
-                                <x-heroicon-o-trash x-show="!success" class="w-3.5 h-3.5" />
-                                <x-heroicon-o-check x-show="success" class="w-3.5 h-3.5" x-cloak />
+                                <x-heroicon-o-trash x-show="!success" class="w-3.5 h-3.5 shrink-0" />
+                                <x-heroicon-o-check x-show="success" class="w-3.5 h-3.5 shrink-0" x-cloak />
                                 <span x-text="success ? 'Erfolgreich' : 'Alle leeren'"></span>
                             </button>
                         </div>
                     </div>
                     
-                    <div class="space-y-3 max-h-[420px] overflow-y-auto custom-scrollbar pr-2">
+                    <div class="space-y-3 max-h-[420px] overflow-y-auto overflow-x-hidden custom-scrollbar pr-1 sm:pr-2">
                         @forelse($this->aggregatedThreatLogs as $log)
-                            <div class="bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800/80 hover:border-gray-300 dark:hover:border-gray-700 transition-colors flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-                                <div class="flex gap-4 items-start flex-1 min-w-0">
-                                    <div class="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center {{ ($log['status'] ?? '') === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-amber-500/10 border-amber-500/20 text-amber-500' }} border">
+                            <div class="bg-white dark:bg-gray-900 rounded-xl p-3.5 sm:p-4 border border-gray-200 dark:border-gray-800/80 hover:border-gray-300 dark:hover:border-gray-700 transition-colors flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center justify-between w-full overflow-hidden">
+                                <div class="flex gap-3 sm:gap-4 items-start flex-1 min-w-0 w-full">
+                                    <div class="shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center {{ ($log['status'] ?? '') === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-amber-500/10 border-amber-500/20 text-amber-500' }} border">
                                         @if(($log['category'] ?? '') === 'brute_force')
-                                            <x-heroicon-o-finger-print class="w-5 h-5" />
+                                            <x-heroicon-o-finger-print class="w-4 h-4 sm:w-5 sm:h-5" />
                                         @else
-                                            <x-heroicon-o-shield-exclamation class="w-5 h-5" />
+                                            <x-heroicon-o-shield-exclamation class="w-4 h-4 sm:w-5 sm:h-5" />
                                         @endif
                                     </div>
                                     <div class="flex-1 min-w-0 pt-0.5">
-                                        <div class="flex flex-wrap justify-between items-start gap-2">
-                                            <div class="flex flex-wrap items-center gap-2">
-                                                <h4 class="text-sm font-bold text-gray-800 dark:text-gray-200 truncate">{{ $log['title'] ?? 'Unbekanntes Ereignis' }}</h4>
+                                        <div class="flex flex-col sm:flex-row sm:flex-wrap sm:justify-between items-start gap-1.5 sm:gap-2">
+                                            <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 min-w-0 max-w-full">
+                                                <h4 class="text-xs sm:text-sm font-bold text-gray-800 dark:text-gray-200 break-words leading-snug">{{ $log['title'] ?? 'Unbekanntes Ereignis' }}</h4>
                                                 @if(!empty($log['category_label']))
-                                                    <span class="bg-purple-500/10 border border-purple-500/30 text-purple-600 dark:text-purple-300 text-[9px] font-bold uppercase px-2 py-0.5 rounded-full">{{ $log['category_label'] }}</span>
+                                                    <span class="bg-purple-500/10 border border-purple-500/30 text-purple-600 dark:text-purple-300 text-[9px] font-bold uppercase px-2 py-0.5 rounded-full shrink-0">{{ $log['category_label'] }}</span>
                                                 @endif
                                                 @if($log['is_blocked'] ?? false)
-                                                    <span class="bg-rose-500/20 border border-rose-500/50 text-rose-600 dark:text-rose-400 text-[9px] font-black uppercase px-2 py-0.5 rounded-full">IP Gesperrt</span>
+                                                    <span class="bg-rose-500/20 border border-rose-500/50 text-rose-600 dark:text-rose-400 text-[9px] font-black uppercase px-2 py-0.5 rounded-full shrink-0">IP Gesperrt</span>
                                                 @endif
                                             </div>
                                             <span class="text-[10px] font-mono text-gray-400 dark:text-gray-500 whitespace-nowrap">{{ \Carbon\Carbon::parse($log['timestamp'])->format('d.m.Y H:i:s') }}</span>
                                         </div>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">{{ $log['message'] ?? '' }}</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed break-words">{{ $log['message'] ?? '' }}</p>
                                     </div>
                                 </div>
 

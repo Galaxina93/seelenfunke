@@ -72,7 +72,7 @@ class OrderApiCancellationStockTest extends TestCase
             'configuration' => ['laser_text' => 'Familie Müller'],
         ]);
 
-        Sanctum::actingAs($admin);
+        Sanctum::actingAs($admin, ['*']);
 
         $response = $this->postJson("/api/shop/orders/{$order->id}/status", [
             'status' => 'cancelled',

@@ -8,13 +8,23 @@ import androidx.fragment.app.FragmentActivity
 
 object BiometricHelper {
 
+    private fun resolveAllowedAuthenticators(context: Context): Int {
+        val biometricManager = BiometricManager.from(context)
+        return if (biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS) {
+            BiometricManager.Authenticators.BIOMETRIC_STRONG
+        } else {
+            BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.BIOMETRIC_WEAK
+        }
+    }
+
     fun isBiometricAvailable(context: Context): Boolean {
         val biometricManager = BiometricManager.from(context)
-        val result = biometricManager.canAuthenticate(
+        val strongResult = biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+        if (strongResult == BiometricManager.BIOMETRIC_SUCCESS) return true
+        val fallbackResult = biometricManager.canAuthenticate(
             BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.BIOMETRIC_WEAK
         )
-        android.util.Log.d("BiometricHelper", "canAuthenticate returned: $result (BIOMETRIC_SUCCESS = ${BiometricManager.BIOMETRIC_SUCCESS})")
-        return result == BiometricManager.BIOMETRIC_SUCCESS
+        return fallbackResult == BiometricManager.BIOMETRIC_SUCCESS
     }
 
     fun showBiometricPrompt(
@@ -31,9 +41,7 @@ object BiometricHelper {
             .setTitle(title)
             .setSubtitle(subtitle)
             .setNegativeButtonText(negativeButtonText)
-            .setAllowedAuthenticators(
-                BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.BIOMETRIC_WEAK
-            )
+            .setAllowedAuthenticators(resolveAllowedAuthenticators(activity))
             .build()
 
         val biometricPrompt = BiometricPrompt(

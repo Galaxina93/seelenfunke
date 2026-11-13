@@ -502,9 +502,9 @@ class FileDownloadService
             return "{$px},{$py}";
         }, $workingAreaPolygonPct));
 
-        // SVG Header initialisieren
+        // SVG Header initialisieren (inkl. xmlns:xcs für native xTool Studio / Creative Space Erkennung)
         $svg = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>' . "\n";
-        $svg .= '<svg width="'.$widthMm.'mm" height="'.$heightMm.'mm" viewBox="0 0 '.$widthMm.' '.$heightMm.'" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">' . "\n";
+        $svg .= '<svg width="'.$widthMm.'mm" height="'.$heightMm.'mm" viewBox="0 0 '.$widthMm.' '.$heightMm.'" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xcs="https://www.xtool.com/pages/software">' . "\n";
 
         if ($clipPointsSvg !== '') {
             $svg .= "  <defs>\n";
@@ -828,7 +828,7 @@ class FileDownloadService
                             $fmtY = number_format((float) $clippedRaster['yMm'], 4, '.', '');
                             $fmtW = number_format((float) $clippedRaster['widthMm'], 4, '.', '');
                             $fmtH = number_format((float) $clippedRaster['heightMm'], 4, '.', '');
-                            $svg .= '  <image x="'.$fmtX.'" y="'.$fmtY.'" width="'.$fmtW.'" height="'.$fmtH.'" href="'.$safeUrl.'" xlink:href="'.$safeUrl.'" preserveAspectRatio="none" />' . "\n";
+                            $svg .= '  <image x="'.$fmtX.'" y="'.$fmtY.'" width="'.$fmtW.'" height="'.$fmtH.'" data-view-type="laser" xcs:image="true" href="'.$safeUrl.'" xlink:href="'.$safeUrl.'" preserveAspectRatio="none" />' . "\n";
                             continue;
                         }
 
@@ -847,12 +847,13 @@ class FileDownloadService
                 $fmtRot = number_format((float) $rot, 4, '.', '');
 
                 $svg .= '  <g transform="translate('.$fmtX.', '.$fmtY.') rotate('.$fmtRot.')">' . "\n";
-                $svg .= '    <image x="-'.$halfW.'" y="-'.$halfW.'" width="'.$fmtW.'" height="'.$fmtW.'" href="'.$safeUrl.'" xlink:href="'.$safeUrl.'" preserveAspectRatio="xMidYMid meet" />' . "\n";
+                $svg .= '    <image x="-'.$halfW.'" y="-'.$halfW.'" width="'.$fmtW.'" height="'.$fmtW.'" data-view-type="laser" xcs:image="true" href="'.$safeUrl.'" xlink:href="'.$safeUrl.'" preserveAspectRatio="xMidYMid meet" />' . "\n";
                 $svg .= '  </g>' . "\n";
             }
         }
 
-        // TEXTE RENDER (Als Text-Vektor, sofern nicht bereits pixelgenau ins Raster-Gravurbild eingebrannt)
+        // TEXTE RENDER (Im SVG immer als echte schwarze Vektor-Textebene für xTool Studio exportieren;
+        // darunterliegende Fotos erhalten in clipAndNormalizeRasterLogoForLaser automatisch einen Weiß-Knockout)
         if (!empty($texts) && !$textsBakedIntoRaster) {
             foreach ($texts as $textItem) {
                 // Verhindert Rendering von leeren Textboxen
@@ -881,12 +882,29 @@ class FileDownloadService
 
                 $safeFontFamily = htmlspecialchars((string) $fontFamily, ENT_QUOTES, 'UTF-8');
                 $safeFontSize = (float) $fontSizeMm;
-                $strokeAttr = !empty($logos)
-                    ? ' stroke="#FFFFFF" stroke-width="'.number_format($safeFontSize * 0.22, 4, '.', '').'" stroke-linejoin="round" stroke-linecap="round" paint-order="stroke fill"'
-                    : '';
-                foreach ($lines as $line) {
-                    $svg .= '    <text x="0" y="'.($startY + ($safeFontSize * 0.35)).'" font-family="'.$safeFontFamily.'" font-size="'.$safeFontSize.'" font-weight="bold" fill="#000000"'.$strokeAttr.' text-anchor="'.$textAnchor.'">'.htmlspecialchars((string) $line, ENT_QUOTES, 'UTF-8').'</text>' . "\n";
-                    $startY += $lineHeight;
+                $curve = max(-100.0, min(100.0, (float) ($textItem['curve'] ?? 0)));
+                // Wichtig für xTool Studio: Kein stroke="#FFFFFF" am <text>-Element setzen, da xTool Studio
+                // Elemente mit stroke automatisch als "Liniengravur (1%, 20mm/s, ! Parameter ändern)" einstuft.
+                $strokeAttr = '';
+
+                if (abs($curve) >= 0.5) {
+                    $ttfForMeasure = $this->resolveTtfFontPath((string) $fontFamily);
+                    $curvedChars = $this->computeCurvedTextArcChars((string) ($textItem['text'] ?? ''), $safeFontSize, $curve, $ttfForMeasure);
+                    $baselineOffset = number_format($safeFontSize * 0.35, 4, '.', '');
+                    foreach ($curvedChars as $c) {
+                        if (trim((string) $c['char']) === '') {
+                            continue;
+                        }
+                        $cx = number_format((float) $c['x'], 4, '.', '');
+                        $cy = number_format((float) $c['y'], 4, '.', '');
+                        $cdeg = number_format((float) $c['deg'], 4, '.', '');
+                        $svg .= '    <text x="0" y="'.$baselineOffset.'" transform="translate('.$cx.', '.$cy.') rotate('.$cdeg.')" font-family="'.$safeFontFamily.'" font-size="'.$safeFontSize.'" font-weight="bold" fill="#000000"'.$strokeAttr.' text-anchor="middle">'.htmlspecialchars((string) $c['char'], ENT_QUOTES, 'UTF-8').'</text>' . "\n";
+                    }
+                } else {
+                    foreach ($lines as $line) {
+                        $svg .= '    <text x="0" y="'.($startY + ($safeFontSize * 0.35)).'" font-family="'.$safeFontFamily.'" font-size="'.$safeFontSize.'" font-weight="bold" fill="#000000"'.$strokeAttr.' text-anchor="'.$textAnchor.'">'.htmlspecialchars((string) $line, ENT_QUOTES, 'UTF-8').'</text>' . "\n";
+                        $startY += $lineHeight;
+                    }
                 }
 
                 $svg .= '  </g>' . "\n";
@@ -1220,6 +1238,93 @@ class FileDownloadService
     }
 
     /**
+     * Berechnet die Kreisbogen-Geometrie (Position x, y und Rotation deg/rad je Buchstabe)
+     * maßstabsunabhängig (sowohl für SVG in mm als auch für Raster-Bitmaps in px).
+     *
+     * @return array<int, array{char: string, x: float, y: float, deg: float, rad: float, charW: float}>
+     */
+    protected function computeCurvedTextArcChars(string $rawText, float $fontSizeUnit, float $curve, ?string $ttfPath = null): array
+    {
+        $curve = max(-100.0, min(100.0, $curve));
+        if (abs($curve) < 0.5 || trim($rawText) === '' || $fontSizeUnit <= 0.0) {
+            return [];
+        }
+
+        $lines = preg_split('/\r\n|\r|\n/', $rawText) ?: [];
+        $hasTtf = $ttfPath && is_file($ttfPath) && function_exists('imagettfbbox');
+        $refPt = 75.0; // entspricht 100px CSS/Canvas-Schriftgröße bei 96 DPI
+        $guardW = 0.0;
+
+        if ($hasTtf) {
+            $guardBbox = @imagettfbbox($refPt, 0.0, $ttfPath, '||');
+            if ($guardBbox) {
+                $guardW = abs((float) $guardBbox[2] - (float) $guardBbox[0]);
+            } else {
+                $hasTtf = false;
+            }
+        }
+
+        $measure = function (string $s) use ($hasTtf, $refPt, $ttfPath, $guardW, $fontSizeUnit): float {
+            if ($s === '') {
+                return 0.0;
+            }
+            if ($hasTtf && $ttfPath) {
+                $bbox = @imagettfbbox($refPt, 0.0, $ttfPath, '|' . $s . '|');
+                if ($bbox) {
+                    $w100 = max(0.0, abs((float) $bbox[2] - (float) $bbox[0]) - $guardW);
+                    return $w100 * ($fontSizeUnit / 100.0);
+                }
+            }
+            return mb_strlen($s, 'UTF-8') * $fontSizeUnit * 0.58;
+        };
+
+        $lineWidths = array_map(fn ($l) => $measure($l !== '' ? $l : ' '), $lines);
+        $maxLineW = max(array_merge([$fontSizeUnit * 1.5], $lineWidths));
+        $thetaMax = (abs($curve) / 100.0) * M_PI;
+        $rBase = $maxLineW / max(0.01, $thetaMax);
+        $cy = ($curve > 0.0 ? 1.0 : -1.0) * $rBase * ((1.0 + cos($thetaMax / 2.0)) / 2.0);
+        $lineHeight = $fontSizeUnit * 1.15;
+        $numLines = count($lines);
+
+        $chars = [];
+        foreach ($lines as $lineIdx => $line) {
+            $charsArr = preg_split('//u', (string) $line, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            if (empty($charsArr)) {
+                continue;
+            }
+
+            $lineW = $lineWidths[$lineIdx] ?? 0.0;
+            $deltaY = ($lineIdx - (($numLines - 1) / 2.0)) * $lineHeight;
+            $rLine = max($fontSizeUnit * 0.8, $curve > 0.0 ? ($rBase - $deltaY) : ($rBase + $deltaY));
+
+            $prefixStr = '';
+            foreach ($charsArr as $ch) {
+                $prefixW = $measure($prefixStr);
+                $charW = $measure($ch);
+                $prefixStr .= $ch;
+
+                $u = $prefixW + ($charW / 2.0) - ($lineW / 2.0);
+                $alpha = $u / $rLine;
+                $x = $rLine * sin($alpha);
+                $y = ($curve > 0.0) ? ($cy - $rLine * cos($alpha)) : ($cy + $rLine * cos($alpha));
+                $rad = ($curve > 0.0) ? $alpha : -$alpha;
+                $deg = $rad * (180.0 / M_PI);
+
+                $chars[] = [
+                    'char'  => $ch,
+                    'x'     => $x,
+                    'y'     => $y,
+                    'deg'   => $deg,
+                    'rad'   => $rad,
+                    'charW' => $charW,
+                ];
+            }
+        }
+
+        return $chars;
+    }
+
+    /**
      * Rendert ein Kunden-Rasterbild in seinen exakten Stage-Koordinaten (x, y, size, rotation),
      * maskiert es hart an der Arbeitsbereich-Kontur (custom_points / circle / rect) mit
      * 100 % Transparenz (PNG Alpha = 0 / GD Alpha = 127) außerhalb der Kontur und
@@ -1240,7 +1345,8 @@ class FileDownloadService
         float $widthMm,
         float $heightMm,
         array $workingAreaPolygonPct,
-        array $texts = []
+        array $texts = [],
+        bool $knockoutOnlyTexts = false
     ): ?array {
         if (!function_exists('imagecreatefromstring') || $binaryData === '' || empty($workingAreaPolygonPct)) {
             return null;
@@ -1409,6 +1515,9 @@ class FileDownloadService
         $scanStartY = max(0, $dstY);
         $scanEndY = min($canvasH - 1, $dstY + $dstH);
 
+        $hist = array_fill(0, 256, 0);
+        $totalMaskedPixels = 0;
+
         for ($y = $scanStartY; $y <= $scanEndY; $y++) {
             for ($x = $scanStartX; $x <= $scanEndX; $x++) {
                 // Außerhalb der grünen Arbeitsbereich-Kontur -> 100 % transparent (wird niemals gelasert!)
@@ -1432,6 +1541,8 @@ class FileDownloadService
                 $gray = max(0, min(255, $gray));
 
                 imagesetpixel($dst, $x, $y, $grayLut[$gray]);
+                $hist[$gray]++;
+                $totalMaskedPixels++;
 
                 if ($x < $tightMinX) $tightMinX = $x;
                 if ($x > $tightMaxX) $tightMaxX = $x;
@@ -1441,6 +1552,157 @@ class FileDownloadService
         }
 
         imagedestroy($stageBuf);
+
+        // 3b. Automatische Laser-Porträt-Aufbereitung (HDR-Tiefenentzerrung + Mikrokontrast/Kantenschärfung nach xTool-Referenz):
+        // Verhindert, dass großflächige Hautpartien (Stirn, Wangen, Hände) im Negativ zu blinden tiefschwarzen Blöcken (0)
+        // zulaufen, hält Gesichts-Halbtöne fein abgestuft im Bereich 40..160 und schärft lokale Details (Haare, Augen,
+        // Zähne, Konturen) über ein zweistufiges Integralbild (Medium-HDR + Fine Unsharp Mask) gestochen scharf nach.
+        $distinctGreys = 0;
+        for ($g = 0; $g <= 255; $g++) {
+            if ($hist[$g] > 0) {
+                $distinctGreys++;
+            }
+        }
+
+        if ($distinctGreys > 12 && $totalMaskedPixels > 100 && $tightMaxX >= $tightMinX) {
+            $lowTarget = max(1, (int) round($totalMaskedPixels * 0.005));
+            $highTarget = max(1, (int) round($totalMaskedPixels * 0.995));
+            $cum = 0;
+            $pLow = 0;
+            $pHigh = 255;
+            for ($g = 0; $g <= 255; $g++) {
+                $cum += $hist[$g];
+                if ($cum >= $lowTarget) {
+                    $pLow = $g;
+                    break;
+                }
+            }
+            $cum = 0;
+            for ($g = 0; $g <= 255; $g++) {
+                $cum += $hist[$g];
+                if ($cum >= $highTarget) {
+                    $pHigh = $g;
+                    break;
+                }
+            }
+
+            if ($pHigh - $pLow >= 15) {
+                $stretchMap = [];
+                $span = (float) max(1, $pHigh - $pLow);
+                for ($g = 0; $g <= 255; $g++) {
+                    if ($g <= $pLow) {
+                        $stretchMap[$g] = 36.0;
+                    } elseif ($g >= $pHigh) {
+                        $stretchMap[$g] = 246.0;
+                    } else {
+                        $norm = ($g - $pLow) / $span;
+                        // Sanfte Gradation (Gamma 0.85) mit Sockel 36 statt 0, damit Stirn/Wangen/Hände niemals schwarz zulaufen
+                        $stretchMap[$g] = 36.0 + (pow($norm, 0.85) * 210.0);
+                    }
+                }
+
+                $bw = $tightMaxX - $tightMinX + 1;
+                $bh = $tightMaxY - $tightMinY + 1;
+
+                // Schritt 1: Sanfte Basis-Gradation (36..246, Gamma 0.85) in-place + C-Puffer ($baseImg) anlegen
+                $baseImg = imagecreatetruecolor($bw, $bh);
+                if ($baseImg) {
+                    $bgNeutral = imagecolorallocate($baseImg, 128, 128, 128);
+                    imagefill($baseImg, 0, 0, $bgNeutral);
+
+                    $baseLut = [];
+                    for ($g = 0; $g <= 255; $g++) {
+                        $baseLut[$g] = imagecolorallocate($baseImg, $g, $g, $g);
+                    }
+
+                    for ($y = $tightMinY; $y <= $tightMaxY; $y++) {
+                        $ly = $y - $tightMinY;
+                        for ($x = $tightMinX; $x <= $tightMaxX; $x++) {
+                            $c = imagecolorat($dst, $x, $y);
+                            if ((($c >> 24) & 0x7F) >= 126) {
+                                continue;
+                            }
+                            $mappedG = (int) round($stretchMap[$c & 0xFF]);
+                            imagesetpixel($baseImg, $x - $tightMinX, $ly, $baseLut[$mappedG]);
+                        }
+                    }
+
+                    // Schritt 2: Niederfrequentes lokales Umgebungslicht ($blurMed) als glatter Gauß-Puffer in C berechnen
+                    $scaleDiv = 10;
+                    $tinyW = max(8, (int) round($bw / $scaleDiv));
+                    $tinyH = max(8, (int) round($bh / $scaleDiv));
+                    $midW = max(16, (int) round($bw / 3));
+                    $midH = max(16, (int) round($bh / 3));
+                    $tinyImg = imagecreatetruecolor($tinyW, $tinyH);
+                    $midImg = imagecreatetruecolor($midW, $midH);
+                    $blurMed = imagecreatetruecolor($bw, $bh);
+
+                    if ($tinyImg && $midImg && $blurMed) {
+                        imagecopyresampled($tinyImg, $baseImg, 0, 0, 0, 0, $tinyW, $tinyH, $bw, $bh);
+                        if (function_exists('imagefilter')) {
+                            @imagefilter($tinyImg, IMG_FILTER_GAUSSIAN_BLUR);
+                            @imagefilter($tinyImg, IMG_FILTER_GAUSSIAN_BLUR);
+                        }
+                        imagecopyresampled($midImg, $tinyImg, 0, 0, 0, 0, $midW, $midH, $tinyW, $tinyH);
+                        if (function_exists('imagefilter')) {
+                            @imagefilter($midImg, IMG_FILTER_GAUSSIAN_BLUR);
+                        }
+                        imagecopyresampled($blurMed, $midImg, 0, 0, 0, 0, $bw, $bh, $midW, $midH);
+                        imagedestroy($tinyImg);
+                        imagedestroy($midImg);
+
+                        // Schritt 3: Lokale HDR-Tiefenaufhellung + 5x5 Unsharp-Mask Kantenschärfung (Haare, Augen, Zähne, Nähte)
+                        $maxLx = $bw - 1;
+                        $maxLy = $bh - 1;
+
+                        for ($ly = 0; $ly < $bh; $ly++) {
+                            $y = $tightMinY + $ly;
+                            $lyM2 = max(0, $ly - 2);
+                            $lyP2 = min($maxLy, $ly + 2);
+
+                            for ($lx = 0; $lx < $bw; $lx++) {
+                                $x = $tightMinX + $lx;
+                                $c = imagecolorat($dst, $x, $y);
+                                if ((($c >> 24) & 0x7F) >= 126) {
+                                    continue;
+                                }
+
+                                $baseVal = (float) (imagecolorat($baseImg, $lx, $ly) & 0xFF);
+                                $meanMed = (float) (imagecolorat($blurMed, $lx, $ly) & 0xFF);
+
+                                $lxM2 = max(0, $lx - 2);
+                                $lxP2 = min($maxLx, $lx + 2);
+                                $n1 = imagecolorat($baseImg, $lxM2, $ly) & 0xFF;
+                                $n2 = imagecolorat($baseImg, $lxP2, $ly) & 0xFF;
+                                $n3 = imagecolorat($baseImg, $lx, $lyM2) & 0xFF;
+                                $n4 = imagecolorat($baseImg, $lx, $lyP2) & 0xFF;
+                                $meanFine = ($n1 + $n2 + $n3 + $n4) * 0.25;
+
+                                // Großflächige dunkle Regionen (Stirn, Wangen, Hände mit meanMed < 100) sanft anheben,
+                                // damit der Jarvis-Dither dort feine Schattierung statt eines schwarzen Blocks setzt.
+                                $shadowLift = ($meanMed < 100.0) ? ((100.0 - $meanMed) * 0.48) : 0.0;
+
+                                $diffMed = $baseVal - $meanMed;
+                                $diffFine = $baseVal - $meanFine;
+
+                                $enhanced = $baseVal + $shadowLift + ($diffMed * 0.55) + ($diffFine * 1.45);
+                                $newG = max(22, min(248, (int) round($enhanced)));
+
+                                imagesetpixel($dst, $x, $y, $grayLut[$newG]);
+                            }
+                        }
+
+                        imagedestroy($blurMed);
+                    } else {
+                        if ($tinyImg) imagedestroy($tinyImg);
+                        if ($midImg) imagedestroy($midImg);
+                        if ($blurMed) imagedestroy($blurMed);
+                    }
+
+                    imagedestroy($baseImg);
+                }
+            }
+        }
 
         // 4. Textelemente ($texts) maßstabsgetreu mit Kontrast-Halo in die maskierte Laser-Bitmap einbrennen
         if (!empty($texts) && function_exists('imagettftext')) {
@@ -1492,47 +1754,87 @@ class FileDownloadService
                     $totalBlockH = ($numLines - 1) * $lineHeightPx;
 
                     $haloRadius = max(2, min(8, (int) round($fontSizePx * 0.08)));
+                    $curve = max(-100.0, min(100.0, (float) ($textItem['curve'] ?? 0)));
 
-                    foreach ($lines as $lineIdx => $lineText) {
-                        $lineText = trim($lineText);
-                        if ($lineText === '') {
-                            continue;
-                        }
-
-                        $bbox = @imagettfbbox($ptSize, 0.0, $ttfPath, $lineText);
-                        if (!$bbox) {
-                            continue;
-                        }
-
-                        $lineCenterY = $tyPx - ($totalBlockH / 2.0) + ($lineIdx * $lineHeightPx);
-                        $unrotY = $lineCenterY + ($fontSizePx * 0.33);
-
-                        if ($align === 'left') {
-                            $unrotX = $txPx - $bbox[0];
-                        } elseif ($align === 'right') {
-                            $unrotX = $txPx - $bbox[2];
-                        } else {
-                            $unrotX = $txPx - (($bbox[0] + $bbox[2]) / 2.0);
-                        }
-
-                        $dx = $unrotX - $txPx;
-                        $dy = $unrotY - $tyPx;
-                        $drawX = (int) round($txPx + ($dx * $cosA) - ($dy * $sinA));
-                        $drawY = (int) round($tyPx + ($dx * $sinA) + ($dy * $cosA));
-
-                        // Kontrast-Halo rund um die Schrift zeichnen
-                        for ($hy = -$haloRadius; $hy <= $haloRadius; $hy++) {
-                            for ($hx = -$haloRadius; $hx <= $haloRadius; $hx++) {
-                                if (($hx * $hx) + ($hy * $hy) > ($haloRadius * $haloRadius) + 1) {
-                                    continue;
-                                }
-                                @imagettftext($haloMask, $ptSize, $gdAngle, $drawX + $hx, $drawY + $hy, $hmWhite, $ttfPath, $lineText);
+                    if (abs($curve) >= 0.5) {
+                        $curvedChars = $this->computeCurvedTextArcChars($rawText, $fontSizePx, $curve, $ttfPath);
+                        foreach ($curvedChars as $c) {
+                            $ch = (string) $c['char'];
+                            if (trim($ch) === '') {
+                                continue;
                             }
-                        }
 
-                        // Eigentliche Glyphen zeichnen
-                        @imagettftext($glyphMask, $ptSize, $gdAngle, $drawX, $drawY, $gmWhite, $ttfPath, $lineText);
-                        $textRendered = true;
+                            $chBbox = @imagettfbbox($ptSize, 0.0, $ttfPath, $ch);
+                            if (!$chBbox) {
+                                continue;
+                            }
+
+                            $localBaseX = -(($chBbox[0] + $chBbox[2]) / 2.0);
+                            $localBaseY = $fontSizePx * 0.33;
+
+                            $cosC = cos((float) $c['rad']);
+                            $sinC = sin((float) $c['rad']);
+                            $dx = (float) $c['x'] + ($localBaseX * $cosC) - ($localBaseY * $sinC);
+                            $dy = (float) $c['y'] + ($localBaseX * $sinC) + ($localBaseY * $cosC);
+
+                            $drawX = (int) round($txPx + ($dx * $cosA) - ($dy * $sinA));
+                            $drawY = (int) round($tyPx + ($dx * $sinA) + ($dy * $cosA));
+                            $charGdAngle = -($tRotDeg + (float) $c['deg']);
+
+                            for ($hy = -$haloRadius; $hy <= $haloRadius; $hy++) {
+                                for ($hx = -$haloRadius; $hx <= $haloRadius; $hx++) {
+                                    if (($hx * $hx) + ($hy * $hy) > ($haloRadius * $haloRadius) + 1) {
+                                        continue;
+                                    }
+                                    @imagettftext($haloMask, $ptSize, $charGdAngle, $drawX + $hx, $drawY + $hy, $hmWhite, $ttfPath, $ch);
+                                }
+                            }
+
+                            @imagettftext($glyphMask, $ptSize, $charGdAngle, $drawX, $drawY, $gmWhite, $ttfPath, $ch);
+                            $textRendered = true;
+                        }
+                    } else {
+                        foreach ($lines as $lineIdx => $lineText) {
+                            $lineText = trim($lineText);
+                            if ($lineText === '') {
+                                continue;
+                            }
+
+                            $bbox = @imagettfbbox($ptSize, 0.0, $ttfPath, $lineText);
+                            if (!$bbox) {
+                                continue;
+                            }
+
+                            $lineCenterY = $tyPx - ($totalBlockH / 2.0) + ($lineIdx * $lineHeightPx);
+                            $unrotY = $lineCenterY + ($fontSizePx * 0.33);
+
+                            if ($align === 'left') {
+                                $unrotX = $txPx - $bbox[0];
+                            } elseif ($align === 'right') {
+                                $unrotX = $txPx - $bbox[2];
+                            } else {
+                                $unrotX = $txPx - (($bbox[0] + $bbox[2]) / 2.0);
+                            }
+
+                            $dx = $unrotX - $txPx;
+                            $dy = $unrotY - $tyPx;
+                            $drawX = (int) round($txPx + ($dx * $cosA) - ($dy * $sinA));
+                            $drawY = (int) round($tyPx + ($dx * $sinA) + ($dy * $cosA));
+
+                            // Kontrast-Halo rund um die Schrift zeichnen
+                            for ($hy = -$haloRadius; $hy <= $haloRadius; $hy++) {
+                                for ($hx = -$haloRadius; $hx <= $haloRadius; $hx++) {
+                                    if (($hx * $hx) + ($hy * $hy) > ($haloRadius * $haloRadius) + 1) {
+                                        continue;
+                                    }
+                                    @imagettftext($haloMask, $ptSize, $gdAngle, $drawX + $hx, $drawY + $hy, $hmWhite, $ttfPath, $lineText);
+                                }
+                            }
+
+                            // Eigentliche Glyphen zeichnen
+                            @imagettftext($glyphMask, $ptSize, $gdAngle, $drawX, $drawY, $gmWhite, $ttfPath, $lineText);
+                            $textRendered = true;
+                        }
                     }
                 }
 
@@ -1548,6 +1850,23 @@ class FileDownloadService
                             $hVal = imagecolorat($haloMask, $x, $y) & 0xFF;
 
                             if ($gVal === 0 && $hVal === 0) {
+                                continue;
+                            }
+
+                            if ($knockoutOnlyTexts) {
+                                // Im SVG-Export wird der Text als echte schwarze Vektor-Ebene (<text fill="#000000">)
+                                // ausgegeben. Im darunterliegenden Foto stanzen wir Glyphen + Halo als Reinweiß (255)
+                                // frei, damit das Foto nicht über die gestochen scharfe Vektorschrift lasert.
+                                if ($gVal > 20 || $hVal > 20) {
+                                    $existing = imagecolorat($dst, $x, $y);
+                                    $exAlpha = ($existing >> 24) & 0x7F;
+                                    if ($exAlpha < 126) {
+                                        $exGray = $existing & 0xFF;
+                                        $koStrength = ($gVal > 20) ? 1.0 : min(0.95, ($hVal / 255.0) * 0.95);
+                                        $blendedGray = (int) round(($exGray * (1.0 - $koStrength)) + (255.0 * $koStrength));
+                                        imagesetpixel($dst, $x, $y, $grayLut[max(0, min(255, $blendedGray))]);
+                                    }
+                                }
                                 continue;
                             }
 
@@ -1596,6 +1915,9 @@ class FileDownloadService
             imagedestroy($dst);
             return null;
         }
+        // Außerhalb des Arbeitsbereich-Polygons (z. B. runder Kreis beim Seelenkristall oder Herz beim Anhänger)
+        // zwingend 100 % transparent (Alpha 127) lassen, damit in xTool Studio keine weißen Quadrat-Ecken
+        // über dem Kamerabild des Rohlings liegen. Innerhalb des Polygons sind alle Pixel 100 % opak (Alpha 0).
         imagealphablending($cropped, false);
         imagesavealpha($cropped, true);
         $cropTrans = imagecolorallocatealpha($cropped, 255, 255, 255, 127);

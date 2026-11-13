@@ -689,11 +689,8 @@ fun OrderDetailDialog(
                                                             fontSize = 12.sp,
                                                             modifier = Modifier
                                                                 .clickable {
-                                                                    val trackingUrl = "https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode=${shipment.tracking_number}"
-                                                                    try {
-                                                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(trackingUrl))
-                                                                        context.startActivity(intent)
-                                                                    } catch (e: Exception) {}
+                                                                    val trackingUrl = "https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode=${android.net.Uri.encode(shipment.tracking_number)}"
+                                                                    de.meinseelenfunke.app.util.SecureFileOpener.openSafeExternalUrl(context, trackingUrl)
                                                                 }
                                                                 .padding(vertical = 2.dp)
                                                         )
@@ -714,10 +711,7 @@ fun OrderDetailDialog(
                                                         onClick = {
                                                             val labelUrl = resolveImageUrl(labelPath)
                                                             if (labelUrl != null) {
-                                                                try {
-                                                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(labelUrl))
-                                                                    context.startActivity(intent)
-                                                                } catch (e: Exception) {}
+                                                                de.meinseelenfunke.app.util.SecureFileOpener.openSafeExternalUrl(context, labelUrl)
                                                             }
                                                         },
                                                         colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.glassSurface),
@@ -969,10 +963,7 @@ fun OrderDetailDialog(
                                                         .clickable {
                                                             val url = resolveImageUrl(logoStoragePath)
                                                             if (url != null) {
-                                                                try {
-                                                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                                                                    context.startActivity(intent)
-                                                                } catch (e: Exception) {}
+                                                                de.meinseelenfunke.app.util.SecureFileOpener.openSafeExternalUrl(context, url)
                                                             }
                                                         }
                                                         .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -1001,10 +992,7 @@ fun OrderDetailDialog(
                                                              .clickable {
                                                                  val url = resolveImageUrl(filePath)
                                                                  if (url != null) {
-                                                                     try {
-                                                                         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                                                                         context.startActivity(intent)
-                                                                     } catch (e: Exception) {}
+                                                                     de.meinseelenfunke.app.util.SecureFileOpener.openSafeExternalUrl(context, url)
                                                                  }
                                                              }
                                                              .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -1033,8 +1021,6 @@ fun OrderDetailDialog(
 
                                         if (hasFrontLaser || hasBackLaser) {
                                             val context = androidx.compose.ui.platform.LocalContext.current
-                                            val token = de.meinseelenfunke.app.di.ServiceLocator.getAuthToken() ?: ""
-                                            val baseUrl = de.meinseelenfunke.app.di.ServiceLocator.getBaseUrl()
                                             
                                             Spacer(modifier = Modifier.height(10.dp))
                                             Row(
@@ -1044,11 +1030,11 @@ fun OrderDetailDialog(
                                                 if (hasFrontLaser) {
                                                     Button(
                                                         onClick = {
-                                                            val downloadUrl = "${baseUrl}funki/shop/order-items/${item.id}/laser-file/front?token=$token"
-                                                            try {
-                                                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(downloadUrl))
-                                                                context.startActivity(intent)
-                                                            } catch (e: Exception) {}
+                                                            de.meinseelenfunke.app.util.SecureFileOpener.openAuthenticatedApiFile(
+                                                                context = context,
+                                                                relativeApiEndpoint = "funki/shop/order-items/${android.net.Uri.encode(item.id)}/laser-file/front",
+                                                                fallbackFileName = "laser_front_${item.id}.svg"
+                                                            )
                                                         },
                                                         modifier = Modifier.weight(1f),
                                                         colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.glassSurface),
@@ -1063,11 +1049,11 @@ fun OrderDetailDialog(
                                                 if (hasBackLaser) {
                                                     Button(
                                                         onClick = {
-                                                            val downloadUrl = "${baseUrl}funki/shop/order-items/${item.id}/laser-file/back?token=$token"
-                                                            try {
-                                                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(downloadUrl))
-                                                                context.startActivity(intent)
-                                                            } catch (e: Exception) {}
+                                                            de.meinseelenfunke.app.util.SecureFileOpener.openAuthenticatedApiFile(
+                                                                context = context,
+                                                                relativeApiEndpoint = "funki/shop/order-items/${android.net.Uri.encode(item.id)}/laser-file/back",
+                                                                fallbackFileName = "laser_back_${item.id}.svg"
+                                                            )
                                                         },
                                                         modifier = Modifier.weight(1f),
                                                         colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.glassSurface),

@@ -731,6 +731,9 @@ trait AiRoutineFuncs
             $currentActiveRoutine = null;
             $nextUpcomingRoutine = null;
 
+            $shiftInfo = \App\Livewire\Shop\Management\ManagementRoutine::resolveDynamicShiftForDate($targetDate);
+            $shiftMinutes = (int) ($shiftInfo['shift_minutes'] ?? 0);
+
             $formattedRoutines = $routines->map(function ($routine) use (
                 $targetDate,
                 $isToday,
@@ -738,12 +741,15 @@ trait AiRoutineFuncs
                 $now,
                 $logMap,
                 $sickDateMap,
+                $shiftMinutes,
                 &$completedCount,
                 &$dueCount,
                 &$currentActiveRoutine,
                 &$nextUpcomingRoutine
             ) {
-                $start = Carbon::parse($routine->start_time);
+                $baseStartStr = Carbon::parse($routine->start_time)->format('H:i');
+                $shiftedStartStr = \App\Livewire\Shop\Management\ManagementRoutine::shiftRoutineTimeString($baseStartStr, $shiftMinutes);
+                $start = Carbon::parse($shiftedStartStr);
                 $duration = (int) ($routine->duration_minutes ?: ($routine->type === 'sleep' ? 480 : 15));
                 $end = $start->copy()->addMinutes($duration);
 
@@ -804,7 +810,8 @@ trait AiRoutineFuncs
                 $item = [
                     'id' => $routine->id,
                     'title' => $routine->title,
-                    'start_time' => Carbon::parse($routine->start_time)->format('H:i'),
+                    'start_time' => $shiftedStartStr,
+                    'base_start_time' => $baseStartStr,
                     'end_time' => $end->format('H:i'),
                     'duration_minutes' => $routine->duration_minutes,
                     'type' => $routine->type ?? 'general',
@@ -857,6 +864,8 @@ trait AiRoutineFuncs
                 'is_weekend' => $targetCarbon->isWeekend(),
                 'weekend_note' => $targetCarbon->isWeekend() ? 'Heiliges Wochenende (Freie Gestaltung – kein Pflicht-Tracking)' : 'Werktag (Mo–Fr Fokus)',
                 'is_sick_day' => $isSickDay,
+                'wake_time_aligned' => $shiftInfo['wake_time'] ?? '08:30',
+                'shift_minutes' => $shiftMinutes,
                 'active_routines_count' => $totalCount,
                 'completed_count' => $completedCount,
                 'due_count' => $dueCount,

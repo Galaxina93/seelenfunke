@@ -86,8 +86,13 @@ class AiSupportService
             ];
         }
 
-        $sliderRoutines = $allRoutines->map(function ($routine) use ($now, &$currentFlow, &$options, $sleepMessage, $todayLogsMap, $isTodaySick) {
-            $start = \Carbon\Carbon::parse($routine->start_time);
+        $todayShiftInfo = \App\Livewire\Shop\Management\ManagementRoutine::resolveDynamicShiftForDate($now->format('Y-m-d'));
+        $todayShiftMinutes = (int) ($todayShiftInfo['shift_minutes'] ?? 0);
+
+        $sliderRoutines = $allRoutines->map(function ($routine) use ($now, &$currentFlow, &$options, $sleepMessage, $todayLogsMap, $isTodaySick, $todayShiftMinutes) {
+            $baseStartStr = \Carbon\Carbon::parse($routine->start_time)->format('H:i');
+            $shiftedStartStr = \App\Livewire\Shop\Management\ManagementRoutine::shiftRoutineTimeString($baseStartStr, $todayShiftMinutes);
+            $start = \Carbon\Carbon::parse($shiftedStartStr);
             $duration = $routine->duration_minutes ?: ($routine->type === 'sleep' ? 8 * 60 : 0);
             $end = $start->copy()->addMinutes($duration);
 

@@ -73,7 +73,8 @@ class ProductReviewSecurityTest extends TestCase
         $component = Livewire::test(\App\Livewire\Shop\Product\ProductReviews::class, ['product' => $product])
             ->set('rating', 5)
             ->set('title', 'Toller Artikel')
-            ->set('content', 'Dies ist eine sehr gute Bewertung für das Produkt!');
+            ->set('content', 'Dies ist eine sehr gute Bewertung für das Produkt!')
+            ->set('acceptReviewTerms', true);
 
         try {
             $component->set('existingMedia', ['system/important_file.txt']);

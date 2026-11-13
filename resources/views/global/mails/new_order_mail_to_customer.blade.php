@@ -114,7 +114,7 @@
             <p style="font-size: 14px; color: #4b5563; line-height: 1.6; margin-bottom: 15px;">
                 Falls du deine Bestellung zusätzlich zu den direkten Download-Links oben auch im Kundenportal verwalten möchtest, kannst du für deine E-Mail-Adresse (<strong>{{ $data['customer_email'] }}</strong>) jederzeit ein persönliches Passwort festlegen (aus Sicherheitsgründen gemäß Art.&nbsp;32 DSGVO versenden wir keine Passwörter im Klartext per E-Mail):
             </p>
-            <a href="{{ $data['password_setup_url'] ?? route('password.request') }}" style="display: inline-block; padding: 10px 20px; background-color: #6d28d9; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px;">Passwort festlegen / Kundenkonto aktivieren</a>
+            <a href="{{ $data['password_setup_url'] ?? route('login') }}" style="display: inline-block; padding: 10px 20px; background-color: #6d28d9; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px;">Passwort festlegen / Kundenkonto aktivieren</a>
         </div>
     @elseif($hasDigital && empty($data['instant_downloads']))
         {{-- HINWEIS: DIGITALE DOWNLOADS --}}

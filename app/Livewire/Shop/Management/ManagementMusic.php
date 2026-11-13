@@ -5,8 +5,10 @@ namespace App\Livewire\Shop\Management;
 use App\Livewire\Traits\WithDepartmentTheming;
 use App\Models\Management\ManagementPlaylist;
 use App\Models\Management\ManagementTrack;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -34,13 +36,25 @@ class ManagementMusic extends Component
     public $uploadedAudioFile = null;
 
     // Right-side Track Inspector / Editor
+    #[Locked]
     public ?string $selectedTrackId = null;
     public string $editTitle = '';
     public string $editArtist = '';
     public ?string $editPlaylistId = null;
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+    }
+
     public function mount(): void
     {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+
         $first = ManagementPlaylist::orderBy('position')->first();
         $this->activePlaylistId = $first ? $first->id : 'all';
     }
@@ -109,7 +123,7 @@ class ManagementMusic extends Component
             return;
         }
 
-        $ytDlp = storage_path('app/bin/yt-dlp');
+        $ytDlp = storage_path('app/leitung/music/bin/yt-dlp');
         if (!file_exists($ytDlp)) {
             $this->importFeedback = 'Fehler: yt-dlp Binary nicht verfügbar.';
             return;
@@ -154,6 +168,10 @@ class ManagementMusic extends Component
     public function updatedUploadedAudioFile(): void
     {
         if (!$this->uploadedAudioFile) return;
+
+        $this->validate([
+            'uploadedAudioFile' => 'required|file|max:51200|mimes:mp3,m4a,mp4,aac,wav,ogg,flac',
+        ]);
 
         $targetPlaylist = (!in_array($this->activePlaylistId, ['all', 'favorites', 'most_played', null], true))
             ? ManagementPlaylist::find($this->activePlaylistId)

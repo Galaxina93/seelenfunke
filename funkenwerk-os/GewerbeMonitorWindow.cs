@@ -971,6 +971,9 @@ namespace FunkenwerkOS
         private readonly TextBlock _centerStarTxt;
         private readonly TextBlock _orderCountTxt;
         private readonly TextBlock _orderSubLabelTxt;
+        private readonly TextBlock _openCartsTxt;
+        private readonly Border _topCustomersBorder;
+        private readonly TextBlock _topCustomersTxt;
         private readonly Border _statusBorder;
         private readonly TextBlock _statusTxt;
         private readonly TextBlock _clockAndFpsTxt;
@@ -1002,6 +1005,8 @@ namespace FunkenwerkOS
         private DateTime _lastMouseMoveUtc = DateTime.UtcNow;
         private bool _lastSurgingState;
         private int _currentOrderCount = -1;
+        private int _currentCartCount = -1;
+        private string _lastTopCustomersFormatted = "";
         private double _latestFps = 60.0;
         private double _latestRenderMs = 0.2;
         private double _latestCpuPct = 1.0;
@@ -1012,7 +1017,12 @@ namespace FunkenwerkOS
             Title = "Mein Seelenfunke · Monitor Gewerbebereich";
             WindowStyle = WindowStyle.None;
             ResizeMode = ResizeMode.NoResize;
-            WindowState = WindowState.Maximized;
+            Topmost = false;
+            WindowState = WindowState.Normal;
+            Left = 0;
+            Top = 0;
+            Width = SystemParameters.PrimaryScreenWidth;
+            Height = SystemParameters.PrimaryScreenHeight;
 
             var bgBrush = new SolidColorBrush(Color.FromRgb(3, 4, 7));
             bgBrush.Freeze();
@@ -1162,20 +1172,56 @@ namespace FunkenwerkOS
                 Foreground = s_goldSubBrush,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
-                Margin = new Thickness(0, 8, 0, -5)
+                Margin = new Thickness(0, 8, 0, 0)
             };
             _centerStack.Children.Add(_orderSubLabelTxt);
+
+            _openCartsTxt = new TextBlock
+            {
+                Text = "WARENKÖRBE: 0",
+                FontSize = 14,
+                FontWeight = FontWeights.Bold,
+                Foreground = s_goldTitleBrush,
+                Opacity = 0.88,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                TextAlignment = TextAlignment.Center,
+                Margin = new Thickness(0, 6, 0, -6)
+            };
+            _centerStack.Children.Add(_openCartsTxt);
             _stageGrid.Children.Add(_centerStack);
             _stageGrid.SizeChanged += (_, _) => UpdateCenterStackExactAlignment();
 
-            // Bottom Status Pill
+            // Bottom Status Pill & Top 3 Customers (DSGVO-anonymized)
             var pillBgBrush = new SolidColorBrush(Color.FromArgb(215, 8, 11, 18));
             pillBgBrush.Freeze();
+
+            _topCustomersBorder = new Border
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Margin = new Thickness(0, 0, 0, 76),
+                Padding = new Thickness(22, 7, 22, 7),
+                CornerRadius = new CornerRadius(999),
+                Background = pillBgBrush,
+                BorderBrush = s_goldBorderBrush,
+                BorderThickness = new Thickness(1),
+                IsHitTestVisible = false
+            };
+            _topCustomersTxt = new TextBlock
+            {
+                Text = "♛   TOP KUNDEN   ·   Warte auf Bestellungen",
+                FontSize = 12,
+                FontWeight = FontWeights.Bold,
+                Foreground = s_goldTitleBrush
+            };
+            _topCustomersBorder.Child = _topCustomersTxt;
+            _stageGrid.Children.Add(_topCustomersBorder);
+
             _statusBorder = new Border
             {
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Bottom,
-                Margin = new Thickness(0, 0, 0, 32),
+                Margin = new Thickness(0, 0, 0, 26),
                 Padding = new Thickness(24, 9, 24, 9),
                 CornerRadius = new CornerRadius(999),
                 Background = pillBgBrush,
@@ -1349,6 +1395,13 @@ namespace FunkenwerkOS
 
             Loaded += (_, _) =>
             {
+                WindowStyle = WindowStyle.None;
+                ResizeMode = ResizeMode.NoResize;
+                Topmost = false;
+                WindowState = WindowState.Maximized;
+                Activate();
+                Focus();
+
                 _activeDisplayEnv = (_settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant();
                 UpdateCenterStackExactAlignment();
                 OsHardwareAndAudioEngine.KeepDisplayAndSystemAwake();
@@ -1396,9 +1449,17 @@ namespace FunkenwerkOS
                         _ = Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(SimulateOrderArrivalForDemo));
                     }
 
-                    if (CheckExternalBtPairTriggerFlagOnBgThread() || tickSec == 1)
+                    if (CheckExternalBtPairTriggerFlagOnBgThread())
                     {
-                        await PairOrConnectTeufelSpeakerAsync(userInitiated: tickSec != 1).ConfigureAwait(false);
+                        await PairOrConnectTeufelSpeakerAsync(userInitiated: true).ConfigureAwait(false);
+                    }
+                    else if (tickSec % 4 == 2)
+                    {
+                        var curAudio = OsHardwareAndAudioEngine.ReadAudioState();
+                        _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+                        {
+                            _btPairBtn.Content = curAudio.IsTeufelConnected ? "🔊 Teufel ✓" : "🔊 Teufel";
+                        }));
                     }
 
                     // Poll orders every 4 seconds (and immediately on tick 0) completely off the WPF UI thread
@@ -1466,24 +1527,35 @@ namespace FunkenwerkOS
         {
             try
             {
+                if (!userInitiated)
+                    return;
+
                 var audio = OsHardwareAndAudioEngine.ReadAudioState();
-                if (!userInitiated && audio.IsTeufelConnected)
+                var list = await OsHardwareAndAudioEngine.ScanBluetoothDevicesAsync(issueHardwareInquiry: false).ConfigureAwait(false);
+                var target = list.FirstOrDefault(b => b.IsTeufel)
+                          ?? new BluetoothDeviceDto { Name = "Teufel KB 43 CR 19", BluetoothAddress = 0xFC58FAC7F41DUL, IsPaired = true };
+
+                if (audio.IsTeufelConnected)
                 {
                     _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
                     {
-                        _btPairBtn.Content = "🔊 Teufel ✓";
+                        _btPairBtn.Content = "🔊 Trenne...";
+                    }));
+
+                    await OsHardwareAndAudioEngine.DisconnectBluetoothDeviceAsync(target).ConfigureAwait(false);
+                    var postDiscAudio = OsHardwareAndAudioEngine.ReadAudioState();
+
+                    _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+                    {
+                        _btPairBtn.Content = postDiscAudio.IsTeufelConnected ? "🔊 Teufel ✓" : "🔊 Teufel";
                     }));
                     return;
                 }
 
                 _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
                 {
-                    _btPairBtn.Content = "🔊 Kopple...";
+                    _btPairBtn.Content = "🔊 Verbinde...";
                 }));
-
-                var list = await OsHardwareAndAudioEngine.ScanBluetoothDevicesAsync(issueHardwareInquiry: false).ConfigureAwait(false);
-                var target = list.FirstOrDefault(b => b.IsTeufel)
-                          ?? new BluetoothDeviceDto { Name = "Teufel KB 43 CR 19", BluetoothAddress = 0xFC58FAC7F41DUL, IsPaired = false };
 
                 var (ok, msg) = await OsHardwareAndAudioEngine.ConnectOrPairBluetoothDeviceAsync(target).ConfigureAwait(false);
                 var postAudio = OsHardwareAndAudioEngine.ReadAudioState();
@@ -1568,7 +1640,11 @@ namespace FunkenwerkOS
             UpdateEnvSwitchButtonsUi();
 
             _currentOrderCount = 0;
+            _currentCartCount = 0;
+            _lastTopCustomersFormatted = "";
             _orderCountTxt.Text = "0";
+            _openCartsTxt.Text = "WARENKÖRBE: 0";
+            _topCustomersTxt.Text = "♛   TOP KUNDEN   ·   Lade...";
 
             _ = Task.Run(() =>
             {
@@ -1612,6 +1688,8 @@ namespace FunkenwerkOS
             _envSwitchPanel.Visibility = extraVis;
             _testBtn.Visibility = extraVis;
 
+            _topCustomersBorder.Margin = active ? new Thickness(0, 0, 0, 26) : new Thickness(0, 0, 0, 76);
+
             // In Focus Mode: monumental "MEIN SEELENFUNKE" title (132 pt) and large centered animation below it
             _brandTitleTxt.FontSize = active ? 132 : 60;
             _headerStack.Margin = active ? new Thickness(0, 22, 0, 0) : new Thickness(0, 26, 0, 0);
@@ -1638,6 +1716,7 @@ namespace FunkenwerkOS
         {
             if (WindowStyle == WindowStyle.None && WindowState == WindowState.Maximized)
             {
+                Topmost = false;
                 WindowState = WindowState.Normal;
                 WindowStyle = WindowStyle.SingleBorderWindow;
                 ResizeMode = ResizeMode.CanResize;
@@ -1650,7 +1729,10 @@ namespace FunkenwerkOS
                 WindowState = WindowState.Normal;
                 WindowStyle = WindowStyle.None;
                 ResizeMode = ResizeMode.NoResize;
+                Topmost = true;
                 WindowState = WindowState.Maximized;
+                Activate();
+                Focus();
             }
         }
 
@@ -1764,15 +1846,44 @@ namespace FunkenwerkOS
                 st.Initialized = true;
             }
 
+            int finalCarts = Math.Max(0, snap.OpenCartsCount);
+            string topFormatted;
+            if (snap.TopCustomersGdpr != null && snap.TopCustomersGdpr.Count > 0)
+            {
+                var parts = new List<string>(snap.TopCustomersGdpr.Count);
+                for (int i = 0; i < snap.TopCustomersGdpr.Count && i < 3; i++)
+                {
+                    parts.Add($"{i + 1}. {snap.TopCustomersGdpr[i]}");
+                }
+                topFormatted = "♛   TOP KUNDEN   ·   " + string.Join("   ·   ", parts);
+            }
+            else
+            {
+                topFormatted = "♛   TOP KUNDEN   ·   Noch keine Bestellungen";
+            }
+
             bool countChanged = finalCount != _currentOrderCount;
-            if (countChanged || envHasNew)
+            bool cartsChanged = finalCarts != _currentCartCount;
+            bool topChanged = !string.Equals(topFormatted, _lastTopCustomersFormatted, StringComparison.Ordinal);
+
+            if (countChanged || cartsChanged || topChanged || envHasNew)
             {
                 _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
                 {
                     _currentOrderCount = finalCount;
+                    _currentCartCount = finalCarts;
+                    _lastTopCustomersFormatted = topFormatted;
+
                     string nextText = finalCount.ToString(CultureInfo.InvariantCulture);
                     if (!string.Equals(_orderCountTxt.Text, nextText, StringComparison.Ordinal))
                         _orderCountTxt.Text = nextText;
+
+                    string nextCartsText = $"WARENKÖRBE: {finalCarts}";
+                    if (!string.Equals(_openCartsTxt.Text, nextCartsText, StringComparison.Ordinal))
+                        _openCartsTxt.Text = nextCartsText;
+
+                    if (!string.Equals(_topCustomersTxt.Text, topFormatted, StringComparison.Ordinal))
+                        _topCustomersTxt.Text = topFormatted;
 
                     if (envHasNew)
                     {

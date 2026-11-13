@@ -19,7 +19,10 @@ Route::prefix('funki/emails')->group(function () {
             // ignore
         }
 
-        $orderFile = storage_path('app/funkenwerk_mail_order.json');
+        $orderFile = storage_path('app/leitung/mail/funkenwerk_mail_order.json');
+        if (!is_dir(dirname($orderFile))) {
+            @mkdir(dirname($orderFile), 0775, true);
+        }
         $orderData = file_exists($orderFile) ? (json_decode(file_get_contents($orderFile), true) ?: []) : [];
         $accountOrder = $orderData['accounts'] ?? [];
         $folderOrders = $orderData['folders'] ?? [];
@@ -1479,7 +1482,10 @@ Route::prefix('funki/emails')->group(function () {
 
     // 18. Save Drag & Drop Order for Accounts and Folders
     Route::post('/reorder', function (Request $request) {
-        $orderFile = storage_path('app/funkenwerk_mail_order.json');
+        $orderFile = storage_path('app/leitung/mail/funkenwerk_mail_order.json');
+        if (!is_dir(dirname($orderFile))) {
+            @mkdir(dirname($orderFile), 0775, true);
+        }
         $orderData = file_exists($orderFile) ? (json_decode(file_get_contents($orderFile), true) ?: []) : [];
 
         if ($request->has('accounts') && is_array($request->accounts)) {

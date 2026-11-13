@@ -1495,12 +1495,19 @@ class MasterAnalytics extends Component
             ? \App\Models\Admin\Admin::whereHas('profile', fn($q) => $q->where('two_factor_is_active', true))->count()
             : 0;
 
+        $auditReport = [];
+        $reportPath = \App\Console\Commands\SystemSecurityAuditCommand::REPORT_STORAGE_PATH;
+        if (\Illuminate\Support\Facades\Storage::disk('local')->exists($reportPath)) {
+            $auditReport = json_decode(\Illuminate\Support\Facades\Storage::disk('local')->get($reportPath), true) ?: [];
+        }
+
         return [
             'categories' => $countByCat,
             'auto_bans_48h' => $autoBans48h,
             'active_blocked_ips' => $activeBlockedIps,
             'admin_total' => $adminTotal,
             'admin_2fa' => $admin2fa,
+            'audit_report' => $auditReport,
         ];
     }
 
@@ -1768,6 +1775,24 @@ class MasterAnalytics extends Component
     public function closeSecurityReportModal()
     {
         $this->showSecurityReportModal = false;
+    }
+
+    public function runSecurityAudit(AnalyticsService $service)
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        try {
+            \Illuminate\Support\Facades\Artisan::call('system:security-audit', [
+                '--no-alert' => true,
+            ]);
+            $this->healthChecks = $service->getHealthChecks();
+            $this->loadStats($service);
+            session()->flash('success', 'Automatische Paket- & Sicherheitsprüfung abgeschlossen.');
+        } catch (\Throwable $e) {
+            session()->flash('error', 'Fehler bei der Sicherheitsprüfung: ' . $e->getMessage());
+        }
     }
 
     public function flushFailedJobs()

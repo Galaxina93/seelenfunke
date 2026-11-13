@@ -535,7 +535,8 @@ class OrganizerViewModel : ViewModel() {
                 icsBuilder.append("END:VCALENDAR\n")
                 
                 val fileName = "seelenfunke_calendar_export.ics"
-                val cacheFile = java.io.File(context.cacheDir, fileName)
+                val exportDir = java.io.File(context.cacheDir, "calendar_exports").apply { mkdirs() }
+                val cacheFile = java.io.File(exportDir, fileName)
                 cacheFile.writeText(icsBuilder.toString(), Charsets.UTF_8)
                 
                 val authority = "de.meinseelenfunke.app.fileprovider"

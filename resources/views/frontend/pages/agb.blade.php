@@ -165,7 +165,6 @@
                                 (4) Ihnen stehen folgende Zahlungsarten zur Verfügung:
                             </p>
                             <ul class="list-disc list-inside ml-4 mt-2 mb-2">
-                                <li>Vorkasse (Banküberweisung / SEPA-Überweisung)</li>
                                 <li>Kreditkarte (Visa, Mastercard, American Express)</li>
                                 <li>PayPal (abgewickelt über Stripe / PayPal (Europe) S.à r.l. et Cie, S.C.A.)</li>
                                 <li>Apple Pay / Google Pay</li>

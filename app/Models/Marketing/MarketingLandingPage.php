@@ -306,7 +306,7 @@ use HasUuids;
             return [
                 'title'      => "{$name} | {$companyName} Manufaktur",
                 'headline'   => 'Freude schenken mit Stil: Der Seelenfunken Wertgutschein',
-                'sales_copy' => $rawDesc ?: 'Verschenke besondere Momente mit unserem Seelenfunken Geschenkgutschein. Wähle flexibel deinen Wunschbetrag, füge eine persönliche Widmung hinzu und erhalte ihn wahlweise digital per E-Mail oder als lasergravierte goldene Metallkarte im edlen Umschlag.',
+                'sales_copy' => $rawDesc ?: 'Verschenke besondere Momente mit unserem Seelenfunken Geschenkgutschein. Wähle flexibel deinen Wunschbetrag, füge eine persönliche Widmung hinzu und erhalte ihn wahlweise digital per E-Mail oder als lasergravierte Aluminiumkarte im edlen Umschlag.',
                 'cta_text'   => 'Jetzt Gutschein gestalten',
             ];
         }
@@ -474,13 +474,13 @@ use HasUuids;
         $hasBackSide = !empty($settings['has_back_side']);
 
         if ($isVoucher) {
-            $heroBadge = 'Wertgutschein • Per E-Mail (PDF) oder goldene Metallkarte';
+            $heroBadge = 'Wertgutschein • Per E-Mail (PDF) oder Aluminiumkarte';
             $heroMiniBadges = [
                 ['icon' => 'gift', 'title' => '5 € bis 1.000 € wählbar', 'subtitle' => 'Dein Wunschbetrag in Euro'],
-                ['icon' => 'bolt', 'title' => 'PDF & Goldkarte', 'subtitle' => 'Zwei Versandarten'],
+                ['icon' => 'bolt', 'title' => 'PDF & Aluminiumkarte', 'subtitle' => 'Zwei Versandarten'],
                 ['icon' => 'heart', 'title' => 'Persönliche Widmung', 'subtitle' => 'Individueller Grußtext'],
             ];
-            $highlightsSubtitle = "Ob als kurzfristiges Geschenk per E-Mail oder als lasergravierte goldene Metallkarte im schwarzen Edel-Umschlag: Der Wertgutschein von {$companyName} lässt dem Beschenkten die freie Auswahl.";
+            $highlightsSubtitle = "Ob als kurzfristiges Geschenk per E-Mail oder als lasergravierte Aluminiumkarte im schwarzen Edel-Umschlag: Der Wertgutschein von {$companyName} lässt dem Beschenkten die freie Auswahl.";
             $highlights = [
                 [
                     'icon'  => 'sparkles',
@@ -490,7 +490,7 @@ use HasUuids;
                 [
                     'icon'  => 'mail',
                     'title' => 'Digital oder per Post',
-                    'text'  => 'Nach Zahlungseingang als druckfertiges PDF per E-Mail verfügbar oder optional als lasergravierte goldene Metallkarte im schwarzen Umschlag mit Siegel bestellbar.',
+                    'text'  => 'Nach Zahlungseingang als druckfertiges PDF per E-Mail verfügbar oder optional als lasergravierte Aluminiumkarte im schwarzen Umschlag mit Siegel bestellbar.',
                 ],
                 [
                     'icon'  => 'shield',
@@ -502,7 +502,7 @@ use HasUuids;
             $storyHeadline = 'Wenn der Beschenkte sein Unikat selbst gestalten möchte';
             $storyPoints = [
                 'Wählbarer Wunschbetrag von 5,00 € bis 1.000,00 € (in 5er-Schritten)',
-                'Als PDF zum Selbstausdrucken oder als lasergravierte goldene Metallkarte erhältlich',
+                'Als PDF zum Selbstausdrucken oder als lasergravierte Aluminiumkarte erhältlich',
                 'Restguthaben bleibt innerhalb der Gültigkeitsdauer erhalten',
                 'Gültig für 3 Jahre ab Ende des Kaufjahres (§ 195 BGB)',
             ];

@@ -465,7 +465,12 @@ namespace Funkenwerk
                 "- shopping_manage: {\"action\":\"add\",\"name\":\"...\",\"quantity\":\"1\"}\n" +
                 "- music_control: {\"action\":\"play\"|\"pause\"|\"next\"|\"prev\"|\"set_volume\"|\"focus_on\"|\"focus_off\",\"query\":\"...\",\"volume\":50}\n" +
                 "- smarthome_control: {\"action\":\"plug_on\"|\"plug_off\"|\"camera_focus\"|\"camera_ptz\"|\"camera_snapshot\",\"target\":\"...\",\"direction\":\"left\"|\"right\"|\"up\"|\"down\"}\n" +
-                "- collection_control: {\"action\":\"launch\",\"app\":\"pdf\"|\"tresor\"|\"ftp\"|\"ssh\"|\"player\"|\"video\"}\n" +
+                "- collection_control: {\"action\":\"launch\",\"app\":\"pdf\"|\"tresor\"|\"craft\"|\"ftp\"|\"ssh\"|\"player\"|\"video\"}\n" +
+                "- craft_workspace_status: {\"includeMedienCoverage\":true}\n" +
+                "- craft_project_manage: {\"action\":\"list\"|\"get\"|\"save\"|\"import_media\",\"projectName\":\"Projekt 1\"}\n" +
+                "- craft_soundpool_browser: {\"category\":\"all\"|\"Uebergaenge_Whoosh\"|\"Effekte_Akzente\"|\"Beats_und_Ambient\"}\n" +
+                "- craft_render_social_video: {\"projectName\":\"Projekt 1\",\"openInCraftUi\":true}\n" +
+                "- craft_storytold_engine: {\"action\":\"launch\"|\"export_fcproj\",\"engine\":\"artcraft\"|\"filmcraft\"|\"soundcraft\",\"projectName\":\"Projekt 1\"}\n" +
                 "- ssh_exec_safe_readonly: {\"profileName\":\"Mittwald\",\"preset\":\"disk_and_uptime\"|\"git_status\"|\"php_and_artisan\"}";
 
             // 3. Query Seelenfunke Portal AI (/api/ai/chat -> Funkira)
@@ -627,7 +632,8 @@ namespace Funkenwerk
                     }
                     else if (!string.IsNullOrWhiteSpace(tool))
                     {
-                        var (ok, payload, err) = await CallFunkenwerkMcpToolAsync(tool, args).ConfigureAwait(false);
+                        int mcpTimeout = tool == "craft_render_social_video" ? 180000 : 20000;
+                        var (ok, payload, err) = await CallFunkenwerkMcpToolAsync(tool, args, mcpTimeout).ConfigureAwait(false);
                         if (tool is "tasks_manage" or "calendar_create")
                         {
                             await _bridge.ExecuteSuiteCommandAsync("refresh_organizer").ConfigureAwait(false);
@@ -640,6 +646,7 @@ namespace Funkenwerk
                             "calendar_create" or "calendar_list" => "📅 Kalender",
                             "shopping_manage" => "🛒 Einkaufsliste",
                             "ssh_exec_safe_readonly" => "🖥 SSH Diagnose",
+                            var t when t.StartsWith("craft_", StringComparison.OrdinalIgnoreCase) => "🎬 Funkenwerk Craft",
                             _ => "✦ MCP"
                         };
 
@@ -819,12 +826,13 @@ namespace Funkenwerk
                     results.Add(await _bridge.ExecuteSmartHomeCommandAsync("camera_focus", camTarget).ConfigureAwait(false));
             }
 
-            // 10. Launch Funkenwerk Collection Apps (OS / Tresor / PDF / Drucker / FTP / SSH / Player / Video) or Mail Sync
-            if (results.Count == 0 && Regex.IsMatch(q, @"\b(öffne|starte)\s+(?:funkenwerk\s+)?(os|leitstand|festung|tresor|pdf|drucker|scanner|ftp|ssh|player|video)\b"))
+            // 10. Launch Funkenwerk Collection Apps (OS / Tresor / Craft / PDF / Drucker / FTP / SSH / Player / Video) or Mail Sync
+            if (results.Count == 0 && Regex.IsMatch(q, @"\b(öffne|starte)\s+(?:funkenwerk\s+)?(os|leitstand|festung|tresor|craft|artcraft|filmcraft|soundcraft|pdf|drucker|scanner|ftp|ssh|player|video)\b"))
             {
                 string app = "pdf";
                 if (q.Contains("os") || q.Contains("leitstand") || q.Contains("festung")) app = "os";
                 else if (q.Contains("tresor")) app = "tresor";
+                else if (q.Contains("craft")) app = "craft";
                 else if (q.Contains("scanner")) app = "drucker|--scan";
                 else if (q.Contains("drucker")) app = "drucker";
                 else if (q.Contains("ftp")) app = "ftp";

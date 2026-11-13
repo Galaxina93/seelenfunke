@@ -134,35 +134,10 @@ fun LoginScreen(
     }
     var hasAutoPromptedBiometric by remember { mutableStateOf(false) }
 
-    // Pre-populate credentials & auto-prompt biometric if available
+    // Pre-populate saved email only (never prefill raw passwords before authentication!)
     LaunchedEffect(Unit) {
         if (viewModel.isRememberMeEnabled()) {
             email = viewModel.getSavedEmail()
-            val savedPass = viewModel.getSavedPassword()
-            if (savedPass.isNotBlank()) {
-                password = savedPass
-            }
-
-            if (!hasAutoPromptedBiometric
-                && activity != null
-                && viewModel.isBiometricEnabled()
-                && BiometricHelper.isBiometricAvailable(context)
-                && email.isNotBlank()
-                && savedPass.isNotBlank()
-            ) {
-                hasAutoPromptedBiometric = true
-                BiometricHelper.showBiometricPrompt(
-                    activity = activity,
-                    title = "Biometrische Anmeldung",
-                    subtitle = "Bestätige mit deinem Fingerabdruck",
-                    negativeButtonText = "Passwort nutzen",
-                    onSuccess = {
-                        viewModel.login(email, savedPass, rememberMe = true)
-                    },
-                    onError = { _, _ -> /* Stay on screen */ },
-                    onFailed = { /* Failed */ }
-                )
-            }
         }
     }
 
@@ -813,8 +788,9 @@ fun LoginScreen(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Button(
                                     onClick = {
-                                        viewModel.updateBaseUrl(inputUrl)
-                                        isEditingUrl = false
+                                        if (viewModel.updateBaseUrl(inputUrl)) {
+                                            isEditingUrl = false
+                                        }
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack)
                                 ) {

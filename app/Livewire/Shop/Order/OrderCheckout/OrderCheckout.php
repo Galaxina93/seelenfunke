@@ -230,13 +230,19 @@ class OrderCheckout extends Component
         // 2. Daten laden: Aus Angebot (Quote) falls vorhanden (auch ergänzend für eingeloggte B2B-Kunden)
         if (Session::has('checkout_from_quote_id')) {
             $quoteId = Session::get('checkout_from_quote_id');
-            $quote = OrderQuoteRequest::find($quoteId);
+            $quote = OrderQuoteRequest::with('items')->find($quoteId);
 
             if ($quote) {
                 $this->email = $this->email ?: $quote->email;
                 $this->first_name = $this->first_name ?: ($quote->first_name ?: ($quote->customer?->first_name ?? ''));
                 $this->last_name = $this->last_name ?: ($quote->last_name ?: ($quote->customer?->last_name ?? ''));
                 $this->company = $this->company ?: $quote->company;
+
+                $activeCountries = shop_setting('active_countries', ['DE' => 'Deutschland']);
+                $quoteCountry = $quote->country;
+                if (!empty($quoteCountry) && array_key_exists($quoteCountry, $activeCountries)) {
+                    $this->country = $quoteCountry;
+                }
             }
         }
 

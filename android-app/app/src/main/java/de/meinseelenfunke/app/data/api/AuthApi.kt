@@ -46,6 +46,15 @@ data class FcmTokenResponse(
     val message: String?
 )
 
+data class LogoutRequest(
+    val fcm_token: String? = null
+)
+
+data class LogoutResponse(
+    val status: String? = null,
+    val message: String? = null
+)
+
 interface AuthApi {
     @POST("login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
@@ -58,6 +67,9 @@ interface AuthApi {
 
     @POST("device/register")
     suspend fun updateFcmToken(@Body request: FcmTokenRequest): FcmTokenResponse
+
+    @POST("logout")
+    suspend fun logout(@Body request: LogoutRequest): LogoutResponse
 }
 
 

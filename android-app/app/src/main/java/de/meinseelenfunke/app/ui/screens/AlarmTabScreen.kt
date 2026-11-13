@@ -131,6 +131,8 @@ fun AlarmTabContent(
     val lastSync by FunkenwerkAlarmManager.lastSyncFlow.collectAsState()
     val isAlarmRinging by FunkenwerkAlarmManager.isAlarmRingingFlow.collectAsState()
     val ringingAlarmInfo by FunkenwerkAlarmManager.activeRingingAlarmInfoFlow.collectAsState()
+    val alarmDialogState by FunkenwerkAlarmManager.alarmDialogStateFlow.collectAsState()
+    val snoozedUntilTime by FunkenwerkAlarmManager.snoozedUntilTimeFlow.collectAsState()
 
     var isSyncing by remember { mutableStateOf(false) }
     var showSmartHomeSettingsModal by remember { mutableStateOf(false) }
@@ -239,47 +241,36 @@ fun AlarmTabContent(
             }
         }
 
-        // 1b. ACTIVE RINGING ALARM BANNER (Always visible when alarm / timer / briefing is playing)
+        // 1b. ACTIVE RINGING ALARM BANNER (Interactive Funkira Morning Dialog + Quick Actions)
         if (isAlarmRinging) {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 10.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(Rose500.copy(alpha = 0.18f))
+                    .background(Rose500.copy(alpha = 0.16f))
                     .border(1.5.dp, Rose500, RoundedCornerShape(16.dp))
                     .padding(horizontal = 14.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "🔔 ${ringingAlarmInfo?.second ?: "Wecker / Alarm aktiv"}",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AppTheme.colors.textPrimary
-                    )
-                    Text(
-                        text = if (ringingAlarmInfo != null) "${ringingAlarmInfo!!.third} Uhr" else "Ton läuft",
-                        fontSize = 11.5.sp,
-                        color = Rose500,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (ringingAlarmInfo != null) {
-                        Button(
-                            onClick = {
-                                val (aId, aLabel, aTime) = ringingAlarmInfo!!
-                                FunkenwerkAlarmManager.stopAlarmSound(context)
-                                FunkenwerkAlarmManager.scheduleSnoozeAlarm(context, aId, aLabel, aTime, 5)
-                                Toast.makeText(context, "💤 5 Min. Schlummern aktiviert", Toast.LENGTH_SHORT).show()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                        ) {
-                            Text("5 Min.", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                        }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "🔔 ${ringingAlarmInfo?.second ?: "Wecker / Alarm aktiv"}",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AppTheme.colors.textPrimary
+                        )
+                        Text(
+                            text = if (ringingAlarmInfo != null) "${ringingAlarmInfo!!.third} Uhr" else "Ton läuft",
+                            fontSize = 11.5.sp,
+                            color = Rose500,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                     Button(
                         onClick = {
@@ -289,9 +280,90 @@ fun AlarmTabContent(
                         colors = ButtonDefaults.buttonColors(containerColor = Rose500, contentColor = Color.White),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                     ) {
-                        Text("🛑 Ausschalten", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("🛑 Stopp", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                     }
                 }
+
+                if (!alarmDialogState.isNullOrBlank()) {
+                    Text(
+                        text = alarmDialogState!!,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Gold
+                    )
+                }
+
+                if (ringingAlarmInfo != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(
+                            onClick = {
+                                FunkenwerkAlarmManager.userRespondContinueRoutineNow(context)
+                            },
+                            modifier = Modifier.weight(1.2f),
+                            colors = ButtonDefaults.buttonColors(containerColor = Emerald500, contentColor = SpaceBlack),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Text("Nein · Routine", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        }
+                        listOf(10, 15, 30).forEach { mins ->
+                            Button(
+                                onClick = {
+                                    FunkenwerkAlarmManager.userRespondShiftAlarm(context, mins)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text("+$mins Min.", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            }
+                        }
+                        Button(
+                            onClick = {
+                                FunkenwerkAlarmManager.userRespondDisableAlarmToday(context)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.cardBackground, contentColor = AppTheme.colors.textPrimary),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Text("Heute aus", fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        }
+                    }
+                }
+            }
+        } else if (!snoozedUntilTime.isNullOrBlank()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Gold.copy(alpha = 0.14f))
+                    .border(1.dp, Gold.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "⏰ Verschoben auf $snoozedUntilTime Uhr · Routine angepasst",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AppTheme.colors.textPrimary,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "Aufheben",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Rose500,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            FunkenwerkAlarmManager.cancelSnoozeAlarm(context)
+                            Toast.makeText(context, "Schlummer-Verschiebung aufgehoben", Toast.LENGTH_SHORT).show()
+                        }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                )
             }
         }
 

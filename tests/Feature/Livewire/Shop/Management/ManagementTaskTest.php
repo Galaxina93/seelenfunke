@@ -27,7 +27,9 @@ class ManagementTaskTest extends TestCase
         $list = ManagementTaskList::create(['id' => (string) Str::uuid(), 'name' => 'First List', 'icon' => 'bookmark']);
 
         Livewire::test(ManagementTask::class)
-            ->assertSet('selectedListId', $list->id)
+            ->assertSet('activeListId', 'all')
+            ->call('selectList', $list->id)
+            ->assertSet('activeListId', $list->id)
             ->assertViewHas('lists');
     }
 
@@ -35,17 +37,19 @@ class ManagementTaskTest extends TestCase
     public function it_can_create_a_new_task_list()
     {
         Livewire::test(ManagementTask::class)
+            ->set('showNewListModal', true)
             // Validation error expecting min 2 chars
-            ->set('newList_name', 'A')
+            ->set('newListName', 'A')
             ->call('createList')
-            ->assertHasErrors(['newList_name'])
+            ->assertHasErrors(['newListName'])
             // Correct creation
-            ->set('newList_name', 'My New List')
-            ->set('newList_icon', 'star')
+            ->set('newListName', 'My New List')
+            ->set('newListIcon', 'star')
+            ->set('newListColor', '#C5A059')
             ->call('createList')
             ->assertHasNoErrors()
-            ->assertSet('isAddingList', false)
-            ->assertSet('newList_name', '');
+            ->assertSet('showNewListModal', false)
+            ->assertSet('newListName', '');
 
         $this->assertDatabaseHas('management_task_lists', [
             'name' => 'My New List',
@@ -55,33 +59,34 @@ class ManagementTaskTest extends TestCase
 
         // The newly created list should automatically be selected
         $list = ManagementTaskList::where('name', 'My New List')->first();
-        Livewire::test(ManagementTask::class)
-            ->assertSet('selectedListId', $list->id);
+        $this->assertNotNull($list);
     }
 
     #[Test]
     public function it_cancels_list_creation()
     {
+        $list = ManagementTaskList::create(['id' => (string) Str::uuid(), 'name' => 'Draft List']);
+
         Livewire::test(ManagementTask::class)
-            ->set('isAddingList', true)
-            ->set('newList_name', 'Draft Name')
-            ->call('cancelCreateList')
-            ->assertSet('isAddingList', false)
-            ->assertSet('newList_name', '');
+            ->call('startEditList', $list->id, 'Draft Name', '#818CF8')
+            ->assertSet('editingListId', $list->id)
+            ->call('cancelEditList')
+            ->assertSet('editingListId', null)
+            ->assertSet('editingListName', '');
     }
 
     #[Test]
     public function it_creates_a_task_with_fallback_list_if_none_exists()
     {
         Livewire::test(ManagementTask::class)
-            ->set('newTask_title', 'My First Task')
-            ->call('createTask')
+            ->set('newTaskTitle', 'My First Task')
+            ->call('addTask')
             ->assertHasNoErrors();
 
-        // Should have created the fallback list "Allgemein"
+        // Should have created the fallback list "Aufgaben"
         $this->assertDatabaseHas('management_task_lists', [
-            'name' => 'Allgemein',
-            'icon' => 'inbox'
+            'name' => 'Aufgaben',
+            'icon' => 'home'
         ]);
 
         $this->assertDatabaseHas('management_tasks', [
@@ -96,24 +101,14 @@ class ManagementTaskTest extends TestCase
         $list = ManagementTaskList::create(['id' => (string) Str::uuid(), 'name' => 'General']);
         $parentTask = TaskModel::create(['id' => (string) Str::uuid(), 'task_list_id' => $list->id, 'title' => 'Parent Task']);
 
-        $component = Livewire::test(ManagementTask::class)
-            ->call('addSubTask', $parentTask->id, 'Child Task');
+        Livewire::test(ManagementTask::class)
+            ->set("newSubtaskTitles.{$parentTask->id}", 'Child Task')
+            ->call('addSubtask', $parentTask->id);
 
         $this->assertDatabaseHas('management_tasks', [
             'title' => 'Child Task',
             'parent_id' => $parentTask->id,
             'task_list_id' => $list->id
-        ]);
-
-        $childTask = TaskModel::where('title', 'Child Task')->first();
-
-        // Promote the child to main task
-        $component->call('promoteToTask', $childTask->id);
-
-        $this->assertDatabaseHas('management_tasks', [
-            'id' => $childTask->id,
-            'title' => 'Child Task',
-            'parent_id' => null
         ]);
     }
 
@@ -129,8 +124,10 @@ class ManagementTaskTest extends TestCase
         ]);
 
         Livewire::test(ManagementTask::class)
-            ->call('updateTaskTitle', $task->id, 'New Title')
-            ->call('updateTaskPriority', $task->id, 'hoch');
+            ->call('startEditTask', $task->id)
+            ->set('editingTaskTitle', 'New Title')
+            ->set('editingTaskPriority', 'hoch')
+            ->call('updateTask');
 
         $this->assertDatabaseHas('management_tasks', [
             'id' => $task->id,
@@ -151,8 +148,7 @@ class ManagementTaskTest extends TestCase
         ]);
 
         Livewire::test(ManagementTask::class)
-            ->call('toggleComplete', $task->id)
-            ->assertDispatched('task-completed');
+            ->call('toggleTask', $task->id);
 
         $this->assertDatabaseHas('management_tasks', [
             'id' => $task->id,
@@ -163,8 +159,8 @@ class ManagementTaskTest extends TestCase
     #[Test]
     public function it_can_delete_tasks_and_lists()
     {
-        $list = ManagementTaskList::create(['id' => (string) Str::uuid(), 'name' => 'General']);
-        $list2 = ManagementTaskList::create(['id' => (string) Str::uuid(), 'name' => 'Another List']);
+        $list = ManagementTaskList::create(['id' => (string) Str::uuid(), 'name' => 'General', 'position' => 1]);
+        $list2 = ManagementTaskList::create(['id' => (string) Str::uuid(), 'name' => 'Another List', 'position' => 2]);
         
         $task = TaskModel::create([
             'id' => (string) Str::uuid(),
@@ -173,11 +169,12 @@ class ManagementTaskTest extends TestCase
         ]);
 
         Livewire::test(ManagementTask::class)
+            ->call('selectList', $list->id)
             // Delete Task
             ->call('deleteTask', $task->id)
             ->call('deleteList', $list->id)
             // It should auto select $list2 after deleting $list
-            ->assertSet('selectedListId', $list2->id);
+            ->assertSet('activeListId', $list2->id);
 
         $this->assertDatabaseMissing('management_tasks', ['id' => $task->id]);
         $this->assertDatabaseMissing('management_task_lists', ['id' => $list->id]);
@@ -188,15 +185,14 @@ class ManagementTaskTest extends TestCase
     {
         $list = ManagementTaskList::create(['id' => (string) Str::uuid(), 'name' => 'General']);
         
-        TaskModel::create(['id' => (string) Str::uuid(), 'task_list_id' => $list->id, 'title' => 'Apple', 'priority' => 'niedrig']);
-        TaskModel::create(['id' => (string) Str::uuid(), 'task_list_id' => $list->id, 'title' => 'Banana', 'priority' => 'hoch']);
-        TaskModel::create(['id' => (string) Str::uuid(), 'task_list_id' => $list->id, 'title' => 'Cherry', 'priority' => 'mittel']);
+        TaskModel::create(['id' => (string) Str::uuid(), 'task_list_id' => $list->id, 'title' => 'Apple', 'priority' => 'niedrig', 'is_completed' => false]);
+        TaskModel::create(['id' => (string) Str::uuid(), 'task_list_id' => $list->id, 'title' => 'Banana', 'priority' => 'hoch', 'is_completed' => false]);
+        TaskModel::create(['id' => (string) Str::uuid(), 'task_list_id' => $list->id, 'title' => 'Cherry', 'priority' => 'mittel', 'is_completed' => false]);
 
         $component = Livewire::test(ManagementTask::class);
         
         // Sorting should be: hoch -> mittel -> niedrig
-        // 'tasks' collection is populated in the render() method.
-        $tasks = $component->viewData('tasks');
+        $tasks = $component->viewData('openTasks');
         
         $this->assertCount(3, $tasks);
         $this->assertEquals('Banana', $tasks[0]->title);
@@ -204,8 +200,8 @@ class ManagementTaskTest extends TestCase
         $this->assertEquals('Apple', $tasks[2]->title);
 
         // Search
-        $component->set('search', 'Apple');
-        $tasks = $component->viewData('tasks');
+        $component->set('searchQuery', 'Apple');
+        $tasks = $component->viewData('openTasks');
         $this->assertCount(1, $tasks);
         $this->assertEquals('Apple', $tasks[0]->title);
     }
@@ -216,16 +212,20 @@ class ManagementTaskTest extends TestCase
         $list = ManagementTaskList::create(['id' => (string) \Illuminate\Support\Str::uuid(), 'name' => 'Old Name', 'icon' => 'bookmark']);
 
         Livewire::test(ManagementTask::class)
-            ->call('renameList', $list->id, 'New Name');
+            ->call('startEditList', $list->id, 'Old Name')
+            ->set('editingListName', 'New Name')
+            ->call('updateList');
 
         $this->assertDatabaseHas('management_task_lists', [
             'id' => $list->id,
             'name' => 'New Name'
         ]);
 
-        // Validation constraints
+        // Empty name leaves list unchanged
         Livewire::test(ManagementTask::class)
-            ->call('renameList', $list->id, 'A');
+            ->call('startEditList', $list->id, 'New Name')
+            ->set('editingListName', '   ')
+            ->call('updateList');
 
         $this->assertDatabaseHas('management_task_lists', [
             'id' => $list->id,

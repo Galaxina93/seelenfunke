@@ -73,7 +73,7 @@
                         @elseif($subMeta['optional'])
                             <span class="px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-900 text-gray-500 dark:text-gray-400 text-[9px] font-bold shrink-0">Opt.</span>
                         @else
-                            <span class="px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 text-[9px] font-bold shrink-0">Offen</span>
+                            <span class="px-1.5 py-0.5 rounded-md bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 border border-red-200/70 dark:border-red-500/30 text-[9px] font-bold shrink-0">Offen</span>
                         @endif
                     </button>
                 @endforeach

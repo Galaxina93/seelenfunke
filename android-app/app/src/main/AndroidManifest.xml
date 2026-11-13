@@ -76,7 +76,6 @@
             android:label="Funkenwerk Kalender">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_REFRESH" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -89,12 +88,6 @@
             android:label="Funkenwerk Monatskalender">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_PREV_MONTH" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_NEXT_MONTH" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_RESET_MONTH" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_SELECT_DAY" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_SHOW_MONTH" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_MONTH_REFRESH" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -112,10 +105,6 @@
             android:label="Funkenwerk Einkaufsliste">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_SHOPPING_ITEM_CLICK" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_SHOPPING_REFRESH" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_SHOPPING_TOGGLE" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_SHOPPING_DELETE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -133,26 +122,6 @@
             android:label="Funkenwerk Aufgaben">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_ITEM_CLICK" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_REFRESH" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_SELECT_LIST" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_BACK" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_TOGGLE" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_CYCLE_PRIORITY" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_CYCLE_DATE" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_EDIT" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_EXIT_EDIT_MODE" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_SET_PRIORITY" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_CLEAR_DATE" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_ADD_SUBTASK" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_CANCEL_ADD_SUBTASK" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_SAVE_ADD_SUBTASK" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_DELETE_LIST" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_DELETE_TASK" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_ADD_LIST_CLICK" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_ADD_TASK_CLICK" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_RENAME_LIST" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_NONE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -170,12 +139,6 @@
             android:label="Funkenwerk Musik">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_MUSIC_PLAY_PAUSE" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_MUSIC_NEXT" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_MUSIC_PREV" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_MUSIC_SHUFFLE" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_MUSIC_REFRESH" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_MUSIC_SEEK_NEAR_END" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -188,15 +151,6 @@
             android:label="Funkenwerk Master-Hub">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_MASTER_SWITCH_TAB" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_MASTER_SELECT_LIST" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_MASTER_BACK_LISTS" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_MASTER_REFRESH" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_MASTER_PLAY_TRACK" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_MUSIC_PLAY_PAUSE" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_MUSIC_NEXT" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_MUSIC_PREV" />
-                <action android:name="de.meinseelenfunke.app.widget.ACTION_MUSIC_SHUFFLE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -214,6 +168,30 @@
             android:exported="false"
             android:taskAffinity=""
             android:excludeFromRecents="true" />
+
+        <activity
+            android:name=".widget.TrichterShareActivity"
+            android:label="In Trichter senden"
+            android:theme="@style/Theme.TransparentDialog"
+            android:exported="true"
+            android:taskAffinity=""
+            android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
 
         <activity
             android:name=".widget.AddShoppingItemActivity"

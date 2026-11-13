@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Funkenwerk OS</title>
+  <link rel="stylesheet" href="/styles.css?v=20261113v4" />
+</head>
+<body>
+
+  <!-- =====================================================================
+       SEAMLESS ATELIER BACKGROUND VIDEO ("MEIN SEELENFUNKE")
+       ===================================================================== -->
+  <div id="atelier-video-wrap">
+    <video id="atelier-bg-video" src="/atelier_seamless_loop.mp4" muted loop playsinline preload="auto"></video>
+    <div id="atelier-bg-vignette"></div>
+  </div>
+
+  <!-- =====================================================================
+       WORKSPACE 1: MONITOR GEWERBEBEREICH (60-FPS GPU SPRITES)
+       ===================================================================== -->
+  <section id="gewerbe-workspace">
+    <div id="gewerbe-Workspace-emerald-bg"></div>
+    <canvas id="portal-canvas"></canvas>
+
+    <div class="gewerbe-topbar">
+      <div class="topbar-group">
+        <button class="pill-btn" id="btn-to-desktop" title="Zum Funkenwerk Desktop wechseln">⊞ Desktop</button>
+        <button class="pill-btn" id="btn-open-browser-quick" title="Funkenwerk Browser öffnen">🌐 Browser</button>
+      </div>
+      <div class="topbar-group">
+        <button class="pill-btn" id="btn-test-chime">🔔 Test</button>
+        <button class="pill-btn" id="btn-night-sleep">☾ Nachtruhe (08:00)</button>
+        <button class="pill-btn" id="btn-gewerbe-bt">ᛒ Bluetooth</button>
+        <button class="pill-btn" id="btn-gewerbe-wifi">📶 WLAN</button>
+        <button class="pill-btn" id="btn-gewerbe-sound">🔊 <span id="gewerbe-vol-label">65%</span></button>
+        <button class="pill-btn gold-primary" id="btn-portal-login">🔗 Verbinden</button>
+      </div>
+    </div>
+
+    <div class="gewerbe-header">
+      <div class="gewerbe-overline">MANUFAKTUR GIFHORN</div>
+      <h1 class="gewerbe-brand-title">MEIN SEELENFUNKE</h1>
+    </div>
+
+    <div class="gewerbe-center-overlay">
+      <div class="orb-star">✦</div>
+      <div class="orb-count" id="orb-orders-count">0</div>
+      <div class="orb-label">BESTELLUNGEN</div>
+    </div>
+
+    <div class="gewerbe-routine-banner" id="gewerbe-routine-banner"></div>
+
+    <div class="gewerbe-bottom-metrics">
+      <div class="metrics-row">
+        <div class="metric-pill">
+          <span>🛒 Offene Warenkörbe:</span>
+          <span class="gold-val" id="metric-open-carts">0</span>
+        </div>
+        <div class="metric-pill hidden" id="pill-top-customers">
+          <span>👑 Top-Kunden:</span>
+          <span class="gold-val" id="metric-top-customers"></span>
+        </div>
+        <div class="metric-pill">
+          <span class="status-dot offline" id="pulse-status-dot"></span>
+          <span id="pulse-status-text">Bereit</span>
+        </div>
+      </div>
+
+      <div class="gewerbe-footer-bar">
+        <div id="footer-left-info">
+          <span id="gewerbe-clock">00:00</span> · <span id="gewerbe-fps">60 FPS</span>
+        </div>
+        <div class="footer-right-actions">
+          <div class="metric-pill hidden" id="workshop-timer-pill">
+            <span>⏱ <span id="workshop-timer-label">Timer</span>:</span>
+            <span class="gold-val" id="workshop-timer-val">00:00</span>
+          </div>
+          <button class="pill-btn funkira-btn" id="btn-open-funkira" title="Funkira einschalten (Taste K)">✦ Funkira</button>
+          <button class="pill-btn" id="btn-toggle-focus" title="Fokus-Modus (Taste F)">◎ Fokus</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =====================================================================
+       WORKSPACE 2: FUNKENWERK OS DESKTOP
+       ===================================================================== -->
+  <section id="desktop-workspace" class="hidden">
+    <canvas id="desktop-sparks-canvas"></canvas>
+
+    <div class="desktop-icons-grid" id="desktop-icons"></div>
+    <div id="windows-layer"></div>
+
+    <footer class="os-taskbar">
+      <div class="taskbar-left">
+        <button class="start-btn" id="btn-start-menu">✦ FUNKENWERK</button>
+        <button class="task-app-btn" id="btn-back-gewerbe">💎 Gewerbe-Monitor</button>
+        <button class="task-app-btn funkira-task-btn" id="btn-taskbar-funkira">✦ Funkira</button>
+      </div>
+      <div class="taskbar-center" id="taskbar-windows"></div>
+      <div class="taskbar-right">
+        <button class="tray-btn" id="tray-wifi-btn">📶 <span id="tray-wifi-lbl">WLAN</span></button>
+        <button class="tray-btn" id="tray-bt-btn">ᛒ <span id="tray-bt-lbl">Bluetooth</span></button>
+        <button class="tray-btn" id="tray-vol-btn">🔊 <span id="tray-vol-lbl">65%</span></button>
+        <button class="tray-btn" id="tray-clock-btn"><span id="tray-clock-lbl">00:00</span></button>
+      </div>
+    </footer>
+  </section>
+
+  <!-- =====================================================================
+       FUNKIRA LIVE 3D ATELIER STAGE (60-FPS THREE.JS + C920 + WAKE-WORD)
+       ===================================================================== -->
+  <section id="funkira-stage" class="hidden">
+    <canvas id="funkira-3d-canvas"></canvas>
+
+    <div class="funkira-topbar">
+      <div class="topbar-group">
+        <div class="metric-pill funkira-state-pill">
+          <span class="status-dot" id="funkira-state-dot"></span>
+          <span id="funkira-state-label">Funkira · 3D-Atelier</span>
+        </div>
+        <button class="pill-btn" id="btn-funkira-face" title="Lokale Offline-Gesichtserkennung (Chefin vs. Besucher)">👑 Gesicht einrichten</button>
+        <div class="metric-pill hidden" id="funkira-tool-pill">
+          <span class="gold-val" id="funkira-tool-text">⚙ Werkzeug aktiv</span>
+        </div>
+        <div class="metric-pill hidden" id="funkira-timer-mirror">
+          <span>⏱ <span id="funkira-timer-mirror-lbl">Timer</span>:</span>
+          <span class="gold-val" id="funkira-timer-mirror-val">00:00</span>
+        </div>
+      </div>
+
+      <div class="topbar-group">
+        <button class="pill-btn" id="btn-funkira-tiktok" title="Datenschutzkonformer TikTok-Live-Modus (Zero-PII Sandbox)">🎥 TikTok Live</button>
+        <button class="pill-btn" id="btn-funkira-wake-sleep" title="0-Token Werkel-Modus im 3D-Atelier umschalten">🧹 Werkeln lassen</button>
+        <button class="pill-btn" id="btn-funkira-snap" title="1080p Foto mit Logitech C920 aufnehmen">📷 Foto</button>
+        <button class="pill-btn" id="btn-funkira-cam-toggle" title="Kamera-Sicht umschalten">👁 Auge aktiv</button>
+        <button class="pill-btn" id="btn-funkira-mic-toggle" title="Mikrofon umschalten">🎙 Ohr aktiv</button>
+        <button class="pill-btn gold-primary" id="btn-funkira-close" title="Zurück zur Bestellansicht (Esc)">💎 Bestellungen</button>
+      </div>
+    </div>
+
+    <div class="tiktok-live-badge hidden" id="tiktok-live-badge">
+      <span>✦ KI-Charakter Funkira · Mein-Seelenfunke Manufaktur</span>
+      <span class="tiktok-rose-counter">🌹 <span id="tiktok-roses-count">0</span></span>
+    </div>
+
+    <div class="funkira-center-stage">
+      <div class="funkira-avatar-wrap hidden">
+        <canvas id="funkira-avatar-canvas" width="1240" height="1040"></canvas>
+      </div>
+
+      <div class="funkira-dialogue-wrap">
+        <div class="funkira-transcript-box" id="funkira-transcript-box">
+          <div class="funkira-user-line hidden" id="funkira-user-line"></div>
+          <div class="funkira-ai-line" id="funkira-ai-line">Hallo Alina! Ich bin hier in meinem 3D-Atelier bereit.</div>
+        </div>
+
+        <div class="funkira-input-row">
+          <input type="text" id="funkira-text-input" class="fw-input" placeholder="Einfach losreden (jederzeit unterbrechbar) oder Nachricht tippen..." />
+          <button class="pill-btn gold-primary" id="btn-funkira-send">Senden</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Logitech C920 Live Eye Preview + Person Tracking Reticle -->
+    <div class="funkira-eye-pip" id="funkira-eye-pip" title="Klicken zum Vergrößern / Verkleinern">
+      <video id="funkira-cam-video" autoplay playsinline muted></video>
+      <div class="funkira-eye-target hidden" id="funkira-eye-target"></div>
+      <div class="funkira-eye-badge">
+        <span class="eye-live-dot" id="funkira-eye-dot"></span>
+        <span id="funkira-eye-label">Logitech C920</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- FULL-SCREEN MAGIC LIGHT DISSOLVE OVERLAY -->
+  <canvas id="funkira-magic-canvas" class="hidden"></canvas>
+
+  <!-- START MENU -->
+  <div id="start-menu-popover" class="start-menu hidden">
+    <input type="text" id="start-search-input" class="fw-input" placeholder="Programm suchen..." />
+    <div id="start-apps-list" style="display:flex;flex-direction:column;gap:5px;max-height:300px;overflow-y:auto;"></div>
+    <div style="display:flex;gap:8px;padding-top:6px;border-top:1px solid rgba(197,160,89,0.2);">
+      <button class="pill-btn" style="flex:1;justify-content:center;" id="btn-os-reboot">↻ Neustart</button>
+      <button class="pill-btn" style="flex:1;justify-content:center;" id="btn-os-shutdown">⏻ Ausschalten</button>
+    </div>
+  </div>
+
+  <!-- TRAY POPOVER (WLAN / BLUETOOTH / AUDIO) -->
+  <div id="tray-popover" class="tray-popover hidden"></div>
+
+  <!-- PORTAL LOGIN MODAL -->
+  <div id="modal-overlay" class="hidden">
+    <div class="modal-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <strong style="color:var(--gold-bright);font-size:15px;">Mein-Seelenfunke verbinden</strong>
+        <button class="win-ctrl-btn close" id="btn-close-modal">✕</button>
+      </div>
+      <select id="login-env" class="fw-input">
+        <option value="live">LIVE (mein-seelenfunke.de)</option>
+        <option value="stage">STAGE (stage.mein-seelenfunke.de)</option>
+      </select>
+      <input type="email" id="login-email" class="fw-input" placeholder="E-Mail-Adresse" value="kontakt@mein-seelenfunke.de" />
+      <div class="pw-wrap">
+        <input type="password" id="login-password" class="fw-input" placeholder="Passwort" />
+        <button type="button" class="pw-eye-btn" data-toggle-pw="login-password">👁</button>
+      </div>
+      <input type="text" id="login-2fa" class="fw-input hidden" placeholder="2FA-Code" />
+      <div id="login-status-msg" class="badge-muted"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="pill-btn" id="btn-logout-token">Trennen</button>
+        <button class="pill-btn gold-primary" id="btn-submit-login">Anmelden</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIGHTBOX SLIDER (Rule 3.1: In-Window Image & PDF Lightbox) -->
+  <div id="lightbox-overlay" class="hidden">
+    <div class="lightbox-content">
+      <img id="lightbox-img" src="" alt="Vorschau" />
+      <iframe id="lightbox-pdf" class="hidden" title="Dokumentenvorschau" style="width:min(1120px,92vw);height:80vh;border:1px solid rgba(197,160,89,0.45);border-radius:12px;background:#ffffff;"></iframe>
+      <div style="display:flex;gap:12px;align-items:center;">
+        <button class="pill-btn" id="lb-prev">‹ Zurück</button>
+        <span id="lb-caption" style="font-size:13px;color:var(--gold-bright);"></span>
+        <button class="pill-btn" id="lb-next">Weiter ›</button>
+        <button class="pill-btn" id="lb-close">✕ Schließen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FACE GUARD MODAL (100% OFFLINE AES-256-GCM VECTOR) -->
+  <div id="face-modal-overlay" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <strong style="color:var(--gold-bright);font-size:15px;">👑 Chefin-Gesichtsschutz (Offline)</strong>
+        <button class="win-ctrl-btn close" id="btn-close-face-modal">✕</button>
+      </div>
+      <div id="face-modal-status" class="badge-muted">Status wird geprüft...</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+        <button class="pill-btn" id="btn-face-clear">Zurücksetzen</button>
+        <button class="pill-btn gold-primary" id="btn-face-enroll">👑 Jetzt Gesicht einlernen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TIKTOK LIVE SANDBOX MODAL (ZERO-PII + 3D ROSEN-VASE) -->
+  <div id="tiktok-modal-overlay" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <strong style="color:var(--gold-bright);font-size:15px;">🎥 TikTok Live Modus (DSGVO-Sandbox)</strong>
+        <button class="win-ctrl-btn close" id="btn-close-tiktok-modal">✕</button>
+      </div>
+      <input type="text" id="tiktok-handle-input" class="fw-input" placeholder="TikTok-Kanal (z.B. @meinseelenfunke)" />
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="text" id="tiktok-test-sender" class="fw-input" placeholder="Test-Vorname (z.B. Sarah)" value="Sarah" style="flex:1;" />
+        <button class="pill-btn" id="btn-tiktok-test-rose">🌹 Rose testen</button>
+      </div>
+      <div id="tiktok-modal-status" class="badge-muted">Kundendaten, Bestellungen & Kamera-PiP werden im Live-Modus komplett gesperrt.</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="pill-btn" id="btn-tiktok-disable">Beenden</button>
+        <button class="pill-btn gold-primary" id="btn-tiktok-enable">🎥 Live-Sandbox aktivieren</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/funkira3d.js?v=20261113v4"></script>
+  <script src="/app.js?v=20261113v4"></script>
+</body>
+</html>

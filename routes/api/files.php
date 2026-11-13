@@ -263,15 +263,29 @@ Route::post('/funki/files/upload', function (Request $request) use ($sanitizeWor
         return response()->json(['success' => false, 'message' => 'Keine Datei zum Hochladen empfangen.'], 422);
     }
 
+    $blockedExtensions = [
+        'php', 'phtml', 'phar', 'php3', 'php4', 'php5', 'php7', 'php8',
+        'sh', 'bash', 'cgi', 'pl', 'py', 'exe', 'bat', 'cmd', 'ps1', 'htaccess', 'jsp', 'asp', 'aspx',
+    ];
+    $maxUploadBytes = 50 * 1024 * 1024; // 50 MB
+
     $saved = [];
     foreach ($uploadedFiles as $file) {
         if (!$file || !$file->isValid()) {
             continue;
         }
+        if ((int) $file->getSize() > $maxUploadBytes) {
+            return response()->json(['success' => false, 'message' => 'Datei überschreitet das Limit von 50 MB.'], 422);
+        }
         $filename = basename($file->getClientOriginalName());
         $filename = preg_replace('/[^\w\-. äöüÄÖÜß()]/u', '_', $filename);
+        $filename = ltrim((string) $filename, '.');
         if (!$filename || $filename === '.' || $filename === '..') {
             continue;
+        }
+        $extCheck = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        if (in_array($extCheck, $blockedExtensions, true) || preg_match('/\.(php\d*|phtml|phar)\./i', $filename)) {
+            return response()->json(['success' => false, 'message' => 'Dieser Dateityp ist aus Sicherheitsgründen nicht erlaubt.'], 422);
         }
 
         $storedPath = $file->storeAs($targetPath, $filename, 'workspace');
@@ -354,6 +368,12 @@ Route::post('/funki/files/rename', function (Request $request) use ($sanitizeWor
         $newExt = pathinfo($cleanNewName, PATHINFO_EXTENSION);
         if ($oldExt && !$newExt) {
             $cleanNewName .= '.' . $oldExt;
+        }
+        if (
+            str_starts_with($cleanNewName, '.')
+            || preg_match('/\.(php[0-9]?|phtml|phar|sh|bash|exe|bat|cmd|ps1|cgi|pl|py|asp|aspx|jsp|shtml|env|htaccess)(\.|$)/i', $cleanNewName)
+        ) {
+            return response()->json(['success' => false, 'message' => 'Dieser Dateityp ist aus Sicherheitsgründen nicht erlaubt.'], 422);
         }
     }
 
@@ -596,10 +616,48 @@ Route::get('/funki/files/download', function (Request $request) use ($sanitizeWo
 
     $fullPath = $disk->path($safePath);
     $mime = @mime_content_type($fullPath) ?: 'application/octet-stream';
-    $filename = basename($safePath);
+    $safeInlineMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'text/plain'];
+    $disposition = in_array($mime, $safeInlineMimes, true) ? 'inline' : 'attachment';
+    $filename = preg_replace('/[^A-Za-z0-9._-]/', '_', basename($safePath));
 
     return response()->file($fullPath, [
         'Content-Type' => $mime,
-        'Content-Disposition' => 'inline; filename="' . addslashes($filename) . '"',
+        'Content-Disposition' => $disposition . '; filename="' . $filename . '"',
+        'X-Content-Type-Options' => 'nosniff',
     ]);
+});
+
+// 11. Verschlüsselte Trichter-Schleuse zum Werkstatt-Mini-PC (00_Eingang_Trichter, Zero-Port-Forwarding)
+Route::post('/funki/minipc-trichter/enqueue', function (Request $request) {
+    $request->validate([
+        'file' => 'required|file|max:25600',
+        'custom_title' => 'nullable|string|max:120',
+        'source' => 'nullable|string|max:32',
+    ]);
+
+    try {
+        $meta = \App\Services\System\MiniPcTrichterRelayService::enqueueUploadedFile(
+            $request->file('file'),
+            $request->input('custom_title'),
+            (string) $request->input('source', 'android')
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Dokument verschlüsselt an den Eingang-Trichter des Werkstatt-Mini-PCs übergeben.',
+            'relay_id' => $meta['id'],
+            'file_name' => $meta['file_name'],
+            'pending_count' => \App\Services\System\MiniPcTrichterRelayService::countPending(),
+        ]);
+    } catch (\InvalidArgumentException $e) {
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage(),
+        ], 422);
+    } catch (\Throwable $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Trichter-Übergabe fehlgeschlagen: ' . $e->getMessage(),
+        ], 500);
+    }
 });

@@ -243,7 +243,7 @@
                 </div>
 
                 <div>
-                    <h2 class="text-2xl font-bold text-gray-900 mb-4">6. Zahlungsabwicklung über Stripe, PayPal & Vorkasse</h2>
+                    <h2 class="text-2xl font-bold text-gray-900 mb-4">6. Zahlungsabwicklung über Stripe &amp; PayPal</h2>
 
                     <p>
                         Für die Abwicklung von Online-Zahlungen auf dieser Website nutzen wir den Zahlungsdienstleister
@@ -256,7 +256,7 @@
                         Wenn Sie eine Zahlung über Stripe durchführen (z.&nbsp;B. per Kreditkarte, PayPal, Apple Pay, Google Pay, Klarna oder SEPA-Lastschrift),
                         werden die zur Zahlungsabwicklung erforderlichen Daten direkt über eine verschlüsselte Verbindung an Stripe übermittelt.
                         Wir selbst erhalten keinen Zugriff auf Ihre vollständigen Zahlungsdaten
-                        (z.&nbsp;B. vollständige Kreditkartennummern). Bei Wahl der Zahlungsart Vorkasse (Überweisung) verarbeiten wir Ihre Überweisungsdaten zur Zuordnung des Zahlungseingangs auf unserem Geschäftskonto.
+                        (z.&nbsp;B. vollständige Kreditkartennummern).
                     </p>
 
                     <h3 class="font-bold text-lg mt-6">Zahlung per PayPal</h3>

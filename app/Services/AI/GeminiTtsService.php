@@ -38,7 +38,7 @@ class GeminiTtsService
             'gemini-2.5-flash-preview-tts',
         ];
 
-        $promptText = "Lies folgenden Text freundlich und natürlich vor: " . $text;
+        $promptText = "Lies ausschließlich den folgenden Text Wort für Wort freundlich und natürlich vor, ohne eigene Sätze oder Ortsangaben zu ergänzen: " . $text;
 
         $data = [
             "contents" => [

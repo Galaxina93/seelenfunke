@@ -891,7 +891,7 @@ class ProductConfigurator extends Component
         $width = imagesx($image);
         $height = imagesy($image);
 
-        $maxDim = 800;
+        $maxDim = 1200;
         if ($width > $maxDim || $height > $maxDim) {
             $ratio = min($maxDim / $width, $maxDim / $height);
             $newW = max(1, (int)($width * $ratio));
@@ -966,6 +966,20 @@ class ProductConfigurator extends Component
             }
         }
 
+        if ($isPositivePhotoOnDark) {
+            // Für echte Porträt-/Halbtonfotos auf Glas & dunklen Oberflächen:
+            // Sanfte Mikrokontrast-/Kantenschärfung (Haare, Augen, Konturen) + Schutz vor überstrahlten
+            // Gesichtsflächen (Stirn/Wangen/Hände), damit sie im Negativ nicht als schwarze Blöcke zulaufen.
+            if (function_exists('imageconvolution')) {
+                $sharpenMatrix = [
+                    [ 0.0, -0.6,  0.0],
+                    [-0.6,  3.4, -0.6],
+                    [ 0.0, -0.6,  0.0],
+                ];
+                @imageconvolution($image, $sharpenMatrix, 1.0, 0.0);
+            }
+        }
+
         for ($x = 0; $x < $width; $x++) {
             for ($y = 0; $y < $height; $y++) {
                 $color = imagecolorat($image, $x, $y);
@@ -982,10 +996,12 @@ class ProductConfigurator extends Component
                 $luminance = ($r * 0.299) + ($g * 0.587) + ($b * 0.114);
 
                 if ($isPositivePhotoOnDark) {
-                    // Positiv-Mapping für dunkle Eloxal-/Schiefer-Oberflächen:
-                    // Helle Bildstellen -> hohe Deckkraft (werden in Vorschau & Laser silber-weiß),
-                    // dunkle Bildstellen -> transparent (schwarzer Untergrund bleibt sichtbar).
-                    $targetAlpha = 124 - (int) round(($luminance / 255.0) * 114);
+                    // Positiv-Mapping für Glas & dunkle Eloxal-/Schiefer-Oberflächen:
+                    // Helle Hautpartien sanft abrollen (Gamma 0.85, Mindest-Alpha 18 statt 10),
+                    // damit Stirn, Wangen und Hände feine Binnenzeichnung behalten.
+                    $normLum = max(0.0, min(1.0, $luminance / 255.0));
+                    $curvedLum = pow($normLum, 0.85);
+                    $targetAlpha = 123 - (int) round($curvedLum * 105);
                 } else {
                     $engravingIntensity = 255 - $luminance;
                     $targetAlpha = 127 - ($engravingIntensity / 2);
@@ -1422,12 +1438,22 @@ class ProductConfigurator extends Component
                     if (is_array($t) && isset($t['text'])) {
                         $t['text'] = $this->sanitizeLaserText($t['text']);
                     }
+                    if (is_array($t)) {
+                        $t['curve'] = isset($t['curve']) && is_numeric($t['curve'])
+                            ? max(-100, min(100, (int) round((float) $t['curve'])))
+                            : 0;
+                    }
                     return $t;
                 }, $this->texts ?? []), fn($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== ''));
 
                 $cleanTextsBack = array_values(array_filter(array_map(function ($t) {
                     if (is_array($t) && isset($t['text'])) {
                         $t['text'] = $this->sanitizeLaserText($t['text']);
+                    }
+                    if (is_array($t)) {
+                        $t['curve'] = isset($t['curve']) && is_numeric($t['curve'])
+                            ? max(-100, min(100, (int) round((float) $t['curve'])))
+                            : 0;
                     }
                     return $t;
                 }, $this->texts_back ?? []), fn($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== ''));

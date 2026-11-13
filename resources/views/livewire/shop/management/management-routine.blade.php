@@ -81,9 +81,14 @@
                 <div>
                     <div class="flex items-center gap-2 flex-wrap">
                         <span class="text-xs sm:text-sm font-bold text-gray-900 dark:text-white">Wecker-Taktung</span>
-                        <span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-800 font-mono">
+                        <span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-800 font-mono" title="Geplanter Wecker in der Funkenwerk Android-App">
                             ⏰ {{ $alarmSyncStats['active_alarm_time'] }} Uhr ({{ $alarmSyncStats['active_alarm_label'] }})
                         </span>
+                        @if(!empty($alarmSyncStats['selected_date_has_log']) || ($alarmSyncStats['selected_date_wake_time'] ?? '') !== ($alarmSyncStats['active_alarm_time'] ?? ''))
+                            <span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-800 font-mono" title="Tatsächliche oder verschobene Aufstehzeit für den gewählten Tag">
+                                🌅 Aufstehen: {{ $alarmSyncStats['selected_date_wake_time'] }} Uhr{{ !empty($alarmSyncStats['selected_date_snooze_minutes']) ? ' (+' . $alarmSyncStats['selected_date_snooze_minutes'] . ' Min.)' : '' }}
+                            </span>
+                        @endif
                         <span class="px-2 py-0.5 rounded-md text-[11px] font-bold {{ $useAlarmShift && $alarmSyncStats['selected_date_shift_minutes'] !== 0 ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-800' : 'bg-gray-100 dark:bg-gray-950 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-800' }} border">
                             {{ $useAlarmShift ? $alarmSyncStats['selected_date_shift_label'] : 'Statisch (' . $alarmSyncStats['earliest_routine_base'] . ' Uhr)' }}
                         </span>

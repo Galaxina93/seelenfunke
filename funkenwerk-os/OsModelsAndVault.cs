@@ -170,6 +170,7 @@ namespace FunkenwerkOS
         public string StatusSummary { get; set; } = "Nicht verbunden";
         public long LatencyMs { get; set; }
         public int OpenOrdersCount { get; set; }
+        public int OpenCartsCount { get; set; }
         public int TotalOrdersCount { get; set; }
         public int LatestOrderId { get; set; }
         public string LatestOrderKey { get; set; } = "";
@@ -182,6 +183,7 @@ namespace FunkenwerkOS
         public List<OsOrderItemDto> ActiveOrders { get; set; } = new();
         public List<int> AllPageOrderIds { get; set; } = new();
         public List<string> AllPageOrderKeys { get; set; } = new();
+        public List<string> TopCustomersGdpr { get; set; } = new();
         public List<OsTaskItemDto> OpenTasks { get; set; } = new();
     }
 

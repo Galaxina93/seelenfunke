@@ -1,4 +1,6 @@
-<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="min-h-screen bg-gray-50 flex flex-col items-center pt-28 pb-16 px-4 sm:px-6 lg:px-8">
+<div x-data
+     @scroll-top.window="window.scrollTo({ top: 0, behavior: 'smooth' })"
+     style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="min-h-screen bg-gray-50 flex flex-col items-center pt-28 pb-16 px-4 sm:px-6 lg:px-8">
 
     <div class="w-full max-w-4xl">
 
@@ -238,9 +240,7 @@
                                     $taxRate = (float)shop_setting('default_tax_rate', 19.0);
 
                                     $hasExpress = $quote->is_express;
-                                    $formatted = $quote->toFormattedArray();
-                                    $expressStr = $formatted['express_price'] ?? '0,00';
-                                    $expressCost = (int)round((float)str_replace(['.', ','], ['', '.'], $expressStr) * 100);
+                                    $expressCost = (int) ($quote->express_price ?? 0);
                                     $shippingCost = $quote->shipping_cost_calculated ?? ($quote->shipping_price ?? 0);
 
                                     // Berechnungen für die Anzeige (Alles Brutto Basis wie in der Mail)

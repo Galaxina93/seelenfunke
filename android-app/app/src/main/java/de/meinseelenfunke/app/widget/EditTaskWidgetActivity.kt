@@ -91,6 +91,7 @@ class EditTaskWidgetActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!de.meinseelenfunke.app.util.SecurityIntentHelper.guardWidgetDialogActivity(this)) return
 
         val taskId = intent.getStringExtra("task_id")
         if (taskId.isNullOrBlank()) {
@@ -162,9 +163,22 @@ class EditTaskWidgetActivity : ComponentActivity() {
                 val mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
                 val fileName = getFileName(context, uri) ?: "upload.bin"
                 try {
-                    val inputStream = contentResolver.openInputStream(uri)
-                    val fileBytes = inputStream?.readBytes()
-                    inputStream?.close()
+                    val maxUploadBytes = 25 * 1024 * 1024
+                    val fileBytes = contentResolver.openInputStream(uri)?.use { stream ->
+                        val out = java.io.ByteArrayOutputStream()
+                        val buf = ByteArray(8192)
+                        var total = 0
+                        while (true) {
+                            val read = stream.read(buf)
+                            if (read == -1) break
+                            total += read
+                            if (total > maxUploadBytes) {
+                                throw IllegalArgumentException("Datei ist größer als 25 MB.")
+                            }
+                            out.write(buf, 0, read)
+                        }
+                        out.toByteArray()
+                    }
                     if (fileBytes != null) {
                         coroutineScope.launch {
                             isUploading = true
@@ -179,8 +193,10 @@ class EditTaskWidgetActivity : ComponentActivity() {
                             isUploading = false
                         }
                     }
+                } catch (e: IllegalArgumentException) {
+                    Toast.makeText(context, e.message ?: "Datei zu groß.", Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    Toast.makeText(context, "Datei konnte nicht gelesen werden.", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -631,15 +647,11 @@ class EditTaskWidgetActivity : ComponentActivity() {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.weight(1f).clickable {
-                                            val token = ServiceLocator.getAuthToken() ?: ""
-                                            val baseUrl = ServiceLocator.getBaseUrl()
-                                            val url = "${baseUrl}funki/financials/receipt?path=${Uri.encode(path)}&token=${Uri.encode(token)}"
-                                            try {
-                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                                context.startActivity(intent)
-                                            } catch (e: Exception) {
-                                                e.printStackTrace()
-                                            }
+                                            de.meinseelenfunke.app.util.SecureFileOpener.openAuthenticatedApiFile(
+                                                context = context,
+                                                relativeApiEndpoint = "funki/financials/receipt?path=${Uri.encode(path)}",
+                                                fallbackFileName = fileName.ifBlank { "aufgabe_datei.pdf" }
+                                            )
                                         }
                                     ) {
                                         Icon(

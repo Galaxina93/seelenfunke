@@ -112,9 +112,13 @@ namespace FunkenwerkOS
                     bool hasPs1 = File.Exists(Path.Combine(tempDir, "Funkenwerk_Fortress_Installer.ps1"));
                     bool hasSetup = File.Exists(Path.Combine(tempDir, "2_START_FUNKENWERK_OS_AUF_MINIPC.cmd"));
                     bool hasRestore = File.Exists(Path.Combine(tempDir, "3_NOTFALL_WINDOWS_ZURUECKSETZEN.cmd"));
+                    bool hasBtFix = File.Exists(Path.Combine(tempDir, "4_BLUETOOTH_AUDIO_FIX_MINIPC.cmd"));
                     string ps1Text = File.ReadAllText(Path.Combine(tempDir, "Funkenwerk_Fortress_Installer.ps1"));
-                    bool hasFirewallWhitelist = ps1Text.Contains("FunkenwerkFortress_AllowCore_LAN") && ps1Text.Contains("DefaultOutboundAction Allow");
-                    return hasPs1 && hasSetup && hasRestore && hasFirewallWhitelist;
+                    bool hasFirewallWhitelist = ps1Text.Contains("FunkenwerkFortress_AllowCore_") &&
+                                                ps1Text.Contains("DefaultInboundAction Block -DefaultOutboundAction Block") &&
+                                                ps1Text.Contains("BluetoothAacEnable") &&
+                                                ps1Text.Contains("PreferBand");
+                    return hasPs1 && hasSetup && hasRestore && hasBtFix && hasFirewallWhitelist;
                 }
                 finally
                 {

@@ -87,6 +87,7 @@ class SmartAlarmReceiver : BroadcastReceiver() {
 
             ACTION_ALARM_DISMISS -> {
                 FunkenwerkAlarmManager.stopAlarmSound(context)
+                FunkenwerkAlarmManager.cancelSnoozeAlarm(context, alarmId)
                 notificationManager.cancel(alarmId.hashCode())
                 val actualWakeTime = SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date())
                 FunkenwerkAlarmManager.recordWakeUpLog(
@@ -99,16 +100,11 @@ class SmartAlarmReceiver : BroadcastReceiver() {
             }
 
             ACTION_ALARM_SNOOZE -> {
+                val snoozeMins = intent.getIntExtra("snooze_minutes", 5).coerceIn(1, 360)
                 FunkenwerkAlarmManager.stopAlarmSound(context)
                 notificationManager.cancel(alarmId.hashCode())
-                val actualWakeTime = SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date())
-                FunkenwerkAlarmManager.recordWakeUpLog(
-                    context = context,
-                    scheduledTime = scheduledTime,
-                    actualWakeTime = actualWakeTime,
-                    snoozeMinutes = 5
-                )
-                FunkenwerkAlarmManager.scheduleSnoozeAlarm(context, alarmId, alarmLabel, scheduledTime, 5)
+                FunkenwerkAlarmManager.scheduleSnoozeAlarm(context, alarmId, alarmLabel, scheduledTime, snoozeMins)
+                pushPackageToBackendAsync(context)
                 return
             }
 
@@ -177,6 +173,7 @@ class SmartAlarmReceiver : BroadcastReceiver() {
                     putExtra("open_tab", 2)
                     putExtra("open_subtab", 6)
                     putExtra("alarm_inner_tab", 0)
+                    de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(context, this)
                 }
                 val openPending = PendingIntent.getActivity(
                     context,
@@ -249,10 +246,10 @@ class SmartAlarmReceiver : BroadcastReceiver() {
         FunkenwerkAlarmManager.pushAlarmPackageToAllEndpointsAsync(context)
         scope.launch {
             try {
-                ServiceLocator.init(context.applicationContext)
+                ServiceLocator.ensureInitialized(context.applicationContext)
                 ServiceLocator.organizerRepository.syncAlarmPackageToPortal(context.applicationContext)
             } catch (e: Exception) {
-                Log.e(TAG, "Background alarm sync failed", e)
+                Log.e(TAG, "Background alarm sync failed")
             }
         }
     }

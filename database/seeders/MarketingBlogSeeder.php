@@ -88,7 +88,7 @@ class MarketingBlogSeeder extends Seeder
                     <ul>
                         <li><strong>Manufaktur-Kollektion:</strong> Reines optisches <a href="/produkt/seelen-kristall">K9-Kristallglas</a>, spiegelpolierter und 14 Karat vergoldeter Edelstahl wie beim <a href="/produkt/goldenes-seelen-herz">Goldenen Seelen-Herz</a> oder <a href="/produkt/seelen-talisman">Seelen-Talisman</a> sowie eloxiertes Aluminium.</li>
                         <li><strong>Atelier Echtgold &amp; Silber:</strong> Gestempeltes <a href="/produkt/echtgold-seelen-herz">585er und 333er Echtgold sowie 925er Sterlingsilber</a>, das wir auf Bestellung berührungslos mit unserem 5W UV-Präzisionslaser veredeln.</li>
-                        <li><strong>Seelenfunken Wertgutscheine:</strong> Wahlweise sofort digital per PDF oder als lasergravierte Metallkarte im schwarzen Edel-Umschlag mit goldenem Wachssiegel.</li>
+                        <li><strong>Seelenfunken Wertgutscheine:</strong> Wahlweise sofort digital per PDF oder als lasergravierte Aluminiumkarte im schwarzen Edel-Umschlag mit goldenem Wachssiegel.</li>
                     </ul>
 
                     <h3>Handwerk mit Herz in Gifhorn</h3>

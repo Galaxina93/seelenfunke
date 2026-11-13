@@ -136,20 +136,18 @@
                     <span class="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-600"></span> Produktbilder (Mind. 1) *
                 </h3>
 
-                @if($is_personalizable)
-                    <div class="flex items-center gap-3">
-                        <a href="#saison-hauptbilder-section" class="text-xs font-bold hover:underline {{ $autoSeasonalEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-700 dark:text-gray-300' }}" title="Zu den Saison- & Feiertags-Hauptbildern springen">
-                            Automatisches Saison- &amp; Feiertags-Hauptbild &darr;
-                        </a>
-                        <button type="button"
-                                wire:click="toggleAutoSeasonalMainImage"
-                                role="switch"
-                                aria-checked="{{ $autoSeasonalEnabled ? 'true' : 'false' }}"
-                                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {{ $autoSeasonalEnabled ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-700' }}">
-                            <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $autoSeasonalEnabled ? 'translate-x-5' : 'translate-x-0' }}"></span>
-                        </button>
-                    </div>
-                @endif
+                <div class="flex items-center gap-3">
+                    <a href="#saison-hauptbilder-section" class="text-xs font-bold hover:underline {{ $autoSeasonalEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-700 dark:text-gray-300' }}" title="Zu den Saison- & Feiertags-Hauptbildern springen">
+                        Automatisches Saison- &amp; Feiertags-Hauptbild &darr;
+                    </a>
+                    <button type="button"
+                            wire:click="toggleAutoSeasonalMainImage"
+                            role="switch"
+                            aria-checked="{{ $autoSeasonalEnabled ? 'true' : 'false' }}"
+                            class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {{ $autoSeasonalEnabled ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-700' }}">
+                        <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $autoSeasonalEnabled ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                    </button>
+                </div>
             </div>
 
             @php
@@ -567,141 +565,341 @@
                 @enderror
             </div>
 
-            {{-- SAISON- & FEIERTAGS-HAUPTBILDER (ZENTRAL UNTERHALB VON DIGITALE DOKUMENTE) --}}
-            @if($is_personalizable)
-                @php
-                    $seasonalOverview = $product->getSeasonalMainImagesOverview();
-                    $activeSeasonalSlot = collect($seasonalOverview)->firstWhere('is_active_today', true);
-                @endphp
-                <div id="saison-hauptbilder-section" class="mt-8 border-t border-gray-200 dark:border-gray-800 pt-6">
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-                        <div class="flex flex-wrap items-center gap-2.5">
-                            <h3 class="text-[9px] font-black uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                                <span class="w-1.5 h-1.5 rounded-full {{ $autoSeasonalEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400 dark:bg-gray-600' }}"></span>
-                                <span>Automatisches Saison- &amp; Feiertags-Hauptbild</span>
-                            </h3>
-                            <span class="relative group/seasoninfo inline-flex items-center">
-                                <span class="w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 flex items-center justify-center text-[9px] font-black cursor-help">!</span>
-                                <span class="pointer-events-none opacity-0 group-hover/seasoninfo:opacity-100 transition-opacity absolute left-0 bottom-full mb-2 w-80 p-3 rounded-xl bg-gray-900 text-white text-[10px] font-medium normal-case tracking-normal leading-relaxed shadow-xl z-30">
-                                    Wenn der automatische Modus aktiv ist, zeigt der Shop passend zur aktuellen Jahreszeit bzw. zum aktiven Feiertagsfenster automatisch das hier hinterlegte Anlass-Bild als erstes Hauptbild an. Bestehende Vorlagenbilder werden automatisch synchronisiert.
-                                </span>
+            {{-- SAISON- & FEIERTAGS-HAUPTBILDER (AUFGETEILT IN 4 JAHRESZEITEN & 8 FEIERTAGE) --}}
+            @php
+                $seasonalOverview = $product->getSeasonalMainImagesOverview();
+                $seasonalSetStatus = $product->getSeasonalImageSetStatus();
+                $seasonSlots = collect($seasonalOverview)->filter(fn($s) => ($s['group'] ?? 'holiday') === 'season')->all();
+                $holidaySlots = collect($seasonalOverview)->filter(fn($s) => ($s['group'] ?? 'holiday') === 'holiday')->all();
+                $activeSeasonalSlot = collect($seasonalOverview)->firstWhere('is_active_today', true);
+            @endphp
+            <div id="saison-hauptbilder-section"
+                 x-data="{ lightboxUrl: null, lightboxLabel: '' }"
+                 @keydown.escape.window="lightboxUrl = null"
+                 class="mt-8 border-t border-gray-200 dark:border-gray-800 pt-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <div class="flex flex-wrap items-center gap-2.5">
+                        <h3 class="text-[9px] font-black uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full {{ $autoSeasonalEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400 dark:bg-gray-600' }}"></span>
+                            <span>Automatisches Saison- &amp; Feiertags-Hauptbild</span>
+                        </h3>
+                        <span class="relative group/seasoninfo inline-flex items-center">
+                            <span class="w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 flex items-center justify-center text-[9px] font-black cursor-help">!</span>
+                            <span class="pointer-events-none opacity-0 group-hover/seasoninfo:opacity-100 transition-opacity absolute left-0 bottom-full mb-2 w-80 p-3 rounded-xl bg-gray-900 text-white text-[10px] font-medium normal-case tracking-normal leading-relaxed shadow-xl z-30">
+                                Wenn der automatische Modus aktiv ist, zeigt der Shop passend zur aktuellen Jahreszeit (Winter, Sommer, Herbst, Frühling) bzw. zum aktiven Feiertagsfenster automatisch das hier hinterlegte Einzelbild als erstes Hauptbild an. Sobald alle 12 Kacheln gepflegt sind (oder der Switch ausgeschaltet ist), springt die Anzeige in der Produktübersicht von ! auf ✓.
                             </span>
-                            @if($autoSeasonalEnabled && $activeSeasonalSlot)
-                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider">
-                                    <span>Heute aktiv: {{ $activeSeasonalSlot['label'] }}</span>
-                                </span>
-                            @endif
-                        </div>
+                        </span>
 
-                        <div class="flex items-center gap-3 self-start sm:self-auto">
-                            <span class="text-xs font-bold {{ $autoSeasonalEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-600 dark:text-gray-400' }}">
-                                {{ $autoSeasonalEnabled ? 'Automatischer Modus aktiv' : 'Automatischer Modus aus' }}
+                        {{-- Vollständigkeits-Badge (12/12 oder Fehlanzeige) --}}
+                        @if($seasonalSetStatus['is_complete'])
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider"
+                                  title="{{ $seasonalSetStatus['tooltip'] }}">
+                                <span>✓ {{ $autoSeasonalEnabled ? $seasonalSetStatus['filled_count'] . '/' . $seasonalSetStatus['total_count'] . ' Komplett' : 'Automatik aus (✓)' }}</span>
                             </span>
-                            <button type="button"
-                                    wire:click="toggleAutoSeasonalMainImage"
-                                    role="switch"
-                                    aria-checked="{{ $autoSeasonalEnabled ? 'true' : 'false' }}"
-                                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {{ $autoSeasonalEnabled ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-700' }}">
-                                <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $autoSeasonalEnabled ? 'translate-x-5' : 'translate-x-0' }}"></span>
-                            </button>
-                        </div>
+                        @else
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-50 dark:bg-red-500/15 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 text-[9px] font-black uppercase tracking-wider"
+                                  title="{{ $seasonalSetStatus['tooltip'] }}">
+                                <span>! {{ $seasonalSetStatus['filled_count'] }}/{{ $seasonalSetStatus['total_count'] }} gepflegt ({{ $seasonalSetStatus['total_count'] - $seasonalSetStatus['filled_count'] }} fehlen)</span>
+                            </span>
+                        @endif
+
+                        @if($autoSeasonalEnabled && $activeSeasonalSlot)
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider">
+                                <span>Heute aktiv: {{ $activeSeasonalSlot['label'] }}</span>
+                            </span>
+                        @endif
                     </div>
 
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-5 {{ !$autoSeasonalEnabled ? 'opacity-65' : '' }} transition-opacity">
-                        @foreach($seasonalOverview as $holidayKey => $slot)
-                            @php
-                                $hasSlotImage = !empty($slot['url']);
-                                $isSlotActiveToday = $autoSeasonalEnabled && !empty($slot['is_active_today']);
-                                $isSlotAi = filter_var($slot['is_ai_generated'] ?? true, FILTER_VALIDATE_BOOLEAN);
-                                $slotBorder = $isSlotActiveToday
-                                    ? 'border-emerald-500 dark:shadow-[0_0_15px_rgba(16,185,129,0.28)]'
-                                    : ($hasSlotImage ? 'border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)]' : 'border-dashed border-gray-300 dark:border-gray-800 hover:border-[var(--theme-color)]');
-                            @endphp
-                            <div wire:key="seasonal-slot-{{ $holidayKey }}"
-                                 x-data="{ isUploadingSeason: false }"
-                                 x-on:livewire-upload-start="isUploadingSeason = true"
-                                 x-on:livewire-upload-finish="isUploadingSeason = false"
-                                 x-on:livewire-upload-error="isUploadingSeason = false"
-                                 class="flex flex-col rounded-[1.5rem] overflow-hidden border-2 {{ $slotBorder }} bg-gray-50 dark:bg-gray-950 transition-all">
+                    <div class="flex items-center gap-3 self-start sm:self-auto">
+                        <span class="text-xs font-bold {{ $autoSeasonalEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-600 dark:text-gray-400' }}">
+                            {{ $autoSeasonalEnabled ? 'Automatischer Modus aktiv' : 'Automatischer Modus aus' }}
+                        </span>
+                        <button type="button"
+                                wire:click="toggleAutoSeasonalMainImage"
+                                role="switch"
+                                aria-checked="{{ $autoSeasonalEnabled ? 'true' : 'false' }}"
+                                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {{ $autoSeasonalEnabled ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-700' }}">
+                            <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $autoSeasonalEnabled ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                        </button>
+                    </div>
+                </div>
 
-                                <div class="relative aspect-square overflow-hidden group">
-                                    @if($hasSlotImage)
-                                        <img src="{{ $slot['url'] }}"
-                                             alt="{{ $product->name }} – {{ $slot['label'] }}"
-                                             @if($isSlotAi) data-is-ai-generated="true" @endif
-                                             class="w-full h-full object-cover opacity-95 group-hover:opacity-100 transition-opacity">
-                                    @else
-                                        <div class="w-full h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-600 p-4 text-center">
-                                            <svg class="w-8 h-8 mb-2 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-                                            <span class="text-[9px] font-black uppercase tracking-widest">{{ $slot['label'] }}</span>
-                                            <span class="text-[8px] text-gray-400 mt-0.5">Bild hochladen</span>
-                                        </div>
-                                    @endif
+                <div class="space-y-7 {{ !$autoSeasonalEnabled ? 'opacity-65' : '' }} transition-opacity">
+                    {{-- 1. DIE 4 JAHRESZEITEN (WINTER, SOMMER, HERBST, FRÜHLING) --}}
+                    <div class="p-4 sm:p-5 rounded-3xl bg-gray-50/70 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800">
+                        <div class="flex items-center justify-between gap-2 mb-4">
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] font-black uppercase tracking-widest text-gray-800 dark:text-gray-200">
+                                    1. Jahreszeiten (Winter · Sommer · Herbst · Frühling)
+                                </span>
+                            </div>
+                            <span class="px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider {{ $seasonalSetStatus['seasons_filled'] === $seasonalSetStatus['seasons_total'] ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30' : 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30' }}">
+                                {{ $seasonalSetStatus['seasons_filled'] }}/{{ $seasonalSetStatus['seasons_total'] }} gepflegt
+                            </span>
+                        </div>
 
-                                    {{-- Anlass-Badge oben links --}}
-                                    <div class="absolute top-2.5 left-2.5 z-10 flex flex-wrap items-center gap-1 pointer-events-none">
-                                        <span class="bg-gray-900/85 backdrop-blur-sm text-white text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-white/15">
-                                            {{ $slot['label'] }}
-                                        </span>
-                                        @if($isSlotActiveToday)
-                                            <span class="bg-emerald-500 text-white text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md shadow-xs">
-                                                Aktiv
-                                            </span>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-5">
+                            @foreach($seasonSlots as $holidayKey => $slot)
+                                @php
+                                    $hasSlotImage = !empty($slot['url']);
+                                    $isSlotActiveToday = $autoSeasonalEnabled && !empty($slot['is_active_today']);
+                                    $isSlotAi = filter_var($slot['is_ai_generated'] ?? true, FILTER_VALIDATE_BOOLEAN);
+                                    $slotBorder = $isSlotActiveToday
+                                        ? 'border-emerald-500 dark:shadow-[0_0_15px_rgba(16,185,129,0.28)]'
+                                        : ($hasSlotImage ? 'border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)]' : 'border-dashed border-gray-300 dark:border-gray-800 hover:border-[var(--theme-color)]');
+                                @endphp
+                                <div wire:key="seasonal-slot-season-{{ $holidayKey }}"
+                                     x-data="{ isUploadingSeason: false }"
+                                     x-on:livewire-upload-start="isUploadingSeason = true"
+                                     x-on:livewire-upload-finish="isUploadingSeason = false"
+                                     x-on:livewire-upload-error="isUploadingSeason = false"
+                                     class="flex flex-col rounded-[1.5rem] overflow-hidden border-2 {{ $slotBorder }} bg-white dark:bg-gray-900 transition-all">
+
+                                    <div class="relative aspect-square overflow-hidden group">
+                                        @if($hasSlotImage)
+                                            <img src="{{ $slot['url'] }}"
+                                                 alt="{{ $product->name }} ({{ $slot['label'] }})"
+                                                 @if($isSlotAi) data-is-ai-generated="true" @endif
+                                                 class="w-full h-full object-cover opacity-95 group-hover:opacity-100 transition-opacity">
+                                        @else
+                                            <label class="w-full h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-600 p-4 text-center cursor-pointer hover:text-[var(--theme-color)] transition-colors">
+                                                <input type="file"
+                                                       wire:model.live="seasonal_media_uploads.{{ $holidayKey }}"
+                                                       accept="image/*"
+                                                       class="hidden">
+                                                <span class="text-xl mb-1.5">{{ $slot['icon'] }}</span>
+                                                <span class="text-[10px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-300">{{ $slot['label'] }}</span>
+                                                <span class="text-[9px] text-gray-400 mt-1 underline">Einzelbild wählen</span>
+                                            </label>
                                         @endif
-                                    </div>
 
-                                    {{-- Hover-Aktionen: Bild tauschen / hochladen & ggf. Zurücksetzen --}}
-                                    <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 z-20">
-                                        <label class="bg-white/95 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white px-3 py-2 rounded-xl hover:bg-[var(--theme-color)] hover:border-[var(--theme-color)] hover:text-white dark:hover:text-gray-900 shadow-lg transition-all hover:scale-105 cursor-pointer flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider"
-                                               title="Saison-Hauptbild für {{ $slot['label'] }} auswählen oder ersetzen">
-                                            <input type="file"
-                                                   wire:model.live="seasonal_media_uploads.{{ $holidayKey }}"
-                                                   accept="image/*"
-                                                   class="hidden">
-                                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-                                            <span>{{ $hasSlotImage ? 'Tauschen' : 'Hochladen' }}</span>
-                                        </label>
+                                        {{-- Jahreszeiten-Badge oben links --}}
+                                        <div class="absolute top-2.5 left-2.5 z-10 flex flex-wrap items-center gap-1 pointer-events-none">
+                                            <span class="bg-gray-900/85 backdrop-blur-sm text-white text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-white/15">
+                                                {{ $slot['icon'] }} {{ $slot['label'] }}
+                                            </span>
+                                            @if($isSlotActiveToday)
+                                                <span class="bg-emerald-500 text-white text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md shadow-xs">
+                                                    Aktiv
+                                                </span>
+                                            @endif
+                                        </div>
 
-                                        @if(($slot['source'] ?? null) === 'custom')
+                                        {{-- Status-Ampel oben rechts auf der Kachel --}}
+                                        <div class="absolute top-2.5 right-2.5 z-10 pointer-events-none">
+                                            @if($hasSlotImage)
+                                                <span class="w-5 h-5 rounded-full bg-emerald-500 text-white text-[10px] font-black flex items-center justify-center shadow-sm">✓</span>
+                                            @elseif($autoSeasonalEnabled)
+                                                <span class="w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center shadow-sm">!</span>
+                                            @endif
+                                        </div>
+
+                                        {{-- Hover-Aktionen: Bild tauschen / Lightbox / Entfernen --}}
+                                        @if($hasSlotImage)
+                                            <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 z-20 p-2">
+                                                <button type="button"
+                                                        @click="lightboxUrl = @js($slot['url']); lightboxLabel = @js($slot['label'])"
+                                                        class="bg-white/95 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white p-2 rounded-xl hover:bg-[var(--theme-color)] hover:border-[var(--theme-color)] hover:text-white dark:hover:text-gray-900 shadow-lg transition-all cursor-pointer"
+                                                        title="Großansicht (Lightbox)">
+                                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                                </button>
+
+                                                <label class="bg-white/95 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white px-2.5 py-2 rounded-xl hover:bg-[var(--theme-color)] hover:border-[var(--theme-color)] hover:text-white dark:hover:text-gray-900 shadow-lg transition-all cursor-pointer flex items-center gap-1 text-[9px] font-black uppercase tracking-wider"
+                                                       title="Saison-Hauptbild für {{ $slot['label'] }} tauschen">
+                                                    <input type="file"
+                                                           wire:model.live="seasonal_media_uploads.{{ $holidayKey }}"
+                                                           accept="image/*"
+                                                           class="hidden">
+                                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                                                    <span>Tauschen</span>
+                                                </label>
+
+                                                <button type="button"
+                                                        wire:click="removeSeasonalMainImage('{{ $holidayKey }}')"
+                                                        class="bg-white/90 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-red-500 p-2 rounded-xl hover:bg-red-500 hover:border-red-500 hover:text-white shadow-lg transition-all cursor-pointer"
+                                                        title="Saisonbild für {{ $slot['label'] }} entfernen">
+                                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                                </button>
+                                            </div>
+                                        @endif
+
+                                        {{-- Lade-Overlay --}}
+                                        <div x-show="isUploadingSeason" x-cloak class="absolute inset-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm flex flex-col items-center justify-center z-30">
+                                            <svg class="animate-spin h-5 w-5 text-[var(--theme-color)] mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                            <span class="text-[8px] font-black uppercase tracking-widest text-[var(--theme-color)]">Speichert...</span>
+                                        </div>
+
+                                        @if($hasSlotImage)
                                             <button type="button"
-                                                    wire:click="removeSeasonalMainImage('{{ $holidayKey }}')"
-                                                    class="bg-white/90 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-red-500 p-2 rounded-xl hover:bg-red-500 hover:border-red-500 hover:text-white shadow-lg transition-all cursor-pointer"
-                                                    title="Auf Standard-Vorlagenbild zurücksetzen">
-                                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                                    wire:click="toggleSeasonalImageAiGenerated('{{ $holidayKey }}')"
+                                                    class="absolute bottom-2.5 right-2.5 z-20 px-2 py-1 rounded-md backdrop-blur-sm text-[8px] font-semibold tracking-wider flex items-center gap-1 border transition-all {{ $isSlotAi ? 'bg-black/70 text-white border-white/25 shadow-sm' : 'bg-black/40 text-white/60 border-white/10 hover:bg-black/70 hover:text-white' }}"
+                                                    title="Klicken, um 'KI-generiert' Hinweis für {{ $slot['label'] }} ein-/auszuschalten">
+                                                <span class="w-3 h-3 rounded-sm flex items-center justify-center border {{ $isSlotAi ? 'bg-emerald-500 border-emerald-400 text-white' : 'border-white/40' }}">
+                                                    @if($isSlotAi)
+                                                        <svg class="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                                    @endif
+                                                </span>
+                                                <span>KI-generiert</span>
                                             </button>
                                         @endif
                                     </div>
 
-                                    {{-- Lade-Overlay --}}
-                                    <div x-show="isUploadingSeason" x-cloak class="absolute inset-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm flex flex-col items-center justify-center z-30">
-                                        <svg class="animate-spin h-5 w-5 text-[var(--theme-color)] mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                        <span class="text-[8px] font-black uppercase tracking-widest text-[var(--theme-color)]">Speichert...</span>
+                                    <div class="px-3 py-2 bg-gray-50 dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between gap-2 text-[10px]">
+                                        <span class="font-bold text-gray-800 dark:text-gray-200 truncate">{{ $slot['label'] }}</span>
+                                        <span class="text-[9px] text-gray-400 dark:text-gray-500 shrink-0">{{ $slot['hint'] }}</span>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    {{-- 2. DIE 8 FEIERTAGE & BESONDEREN ANLÄSSE --}}
+                    <div class="p-4 sm:p-5 rounded-3xl bg-gray-50/70 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800">
+                        <div class="flex items-center justify-between gap-2 mb-4">
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] font-black uppercase tracking-widest text-gray-800 dark:text-gray-200">
+                                    2. Feiertage &amp; Anlässe (Weihnachten · Ostern · Valentinstag · Muttertag · Vatertag · Halloween · Hochzeit · Geburtstag)
+                                </span>
+                            </div>
+                            <span class="px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider {{ $seasonalSetStatus['holidays_filled'] === $seasonalSetStatus['holidays_total'] ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30' : 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30' }}">
+                                {{ $seasonalSetStatus['holidays_filled'] }}/{{ $seasonalSetStatus['holidays_total'] }} gepflegt
+                            </span>
+                        </div>
+
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-5">
+                            @foreach($holidaySlots as $holidayKey => $slot)
+                                @php
+                                    $hasSlotImage = !empty($slot['url']);
+                                    $isSlotActiveToday = $autoSeasonalEnabled && !empty($slot['is_active_today']);
+                                    $isSlotAi = filter_var($slot['is_ai_generated'] ?? true, FILTER_VALIDATE_BOOLEAN);
+                                    $slotBorder = $isSlotActiveToday
+                                        ? 'border-emerald-500 dark:shadow-[0_0_15px_rgba(16,185,129,0.28)]'
+                                        : ($hasSlotImage ? 'border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)]' : 'border-dashed border-gray-300 dark:border-gray-800 hover:border-[var(--theme-color)]');
+                                @endphp
+                                <div wire:key="seasonal-slot-holiday-{{ $holidayKey }}"
+                                     x-data="{ isUploadingSeason: false }"
+                                     x-on:livewire-upload-start="isUploadingSeason = true"
+                                     x-on:livewire-upload-finish="isUploadingSeason = false"
+                                     x-on:livewire-upload-error="isUploadingSeason = false"
+                                     class="flex flex-col rounded-[1.5rem] overflow-hidden border-2 {{ $slotBorder }} bg-white dark:bg-gray-900 transition-all">
+
+                                    <div class="relative aspect-square overflow-hidden group">
+                                        @if($hasSlotImage)
+                                            <img src="{{ $slot['url'] }}"
+                                                 alt="{{ $product->name }} ({{ $slot['label'] }})"
+                                                 @if($isSlotAi) data-is-ai-generated="true" @endif
+                                                 class="w-full h-full object-cover opacity-95 group-hover:opacity-100 transition-opacity">
+                                        @else
+                                            <label class="w-full h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-600 p-4 text-center cursor-pointer hover:text-[var(--theme-color)] transition-colors">
+                                                <input type="file"
+                                                       wire:model.live="seasonal_media_uploads.{{ $holidayKey }}"
+                                                       accept="image/*"
+                                                       class="hidden">
+                                                <span class="text-xl mb-1.5">{{ $slot['icon'] }}</span>
+                                                <span class="text-[10px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-300">{{ $slot['label'] }}</span>
+                                                <span class="text-[9px] text-gray-400 mt-1 underline">Einzelbild wählen</span>
+                                            </label>
+                                        @endif
+
+                                        {{-- Feiertags-Badge oben links --}}
+                                        <div class="absolute top-2.5 left-2.5 z-10 flex flex-wrap items-center gap-1 pointer-events-none">
+                                            <span class="bg-gray-900/85 backdrop-blur-sm text-white text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-white/15">
+                                                {{ $slot['icon'] }} {{ $slot['label'] }}
+                                            </span>
+                                            @if($isSlotActiveToday)
+                                                <span class="bg-emerald-500 text-white text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md shadow-xs">
+                                                    Aktiv
+                                                </span>
+                                            @endif
+                                        </div>
+
+                                        {{-- Status-Ampel oben rechts auf der Kachel --}}
+                                        <div class="absolute top-2.5 right-2.5 z-10 pointer-events-none">
+                                            @if($hasSlotImage)
+                                                <span class="w-5 h-5 rounded-full bg-emerald-500 text-white text-[10px] font-black flex items-center justify-center shadow-sm">✓</span>
+                                            @elseif($autoSeasonalEnabled)
+                                                <span class="w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center shadow-sm">!</span>
+                                            @endif
+                                        </div>
+
+                                        {{-- Hover-Aktionen: Bild tauschen / Lightbox / Entfernen --}}
+                                        @if($hasSlotImage)
+                                            <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 z-20 p-2">
+                                                <button type="button"
+                                                        @click="lightboxUrl = @js($slot['url']); lightboxLabel = @js($slot['label'])"
+                                                        class="bg-white/95 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white p-2 rounded-xl hover:bg-[var(--theme-color)] hover:border-[var(--theme-color)] hover:text-white dark:hover:text-gray-900 shadow-lg transition-all cursor-pointer"
+                                                        title="Großansicht (Lightbox)">
+                                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                                </button>
+
+                                                <label class="bg-white/95 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white px-2.5 py-2 rounded-xl hover:bg-[var(--theme-color)] hover:border-[var(--theme-color)] hover:text-white dark:hover:text-gray-900 shadow-lg transition-all cursor-pointer flex items-center gap-1 text-[9px] font-black uppercase tracking-wider"
+                                                       title="Feiertags-Hauptbild für {{ $slot['label'] }} tauschen">
+                                                    <input type="file"
+                                                           wire:model.live="seasonal_media_uploads.{{ $holidayKey }}"
+                                                           accept="image/*"
+                                                           class="hidden">
+                                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                                                    <span>Tauschen</span>
+                                                </label>
+
+                                                <button type="button"
+                                                        wire:click="removeSeasonalMainImage('{{ $holidayKey }}')"
+                                                        class="bg-white/90 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-red-500 p-2 rounded-xl hover:bg-red-500 hover:border-red-500 hover:text-white shadow-lg transition-all cursor-pointer"
+                                                        title="Feiertagsbild für {{ $slot['label'] }} entfernen">
+                                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                                </button>
+                                            </div>
+                                        @endif
+
+                                        {{-- Lade-Overlay --}}
+                                        <div x-show="isUploadingSeason" x-cloak class="absolute inset-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm flex flex-col items-center justify-center z-30">
+                                            <svg class="animate-spin h-5 w-5 text-[var(--theme-color)] mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                            <span class="text-[8px] font-black uppercase tracking-widest text-[var(--theme-color)]">Speichert...</span>
+                                        </div>
+
+                                        @if($hasSlotImage)
+                                            <button type="button"
+                                                    wire:click="toggleSeasonalImageAiGenerated('{{ $holidayKey }}')"
+                                                    class="absolute bottom-2.5 right-2.5 z-20 px-2 py-1 rounded-md backdrop-blur-sm text-[8px] font-semibold tracking-wider flex items-center gap-1 border transition-all {{ $isSlotAi ? 'bg-black/70 text-white border-white/25 shadow-sm' : 'bg-black/40 text-white/60 border-white/10 hover:bg-black/70 hover:text-white' }}"
+                                                    title="Klicken, um 'KI-generiert' Hinweis für {{ $slot['label'] }} ein-/auszuschalten">
+                                                <span class="w-3 h-3 rounded-sm flex items-center justify-center border {{ $isSlotAi ? 'bg-emerald-500 border-emerald-400 text-white' : 'border-white/40' }}">
+                                                    @if($isSlotAi)
+                                                        <svg class="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                                    @endif
+                                                </span>
+                                                <span>KI-generiert</span>
+                                            </button>
+                                        @endif
                                     </div>
 
-                                    @if($hasSlotImage)
-                                        <button type="button"
-                                                wire:click="toggleSeasonalImageAiGenerated('{{ $holidayKey }}')"
-                                                class="absolute bottom-2.5 right-2.5 z-20 px-2 py-1 rounded-md backdrop-blur-sm text-[8px] font-semibold tracking-wider flex items-center gap-1 border transition-all {{ $isSlotAi ? 'bg-black/70 text-white border-white/25 shadow-sm' : 'bg-black/40 text-white/60 border-white/10 hover:bg-black/70 hover:text-white' }}"
-                                                title="Klicken, um 'KI-generiert' Hinweis für {{ $slot['label'] }} ein-/auszuschalten">
-                                            <span class="w-3 h-3 rounded-sm flex items-center justify-center border {{ $isSlotAi ? 'bg-emerald-500 border-emerald-400 text-white' : 'border-white/40' }}">
-                                                @if($isSlotAi)
-                                                    <svg class="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                                                @endif
-                                            </span>
-                                            <span>KI-generiert</span>
-                                        </button>
-                                    @endif
+                                    <div class="px-3 py-2 bg-gray-50 dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between gap-2 text-[10px]">
+                                        <span class="font-bold text-gray-800 dark:text-gray-200 truncate">{{ $slot['label'] }}</span>
+                                        <span class="text-[9px] text-gray-400 dark:text-gray-500 shrink-0">{{ $slot['hint'] }}</span>
+                                    </div>
                                 </div>
-
-                                <div class="px-3 py-2 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between gap-2 text-[10px]">
-                                    <span class="font-bold text-gray-800 dark:text-gray-200 truncate">{{ $slot['label'] }}</span>
-                                    <span class="text-[9px] text-gray-400 dark:text-gray-500 shrink-0">{{ $slot['hint'] }}</span>
-                                </div>
-                            </div>
-                        @endforeach
+                            @endforeach
+                        </div>
                     </div>
                 </div>
-            @endif
+
+                {{-- LIGHTBOX-MODAL FÜR SAISON- & FEIERTAGSBILDER IM SELBEN FENSTER --}}
+                <div x-show="lightboxUrl"
+                     x-cloak
+                     @click.self="lightboxUrl = null"
+                     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div class="relative max-w-2xl w-full bg-white dark:bg-gray-900 rounded-3xl overflow-hidden border border-gray-200 dark:border-gray-800 shadow-2xl">
+                        <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-200 dark:border-gray-800">
+                            <span class="text-xs font-black uppercase tracking-widest text-gray-900 dark:text-white" x-text="lightboxLabel"></span>
+                            <button type="button" @click="lightboxUrl = null" class="p-1.5 rounded-xl text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                        <div class="p-4 flex items-center justify-center bg-gray-50 dark:bg-gray-950">
+                            <img :src="lightboxUrl" :alt="lightboxLabel" class="max-h-[75vh] w-auto rounded-2xl object-contain">
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 @endif

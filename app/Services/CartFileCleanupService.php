@@ -305,12 +305,55 @@ class CartFileCleanupService
     }
 
     /**
-     * Check if a file basename is used in any OrderOrderItem.
+     * Clean up all managed files associated with deleted order items (from an unpaid/abandoned order)
+     * if those files are not referenced in any active cart, remaining order, quote, or template.
+     *
+     * @param array<int, mixed> $itemConfigurations
+     * @return array<int, string> List of deleted file paths
+     */
+    public function cleanupOrderFilesAfterDeletion(array $itemConfigurations): array
+    {
+        $deleted = [];
+        $candidatePaths = [];
+
+        foreach ($itemConfigurations as $config) {
+            foreach ($this->extractManagedFilePathsFromConfig($config) as $path) {
+                $candidatePaths[$path] = $path;
+            }
+        }
+
+        foreach ($candidatePaths as $path) {
+            $basename = basename($path);
+            if ($basename === '') {
+                continue;
+            }
+
+            if (
+                $this->isFileUsedInOrders($basename)
+                || $this->isFileUsedInQuotes($basename)
+                || $this->isFileUsedInCarts($basename)
+                || $this->isFileUsedInTemplates($basename)
+            ) {
+                continue;
+            }
+
+            if ($this->deleteFileSafely($path)) {
+                $deleted[] = $path;
+            }
+        }
+
+        return $deleted;
+    }
+
+    /**
+     * Check if a file basename is used in any active (non-trashed) OrderOrderItem.
      */
     public function isFileUsedInOrders(string $basename): bool
     {
         if (empty($basename)) return false;
-        return OrderOrderItem::where('configuration', 'LIKE', '%' . addcslashes($basename, '%_\\') . '%')->exists();
+        return OrderOrderItem::whereHas('order')
+            ->where('configuration', 'LIKE', '%' . addcslashes($basename, '%_\\') . '%')
+            ->exists();
     }
 
     /**
@@ -375,9 +418,11 @@ class CartFileCleanupService
             }
         }
 
-        // 3. 'logo_path' key
-        if (!empty($config['logo_path']) && is_string($config['logo_path']) && $this->isManagedPath($config['logo_path'])) {
-            $paths[] = $config['logo_path'];
+        // 3. 'logo_path', 'logo_storage_path' & 'preview_file' keys
+        foreach (['logo_path', 'logo_storage_path', 'preview_file'] as $singleFileKey) {
+            if (!empty($config[$singleFileKey]) && is_string($config[$singleFileKey]) && $this->isManagedPath($config[$singleFileKey])) {
+                $paths[] = $config[$singleFileKey];
+            }
         }
 
         // 4. 'logos' array

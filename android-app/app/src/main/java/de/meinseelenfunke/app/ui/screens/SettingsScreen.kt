@@ -1,11 +1,11 @@
 package de.meinseelenfunke.app.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,13 +22,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -47,8 +53,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -58,15 +66,20 @@ import de.meinseelenfunke.app.ui.theme.AppTheme
 import de.meinseelenfunke.app.ui.theme.Emerald500
 import de.meinseelenfunke.app.ui.theme.Gold
 import de.meinseelenfunke.app.ui.theme.Indigo500
+import de.meinseelenfunke.app.ui.theme.Rose500
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    viewModel: SettingsViewModel = viewModel()
+    viewModel: SettingsViewModel = viewModel(),
+    onLogout: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     val apiKey by viewModel.apiKey.collectAsState()
-    var inputKey by remember { mutableStateOf(apiKey) }
+    var inputKey by remember(apiKey) { mutableStateOf(apiKey) }
+    var apiKeyVisible by remember { mutableStateOf(false) }
+    var biometricEnabled by remember { mutableStateOf(ServiceLocator.isBiometricEnabled()) }
     val currentThemeMode by ServiceLocator.themeModeState.collectAsState()
     val wakeWordEnabled by viewModel.wakeWordEnabled.collectAsState()
 
@@ -74,19 +87,12 @@ fun SettingsScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(
-                            text = "Einstellungen",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Gold
-                        )
-                        Text(
-                            text = "Erscheinungsbild, KI & Konfiguration",
-                            fontSize = 12.sp,
-                            color = AppTheme.colors.textMuted
-                        )
-                    }
+                    Text(
+                        text = "Einstellungen",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Gold
+                    )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = AppTheme.colors.topBarBackground
@@ -117,17 +123,11 @@ fun SettingsScreen(
                         fontWeight = FontWeight.Bold,
                         color = AppTheme.colors.textPrimary
                     )
-                    Text(
-                        text = "Wähle deinen bevorzugten Design-Modus für die gesamte App:",
-                        fontSize = 11.sp,
-                        color = AppTheme.colors.textMuted
-                    )
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Dark Mode Option
                         val isDarkSelected = currentThemeMode == ThemeMode.DARK
                         Column(
                             modifier = Modifier
@@ -161,7 +161,6 @@ fun SettingsScreen(
                             }
                         }
 
-                        // Light Mode Option
                         val isLightSelected = currentThemeMode == ThemeMode.LIGHT
                         Column(
                             modifier = Modifier
@@ -195,7 +194,6 @@ fun SettingsScreen(
                             }
                         }
 
-                        // System Mode Option
                         val isSystemSelected = currentThemeMode == ThemeMode.SYSTEM
                         Column(
                             modifier = Modifier
@@ -232,7 +230,50 @@ fun SettingsScreen(
                 }
             }
 
-            // Google AI Studio API Key
+            // Security: Biometric App Lock
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+                border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Fingerprint,
+                            contentDescription = null,
+                            tint = Gold,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Biometrische App-Sperre",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AppTheme.colors.textPrimary
+                        )
+                    }
+                    Switch(
+                        checked = biometricEnabled,
+                        onCheckedChange = {
+                            biometricEnabled = it
+                            ServiceLocator.setBiometricEnabled(it)
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Gold,
+                            checkedTrackColor = Gold.copy(alpha = 0.45f)
+                        )
+                    )
+                }
+            }
+
+            // Google AI Studio API Key (masked + eye toggle)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
@@ -246,19 +287,25 @@ fun SettingsScreen(
                         fontWeight = FontWeight.Bold,
                         color = AppTheme.colors.textPrimary
                     )
-                    Text(
-                        text = "Erforderlich für die lokale Generierung via SDK.",
-                        fontSize = 11.sp,
-                        color = AppTheme.colors.textMuted,
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
+                    Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = inputKey,
                         onValueChange = { inputKey = it },
-                        placeholder = { Text("AIzaSy...") },
+                        placeholder = { Text("Optionaler Geräteschlüssel") },
+                        singleLine = true,
+                        visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
+                                Icon(
+                                    imageVector = if (apiKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (apiKeyVisible) "Verbergen" else "Anzeigen",
+                                    tint = AppTheme.colors.textSecondary
+                                )
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Indigo500,
+                            focusedBorderColor = Gold,
                             unfocusedBorderColor = AppTheme.colors.inputBorder,
                             focusedTextColor = AppTheme.colors.textPrimary,
                             unfocusedTextColor = AppTheme.colors.textPrimary,
@@ -270,11 +317,13 @@ fun SettingsScreen(
                     Button(
                         onClick = {
                             viewModel.saveApiKey(inputKey)
+                            apiKeyVisible = false
+                            Toast.makeText(context, "Gespeichert.", Toast.LENGTH_SHORT).show()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Indigo500),
+                        colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack),
                         modifier = Modifier.align(Alignment.End)
                     ) {
-                        Text("Speichern")
+                        Text("Speichern", fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -286,41 +335,41 @@ fun SettingsScreen(
                 border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Text(
-                        text = "Hintergrund-Aktivierung (Wake Word)",
+                        text = "Wake Word (Hey Funkira)",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = AppTheme.colors.textPrimary
                     )
-                    Text(
-                        text = "Erlaubt es, die App per Sprachbefehl ('Hey Funkira') im Hintergrund oder bei ausgeschaltetem Bildschirm zu aktivieren. Benötigt Mikrofon- und Benachrichtigungsrechte.",
-                        fontSize = 11.sp,
-                        color = AppTheme.colors.textMuted,
-                        modifier = Modifier.padding(vertical = 4.dp)
+                    Switch(
+                        checked = wakeWordEnabled,
+                        onCheckedChange = { viewModel.setWakeWordEnabled(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Emerald500,
+                            checkedTrackColor = Emerald500.copy(alpha = 0.5f)
+                        )
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = if (wakeWordEnabled) "Aktiviert (lauscht im Hintergrund)" else "Deaktiviert",
-                            color = if (wakeWordEnabled) Emerald500 else AppTheme.colors.textMuted,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Switch(
-                            checked = wakeWordEnabled,
-                            onCheckedChange = { viewModel.setWakeWordEnabled(it) },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Emerald500,
-                                checkedTrackColor = Emerald500.copy(alpha = 0.5f)
-                            )
-                        )
-                    }
                 }
+            }
+
+            // Clean Session Logout Card
+            OutlinedButton(
+                onClick = onLogout,
+                modifier = Modifier.fillMaxWidth(),
+                border = BorderStroke(1.dp, Rose500.copy(alpha = 0.6f)),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Rose500)
+            ) {
+                Icon(Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Abmelden", fontWeight = FontWeight.Bold)
             }
         }
     }

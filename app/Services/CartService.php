@@ -317,7 +317,7 @@ class CartService
                 if (empty($cfg)) {
                     return [];
                 }
-                unset($cfg['product_id'], $cfg['qty'], $cfg['totalPrice']);
+                unset($cfg['product_id'], $cfg['qty'], $cfg['totalPrice'], $cfg['is_express'], $cfg['quote_country']);
                 ksort($cfg);
                 return $cfg;
             };
@@ -551,6 +551,20 @@ class CartService
             $configuration['files'] = array_values(array_filter($configuration['files'], function ($f) {
                 return is_string($f) && !str_contains($f, '..') && !str_contains($f, "\0") && !str_starts_with($f, '/') && !str_starts_with($f, '\\');
             }));
+        }
+
+        foreach (['texts', 'texts_back'] as $textKey) {
+            if (isset($configuration[$textKey]) && is_array($configuration[$textKey])) {
+                $configuration[$textKey] = array_values(array_map(function ($t) {
+                    if (!is_array($t)) {
+                        return $t;
+                    }
+                    $t['curve'] = isset($t['curve']) && is_numeric($t['curve'])
+                        ? max(-100, min(100, (int) round((float) $t['curve'])))
+                        : 0;
+                    return $t;
+                }, array_filter($configuration[$textKey], fn($t) => is_array($t))));
+            }
         }
 
         foreach (['logos', 'logos_back'] as $logoKey) {

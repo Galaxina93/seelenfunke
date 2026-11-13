@@ -33,6 +33,7 @@ class AIFunctionsRegistry
     use Functions\AiPersonaFuncs;
     use Functions\AiShoppingListFuncs;
     use Functions\AiLaserFuncs;
+    use Functions\AiSuppliersFuncs;
 
     /**
      * Optional static context merged into all executed function arguments.
@@ -84,7 +85,9 @@ class AIFunctionsRegistry
             self::getAiMapNewsFuncsSchema(),
             self::getAiPersonaFuncsSchema(),
             self::getAiShoppingListFuncsSchema(),
-            self::getAiLaserFuncsSchema()
+            self::getAiLaserFuncsSchema(),
+            self::getAiSuppliersFuncsSchema(),
+            FunkiraSkillPoolService::getEquipToolSchema()
         );
     }
 
@@ -286,6 +289,26 @@ class AIFunctionsRegistry
             }
         }
 
+        // Panzerglas-Isolation für den externen Support-Agenten 'Funki':
+        // Selbst wenn ein Administrator parallel eingeloggt ist, darf 'Funki' NIEMALS interne System-, Finanz-, Brain- oder Pool-Werkzeuge ausführen.
+        if ($agent && ($agent->name ?? null) === 'Funki') {
+            $isFunkiAllowed = str_starts_with($name, 'support_') || $name === 'system_get_current_time';
+            if (!$isFunkiAllowed) {
+                \App\Services\System\SystemSecurityService::logEvent(
+                    'security:ai_funki_airgap_blocked',
+                    'Funki Panzerglas-Isolation griff ein',
+                    "Der externe Support-Agent 'Funki' versuchte das interne Werkzeug '{$name}' aufzurufen.",
+                    'error',
+                    ['tool' => $name]
+                );
+                return [
+                    'error' => true,
+                    'status' => 'error',
+                    'message' => "SANDBOX VIOLATION: Der externe Support-Agent 'Funki' ist strikt vom internen System isoliert und darf '{$name}' nicht ausführen."
+                ];
+            }
+        }
+
         // Agenten-Berechtigungsprüfung: Verhindert Rechteausweitung und unautorisierte Tool-Calls
         if ($agent && isset($agent->tools) && $agent->tools instanceof \Illuminate\Support\Collection) {
             $hasExplicitToolBoundary = $agent->tools->isNotEmpty()
@@ -296,6 +319,12 @@ class AIFunctionsRegistry
             if ($hasExplicitToolBoundary) {
                 $allowedTools = $agent->tools->pluck('identifier')->toArray();
                 $allowedTools[] = 'system_get_current_time';
+                if (($agent->name ?? null) === 'Funkira' && !$isPublicSupportChat) {
+                    $allowedTools = array_values(array_unique(array_merge(
+                        $allowedTools,
+                        FunkiraSkillPoolService::getAllAuthorizedInternalTools()
+                    )));
+                }
                 if (in_array('calendar_create_event', $allowedTools, true)) {
                     $allowedTools[] = 'calendar_send_ics_email';
                     $allowedTools[] = 'calendar_update_event';

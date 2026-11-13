@@ -114,12 +114,20 @@ class MasterWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
+        val rawAction = intent.action
+        val clickAction = try { intent.getStringExtra(TasksWidgetProvider.EXTRA_CLICK_ACTION) } catch (_: Exception) { null }
+        if (((rawAction != null && rawAction.startsWith("de.meinseelenfunke.app.widget.")) || clickAction != null) &&
+            !de.meinseelenfunke.app.util.SecurityIntentHelper.isTrustedInternalIntent(context, intent)
+        ) {
+            return
+        }
         super.onReceive(context, intent)
 
         val appContext = context.applicationContext
+        ServiceLocator.ensureInitialized(appContext)
         val appWidgetManager = AppWidgetManager.getInstance(appContext)
         val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val resolvedAction = intent.getStringExtra(TasksWidgetProvider.EXTRA_CLICK_ACTION) ?: intent.action
+        val resolvedAction = clickAction ?: rawAction
 
         when (resolvedAction) {
             ACTION_SWITCH_TAB -> {
@@ -378,6 +386,7 @@ class MasterWidgetProvider : AppWidgetProvider() {
                 action = ACTION_MASTER_REFRESH
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 data = Uri.parse("funkenwerk://master/refresh/$appWidgetId")
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
             }
             views.setOnClickPendingIntent(
                 R.id.btn_master_refresh,
@@ -412,6 +421,7 @@ class MasterWidgetProvider : AppWidgetProvider() {
                             action = ACTION_MASTER_BACK_LISTS
                             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                             data = Uri.parse("funkenwerk://master/back_lists/$appWidgetId")
+                            de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
                         }
                         val backPending = PendingIntent.getBroadcast(
                             appContext,
@@ -482,6 +492,7 @@ class MasterWidgetProvider : AppWidgetProvider() {
                         putExtra("create_event", true)
                         data = Uri.parse("funkenwerk://master/add_event/$appWidgetId")
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
                     }
                     views.setOnClickPendingIntent(
                         R.id.btn_master_add,
@@ -609,6 +620,7 @@ class MasterWidgetProvider : AppWidgetProvider() {
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                     data = Uri.parse("funkenwerk://master/item_click/$appWidgetId")
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(appContext, this)
                 }
                 val clickPendingIntent = PendingIntent.getActivity(
                     appContext,
@@ -628,6 +640,7 @@ class MasterWidgetProvider : AppWidgetProvider() {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 putExtra(EXTRA_TAB_INDEX, tabIndex)
                 data = Uri.parse("funkenwerk://master/switch_tab/$appWidgetId/$tabIndex")
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(context, this)
             }
             return PendingIntent.getBroadcast(
                 context,
@@ -648,6 +661,7 @@ class MasterWidgetProvider : AppWidgetProvider() {
                 putExtra("open_subtab", openSubTab)
                 data = Uri.parse("funkenwerk://master/open_app/$appWidgetId/$openTab/$openSubTab")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(context, this)
             }
             return PendingIntent.getActivity(
                 context,
@@ -667,6 +681,7 @@ class MasterWidgetProvider : AppWidgetProvider() {
                 this.action = action
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 data = Uri.parse("funkenwerk://master/music/$appWidgetId/$offset")
+                de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(context, this)
             }
             return PendingIntent.getBroadcast(
                 context,

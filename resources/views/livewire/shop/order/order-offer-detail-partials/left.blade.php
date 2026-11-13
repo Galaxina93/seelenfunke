@@ -217,7 +217,7 @@
                                                 <a href="{{ route('customer.gift-voucher.download', ['voucher' => $igv->id, 'format' => 'laser_svg']) }}"
                                                    onclick="event.stopPropagation()"
                                                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/40 hover:bg-amber-500 hover:text-gray-950 transition-colors shadow-sm"
-                                                   title="86×54mm Laser-Vorlage (SVG) für goldene Metallkarte herunterladen ({{ $igv->code }})">
+                                                   title="86×54mm Laser-Vorlage (SVG) für Aluminiumkarte herunterladen ({{ $igv->code }})">
                                                     ⚡ Laser 86×54mm ({{ $igv->code }})
                                                 </a>
                                                 <a href="{{ route('customer.gift-voucher.download', $igv->id) }}"
@@ -734,10 +734,10 @@
             <x-shop.cost-summary :model="$model" design="adaptive" />
         </div>
 
-        {{-- 7. LÖSCHEN --}}
-        @if($isOrder)
+        {{-- 7. LÖSCHEN (Nur für Admins bei unbezahlten Abbruch-/Testbestellungen ohne Rechnung/Versand) --}}
+        @if($isOrder && auth('admin')->check() && method_exists($model, 'canBePermanentlyDeleted') && $model->canBePermanentlyDeleted())
             <div class="pt-8 border-t border-gray-200 dark:border-gray-800 flex justify-center">
-                <button wire:click="delete('{{ $model->id }}')" wire:confirm="Wirklich löschen?" class="text-[10px] font-black text-red-500 hover:text-red-400 hover:shadow-[0_0_15px_currentColor] uppercase tracking-widest border border-transparent hover:border-red-500/50 bg-transparent hover:bg-red-500/10 px-4 py-2 rounded-lg transition-all">
+                <button wire:click="delete('{{ $model->id }}')" wire:confirm="Diese unbezahlte Bestellung wirklich unwiderruflich aus der Datenbank löschen?" class="text-[10px] font-black text-red-500 hover:text-red-400 hover:shadow-[0_0_15px_currentColor] uppercase tracking-widest border border-transparent hover:border-red-500/50 bg-transparent hover:bg-red-500/10 px-4 py-2 rounded-lg transition-all cursor-pointer">
                     Bestellung unwiderruflich löschen
                 </button>
             </div>

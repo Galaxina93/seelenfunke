@@ -85,7 +85,7 @@ class GiftVoucherDownloadController extends Controller
         $safeCode = preg_replace('/[^A-Za-z0-9_\-]/', '', (string) $voucher->code) ?: 'Gutschein';
         $cardColor = ($voucher->card_color ?? ($item->configuration['card_color'] ?? 'gold')) === 'black' ? 'black' : 'gold';
 
-        // 4a. Optionaler Laser-SVG-Export (86 x 54 mm Gold-/Schwarz-Metallkarte für xTool Studio) für Admin / Produktion
+        // 4a. Optionaler Laser-SVG-Export (86 x 54 mm Gold-/Schwarz-Aluminiumkarte für xTool Studio) für Admin / Produktion
         if ($isAdminOrEmployee && request()->query('format') === 'laser_svg') {
             $svgContent = view('pdf.marketing-gift-voucher-laser-svg', [
                 'voucher' => $voucher,

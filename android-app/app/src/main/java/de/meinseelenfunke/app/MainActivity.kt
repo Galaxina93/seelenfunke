@@ -1,39 +1,56 @@
 package de.meinseelenfunke.app
 
+import android.app.NotificationManager
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.fragment.app.FragmentActivity
+import com.google.firebase.messaging.FirebaseMessaging
+import de.meinseelenfunke.app.di.ServiceLocator
+import de.meinseelenfunke.app.di.ThemeMode
+import de.meinseelenfunke.app.services.MusicPlaybackService
 import de.meinseelenfunke.app.ui.navigation.AppNavigation
 import de.meinseelenfunke.app.ui.theme.SeelenfunkeTheme
+import de.meinseelenfunke.app.util.FunkenwerkAlarmManager
+import de.meinseelenfunke.app.util.MusicPlayerManager
+import de.meinseelenfunke.app.util.NavigationBridge
+import de.meinseelenfunke.app.util.SecurityIntentHelper
 import de.meinseelenfunke.app.util.SoundManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-
-import androidx.fragment.app.FragmentActivity
 
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+
+        // Prevent Android Recents task switcher from writing unencrypted screen snapshots to disk
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            setRecentsScreenshotEnabled(false)
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 108)
             }
         }
 
-        de.meinseelenfunke.app.util.FunkenwerkAlarmManager.ensureInitialized(this)
+        ServiceLocator.ensureInitialized(this)
+        FunkenwerkAlarmManager.ensureInitialized(this)
 
         SoundManager.playSound(R.raw.open_project_brain)
 
         setContent {
-            val themeMode by de.meinseelenfunke.app.di.ServiceLocator.themeModeState.collectAsState()
-            val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+            val themeMode by ServiceLocator.themeModeState.collectAsState()
+            val isSystemDark = isSystemInDarkTheme()
             val isDark = when (themeMode) {
-                de.meinseelenfunke.app.di.ThemeMode.DARK -> true
-                de.meinseelenfunke.app.di.ThemeMode.LIGHT -> false
+                ThemeMode.DARK -> true
+                ThemeMode.LIGHT -> false
                 else -> isSystemDark
             }
             SeelenfunkeTheme(darkTheme = isDark) {
@@ -42,13 +59,13 @@ class MainActivity : FragmentActivity() {
         }
 
         // Fetch and register FCM token
-        com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             if (task.isSuccessful) {
                 val token = task.result
-                de.meinseelenfunke.app.di.ServiceLocator.saveFcmToken(token)
-                if (de.meinseelenfunke.app.di.ServiceLocator.authRepository.isLoggedIn()) {
-                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                        de.meinseelenfunke.app.di.ServiceLocator.authRepository.updateFcmToken(token)
+                ServiceLocator.saveFcmToken(token)
+                if (ServiceLocator.authRepository.isLoggedIn()) {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        ServiceLocator.authRepository.updateFcmToken(token)
                     }
                 }
             }
@@ -57,46 +74,62 @@ class MainActivity : FragmentActivity() {
         handleIntent(intent)
     }
 
-
     override fun onStop() {
         super.onStop()
-        if (de.meinseelenfunke.app.util.MusicPlayerManager.isPlaying.value) {
-            de.meinseelenfunke.app.services.MusicPlaybackService.startOrUpdate(this)
+        if (MusicPlayerManager.isPlaying.value) {
+            MusicPlaybackService.startOrUpdate(this)
         }
     }
 
-    override fun onNewIntent(intent: android.content.Intent) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIntent(intent)
     }
 
-    private fun handleIntent(intent: android.content.Intent?) {
-        if (intent?.getBooleanExtra("start_voice_call", false) == true) {
-            val manager = getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+    private fun handleIntent(intent: Intent?) {
+        if (intent == null) return
+
+        val hasInternalActionExtras = try {
+            intent.getBooleanExtra("start_voice_call", false)
+                || intent.hasExtra("navigate_to")
+                || intent.hasExtra("open_tab")
+        } catch (_: Exception) {
+            return
+        }
+
+        if (!hasInternalActionExtras) return
+
+        // Block untrusted third-party apps from spoofing deep navigation or auto-starting live microphone voice calls
+        if (!SecurityIntentHelper.isTrustedInternalIntent(this, intent)) {
+            return
+        }
+
+        if (intent.getBooleanExtra("start_voice_call", false)) {
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.cancel(1003)
-            de.meinseelenfunke.app.util.NavigationBridge.triggerWakeWord()
-        } else if (intent?.getStringExtra("navigate_to") == "email") {
+            NavigationBridge.triggerWakeWord()
+        } else if (intent.getStringExtra("navigate_to") == "email") {
             if (intent.hasExtra("email_id")) {
-                de.meinseelenfunke.app.util.NavigationBridge.pendingEmailId = intent.getStringExtra("email_id")
+                NavigationBridge.pendingEmailId = intent.getStringExtra("email_id")
             }
-            de.meinseelenfunke.app.util.NavigationBridge.triggerNavigation(tabIndex = 2, subTab = 4)
-        } else if (intent?.hasExtra("open_tab") == true) {
+            NavigationBridge.triggerNavigation(tabIndex = 2, subTab = 4)
+        } else if (intent.hasExtra("open_tab")) {
             val tab = intent.getIntExtra("open_tab", 0)
             val subTab = intent.getIntExtra("open_subtab", 0)
             if (intent.hasExtra("alarm_inner_tab")) {
-                de.meinseelenfunke.app.util.FunkenwerkAlarmManager.setActiveInnerSubTab(
+                FunkenwerkAlarmManager.setActiveInnerSubTab(
                     intent.getIntExtra("alarm_inner_tab", 0)
                 )
             }
             if (intent.hasExtra("selected_date")) {
-                de.meinseelenfunke.app.util.NavigationBridge.pendingSelectedDate = intent.getStringExtra("selected_date")
+                NavigationBridge.pendingSelectedDate = intent.getStringExtra("selected_date")
             }
             if (intent.hasExtra("email_id")) {
-                de.meinseelenfunke.app.util.NavigationBridge.pendingEmailId = intent.getStringExtra("email_id")
+                NavigationBridge.pendingEmailId = intent.getStringExtra("email_id")
             }
-            de.meinseelenfunke.app.util.NavigationBridge.pendingCreateEvent = intent.getBooleanExtra("create_event", false)
-            de.meinseelenfunke.app.util.NavigationBridge.triggerNavigation(tab, subTab)
+            NavigationBridge.pendingCreateEvent = intent.getBooleanExtra("create_event", false)
+            NavigationBridge.triggerNavigation(tab, subTab)
         }
     }
 }

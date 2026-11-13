@@ -259,6 +259,13 @@ class ProductCreate extends Component
 
         // Wenn es ein neues Produkt ist oder ein bestehendes geladen wird:
         $this->configSettings = $configService->mergeWithDefaults($this->product?->configurator_settings ?? []);
+
+        $editProductId = trim((string) request()->query('editProduct', ''));
+        if ($editProductId !== '' && Product::where('id', $editProductId)->exists()) {
+            $reqStep = (int) request()->query('step', 1);
+            $reqSubStep = (int) request()->query('subStep', 1);
+            $this->openProductInStep($editProductId, max(1, $reqStep), max(1, $reqSubStep));
+        }
     }
 
     public function setLayoutMode(string $mode): void
@@ -2151,6 +2158,7 @@ class ProductCreate extends Component
 
     public function goToStep($step)
     {
+        $step = (int) $step;
         // Darf nicht weiter springen als erlaubt (Completion Step + 1)
         if ($step > $this->product->completion_step + 1 && $this->product->completion_step < $this->totalSteps) return;
 
@@ -2163,6 +2171,20 @@ class ProductCreate extends Component
             $this->save(false);
         }
         $this->currentStep = $step;
+
+        if (isset($this->product) && $this->product->exists) {
+            $stepChecks = $this->product->getReadinessReport()['by_step'][$step] ?? [];
+            $firstMissing = collect($stepChecks)->first(fn (array $c) => !$c['passed']);
+            $targetSubStep = (int) ($firstMissing['sub_step'] ?? 1);
+
+            if ($step === 1) {
+                $this->step1SubStep = max(1, min(5, $targetSubStep));
+            } elseif ($step === 3) {
+                $this->goToStep3SubStep($targetSubStep);
+            } elseif ($step === 4) {
+                $this->goToStep4SubStep($targetSubStep);
+            }
+        }
     }
 
     public function nextSubStep()
@@ -2309,15 +2331,28 @@ class ProductCreate extends Component
             return $this->canProceedStep1();
         }
         if ($this->currentStep === 2) {
-            // Mindestens ein Bild prüfen (oder Auto-Saisonbild mit vorhandener Vorlage)
+            // Mindestens ein Bild prüfen (oder Auto-Saisonbild in seasonal_images bzw. aktiver Vorlage)
             $hasImage = false;
-            foreach($this->product->media_gallery ?? [] as $media) {
-                if(isset($media['type']) && $media['type'] === 'image') {
-                    $hasImage = true; break;
+            foreach ($this->product->media_gallery ?? [] as $media) {
+                if (isset($media['type']) && $media['type'] === 'image' && !empty($media['path'])) {
+                    $hasImage = true;
+                    break;
                 }
             }
-            if (!$hasImage && filter_var($this->configSettings['auto_seasonal_main_image'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
-                $hasImage = $this->product->templates()->where('is_active', true)->whereNotNull('preview_image')->where('preview_image', '!=', '')->exists();
+            if (!$hasImage && filter_var($this->configSettings['auto_seasonal_main_image'] ?? true, FILTER_VALIDATE_BOOLEAN)) {
+                $seasonalMap = $this->configSettings['seasonal_images'] ?? ($this->product->configurator_settings['seasonal_images'] ?? []);
+                if (is_array($seasonalMap)) {
+                    foreach ($seasonalMap as $entry) {
+                        $p = is_array($entry) ? trim((string) ($entry['path'] ?? '')) : (is_string($entry) ? trim($entry) : '');
+                        if ($p !== '') {
+                            $hasImage = true;
+                            break;
+                        }
+                    }
+                }
+                if (!$hasImage) {
+                    $hasImage = $this->product->templates()->where('is_active', true)->whereNotNull('preview_image')->where('preview_image', '!=', '')->exists();
+                }
             }
             return $hasImage;
         }
@@ -2477,6 +2512,13 @@ class ProductCreate extends Component
             }
         }
         $this->configSettings['custom_fields'] = $normalizedCustomFields;
+
+        if (array_key_exists('xtool_focus_mm', $this->configSettings)) {
+            $rawFocus = str_replace(',', '.', trim((string) ($this->configSettings['xtool_focus_mm'] ?? '')));
+            $this->configSettings['xtool_focus_mm'] = ($rawFocus !== '' && is_numeric($rawFocus) && (float) $rawFocus > 0)
+                ? round((float) $rawFocus, 2)
+                : null;
+        }
 
         // Lieferanten-Vorlaufzeit bei Bestand 0 (Überverkauf) sauber speichern oder bereinigen
         $leadMin = ($this->out_of_stock_lead_days_min !== '' && $this->out_of_stock_lead_days_min !== null && (int) $this->out_of_stock_lead_days_min > 0)
@@ -3103,7 +3145,7 @@ class ProductCreate extends Component
         }
 
         $holidayKey = trim((string) $holidayKey);
-        if (!array_key_exists($holidayKey, Product::SEASONAL_HOLIDAY_SLOTS)) {
+        if (!array_key_exists($holidayKey, Product::getAllSeasonalAndHolidaySlots())) {
             return;
         }
 
@@ -3155,7 +3197,7 @@ class ProductCreate extends Component
 
     public function toggleSeasonalImageAiGenerated(string $holidayKey): void
     {
-        if (!isset($this->product) || !$this->product->exists || !array_key_exists($holidayKey, Product::SEASONAL_HOLIDAY_SLOTS)) {
+        if (!isset($this->product) || !$this->product->exists || !array_key_exists($holidayKey, Product::getAllSeasonalAndHolidaySlots())) {
             return;
         }
 
@@ -3190,7 +3232,7 @@ class ProductCreate extends Component
 
     public function removeSeasonalMainImage(string $holidayKey): void
     {
-        if (!isset($this->product) || !$this->product->exists || !array_key_exists($holidayKey, Product::SEASONAL_HOLIDAY_SLOTS)) {
+        if (!isset($this->product) || !$this->product->exists || !array_key_exists($holidayKey, Product::getAllSeasonalAndHolidaySlots())) {
             return;
         }
 
@@ -3204,9 +3246,14 @@ class ProductCreate extends Component
         $this->configSettings['seasonal_images'] = $settings['seasonal_images'] ?? [];
         $this->product->configurator_settings = $settings;
         $this->product->save();
+
+        \App\Models\Product\ProductTemplate::where('product_id', $this->product->id)
+            ->whereRaw('LOWER(holiday) = ?', [mb_strtolower($holidayKey)])
+            ->update(['preview_image' => null]);
+
         $this->product->refresh();
 
-        session()->flash('success', "Eigenes Saisonbild für „{$holidayKey}“ zurückgesetzt.");
+        session()->flash('success', "Saisonbild für „{$holidayKey}“ entfernt.");
     }
 
     public function toggleMediaAiGenerated(int $index): void

@@ -174,4 +174,39 @@
   * Rate-Limiting vor Token-Vergleich bei System-Routen (`security:cron_token_invalid`), Download-Throttling für Rechnungen/Gutscheine/Digitalprodukte, Ausschluss von SVGs bei öffentlichen Telegram-Uploads und einheitliche, enumerationssichere Antworten im Newsletter-Modul.
 * **Beschreibung:** Alle sekundären Login-, Upload-, Download- und Weiterleitungs-Endpunkte unterliegen denselben strengen Zero-Trust-Regeln wie der Haupt-Checkout.
 
+---
+
+## 11. Phase 3 Gesamt-Audit nach E2E-Prüfprotokoll (Alle 13 Fachbereiche)
+
+### 11.1 Leitung (`ManagementMusic` & `ManagementTask`): Guard-Isolation & Datei-Upload-Härtung
+* **Problem:** `ManagementMusic` und `ManagementTask` besaßen als einzige Backend-Komponenten im Bereich Leitung keine `boot()`-Autorisierungsprüfung für nachfolgende Livewire-Update-Requests (`/livewire/update`), keine `#[Locked]`-Attribute auf den ausgewählten Datensatz-IDs (`$selectedTrackId`, `$selectedTaskId`, `$editingListId`, `$editingTaskId`) und prüften Audio-Uploads in `ManagementMusic::updatedUploadedAudioFile()` lediglich anhand der vom Client übermittelten Dateiendung ohne echte MIME-/Größenvalidierung.
+* **Lösung:** Hinzufügen von `public function boot(): void` und `mount()` mit strikter Prüfung auf `Admin` oder aktiven internen Mitarbeiter (`AiAuthHelper::isEmployee()`), Sperrung aller Editier-IDs via `#[Locked]`, serverseitige Datei- & MIME-Validierung (`max:51200|mimes:mp3,m4a,mp4,aac,wav,ogg,flac`) sowie Symlink-Prüfung (`!is_link()`) beim Aufgaben-Datei-Download.
+
+### 11.2 Rollen-Isolation (`internal` vs. `influencer` & `tax_advisor`) in Backend-Komponenten
+* **Problem:** Mehrere Backend-Komponenten (`AiAgentEditor`, `AiKnowledgeBase`, `AiKnowledgeBaseCategories`, `AiKnowledgeBaseTags`, `AiRoleManager`, `AiCompanyStructure`, `AiMethod`, `AiAnalytics`, `SystemDeliveryTimes`, `SystemShipping`, `OrderAnalytics`, `OrderRevocations`, `OrderQuoteRequests`) prüften in `boot()`/`mount()` lediglich `Auth::guard('employee')->check()`. Da auch externe Partner (`influencer`, `tax_advisor`) über den `employee`-Guard authentifiziert werden, fehlte auf Komponenten-Ebene (Defense-in-Depth zusätzlich zum `EmployeeRoleIsolationHook`) die Prüfung auf `isInternalEmployee() && isAccountActive()`.
+* **Lösung:** Durchgängige Umstellung aller 13 Komponenten auf `\App\Services\AI\AiAuthHelper::isEmployee()`, sodass pausierte Konten sowie externe Partner-Rollen (`influencer`, `tax_advisor`) auf Methoden- und Boot-Ebene strikt abgewiesen werden.
+
+### 11.3 Funkenwerk Workspace-API (`routes/api/files.php`) & KI-Dropdown SVG-Sanitisierung
+* **Problem:**
+  * In `/api/funki/files/rename` konnten hochgeladene Textdateien nachträglich in ausführbare Dateiendungen (z. B. `.php`, `.phtml`, `.phar`, `.sh`) umbenannt werden.
+  * In `/api/funki/files/download` wurden alle Dateitypen pauschal mit `Content-Disposition: inline` ausgeliefert (Stored-XSS-Risiko bei `.html`/`.svg`).
+  * In `resources/views/livewire/shop/ai/ask-ai-dropdown.blade.php` wurde noch die veraltete Klasse `AiAgentManager::sanitizeSvgIcon` referenziert.
+* **Lösung:**
+  * Strikte Sperre gefährlicher Skript- und Systemendungen auch beim Umbenennen in `/api/funki/files/rename`.
+  * Whitelist für `inline`-Auslieferung (`application/pdf`, `image/jpeg`, `image/png`, `image/webp`, `image/gif`, `text/plain`) und erzwungenes `attachment` + `X-Content-Type-Options: nosniff` für alle übrigen Dateitypen in `/api/funki/files/download`.
+  * Implementierung von `AiAgentEditor::sanitizeSvgIcon()` (Stripping von `<script>`, `<foreignObject>`, Event-Handlern und `javascript:`-URIs) und Einbindung in `ask-ai-dropdown.blade.php`.
+
+### 11.4 Widerrufs-Anhänge (`RevocationFileController`) & Angebots-Pipeline
+* **Problem:** `RevocationFileController` stellte nur `download()`, nicht aber `show()` für die Lightbox-Vorschau unter `/admin/widerruf` bereit; zudem mussten in der Angebots-Pipeline (`ProductCalculator` -> `OrderQuoteRequests` -> `OrderQuoteAcceptance` -> `OrderCheckout`) Staffelpreise über mehrere Positionen desselben Produkts aggregiert und Zahlungslinks nach Zahlungseingang entwertet werden.
+* **Lösung:** Implementierung von `RevocationFileController::show()` mit MIME-Whitelist, Symlink-Schutz und `X-Content-Type-Options: nosniff`, vollständige Härtung der Angebots- und Storno-Pipeline sowie Bereinigung aller Rechtstexte (Entfernung nicht angebotener „Vorkasse“).
+
+### 11.5 Storage-Architektur-Bereinigung, Blueprint-Compliance & Gesamttest-Abnahme (`./funki test`)
+* **Problem:** Temporäre und abteilungsbezogene Pfade (`storage/app/bin/yt-dlp`, `storage/app/spot.html`, `storage/app/deleted_mail_ids.json`, `storage/app/funkenwerk_mail_order.json`, `storage/app/print_queue`) lagen außerhalb der erlaubten Abteilungs-Hauptordner (`leitung/`, `system/`). Zudem referenzierte `ProductIdea::blueprint()` einen nicht definierten Enum-Fall (`RetentionPolicy::UntilRevoked`).
+* **Lösung:** Konsolidierung aller Musik- und Mail-Storage-Pfade unter `storage/app/leitung/music/` bzw. `storage/app/leitung/mail/`, Verschiebung der Druck-Queue nach `storage/app/system/print_queue/`, Korrektur des System-Blueprints in `ProductIdea` auf `RetentionPolicy::PermanentMasterData` sowie Bereinigung der nicht existierenden Route `password.request` zugunsten von `route('login')`.
+* **Gesamttest-Ergebnis (`./funki test`):** **1.168 Tests, 61.229 Assertions, 0 Errors, 0 Failures (100 % Grün).**
+
+### 11.6 GoBD-Löschschutz & Rückstandslose Bereinigung unbezahlter Bestellungen (`OrderOrder::canBePermanentlyDeleted`)
+* **Problem:** In `OrderOverview::delete()` wurde lediglich auf `payment_status === 'paid'` und vorhandene `invoices` geprüft, während `refunded`, `shipped`, `completed` und `shipments` unberücksichtigt blieben. Zudem wurde der Button „Bestellung unwiderruflich löschen“ im UI auch bei GoBD-geschützten Bestellungen eingeblendet und führte im Backend nur ein `SoftDelete` auf `order_orders` aus, wodurch die zugehörigen `order_order_items` sowie deren Kunden-Uploads und 3D-Snapshots dauerhaft als Dateileichen erhalten blieben.
+* **Lösung:** Zentrale Prüfmethode [`OrderOrder::canBePermanentlyDeleted()`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Order/OrderOrder.php#L1008-L1035), Ausblendung des Lösch-Buttons bei allen GoBD-geschützten Bestellungen sowie für Nicht-Admins in [`left.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-offer-detail-partials/left.blade.php#L737-L744) und rückstandsloses `forceDelete()` inkl. `order_order_items`, automatischer Datei-Bereinigung über [`CartFileCleanupService::cleanupOrderFilesAfterDeletion()`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/CartFileCleanupService.php#L315-L348) und revisionssicherem Audit-Log (`admin_order_force_delete` in `SystemLog`).
+
 

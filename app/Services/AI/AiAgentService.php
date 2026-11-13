@@ -40,26 +40,42 @@ class AiAgentService
      */
     public static function getAgentPayload(AiAgent $agent): array
     {
-        $allowedToolIdentifiers = $agent->tools->pluck('identifier')->toArray();
-        $allowedToolIdentifiers[] = 'system_get_current_time';
+        $isFunkiSupportOnly = $agent->name === 'Funki';
+        $isEmployeeRestricted = $isFunkiSupportOnly || (AiAuthHelper::check() && !AiAuthHelper::isAdmin());
 
-        $isEmployeeRestricted = AiAuthHelper::check() && !AiAuthHelper::isAdmin();
-        if (!$isEmployeeRestricted) {
-            $allowedToolIdentifiers[] = 'system_dispatch_background_task';
-            $allowedToolIdentifiers[] = 'system_get_task_status';
-        }
+        if ($isFunkiSupportOnly) {
+            $allowedToolIdentifiers = array_values(array_filter(
+                array_column(AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
+                fn (string $n) => str_starts_with($n, 'support_')
+            ));
+            $allowedToolIdentifiers[] = 'system_get_current_time';
+        } elseif ($agent->name === 'Funkira') {
+            $allowedToolIdentifiers = FunkiraSkillPoolService::getCoreToolIdentifiers();
+            if (!$isEmployeeRestricted) {
+                $allowedToolIdentifiers[] = 'system_dispatch_background_task';
+                $allowedToolIdentifiers[] = 'system_get_task_status';
+            }
+        } else {
+            $allowedToolIdentifiers = $agent->tools->pluck('identifier')->toArray();
+            $allowedToolIdentifiers[] = 'system_get_current_time';
 
-        if (in_array('calendar_create_event', $allowedToolIdentifiers, true)) {
-            $allowedToolIdentifiers[] = 'calendar_send_ics_email';
-            $allowedToolIdentifiers[] = 'calendar_update_event';
-            $allowedToolIdentifiers[] = 'calendar_delete_event';
-        }
+            if (!$isEmployeeRestricted) {
+                $allowedToolIdentifiers[] = 'system_dispatch_background_task';
+                $allowedToolIdentifiers[] = 'system_get_task_status';
+            }
 
-        if (in_array('routine_get_day_routines', $allowedToolIdentifiers, true) && class_exists('\App\Services\AI\AIFunctionsRegistry')) {
-            $allowedToolIdentifiers = array_values(array_unique(array_merge(
-                $allowedToolIdentifiers,
-                array_column(\App\Services\AI\AIFunctionsRegistry::getAiRoutineFuncsSchema(), 'name')
-            )));
+            if (in_array('calendar_create_event', $allowedToolIdentifiers, true)) {
+                $allowedToolIdentifiers[] = 'calendar_send_ics_email';
+                $allowedToolIdentifiers[] = 'calendar_update_event';
+                $allowedToolIdentifiers[] = 'calendar_delete_event';
+            }
+
+            if (in_array('routine_get_day_routines', $allowedToolIdentifiers, true) && class_exists('\App\Services\AI\AIFunctionsRegistry')) {
+                $allowedToolIdentifiers = array_values(array_unique(array_merge(
+                    $allowedToolIdentifiers,
+                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiRoutineFuncsSchema(), 'name')
+                )));
+            }
         }
 
         // Extrahiere das Schema aus der globalen Registry
@@ -86,7 +102,7 @@ class AiAgentService
                     "Die aktuelle Systemzeit beim Verbindungsaufbau ist: " . now()->format('d.m.Y H:i:s') . " Uhr.\n" .
                     "HINWEIS: Da diese Verbindung länger offen bleiben kann, nutze das Tool `system_get_current_time` für die exakte, minutengenaue Uhrzeit, um zu prüfen, ob sich deine Anweisungen (wie Schlafenszeit) geändert haben.\n";
         
-        if (AiAuthHelper::isAdmin()) {
+        if (!$isFunkiSupportOnly && AiAuthHelper::isAdmin()) {
             try {
                 $botService = app(\App\Services\AI\AiSupportService::class);
                 $mission = $botService->getUltimateCommand(false);

@@ -63,6 +63,169 @@
                 @endif
             </div>
 
+            {{-- XTOOL STUDIO WERKSTATTHANDBUCH & LASER-PARAMETER (DIREKT AUS SCHRITT 4.2 DES PRODUKTS) --}}
+            @if($previewItem->product && $previewItem->product->isPhysical() && $previewItem->product->isPersonalizable() && !$isDigitalItem && !$isService)
+                @php
+                    $orderLaserGuide = $previewItem->product->getLaserInstructionSummary();
+                    $allOrderLaserPdfs = \App\Models\Product\Product::getLaserPdfGuides();
+                    $editLaserUrl = route('admin.products', ['editProduct' => $previewItem->product->id, 'step' => 4, 'subStep' => 2]);
+                @endphp
+
+                @if($orderLaserGuide['is_complete'])
+                    <div x-data="{ showAllPdfs: false }" class="bg-white dark:bg-gray-900/80 rounded-[1.5rem] sm:rounded-[2rem] shadow-sm dark:shadow-xl border border-gray-200 dark:border-gray-800 overflow-hidden shrink-0">
+                        <div class="bg-gray-50 dark:bg-gray-950 px-5 sm:px-6 py-3.5 border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-2">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h3 class="text-[9px] sm:text-[10px] font-black text-gray-900 dark:text-white uppercase tracking-widest">
+                                    xTool Anleitung &amp; Laser-Werte
+                                </h3>
+                                <span class="px-2.5 py-0.5 rounded-lg bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] text-[9px] font-black uppercase tracking-wider">
+                                    {{ $orderLaserGuide['equipment_title'] }}
+                                </span>
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-2">
+                                @if(!empty($orderLaserGuide['pdf_url']))
+                                    <a href="{{ $orderLaserGuide['pdf_url'] }}"
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                       class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-[var(--theme-color)] hover:text-white dark:hover:text-gray-900 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-wider transition-all">
+                                        <span>{{ $orderLaserGuide['pdf_label'] ?: 'PDF öffnen' }}</span>
+                                    </a>
+                                    <a href="{{ $orderLaserGuide['pdf_url'] }}"
+                                       download="{{ $orderLaserGuide['pdf_filename'] }}"
+                                       class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--theme-color)] hover:opacity-90 text-white dark:text-gray-900 text-[9px] font-black uppercase tracking-wider transition-all">
+                                        <span>PDF ziehen</span>
+                                    </a>
+                                @endif
+
+                                <button type="button"
+                                        @click="showAllPdfs = !showAllPdfs"
+                                        :class="showAllPdfs ? 'bg-[var(--theme-color-10)] text-[var(--theme-color)] border-[var(--theme-color-30)]' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-[var(--theme-color)]'"
+                                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border transition-all cursor-pointer">
+                                    <span>PDF-Anleitungen (3)</span>
+                                </button>
+
+                                <button type="button"
+                                        x-data="{ copiedLaser: false }"
+                                        @click="if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(@js($orderLaserGuide['copy_summary'])); } else { const ta = document.createElement('textarea'); ta.value = @js($orderLaserGuide['copy_summary']); document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); } copiedLaser = true; setTimeout(() => copiedLaser = false, 1800)"
+                                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border transition-all cursor-pointer"
+                                        :class="copiedLaser ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-[var(--theme-color)]'">
+                                    <span x-show="!copiedLaser">Werte kopieren</span>
+                                    <span x-show="copiedLaser" x-cloak>✓ Kopiert</span>
+                                </button>
+
+                                <a href="{{ $editLaserUrl }}"
+                                   title="Laser-Werte am Produkt bearbeiten (Schritt 4.2)"
+                                   class="px-2 py-1 rounded-lg bg-white dark:bg-gray-900 text-gray-500 hover:text-[var(--theme-color)] border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-wider transition-all">
+                                    4.2
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="p-4 sm:p-5 space-y-3.5">
+                            <div x-show="showAllPdfs" x-cloak x-transition class="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800">
+                                @foreach($allOrderLaserPdfs as $pdfItem)
+                                    <div class="p-2.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200/80 dark:border-gray-800 flex flex-col justify-between gap-2">
+                                        <div>
+                                            <span class="block text-[8px] font-black uppercase tracking-wider text-gray-400">{{ $pdfItem['badge'] }}</span>
+                                            <span class="block text-[11px] font-black text-gray-900 dark:text-white truncate mt-0.5">{{ $pdfItem['title'] }}</span>
+                                        </div>
+                                        <div class="flex items-center gap-1.5">
+                                            <a href="{{ $pdfItem['url'] }}" target="_blank" rel="noopener noreferrer"
+                                               class="flex-1 text-center px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 text-[9px] font-black uppercase tracking-wider transition-all">
+                                                Öffnen
+                                            </a>
+                                            <a href="{{ $pdfItem['url'] }}" download="{{ $pdfItem['filename'] }}"
+                                               class="flex-1 text-center px-2 py-1 rounded-md bg-[var(--theme-color)] hover:opacity-90 text-white dark:text-gray-900 text-[9px] font-black uppercase tracking-wider transition-all">
+                                                PDF ziehen
+                                            </a>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+
+                            @if($orderLaserGuide['setup_note'] !== '')
+                                <div class="px-3.5 py-2.5 rounded-xl bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-xs font-bold text-gray-900 dark:text-white">
+                                    {{ $orderLaserGuide['setup_note'] }}
+                                </div>
+                            @endif
+
+                            {{-- Kopfwerte: Modus | Material | Fokus-Höhe --}}
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                <div class="px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200/80 dark:border-gray-800">
+                                    <span class="block text-[9px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500">Modus</span>
+                                    <span class="block text-xs font-bold text-gray-900 dark:text-white mt-0.5 truncate" title="{{ $orderLaserGuide['process_mode'] }}">{{ $orderLaserGuide['process_mode'] }}</span>
+                                </div>
+                                <div class="px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200/80 dark:border-gray-800">
+                                    <span class="block text-[9px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500">Material</span>
+                                    <span class="block text-xs font-bold text-gray-900 dark:text-white mt-0.5 truncate" title="{{ $orderLaserGuide['material'] }}">{{ $orderLaserGuide['material'] }}</span>
+                                </div>
+                                <div class="px-3.5 py-2.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30">
+                                    <span class="block text-[9px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Fokus / Abstand</span>
+                                    <span class="block text-sm font-mono font-black text-emerald-800 dark:text-emerald-300 mt-0.5">{{ $orderLaserGuide['focus_formatted'] }}</span>
+                                </div>
+                            </div>
+
+                            {{-- xTool Studio Parameter-Raster --}}
+                            <div class="rounded-xl border border-gray-200/80 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/80 p-3 space-y-2.5">
+                                <div class="flex flex-wrap items-center justify-between gap-2 text-[9px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">
+                                    <span>{{ $orderLaserGuide['element_type'] }} · {{ $orderLaserGuide['engrave_tab'] }}</span>
+                                    <span>{{ $orderLaserGuide['preset_mode'] }}</span>
+                                </div>
+                                <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+                                    <div class="bg-white dark:bg-gray-900 rounded-lg px-2.5 py-2 border border-gray-200/70 dark:border-gray-800">
+                                        <span class="block text-[8px] font-black uppercase tracking-wider text-gray-400">Punktdauer</span>
+                                        <span class="block text-xs font-mono font-black text-gray-900 dark:text-white">{{ $orderLaserGuide['dot_duration_us'] }} µs</span>
+                                    </div>
+                                    <div class="bg-white dark:bg-gray-900 rounded-lg px-2.5 py-2 border border-gray-200/70 dark:border-gray-800">
+                                        <span class="block text-[8px] font-black uppercase tracking-wider text-gray-400">Leistung</span>
+                                        <span class="block text-xs font-mono font-black text-gray-900 dark:text-white">{{ $orderLaserGuide['power_percent'] }} %</span>
+                                    </div>
+                                    <div class="bg-white dark:bg-gray-900 rounded-lg px-2.5 py-2 border border-gray-200/70 dark:border-gray-800">
+                                        <span class="block text-[8px] font-black uppercase tracking-wider text-gray-400">DPI</span>
+                                        <span class="block text-xs font-mono font-black text-gray-900 dark:text-white">{{ $orderLaserGuide['dpi'] }}</span>
+                                    </div>
+                                    <div class="bg-white dark:bg-gray-900 rounded-lg px-2.5 py-2 border border-gray-200/70 dark:border-gray-800">
+                                        <span class="block text-[8px] font-black uppercase tracking-wider text-gray-400">Durchgänge</span>
+                                        <span class="block text-xs font-mono font-black text-gray-900 dark:text-white">{{ $orderLaserGuide['passes'] }}&times;</span>
+                                    </div>
+                                    <div class="bg-white dark:bg-gray-900 rounded-lg px-2.5 py-2 border border-gray-200/70 dark:border-gray-800">
+                                        <span class="block text-[8px] font-black uppercase tracking-wider text-gray-400">Frequenz</span>
+                                        <span class="block text-xs font-mono font-black text-gray-900 dark:text-white">{{ $orderLaserGuide['frequency_khz'] }} kHz</span>
+                                    </div>
+                                    <div class="bg-white dark:bg-gray-900 rounded-lg px-2.5 py-2 border border-gray-200/70 dark:border-gray-800">
+                                        <span class="block text-[8px] font-black uppercase tracking-wider text-gray-400">Bitmap</span>
+                                        <span class="block text-xs font-bold text-gray-900 dark:text-white truncate">{{ $orderLaserGuide['bitmap_mode'] }}</span>
+                                    </div>
+                                    <div class="bg-white dark:bg-gray-900 rounded-lg px-2.5 py-2 border border-gray-200/70 dark:border-gray-800 col-span-2 sm:col-span-1">
+                                        <span class="block text-[8px] font-black uppercase tracking-wider text-gray-400">Richtung</span>
+                                        <span class="block text-xs font-bold text-gray-900 dark:text-white truncate">{{ $orderLaserGuide['engrave_mode'] }}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            @if($orderLaserGuide['vector_note'] !== '')
+                                <div class="px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200/80 dark:border-gray-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+                                    <span class="text-[9px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">Vektor / Text</span>
+                                    <span class="font-mono font-bold text-gray-900 dark:text-white">{{ $orderLaserGuide['vector_note'] }}</span>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                @else
+                    <div class="bg-red-50/80 dark:bg-red-950/20 rounded-2xl border border-red-200 dark:border-red-500/30 px-5 py-4 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                        <div class="flex items-center gap-2.5">
+                            <span class="w-6 h-6 rounded-lg bg-red-500/15 text-red-600 dark:text-red-400 flex items-center justify-center text-xs font-black shrink-0">✕</span>
+                            <span class="text-xs font-black uppercase tracking-wider text-red-700 dark:text-red-300">Laser-Werte am Produkt fehlen</span>
+                        </div>
+                        <a href="{{ $editLaserUrl }}"
+                           class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-[10px] font-black uppercase tracking-widest transition-all shadow-2xs">
+                            <span>In Schritt 4.2 hinterlegen &rarr;</span>
+                        </a>
+                    </div>
+                @endif
+            @endif
+
             @php
                 // Für Schnell-Personalisierung (custom_fields) sind die Copy-Buttons bereits direkt in der Vorschau-Karte oben integriert.
                 // Der separate Laser-Steckbrief wird daher nur für 2D/3D-Studio-Positionen unterhalb des 3D-Canvas angezeigt.

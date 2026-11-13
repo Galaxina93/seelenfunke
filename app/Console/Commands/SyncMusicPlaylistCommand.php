@@ -222,7 +222,7 @@ class SyncMusicPlaylistCommand extends Command
             $this->error("Sicherheitsprüfung: Ungültige Musik-URL blockiert ({$url}).");
             return self::FAILURE;
         }
-        $ytDlp = storage_path('app/bin/yt-dlp');
+        $ytDlp = storage_path('app/leitung/music/bin/yt-dlp');
         $tracksDir = storage_path('app/leitung/music/tracks');
         if (!is_dir($tracksDir)) {
             @mkdir($tracksDir, 0775, true);
@@ -386,7 +386,7 @@ class SyncMusicPlaylistCommand extends Command
         $this->info("Lade Spotify-Metadaten von: {$embedUrl}");
 
         $html = '';
-        $localSpotCache = storage_path('app/spot.html');
+        $localSpotCache = storage_path('app/leitung/music/spot.html');
         if ($spotifyId === '5j9ltK9z3K5l5Hete8APBp' && file_exists($localSpotCache) && filesize($localSpotCache) > 1000) {
             $html = (string) file_get_contents($localSpotCache);
         } else {

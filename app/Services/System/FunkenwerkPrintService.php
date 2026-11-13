@@ -10,8 +10,8 @@ use Illuminate\Support\Str;
 
 class FunkenwerkPrintService
 {
-    private const QUEUE_FILE = 'print_queue/jobs.json';
-    private const LOCK_FILE = 'print_queue/jobs.lock';
+    private const QUEUE_FILE = 'system/print_queue/jobs.json';
+    private const LOCK_FILE = 'system/print_queue/jobs.lock';
     private const MAX_HISTORY = 30;
     private const MAX_PDF_BYTES = 10 * 1024 * 1024; // 10 MB Obergrenze für Versandlabel-PDFs
     private const HISTORY_TTL_DAYS = 7;

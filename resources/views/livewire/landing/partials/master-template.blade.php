@@ -837,7 +837,7 @@
         </h2>
         <p class="text-xl text-stone-100 mb-12 max-w-2xl mx-auto font-light leading-relaxed drop-shadow">
             @if($isVoucher)
-                Verschenke freie Auswahl aus unserer gesamten Manufaktur: digital per E-Mail oder als lasergravierte goldene Metallkarte im edlen Umschlag.
+                Verschenke freie Auswahl aus unserer gesamten Manufaktur: digital per E-Mail oder als lasergravierte Aluminiumkarte im edlen Umschlag.
             @elseif($isDigital)
                 Erhalte jetzt {{ $product->name }} mit direktem Download nach deiner Bestellung.
             @elseif($isService)

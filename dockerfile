@@ -18,8 +18,8 @@ RUN apt-get update && apt-get install -y \
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
     && docker-php-ext-install gd
 
-# 3. MySQL, PCNTL, EXIF und NEU: zip
-RUN docker-php-ext-install pdo pdo_mysql pcntl exif zip
+# 3. MySQL, PCNTL, EXIF, Calendar und ZIP
+RUN docker-php-ext-install pdo pdo_mysql pcntl exif zip calendar
 
 # 4. Redis Extension via PECL installieren und aktivieren
 RUN pecl install redis && docker-php-ext-enable redis
@@ -30,6 +30,7 @@ ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
-# 6. Upload & Memory Limits
+# 6. Upload & Memory Limits & Composer 2 Binary
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 COPY docker/php/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
 
