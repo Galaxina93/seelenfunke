@@ -374,6 +374,7 @@ fun DashboardContent(
     val isUploading by viewModel.isUploading.collectAsState()
     val isAiScanning by viewModel.isAiScanning.collectAsState()
     val actionResult by viewModel.actionResult.collectAsState()
+    val trichterFeedback by viewModel.trichterFeedback.collectAsState()
     val categories = remember {
         listOf("Lebensmittel", "Miete/Wohnen", "Transport", "Freizeit/Hobby", "Versicherungen", "Investitionen", "Werkzeug & Material", "Sonstiges")
     }
@@ -382,13 +383,18 @@ fun DashboardContent(
     LaunchedEffect(actionResult) {
         actionResult?.let { res ->
             res.onSuccess { msg ->
-                android.widget.Toast.makeText(zentrumContext, msg, android.widget.Toast.LENGTH_SHORT).show()
-                isQuickEntryExpanded = false
+                val toastMsg = if (msg.startsWith("✅")) msg else "✅ $msg"
+                android.widget.Toast.makeText(zentrumContext, toastMsg, android.widget.Toast.LENGTH_LONG).show()
+                if (trichterFeedback == null) {
+                    isQuickEntryExpanded = false
+                }
                 viewModel.clearActionResult()
             }.onFailure { err ->
+                val raw = err.localizedMessage ?: "Beleg konnte nicht verarbeitet werden."
+                val toastMsg = if (raw.startsWith("⚠️")) raw else "⚠️ $raw"
                 android.widget.Toast.makeText(
                     zentrumContext,
-                    err.localizedMessage ?: "Beleg konnte nicht verarbeitet werden.",
+                    toastMsg,
                     android.widget.Toast.LENGTH_LONG
                 ).show()
                 viewModel.clearActionResult()
@@ -457,11 +463,22 @@ fun DashboardContent(
                     isAiScanning = isAiScanning,
                     showCard = false,
                     showTitle = false,
-                    onDismiss = { isQuickEntryExpanded = false },
+                    trichterFeedback = trichterFeedback,
+                    onClearTrichterFeedback = { viewModel.clearTrichterFeedback() },
+                    onDismiss = {
+                        viewModel.clearTrichterFeedback()
+                        isQuickEntryExpanded = false
+                    },
                     onScanReceipt = { bytes, fileName, mime, autoSave, onResult ->
                         viewModel.scanReceipt(bytes, fileName, mime, autoSave) { scanData ->
                             onResult(scanData)
                         }
+                    },
+                    onSendToTrichter = { bytes, name, mime, customTitle ->
+                        viewModel.sendToMiniPcTrichter(bytes, name, mime, customTitle, "android_zentrum")
+                    },
+                    onSendMultipleToTrichter = { items, customTitle ->
+                        viewModel.sendMultipleToMiniPcTrichter(items, customTitle, "android_zentrum")
                     },
                     onSubmit = { title, amt, cat, isBiz, date, loc, bytes, name, mime ->
                         viewModel.submitQuickEntry(title, amt, cat, isBiz, date, loc, bytes, name, mime)

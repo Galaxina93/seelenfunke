@@ -92,6 +92,30 @@ class SystemErrorLogger
             ];
         }
 
+        if (str_contains($msgLower, '17701') || str_contains($msgLower, 'vosk') || str_contains($msgLower, 'yunet') || str_contains($msgLower, 'sface') || str_contains($msgLower, 'webcam') || str_contains($msgLower, 'pipewire')) {
+            return [
+                'category' => 'minipc_sense_or_hardware',
+                'probable_cause' => 'Lokaler Mini-PC Sense-Dienst (Wake-Word / Gesichtserkennung) oder USB-Kamera/Mikrofon antwortete kurzzeitig nicht.',
+                'recommended_action' => 'Prüfe, ob der Watchdog den Dienst automatisch neu gestartet hat (auto_healed), sowie den USB-Sitz der Logitech C920.',
+            ];
+        }
+
+        if (str_contains($msgLower, 'nas') || str_contains($msgLower, 'cifs') || str_contains($msgLower, 'smb')) {
+            return [
+                'category' => 'minipc_nas_backup',
+                'probable_cause' => 'Synology-NAS im Heimnetz temporär im Standby/nicht erreichbar oder SMB-Anmeldung fehlgeschlagen.',
+                'recommended_action' => 'Der Mini-PC merkt sich das Nachhol-Flag (Catch-Up) automatisch für den nächsten Lauf. Bei Dauerfehler NAS-Erreichbarkeit prüfen.',
+            ];
+        }
+
+        if (str_contains($msgLower, 'okhttp') || str_contains($msgLower, 'retrofit') || str_contains($msgLower, 'sockettimeout') || str_contains($classLower, 'unknownhostexception')) {
+            return [
+                'category' => 'client_network_or_api',
+                'probable_cause' => 'Temporärer Mobilfunk-/WLAN-Abbruch oder API-Timeout auf dem Endgerät (Android / Desktop).',
+                'recommended_action' => 'Kein Datenverlust bei aktivem Offline-Puffer; bei gehäuftem Auftreten Server-Antwortzeiten prüfen.',
+            ];
+        }
+
         if (str_contains($msgLower, 'livewire') || str_contains((string) $file, 'Livewire')) {
             return [
                 'category' => 'livewire_component_error',
@@ -116,11 +140,50 @@ class SystemErrorLogger
             return '';
         }
 
-        return (string) preg_replace(
-            '/((?:api[_-]?key|key|token|access[_-]?token|refresh[_-]?token|password|passwd|secret|signature|pin)\s*[=:]\s*)([^\s&"\'\r\n]+)/i',
-            '$1[REDACTED]',
+        $clean = (string) preg_replace(
+            '/\bBearer\s+[A-Za-z0-9\-._~+|\/]+=*/i',
+            'Bearer [REDACTED]',
             $text
         );
+
+        return (string) preg_replace(
+            '/((?:api[_-]?key|key|token|access[_-]?token|refresh[_-]?token|password|passwd|secret|signature|pin|authorization)\s*[=:]\s*)([^\s&"\'\r\n]+)/i',
+            '$1[REDACTED]',
+            $clean
+        );
+    }
+
+    /**
+     * Bereinigt verschachtelte Arrays rekursiv von Geheimnissen und begrenzt String-Längen.
+     */
+    public static function sanitizeArrayRecursive(array $input, int $depth = 0): array
+    {
+        if ($depth > 5) {
+            return ['_truncated' => true];
+        }
+
+        $out = [];
+        $sensitiveKeyPattern = '/^(?:password|passwd|secret|token|access_token|refresh_token|api_key|gemini_key|authorization|cookie|pin|two_factor_code)$/i';
+
+        foreach (array_slice($input, 0, 40, true) as $k => $v) {
+            $keyStr = (string) $k;
+            if (preg_match($sensitiveKeyPattern, $keyStr)) {
+                $out[$keyStr] = '[REDACTED]';
+                continue;
+            }
+
+            if (is_string($v)) {
+                $out[$keyStr] = Str::limit(self::sanitizeSensitiveText($v), 2500);
+            } elseif (is_array($v)) {
+                $out[$keyStr] = self::sanitizeArrayRecursive($v, $depth + 1);
+            } elseif (is_bool($v) || is_int($v) || is_float($v) || is_null($v)) {
+                $out[$keyStr] = $v;
+            } else {
+                $out[$keyStr] = Str::limit(self::sanitizeSensitiveText((string) json_encode($v)), 1000);
+            }
+        }
+
+        return $out;
     }
 
     /**
@@ -369,6 +432,157 @@ class SystemErrorLogger
                     'execution_context' => self::buildExecutionContext(),
                     'server_environment' => self::buildServerEnvironment(),
                 ], $extra),
+                'started_at' => now(),
+                'finished_at' => now(),
+            ]);
+        } catch (\Throwable $ignore) {
+            return null;
+        } finally {
+            self::$isRecording = false;
+        }
+    }
+
+    /**
+     * Zentraler Ökosystem-Error-Sentinel (Laravel Portal, Android App, Funkenwerk OS Mini-PC & Windows Desktop).
+     * Gruppiert identische Fehler über 24h per SHA-256-Fingerprint (occurrences_count) ohne Datenbank-Flutung
+     * und dokumentiert erfolgreiche Selbstheilungen transparent als [AUTO-GEHEILT].
+     */
+    public static function recordCrossPlatformEvent(array $data): ?SystemLog
+    {
+        if (self::$isRecording || !class_exists(SystemLog::class)) {
+            return null;
+        }
+
+        self::$isRecording = true;
+        try {
+            $rawPlatform = strtolower(trim((string) ($data['platform'] ?? 'portal')));
+            $allowedPlatforms = [
+                'portal' => 'Portal',
+                'android' => 'Android App',
+                'minipc_linux' => 'Werkstatt Mini-PC',
+                'windows_desktop' => 'Funkenwerk Windows',
+            ];
+            $platform = isset($allowedPlatforms[$rawPlatform]) ? $rawPlatform : 'portal';
+            $platformLabel = $allowedPlatforms[$platform];
+
+            $component = trim((string) ($data['component'] ?? 'general'));
+            $componentSlug = Str::slug($component, '_') ?: 'general';
+            $severity = strtolower(trim((string) ($data['severity'] ?? 'error')));
+            $autoHealed = !empty($data['auto_healed']) || $severity === 'auto_healed';
+            $autoHealAction = self::sanitizeSensitiveText((string) ($data['auto_heal_action'] ?? ''));
+
+            $cleanMessage = self::sanitizeSensitiveText(trim((string) ($data['message'] ?? 'Unbekannter Fehler')));
+            if ($cleanMessage === '') {
+                $cleanMessage = 'Unbekannter Laufzeitfehler';
+            }
+
+            $errorClass = self::sanitizeSensitiveText(trim((string) ($data['error_class'] ?? '')));
+            $file = self::sanitizeSensitiveText(trim((string) ($data['file'] ?? '')));
+            $line = isset($data['line']) && is_numeric($data['line']) ? (int) $data['line'] : null;
+            $rawTitle = self::sanitizeSensitiveText(trim((string) ($data['title'] ?? '')));
+
+            $normalizedSig = preg_replace('/\b\d+\b/', '#', strtolower($cleanMessage));
+            $providedFp = preg_replace('/[^a-f0-9]/i', '', (string) ($data['fingerprint'] ?? ''));
+            $fingerprint = strlen($providedFp) >= 16
+                ? strtolower(substr($providedFp, 0, 64))
+                : hash('sha256', strtolower($platform . '|' . $componentSlug . '|' . $errorClass . '|' . $file . '|' . ($line ?? 0) . '|' . mb_substr((string) $normalizedSig, 0, 140)));
+
+            $shortFp = substr($fingerprint, 0, 16);
+            $actionId = Str::limit("{$platform}:{$componentSlug}:{$shortFp}", 190, '');
+
+            $mappedStatus = match (true) {
+                $autoHealed || in_array($severity, ['warning', 'warn', 'notice'], true) => 'warning',
+                in_array($severity, ['info', 'resolved', 'success'], true) => 'success',
+                default => 'error',
+            };
+
+            $occurrencesAdd = max(1, min(500, (int) ($data['occurrences'] ?? 1)));
+
+            // 24h Fingerprint-Deduplizierung (erhöht Zähler statt neue Zeile zu spamen)
+            $existing = SystemLog::where('action_id', $actionId)
+                ->whereIn('status', ['error', 'warning'])
+                ->where('started_at', '>=', now()->subHours(24))
+                ->latest('id')
+                ->first();
+
+            $safeContext = is_array($data['context'] ?? null)
+                ? self::sanitizeArrayRecursive($data['context'])
+                : [];
+
+            $stackRaw = is_string($data['stack'] ?? null)
+                ? Str::limit(self::sanitizeSensitiveText($data['stack']), 4500)
+                : null;
+
+            if ($existing) {
+                $existingPayload = is_array($existing->payload) ? $existing->payload : [];
+                $existingPayload['occurrences_count'] = ((int) ($existingPayload['occurrences_count'] ?? 1)) + $occurrencesAdd;
+                $existingPayload['last_seen_at'] = now()->toIso8601String();
+                if ($autoHealed) {
+                    $existingPayload['auto_healed'] = true;
+                    if ($autoHealAction !== '') {
+                        $existingPayload['auto_heal_action'] = $autoHealAction;
+                    }
+                }
+                if (!empty($safeContext)) {
+                    $existingPayload['latest_context'] = $safeContext;
+                }
+                if ($stackRaw) {
+                    $existingPayload['stack_excerpt'] = $stackRaw;
+                }
+
+                // Wenn ein vorher offener Fehler jetzt erfolgreich selbstgeheilt wurde -> Status auf warning abstufen
+                if ($autoHealed && $existing->status === 'error') {
+                    $existing->status = 'warning';
+                    if (!str_starts_with((string) $existing->title, '[AUTO-GEHEILT]')) {
+                        $existing->title = Str::limit('[AUTO-GEHEILT] ' . $existing->title, 190);
+                    }
+                } elseif ($mappedStatus === 'error' && !$autoHealed) {
+                    $existing->status = 'error';
+                }
+
+                $existing->payload = $existingPayload;
+                $existing->finished_at = now();
+                $existing->save();
+
+                return $existing;
+            }
+
+            $diagnosis = self::diagnose($cleanMessage, $errorClass ?: null, $file ?: null);
+            $baseTitle = $rawTitle !== ''
+                ? $rawTitle
+                : ($component !== '' ? ucfirst($component) : ($errorClass !== '' ? class_basename($errorClass) : 'Laufzeitfehler'));
+
+            $prefix = $autoHealed ? "[AUTO-GEHEILT] [{$platformLabel}] " : "[{$platformLabel}] ";
+            $finalTitle = Str::limit($prefix . $baseTitle, 190);
+
+            $payload = [
+                'platform' => $platform,
+                'platform_label' => $platformLabel,
+                'component' => $component,
+                'fingerprint' => $fingerprint,
+                'occurrences_count' => $occurrencesAdd,
+                'auto_healed' => $autoHealed,
+                'auto_heal_action' => $autoHealAction !== '' ? $autoHealAction : null,
+                'app_version' => Str::limit(self::sanitizeSensitiveText((string) ($data['app_version'] ?? '')), 64),
+                'device' => Str::limit(self::sanitizeSensitiveText((string) ($data['device'] ?? '')), 120),
+                'exception_class' => $errorClass !== '' ? $errorClass : null,
+                'file' => $file !== '' ? $file : null,
+                'line' => $line,
+                'stack_excerpt' => $stackRaw,
+                'diagnosis' => $diagnosis,
+                'context' => $safeContext,
+                'first_seen_at' => (string) ($data['occurred_at'] ?? now()->toIso8601String()),
+                'last_seen_at' => now()->toIso8601String(),
+                'server_environment' => self::buildServerEnvironment(),
+            ];
+
+            return SystemLog::create([
+                'type' => $platform === 'portal' ? 'system' : $platform,
+                'action_id' => $actionId,
+                'title' => $finalTitle,
+                'message' => Str::limit($cleanMessage, 2000),
+                'status' => $mappedStatus,
+                'payload' => $payload,
                 'started_at' => now(),
                 'finished_at' => now(),
             ]);

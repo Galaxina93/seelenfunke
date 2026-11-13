@@ -590,7 +590,13 @@ class AIController extends Controller
             return response()->json(['error' => 'No Gemini API Key configured.'], 500);
         }
 
-        if ($aiAgent && array_key_exists('tools', $payload) && !\App\Services\AI\FunkiraSkillPoolService::isFunkira($aiAgent)) {
+        $isFunkiraAgent = $aiAgent && (
+            method_exists(\App\Services\AI\FunkiraSkillPoolService::class, 'isFunkira')
+                ? \App\Services\AI\FunkiraSkillPoolService::isFunkira($aiAgent)
+                : strcasecmp((string) ($aiAgent->name ?? ''), 'Funkira') === 0
+        );
+
+        if ($aiAgent && array_key_exists('tools', $payload) && !$isFunkiraAgent) {
             $schemaTools = $payload['tools'] ?: [];
         } else {
             $schemaTools = \App\Services\AI\AIFunctionsRegistry::getSchema();

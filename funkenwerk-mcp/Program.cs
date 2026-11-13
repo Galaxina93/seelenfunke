@@ -652,10 +652,16 @@ namespace FunkenwerkMcp
                     "action": { "type": "string", "enum": ["list", "get", "save", "import_media"] },
                     "projectName": { "type": "string", "description": "Name des Projekts unter Videos\\<Projektname>, z. B. 'Projekt 1'." },
                     "aspectRatio": { "type": "string", "enum": ["9:16", "1:1", "16:9"], "description": "Zielformat: '9:16' (Instagram Reel / TikTok / Shorts), '1:1' (Feed), '16:9' (YouTube)." },
-                    "backgroundMusic": { "type": "string", "description": "Relativer Pfad im CC0-Soundpool, z. B. 'Beats_und_Ambient\\Emotion_Romantic_Inspiration_CC0.mp3'." },
-                    "musicVolume": { "type": "number", "minimum": 0, "maximum": 1.5, "description": "Lautstärke des Musikbetts (0.0 bis 1.5, Standard 0.38)." },
-                    "sfxVolume": { "type": "number", "minimum": 0, "maximum": 1.5, "description": "Lautstärke der Übergangs- und Akzent-Sounds (0.0 bis 1.5, Standard 0.68)." },
-                    "brandHeaderText": { "type": "string", "description": "Optionaler Schwarz-Gold Marken-Header oben im Video." },
+                    "transitionDurationSec": { "type": "number", "minimum": 0.08, "maximum": 1.20, "description": "Standard-Übergangsdauer in Sekunden (Standard 0.20s für knackige Beat-Cuts)." },
+                    "colorGrade": { "type": "string", "enum": ["dark_luxury", "natural"], "description": "Farbgrading: 'dark_luxury' (Obsidian-Kontrast & warme Kristall-Highlights) oder 'natural'." },
+                    "overlayStyle": { "type": "string", "enum": ["editorial_minimal", "card"], "description": "Typografie-Stil: 'editorial_minimal' (rahmenlose reinweiße High-Fashion Cinema-Typografie) oder 'card'." },
+                    "backgroundMusic": { "type": "string", "description": "Relativer Pfad im CC0-Soundpool, z. B. 'Beats_und_Ambient\\Dark_Luxury_Viral_808_120BPM_CC0.wav'." },
+                    "musicVolume": { "type": "number", "minimum": 0, "maximum": 1.5, "description": "Lautstärke des Musikbetts (0.0 bis 1.5, Standard 0.56)." },
+                    "sfxVolume": { "type": "number", "minimum": 0, "maximum": 1.5, "description": "Lautstärke der Cinema-SFX (0.0 bis 1.5, Standard 0.82)." },
+                    "introAccentSfx": { "type": "string", "description": "Optionaler Sub-Boom / Sub-Drop zum Video-Start (Frame 0)." },
+                    "outroAccentSfx": { "type": "string", "description": "Optionaler mystischer Kristall-/Sub-Swell auf dem finalen Abgang-Dissolve." },
+                    "showBrandHeader": { "type": "boolean", "description": "Optionales dezentes reinweißes Marken-Wasserzeichen oben im Bild." },
+                    "brandHeaderText": { "type": "string", "description": "Optionaler Marken-Header oben im Video." },
                     "outputFileName": { "type": "string", "description": "Zieldateiname für das fertige MP4 im Projektordner." },
                     "sourcePaths": {
                       "type": "array",
@@ -664,20 +670,25 @@ namespace FunkenwerkMcp
                     },
                     "scenes": {
                       "type": "array",
-                      "description": "Geordnete Szenen-Timeline bei action='save'.",
+                      "description": "Geordnete Szenen-Timeline bei action='save' (inkl. optionalem 'brand_outro' Abgang am Ende).",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "fileName": { "type": "string" },
-                          "mediaType": { "type": "string", "enum": ["video", "image"] },
+                          "fileName": { "type": "string", "description": "Dateiname im Projektordner oder '__BRAND_OUTRO__' für den mystischen 60fps Marken-Abgang." },
+                          "mediaType": { "type": "string", "enum": ["video", "image", "brand_outro"] },
                           "startSec": { "type": "number", "minimum": 0 },
                           "durationSec": { "type": "number", "minimum": 0.8, "maximum": 45 },
                           "fitMode": { "type": "string", "enum": ["fill", "contain_blur"] },
+                          "speedMode": { "type": "string", "enum": ["speed_ramp", "slow_motion", "linear"], "description": "'speed_ramp' (2.4x Whip -> Optical-Flow Slow-Mo -> 2.4x Whip), 'slow_motion' oder 'linear'." },
+                          "slowMoFactor": { "type": "number", "minimum": 0.25, "maximum": 0.90, "description": "Zeitlupen-Faktor für Hero-Phase (z. B. 0.35 bis 0.48)." },
                           "overlayBadge": { "type": "string" },
                           "overlayTitle": { "type": "string" },
                           "overlaySubtitle": { "type": "string" },
-                          "transition": { "type": "string", "enum": ["smoothleft", "fadeblack", "dissolve", "circleopen", "wiperight", "smoothup"] },
+                          "transition": { "type": "string", "enum": ["whip_zoom", "whip_pan", "dark_cut", "velvet_dissolve", "flash_cut", "flash_white", "dissolve", "smoothleft", "fadeblack", "smoothup"] },
+                          "transitionDurSec": { "type": "number", "minimum": 0, "maximum": 1.40, "description": "Optionale individuelle Übergangsdauer dieser Szene in Sekunden (z. B. 0.90 für einen weichen velvet_dissolve in den Marken-Abgang; 0 = Projektstandard)." },
                           "transitionSfx": { "type": "string" },
+                          "impactSfx": { "type": "string", "description": "Optionaler Sub-Bass / Impulse-Hit auf dem Schnittpunkt." },
+                          "riserSfx": { "type": "string", "description": "Optionaler Spannungs-Riser vor dem Schnittpunkt (schneidet exakt auf dem Beat ab)." },
                           "keepOriginalAudio": { "type": "boolean" },
                           "originalAudioVolume": { "type": "number", "minimum": 0, "maximum": 1.5 }
                         },
@@ -724,7 +735,7 @@ namespace FunkenwerkMcp
             new
             {
                 name = "craft_render_social_video",
-                description = "Verarbeitet und rendert ein Funkenwerk Craft Projekt ('Videos\\<Projektname>') zu einem postbereiten Social-Media-Mastervideo (H.264 Main Profile, yuv420p, bt709, 60fps, AAC 48kHz, FastStart, xfade-Übergänge, CC0-Sounddesign & Schwarz-Gold Typografie) und aktualisiert synchron die FilmCraft .fcproj Datei.",
+                description = "Verarbeitet und rendert ein Funkenwerk Craft Projekt ('Videos\\<Projektname>') zu einem postbereiten Social-Media-Mastervideo (H.264 Main Profile, yuv420p, bt709, 60fps, AAC 48kHz, FastStart, Optical-Flow Speed-Ramps, CC0-Sounddesign, reinweiße Cinema-Typografie & mystischer Marken-Abgang) und aktualisiert synchron die FilmCraft .fcproj Datei.",
                 inputSchema = JsonNode.Parse("""
                 {
                   "type": "object",
@@ -1142,9 +1153,15 @@ namespace FunkenwerkMcp
                                 ["projectName"] = GetOptString(args, "projectName", 120) ?? "Projekt 1"
                             };
                             if (args["aspectRatio"] != null) req["aspectRatio"] = GetOptString(args, "aspectRatio", 16);
+                            if (args["transitionDurationSec"] != null) req["transitionDurationSec"] = args["transitionDurationSec"]!.GetValue<double>();
+                            if (args["colorGrade"] != null) req["colorGrade"] = GetOptString(args, "colorGrade", 32);
+                            if (args["overlayStyle"] != null) req["overlayStyle"] = GetOptString(args, "overlayStyle", 32);
                             if (args["backgroundMusic"] != null) req["backgroundMusic"] = GetOptString(args, "backgroundMusic", 260);
                             if (args["musicVolume"] != null) req["musicVolume"] = args["musicVolume"]!.GetValue<double>();
                             if (args["sfxVolume"] != null) req["sfxVolume"] = args["sfxVolume"]!.GetValue<double>();
+                            if (args["introAccentSfx"] != null) req["introAccentSfx"] = GetOptString(args, "introAccentSfx", 260);
+                            if (args["outroAccentSfx"] != null) req["outroAccentSfx"] = GetOptString(args, "outroAccentSfx", 260);
+                            if (args["showBrandHeader"] != null) req["showBrandHeader"] = args["showBrandHeader"]!.GetValue<bool>();
                             if (args["brandHeaderText"] != null) req["brandHeaderText"] = GetOptString(args, "brandHeaderText", 160);
                             if (args["outputFileName"] != null) req["outputFileName"] = GetOptString(args, "outputFileName", 160);
                             if (args["scenes"] is JsonArray scArr)

@@ -931,6 +931,30 @@ body.funkira-open #atelier-video-wrap {
   color: #FFE4E6;
 }
 
+.pill-btn.phone-active {
+  border-color: var(--gold-bright);
+  background: rgba(197, 160, 89, 0.28);
+  color: #FFFBEB;
+}
+
+.phone-call-badge {
+  position: absolute;
+  top: 72px;
+  right: 28px;
+  z-index: 7;
+  background: rgba(14, 12, 18, 0.92);
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold-bright);
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: auto;
+}
+
 .tiktok-live-badge {
   position: absolute;
   top: 72px;

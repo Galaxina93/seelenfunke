@@ -3,15 +3,15 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Funkenwerk FTP"
         Icon="funkenwerk_ftp.ico"
-        Width="1360" Height="820"
-        MinWidth="1020" MinHeight="620"
+        Width="1400" Height="840"
+        MinWidth="1040" MinHeight="620"
         WindowStartupLocation="CenterScreen"
-        Background="#0F1117"
-        Foreground="#F9FAFB"
+        Background="{DynamicResource FwBgRoot}"
+        Foreground="{DynamicResource FwFgPrimary}"
         FontFamily="Segoe UI"
         Closing="Window_Closing">
 
-    <Grid x:Name="RootGrid" Background="#0F1117">
+    <Grid x:Name="RootGrid" Background="{DynamicResource FwBgRoot}" AllowDrop="True" PreviewDragOver="RootGrid_PreviewDragOver">
         <Grid.RowDefinitions>
             <RowDefinition Height="64"/>
             <RowDefinition Height="*"/>
@@ -21,7 +21,7 @@
         <!-- ================================================================= -->
         <!-- ROW 0: COMPACT CONNECTION BAR                                     -->
         <!-- ================================================================= -->
-        <Border x:Name="TopBarBorder" Grid.Row="0" Background="#12151E" BorderBrush="#232734" BorderThickness="0,0,0,1" Padding="18,0">
+        <Border x:Name="TopBarBorder" Grid.Row="0" Background="{DynamicResource FwBgBar}" BorderBrush="{DynamicResource FwBorderSubtle}" BorderThickness="0,0,0,1" Padding="18,0">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -46,19 +46,19 @@
                 <!-- Saved Profiles Dropdown -->
                 <ComboBox x:Name="ProfilesCombo" Grid.Column="1" Height="34" VerticalContentAlignment="Center"
                           DisplayMemberPath="Name" SelectionChanged="ProfilesCombo_SelectionChanged"
-                          Margin="0,0,6,0" Padding="8,0"/>
+                          Margin="0,0,6,0" Padding="8,0" ToolTip="Gespeichertes Server-Profil"/>
 
                 <!-- Save / Delete Profile -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
                     <Button x:Name="SaveProfileBtn" Content="💾" Width="32" Height="34" Click="SaveProfile_Click"
-                            Background="#1B1F2B" Foreground="#C5A059" BorderBrush="#2D3343" Cursor="Hand" Margin="0,0,4,0"/>
+                            Style="{StaticResource FwTileActionButton}" Foreground="#C5A059" Padding="0" Margin="0,0,4,0" ToolTip="Profil speichern"/>
                     <Button x:Name="DeleteProfileBtn" Content="✕" Width="32" Height="34" Click="DeleteProfile_Click"
-                            Background="#1B1F2B" Foreground="#9CA3AF" BorderBrush="#2D3343" Cursor="Hand"/>
+                            Style="{StaticResource FwTileActionButton}" Foreground="{DynamicResource FwFgSecondary}" Padding="0" ToolTip="Profil entfernen"/>
                 </StackPanel>
 
                 <!-- Protocol -->
                 <ComboBox x:Name="ProtocolCombo" Grid.Column="3" Height="34" VerticalContentAlignment="Center"
-                          SelectionChanged="ProtocolCombo_SelectionChanged" Margin="0,0,6,0" Padding="6,0">
+                          SelectionChanged="ProtocolCombo_SelectionChanged" Margin="0,0,6,0" Padding="6,0" ToolTip="Übertragungsprotokoll">
                     <ComboBoxItem Content="SFTP" IsSelected="True"/>
                     <ComboBoxItem Content="FTPS"/>
                     <ComboBoxItem Content="FTP"/>
@@ -66,48 +66,51 @@
 
                 <!-- Host -->
                 <TextBox x:Name="HostBox" Grid.Column="4" Height="34" VerticalContentAlignment="Center"
-                         Background="#181C26" Foreground="#F9FAFB" BorderBrush="#2D3343" Padding="9,0" Margin="0,0,6,0"
-                         Tag="Host"/>
+                         Background="{DynamicResource FwBgInput}" Foreground="{DynamicResource FwFgPrimary}" CaretBrush="#C5A059"
+                         BorderBrush="{DynamicResource FwBorderStrong}" Padding="9,0" Margin="0,0,6,0"
+                         KeyDown="ConnectionInput_KeyDown" ToolTip="Server-Host oder IP"/>
 
                 <!-- Port -->
                 <TextBox x:Name="PortBox" Grid.Column="5" Height="34" VerticalContentAlignment="Center" Text="22"
-                         Background="#181C26" Foreground="#F9FAFB" BorderBrush="#2D3343" Padding="6,0" Margin="0,0,6,0"
-                         HorizontalContentAlignment="Center"/>
+                         Background="{DynamicResource FwBgInput}" Foreground="{DynamicResource FwFgPrimary}" CaretBrush="#C5A059"
+                         BorderBrush="{DynamicResource FwBorderStrong}" Padding="6,0" Margin="0,0,6,0"
+                         HorizontalContentAlignment="Center" KeyDown="ConnectionInput_KeyDown" ToolTip="Port"/>
 
                 <!-- Username -->
                 <TextBox x:Name="UserBox" Grid.Column="6" Height="34" VerticalContentAlignment="Center"
-                         Background="#181C26" Foreground="#F9FAFB" BorderBrush="#2D3343" Padding="8,0" Margin="0,0,6,0"/>
+                         Background="{DynamicResource FwBgInput}" Foreground="{DynamicResource FwFgPrimary}" CaretBrush="#C5A059"
+                         BorderBrush="{DynamicResource FwBorderStrong}" Padding="8,0" Margin="0,0,6,0"
+                         KeyDown="ConnectionInput_KeyDown" ToolTip="Benutzername"/>
 
                 <!-- Password + Mandatory Eye Icon -->
-                <Border x:Name="PassContainerBorder" Grid.Column="7" Height="34" Background="#181C26" BorderBrush="#2D3343" BorderThickness="1" Margin="0,0,6,0">
+                <Border x:Name="PassContainerBorder" Grid.Column="7" Height="34" Background="{DynamicResource FwBgInput}" BorderBrush="{DynamicResource FwBorderStrong}" BorderThickness="1" Margin="0,0,6,0">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="28"/>
                         </Grid.ColumnDefinitions>
-                        <PasswordBox x:Name="PassBox" Grid.Column="0" Background="Transparent" Foreground="#F9FAFB"
+                        <PasswordBox x:Name="PassBox" Grid.Column="0" Background="Transparent" Foreground="{DynamicResource FwFgPrimary}"
                                      BorderThickness="0" VerticalContentAlignment="Center" Padding="7,0"
-                                     PasswordChanged="PassBox_PasswordChanged"/>
-                        <TextBox x:Name="PassVisibleBox" Grid.Column="0" Background="Transparent" Foreground="#F9FAFB"
+                                     PasswordChanged="PassBox_PasswordChanged" KeyDown="ConnectionInput_KeyDown"/>
+                        <TextBox x:Name="PassVisibleBox" Grid.Column="0" Background="Transparent" Foreground="{DynamicResource FwFgPrimary}" CaretBrush="#C5A059"
                                  BorderThickness="0" VerticalContentAlignment="Center" Padding="7,0" Visibility="Collapsed"
-                                 TextChanged="PassVisibleBox_TextChanged"/>
+                                 TextChanged="PassVisibleBox_TextChanged" KeyDown="ConnectionInput_KeyDown"/>
                         <Button x:Name="TogglePassEyeBtn" Grid.Column="1" Content="👁" Background="Transparent"
-                                Foreground="#9CA3AF" BorderThickness="0" Cursor="Hand" Click="TogglePassEye_Click"/>
+                                Foreground="{DynamicResource FwFgSecondary}" BorderThickness="0" Cursor="Hand" Click="TogglePassEye_Click" ToolTip="Passwort ein-/ausblenden"/>
                     </Grid>
                 </Border>
 
                 <!-- SSH Private Key Picker -->
                 <Button x:Name="PickKeyBtn" Grid.Column="8" Content="🔑" Width="34" Height="34" Click="PickKey_Click"
-                        Background="#1B1F2B" Foreground="#C5A059" BorderBrush="#2D3343" Cursor="Hand" Margin="0,0,8,0"/>
+                        Style="{StaticResource FwTileActionButton}" Foreground="#C5A059" Padding="0" Margin="0,0,8,0"/>
 
                 <!-- Connect / Disconnect Button -->
                 <Button x:Name="ConnectBtn" Grid.Column="9" Content="⚡ VERBINDEN" Height="34" Padding="16,0"
-                        Click="Connect_Click" Background="#C5A059" Foreground="#0F1117" FontWeight="Bold"
-                        BorderThickness="0" Cursor="Hand" Margin="0,0,8,0"/>
+                        Click="Connect_Click" Style="{StaticResource FwGoldPrimaryButton}" Margin="0,0,8,0"/>
 
                 <!-- Theme Toggle -->
                 <Button x:Name="ThemeToggleBtn" Grid.Column="10" Content="☀" Width="34" Height="34"
-                        Click="ThemeToggle_Click" Background="#1B1F2B" Foreground="#C5A059" BorderBrush="#2D3343" Cursor="Hand"/>
+                        Click="ThemeToggle_Click" Style="{StaticResource FwTileActionButton}" Foreground="#C5A059" Padding="0" ToolTip="Light-/Dark-Mode umschalten"/>
             </Grid>
         </Border>
 
@@ -122,7 +125,7 @@
             </Grid.ColumnDefinitions>
 
             <!-- LEFT TILE: LOKAL -->
-            <Border x:Name="LocalTileBorder" Grid.Column="0" Background="#141821" BorderBrush="#242938" BorderThickness="1" CornerRadius="14" Padding="16"
+            <Border x:Name="LocalTileBorder" Grid.Column="0" Background="{DynamicResource FwBgTile}" BorderBrush="{DynamicResource FwBorderSubtle}" BorderThickness="1.2" CornerRadius="14" Padding="16"
                     AllowDrop="True" PreviewDragOver="LocalTile_PreviewDragOver" PreviewDrop="LocalTile_PreviewDrop" DragLeave="LocalTile_DragLeave">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -139,32 +142,64 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock x:Name="LocalHeaderTxt" Text="LOKAL" Foreground="#C5A059" FontSize="14" FontWeight="Bold" VerticalAlignment="Center"/>
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <Button Content="⬆" Width="30" Height="28" Click="LocalUp_Click" Background="#1D2230" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,0,5,0"/>
-                            <Button Content="⟳" Width="30" Height="28" Click="LocalRefresh_Click" Background="#1D2230" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,0,5,0"/>
-                            <Button Content="+ Ordner" Height="28" Padding="10,0" Click="LocalMkdir_Click" Background="#1D2230" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,0,5,0"/>
-                            <Button Content="🗑" Width="30" Height="28" Click="LocalDelete_Click" Background="#1D2230" Foreground="#F87171" BorderBrush="#2D3343" Cursor="Hand" Margin="0,0,8,0"/>
-                            <Button Content="HOCHLADEN →" Height="28" Padding="12,0" Click="UploadSelected_Click" Background="#C5A059" Foreground="#0F1117" FontWeight="Bold" BorderThickness="0" Cursor="Hand"/>
+                            <Button Content="⬆" Width="30" Click="LocalUp_Click" Style="{StaticResource FwTileActionButton}" Padding="0" Margin="0,0,4,0" ToolTip="Übergeordneter Ordner (Rücktaste)"/>
+                            <Button Content="⟳" Width="30" Click="LocalRefresh_Click" Style="{StaticResource FwTileActionButton}" Padding="0" Margin="0,0,4,0" ToolTip="Aktualisieren (F5)"/>
+                            <Button Content="✎" Width="30" Click="LocalEdit_Click" Style="{StaticResource FwTileActionButton}" Foreground="#C5A059" Padding="0" Margin="0,0,4,0" ToolTip="Datei bearbeiten (F4)"/>
+                            <Button Content="+ Datei" Click="LocalNewFile_Click" Style="{StaticResource FwTileActionButton}" Margin="0,0,4,0" ToolTip="Neue Datei anlegen (Umschalt+F4)"/>
+                            <Button Content="+ Ordner" Click="LocalMkdir_Click" Style="{StaticResource FwTileActionButton}" Margin="0,0,4,0" ToolTip="Neuer Ordner (F7)"/>
+                            <Button Content="🗑" Width="30" Click="LocalDelete_Click" Style="{StaticResource FwTileActionButton}" Foreground="#F87171" Padding="0" Margin="0,0,7,0" ToolTip="Löschen (Entf)"/>
+                            <Button Content="HOCHLADEN →" Click="UploadSelected_Click" Style="{StaticResource FwGoldPrimaryButton}"/>
                         </StackPanel>
                     </Grid>
 
                     <!-- Local Path Box -->
                     <TextBox x:Name="LocalPathBox" Grid.Row="1" Height="32" VerticalContentAlignment="Center"
-                             Background="#0F1117" Foreground="#E5E7EB" BorderBrush="#252A3A" Padding="10,0" Margin="0,0,0,10"
+                             Background="{DynamicResource FwBgRoot}" Foreground="{DynamicResource FwFgPrimary}" CaretBrush="#C5A059"
+                             BorderBrush="{DynamicResource FwBorderSubtle}" Padding="10,0" Margin="0,0,0,10"
                              KeyDown="LocalPathBox_KeyDown"/>
 
                     <!-- Local Files List -->
-                    <ListView x:Name="LocalFilesList" Grid.Row="2" Background="#01000000" Foreground="#F3F4F6"
-                              BorderThickness="0" MouseDoubleClick="LocalFilesList_MouseDoubleClick"
+                    <ListView x:Name="LocalFilesList" Grid.Row="2" Background="#01000000" Foreground="{DynamicResource FwFgPrimary}"
+                              BorderThickness="0"
+                              ItemContainerStyle="{StaticResource FwFileListViewItem}"
+                              GridViewColumnHeader.Click="LocalFilesList_ColumnHeaderClick"
+                              MouseDoubleClick="LocalFilesList_MouseDoubleClick"
                               AllowDrop="True"
                               PreviewMouseLeftButtonDown="LocalFilesList_PreviewMouseLeftButtonDown"
+                              PreviewMouseLeftButtonUp="LocalFilesList_PreviewMouseLeftButtonUp"
+                              PreviewMouseRightButtonDown="LocalFilesList_PreviewMouseRightButtonDown"
                               PreviewMouseMove="LocalFilesList_PreviewMouseMove"
                               PreviewDragOver="LocalTile_PreviewDragOver"
                               PreviewDrop="LocalTile_PreviewDrop"
+                              DragLeave="LocalTile_DragLeave"
+                              KeyDown="LocalFilesList_KeyDown"
+                              ContextMenuOpening="LocalFilesList_ContextMenuOpening"
                               SelectionMode="Extended">
+                        <ListView.ContextMenu>
+                            <ContextMenu x:Name="LocalContextMenu">
+                                <MenuItem x:Name="MenuLocalEdit" Header="✎  Bearbeiten" InputGestureText="F4" Click="LocalEdit_Click"/>
+                                <MenuItem x:Name="MenuLocalOpen" Header="📂  Öffnen" InputGestureText="Enter" Click="MenuLocalOpen_Click"/>
+                                <MenuItem x:Name="MenuLocalOpenSystem" Header="💻  Im Standardprogramm öffnen" Click="MenuLocalOpenSystem_Click"/>
+                                <MenuItem x:Name="MenuLocalUpload" Header="→  Auf Server hochladen" Click="UploadSelected_Click"/>
+                                <Separator/>
+                                <MenuItem x:Name="MenuLocalNewFile" Header="+  Neue Datei..." InputGestureText="Umschalt+F4" Click="LocalNewFile_Click"/>
+                                <MenuItem x:Name="MenuLocalNewFolder" Header="+  Neuer Ordner..." InputGestureText="F7" Click="LocalMkdir_Click"/>
+                                <MenuItem x:Name="MenuLocalRename" Header="🏷  Umbenennen..." InputGestureText="F2" Click="MenuLocalRename_Click"/>
+                                <MenuItem x:Name="MenuLocalDuplicate" Header="⧉  Duplizieren" Click="MenuLocalDuplicate_Click"/>
+                                <Separator/>
+                                <MenuItem x:Name="MenuLocalCopy" Header="📋  Kopieren" InputGestureText="Strg+C" Click="MenuLocalCopy_Click"/>
+                                <MenuItem x:Name="MenuLocalPaste" Header="📥  Einfügen" InputGestureText="Strg+V" Click="MenuLocalPaste_Click"/>
+                                <MenuItem x:Name="MenuLocalCopyPath" Header="🔗  Pfad kopieren" Click="MenuLocalCopyPath_Click"/>
+                                <MenuItem x:Name="MenuLocalRevealExplorer" Header="🧭  Im Windows Explorer zeigen" Click="MenuLocalRevealExplorer_Click"/>
+                                <MenuItem x:Name="MenuLocalRefresh" Header="⟳  Aktualisieren" InputGestureText="F5" Click="LocalRefresh_Click"/>
+                                <Separator/>
+                                <MenuItem x:Name="MenuLocalDelete" Header="🗑  Löschen..." InputGestureText="Entf" Foreground="#F87171" Click="LocalDelete_Click"/>
+                            </ContextMenu>
+                        </ListView.ContextMenu>
                         <ListView.View>
                             <GridView>
-                                <GridViewColumn Header="Name" Width="280" DisplayMemberBinding="{Binding DisplayName}"/>
-                                <GridViewColumn Header="Größe" Width="100" DisplayMemberBinding="{Binding SizeFormatted}"/>
+                                <GridViewColumn Header="Name" Width="290" DisplayMemberBinding="{Binding DisplayName}"/>
+                                <GridViewColumn Header="Größe" Width="95" DisplayMemberBinding="{Binding SizeFormatted}"/>
                                 <GridViewColumn Header="Geändert" Width="140" DisplayMemberBinding="{Binding ModifiedFormatted}"/>
                             </GridView>
                         </ListView.View>
@@ -173,7 +208,7 @@
             </Border>
 
             <!-- RIGHT TILE: SERVER -->
-            <Border x:Name="RemoteTileBorder" Grid.Column="2" Background="#141821" BorderBrush="#242938" BorderThickness="1" CornerRadius="14" Padding="16"
+            <Border x:Name="RemoteTileBorder" Grid.Column="2" Background="{DynamicResource FwBgTile}" BorderBrush="{DynamicResource FwBorderSubtle}" BorderThickness="1.2" CornerRadius="14" Padding="16"
                     AllowDrop="True" PreviewDragOver="RemoteTile_PreviewDragOver" PreviewDrop="RemoteTile_PreviewDrop" DragLeave="RemoteTile_DragLeave">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -190,33 +225,65 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock x:Name="RemoteHeaderTxt" Text="SERVER" Foreground="#C5A059" FontSize="14" FontWeight="Bold" VerticalAlignment="Center"/>
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <Button x:Name="OpenSshBtn" Content="SSH" Height="28" Padding="12,0" Click="OpenSsh_Click" Background="#1D2230" Foreground="#C5A059" FontWeight="Bold" BorderBrush="#C5A059" BorderThickness="1" Cursor="Hand" Margin="0,0,8,0" Visibility="Collapsed"/>
-                            <Button Content="← HERUNTERLADEN" Height="28" Padding="12,0" Click="DownloadSelected_Click" Background="#C5A059" Foreground="#0F1117" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Margin="0,0,8,0"/>
-                            <Button Content="⬆" Width="30" Height="28" Click="RemoteUp_Click" Background="#1D2230" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,0,5,0"/>
-                            <Button Content="⟳" Width="30" Height="28" Click="RemoteRefresh_Click" Background="#1D2230" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,0,5,0"/>
-                            <Button Content="+ Ordner" Height="28" Padding="10,0" Click="RemoteMkdir_Click" Background="#1D2230" Foreground="#E5E7EB" BorderBrush="#2D3343" Cursor="Hand" Margin="0,0,5,0"/>
-                            <Button Content="🗑" Width="30" Height="28" Click="RemoteDelete_Click" Background="#1D2230" Foreground="#F87171" BorderBrush="#2D3343" Cursor="Hand"/>
+                            <Button x:Name="OpenSshBtn" Content="SSH" Click="OpenSsh_Click" Style="{StaticResource FwTileActionButton}" Foreground="#C5A059" FontWeight="Bold" BorderBrush="#C5A059" Margin="0,0,7,0" Visibility="Collapsed" ToolTip="Aktuellen Server-Ordner direkt in Funkenwerk SSH öffnen"/>
+                            <Button Content="← HERUNTERLADEN" Click="DownloadSelected_Click" Style="{StaticResource FwGoldPrimaryButton}" Margin="0,0,7,0"/>
+                            <Button Content="⬆" Width="30" Click="RemoteUp_Click" Style="{StaticResource FwTileActionButton}" Padding="0" Margin="0,0,4,0" ToolTip="Übergeordneter Ordner (Rücktaste)"/>
+                            <Button Content="⟳" Width="30" Click="RemoteRefresh_Click" Style="{StaticResource FwTileActionButton}" Padding="0" Margin="0,0,4,0" ToolTip="Aktualisieren (F5)"/>
+                            <Button Content="✎" Width="30" Click="RemoteEdit_Click" Style="{StaticResource FwTileActionButton}" Foreground="#C5A059" Padding="0" Margin="0,0,4,0" ToolTip="Server-Datei bearbeiten (F4)"/>
+                            <Button Content="+ Datei" Click="RemoteNewFile_Click" Style="{StaticResource FwTileActionButton}" Margin="0,0,4,0" ToolTip="Neue Datei auf Server (Umschalt+F4)"/>
+                            <Button Content="+ Ordner" Click="RemoteMkdir_Click" Style="{StaticResource FwTileActionButton}" Margin="0,0,4,0" ToolTip="Neuer Ordner auf Server (F7)"/>
+                            <Button Content="🗑" Width="30" Click="RemoteDelete_Click" Style="{StaticResource FwTileActionButton}" Foreground="#F87171" Padding="0" ToolTip="Löschen (Entf)"/>
                         </StackPanel>
                     </Grid>
 
                     <!-- Remote Path Box -->
                     <TextBox x:Name="RemotePathBox" Grid.Row="1" Height="32" VerticalContentAlignment="Center" Text="/"
-                             Background="#0F1117" Foreground="#E5E7EB" BorderBrush="#252A3A" Padding="10,0" Margin="0,0,0,10"
+                             Background="{DynamicResource FwBgRoot}" Foreground="{DynamicResource FwFgPrimary}" CaretBrush="#C5A059"
+                             BorderBrush="{DynamicResource FwBorderSubtle}" Padding="10,0" Margin="0,0,0,10"
                              KeyDown="RemotePathBox_KeyDown"/>
 
                     <!-- Remote Files List -->
-                    <ListView x:Name="RemoteFilesList" Grid.Row="2" Background="#01000000" Foreground="#F3F4F6"
-                              BorderThickness="0" MouseDoubleClick="RemoteFilesList_MouseDoubleClick"
+                    <ListView x:Name="RemoteFilesList" Grid.Row="2" Background="#01000000" Foreground="{DynamicResource FwFgPrimary}"
+                              BorderThickness="0"
+                              ItemContainerStyle="{StaticResource FwFileListViewItem}"
+                              GridViewColumnHeader.Click="RemoteFilesList_ColumnHeaderClick"
+                              MouseDoubleClick="RemoteFilesList_MouseDoubleClick"
                               AllowDrop="True"
                               PreviewMouseLeftButtonDown="RemoteFilesList_PreviewMouseLeftButtonDown"
+                              PreviewMouseLeftButtonUp="RemoteFilesList_PreviewMouseLeftButtonUp"
+                              PreviewMouseRightButtonDown="RemoteFilesList_PreviewMouseRightButtonDown"
                               PreviewMouseMove="RemoteFilesList_PreviewMouseMove"
                               PreviewDragOver="RemoteTile_PreviewDragOver"
                               PreviewDrop="RemoteTile_PreviewDrop"
+                              DragLeave="RemoteTile_DragLeave"
+                              KeyDown="RemoteFilesList_KeyDown"
+                              ContextMenuOpening="RemoteFilesList_ContextMenuOpening"
                               SelectionMode="Extended">
+                        <ListView.ContextMenu>
+                            <ContextMenu x:Name="RemoteContextMenu">
+                                <MenuItem x:Name="MenuRemoteEdit" Header="✎  Bearbeiten" InputGestureText="F4" Click="RemoteEdit_Click"/>
+                                <MenuItem x:Name="MenuRemoteEditExternal" Header="💻  Extern bearbeiten (Auto-Upload)" Click="MenuRemoteEditExternal_Click"/>
+                                <MenuItem x:Name="MenuRemoteOpen" Header="📂  Öffnen" InputGestureText="Enter" Click="MenuRemoteOpen_Click"/>
+                                <MenuItem x:Name="MenuRemoteDownload" Header="←  Herunterladen" Click="DownloadSelected_Click"/>
+                                <Separator/>
+                                <MenuItem x:Name="MenuRemoteNewFile" Header="+  Neue Datei..." InputGestureText="Umschalt+F4" Click="RemoteNewFile_Click"/>
+                                <MenuItem x:Name="MenuRemoteNewFolder" Header="+  Neuer Ordner..." InputGestureText="F7" Click="RemoteMkdir_Click"/>
+                                <MenuItem x:Name="MenuRemoteRename" Header="🏷  Umbenennen / Verschieben..." InputGestureText="F2" Click="MenuRemoteRename_Click"/>
+                                <MenuItem x:Name="MenuRemoteDuplicate" Header="⧉  Duplizieren" Click="MenuRemoteDuplicate_Click"/>
+                                <MenuItem x:Name="MenuRemoteChmod" Header="🔐  Berechtigungen (CHMOD)..." Click="MenuRemoteChmod_Click"/>
+                                <Separator/>
+                                <MenuItem x:Name="MenuRemotePasteUpload" Header="📥  Aus Zwischenablage hochladen" InputGestureText="Strg+V" Click="MenuRemotePasteUpload_Click"/>
+                                <MenuItem x:Name="MenuRemoteCopyPath" Header="🔗  Server-Pfad kopieren" Click="MenuRemoteCopyPath_Click"/>
+                                <MenuItem x:Name="MenuRemoteOpenSsh" Header="💻  Hier in SSH öffnen" Click="MenuRemoteOpenSshHere_Click"/>
+                                <MenuItem x:Name="MenuRemoteRefresh" Header="⟳  Aktualisieren" InputGestureText="F5" Click="RemoteRefresh_Click"/>
+                                <Separator/>
+                                <MenuItem x:Name="MenuRemoteDelete" Header="🗑  Löschen..." InputGestureText="Entf" Foreground="#F87171" Click="RemoteDelete_Click"/>
+                            </ContextMenu>
+                        </ListView.ContextMenu>
                         <ListView.View>
                             <GridView>
-                                <GridViewColumn Header="Name" Width="260" DisplayMemberBinding="{Binding DisplayName}"/>
-                                <GridViewColumn Header="Größe" Width="95" DisplayMemberBinding="{Binding SizeFormatted}"/>
+                                <GridViewColumn Header="Name" Width="265" DisplayMemberBinding="{Binding DisplayName}"/>
+                                <GridViewColumn Header="Größe" Width="90" DisplayMemberBinding="{Binding SizeFormatted}"/>
                                 <GridViewColumn Header="Rechte" Width="85" DisplayMemberBinding="{Binding Permissions}"/>
                                 <GridViewColumn Header="Geändert" Width="135" DisplayMemberBinding="{Binding ModifiedFormatted}"/>
                             </GridView>
@@ -229,16 +296,16 @@
         <!-- ================================================================= -->
         <!-- ROW 2: MINIMAL SECURITY & TRANSFER STATUS BAR                     -->
         <!-- ================================================================= -->
-        <Border x:Name="BottomBarBorder" Grid.Row="2" Background="#12151E" BorderBrush="#232734" BorderThickness="0,1,0,0" Padding="18,0">
+        <Border x:Name="BottomBarBorder" Grid.Row="2" Background="{DynamicResource FwBgBar}" BorderBrush="{DynamicResource FwBorderSubtle}" BorderThickness="0,1,0,0" Padding="18,0">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="240"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="StatusText" Grid.Column="0" Text="🔒 AES-256-GCM + DPAPI Vault aktiv"
-                           Foreground="#9CA3AF" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                           Foreground="{DynamicResource FwFgSecondary}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                 <ProgressBar x:Name="TransferProgressBar" Grid.Column="1" Height="8" Minimum="0" Maximum="100" Value="0"
-                             Background="#1E2330" Foreground="#C5A059" BorderThickness="0" VerticalAlignment="Center"/>
+                             Background="{DynamicResource FwBgButton}" Foreground="#C5A059" BorderThickness="0" VerticalAlignment="Center"/>
             </Grid>
         </Border>
     </Grid>

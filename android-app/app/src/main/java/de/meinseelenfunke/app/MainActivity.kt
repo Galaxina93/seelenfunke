@@ -41,6 +41,7 @@ class MainActivity : FragmentActivity() {
         }
 
         ServiceLocator.ensureInitialized(this)
+        de.meinseelenfunke.app.util.ErrorSentinelReporter.install(this)
         FunkenwerkAlarmManager.ensureInitialized(this)
 
         SoundManager.playSound(R.raw.open_project_brain)

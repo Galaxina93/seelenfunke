@@ -183,4 +183,26 @@ class FunkiraSkillPoolAndFunkiIsolationTest extends TestCase
         $allowedRes = AIFunctionsRegistry::execute('support_get_delivery_times', [], $funki);
         $this->assertFalse($allowedRes['error'] ?? false);
     }
+
+    public function test_is_funkira_helper_and_live_credentials_endpoint_succeed(): void
+    {
+        $this->seed(AiAgentSeeder::class);
+        $funkira = AiAgent::where('name', 'Funkira')->firstOrFail();
+        $funki = AiAgent::where('name', 'Funki')->firstOrFail();
+
+        $this->assertTrue(FunkiraSkillPoolService::isFunkira($funkira));
+        $this->assertTrue(FunkiraSkillPoolService::isFunkira('Funkira'));
+        $this->assertTrue(FunkiraSkillPoolService::isFunkira(['name' => 'Funkira']));
+        $this->assertFalse(FunkiraSkillPoolService::isFunkira($funki));
+        $this->assertFalse(FunkiraSkillPoolService::isFunkira(null));
+
+        config(['services.gemini.key' => 'test-gemini-live-key']);
+        $admin = Admin::first() ?? Admin::factory()->create();
+
+        $response = $this->actingAs($admin, 'admin')
+            ->getJson('/api/ai/live-credentials?agent_id=' . $funkira->id);
+
+        $response->assertOk()
+            ->assertJsonPath('agent_name', 'Funkira');
+    }
 }

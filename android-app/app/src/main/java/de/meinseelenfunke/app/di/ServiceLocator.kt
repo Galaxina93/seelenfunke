@@ -482,7 +482,15 @@ object ServiceLocator {
                                 .host("stage.mein-seelenfunke.de")
                                 .port(443)
                                 .build()
-                            chain.proceed(builtRequest.newBuilder().url(stageUrl).build())
+                            val recovered = chain.proceed(builtRequest.newBuilder().url(stageUrl).build())
+                            de.meinseelenfunke.app.util.ErrorSentinelReporter.captureAutoHeal(
+                                context = context,
+                                component = "network.lan_fallback",
+                                title = "Lokaler LAN-Endpunkt nicht erreichbar",
+                                message = "192.168.188.119 antwortete nicht (${e.javaClass.simpleName}).",
+                                healSummary = "Automatisch auf TLS-Endpunkt stage.mein-seelenfunke.de umgeleitet."
+                            )
+                            recovered
                         } else {
                             throw e
                         }

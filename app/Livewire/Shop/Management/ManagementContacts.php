@@ -38,13 +38,20 @@ class ManagementContacts extends Component
         if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
+
+        $this->phoneConciergeEnabled = \App\Services\System\FunkiraPhoneConciergeService::isEnabled();
+        $this->phoneConciergeRingDelay = \App\Services\System\FunkiraPhoneConciergeService::getRingDelaySeconds();
     }
+
+    public bool $phoneConciergeEnabled = true;
+    public int $phoneConciergeRingDelay = 12;
 
     #[Validate('nullable|image|mimes:jpg,jpeg,png,webp|max:10240')]
     public $avatar_upload;
 
     public $editForm = [
         'id' => null,
+        'funkira_call_whitelist' => false,
         'first_name' => '',
         'last_name' => '',
         'nickname' => '',
@@ -72,6 +79,7 @@ class ManagementContacts extends Component
     protected function rules()
     {
         return [
+            'editForm.funkira_call_whitelist' => 'boolean',
             'editForm.first_name' => 'required|string|max:255',
             'editForm.last_name' => 'nullable|string|max:255',
             'editForm.nickname' => 'nullable|string|max:255',
@@ -107,6 +115,7 @@ class ManagementContacts extends Component
         $this->avatar_upload = null;
         $this->editForm = [
             'id' => null,
+            'funkira_call_whitelist' => false,
             'first_name' => '',
             'last_name' => '',
             'nickname' => '',
@@ -136,6 +145,7 @@ class ManagementContacts extends Component
 
         $this->editForm = [
             'id' => $profile->id,
+            'funkira_call_whitelist' => (bool) $profile->funkira_call_whitelist,
             'first_name' => $profile->first_name,
             'last_name' => $profile->last_name,
             'nickname' => $profile->nickname,
@@ -177,6 +187,7 @@ class ManagementContacts extends Component
         $this->validate();
 
         $data = [
+            'funkira_call_whitelist' => (bool) ($this->editForm['funkira_call_whitelist'] ?? false),
             'first_name' => $this->editForm['first_name'],
             'last_name' => $this->editForm['last_name'],
             'nickname' => $this->editForm['nickname'],
@@ -261,6 +272,26 @@ class ManagementContacts extends Component
         $profile->save();
 
         // No flash message needed for seamless inline experience
+    }
+
+    public function toggleCallWhitelist($id)
+    {
+        $profile = ManagementContact::findOrFail($id);
+        $profile->funkira_call_whitelist = !$profile->funkira_call_whitelist;
+        $profile->save();
+    }
+
+    public function togglePhoneConciergeEnabled()
+    {
+        $this->phoneConciergeEnabled = !$this->phoneConciergeEnabled;
+        \App\Services\System\FunkiraPhoneConciergeService::updateConfig($this->phoneConciergeEnabled, null);
+    }
+
+    public function updatedPhoneConciergeRingDelay($value)
+    {
+        $clamped = max(0, min(30, (int) $value));
+        $this->phoneConciergeRingDelay = $clamped;
+        \App\Services\System\FunkiraPhoneConciergeService::updateConfig(null, $clamped);
     }
 
     public function syncBirthdaysToCalendar()

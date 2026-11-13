@@ -1,11 +1,17 @@
 package de.meinseelenfunke.app.ui.screens
 
+import android.Manifest
+import android.app.role.RoleManager
+import android.os.Build
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,15 +29,19 @@ import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.PhoneInTalk
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -41,11 +51,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -65,9 +77,9 @@ import de.meinseelenfunke.app.di.ThemeMode
 import de.meinseelenfunke.app.ui.theme.AppTheme
 import de.meinseelenfunke.app.ui.theme.Emerald500
 import de.meinseelenfunke.app.ui.theme.Gold
-import de.meinseelenfunke.app.ui.theme.Indigo500
 import de.meinseelenfunke.app.ui.theme.Rose500
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
+import de.meinseelenfunke.app.util.PhoneConciergeManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,6 +94,59 @@ fun SettingsScreen(
     var biometricEnabled by remember { mutableStateOf(ServiceLocator.isBiometricEnabled()) }
     val currentThemeMode by ServiceLocator.themeModeState.collectAsState()
     val wakeWordEnabled by viewModel.wakeWordEnabled.collectAsState()
+
+    val phoneConciergeEnabled by viewModel.phoneConciergeEnabled.collectAsState()
+    val phoneRingDelaySec by viewModel.phoneRingDelaySec.collectAsState()
+    val whitelistContacts by viewModel.whitelistContacts.collectAsState()
+    var showPhoneInfoDialog by remember { mutableStateOf(false) }
+    var permCheckTick by remember { mutableIntStateOf(0) }
+
+    val hasPhonePerms = remember(permCheckTick) { PhoneConciergeManager.hasRequiredPermissions(context) }
+    val hasScreeningRole = remember(permCheckTick) { PhoneConciergeManager.hasCallScreeningRole(context) }
+
+    val roleLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        permCheckTick++
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        permCheckTick++
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !PhoneConciergeManager.hasCallScreeningRole(context)) {
+            val rm = context.getSystemService(RoleManager::class.java)
+            if (rm != null && rm.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)) {
+                roleLauncher.launch(rm.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING))
+            }
+        }
+    }
+
+    if (showPhoneInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showPhoneInfoDialog = false },
+            containerColor = AppTheme.colors.cardBackground,
+            title = {
+                Text(
+                    text = "Telefon-Assistent",
+                    fontWeight = FontWeight.Bold,
+                    color = Gold
+                )
+            },
+            text = {
+                Text(
+                    text = "Funkira nimmt Anrufe freigegebener Kontakte nach der gewählten Klingelzeit automatisch an, leitet das Gespräch per Bluetooth an deinen Mini-PC weiter und legt das Anliegen als Aufgabe auf deinem Dashboard ab. Unbekannte Nummern werden niemals angenommen.",
+                    fontSize = 13.sp,
+                    color = AppTheme.colors.textPrimary
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showPhoneInfoDialog = false }) {
+                    Text("Verstanden", color = Gold, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -356,6 +421,183 @@ fun SettingsScreen(
                             checkedTrackColor = Emerald500.copy(alpha = 0.5f)
                         )
                     )
+                }
+            }
+
+            // Funkira Whitelist Phone-Concierge Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+                border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.PhoneInTalk,
+                                contentDescription = null,
+                                tint = Gold,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Telefon-Assistent",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AppTheme.colors.textPrimary
+                            )
+                            IconButton(
+                                onClick = { showPhoneInfoDialog = true },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = "Erklärung anzeigen",
+                                    tint = Gold,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = phoneConciergeEnabled,
+                            onCheckedChange = { viewModel.setPhoneConciergeEnabled(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Gold,
+                                checkedTrackColor = Gold.copy(alpha = 0.45f)
+                            )
+                        )
+                    }
+
+                    // Ring Delay Chips
+                    Text(
+                        text = "Klingelzeit",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = AppTheme.colors.textSecondary
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val delayOptions = listOf(0 to "Sofort", 8 to "8 Sek.", 12 to "12 Sek.", 18 to "18 Sek.")
+                        delayOptions.forEach { (sec, label) ->
+                            val selected = phoneRingDelaySec == sec
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (selected) Gold.copy(alpha = 0.18f) else AppTheme.colors.glassSurface)
+                                    .border(
+                                        1.dp,
+                                        if (selected) Gold else AppTheme.colors.cardBorder,
+                                        RoundedCornerShape(10.dp)
+                                    )
+                                    .clickable { viewModel.setPhoneRingDelaySec(sec) }
+                                    .padding(vertical = 9.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (selected) Gold else AppTheme.colors.textPrimary
+                                )
+                            }
+                        }
+                    }
+
+                    // Permission & Call Screening Role Setup
+                    if (!hasPhonePerms || !hasScreeningRole) {
+                        Button(
+                            onClick = {
+                                val reqPerms = mutableListOf(
+                                    Manifest.permission.READ_PHONE_STATE,
+                                    Manifest.permission.ANSWER_PHONE_CALLS,
+                                    Manifest.permission.READ_CALL_LOG
+                                )
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                    reqPerms.add(Manifest.permission.BLUETOOTH_CONNECT)
+                                }
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    reqPerms.add(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                                permissionLauncher.launch(reqPerms.toTypedArray())
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Telefon-Freigabe aktivieren", fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = Emerald500,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Telefon-Freigabe aktiv",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Emerald500
+                            )
+                        }
+                    }
+
+                    if (whitelistContacts.isNotEmpty()) {
+                        HorizontalDivider(color = AppTheme.colors.cardBorder)
+                        Text(
+                            text = "Freigegebene Kontakte",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AppTheme.colors.textSecondary
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            whitelistContacts.forEach { contact ->
+                                val title = if (contact.nickname.isNotBlank()) {
+                                    "${contact.nickname} · ${contact.fullName}"
+                                } else {
+                                    contact.fullName
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = title,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = AppTheme.colors.textPrimary,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Switch(
+                                        checked = contact.whitelisted,
+                                        onCheckedChange = { viewModel.toggleContactWhitelist(contact.id, it) },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = Gold,
+                                            checkedTrackColor = Gold.copy(alpha = 0.45f)
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

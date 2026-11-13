@@ -13,9 +13,18 @@
                 <p class="text-gray-500 dark:text-gray-400 mt-2 text-sm font-medium">Das soziale Gedächtnis von Mein Seelenfunke. Freunde, Familie und ihre Eigenschaften.</p>
             </div>
             <div class="relative z-10 bg-gray-100 dark:bg-gray-950 p-2 rounded-2xl border border-gray-200 dark:border-gray-800 dark:shadow-inner flex items-center gap-3 flex-wrap">
-                <div class="flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest dark:shadow-[0_0_10px_rgba(99,102,241,0.2)]">
-                    <span class="w-2 h-2 rounded-full bg-indigo-500 dark:bg-indigo-400 animate-pulse dark:shadow-[0_0_8px_currentColor]"></span>
-                    Memory Sync Active
+                <button wire:click="togglePhoneConciergeEnabled" type="button" title="Schaltet Funkiras automatische Anruf-Annahme für freigegebene Kontakte auf deinem Android-Smartphone ein oder aus." class="flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border {{ $phoneConciergeEnabled ? 'bg-[var(--theme-color-15)] text-[var(--theme-color)] border-[var(--theme-color-30)]' : 'bg-white dark:bg-gray-900 text-gray-500 border-gray-200 dark:border-gray-800' }}">
+                    <x-heroicon-o-phone-arrow-down-left class="w-4 h-4" />
+                    <span>Funkira Telefon: {{ $phoneConciergeEnabled ? 'An' : 'Aus' }}</span>
+                </button>
+                <div class="flex items-center gap-1.5 px-2.5 py-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl" title="Klingel-Verzögerung bis Funkira abhebt, falls du nicht selbst rangehst.">
+                    <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Klingeln</span>
+                    <select wire:model.live="phoneConciergeRingDelay" class="bg-transparent text-[10px] font-black uppercase tracking-widest text-gray-900 dark:text-white outline-none cursor-pointer">
+                        <option value="0" class="bg-white dark:bg-gray-900">Sofort</option>
+                        <option value="8" class="bg-white dark:bg-gray-900">8 Sek.</option>
+                        <option value="12" class="bg-white dark:bg-gray-900">12 Sek.</option>
+                        <option value="18" class="bg-white dark:bg-gray-900">18 Sek.</option>
+                    </select>
                 </div>
                 <button wire:click="syncBirthdaysToCalendar" title="Geburtstage in den Kalender übertragen" class="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 hover:border-amber-500/40 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all dark:shadow-[0_0_5px_rgba(251,191,36,0.1)] focus:outline-none focus:ring-2 focus:ring-amber-500">
                     <x-heroicon-o-calendar-days class="w-4 h-4" />
@@ -89,8 +98,15 @@
                                     @endif
                                 </button>
                             </div>
-                            <div class="overflow-hidden">
-                                <h4 class="text-sm font-bold truncate {{ $activeProfileId == $profile->id ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300' }}">{{ $profile->full_name }}</h4>
+                            <div class="overflow-hidden flex-1">
+                                <div class="flex items-center justify-between gap-2">
+                                    <h4 class="text-sm font-bold truncate {{ $activeProfileId == $profile->id ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300' }}">{{ $profile->full_name }}</h4>
+                                    @if($profile->funkira_call_whitelist)
+                                        <span title="Funkira Telefon-Annahme aktiv" class="shrink-0 w-5 h-5 rounded-full bg-[var(--theme-color-15)] border border-[var(--theme-color-30)] text-[var(--theme-color)] flex items-center justify-center">
+                                            <x-heroicon-s-phone class="w-3 h-3" />
+                                        </span>
+                                    @endif
+                                </div>
                                 <div class="text-[10px] text-gray-500 flex items-center gap-1.5 mt-1 truncate pr-2">
                                     @if($profile->relation_type)
                                         <span class="text-gray-500 dark:text-gray-400">{{ $profile->relation_type }}</span>
@@ -200,6 +216,17 @@
                                     <div>
                                         <label class="block text-[10px] uppercase tracking-widest text-gray-500 mb-1">Telefon / Mobile</label>
                                         <input type="text" wire:model="editForm.phone" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-900 dark:text-white px-4 py-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all">
+                                    </div>
+                                    <div class="md:col-span-2 flex items-center justify-between bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl px-4 py-3">
+                                        <div class="flex items-center gap-2">
+                                            <x-heroicon-o-phone-arrow-down-left class="w-5 h-5 text-[var(--theme-color)]" />
+                                            <span class="text-xs font-bold text-gray-900 dark:text-white">Funkira Telefon-Annahme</span>
+                                            <span title="Wenn aktiviert, darf Funkira eingehende Mobilfunk-Anrufe dieser Nummer nach Ablauf der Klingel-Verzögerung entgegennehmen, das Anliegen erfragen und als To-Do auf deinem Dashboard anlegen." class="w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-[10px] font-black text-gray-500 dark:text-gray-400 inline-flex items-center justify-center cursor-help">!</span>
+                                        </div>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" wire:model="editForm.funkira_call_whitelist" class="sr-only peer">
+                                            <div class="w-11 h-6 bg-gray-200 dark:bg-gray-800 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--theme-color)]"></div>
+                                        </label>
                                     </div>
                                 </div>
                             </div>
@@ -360,6 +387,10 @@
                                     @if($activeProfile->nickname)
                                         <span class="text-indigo-500 dark:text-indigo-400 italic">"{{ $activeProfile->nickname }}"</span>
                                     @endif
+                                    <button wire:click="toggleCallWhitelist('{{ $activeProfile->id }}')" type="button" title="Legt fest, ob Funkira Anrufe dieses Kontakts entgegennehmen und als To-Do zusammenfassen darf." class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all {{ $activeProfile->funkira_call_whitelist ? 'bg-[var(--theme-color-15)] border-[var(--theme-color-40)] text-[var(--theme-color)]' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-[var(--theme-color-40)]' }}">
+                                        <x-heroicon-o-phone-arrow-down-left class="w-3.5 h-3.5" />
+                                        <span>Funkira Anruf-Annahme: {{ $activeProfile->funkira_call_whitelist ? 'Aktiv' : 'Aus' }}</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>

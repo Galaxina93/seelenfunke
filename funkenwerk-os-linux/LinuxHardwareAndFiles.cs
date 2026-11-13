@@ -254,8 +254,10 @@ namespace FunkenwerkOSLinux
         }
 
         // =====================================================================
-        // AUDIO (PIPEWIRE / PACTL — 0..100 INTEGER STEPS, NO HANDS-FREE)
+        // AUDIO (PIPEWIRE / PACTL — 0..100 INTEGER STEPS, HFP PHONE CALL BRIDGE)
         // =====================================================================
+        public static volatile bool PhoneCallAudioActive;
+
         public static async Task<AudioStateDto> GetAudioStateAsync()
         {
             var state = new AudioStateDto();
@@ -301,7 +303,8 @@ namespace FunkenwerkOSLinux
             }
 
             // Self-healing stream guard: if Bluetooth A2DP (e.g. Teufel) is default sink, rescue any stray stream stuck on internal ALSA
-            if (!string.IsNullOrWhiteSpace(defSink) && defSink.StartsWith("bluez_output.", StringComparison.OrdinalIgnoreCase))
+            // (Paused while an active Smartphone HFP phone call is bridged!)
+            if (!PhoneCallAudioActive && !string.IsNullOrWhiteSpace(defSink) && defSink.StartsWith("bluez_output.", StringComparison.OrdinalIgnoreCase))
             {
                 await MigrateAllSinkInputsToSinkAsync(defSink, defSinkNumericIndex).ConfigureAwait(false);
             }
@@ -432,7 +435,7 @@ namespace FunkenwerkOSLinux
                     }
                 }
 
-                if (activateUsbMicDefault && !string.IsNullOrWhiteSpace(status.MicSourceId))
+                if (activateUsbMicDefault && !PhoneCallAudioActive && !string.IsNullOrWhiteSpace(status.MicSourceId))
                 {
                     await RunProcessAsync("pactl", new[] { "set-default-source", status.MicSourceId }, 2000).ConfigureAwait(false);
                     await RunProcessAsync("pactl", new[] { "set-source-mute", status.MicSourceId, "0" }, 2000).ConfigureAwait(false);
@@ -633,6 +636,8 @@ namespace FunkenwerkOSLinux
             return null;
         }
 
+        private static volatile bool s_manualBtDisconnect;
+
         public static Task<(bool Success, string Message)> ConnectBluetoothAsync(string mac)
             => ConnectOrPairBluetoothAsync(mac, forcePairingMode: false);
 
@@ -640,6 +645,7 @@ namespace FunkenwerkOSLinux
             string? targetMacOrName,
             bool forcePairingMode = false)
         {
+            s_manualBtDisconnect = false;
             await s_btLock.WaitAsync().ConfigureAwait(false);
             try
             {
@@ -673,6 +679,7 @@ namespace FunkenwerkOSLinux
 
                 // 1. Fast Path: Already paired & known -> try quick connect unless explicit Pairing Mode was requested
                 bool staleKeyDetected = false;
+                bool hadExistingPair = false;
                 if (!forcePairingMode && !string.IsNullOrWhiteSpace(candidateMac))
                 {
                     var (_, infoBefore, _) = await RunProcessAsync("bluetoothctl", new[] { "info", candidateMac }, 2000).ConfigureAwait(false);
@@ -684,6 +691,7 @@ namespace FunkenwerkOSLinux
 
                     if (Regex.IsMatch(infoBefore, @"Paired:\s+yes", RegexOptions.IgnoreCase))
                     {
+                        hadExistingPair = true;
                         await RunProcessAsync("bluetoothctl", new[] { "trust", candidateMac }, 2000).ConfigureAwait(false);
                         var (qCode, qOut, qErr) = await RunProcessAsync("bluetoothctl", new[] { "connect", candidateMac }, 6500).ConfigureAwait(false);
                         string combined = qOut + "\n" + qErr;
@@ -718,29 +726,35 @@ namespace FunkenwerkOSLinux
                     await SendBtCmdAsync(proc, "agent NoInputNoOutput", 200).ConfigureAwait(false);
                     await SendBtCmdAsync(proc, "default-agent", 200).ConfigureAwait(false);
 
+                    bool removedStale = false;
                     if ((forcePairingMode || staleKeyDetected) && !string.IsNullOrWhiteSpace(candidateMac))
                     {
-                        await SendBtCmdAsync(proc, $"remove {candidateMac}", 450).ConfigureAwait(false);
+                        await SendBtCmdAsync(proc, $"remove {candidateMac}", 650).ConfigureAwait(false);
+                        removedStale = true;
                     }
 
-                    // Scan BR/EDR first (essential for Classic A2DP Hi-Fi receivers like Teufel KB 43 CR 19!), then dual-mode
-                    await SendBtCmdAsync(proc, "scan bredr", 250).ConfigureAwait(false);
+                    int scanStartLogLen = SnapshotBtLog(log, sync).Length;
+                    await SendBtCmdAsync(proc, "scan on", 250).ConfigureAwait(false);
 
                     string resolvedMac = "";
                     string resolvedName = nameHint;
+                    bool sawLiveInquiryForCandidate = false;
 
                     var scanSw = Stopwatch.StartNew();
-                    bool switchedToAutoScan = false;
-                    while (scanSw.ElapsedMilliseconds < 9000)
+                    while (scanSw.ElapsedMilliseconds < 8500)
                     {
-                        if (!switchedToAutoScan && scanSw.ElapsedMilliseconds > 5200)
-                        {
-                            switchedToAutoScan = true;
-                            await SendBtCmdAsync(proc, "scan on", 150).ConfigureAwait(false);
-                        }
-
-                        await SendBtCmdAsync(proc, "devices", 350).ConfigureAwait(false);
+                        await SendBtCmdAsync(proc, "devices", 450).ConfigureAwait(false);
                         string snap = SnapshotBtLog(log, sync);
+                        string scanDelta = snap.Length > scanStartLogLen ? snap.Substring(scanStartLogLen) : snap;
+
+                        if (!string.IsNullOrWhiteSpace(candidateMac))
+                        {
+                            string escMac = Regex.Escape(candidateMac);
+                            if (Regex.IsMatch(scanDelta, $@"(\[NEW\]\s+Device\s+{escMac}|\[CHG\]\s+Device\s+{escMac}\s+RSSI:)", RegexOptions.IgnoreCase))
+                            {
+                                sawLiveInquiryForCandidate = true;
+                            }
+                        }
 
                         foreach (Match dm in Regex.Matches(snap, @"Device\s+([0-9A-Fa-f:]{17})\s+([^\r\n]+)"))
                         {
@@ -751,6 +765,10 @@ namespace FunkenwerkOSLinux
 
                             if (!string.IsNullOrWhiteSpace(candidateMac) && string.Equals(dMac, candidateMac, StringComparison.OrdinalIgnoreCase))
                             {
+                                // If we kept an old pair, wait up to 4.5s to see if the device is broadcasting live Pairing-Mode RSSI
+                                if (hadExistingPair && !removedStale && !sawLiveInquiryForCandidate && scanSw.ElapsedMilliseconds < 4500)
+                                    continue;
+
                                 resolvedMac = dMac;
                                 if (!Regex.IsMatch(dName, @"^[0-9A-Fa-f:-]{17}$")) resolvedName = dName;
                                 break;
@@ -779,9 +797,17 @@ namespace FunkenwerkOSLinux
                         return (false, $"Kein passendes Bluetooth-Gerät ('{nameHint}') im Pairing-Modus gefunden. Bitte prüfe, ob die Pairing-LED blinkt.");
                     }
 
-                    // Trust & Pair inside the SAME live bluetoothctl session while inquiry record is active in BlueZ!
+                    // CRITICAL FIX FOR BLUEZ 5.72 + TEUFEL PAIRING MODE:
+                    // If connect failed (e.g. br-connection-create-socket) AND the speaker is actively broadcasting Pairing-Mode RSSI,
+                    // remove the stale bond first and re-discover for 3s so 'pair' performs a genuine link-key exchange instead of 'AlreadyExists'!
+                    if (hadExistingPair && !removedStale && sawLiveInquiryForCandidate)
+                    {
+                        await SendBtCmdAsync(proc, $"remove {resolvedMac}", 750).ConfigureAwait(false);
+                        await SendBtCmdAsync(proc, "scan on", 3200).ConfigureAwait(false);
+                    }
+
+                    // Pair & Trust inside the SAME live bluetoothctl session while inquiry record is active in BlueZ!
                     int beforePairLen = SnapshotBtLog(log, sync).Length;
-                    await SendBtCmdAsync(proc, $"trust {resolvedMac}", 300).ConfigureAwait(false);
                     await SendBtCmdAsync(proc, $"pair {resolvedMac}", 350).ConfigureAwait(false);
 
                     var pairSw = Stopwatch.StartNew();
@@ -800,6 +826,7 @@ namespace FunkenwerkOSLinux
                         await Task.Delay(250).ConfigureAwait(false);
                     }
 
+                    await SendBtCmdAsync(proc, $"trust {resolvedMac}", 350).ConfigureAwait(false);
                     await SendBtCmdAsync(proc, "scan off", 350).ConfigureAwait(false);
 
                     int beforeConnLen = SnapshotBtLog(log, sync).Length;
@@ -849,8 +876,302 @@ namespace FunkenwerkOSLinux
             }
         }
 
+        public static async Task<(bool Connected, bool AutoHealedNow, string Summary)> EnsurePreferredBluetoothConnectedWatchdogAsync()
+        {
+            if (PhoneCallAudioActive) return (true, false, "");
+            if (s_manualBtDisconnect) return (false, false, "");
+            if (s_btLock.CurrentCount == 0) return (false, false, "");
+
+            var settings = LinuxVaultAndStorage.LoadSettings();
+            string prefMac = string.IsNullOrWhiteSpace(settings.PreferredBluetoothMac)
+                ? "FC:58:FA:C7:F4:1D"
+                : settings.PreferredBluetoothMac.Trim().ToUpperInvariant();
+
+            var (_, infoOut, _) = await RunProcessAsync("bluetoothctl", new[] { "info", prefMac }, 2000).ConfigureAwait(false);
+            if (Regex.IsMatch(infoOut, @"Connected:\s+yes", RegexOptions.IgnoreCase))
+            {
+                await RoutePipeWireBluetoothSinkAsync(prefMac, "Teufel").ConfigureAwait(false);
+                return (true, false, "");
+            }
+
+            // Not connected: try fast silent reconnect first (wakes/reconnects when Teufel is turned on)
+            if (Regex.IsMatch(infoOut, @"Paired:\s+yes", RegexOptions.IgnoreCase))
+            {
+                var (qCode, qOut, qErr) = await RunProcessAsync("bluetoothctl", new[] { "connect", prefMac }, 4500).ConfigureAwait(false);
+                if (qCode == 0 || (qOut + qErr).Contains("Connection successful", StringComparison.OrdinalIgnoreCase))
+                {
+                    string? sink = await RoutePipeWireBluetoothSinkAsync(prefMac, "Teufel").ConfigureAwait(false);
+                    return (true, true, $"Bluetooth-Verbindung zu {(sink ?? "Teufel KB 43 CR 19")} ({prefMac}) automatisch wiederhergestellt.");
+                }
+            }
+
+            // Check briefly (3.8s) if Teufel is actively broadcasting in Pairing Mode right now!
+            if (!await s_btLock.WaitAsync(0).ConfigureAwait(false))
+                return (false, false, "");
+
+            bool inPairingMode = false;
+            try
+            {
+                var log = new StringBuilder();
+                var sync = new object();
+                using var proc = StartInteractiveBluetoothCtl(log, sync);
+                if (proc != null)
+                {
+                    try
+                    {
+                        int startLen = SnapshotBtLog(log, sync).Length;
+                        await SendBtCmdAsync(proc, "scan on", 3600).ConfigureAwait(false);
+                        await SendBtCmdAsync(proc, "scan off", 200).ConfigureAwait(false);
+                        await SendBtCmdAsync(proc, "quit", 100).ConfigureAwait(false);
+                        string delta = SnapshotBtLog(log, sync);
+                        if (delta.Length > startLen) delta = delta.Substring(startLen);
+                        string escMac = Regex.Escape(prefMac);
+                        if (Regex.IsMatch(delta, $@"(\[NEW\]\s+Device\s+{escMac}|\[CHG\]\s+Device\s+{escMac}\s+RSSI:|Teufel\s+KB)", RegexOptions.IgnoreCase))
+                        {
+                            inPairingMode = true;
+                        }
+                    }
+                    finally
+                    {
+                        try { if (!proc.HasExited) proc.Kill(true); } catch { }
+                    }
+                }
+            }
+            finally
+            {
+                s_btLock.Release();
+            }
+
+            if (inPairingMode)
+            {
+                var (ok, msg) = await ConnectOrPairBluetoothAsync(prefMac, forcePairingMode: true).ConfigureAwait(false);
+                if (ok)
+                    return (true, true, $"Teufel-Anlage im Pairing-Modus erkannt und automatisch neu gekoppelt: {msg}");
+            }
+
+            return (false, false, "");
+        }
+
+        public static async Task MigrateAllSourceOutputsToSourceAsync(string targetSourceName)
+        {
+            if (string.IsNullOrWhiteSpace(targetSourceName)) return;
+            var (code, outputsOut, _) = await RunProcessAsync("pactl", new[] { "list", "short", "source-outputs" }, 2000).ConfigureAwait(false);
+            if (code != 0 || string.IsNullOrWhiteSpace(outputsOut)) return;
+
+            foreach (string line in outputsOut.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var parts = line.Trim().Split(new[] { '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2 && int.TryParse(parts[0], out int outputId))
+                {
+                    await RunProcessAsync("pactl", new[] { "move-source-output", outputId.ToString(CultureInfo.InvariantCulture), targetSourceName }, 1500).ConfigureAwait(false);
+                }
+            }
+        }
+
+        public static async Task<(bool BridgedHfp, string ActiveModeLabel)> SwitchAudioToPhoneCallHfpAsync(bool active)
+        {
+            var settings = LinuxVaultAndStorage.LoadSettings();
+            string teufelMacUnderscore = (string.IsNullOrWhiteSpace(settings.PreferredBluetoothMac)
+                ? "FC:58:FA:C7:F4:1D"
+                : settings.PreferredBluetoothMac.Trim().ToUpperInvariant()).Replace(':', '_');
+
+            if (!active)
+            {
+                PhoneCallAudioActive = false;
+                var cam = await DetectAndPrepareWebcamAsync(activateUsbMicDefault: true).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(cam.MicSourceId))
+                {
+                    await MigrateAllSourceOutputsToSourceAsync(cam.MicSourceId).ConfigureAwait(false);
+                }
+
+                string? restoredSink = await RoutePipeWireBluetoothSinkAsync(
+                    string.IsNullOrWhiteSpace(settings.PreferredBluetoothMac) ? "FC:58:FA:C7:F4:1D" : settings.PreferredBluetoothMac,
+                    "Teufel").ConfigureAwait(false);
+
+                return (false, restoredSink ?? "Teufel Stereo + USB C920");
+            }
+
+            // Look for a connected Smartphone Bluetooth HFP card/sink/source (distinct from Teufel speaker!)
+            string? phoneCardName = null;
+            var (cCode, cardsJson, _) = await RunProcessAsync("pactl", new[] { "-f", "json", "list", "cards" }, 2500).ConfigureAwait(false);
+            if (cCode == 0 && !string.IsNullOrWhiteSpace(cardsJson))
+            {
+                try
+                {
+                    using var cDoc = JsonDocument.Parse(cardsJson);
+                    if (cDoc.RootElement.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var cEl in cDoc.RootElement.EnumerateArray())
+                        {
+                            string cName = cEl.TryGetProperty("name", out var nEl) ? (nEl.GetString() ?? "") : "";
+                            if (cName.StartsWith("bluez_card.", StringComparison.OrdinalIgnoreCase) &&
+                                !cName.Contains(teufelMacUnderscore, StringComparison.OrdinalIgnoreCase))
+                            {
+                                phoneCardName = cName;
+                                break;
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            if (!string.IsNullOrWhiteSpace(phoneCardName))
+            {
+                // Activate headset-audio-gateway profile if available on the smartphone card
+                await RunProcessAsync("pactl", new[] { "set-card-profile", phoneCardName, "headset-audio-gateway" }, 2000).ConfigureAwait(false);
+                await Task.Delay(350).ConfigureAwait(false);
+            }
+
+            string? phoneSink = null;
+            string? phoneSource = null;
+
+            var (sCode, sinksOut, _) = await RunProcessAsync("pactl", new[] { "list", "short", "sinks" }, 2000).ConfigureAwait(false);
+            if (sCode == 0 && !string.IsNullOrWhiteSpace(sinksOut))
+            {
+                foreach (string line in sinksOut.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var parts = line.Trim().Split(new[] { '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 2)
+                    {
+                        string sName = parts[1];
+                        if (sName.StartsWith("bluez_output.", StringComparison.OrdinalIgnoreCase) &&
+                            !sName.Contains(teufelMacUnderscore, StringComparison.OrdinalIgnoreCase))
+                        {
+                            phoneSink = sName;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            var (srcCode, sourcesOut, _) = await RunProcessAsync("pactl", new[] { "list", "short", "sources" }, 2000).ConfigureAwait(false);
+            if (srcCode == 0 && !string.IsNullOrWhiteSpace(sourcesOut))
+            {
+                foreach (string line in sourcesOut.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var parts = line.Trim().Split(new[] { '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 2)
+                    {
+                        string srcName = parts[1];
+                        if (srcName.StartsWith("bluez_input.", StringComparison.OrdinalIgnoreCase) &&
+                            !srcName.EndsWith(".monitor", StringComparison.OrdinalIgnoreCase) &&
+                            !srcName.Contains(teufelMacUnderscore, StringComparison.OrdinalIgnoreCase))
+                        {
+                            phoneSource = srcName;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(phoneSink) && !string.IsNullOrWhiteSpace(phoneSource))
+            {
+                PhoneCallAudioActive = true;
+                await RunProcessAsync("pactl", new[] { "set-default-sink", phoneSink }, 2000).ConfigureAwait(false);
+                await RunProcessAsync("pactl", new[] { "set-sink-mute", phoneSink, "0" }, 1500).ConfigureAwait(false);
+                await RunProcessAsync("pactl", new[] { "set-sink-volume", phoneSink, "92%" }, 1500).ConfigureAwait(false);
+                await MigrateAllSinkInputsToSinkAsync(phoneSink).ConfigureAwait(false);
+
+                await RunProcessAsync("pactl", new[] { "set-default-source", phoneSource }, 2000).ConfigureAwait(false);
+                await RunProcessAsync("pactl", new[] { "set-source-mute", phoneSource, "0" }, 1500).ConfigureAwait(false);
+                await RunProcessAsync("pactl", new[] { "set-source-volume", phoneSource, "95%" }, 1500).ConfigureAwait(false);
+                await MigrateAllSourceOutputsToSourceAsync(phoneSource).ConfigureAwait(false);
+
+                return (true, "Bluetooth HFP Smartphone-Brücke");
+            }
+
+            // Fallback: Workshop speakerphone / test-simulation mode (Teufel + USB C920 mic)
+            PhoneCallAudioActive = false;
+            return (false, "Werkstatt-Freisprechen (Teufel + C920)");
+        }
+
+        public static async Task<(bool Ok, string Message, List<string> PairedPhones)> EnableSmartphoneBluetoothPairableAsync()
+        {
+            var settings = LinuxVaultAndStorage.LoadSettings();
+            string teufelMac = string.IsNullOrWhiteSpace(settings.PreferredBluetoothMac)
+                ? "FC:58:FA:C7:F4:1D"
+                : settings.PreferredBluetoothMac.Trim().ToUpperInvariant();
+
+            if (!await s_btLock.WaitAsync(4000).ConfigureAwait(false))
+                return (false, "Bluetooth ist gerade beschäftigt. Bitte in 3 Sekunden erneut versuchen.", new List<string>());
+
+            try
+            {
+                await RunProcessAsync("rfkill", new[] { "unblock", "bluetooth" }, 2000).ConfigureAwait(false);
+                var log = new StringBuilder();
+                var sync = new object();
+                using var proc = StartInteractiveBluetoothCtl(log, sync);
+                if (proc != null)
+                {
+                    try
+                    {
+                        await SendBtCmdAsync(proc, "power on", 200).ConfigureAwait(false);
+                        await SendBtCmdAsync(proc, "system-alias Funkenwerk-MiniPC", 200).ConfigureAwait(false);
+                        await SendBtCmdAsync(proc, "discoverable-timeout 180", 150).ConfigureAwait(false);
+                        await SendBtCmdAsync(proc, "discoverable on", 250).ConfigureAwait(false);
+                        await SendBtCmdAsync(proc, "pairable on", 200).ConfigureAwait(false);
+                        await SendBtCmdAsync(proc, "agent NoInputNoOutput", 150).ConfigureAwait(false);
+                        await SendBtCmdAsync(proc, "default-agent", 150).ConfigureAwait(false);
+                        await SendBtCmdAsync(proc, "quit", 100).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        try { if (!proc.HasExited) proc.Kill(true); } catch { }
+                    }
+                }
+            }
+            finally
+            {
+                s_btLock.Release();
+            }
+
+            // Keep an auto-trust helper alive for 180 seconds so when Alina taps "Funkenwerk-MiniPC" on Android, BlueZ trusts it immediately
+            _ = Task.Run(async () =>
+            {
+                for (int i = 0; i < 36; i++)
+                {
+                    await Task.Delay(5000).ConfigureAwait(false);
+                    try
+                    {
+                        var (_, pOut, _) = await RunProcessAsync("bluetoothctl", new[] { "devices", "Paired" }, 2000).ConfigureAwait(false);
+                        foreach (string line in pOut.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            var m = Regex.Match(line, @"Device\s+([0-9A-Fa-f:]{17})\s+(.+)$");
+                            if (m.Success)
+                            {
+                                string mac = m.Groups[1].Value.ToUpperInvariant();
+                                if (!string.Equals(mac, teufelMac, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    await RunProcessAsync("bluetoothctl", new[] { "trust", mac }, 1500).ConfigureAwait(false);
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            });
+
+            var phones = new List<string>();
+            var (_, pairedOut, _) = await RunProcessAsync("bluetoothctl", new[] { "devices", "Paired" }, 2000).ConfigureAwait(false);
+            foreach (string line in pairedOut.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var m = Regex.Match(line, @"Device\s+([0-9A-Fa-f:]{17})\s+(.+)$");
+                if (m.Success)
+                {
+                    string mac = m.Groups[1].Value.ToUpperInvariant();
+                    string name = m.Groups[2].Value.Trim();
+                    if (!string.Equals(mac, teufelMac, StringComparison.OrdinalIgnoreCase))
+                        phones.Add($"{name} ({mac})");
+                }
+            }
+
+            return (true, "Mini-PC ist für 3 Minuten als 'Funkenwerk-MiniPC' per Bluetooth sichtbar. Einfach auf dem Handy koppeln.", phones);
+        }
+
         public static async Task<string> DisconnectBluetoothAsync(string? macOrName)
         {
+            s_manualBtDisconnect = true;
             string q = (macOrName ?? "").Trim();
             if (Regex.IsMatch(q, @"^[0-9A-Fa-f:]{17}$"))
             {

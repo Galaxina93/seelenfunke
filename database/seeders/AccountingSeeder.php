@@ -647,6 +647,19 @@ class AccountingSeeder extends Seeder
 
         $specialIssues = [
             [
+                'title'          => 'Babacom Laptop-Ständer (höhenverstellbar, faltbar, Aluminiumlegierung, 10-16 Zoll, Silber)',
+                'location'       => 'Amazon (Babacom TECH DE Store)',
+                'amount'         => -20.39,
+                'date'           => '2026-11-13',
+                'category'       => 'Arbeitsmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => '303-7156153-8897113',
+                'note'           => "Bestellnummer: 303-7156153-8897113 | Bestellt am: 13.11.2026 (Belegausdruck 13.11.2026, 21:20 Uhr) | Zahlungsart: Volksbank eG Braunschweig Wolfsburg ••• 000\nPosition:\n- 1x Babacom Laptop Ständer Höhenverstellbar, Faltbarer aus Aluminiumlegierung | Ergonomischer, Belüfteter, Rundum-Silikonschutz Laptop Stand Kompatibel mit MacBook Air, Pro, Allen Laptops 10-16\" (Silber, Verkauf durch: Babacom TECH DE Store)\nZwischensumme / Gesamt vor USt. (Netto): 17,13 € | Verpackung & Versand: 0,00 € | Geschätzte USt. (19 %): 3,26 € | Gesamtsumme (Brutto): 20,39 €\nHinweis: Aktuell Amazon-Bestellübersicht; offizielle Amazon-Umsatzsteuerrechnung nach Versand bei Bedarf ergänzen.\nBestellübersicht-Link: https://www.amazon.de/gp/css/summary/print.html?orderID=303-7156153-8897113&ref=ppx_yo2ov_dt_b_invoice",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-13_Amazon-Babacom_Laptop-Staender-Hoehenverstellbar-Aluminium-Silber-Order-303-7156153-8897113.pdf'
+                ]
+            ],
+            [
                 'title'          => '150x 3D Goldfolien-Kristall-Transferaufkleber mit personalisiertem Logo (Gold, 5 cm, 3x 50 Stück)',
                 'location'       => 'Temu (CustCryst pro / Helingling)',
                 'amount'         => -39.68,

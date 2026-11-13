@@ -15,12 +15,23 @@ namespace FunkenwerkFtp
                 try
                 {
                     var profiles = FunkenwerkFtpSecurity.LoadAndImportProfiles();
-                    bool ok = profiles.Count > 0 && FunkenwerkFtpSecurity.RunSelfTest();
-                    Environment.Exit(ok ? 0 : 1);
+                    bool securityOk = profiles.Count > 0 && FunkenwerkFtpSecurity.RunSelfTest();
+                    var testWin = new MainWindow();
+                    var sampleDoc = FtpTextBufferCodec.Decode(System.Text.Encoding.UTF8.GetBytes("<?php\necho 'ok';\n"), false);
+                    var testEd = new FtpFileEditorWindow(testWin, true, true, "test.php", "/html/test.php", sampleDoc, _ => System.Threading.Tasks.Task.CompletedTask);
+                    bool uiOk = testWin.Title.Contains("Funkenwerk FTP") && testEd.Title.Contains("test.php");
+                    Environment.Exit((securityOk && uiOk) ? 0 : 1);
                     return;
                 }
-                catch
+                catch (Exception ex)
                 {
+                    try
+                    {
+                        System.IO.File.WriteAllText(
+                            System.IO.Path.Combine(FunkenwerkFtpSecurity.VaultDir, "selftest_error.txt"),
+                            ex.ToString());
+                    }
+                    catch { }
                     Environment.Exit(2);
                     return;
                 }

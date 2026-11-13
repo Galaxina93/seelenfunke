@@ -62,18 +62,23 @@ class QuickEntryWidgetActivity : ComponentActivity() {
                 val isUploading by viewModel.isUploading.collectAsState()
                 val isAiScanning by viewModel.isAiScanning.collectAsState()
                 val actionResult by viewModel.actionResult.collectAsState()
+                val trichterFeedback by viewModel.trichterFeedback.collectAsState()
                 val context = LocalContext.current
 
                 LaunchedEffect(actionResult) {
                     actionResult?.let { result ->
                         result.onSuccess { msg ->
-                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                            val toastMsg = if (msg.startsWith("✅")) msg else "✅ $msg"
+                            Toast.makeText(context, toastMsg, Toast.LENGTH_LONG).show()
                             viewModel.clearActionResult()
+                            kotlinx.coroutines.delay(650)
                             finish()
                         }.onFailure { err ->
+                            val raw = err.localizedMessage ?: "Fehler beim Speichern"
+                            val toastMsg = if (raw.startsWith("⚠️")) raw else "⚠️ $raw"
                             Toast.makeText(
                                 context,
-                                err.localizedMessage ?: "Fehler beim Speichern",
+                                toastMsg,
                                 Toast.LENGTH_LONG
                             ).show()
                             viewModel.clearActionResult()
@@ -144,6 +149,8 @@ class QuickEntryWidgetActivity : ComponentActivity() {
                                 isAiScanning = isAiScanning,
                                 showCard = false,
                                 showTitle = false,
+                                trichterFeedback = trichterFeedback,
+                                onClearTrichterFeedback = { viewModel.clearTrichterFeedback() },
                                 onDismiss = { finish() },
                                 onScanReceipt = { bytes, fileName, mime, autoSave, onResult ->
                                     viewModel.scanReceipt(bytes, fileName, mime, autoSave) { scanData ->
@@ -155,6 +162,13 @@ class QuickEntryWidgetActivity : ComponentActivity() {
                                         fileBytes = bytes,
                                         fileName = name,
                                         mimeType = mime,
+                                        customTitle = customTitle,
+                                        source = "android_widget"
+                                    )
+                                },
+                                onSendMultipleToTrichter = { items, customTitle ->
+                                    viewModel.sendMultipleToMiniPcTrichter(
+                                        items = items,
                                         customTitle = customTitle,
                                         source = "android_widget"
                                     )

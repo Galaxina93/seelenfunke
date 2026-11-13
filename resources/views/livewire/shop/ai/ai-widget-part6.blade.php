@@ -1,11 +1,18 @@
                 t3.startTime = performance.now();
                 t3.lastActivityTime = performance.now();
 
-                window.addEventListener('resize', this.onWindowResize.bind(this));
+                if (t3.resizeListener) {
+                    window.removeEventListener('resize', t3.resizeListener);
+                }
+                t3.resizeListener = this.onWindowResize.bind(this);
+                window.addEventListener('resize', t3.resizeListener);
 
                 t3.raycaster = new THREE.Raycaster();
                 t3.mouse = new THREE.Vector2(-9999, -9999);
 
+                if (t3.clickListener) {
+                    window.removeEventListener('pointerdown', t3.clickListener);
+                }
                 t3.clickListener = (event) => {
                     t3.lastActivityTime = performance.now();
                 };
@@ -221,10 +228,15 @@
             destroyThreeJS() {
                 if (t3.animationId) {
                     cancelAnimationFrame(t3.animationId);
+                    t3.animationId = null;
                 }
-                window.removeEventListener('resize', this.onWindowResize);
+                if (t3.resizeListener) {
+                    window.removeEventListener('resize', t3.resizeListener);
+                    t3.resizeListener = null;
+                }
                 if(t3.clickListener) {
-                    window.removeEventListener('click', t3.clickListener);
+                    window.removeEventListener('pointerdown', t3.clickListener);
+                    t3.clickListener = null;
                 }
 
                 if (t3.controls) {

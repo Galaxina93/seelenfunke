@@ -395,22 +395,29 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
                 source = sourcePart
             )
             if (response.success) {
-                Result.success(response.message ?: "Im Eingang-Trichter abgelegt.")
+                Result.success(response.message ?: "Erfolgreich im Eingang-Trichter abgelegt.")
             } else {
-                Result.failure(Exception(response.message ?: "Trichter-Übergabe fehlgeschlagen."))
+                Result.failure(Exception(response.message ?: "Trichter-Übergabe vom Server abgelehnt."))
             }
         } catch (e: Exception) {
             AppLogger.error(serviceLocator.context, "FinanceRepo", "sendToMiniPcTrichter failed", e)
             val friendlyMsg = when (e) {
                 is retrofit2.HttpException -> {
+                    val code = e.code()
                     val errBody = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null }
                     val parsedMsg = try {
                         if (!errBody.isNullOrBlank()) org.json.JSONObject(errBody).optString("message") else null
                     } catch (_: Exception) { null }
-                    if (!parsedMsg.isNullOrBlank()) parsedMsg else "Trichter-Upload fehlgeschlagen (HTTP ${e.code()})."
+                    when {
+                        code == 401 || code == 403 -> "Sitzung abgelaufen (HTTP $code). Bitte in der App neu anmelden."
+                        code == 404 -> "Trichter-Endpunkt auf ${serviceLocator.getBaseUrl()} nicht gefunden (HTTP 404). Bitte Server-Adresse in den Einstellungen prüfen."
+                        code == 413 -> "Datei ist zu groß für den Upload (HTTP 413, max. 25 MB)."
+                        !parsedMsg.isNullOrBlank() -> "$parsedMsg (HTTP $code)"
+                        else -> "Trichter-Upload fehlgeschlagen (HTTP $code)."
+                    }
                 }
-                is java.net.SocketTimeoutException -> "Zeitüberschreitung beim Trichter-Upload."
-                is java.net.ConnectException, is java.net.UnknownHostException -> "Server nicht erreichbar (${serviceLocator.getBaseUrl()})."
+                is java.net.SocketTimeoutException -> "Zeitüberschreitung beim Senden in den Trichter. Bitte WLAN/Mobilfunk prüfen."
+                is java.net.ConnectException, is java.net.UnknownHostException -> "Server nicht erreichbar (${serviceLocator.getBaseUrl()}). Bitte Internetverbindung prüfen."
                 else -> e.localizedMessage ?: "Trichter-Upload fehlgeschlagen."
             }
             Result.failure(Exception(friendlyMsg))

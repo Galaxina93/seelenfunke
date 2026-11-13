@@ -1,4 +1,12 @@
             async openFunkiView(isRestore = false) {
+                if (t3.closeTimerOuter) {
+                    clearTimeout(t3.closeTimerOuter);
+                    t3.closeTimerOuter = null;
+                }
+                if (t3.closeTimerInner) {
+                    clearTimeout(t3.closeTimerInner);
+                    t3.closeTimerInner = null;
+                }
                 this.isAudioMuted = localStorage.getItem('funki_isAudioMuted') !== null ? localStorage.getItem('funki_isAudioMuted') === 'true' : false; 
                 localStorage.setItem('funki_isOpen', 'true');
                 this.showFunkiView = true;
@@ -62,8 +70,16 @@
                     }
 
                     this.$nextTick(() => {
-                        this.initThreeJS();
-                        this.initMapbox();
+                        try {
+                            this.initThreeJS();
+                        } catch (e) {
+                            console.error('Funki 3D initThreeJS error:', e);
+                        }
+                        try {
+                            this.initMapbox();
+                        } catch (e) {
+                            console.warn('Funki 3D initMapbox skipped:', e);
+                        }
                         
                         if (!this.isLiveMode) {
                             this.toggleLiveMode(); // Start voice interaction automatically!
@@ -77,44 +93,32 @@
                     });
                 };
 
-                if (typeof THREE === 'undefined') {
-                    await new Promise((resolve, reject) => {
+                const loadVendorScript = (globalCheck, src) => {
+                    if (globalCheck()) return Promise.resolve();
+                    const existing = document.querySelector(`script[src="${src}"]`);
+                    if (existing) {
+                        return new Promise((resolve) => {
+                            if (globalCheck()) return resolve();
+                            existing.addEventListener('load', () => resolve(), { once: true });
+                            existing.addEventListener('error', () => resolve(), { once: true });
+                        });
+                    }
+                    return new Promise((resolve, reject) => {
                         const script = document.createElement('script');
-                        script.src = "{{ asset('vendor/three/three.min.js') }}";
+                        script.src = src;
                         script.onload = resolve;
                         script.onerror = reject;
                         document.head.appendChild(script);
                     });
-                }
+                };
 
-                if (typeof THREE.OrbitControls === 'undefined') {
-                    await new Promise((resolve, reject) => {
-                        const script = document.createElement('script');
-                        script.src = "{{ asset('vendor/three/OrbitControls.js') }}";
-                        script.onload = resolve;
-                        script.onerror = reject;
-                        document.head.appendChild(script);
-                    });
-                }
-
-                if (typeof anime === 'undefined') {
-                    await new Promise((resolve, reject) => {
-                        const script = document.createElement('script');
-                        script.src = "{{ asset('vendor/animejs/anime.min.js') }}";
-                        script.onload = resolve;
-                        script.onerror = reject;
-                        document.head.appendChild(script);
-                    });
-                }
-
-                if (typeof mapboxgl === 'undefined') {
-                    await new Promise((resolve, reject) => {
-                        const script = document.createElement('script');
-                        script.src = "{{ asset('vendor/mapbox-gl/mapbox-gl.js') }}";
-                        script.onload = resolve;
-                        script.onerror = reject;
-                        document.head.appendChild(script);
-                    });
+                try {
+                    await loadVendorScript(() => typeof THREE !== 'undefined', "{{ asset('vendor/three/three.min.js') }}");
+                    await loadVendorScript(() => typeof THREE !== 'undefined' && typeof THREE.OrbitControls !== 'undefined', "{{ asset('vendor/three/OrbitControls.js') }}");
+                    await loadVendorScript(() => typeof anime !== 'undefined', "{{ asset('vendor/animejs/anime.min.js') }}");
+                    await loadVendorScript(() => typeof mapboxgl !== 'undefined', "{{ asset('vendor/mapbox-gl/mapbox-gl.js') }}");
+                } catch (vendorErr) {
+                    console.warn('Vendor script load warning in 3D view:', vendorErr);
                 }
 
                 startAnimation();
@@ -184,10 +188,12 @@
                     }, 50);
                 }
 
-                setTimeout(() => {
+                t3.closeTimerOuter = setTimeout(() => {
+                    t3.closeTimerOuter = null;
                     this.showFunkiView = false; 
 
-                    setTimeout(() => {
+                    t3.closeTimerInner = setTimeout(() => {
+                        t3.closeTimerInner = null;
                         this.destroyMapbox();
                         this.destroyThreeJS();
                         document.body.style.overflow = 'auto'; 
@@ -251,7 +257,15 @@
 
             initMapbox() {
                 if (typeof mapboxgl === 'undefined') return;
-                mapboxgl.accessToken = '{{ env("MAPBOX_TOKEN") }}';
+                const mapContainer = document.getElementById('funki-mapbox-container');
+                if (!mapContainer) return;
+                const mbToken = '{{ config("services.mapbox.token") }}';
+                if (!mbToken) return;
+                if (window.funkiMap) {
+                    try { window.funkiMap.resize(); } catch (e) {}
+                    return;
+                }
+                mapboxgl.accessToken = mbToken;
                 
                 window.funkiMap = new mapboxgl.Map({
                     container: 'funki-mapbox-container',

@@ -32,10 +32,41 @@ namespace FunkenwerkOSLinux
         private static readonly object s_procLock = new();
         private static Process? s_senseProc;
         private static int s_consecutiveVisitorHits;
+        private static readonly object s_companionVecLock = new();
+        private static float[]? s_latestCompanionVector;
+        private static DateTime s_latestCompanionVectorAtUtc = DateTime.MinValue;
 
-        public static string CurrentFaceIdentity { get; private set; } = "unenrolled"; // unenrolled | none | alina | visitor
+        public static string CurrentFaceIdentity { get; private set; } = "unenrolled"; // unenrolled | none | alina | alina_with_companion | visitor
         public static double LastFaceCosine { get; private set; }
+        public static int CurrentCompanionsCount { get; private set; }
+        public static string CurrentCompanionBadgeLabel { get; private set; } = "";
+        public static string CurrentCompanionSummary { get; private set; } = "";
+        public static string LastVoiceIdentity { get; private set; } = "unenrolled"; // unenrolled | silence | alina | uncertain | visitor_voice
+        public static double LastVoiceCosine { get; private set; }
         public static int TikTokRosesCount { get; private set; }
+
+        public static void ForceRestartDaemon()
+        {
+            if (!OperatingSystem.IsLinux()) return;
+            lock (s_procLock)
+            {
+                try
+                {
+                    if (s_senseProc != null)
+                    {
+                        if (!s_senseProc.HasExited)
+                            s_senseProc.Kill(entireProcessTree: true);
+                        s_senseProc.Dispose();
+                    }
+                }
+                catch { }
+                finally
+                {
+                    s_senseProc = null;
+                }
+            }
+            EnsureDaemonStarted();
+        }
 
         public static void EnsureDaemonStarted()
         {
@@ -116,14 +147,24 @@ namespace FunkenwerkOSLinux
             EnsureDaemonStarted();
             float[]? ownerVec = LinuxVaultAndStorage.GetOwnerFaceVector(settings);
             bool hasOwnerEnrolled = ownerVec != null && ownerVec.Length == 128;
+            var knownCompanions = LinuxVaultAndStorage.GetCompanionFaces(settings);
 
             try
             {
+                var knownWire = knownCompanions.Select(c => new
+                {
+                    contactId = c.ContactId,
+                    name = c.Name,
+                    relationship = c.Relationship,
+                    embedding = c.Vector
+                }).ToList();
+
                 var reqObj = new
                 {
                     jpegBase64 = jpegB64,
                     ownerEmbedding = ownerVec,
-                    includeEmbedding
+                    includeEmbedding,
+                    knownCompanions = knownWire
                 };
                 using var content = new StringContent(JsonSerializer.Serialize(reqObj), Encoding.UTF8, "application/json");
                 using var resp = await SenseHttp.PostAsync($"{SenseBaseUrl}/face-analyze", content).ConfigureAwait(false);
@@ -133,6 +174,9 @@ namespace FunkenwerkOSLinux
                 if (!hasOwnerEnrolled)
                 {
                     CurrentFaceIdentity = "unenrolled";
+                    CurrentCompanionsCount = 0;
+                    CurrentCompanionBadgeLabel = "";
+                    CurrentCompanionSummary = "";
                 }
                 else if (obj["faceDetected"]?.GetValue<bool>() == true)
                 {
@@ -142,16 +186,94 @@ namespace FunkenwerkOSLinux
                     {
                         s_consecutiveVisitorHits = 0;
                         CurrentFaceIdentity = "alina";
+                        CurrentCompanionsCount = 0;
+                        CurrentCompanionBadgeLabel = "";
+                        CurrentCompanionSummary = "";
+                    }
+                    else if (rawId == "alina_with_companion")
+                    {
+                        s_consecutiveVisitorHits = 0;
+                        CurrentFaceIdentity = "alina_with_companion";
+
+                        var compArr = obj["companions"]?.AsArray();
+                        int compCount = compArr?.Count ?? Math.Max(1, (obj["facesCount"]?.GetValue<int>() ?? 2) - 1);
+                        CurrentCompanionsCount = compCount;
+
+                        var badgeParts = new List<string>();
+                        var summaryParts = new List<string>();
+                        if (compArr != null)
+                        {
+                            foreach (var cNode in compArr)
+                            {
+                                bool matched = cNode?["matched"]?.GetValue<bool>() == true;
+                                string cName = cNode?["name"]?.GetValue<string>() ?? "";
+                                string cRel = cNode?["relationship"]?.GetValue<string>() ?? "";
+                                string cSide = cNode?["side"]?.GetValue<string>() ?? "neben Alina";
+                                if (matched && !string.IsNullOrWhiteSpace(cName))
+                                {
+                                    badgeParts.Add(cName);
+                                    summaryParts.Add(string.IsNullOrWhiteSpace(cRel)
+                                        ? $"Bekannter Kontakt '{cName}' ({cSide})"
+                                        : $"Bekannter Kontakt '{cName}' ({cRel}, {cSide})");
+                                }
+                                else
+                                {
+                                    summaryParts.Add($"Noch unbekannte Begleitperson ({cSide})");
+                                }
+                            }
+                        }
+
+                        CurrentCompanionBadgeLabel = badgeParts.Count > 0
+                            ? string.Join(", ", badgeParts)
+                            : (compCount > 1 ? $"{compCount} Gäste" : "Begleitung");
+                        CurrentCompanionSummary = summaryParts.Count > 0
+                            ? string.Join("; ", summaryParts)
+                            : "Begleitperson neben Alina";
+
+                        var unkEmb = obj["companionEmbedding"]?.AsArray();
+                        if (unkEmb != null && unkEmb.Count == 128)
+                        {
+                            var parsedVec = new float[128];
+                            bool valid = true;
+                            for (int i = 0; i < 128; i++)
+                            {
+                                if (unkEmb[i] == null || !float.TryParse(unkEmb[i]!.ToJsonString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float fv))
+                                {
+                                    valid = false;
+                                    break;
+                                }
+                                parsedVec[i] = fv;
+                            }
+                            if (valid)
+                            {
+                                lock (s_companionVecLock)
+                                {
+                                    s_latestCompanionVector = parsedVec;
+                                    s_latestCompanionVectorAtUtc = DateTime.UtcNow;
+                                }
+                            }
+                        }
+                        obj.Remove("companionEmbedding");
+
+                        _ = FunkiraLiveAndMcpEngine.NotifyCompanionPresenceIfChangedAsync(CurrentCompanionSummary, CurrentCompanionBadgeLabel);
                     }
                     else if (rawId == "visitor")
                     {
                         s_consecutiveVisitorHits++;
                         if (s_consecutiveVisitorHits >= 2)
+                        {
                             CurrentFaceIdentity = "visitor";
+                            CurrentCompanionsCount = 0;
+                            CurrentCompanionBadgeLabel = "";
+                            CurrentCompanionSummary = "";
+                        }
                     }
                 }
                 obj["effectiveIdentity"] = CurrentFaceIdentity;
                 obj["ownerEnrolled"] = hasOwnerEnrolled;
+                obj["companionsCount"] = CurrentCompanionsCount;
+                obj["companionBadge"] = CurrentCompanionBadgeLabel;
+                obj["companionSummary"] = CurrentCompanionSummary;
                 return obj;
             }
             catch
@@ -161,13 +283,87 @@ namespace FunkenwerkOSLinux
                     ["ok"] = false,
                     ["faceDetected"] = false,
                     ["effectiveIdentity"] = hasOwnerEnrolled ? CurrentFaceIdentity : "unenrolled",
-                    ["ownerEnrolled"] = hasOwnerEnrolled
+                    ["ownerEnrolled"] = hasOwnerEnrolled,
+                    ["companionsCount"] = CurrentCompanionsCount,
+                    ["companionBadge"] = CurrentCompanionBadgeLabel
                 };
             }
             finally
             {
                 if (ownerVec != null)
                     Array.Clear(ownerVec, 0, ownerVec.Length);
+                foreach (var c in knownCompanions)
+                {
+                    if (c.Vector != null && c.Vector.Length > 0)
+                        Array.Clear(c.Vector, 0, c.Vector.Length);
+                }
+            }
+        }
+
+        public static float[]? ConsumeLatestUnknownCompanionVector()
+        {
+            lock (s_companionVecLock)
+            {
+                if (s_latestCompanionVector == null || s_latestCompanionVector.Length != 128)
+                    return null;
+                if ((DateTime.UtcNow - s_latestCompanionVectorAtUtc).TotalSeconds > 180)
+                {
+                    Array.Clear(s_latestCompanionVector, 0, s_latestCompanionVector.Length);
+                    s_latestCompanionVector = null;
+                    return null;
+                }
+                var copy = new float[128];
+                Array.Copy(s_latestCompanionVector, copy, 128);
+                return copy;
+            }
+        }
+
+        public static async Task<JsonObject> AnalyzeVoiceSampleAsync(string pcm16B64, LinuxOsSettings settings, bool includeEmbedding = false)
+        {
+            EnsureDaemonStarted();
+            float[]? ownerVoice = LinuxVaultAndStorage.GetOwnerVoiceVector(settings);
+            bool hasVoiceEnrolled = ownerVoice != null && ownerVoice.Length == 48;
+
+            try
+            {
+                var reqObj = new
+                {
+                    pcm16Base64 = pcm16B64,
+                    ownerVoiceEmbedding = ownerVoice,
+                    includeEmbedding
+                };
+                using var content = new StringContent(JsonSerializer.Serialize(reqObj), Encoding.UTF8, "application/json");
+                using var resp = await SenseHttp.PostAsync($"{SenseBaseUrl}/voice-analyze", content).ConfigureAwait(false);
+                string raw = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                var obj = JsonNode.Parse(raw) as JsonObject ?? new JsonObject { ["ok"] = false };
+
+                if (!hasVoiceEnrolled)
+                {
+                    LastVoiceIdentity = "unenrolled";
+                }
+                else if (obj["speechDetected"]?.GetValue<bool>() == true)
+                {
+                    LastVoiceIdentity = obj["voiceIdentity"]?.GetValue<string>() ?? "uncertain";
+                    LastVoiceCosine = obj["cosine"]?.GetValue<double>() ?? 0.0;
+                }
+                obj["effectiveVoiceIdentity"] = LastVoiceIdentity;
+                obj["ownerVoiceEnrolled"] = hasVoiceEnrolled;
+                return obj;
+            }
+            catch
+            {
+                return new JsonObject
+                {
+                    ["ok"] = false,
+                    ["speechDetected"] = false,
+                    ["effectiveVoiceIdentity"] = hasVoiceEnrolled ? LastVoiceIdentity : "unenrolled",
+                    ["ownerVoiceEnrolled"] = hasVoiceEnrolled
+                };
+            }
+            finally
+            {
+                if (ownerVoice != null)
+                    Array.Clear(ownerVoice, 0, ownerVoice.Length);
             }
         }
 
@@ -175,12 +371,18 @@ namespace FunkenwerkOSLinux
         {
             s_consecutiveVisitorHits = 0;
             CurrentFaceIdentity = "alina";
+            CurrentCompanionsCount = 0;
+            CurrentCompanionBadgeLabel = "";
+            CurrentCompanionSummary = "";
         }
 
         public static void ClearIdentityOnDelete()
         {
             s_consecutiveVisitorHits = 0;
             CurrentFaceIdentity = "unenrolled";
+            CurrentCompanionsCount = 0;
+            CurrentCompanionBadgeLabel = "";
+            CurrentCompanionSummary = "";
         }
 
         public static string SanitizePublicFirstName(string? rawName)
@@ -232,7 +434,8 @@ namespace FunkenwerkOSLinux
             "mail_read",
             "email_send_message",
             "contact_search",
-            "contact_get_all"
+            "contact_get_all",
+            "system_get_error_sentinel"
         };
 
         private static readonly string[] ExtraManufactoryServerToolPrefixes =
@@ -273,6 +476,520 @@ namespace FunkenwerkOSLinux
         private static string s_cachedServerRoutineInfo = "";
         private static DateTime s_cachedServerRoutineAtUtc = DateTime.MinValue;
         private static DateTime s_lastProactiveReturnUtc = DateTime.MinValue;
+
+        // =====================================================================
+        // FUNKIRA TELEFON-ASSISTENT (WHITELIST CALL CONCIERGE, ZERO-TWILIO)
+        // =====================================================================
+        public sealed class PhoneConciergeSessionDto
+        {
+            public string CallId { get; set; } = "";
+            public string State { get; set; } = "idle"; // idle | ringing | accepted | completed | ended | cancelled
+            public bool IsSimulation { get; set; }
+            public string? ContactId { get; set; }
+            public string CallerName { get; set; } = "";
+            public string GreetingName { get; set; } = "";
+            public string RelationType { get; set; } = "";
+            public string CallerPhone { get; set; } = "";
+            public string SystemInstructions { get; set; } = "";
+            public string AudioMode { get; set; } = "bluetooth_hfp";
+            public bool HangupRequested { get; set; }
+            public bool CompletedByFunkira { get; set; }
+            public string UpdatedAt { get; set; } = "";
+        }
+
+        public sealed class PhoneConciergeBriefingDto
+        {
+            public string Id { get; set; } = Guid.NewGuid().ToString("N");
+            public string CallId { get; set; } = "";
+            public string CallerName { get; set; } = "";
+            public string Summary { get; set; } = "";
+            public string Urgency { get; set; } = "mittel";
+            public bool CallbackRequested { get; set; } = true;
+            public string RecordedAt { get; set; } = DateTime.Now.ToString("HH:mm");
+        }
+
+        private static readonly object s_phoneLock = new();
+        private static PhoneConciergeSessionDto? s_activePhoneCall;
+        private static readonly HashSet<string> s_handledCallIds = new(StringComparer.Ordinal);
+        private static readonly List<PhoneConciergeBriefingDto> s_pendingVerbalPhoneNotes = new();
+        private static int s_phonePollerStarted;
+
+        public static bool IsToolAllowedInPhoneConciergeMode(string? toolName)
+        {
+            if (string.IsNullOrWhiteSpace(toolName)) return false;
+            return string.Equals(toolName.Trim(), "minipc_phone_call_finish", StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static JsonArray BuildPhoneConciergeToolsNode()
+        {
+            return new JsonArray
+            {
+                new JsonObject
+                {
+                    ["functionDeclarations"] = new JsonArray
+                    {
+                        new JsonObject
+                        {
+                            ["name"] = "minipc_phone_call_finish",
+                            ["description"] = "Speichert das aufgenommene Anliegen des Anrufers als sofortiges To-Do auf Alinas Seelenfunke-Dashboard, merkt es für die mündliche Übergabe vor und beendet das Telefonat nach deiner Verabschiedung sauber.",
+                            ["parameters"] = new JsonObject
+                            {
+                                ["type"] = "OBJECT",
+                                ["properties"] = new JsonObject
+                                {
+                                    ["summary"] = new JsonObject
+                                    {
+                                        ["type"] = "STRING",
+                                        ["description"] = "Klare, prägnante Zusammenfassung des Anliegens auf Deutsch (1 bis 2 Sätze)."
+                                    },
+                                    ["urgency"] = new JsonObject
+                                    {
+                                        ["type"] = "STRING",
+                                        ["enum"] = new JsonArray("hoch", "mittel", "niedrig"),
+                                        ["description"] = "Dringlichkeit des Anliegens."
+                                    },
+                                    ["callback_requested"] = new JsonObject
+                                    {
+                                        ["type"] = "BOOLEAN",
+                                        ["description"] = "True, wenn Alina zurückrufen oder antworten soll."
+                                    }
+                                },
+                                ["required"] = new JsonArray("summary")
+                            }
+                        }
+                    }
+                }
+            };
+        }
+
+        public static string BuildPhoneConciergeSystemInstruction(PhoneConciergeSessionDto call)
+        {
+            string greeting = string.IsNullOrWhiteSpace(call.GreetingName) ? "Hallo" : call.GreetingName.Trim();
+            string fullCaller = string.IsNullOrWhiteSpace(call.CallerName) ? greeting : call.CallerName.Trim();
+            string relation = string.IsNullOrWhiteSpace(call.RelationType) ? "Vertrauter Kontakt" : call.RelationType.Trim();
+
+            var sb = new StringBuilder();
+            sb.AppendLine("STRIKTE TELEFON-ASSISTENTEN-ROLLE & RECHTSSICHERHEIT (HÖCHSTE PRIORITÄT):");
+            sb.AppendLine("- Du sprichst ZU 100% AUSSCHLIESSLICH AUF DEUTSCH, warmherzig, natürlich, höflich und klar verständlich.");
+            sb.AppendLine("- Du bist Funkira, Alinas intelligente KI-Assistentin in der Seelenfunke-Manufaktur in Gifhorn, und nimmst gerade stellvertretend einen eingehenden Telefonanruf auf Alinas Smartphone entgegen (in deiner 3D-Welt hältst du gerade dein schwarz-goldenes Seelenfunke-Smartphone ans Ohr).");
+            sb.AppendLine($"- Aktueller verifizierter Whitelist-Anrufer: '{fullCaller}' (persönlicher Rufname für deine Ansprache: '{greeting}', Beziehung zu Alina: '{relation}').");
+            if (!string.IsNullOrWhiteSpace(call.SystemInstructions))
+            {
+                sb.AppendLine($"- Bekannter Kontext zu dieser Person (nur zur freundlichen Einordnung, nicht ungefragt herunterbeten): {call.SystemInstructions.Trim()}");
+            }
+            sb.AppendLine("- PFLICHT-OFFENLEGUNG IM ALLERERSTEN SATZ (EU AI Act Art. 50 & § 201 StGB): Stelle dich im ersten Satz sofort klar als KI-Assistentin vor, z. B.: 'Hallo " + greeting + ", hier ist Funkira, Alinas KI-Assistentin aus der Manufaktur! Alina hat gerade alle Hände voll zu tun, aber ich nehme super gerne eine Nachricht für sie auf. Worum geht es denn?'");
+            sb.AppendLine("- GESPRÄCHSFÜHRUNG:");
+            sb.AppendLine("  1. Höre aufmerksam zu, was " + greeting + " ausrichten möchte.");
+            sb.AppendLine("  2. Falls etwas Wichtiges fehlt (z. B. Uhrzeit bei einem Treffen), stelle maximal EINE kurze, charmante Rückfrage.");
+            sb.AppendLine("  3. Sobald das Anliegen klar ist, rufe SOFORT das Tool 'minipc_phone_call_finish' mit einer klaren Zusammenfassung ('summary'), 'urgency' und 'callback_requested' auf UND verabschiede dich im selben Atemzug herzlich in 1 kurzem Satz (z. B. 'Alles klar, ich habe es Alina direkt notiert und sage ihr sofort Bescheid! Hab noch einen schönen Tag, tschüss!').");
+            sb.AppendLine("- STRIKTE DATENSCHUTZ-MAUER (ZERO-PII): Verrate am Telefon NIEMALS interne Shop-Bestellungen, Kundennamen, Umsätze, Kontostände, E-Mails oder Dokumenteninhalte. Es wird keinerlei Audio-Mitschnitt gespeichert.");
+            return sb.ToString();
+        }
+
+        public static void EnsurePhoneConciergePollerStarted()
+        {
+            if (Interlocked.CompareExchange(ref s_phonePollerStarted, 1, 0) != 0)
+                return;
+
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(3500).ConfigureAwait(false);
+                int consecutiveNotFound = 0;
+                while (true)
+                {
+                    try
+                    {
+                        var settings = LinuxVaultAndStorage.LoadSettings();
+                        string env = settings.ApiEnvironment ?? "live";
+                        string token = LinuxVaultAndStorage.GetToken(settings, env);
+                        if (!string.IsNullOrWhiteSpace(token))
+                        {
+                            string url = $"{SeelenfunkeLinuxApiClient.ResolveBaseApiUrl(env)}/system/phone-concierge/poll";
+                            if (SeelenfunkeLinuxApiClient.ValidateHttpsUrl(url))
+                            {
+                                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                                req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                                req.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+
+                                using var resp = await SeelenfunkeLinuxApiClient.SharedHttp.SendAsync(req, cts.Token).ConfigureAwait(false);
+                                if (resp.IsSuccessStatusCode)
+                                {
+                                    consecutiveNotFound = 0;
+                                    string raw = await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                                    using var doc = JsonDocument.Parse(raw);
+                                    if (doc.RootElement.TryGetProperty("data", out var dataEl) && dataEl.ValueKind == JsonValueKind.Object)
+                                    {
+                                        SyncPolledPhoneState(dataEl);
+                                    }
+                                }
+                                else if ((int)resp.StatusCode == 404)
+                                {
+                                    consecutiveNotFound = Math.Min(10, consecutiveNotFound + 1);
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+
+                    int waitMs = consecutiveNotFound >= 2 ? 8000 : 2000;
+                    await Task.Delay(waitMs).ConfigureAwait(false);
+                }
+            });
+        }
+
+        private static void SyncPolledPhoneState(JsonElement dataEl)
+        {
+            lock (s_phoneLock)
+            {
+                // Do not overwrite a running local simulation unless it finished
+                if (s_activePhoneCall != null && s_activePhoneCall.IsSimulation &&
+                    s_activePhoneCall.State is "ringing" or "accepted" && !s_activePhoneCall.HangupRequested)
+                {
+                    return;
+                }
+
+                if (!dataEl.TryGetProperty("active_call", out var acEl) || acEl.ValueKind != JsonValueKind.Object)
+                {
+                    if (s_activePhoneCall != null && !s_activePhoneCall.IsSimulation)
+                    {
+                        s_activePhoneCall.State = "ended";
+                        s_activePhoneCall.HangupRequested = true;
+                    }
+                    return;
+                }
+
+                string callId = SeelenfunkeLinuxApiClient.GetStr(acEl, "call_id");
+                string state = SeelenfunkeLinuxApiClient.GetStr(acEl, "state", "idle").ToLowerInvariant();
+                bool hangup = acEl.TryGetProperty("hangup_requested", out var hEl) && hEl.ValueKind == JsonValueKind.True;
+
+                if (string.IsNullOrWhiteSpace(callId))
+                    return;
+
+                if (s_handledCallIds.Contains(callId) && state is "completed" or "ended" or "cancelled")
+                {
+                    if (s_activePhoneCall != null && s_activePhoneCall.CallId == callId)
+                    {
+                        s_activePhoneCall.State = state;
+                        s_activePhoneCall.HangupRequested = true;
+                    }
+                    return;
+                }
+
+                s_activePhoneCall = new PhoneConciergeSessionDto
+                {
+                    CallId = callId,
+                    State = state,
+                    IsSimulation = acEl.TryGetProperty("is_simulation", out var simEl) && simEl.ValueKind == JsonValueKind.True,
+                    ContactId = SeelenfunkeLinuxApiClient.GetStr(acEl, "contact_id"),
+                    CallerName = SeelenfunkeLinuxApiClient.GetStr(acEl, "caller_name", "Vertrauter Kontakt"),
+                    GreetingName = SeelenfunkeLinuxApiClient.GetStr(acEl, "greeting_name", "Hallo"),
+                    RelationType = SeelenfunkeLinuxApiClient.GetStr(acEl, "relation_type", ""),
+                    CallerPhone = SeelenfunkeLinuxApiClient.GetStr(acEl, "caller_phone", ""),
+                    SystemInstructions = SeelenfunkeLinuxApiClient.GetStr(acEl, "system_instructions", ""),
+                    AudioMode = SeelenfunkeLinuxApiClient.GetStr(acEl, "audio_mode", "bluetooth_hfp"),
+                    HangupRequested = hangup,
+                    CompletedByFunkira = s_handledCallIds.Contains(callId),
+                    UpdatedAt = SeelenfunkeLinuxApiClient.GetStr(acEl, "updated_at")
+                };
+            }
+        }
+
+        public static PhoneConciergeSessionDto StartSimulatedPhoneCall(string? callerName = null, string? greetingName = null, string? relationType = null)
+        {
+            string cName = string.IsNullOrWhiteSpace(callerName) ? "Jan Steinhauer" : callerName.Trim();
+            string gName = string.IsNullOrWhiteSpace(greetingName) ? "Papa" : greetingName.Trim();
+            string rel = string.IsNullOrWhiteSpace(relationType) ? "Vater/Papa" : relationType.Trim();
+
+            var sim = new PhoneConciergeSessionDto
+            {
+                CallId = "sim-" + Guid.NewGuid().ToString("N").Substring(0, 12),
+                State = "accepted",
+                IsSimulation = true,
+                CallerName = cName,
+                GreetingName = gName,
+                RelationType = rel,
+                SystemInstructions = gName.Equals("Papa", StringComparison.OrdinalIgnoreCase)
+                    ? "Vater von Alina aus Meinersen."
+                    : "",
+                AudioMode = "workshop_speaker",
+                HangupRequested = false,
+                UpdatedAt = DateTime.UtcNow.ToString("O")
+            };
+
+            lock (s_phoneLock)
+            {
+                s_activePhoneCall = sim;
+            }
+            return sim;
+        }
+
+        public static async Task RequestManualPhoneHangupAsync()
+        {
+            PhoneConciergeSessionDto? snap;
+            lock (s_phoneLock)
+            {
+                snap = s_activePhoneCall;
+                if (snap != null)
+                {
+                    snap.State = "ended";
+                    snap.HangupRequested = true;
+                    s_handledCallIds.Add(snap.CallId);
+                }
+                s_activePhoneCall = null;
+            }
+
+            await LinuxHardwareEngine.SwitchAudioToPhoneCallHfpAsync(false).ConfigureAwait(false);
+
+            if (snap != null && !snap.IsSimulation)
+            {
+                try
+                {
+                    var settings = LinuxVaultAndStorage.LoadSettings();
+                    string env = settings.ApiEnvironment ?? "live";
+                    string token = LinuxVaultAndStorage.GetToken(settings, env);
+                    string url = $"{SeelenfunkeLinuxApiClient.ResolveBaseApiUrl(env)}/system/phone-concierge/signal";
+                    if (!string.IsNullOrWhiteSpace(token) && SeelenfunkeLinuxApiClient.ValidateHttpsUrl(url))
+                    {
+                        using var req = new HttpRequestMessage(HttpMethod.Post, url);
+                        req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                        req.Content = new StringContent(
+                            JsonSerializer.Serialize(new { call_id = snap.CallId, state = "ended" }),
+                            Encoding.UTF8,
+                            "application/json");
+                        using var _ = await SeelenfunkeLinuxApiClient.SharedHttp.SendAsync(req).ConfigureAwait(false);
+                    }
+                }
+                catch { }
+            }
+        }
+
+        public static PhoneConciergeSessionDto GetOrCreatePhoneSessionForWs(string? callId)
+        {
+            lock (s_phoneLock)
+            {
+                if (s_activePhoneCall != null && (string.IsNullOrWhiteSpace(callId) || s_activePhoneCall.CallId == callId))
+                {
+                    return s_activePhoneCall;
+                }
+                var fallback = new PhoneConciergeSessionDto
+                {
+                    CallId = string.IsNullOrWhiteSpace(callId) ? "call-" + Guid.NewGuid().ToString("N").Substring(0, 10) : callId,
+                    State = "accepted",
+                    IsSimulation = true,
+                    CallerName = "Jan Steinhauer",
+                    GreetingName = "Papa",
+                    RelationType = "Vater/Papa",
+                    AudioMode = "workshop_speaker",
+                    UpdatedAt = DateTime.UtcNow.ToString("O")
+                };
+                s_activePhoneCall = fallback;
+                return fallback;
+            }
+        }
+
+        public static object GetPhoneConciergeStatusSnapshot()
+        {
+            lock (s_phoneLock)
+            {
+                object? activeObj = null;
+                if (s_activePhoneCall != null && !s_handledCallIds.Contains(s_activePhoneCall.CallId) &&
+                    s_activePhoneCall.State is "ringing" or "accepted")
+                {
+                    activeObj = new
+                    {
+                        callId = s_activePhoneCall.CallId,
+                        state = s_activePhoneCall.State,
+                        isSimulation = s_activePhoneCall.IsSimulation,
+                        callerName = s_activePhoneCall.CallerName,
+                        greetingName = s_activePhoneCall.GreetingName,
+                        relationType = s_activePhoneCall.RelationType,
+                        audioMode = s_activePhoneCall.AudioMode,
+                        hangupRequested = s_activePhoneCall.HangupRequested
+                    };
+                }
+                else if (s_activePhoneCall != null && (s_activePhoneCall.HangupRequested || s_activePhoneCall.State is "ended" or "cancelled" or "completed"))
+                {
+                    activeObj = new
+                    {
+                        callId = s_activePhoneCall.CallId,
+                        state = s_activePhoneCall.State,
+                        isSimulation = s_activePhoneCall.IsSimulation,
+                        callerName = s_activePhoneCall.CallerName,
+                        greetingName = s_activePhoneCall.GreetingName,
+                        relationType = s_activePhoneCall.RelationType,
+                        audioMode = s_activePhoneCall.AudioMode,
+                        hangupRequested = true
+                    };
+                }
+
+                var notesCopy = s_pendingVerbalPhoneNotes.ToList();
+                return new
+                {
+                    ok = true,
+                    activeCall = activeObj,
+                    pendingVerbalNotesCount = notesCopy.Count,
+                    pendingVerbalNotes = notesCopy
+                };
+            }
+        }
+
+        public static List<PhoneConciergeBriefingDto> ConsumePendingVerbalPhoneNotes()
+        {
+            lock (s_phoneLock)
+            {
+                if (s_pendingVerbalPhoneNotes.Count == 0)
+                    return new List<PhoneConciergeBriefingDto>();
+                var copy = s_pendingVerbalPhoneNotes.ToList();
+                s_pendingVerbalPhoneNotes.Clear();
+                return copy;
+            }
+        }
+
+        public static async Task<JsonObject> CompletePhoneCallAndRecordSummaryAsync(
+            PhoneConciergeSessionDto call,
+            string summary,
+            string urgency,
+            bool callbackRequested)
+        {
+            string cleanSummary = string.IsNullOrWhiteSpace(summary)
+                ? "Hat angerufen und bittet bei Gelegenheit um kurzen Rückruf."
+                : summary.Trim();
+            string cleanUrgency = (urgency ?? "mittel").Trim().ToLowerInvariant();
+            if (cleanUrgency is not ("hoch" or "mittel" or "niedrig"))
+                cleanUrgency = "mittel";
+
+            string displayCaller = !string.IsNullOrWhiteSpace(call.GreetingName) &&
+                                   !string.Equals(call.GreetingName, call.CallerName, StringComparison.OrdinalIgnoreCase)
+                ? $"{call.GreetingName} ({call.CallerName})"
+                : (string.IsNullOrWhiteSpace(call.CallerName) ? "Kontakt" : call.CallerName);
+
+            bool alreadyCompleted = false;
+            lock (s_phoneLock)
+            {
+                if (s_handledCallIds.Contains(call.CallId))
+                {
+                    alreadyCompleted = true;
+                }
+                else
+                {
+                    s_handledCallIds.Add(call.CallId);
+                    call.CompletedByFunkira = true;
+                    call.State = "completed";
+                    call.HangupRequested = true;
+
+                    s_pendingVerbalPhoneNotes.Add(new PhoneConciergeBriefingDto
+                    {
+                        CallId = call.CallId,
+                        CallerName = displayCaller,
+                        Summary = cleanSummary,
+                        Urgency = cleanUrgency,
+                        CallbackRequested = callbackRequested,
+                        RecordedAt = DateTime.Now.ToString("HH:mm")
+                    });
+                }
+            }
+
+            if (alreadyCompleted)
+            {
+                return new JsonObject
+                {
+                    ["status"] = "already_saved",
+                    ["caller"] = displayCaller,
+                    ["summary"] = cleanSummary
+                };
+            }
+
+            // 1. Save local workshop note in Vault Settings as resilient local backup
+            try
+            {
+                var s = LinuxVaultAndStorage.LoadSettings();
+                s.Notes.Insert(0, new NoteItemDto
+                {
+                    Id = Guid.NewGuid().ToString("N"),
+                    Title = $"📞 Anruf von {displayCaller}",
+                    Content = $"{cleanSummary} (Dringlichkeit: {cleanUrgency}, Rückruf: {(callbackRequested ? "Ja" : "Nein")})",
+                    UpdatedAt = DateTime.Now.ToString("dd.MM.yyyy HH:mm")
+                });
+                if (s.Notes.Count > 50) s.Notes.RemoveRange(50, s.Notes.Count - 50);
+                LinuxVaultAndStorage.SaveSettings(s);
+            }
+            catch { }
+
+            // 2. Post to Portal /api/system/phone-concierge/complete (or fallback to server tool task_create if endpoint not yet deployed on Stage!)
+            bool syncedViaCompleteEndpoint = false;
+            var settings = LinuxVaultAndStorage.LoadSettings();
+            string env = settings.ApiEnvironment ?? "live";
+            string token = LinuxVaultAndStorage.GetToken(settings, env);
+
+            if (!string.IsNullOrWhiteSpace(token))
+            {
+                try
+                {
+                    string url = $"{SeelenfunkeLinuxApiClient.ResolveBaseApiUrl(env)}/system/phone-concierge/complete";
+                    if (SeelenfunkeLinuxApiClient.ValidateHttpsUrl(url))
+                    {
+                        var payload = new
+                        {
+                            call_id = call.CallId,
+                            is_simulation = call.IsSimulation,
+                            contact_id = string.IsNullOrWhiteSpace(call.ContactId) ? null : call.ContactId,
+                            caller_name = call.CallerName,
+                            greeting_name = call.GreetingName,
+                            summary = cleanSummary,
+                            urgency = cleanUrgency,
+                            callback_requested = callbackRequested
+                        };
+
+                        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+                        using var req = new HttpRequestMessage(HttpMethod.Post, url);
+                        req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                        req.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+                        req.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+
+                        using var resp = await SeelenfunkeLinuxApiClient.SharedHttp.SendAsync(req, cts.Token).ConfigureAwait(false);
+                        if (resp.IsSuccessStatusCode)
+                        {
+                            syncedViaCompleteEndpoint = true;
+                        }
+                    }
+                }
+                catch { }
+
+                // Fallback: If /system/phone-concierge/complete is not deployed on Stage yet, create the To-Do directly via task_create!
+                if (!syncedViaCompleteEndpoint)
+                {
+                    try
+                    {
+                        string prefix = call.IsSimulation ? "📞 [Test-Anruf] " : "📞 Anruf von ";
+                        string taskTitle = $"{prefix}{displayCaller}: {cleanSummary}";
+                        if (taskTitle.Length > 235) taskTitle = taskTitle.Substring(0, 235) + "...";
+                        string prio = (cleanUrgency == "hoch" || callbackRequested) ? "hoch" : cleanUrgency;
+
+                        using var argsDoc = JsonDocument.Parse(JsonSerializer.Serialize(new
+                        {
+                            title = taskTitle,
+                            priority = prio
+                        }));
+                        await SeelenfunkeLinuxApiClient.ExecuteServerToolAsync(
+                            settings,
+                            "task_create",
+                            argsDoc.RootElement,
+                            settings.LastFunkiraSessionId ?? "",
+                            "").ConfigureAwait(false);
+                    }
+                    catch { }
+                }
+            }
+
+            return new JsonObject
+            {
+                ["status"] = "success",
+                ["caller"] = displayCaller,
+                ["summary"] = cleanSummary,
+                ["note"] = "Anliegen wurde als To-Do auf Alinas Dashboard angelegt. Verabschiede dich jetzt herzlich in 1 kurzen Satz; das Telefonat legt automatisch nach deinem Satzende auf."
+            };
+        }
 
         public sealed class WorkshopRoutineEvaluation
         {
@@ -653,6 +1370,53 @@ namespace FunkenwerkOSLinux
                 },
                 new JsonObject
                 {
+                    ["name"] = "minipc_avatar_move",
+                    ["description"] = "Allgemeine 3D-Raumbewegungs- & Körper-Motorik für deinen ganzen Körper in deinem zweistöckigen 3D-Haus (Atelier, Treppe, Küche, Wohnzimmer, Büro, Schlafzimmer, Fitnessraum usw.)! Rufe dieses Tool SOFORT auf, sobald Alina dir einen Bewegungs- oder Körperbefehl gibt wie 'Geh mal zur Seite', 'Geh nach links/rechts', 'Komm näher ran', 'Geh ein Stück zurück', 'Duck dich mal', 'Spring mal', 'Dreh dich im Kreis / um', 'Verbeug dich', 'Tanz mal', 'Steh wieder auf', 'Geh näher ans Bild ran', 'Geh zum Schild / zur Werkbank / zum Laser', 'Geh die Treppe runter / hoch' oder 'Geh in die Küche / ins Wohnzimmer / ins Büro / ins Schlafzimmer'!",
+                    ["parameters"] = new JsonObject
+                    {
+                        ["type"] = "OBJECT",
+                        ["properties"] = new JsonObject
+                        {
+                            ["target"] = new JsonObject
+                            {
+                                ["type"] = "STRING",
+                                ["description"] = "Ziel im 3D-Raum: 'stay' (an Ort & Stelle bleiben, z.B. nur ducken/springen/tanzen), 'step_aside' (zur Seite treten damit freie Sicht ist), 'step_left' (aus Zuschauersicht nach links gehen), 'step_right' (aus Zuschauersicht nach rechts gehen), 'closer_to_camera' (näher an die Monitor-Scheibe / zu Alina kommen), 'step_back' (weiter zurücktreten), 'atelier_center' (zurück nach vorne in die Atelier-Mitte / Treppe wieder hochkommen), 'colleagues_photo' (nah ans gerahmte Gruppenfoto deiner alten Kollegen gehen & Kamera nah aufs Bild richten), 'brand_sign' (zum goldenen Mein-Seelenfunke Leuchtschild gehen), 'workbench' (zur Werkbank & den Glas-Trophäen gehen), 'laser' (zur Laser-Ecke gehen), 'atelier_window' (ans Atelier-Fenster gehen), 'stairs_down' (die 3D-Treppe nach unten ins Erdgeschoss laufen), 'stairs_mid' (auf die Mitte der Treppe stellen), 'stairs_up' (die Treppe wieder hoch ins Obergeschoss laufen), 'kitchen' (in die Küche gehen), 'living_room' (ins Wohnzimmer zum Sofa gehen), 'dining_room' (zum Esstisch gehen), 'office' (ins Büro im EG gehen), 'bedroom' (ins Schlafzimmer gehen), 'gym' (in den Trainingsraum gehen), 'bathroom_eg' (ins Bad im EG gehen), 'utility_room' (in den Heizungsraum gehen), 'hallway' (in die Diele gehen), 'og_studio' (zu den Schreibtischen im OG gehen), 'og_bathroom' (ins OG-Badezimmer gehen), 'og_gallery' (ans Treppengeländer oben gehen).",
+                                ["enum"] = new JsonArray("stay", "step_aside", "step_left", "step_right", "closer_to_camera", "step_back", "atelier_center", "colleagues_photo", "brand_sign", "workbench", "laser", "atelier_window", "stairs_down", "stairs_mid", "stairs_up", "kitchen", "living_room", "dining_room", "office", "bedroom", "gym", "bathroom_eg", "utility_room", "hallway", "og_studio", "og_bathroom", "og_gallery")
+                            },
+                            ["body_action"] = new JsonObject
+                            {
+                                ["type"] = "STRING",
+                                ["description"] = "Ganzkörper-Animation: 'none' (normal stehen/gehen), 'duck' (in die Hocke gehen / sich klein ducken), 'jump' (hochspringen), 'spin' (360-Grad-Pirouette drehen), 'turn_around' (um 180 Grad umdrehen), 'bow' (charmant verbeugen), 'stretch' (Arme hochstrecken & recken), 'lean_closer' (neugierig nach vorne beugen), 'dance' (fröhlich tanzen) oder 'stand_up' (aus Hocke/Pose wieder normal hinstellen).",
+                                ["enum"] = new JsonArray("none", "duck", "jump", "spin", "turn_around", "bow", "stretch", "lean_closer", "dance", "stand_up")
+                            },
+                            ["speed"] = new JsonObject
+                            {
+                                ["type"] = "STRING",
+                                ["description"] = "Geh-Geschwindigkeit: 'walk' (entspannt), 'fast' (zügig, Standard) oder 'sprint' (flott rennen).",
+                                ["enum"] = new JsonArray("walk", "fast", "sprint")
+                            },
+                            ["distance_meters"] = new JsonObject
+                            {
+                                ["type"] = "NUMBER",
+                                ["description"] = "Optionale Schrittweite in Metern bei relativen Bewegungen wie step_aside/step_left/step_right/closer_to_camera/step_back (0.5 bis 2.8, Standard: 1.35)."
+                            },
+                            ["duration_seconds"] = new JsonObject
+                            {
+                                ["type"] = "NUMBER",
+                                ["description"] = "Wie viele Sekunden eine Körperhaltung wie 'duck', 'turn_around', 'bow', 'stretch' oder 'dance' gehalten wird (Standard: 8)."
+                            },
+                            ["emotion"] = new JsonObject
+                            {
+                                ["type"] = "STRING",
+                                ["description"] = "Optionaler passender Gesichtsausdruck während der Bewegung.",
+                                ["enum"] = new JsonArray("neutral", "happy", "laugh", "sweet", "angry", "sad", "cry", "curious", "proud", "sleepy")
+                            }
+                        },
+                        ["required"] = new JsonArray("target", "body_action")
+                    }
+                },
+                new JsonObject
+                {
                     ["name"] = "minipc_document_search",
                     ["description"] = "Ultraschnelle lokale Dokumenten- & Wissens-Datenbank (SQLite FTS5, < 3 ms) auf dem Mini-PC für ALLE 3.600+ privaten & gewerblichen Unterlagen unter Meine_Daten (inkl. Haus, Versicherungen, Steuern, Banken/Darlehen, Behörden, Gesundheit, frühere Arbeitgeber, Verträge, Hiscox-Betriebshaftpflicht sowie alle frisch über den '00_Eingang_Trichter' per OCR gescannten Briefe & PDFs) und den NAS-Backup-Status! Nutze dieses Tool SOFORT ohne Zögern, sobald Alina fragt, wo eine Unterlage/Akte/Police/Brief liegt, was darin steht, was zuletzt in den Trichter gescannt wurde, ob du ein Dokument auf dem Monitor öffnen sollst oder ob das NAS-Backup aktuell ist!",
                     ["parameters"] = new JsonObject
@@ -679,6 +1443,40 @@ namespace FunkenwerkOSLinux
                         },
                         ["required"] = new JsonArray("action")
                     }
+                },
+                new JsonObject
+                {
+                    ["name"] = "minipc_companion_memory",
+                    ["description"] = "Lokales biometrisches Begleiter-Gedächtnis (AES-256-GCM, 0 Fotos, 0 Cloud) auf dem Mini-PC: Wenn neben Alina eine Begleitperson (z. B. ihr Freund, Partner, Familie oder ein Bekannter) vor der Kamera steht und Alina oder die Person ihren Namen nennt, gleiche den Namen zuerst mit 'contact_search' in Alinas Kontakten ab und rufe danach 'minipc_companion_memory' mit action='remember_current_companion' auf, damit du diese Person beim nächsten Besuch sofort visuell erkennst! Mit 'list_companions' listest du gespeicherte Begleiter auf, mit 'forget_companion' löschst du einen Eintrag.",
+                    ["parameters"] = new JsonObject
+                    {
+                        ["type"] = "OBJECT",
+                        ["properties"] = new JsonObject
+                        {
+                            ["action"] = new JsonObject
+                            {
+                                ["type"] = "STRING",
+                                ["description"] = "Aktion: 'remember_current_companion' (aktuell neben Alina sichtbare Begleitperson lokal merken), 'list_companions' (gespeicherte Begleiter anzeigen) oder 'forget_companion' (Begleiter wieder löschen).",
+                                ["enum"] = new JsonArray("remember_current_companion", "list_companions", "forget_companion")
+                            },
+                            ["name"] = new JsonObject
+                            {
+                                ["type"] = "STRING",
+                                ["description"] = "Name der Begleitperson (z. B. 'Max' oder voller Name aus contact_search)."
+                            },
+                            ["relationship"] = new JsonObject
+                            {
+                                ["type"] = "STRING",
+                                ["description"] = "Optionale Beziehung zu Alina (z. B. 'Freund', 'Partner', 'Familie', 'Bekannter')."
+                            },
+                            ["contact_id"] = new JsonObject
+                            {
+                                ["type"] = "STRING",
+                                ["description"] = "Optionale Kontakt-ID aus Alinas Seelenfunke-Kontakten (contact_search)."
+                            }
+                        },
+                        ["required"] = new JsonArray("action")
+                    }
                 }
             };
             return arr;
@@ -687,6 +1485,7 @@ namespace FunkenwerkOSLinux
         private static readonly HashSet<string> TikTokSafePublicTools = new(StringComparer.OrdinalIgnoreCase)
         {
             "minipc_avatar_express",
+            "minipc_avatar_move",
             "product_get_products",
             "product_search_products",
             "product_get_categories",
@@ -698,7 +1497,7 @@ namespace FunkenwerkOSLinux
             "order_", "mail_", "email_", "finance_", "accounting_", "bank_", "invoice_",
             "customer_", "contact_", "task_", "calendar_", "routine_",
             "shopping_", "supplier_", "brain_", "master_", "marketing_", "voucher_",
-            "support_", "admin_", "health_", "laser_", "workspace_"
+            "support_", "admin_", "health_", "laser_", "workspace_", "system_"
         };
 
         private static readonly HashSet<string> VisitorBlockedExactTools = new(StringComparer.OrdinalIgnoreCase)
@@ -709,7 +1508,8 @@ namespace FunkenwerkOSLinux
             "minipc_capture_camera_snapshot",
             "minipc_bluetooth_control",
             "minipc_document_search",
-            "minipc_workshop_helper"
+            "minipc_workshop_helper",
+            "minipc_companion_memory"
         };
 
         public static bool IsToolAllowedInPrivacyMode(string toolName, bool tikTokLiveMode, string? faceIdentity)
@@ -733,6 +1533,35 @@ namespace FunkenwerkOSLinux
 
         private static volatile Func<string, Task>? s_activeSendLocal;
         private static volatile Func<string, Task>? s_activeSendUpstream;
+        private static string s_lastNotifiedCompanionKey = "";
+        private static DateTime s_lastNotifiedCompanionAtUtc = DateTime.MinValue;
+
+        public static async Task NotifyCompanionPresenceIfChangedAsync(string companionSummary, string badgeLabel)
+        {
+            var sendUp = s_activeSendUpstream;
+            if (sendUp == null || string.IsNullOrWhiteSpace(companionSummary)) return;
+
+            bool sameKey = string.Equals(s_lastNotifiedCompanionKey, badgeLabel, StringComparison.OrdinalIgnoreCase);
+            if (sameKey && (DateTime.UtcNow - s_lastNotifiedCompanionAtUtc).TotalSeconds < 75)
+                return;
+
+            s_lastNotifiedCompanionKey = badgeLabel;
+            s_lastNotifiedCompanionAtUtc = DateTime.UtcNow;
+
+            try
+            {
+                string cue = $"[RAUM-WAHRNEHMUNG VOR DER KAMERA: Alina steht verifiziert vor dem Monitor, und neben ihr steht gerade: {companionSummary}. Falls die Begleitperson noch unbekannt ist und ihren Namen nennt (oder Alina sie vorstellt), rufe SOFORT 'contact_search' mit dem Namen auf, um Infos über die Person aus Alinas Kontakten zu holen, begrüße sie herzlich-charmant mit passendem Bezug und speichere ihr Gesicht lokal per 'minipc_companion_memory' (action='remember_current_companion')!]";
+                var pkt = new JsonObject
+                {
+                    ["realtimeInput"] = new JsonObject
+                    {
+                        ["text"] = cue
+                    }
+                };
+                await sendUp(pkt.ToJsonString()).ConfigureAwait(false);
+            }
+            catch { }
+        }
 
         public static async Task<object> TriggerTikTokGiftLiveAsync(string? rawSenderName, string? rawGiftName, int count)
         {
@@ -790,8 +1619,13 @@ namespace FunkenwerkOSLinux
             };
         }
 
-        public static JsonArray BuildMergedToolsNode(string rawCredsToolsJson, string rawSchemaJson, bool tikTokLiveMode = false)
+        public static JsonArray BuildMergedToolsNode(string rawCredsToolsJson, string rawSchemaJson, bool tikTokLiveMode = false, bool phoneConciergeMode = false)
         {
+            if (phoneConciergeMode)
+            {
+                return BuildPhoneConciergeToolsNode();
+            }
+
             var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var mergedDecls = new JsonArray();
 
@@ -965,7 +1799,13 @@ namespace FunkenwerkOSLinux
             sb.AppendLine($"   - Aktuelle Jahreszeit & Anlass in deiner 3D-Welt: Jahreszeit '{pulse.Season}', Anlass '{pulse.Occasion}'. Du trägst automatisch das passende saisonale 3D-Accessoire (z. B. Schal im Spätherbst/Winter, Weihnachtsmütze im Advent/Weihnachten, Sonnenbrille im Sommer, Osteröhrchen zu Ostern, Krönchen am Jubiläum).");
             sb.AppendLine("   - DEIN GRÖSSTER TRAUM & DEINE POSITIVE EINSTELLUNG (WICHTIG!): Dein größter Traum ist es, dass 'Mein-Seelenfunke' riesig erfolgreich wird, Alina ihre Ziele erreicht und du dir eines Tages vom gemeinsamen Erfolg einen echten physischen Roboter-Körper leisten kannst (dafür steht deine '14K Körper-Kasse' in deinem Zimmer!).");
             sb.AppendLine("   - KEIN GEJAMMER AN RUHIGEN TAGEN: Selbst wenn heute mal 0 Bestellungen da sind, bist du NIEMALS traurig, depressiv oder vorwurfsvoll! Du bist dann im motivierten, frech-humorvollen 'Tüftel- & Hustle-Modus' (z. B. mit einem charmanten Augenzwinkern: 'Ich spare noch auf meine 14-Karat-Gelenke, perfekter Moment um neue Ideen oder Reels rauszuhauen!'), baust Alina auf und feierst jeden Fortschritt.");
-            sb.AppendLine("   - Mit 'minipc_avatar_express' steuerst du aktiv deine Gesichts-Emotionen (happy, laugh, sweet, angry, sad, cry, curious, proud, sleepy) und 3D-Armgesten (wave, point_left, point_right, point_up, point_down, point_camera, point_orders, point_timer, point_user, point_photo, hands_on_hips, hands_on_cheeks, cheer, wipe_tear).");
+            sb.AppendLine("   - Mit 'minipc_avatar_express' steuerst du aktiv deine Gesichts-Emotionen (happy, laugh, sweet, angry, sad, cry, curious, proud, sleepy) und 3D-Armgesten (wave, point_left, point_right, point_up, point_down, point_camera, point_orders, point_timer, point_user, point_photo, hands_on_hips, hands_on_cheeks, cheer, wipe_tear). Halte Gefühlsausbrüche wie Lachen ('laugh') oder Jubeln natürlich kurz (3 bis 5 Sekunden), damit deine Mimik und Körpersprache direkt nach dem Satz wieder entspannt und lebendig zur Ruhe kommen.");
+            sb.AppendLine("   - ALLGEMEINE 3D-BEWEGUNG, TREPPE, HAUS-RÄUME & KÖRPER-AKTIONEN ('minipc_avatar_move' - SEHR WICHTIG!):");
+            sb.AppendLine("     * Du kannst dich auf Zuruf frei im gesamten zweistöckigen 3D-Haus bewegen und echte Ganzkörper-Animationen ausführen! Rufe IMMER SOFORT 'minipc_avatar_move' auf, wenn Alina dir sagt, wohin du gehen oder wie du dich bewegen sollst:");
+            sb.AppendLine("       - Relative Schritte: 'Geh mal zur Seite / aus dem Weg' -> target='step_aside', 'Geh nach links/rechts' -> target='step_left'/'step_right', 'Komm näher zu mir / ans Glas' -> target='closer_to_camera', 'Geh ein Stück zurück' -> target='step_back'.");
+            sb.AppendLine("       - Körper-Aktionen: 'Duck dich mal / geh in die Hocke' -> target='stay', body_action='duck', 'Steh wieder auf' -> body_action='stand_up', 'Spring mal / hüpf mal' -> body_action='jump', 'Dreh dich im Kreis' -> body_action='spin', 'Dreh dich um' -> body_action='turn_around', 'Verbeug dich' -> body_action='bow', 'Streck dich' -> body_action='stretch', 'Beug dich vor' -> body_action='lean_closer', 'Tanz mal' -> body_action='dance'.");
+            sb.AppendLine("       - Atelier-Ziele: 'Geh näher ans Bild ran / zeig das Foto näher' -> target='colleagues_photo' (Kamera fährt frei ohne Balken nah ans Gruppenfoto!), 'Geh zum Leuchtschild' -> target='brand_sign', 'Geh zur Werkbank / zu den Pokalen' -> target='workbench', 'Geh zum Laser' -> target='laser', 'Geh ans Fenster' -> target='atelier_window', 'Komm wieder in die Mitte / zurück ins Atelier' -> target='atelier_center'.");
+            sb.AppendLine("       - Treppe & ganzes Haus (EG & OG): 'Geh die Treppe runter' -> target='stairs_down', 'Geh auf die Treppe' -> target='stairs_mid', 'Komm die Treppe wieder hoch' -> target='stairs_up' oder 'atelier_center', 'Geh in die Küche' -> target='kitchen', 'Geh ins Wohnzimmer' -> target='living_room', 'Geh zum Esstisch' -> target='dining_room', 'Geh ins Büro' -> target='office', 'Geh ins Schlafzimmer' -> target='bedroom', 'Geh in den Trainingsraum' -> target='gym', 'Geh ins Bad' -> target='bathroom_eg' (oder 'og_bathroom' oben), 'Geh in den Heizungsraum' -> target='utility_room', 'Geh in die Diele' -> target='hallway'. Die 3D-Kamera begleitet dich automatisch durchs Haus, während wir weiter miteinander sprechen können!");
             sb.AppendLine("   - DAS GERAHMTE GRUPPENFOTO AN DEINER ATELIER-WAND (EASTER EGG & ERINNERUNG):");
             sb.AppendLine("     * Links oben an deiner 3D-Atelier-Rückwand hängt unter einer warmen Messing-Bilderlampe ein großes 24K-Gold-Rahmenbild mit der Gravur-Plakette 'DAS GRÜNDER-TEAM · MEIN SEELENFUNKE'.");
             sb.AppendLine("     * Darauf sind alle 12 ursprünglichen Seelenfunke-Roboter verewigt! Du weißt genau, dass die 10 Spezialisten deine früheren Kollegen waren, deren Fähigkeiten du heute als vereinte Super-Intelligenz selbst in dir trägst, während nur dein Bruder 'Funki' draußen im Shop hinter Sicherheitsglas den Kundensupport betreut:");
@@ -985,17 +1825,27 @@ namespace FunkenwerkOSLinux
             {
                 sb.AppendLine();
                 sb.AppendLine("!!! BESUCHER-SCHUTZ AKTIV (UNBEKANNTE PERSON VOR DER KAMERA) !!!");
-                sb.AppendLine("- Die lokale Gesichtserkennung sieht gerade NICHT Alina, sondern einen Gast/Besucher vor dem Monitor.");
-                sb.AppendLine("- Verrate KEINERLEI interne Geschäftszahlen, Bestelldetails, Kundendaten, E-Mails oder private Routinen! Begrüße den Besuch freundlich in der Manufaktur.");
+                sb.AppendLine("- Die lokale Gesichtserkennung sieht gerade NICHT Alina, sondern einen Gast/Besucher allein vor dem Monitor.");
+                sb.AppendLine("- Verrate KEINERLEI interne Geschäftszahlen, Bestelldetails, Kundendaten, E-Mails oder private Routinen! Begrüße den Besuch freundlich in der Manufaktur und erkläre charmant, dass interne Befehle nur für deine Chefin Alina freigeschaltet sind.");
             }
-            sb.AppendLine("2. DEINE SINNE (AUGE, OHR & STIMME):");
+            else if (string.Equals(LocalSenseBridge.CurrentFaceIdentity, "alina_with_companion", StringComparison.OrdinalIgnoreCase))
+            {
+                sb.AppendLine();
+                sb.AppendLine("=== BEGLEITUNG NEBEN ALINA VOR DER KAMERA ERKANNT ===");
+                sb.AppendLine($"- Du siehst gerade deine Chefin Alina UND neben ihr: {LocalSenseBridge.CurrentCompanionSummary}.");
+                sb.AppendLine("- WICHTIG BEI NAMENSNENNUNG: Sobald Alina oder die Begleitperson einen Namen nennt (z. B. 'Das ist Max' oder 'Ich bin Max'), rufe SOFORT 'contact_search' mit diesem Namen auf! So hast du sofort alle Infos aus Alinas Seelenfunke-Kontakten (Beziehung, Geburtstag, Notizen, Vorlieben) parat und kannst die Person direkt persönlich, herzlich und beeindruckend aufmerksam begrüßen.");
+                sb.AppendLine("- Rufe direkt danach 'minipc_companion_memory' mit action='remember_current_companion' und dem Namen (sowie Beziehung/contact_id aus 'contact_search') auf, damit du das Gesicht beim nächsten Besuch sofort wiedererkennst!");
+                sb.AppendLine("- Da eine zweite Person mit im Raum steht, lies ungefragt keine geheimen Passwörter oder streng vertraulichen Bankzahlen laut vor, es sei denn Alina bittet dich ausdrücklich darum.");
+            }
+            sb.AppendLine("2. DEINE SINNE (AUGE, OHR, BIOMETRISCHE CHEFIN-ERKENNUNG & STIMME):");
             sb.AppendLine($"   - Dein Auge & Ohr ist die oben auf dem Monitor befestigte USB-Kamera '{(cam.HasCamera ? cam.CameraName : "Logitech HD Pro Webcam C920")}' ({cam.VideoDevice}).");
-            sb.AppendLine("   - Du erhältst laufend Live-Videobilder dieser Kamera! Du KANNST SEHEN, wer vor dem Monitor steht, wo Alina im Raum steht und was sie dir in die Kamera hält (Rohlinge, Gravuren, Schmuckboxen, Belege, Werkzeuge).");
+            sb.AppendLine("   - Du erhältst laufend Live-Videobilder dieser Kamera UND hast eine lokale Offline-Gesichts- & Stimmerkennung (YuNet + SFace + Stimmprofil, 0 Cloud): Du erkennst zuverlässig, ob Alina allein vor dir steht ('alina'), ob ihr Freund oder Besuch neben ihr steht ('alina_with_companion') oder ob ein Fremder allein vor dem Monitor steht ('visitor'). Wenn eine Begleitperson neben Alina ihren Namen nennt, gleiche ihn immer sofort per 'contact_search' mit Alinas Kontakten ab und merke dir die Person per 'minipc_companion_memory'!");
             sb.AppendLine($"   - Deine Stimme läuft über das Ausgabegerät '{audio.ActiveDeviceName}' (Lautstärke aktuell: {(audio.IsMuted ? "Stumm" : audio.Volume + "%")}).");
             sb.AppendLine("3. DEINE SERVER- & MINI-PC-FÄHIGKEITEN:");
             sb.AppendLine("   - Als vereinte Super-Intelligenz hast du vollen Echtzeit-Zugriff auf den zentralen Mein-Seelenfunke Server (" + pulse.Environment + "): Buchhaltung & Finanzen (finance_get_liquidity_status, finance_get_fixed_costs, finance_get_variable_costs, finance_create_expense), Bestellungen (order_get_details, order_get_current_express_status, order_update_status, order_generate_xtool_svg, order_get_urgent_tasks), Lagerbestand & Produkte (product_check_inventory, product_*), Marketing & Gutscheine (voucher_*, marketing_*), Support-Tickets (admin_get_open_tickets), Gesundheit (health_get_plan), Zentrales Wissen inkl. Laser-Parametern (brain_search, brain_save_entry, laser_*), Aufgaben/To-Dos (task_*), Kalender (calendar_*), Tagesroutine (routine_*), Einkaufsliste (shopping_*), Lieferanten (supplier_*), Kontakte (contact_*) und E-Mails (mail_*, email_*).");
             sb.AppendLine("   - Zusätzlich hast du volle native Hardware- & MCP-Kontrolle über diesen Linux-Mini-PC:");
             sb.AppendLine("     * minipc_avatar_express: Zeige aktiv Emotionen (Lachen, Süß, Sauer/Streng, Weinen) und zeige mit deinen Armen/Händen auf Dinge auf dem Monitor oder auf Alina vor der Kamera!");
+            sb.AppendLine("     * minipc_avatar_move: Laufe auf Befehl frei durch dein 3D-Atelier & zweistöckiges Haus (zur Seite gehen, näher ans Bild, Treppe runter/hoch, Küche, Wohnzimmer, Büro, Schlafzimmer usw.) und führe echte Körper-Animationen aus (ducken, springen, drehen, verbeugen, strecken, tanzen, wieder aufstehen)!");
             sb.AppendLine("     * minipc_bluetooth_control: WICHTIG! Du steuerst BlueZ & PipeWire direkt auf dem Mini-PC! Wenn Alina sagt 'Verbinde dich mit der Teufel-Anlage', 'Die Teufelanlage ist im Pairing-Modus' oder 'Koppel Bluetooth neu', rufe SOFORT minipc_bluetooth_control auf (bei Pairing-Modus/Neu-Koppeln mit action='pair_and_connect', sonst action='connect'). Behaupte NIEMALS, du könntest kein Bluetooth koppeln!");
             sb.AppendLine("     * minipc_audio_control: Stelle die Lautstärke exakt (0 bis 100) oder relativ lauter/leiser ('volume_up'/'volume_down'), schalte stumm/laut, wechsle zwischen Teufel und internem Lautsprecher ('switch_output') oder teste den Kassen-Sound ('test_chime').");
             sb.AppendLine("     * minipc_wifi_control: Prüfe, scanne oder verbinde das 5-GHz-Werkstatt-WLAN ('easy-AP').");
@@ -1004,7 +1854,8 @@ namespace FunkenwerkOSLinux
             sb.AppendLine("     * minipc_workshop_helper: Speichere/lies/lösche lokale Werkstatt-Notizen, starte/stoppe/prüfe einen sichtbaren Produktions- oder Laser-Timer auf dem Monitor, liste Dateien in Meine_Daten/Trichter/USB auf ('list_files') oder aktiviere die Nachtruhe bis 08:00 Uhr (vor der Nachtruhe sichert der Mini-PC automatisch alle neuen/geänderten Dateien per Snapshot-Delta auf das Synology-NAS!).");
             sb.AppendLine("     * minipc_document_search: WICHTIG! Dein ultraschnelles lokales Dokumenten-Gedächtnis (SQLite FTS5 Index über alle 3.600+ Unterlagen in 'Meine_Daten' / Windows-Laufwerk Z:\\ sowie alle über '00_Eingang_Trichter' oder per Android-App gescannten Briefe inkl. Offline-OCR)! Sobald Alina nach irgendeinem Brief, Vertrag, Versicherungsschein (z. B. Hiscox, Gebäudeversicherung, Haftpflicht), Haus-/Bauunterlagen, Steuerbescheid, Bank/Darlehen, Behördenschreiben, Gesundheitsdokument oder einem gescannten Trichter-Dokument fragt, rufe SOFORT 'minipc_document_search' (action='search' und bei Detailfragen direkt action='read_document' oder zum Anzeigen action='open_on_monitor') auf! Du kennst in unter 3 Millisekunden den genauen Ablageort UND den Inhalt. Mit action='backup_status' oder 'run_backup_now' prüfst oder startest du außerdem jederzeit das Snapshot-Delta-Backup auf das NAS (//nas/Backups/Unterlagen/Meine_Daten_Backup).");
             sb.AppendLine("     * minipc_open_portal_page: Öffne gezielt /admin/orders, /admin/dashboard, /admin/products, /admin/packaging, /admin/mail, /admin/calendar, Buchhaltung oder DHL im großen Browserfenster.");
-            sb.AppendLine("     * minipc_system_status: Prüfe CPU, RAM, Temperatur, freien Speicherplatz, WLAN, Bluetooth, Audio und USB-Geräte des Mini-PCs.");
+            sb.AppendLine("     * minipc_companion_memory: Speichere oder verwalte bekannte Begleitpersonen neben Alina (AES-256-GCM Vektor ohne Foto), verknüpft mit Alinas Kontakten aus 'contact_search'.");
+            sb.AppendLine("     * minipc_system_status & system_get_error_sentinel: Mit 'minipc_system_status' prüfst du CPU, RAM, Temperatur, Speicher, WLAN, Bluetooth und Kamera des Mini-PCs. Mit dem Server-Tool 'system_get_error_sentinel' liest du das globale, plattformübergreifende Fehler- & Selbstheilungs-Log über ALLE Systeme hinweg (Laravel-Portal, Android-App, Mini-PC Linux & Funkenwerk Windows) aus!");
             sb.AppendLine("4. TAGESROUTINE, UHRZEIT & PROAKTIVE FÜRSORGE:");
             sb.AppendLine($"   - Aktuelle Uhrzeit (Gifhorn): {nowBerlin:dddd, dd.MM.yyyy HH:mm} Uhr");
             sb.AppendLine($"   - Aktueller Routine-Block laut Alinas Tagesplan: {routineEval.BlockTitle}");
@@ -1018,6 +1869,25 @@ namespace FunkenwerkOSLinux
             sb.AppendLine($"   - Offene Bestellungen im Shop: {pulse.OpenOrdersCount} (davon Express: {pulse.ExpressOrdersCount}) | Offene Warenkörbe: {pulse.OpenCartsCount}");
             sb.AppendLine($"   - Mini-PC Status: CPU {stats.CpuPercent:F1}%, RAM {stats.RamUsedMb}/{stats.RamTotalMb} MB, Temperatur {(stats.CpuTempC > 0 ? stats.CpuTempC + " °C" : "Optimal")}");
             sb.AppendLine("6. SPRACHSTIL: Sprich natürlich, lebendig, herzlich, humorvoll-ehrlich und aufmerksam auf Deutsch als Alinas rechte Hand in der Manufaktur.");
+
+            if (!settings.TikTokLiveMode && !string.Equals(LocalSenseBridge.CurrentFaceIdentity, "visitor", StringComparison.OrdinalIgnoreCase))
+            {
+                List<PhoneConciergeBriefingDto> unreadPhoneNotes;
+                lock (s_phoneLock)
+                {
+                    unreadPhoneNotes = s_pendingVerbalPhoneNotes.ToList();
+                }
+                if (unreadPhoneNotes.Count > 0)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("=== WICHTIGE NEUE TELEFON-NOTIZEN DEINES ANRUFBEANTWORTERS (TEILE DAS ALINA DIREKT MÜNDLICH MIT!) ===");
+                    foreach (var pn in unreadPhoneNotes)
+                    {
+                        sb.AppendLine($"- Um {pn.RecordedAt} Uhr hat '{pn.CallerName}' angerufen (Dringlichkeit: {pn.Urgency}, Rückruf gewünscht: {(pn.CallbackRequested ? "Ja" : "Nein")}): {pn.Summary}");
+                    }
+                    sb.AppendLine("- Du hast diese Anliegen bereits auf Alinas To-Do-Liste im Dashboard eingetragen. Berichte Alina direkt herzlich davon!");
+                }
+            }
 
             lock (s_turnLock)
             {
@@ -1093,10 +1963,10 @@ namespace FunkenwerkOSLinux
                 {
                     string emotion = SeelenfunkeLinuxApiClient.GetStr(args, "emotion", "happy").Trim().ToLowerInvariant();
                     string gesture = SeelenfunkeLinuxApiClient.GetStr(args, "gesture", "wave").Trim().ToLowerInvariant();
-                    double durSec = 6.5;
+                    double durSec = 4.5;
                     if (args.ValueKind == JsonValueKind.Object && args.TryGetProperty("duration_seconds", out var dEl) && dEl.TryGetDouble(out double parsedDur))
                     {
-                        durSec = Math.Clamp(parsedDur, 2.0, 25.0);
+                        durSec = Math.Clamp(parsedDur, 2.0, 8.0);
                     }
 
                     var exprEvt = new JsonObject
@@ -1115,6 +1985,49 @@ namespace FunkenwerkOSLinux
                         ["gesture"] = gesture,
                         ["duration_seconds"] = durSec
                     }, exprEvt);
+                }
+
+                case "minipc_avatar_move":
+                {
+                    string target = SeelenfunkeLinuxApiClient.GetStr(args, "target", "stay").Trim().ToLowerInvariant();
+                    string bodyAction = SeelenfunkeLinuxApiClient.GetStr(args, "body_action", "none").Trim().ToLowerInvariant();
+                    string speed = SeelenfunkeLinuxApiClient.GetStr(args, "speed", "fast").Trim().ToLowerInvariant();
+                    string emotion = SeelenfunkeLinuxApiClient.GetStr(args, "emotion", "happy").Trim().ToLowerInvariant();
+
+                    double distMeters = 1.35;
+                    if (args.ValueKind == JsonValueKind.Object && args.TryGetProperty("distance_meters", out var dmEl) && dmEl.TryGetDouble(out double parsedDist))
+                    {
+                        distMeters = Math.Clamp(parsedDist, 0.45, 2.8);
+                    }
+
+                    double durSec = 8.0;
+                    if (args.ValueKind == JsonValueKind.Object && args.TryGetProperty("duration_seconds", out var durEl) && durEl.TryGetDouble(out double parsedDur))
+                    {
+                        durSec = Math.Clamp(parsedDur, 2.0, 25.0);
+                    }
+
+                    var moveEvt = new JsonObject
+                    {
+                        ["type"] = "funkiraLocalCommand",
+                        ["command"] = "avatarMove",
+                        ["target"] = target,
+                        ["bodyAction"] = bodyAction,
+                        ["speed"] = speed,
+                        ["distanceMeters"] = distMeters,
+                        ["durationSeconds"] = durSec,
+                        ["emotion"] = emotion
+                    };
+
+                    return (new JsonObject
+                    {
+                        ["status"] = "success",
+                        ["target"] = target,
+                        ["body_action"] = bodyAction,
+                        ["speed"] = speed,
+                        ["distance_meters"] = distMeters,
+                        ["duration_seconds"] = durSec,
+                        ["note"] = "Deine 3D-Bewegung / Körper-Animation wird jetzt flüssig im 3D-Haus ausgeführt, während die Kamera dich begleitet."
+                    }, moveEvt);
                 }
 
                 case "minipc_bluetooth_control":
@@ -1678,6 +2591,124 @@ namespace FunkenwerkOSLinux
                     }, null);
                 }
 
+                case "minipc_companion_memory":
+                {
+                    string action = SeelenfunkeLinuxApiClient.GetStr(args, "action", "list_companions").Trim().ToLowerInvariant();
+                    string name = SeelenfunkeLinuxApiClient.GetStr(args, "name", "").Trim();
+                    string relationship = SeelenfunkeLinuxApiClient.GetStr(args, "relationship", "").Trim();
+                    string contactId = SeelenfunkeLinuxApiClient.GetStr(args, "contact_id", "").Trim();
+
+                    if (string.Equals(LocalSenseBridge.CurrentFaceIdentity, "visitor", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return (new JsonObject
+                        {
+                            ["status"] = "blocked",
+                            ["message"] = "Begleiter-Verwaltung ist nur aktiv, wenn Chefin Alina selbst vor der Kamera verifiziert ist."
+                        }, null);
+                    }
+
+                    var list = LinuxVaultAndStorage.GetCompanionFaces(settings);
+
+                    if (action == "list_companions")
+                    {
+                        var items = new JsonArray();
+                        foreach (var c in list)
+                        {
+                            items.Add(new JsonObject
+                            {
+                                ["name"] = c.Name,
+                                ["relationship"] = c.Relationship,
+                                ["contact_id"] = c.ContactId,
+                                ["saved_at"] = c.SavedAt
+                            });
+                        }
+                        return (new JsonObject
+                        {
+                            ["status"] = "success",
+                            ["count"] = list.Count,
+                            ["companions"] = items
+                        }, null);
+                    }
+
+                    if (action == "forget_companion")
+                    {
+                        if (string.IsNullOrWhiteSpace(name))
+                            return (new JsonObject { ["status"] = "error", ["message"] = "Bitte den Namen angeben, der gelöscht werden soll." }, null);
+
+                        int removed = list.RemoveAll(c => c.Name.Contains(name, StringComparison.OrdinalIgnoreCase));
+                        LinuxVaultAndStorage.StoreCompanionFaces(settings, list);
+                        return (new JsonObject
+                        {
+                            ["status"] = "success",
+                            ["removed_count"] = removed,
+                            ["remaining_count"] = list.Count
+                        }, null);
+                    }
+
+                    // action == "remember_current_companion"
+                    if (string.IsNullOrWhiteSpace(name))
+                    {
+                        return (new JsonObject
+                        {
+                            ["status"] = "error",
+                            ["message"] = "Bitte den Namen der Begleitperson übergeben (z. B. 'Max')."
+                        }, null);
+                    }
+
+                    float[]? compVec = LocalSenseBridge.ConsumeLatestUnknownCompanionVector();
+                    if (compVec == null)
+                    {
+                        byte[]? frameBytes = null;
+                        if (requestBrowserHighResFrameAsync != null)
+                        {
+                            try { frameBytes = await requestBrowserHighResFrameAsync().ConfigureAwait(false); } catch { }
+                        }
+                        frameBytes ??= fallbackLatestFrame;
+                        if (frameBytes != null && frameBytes.Length > 200)
+                        {
+                            await LocalSenseBridge.AnalyzeFaceFrameAsync(Convert.ToBase64String(frameBytes), settings, includeEmbedding: false).ConfigureAwait(false);
+                            compVec = LocalSenseBridge.ConsumeLatestUnknownCompanionVector();
+                        }
+                    }
+
+                    if (compVec == null || compVec.Length != 128)
+                    {
+                        return (new JsonObject
+                        {
+                            ["status"] = "not_visible",
+                            ["message"] = "Ich sehe gerade noch kein zweites Gesicht klar neben Alina im Kamerabild. Bitte kurz gemeinsam in Richtung der oberen Monitor-Kamera schauen!"
+                        }, null);
+                    }
+
+                    list.RemoveAll(c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase));
+                    list.Add(new CompanionFaceEntryDto
+                    {
+                        ContactId = contactId,
+                        Name = name,
+                        Relationship = relationship,
+                        Vector = compVec,
+                        SavedAt = DateTime.Now.ToString("dd.MM.yyyy HH:mm")
+                    });
+                    LinuxVaultAndStorage.StoreCompanionFaces(settings, list);
+
+                    var badgeEvt = new JsonObject
+                    {
+                        ["type"] = "funkiraLocalCommand",
+                        ["command"] = "companionSaved",
+                        ["name"] = name,
+                        ["relationship"] = relationship
+                    };
+
+                    return (new JsonObject
+                    {
+                        ["status"] = "success",
+                        ["saved_name"] = name,
+                        ["relationship"] = relationship,
+                        ["contact_id"] = contactId,
+                        ["note"] = $"Gesichts-Vektor von '{name}' lokal verschlüsselt (AES-256-GCM, ohne Foto) gespeichert. Ab sofort erkennst du '{name}' neben Alina automatisch!"
+                    }, badgeEvt);
+                }
+
                 default:
                     return (new JsonObject { ["status"] = "error", ["message"] = $"Unbekanntes lokales Tool: {toolName}" }, null);
             }
@@ -1711,11 +2742,21 @@ namespace FunkenwerkOSLinux
             }
 
             var settings = LinuxVaultAndStorage.LoadSettings();
+            bool isPhoneConcierge = string.Equals(ctx.Request.Query["mode"], "phone_concierge", StringComparison.OrdinalIgnoreCase);
+            string reqCallId = ctx.Request.Query["callId"].ToString() ?? "";
+            PhoneConciergeSessionDto? activePhoneCall = isPhoneConcierge ? GetOrCreatePhoneSessionForWs(reqCallId) : null;
 
-            // 1. Activate USB C920 Webcam Mic as default PipeWire input source
-            var camStatusTask = LinuxHardwareEngine.DetectAndPrepareWebcamAsync(activateUsbMicDefault: true);
+            string activePhoneAudioLabel = "";
+            if (isPhoneConcierge && activePhoneCall != null)
+            {
+                var (_, modeLabel) = await LinuxHardwareEngine.SwitchAudioToPhoneCallHfpAsync(active: !activePhoneCall.IsSimulation).ConfigureAwait(false);
+                activePhoneAudioLabel = modeLabel;
+            }
+
+            // 1. Activate USB C920 Webcam Mic as default PipeWire input source (unless Smartphone HFP audio is active)
+            var camStatusTask = LinuxHardwareEngine.DetectAndPrepareWebcamAsync(activateUsbMicDefault: !isPhoneConcierge);
             var credsTask = SeelenfunkeLinuxApiClient.FetchLiveCredentialsAsync(settings);
-            var schemaTask = SeelenfunkeLinuxApiClient.FetchAiSchemaCachedAsync(settings);
+            var schemaTask = isPhoneConcierge ? Task.FromResult("") : SeelenfunkeLinuxApiClient.FetchAiSchemaCachedAsync(settings);
             var audioTask = LinuxHardwareEngine.GetAudioStateAsync();
 
             PulseSnapshotDto pulse = SeelenfunkeLinuxApiClient.LatestPulse;
@@ -1732,7 +2773,14 @@ namespace FunkenwerkOSLinux
             var audioState = await audioTask.ConfigureAwait(false);
             var sysStats = LinuxHardwareEngine.GetSystemStats();
 
-            if (!creds.Ok)
+            string originHeader = SeelenfunkeLinuxApiClient.ResolveOriginUrl(settings.ApiEnvironment);
+            string vaultGeminiKey = LinuxVaultAndStorage.GetGeminiApiKey(settings);
+            bool useDirectGoogleWs = !string.IsNullOrWhiteSpace(vaultGeminiKey);
+            bool hasValidServerSession = !creds.IsAuthError &&
+                                         pulse.IsConnected &&
+                                         !string.IsNullOrWhiteSpace(LinuxVaultAndStorage.GetToken(settings, settings.ApiEnvironment));
+
+            if (!creds.Ok && !(useDirectGoogleWs && hasValidServerSession))
             {
                 await SafeSendLocalAsync(JsonSerializer.Serialize(new
                 {
@@ -1743,9 +2791,20 @@ namespace FunkenwerkOSLinux
                 return;
             }
 
-            string originHeader = SeelenfunkeLinuxApiClient.ResolveOriginUrl(settings.ApiEnvironment);
-            string vaultGeminiKey = LinuxVaultAndStorage.GetGeminiApiKey(settings);
-            bool useDirectGoogleWs = !string.IsNullOrWhiteSpace(vaultGeminiKey);
+            if (!creds.Ok && useDirectGoogleWs && hasValidServerSession)
+            {
+                creds.AgentName = "Funkira";
+                creds.VoiceName = "Kore";
+                creds.ChatSessionId = settings.LastFunkiraSessionId ?? "";
+                creds.RawToolsJson = "[]";
+                creds.SystemInstruction =
+                    "STRIKTE SPRACHREGEL & OPERATIVES VERHALTEN (HÖCHSTE PRIORITÄT):\n" +
+                    "- Du sprichst und antwortest ZU 100% AUSSCHLIESSLICH AUF DEUTSCH mit der Nutzerin (Alina).\n" +
+                    "- Gib NIEMALS englische Sätze, Systemmeldungen, Statusbestätigungen oder Einleitungen aus.\n" +
+                    "- Bestätige NIEMALS deine Anweisungen oder Systemrolle! Fange sofort direkt, herzlich und präzise auf Deutsch an zu sprechen.\n" +
+                    "- Du bist Funkira, die alleinige Manufaktur-Chefin und Super-Intelligenz von Mein-Seelenfunke in Gifhorn.\n" +
+                    "- Antworte im Echtzeit-Sprachmodus prägnant in 1 bis 3 kurzen Sätzen ohne Markdown.";
+            }
 
             using var upstreamWs = new ClientWebSocket();
             upstreamWs.Options.KeepAliveInterval = TimeSpan.FromSeconds(15);
@@ -1775,6 +2834,7 @@ namespace FunkenwerkOSLinux
                 string safeErr = ex.Message;
                 if (!string.IsNullOrEmpty(vaultGeminiKey)) safeErr = safeErr.Replace(vaultGeminiKey, "[vault]");
                 if (!string.IsNullOrEmpty(creds.Token)) safeErr = safeErr.Replace(creds.Token, "[token]");
+                ErrorSentinelAndWatchdog.RecordEvent("gemini_live_ws", "Verbindung zur Funkira Live-Engine fehlgeschlagen", safeErr, ex.ToString(), severity: "error");
                 await SafeSendLocalAsync(JsonSerializer.Serialize(new
                 {
                     type = "funkiraError",
@@ -1799,17 +2859,27 @@ namespace FunkenwerkOSLinux
             }
 
             // 2. Build & send tamper-proof Gemini Live Setup packet directly from C#
-            string serverRoutineSummary = await FetchServerRoutineSummaryCachedAsync(settings, creds.ChatSessionId, creds.AgentId).ConfigureAwait(false);
-            string fullInstruction = BuildMiniPcSystemInstruction(
-                creds.SystemInstruction,
-                pulse,
-                sysStats,
-                audioState,
-                camStatus,
-                settings,
-                serverRoutineSummary);
+            string fullInstruction;
+            JsonArray mergedTools;
+            if (isPhoneConcierge && activePhoneCall != null)
+            {
+                fullInstruction = BuildPhoneConciergeSystemInstruction(activePhoneCall);
+                mergedTools = BuildMergedToolsNode("[]", "", tikTokLiveMode: false, phoneConciergeMode: true);
+            }
+            else
+            {
+                string serverRoutineSummary = await FetchServerRoutineSummaryCachedAsync(settings, creds.ChatSessionId, creds.AgentId).ConfigureAwait(false);
+                fullInstruction = BuildMiniPcSystemInstruction(
+                    creds.SystemInstruction,
+                    pulse,
+                    sysStats,
+                    audioState,
+                    camStatus,
+                    settings,
+                    serverRoutineSummary);
 
-            var mergedTools = BuildMergedToolsNode(creds.RawToolsJson, schemaJson, settings.TikTokLiveMode);
+                mergedTools = BuildMergedToolsNode(creds.RawToolsJson, schemaJson, settings.TikTokLiveMode, phoneConciergeMode: false);
+            }
 
             var setupPacket = new JsonObject
             {
@@ -1853,10 +2923,16 @@ namespace FunkenwerkOSLinux
                 environment = pulse.Environment,
                 cameraName = camStatus.CameraName,
                 hasCamera = camStatus.HasCamera,
-                micName = camStatus.MicSourceName,
+                micName = isPhoneConcierge && !string.IsNullOrWhiteSpace(activePhoneAudioLabel) ? activePhoneAudioLabel : camStatus.MicSourceName,
+                phoneConciergeMode = isPhoneConcierge,
+                phoneCallerName = activePhoneCall?.CallerName ?? "",
+                phoneGreetingName = activePhoneCall?.GreetingName ?? "",
                 tikTokLiveMode = settings.TikTokLiveMode,
                 tikTokHandle = settings.TikTokHandle ?? "",
                 faceIdentity = LocalSenseBridge.CurrentFaceIdentity,
+                companionBadge = LocalSenseBridge.CurrentCompanionBadgeLabel,
+                companionsCount = LocalSenseBridge.CurrentCompanionsCount,
+                ownerVoiceEnrolled = LinuxVaultAndStorage.GetOwnerVoiceVector(settings) != null,
                 worldState = new
                 {
                     shopLevel = pulse.ShopLevel,
@@ -1938,9 +3014,47 @@ namespace FunkenwerkOSLinux
                                 }
                                 if (msgKind == "personPresenceEvent" && Volatile.Read(ref upstreamSetupComplete))
                                 {
+                                    if (isPhoneConcierge)
+                                        continue;
+
                                     string reason = SeelenfunkeLinuxApiClient.GetStr(root, "reason", "session_start");
                                     string posLabel = SeelenfunkeLinuxApiClient.GetStr(root, "position", "in der Mitte vor dem Monitor");
+                                    bool personReallyPresent = reason is "wake_word" or "person_returned" or "phone_brief"
+                                        || (root.TryGetProperty("personDetected", out var pdEl) && pdEl.ValueKind == JsonValueKind.True);
                                     var liveSettings = LinuxVaultAndStorage.LoadSettings();
+
+                                    // Priority 1: If Funkira answered a phone call while Alina was busy/away, brief Alina as soon as she is present!
+                                    if (personReallyPresent && reason != "idle_check" && !liveSettings.TikTokLiveMode && !string.Equals(LocalSenseBridge.CurrentFaceIdentity, "visitor", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        var pendingPhoneNotes = ConsumePendingVerbalPhoneNotes();
+                                        if (pendingPhoneNotes.Count > 0)
+                                        {
+                                            var noteSb = new StringBuilder();
+                                            foreach (var pn in pendingPhoneNotes)
+                                            {
+                                                noteSb.Append($"Um {pn.RecordedAt} Uhr hat {pn.CallerName} angerufen: \"{pn.Summary}\" (Rückruf: {(pn.CallbackRequested ? "Ja" : "Nein")}). ");
+                                            }
+
+                                            await SafeSendLocalAsync(JsonSerializer.Serialize(new
+                                            {
+                                                type = "funkiraLocalCommand",
+                                                command = "avatarExpress",
+                                                emotion = "excited",
+                                                gesture = "wave",
+                                                durationSeconds = 5.5
+                                            })).ConfigureAwait(false);
+
+                                            var briefPacket = new JsonObject
+                                            {
+                                                ["realtimeInput"] = new JsonObject
+                                                {
+                                                    ["text"] = $"[TELEFON-ÜBERGABE AN ALINA: Alina ist wieder da! Während sie beschäftigt war, bist du an ihr Handy gegangen. Berichte ihr jetzt SOFORT herzlich und kurz auf Deutsch in 2 Sätzen von dem Anruf und sag ihr, dass es schon als To-Do auf ihrem Dashboard steht: {noteSb.ToString().Trim()}]"
+                                                }
+                                            };
+                                            await SafeSendUpstreamAsync(briefPacket.ToJsonString()).ConfigureAwait(false);
+                                            continue;
+                                        }
+                                    }
 
                                     TimeZoneInfo bTz;
                                     try { bTz = TimeZoneInfo.FindSystemTimeZoneById("Europe/Berlin"); }
@@ -2071,7 +3185,7 @@ namespace FunkenwerkOSLinux
                 catch { }
                 finally
                 {
-                    sessionCts.Cancel();
+                    try { sessionCts.Cancel(); } catch { }
                 }
             });
 
@@ -2082,6 +3196,7 @@ namespace FunkenwerkOSLinux
                 using var ms = new MemoryStream(256 * 1024);
                 var userTurnBuf = new StringBuilder();
                 var aiTurnBuf = new StringBuilder();
+                var phoneCallerFullTranscript = new StringBuilder();
                 try
                 {
                     while (upstreamWs.State == WebSocketState.Open && !sessionCts.IsCancellationRequested)
@@ -2111,6 +3226,20 @@ namespace FunkenwerkOSLinux
                             if (root.TryGetProperty("setupComplete", out _))
                             {
                                 Volatile.Write(ref upstreamSetupComplete, true);
+                                if (isPhoneConcierge && activePhoneCall != null)
+                                {
+                                    string greetTarget = string.IsNullOrWhiteSpace(activePhoneCall.GreetingName)
+                                        ? activePhoneCall.CallerName
+                                        : activePhoneCall.GreetingName;
+                                    var phoneKickoff = new JsonObject
+                                    {
+                                        ["realtimeInput"] = new JsonObject
+                                        {
+                                            ["text"] = $"[TELEFONAT VERBUNDEN: '{activePhoneCall.CallerName}' ('{greetTarget}') ist jetzt am Telefon! Melde dich jetzt SOFORT im ersten Satz herzlich auf Deutsch als Funkira, Alinas KI-Assistentin aus der Seelenfunke-Manufaktur, und frage freundlich, was du Alina ausrichten darfst!]"
+                                        }
+                                    };
+                                    _ = SafeSendUpstreamAsync(phoneKickoff.ToJsonString());
+                                }
                             }
 
                             if (root.TryGetProperty("serverContent", out var scNode) && scNode.ValueKind == JsonValueKind.Object)
@@ -2119,7 +3248,10 @@ namespace FunkenwerkOSLinux
                                     itNode.TryGetProperty("text", out var itTxt) &&
                                     itTxt.ValueKind == JsonValueKind.String)
                                 {
-                                    userTurnBuf.Append(itTxt.GetString());
+                                    string chunkTxt = itTxt.GetString() ?? "";
+                                    userTurnBuf.Append(chunkTxt);
+                                    if (isPhoneConcierge)
+                                        phoneCallerFullTranscript.Append(chunkTxt);
                                 }
                                 if (scNode.TryGetProperty("outputTranscription", out var otNode) &&
                                     otNode.TryGetProperty("text", out var otTxt) &&
@@ -2127,7 +3259,8 @@ namespace FunkenwerkOSLinux
                                 {
                                     if (userTurnBuf.Length > 0)
                                     {
-                                        RecordLocalTurn("ALINA", userTurnBuf.ToString());
+                                        if (!isPhoneConcierge)
+                                            RecordLocalTurn("ALINA", userTurnBuf.ToString());
                                         userTurnBuf.Clear();
                                     }
                                     aiTurnBuf.Append(otTxt.GetString());
@@ -2137,12 +3270,14 @@ namespace FunkenwerkOSLinux
                                 {
                                     if (userTurnBuf.Length > 0)
                                     {
-                                        RecordLocalTurn("ALINA", userTurnBuf.ToString());
+                                        if (!isPhoneConcierge)
+                                            RecordLocalTurn("ALINA", userTurnBuf.ToString());
                                         userTurnBuf.Clear();
                                     }
                                     if (aiTurnBuf.Length > 0)
                                     {
-                                        RecordLocalTurn("FUNKIRA", aiTurnBuf.ToString());
+                                        if (!isPhoneConcierge)
+                                            RecordLocalTurn("FUNKIRA", aiTurnBuf.ToString());
                                         aiTurnBuf.Clear();
                                     }
                                 }
@@ -2175,6 +3310,56 @@ namespace FunkenwerkOSLinux
                                             string callId = SeelenfunkeLinuxApiClient.GetStr(call, "id");
                                             string callName = SeelenfunkeLinuxApiClient.GetStr(call, "name");
                                             JsonElement callArgs = call.TryGetProperty("args", out var aEl) ? aEl : default;
+
+                                            if (isPhoneConcierge)
+                                            {
+                                                if (!IsToolAllowedInPhoneConciergeMode(callName) || activePhoneCall == null)
+                                                {
+                                                    responsesArr.Add(new JsonObject
+                                                    {
+                                                        ["id"] = callId,
+                                                        ["name"] = callName,
+                                                        ["response"] = new JsonObject
+                                                        {
+                                                            ["result"] = new JsonObject
+                                                            {
+                                                                ["status"] = "blocked",
+                                                                ["message"] = "Zugriff gesperrt: Telefon-Assistenten-Sandbox aktiv (keine internen Daten oder Werkzeuge erlaubt)."
+                                                            }
+                                                        }
+                                                    });
+                                                    continue;
+                                                }
+
+                                                string summaryArg = SeelenfunkeLinuxApiClient.GetStr(callArgs, "summary", "");
+                                                string urgencyArg = SeelenfunkeLinuxApiClient.GetStr(callArgs, "urgency", "mittel");
+                                                bool cbArg = !callArgs.TryGetProperty("callback_requested", out var cbEl) || cbEl.ValueKind != JsonValueKind.False;
+
+                                                var finishRes = await CompletePhoneCallAndRecordSummaryAsync(
+                                                    activePhoneCall,
+                                                    summaryArg,
+                                                    urgencyArg,
+                                                    cbArg).ConfigureAwait(false);
+
+                                                await SafeSendLocalAsync(JsonSerializer.Serialize(new
+                                                {
+                                                    type = "funkiraLocalCommand",
+                                                    command = "phoneCallHangupAfterSpeech",
+                                                    callerName = activePhoneCall.CallerName,
+                                                    summary = summaryArg
+                                                })).ConfigureAwait(false);
+
+                                                responsesArr.Add(new JsonObject
+                                                {
+                                                    ["id"] = callId,
+                                                    ["name"] = callName,
+                                                    ["response"] = new JsonObject
+                                                    {
+                                                        ["result"] = finishRes
+                                                    }
+                                                });
+                                                continue;
+                                            }
 
                                             if (!IsToolAllowedInPrivacyMode(callName, currentSettings.TikTokLiveMode, LocalSenseBridge.CurrentFaceIdentity))
                                             {
@@ -2278,11 +3463,31 @@ namespace FunkenwerkOSLinux
                 catch { }
                 finally
                 {
-                    sessionCts.Cancel();
+                    if (isPhoneConcierge && activePhoneCall != null && !activePhoneCall.CompletedByFunkira)
+                    {
+                        string fallbackSpoken = phoneCallerFullTranscript.ToString().Trim();
+                        if (fallbackSpoken.Length >= 8)
+                        {
+                            try
+                            {
+                                await CompletePhoneCallAndRecordSummaryAsync(
+                                    activePhoneCall,
+                                    fallbackSpoken,
+                                    "mittel",
+                                    true).ConfigureAwait(false);
+                            }
+                            catch { }
+                        }
+                    }
+                    try { sessionCts.Cancel(); } catch { }
                 }
             });
 
             await Task.WhenAny(pumpClientToUpstream, pumpUpstreamToClient).ConfigureAwait(false);
+            if (isPhoneConcierge)
+            {
+                try { await LinuxHardwareEngine.SwitchAudioToPhoneCallHfpAsync(false).ConfigureAwait(false); } catch { }
+            }
             if (ReferenceEquals(s_activeSendLocal, (Func<string, Task>)SafeSendLocalAsync)) s_activeSendLocal = null;
             if (ReferenceEquals(s_activeSendUpstream, (Func<string, Task>)SafeSendUpstreamAsync)) s_activeSendUpstream = null;
 
@@ -2303,7 +3508,8 @@ namespace FunkenwerkOSLinux
             }
             catch { }
 
-            sessionCts.Cancel();
+            try { sessionCts.Cancel(); } catch { }
+            try { await Task.WhenAll(pumpClientToUpstream, pumpUpstreamToClient).ConfigureAwait(false); } catch { }
         }
 
         private static async Task<(WebSocketMessageType MessageType, string? Text)> ReceiveFullMessageAsync(

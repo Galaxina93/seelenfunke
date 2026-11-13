@@ -6,6 +6,7 @@ import de.meinseelenfunke.app.util.SmartPlugDevice
 import de.meinseelenfunke.app.util.TimerPresetItem
 import de.meinseelenfunke.app.util.WakeUpLogEntry
 import okhttp3.MultipartBody
+import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.Field
 import retrofit2.http.FormUrlEncoded
@@ -118,6 +119,101 @@ data class AlarmSyncPackagePayload(
 data class AlarmSyncPackageResponse(
     val success: Boolean,
     val data: AlarmSyncPackagePayload?
+)
+
+data class ManagementContactDto(
+    val id: String,
+    val first_name: String? = null,
+    val last_name: String? = null,
+    val full_name: String? = null,
+    val nickname: String? = null,
+    val relation_type: String? = null,
+    val phone: String? = null,
+    val normalized_phone: String? = null,
+    val match_suffix: String? = null,
+    val system_instructions: String? = null,
+    val is_favorite: Boolean? = false,
+    val funkira_call_whitelist: Boolean? = false
+)
+
+data class ContactsListResponse(
+    val success: Boolean,
+    val data: List<ManagementContactDto>?
+)
+
+data class ContactSingleResponse(
+    val success: Boolean,
+    val data: ManagementContactDto?
+)
+
+data class PhoneWhitelistToggleBody(
+    val funkira_call_whitelist: Boolean
+)
+
+data class PhoneConciergeConfigPayload(
+    val enabled: Boolean = true,
+    val ring_delay_seconds: Int = 12,
+    val whitelist_count: Int = 0,
+    val whitelist_contacts: List<ManagementContactDto>? = emptyList()
+)
+
+data class PhoneConciergeConfigResponse(
+    val success: Boolean,
+    val data: PhoneConciergeConfigPayload?
+)
+
+data class PhoneConciergeConfigUpdateBody(
+    val enabled: Boolean? = null,
+    val ring_delay_seconds: Int? = null
+)
+
+data class PhoneConciergeSignalBody(
+    val call_id: String? = null,
+    val state: String,
+    val is_simulation: Boolean = false,
+    val contact_id: String? = null,
+    val caller_name: String? = null,
+    val caller_nickname: String? = null,
+    val relation_type: String? = null,
+    val caller_phone: String? = null,
+    val system_instructions: String? = null,
+    val audio_mode: String = "bluetooth_hfp"
+)
+
+data class PhoneConciergeActiveCallDto(
+    val call_id: String? = null,
+    val state: String? = null,
+    val rejected: Boolean? = false,
+    val caller_name: String? = null,
+    val greeting_name: String? = null,
+    val hangup_requested: Boolean? = false,
+    val summary: String? = null
+)
+
+data class PhoneConciergeSignalResponse(
+    val success: Boolean,
+    val data: PhoneConciergeActiveCallDto?
+)
+
+data class PhoneConciergeCompletedDto(
+    val call_id: String? = null,
+    val caller_name: String? = null,
+    val summary: String? = null,
+    val urgency: String? = null,
+    val callback_requested: Boolean? = true
+)
+
+data class PhoneConciergePollPayload(
+    val enabled: Boolean = true,
+    val ring_delay_seconds: Int = 12,
+    val active_call: PhoneConciergeActiveCallDto? = null,
+    val hangup_requested: Boolean = false,
+    val last_completed_call: PhoneConciergeCompletedDto? = null
+)
+
+data class PhoneConciergePollResponse(
+    val success: Boolean,
+    val data: PhoneConciergePollPayload?
 )
 
 interface OrganizerApi {
@@ -312,4 +408,30 @@ interface OrganizerApi {
         @Path("id") id: String,
         @Field("path") path: String
     ): TaskDetailResponse
+
+    // --- Contacts & Funkira Phone-Concierge (Whitelist Answering Machine) ---
+    @GET("funki/contacts")
+    suspend fun getContacts(): ContactsListResponse
+
+    @PUT("funki/contacts/{id}/call-whitelist")
+    suspend fun updateContactCallWhitelist(
+        @Path("id") id: String,
+        @Body body: PhoneWhitelistToggleBody
+    ): ContactSingleResponse
+
+    @GET("system/phone-concierge/config")
+    suspend fun getPhoneConciergeConfig(): PhoneConciergeConfigResponse
+
+    @POST("system/phone-concierge/config")
+    suspend fun updatePhoneConciergeConfig(
+        @Body body: PhoneConciergeConfigUpdateBody
+    ): PhoneConciergeConfigResponse
+
+    @POST("system/phone-concierge/signal")
+    suspend fun signalPhoneConciergeCall(
+        @Body body: PhoneConciergeSignalBody
+    ): PhoneConciergeSignalResponse
+
+    @GET("system/phone-concierge/poll")
+    suspend fun pollPhoneConciergeState(): PhoneConciergePollResponse
 }

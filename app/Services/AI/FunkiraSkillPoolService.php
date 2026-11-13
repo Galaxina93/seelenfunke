@@ -7,6 +7,26 @@ class FunkiraSkillPoolService
     public const EQUIP_TOOL_NAME = 'funkira_equip_skill_pool';
 
     /**
+     * Prüft zuverlässig, ob es sich bei dem übergebenen Agenten (Model, Array oder String) um Funkira handelt.
+     */
+    public static function isFunkira($agent): bool
+    {
+        if (is_string($agent)) {
+            return strcasecmp(trim($agent), 'Funkira') === 0;
+        }
+
+        if (is_object($agent) && isset($agent->name)) {
+            return strcasecmp(trim((string) $agent->name), 'Funkira') === 0;
+        }
+
+        if (is_array($agent) && isset($agent['name'])) {
+            return strcasecmp(trim((string) $agent['name']), 'Funkira') === 0;
+        }
+
+        return false;
+    }
+
+    /**
      * Schlanke Hauptfähigkeiten (Core-Pool), mit denen Funkira bei jeder Anfrage startet
      * und zu denen sie nach Abschluss der Anfrage automatisch zurückspringt.
      */
@@ -15,6 +35,7 @@ class FunkiraSkillPoolService
         $core = [
             self::EQUIP_TOOL_NAME,
             'system_get_current_time',
+            'system_get_error_sentinel',
             'system_open_nav_item',
             'system_open_zentrum',
             'system_close_zentrum',

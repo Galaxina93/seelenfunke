@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Funkenwerk OS</title>
-  <link rel="stylesheet" href="/styles.css?v=20261113v4" />
+  <link rel="stylesheet" href="/styles.css?v=20261113v9" />
 </head>
 <body>
 
@@ -131,8 +131,9 @@
       </div>
 
       <div class="topbar-group">
+        <button class="pill-btn" id="btn-funkira-phone" title="Intelligenter Whitelist-Anrufbeantworter (Handy-Bluetooth &amp; Test-Anruf)">📞 Telefon</button>
         <button class="pill-btn" id="btn-funkira-tiktok" title="Datenschutzkonformer TikTok-Live-Modus (Zero-PII Sandbox)">🎥 TikTok Live</button>
-        <button class="pill-btn" id="btn-funkira-wake-sleep" title="0-Token Werkel-Modus im 3D-Atelier umschalten">🧹 Werkeln lassen</button>
+        <button class="pill-btn" id="btn-funkira-wake-sleep" title="Funkira gemütlich durch ihr Haus spazieren lassen oder zu dir ins Atelier rufen">🏡 Pause im Haus</button>
         <button class="pill-btn" id="btn-funkira-snap" title="1080p Foto mit Logitech C920 aufnehmen">📷 Foto</button>
         <button class="pill-btn" id="btn-funkira-cam-toggle" title="Kamera-Sicht umschalten">👁 Auge aktiv</button>
         <button class="pill-btn" id="btn-funkira-mic-toggle" title="Mikrofon umschalten">🎙 Ohr aktiv</button>
@@ -143,6 +144,11 @@
     <div class="tiktok-live-badge hidden" id="tiktok-live-badge">
       <span>✦ KI-Charakter Funkira · Mein-Seelenfunke Manufaktur</span>
       <span class="tiktok-rose-counter">🌹 <span id="tiktok-roses-count">0</span></span>
+    </div>
+
+    <div class="phone-call-badge hidden" id="phone-call-badge">
+      <span>📞 Telefonat: <strong id="phone-call-caller">Papa</strong></span>
+      <button class="pill-btn" id="btn-phone-hangup-live" style="padding:3px 10px;font-size:11.5px;">Auflegen</button>
     </div>
 
     <div class="funkira-center-stage">
@@ -229,17 +235,18 @@
     </div>
   </div>
 
-  <!-- FACE GUARD MODAL (100% OFFLINE AES-256-GCM VECTOR) -->
+  <!-- FACE & VOICE GUARD MODAL (100% OFFLINE AES-256-GCM VECTORS) -->
   <div id="face-modal-overlay" class="modal-backdrop hidden">
     <div class="modal-card">
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <strong style="color:var(--gold-bright);font-size:15px;">👑 Chefin-Gesichtsschutz (Offline)</strong>
+        <strong style="color:var(--gold-bright);font-size:15px;">👑 Chefin-Erkennung (Gesicht &amp; Stimme)</strong>
         <button class="win-ctrl-btn close" id="btn-close-face-modal">✕</button>
       </div>
       <div id="face-modal-status" class="badge-muted">Status wird geprüft...</div>
       <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
         <button class="pill-btn" id="btn-face-clear">Zurücksetzen</button>
-        <button class="pill-btn gold-primary" id="btn-face-enroll">👑 Jetzt Gesicht einlernen</button>
+        <button class="pill-btn" id="btn-voice-enroll">🎙 Stimme einlernen</button>
+        <button class="pill-btn gold-primary" id="btn-face-enroll">👑 Gesicht einlernen</button>
       </div>
     </div>
   </div>
@@ -264,7 +271,26 @@
     </div>
   </div>
 
-  <script type="module" src="/funkira3d.js?v=20261113v4"></script>
-  <script src="/app.js?v=20261113v4"></script>
+  <!-- PHONE CONCIERGE MODAL (WHITELIST ANRUFBEANTWORTER + HFP BLUETOOTH) -->
+  <div id="phone-modal-overlay" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <strong style="color:var(--gold-bright);font-size:15px;" title="Funkira nimmt Whitelist-Anrufe (z.B. Papa) per Bluetooth-HFP entgegen, hält ein 3D-Smartphone ans Ohr und legt eine To-Do-Notiz an">📞 Telefon-Assistent !</strong>
+        <button class="win-ctrl-btn close" id="btn-close-phone-modal">✕</button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="text" id="phone-sim-caller-input" class="fw-input" placeholder="Anrufername (z.B. Papa)" value="Papa" style="flex:1;" />
+        <button class="pill-btn gold-primary" id="btn-phone-simulate" title="Test-Anruf direkt am Werkstatt-Mikrofon starten">📞 Test-Anruf</button>
+      </div>
+      <div id="phone-modal-status" class="badge-muted">Bereit</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+        <button class="pill-btn" id="btn-phone-hangup-modal">Auflegen</button>
+        <button class="pill-btn" id="btn-phone-bt-pair" title="Macht Funkenwerk-MiniPC 3 Minuten lang im Handy-Bluetooth sichtbar">📱 Handy koppeln</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/funkira3d.js?v=20261113v11"></script>
+  <script src="/app.js?v=20261113v11"></script>
 </body>
 </html>

@@ -567,6 +567,48 @@ namespace FunkenwerkFtp
                 @"C:\Users\konta\.ssh\id_ed25519",
                 "/home/p-g27wim/html/seelenfunke-stage");
 
+            // Verify editor codec preserves Linux LF, UTF-8 BOM, and CHMOD octal math
+            byte[] linuxPhp = Encoding.UTF8.GetBytes("<?php\nreturn ['app' => 'Mein-Seelenfunke'];\n");
+            var decodedLf = FtpTextBufferCodec.Decode(linuxPhp, defaultUseCrLf: false);
+            byte[] reencodedLf = FtpTextBufferCodec.Encode(decodedLf.Text, decodedLf.Encoding, decodedLf.UseCrLf);
+            bool editorCodecOk = !decodedLf.UseCrLf
+                                 && linuxPhp.SequenceEqual(reencodedLf)
+                                 && FtpTextBufferCodec.IsLikelyTextFileName(".env")
+                                 && FtpTextBufferCodec.IsLikelyTextFileName("product.blade.php")
+                                 && FtpTextBufferCodec.IsLikelyTextFileName(".htaccess")
+                                 && FtpTextBufferCodec.PermissionsStringToOctal("drwxr-xr-x", true) == "755"
+                                 && FtpTextBufferCodec.PermissionsStringToOctal("-rw-r--r--", false) == "644"
+                                 && FtpTextBufferCodec.ParseOctalPermissions("755") == Convert.ToInt16("755", 8);
+
+            // Verify lazy CF_HDROP drag-and-drop staging (0ms on internal hover, stages only on external GetData)
+            string testStageDir = DragStagingManager.CreateIsolatedBatchDir();
+            string sampleFile = Path.Combine(testStageDir, "drag_selftest.txt");
+            File.WriteAllText(sampleFile, "Seelenfunke DragDrop OK");
+            int stageCalls = 0;
+            var lazyDrag = new DelayedRemoteFileDropDataObject(
+                "FunkenwerkFtp.RemoteItems",
+                new[] { "remote_item_1" },
+                () => { stageCalls++; return new[] { sampleFile }; });
+
+            var fmtHdrop = new System.Runtime.InteropServices.ComTypes.FORMATETC
+            {
+                cfFormat = 15, // CF_HDROP
+                dwAspect = System.Runtime.InteropServices.ComTypes.DVASPECT.DVASPECT_CONTENT,
+                lindex = -1,
+                tymed = System.Runtime.InteropServices.ComTypes.TYMED.TYMED_HGLOBAL
+            };
+            var comData = (System.Runtime.InteropServices.ComTypes.IDataObject)lazyDrag;
+            int queryRes = comData.QueryGetData(ref fmtHdrop);
+            var internalPayload = lazyDrag.GetData("FunkenwerkFtp.RemoteItems") as string[];
+            bool zeroPrematureStage = (queryRes == 0) && (stageCalls == 0) && (internalPayload?.Length == 1);
+
+            comData.GetData(ref fmtHdrop, out var medium);
+            bool externalDropOk = (stageCalls == 1) && (medium.unionmember != IntPtr.Zero);
+            if (medium.unionmember != IntPtr.Zero)
+                System.Runtime.InteropServices.Marshal.FreeHGlobal(medium.unionmember);
+            DragStagingManager.PurgeAllStagingDirs();
+            bool dragDropEngineOk = zeroPrematureStage && externalDropOk;
+
             var profiles = LoadAndImportProfiles();
             var report = new
             {
@@ -574,12 +616,14 @@ namespace FunkenwerkFtp
                 Aes256GcmDpapiVaultOk = true,
                 PathTraversalBlocked = blockedTraversal,
                 HostKeyMitmDetectionOk = mitmDetected,
+                EditorCodecAndChmodOk = editorCodecOk,
+                LazyDragDropCfHdropOk = dragDropEngineOk,
                 ImportedProfilesCount = profiles.Count,
                 ImportedProfiles = profiles.Select(p => new { p.Name, p.Protocol, p.Host, p.Port, p.Username, HasEncryptedPassword = !string.IsNullOrEmpty(p.EncryptedPassword), p.PrivateKeyPath, p.RemoteDirectory, p.Source }).ToList()
             };
             File.WriteAllText(Path.Combine(VaultDir, "selftest_report.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
 
-            return blockedTraversal && mitmDetected;
+            return blockedTraversal && mitmDetected && editorCodecOk && dragDropEngineOk;
         }
     }
 }

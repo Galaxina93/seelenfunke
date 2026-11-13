@@ -334,10 +334,13 @@ namespace FunkenwerkCraft
                     }
                 };
 
+                bool isOutroScene = string.Equals(scene.MediaType, "brand_outro", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(scene.FileName, "__BRAND_OUTRO__", StringComparison.OrdinalIgnoreCase);
+
                 var fileLbl = new TextBlock
                 {
-                    Text = scene.FileName,
-                    Foreground = (System.Windows.Media.Brush)Resources["TextPrimaryBrush"],
+                    Text = isOutroScene ? "✨ Mystischer Marken-Abgang (Mein Seelenfunke)" : scene.FileName,
+                    Foreground = (System.Windows.Media.Brush)Resources[isOutroScene ? "GoldBrush" : "TextPrimaryBrush"],
                     FontWeight = FontWeights.SemiBold,
                     FontSize = 12,
                     VerticalAlignment = VerticalAlignment.Center,
@@ -378,15 +381,15 @@ namespace FunkenwerkCraft
                 topGrid.Children.Add(actions);
                 outer.Children.Add(topGrid);
 
-                // Row 2: Start, Duration, Transition, FitMode
+                // Row 2: Start, Duration, SpeedMode, Transition
                 var timingGrid = new Grid { Margin = new Thickness(0, 0, 0, 7) };
-                timingGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(95) });
+                timingGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(82) });
                 timingGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-                timingGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(95) });
+                timingGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(82) });
+                timingGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+                timingGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(115) });
                 timingGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
                 timingGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                timingGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-                timingGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
 
                 var startBox = CreateLabeledInput("Start (s)", scene.StartSec.ToString("0.0", CultureInfo.InvariantCulture), val =>
                 {
@@ -398,17 +401,17 @@ namespace FunkenwerkCraft
                     if (double.TryParse(val.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double v))
                         scene.DurationSec = Math.Clamp(v, 0.8, 45.0);
                 });
+                var speedBox = CreateLabeledInput("Tempo", scene.SpeedMode, val => scene.SpeedMode = val.Trim());
                 var transBox = CreateLabeledInput("Übergang", scene.Transition, val => scene.Transition = val.Trim());
-                var fitBox = CreateLabeledInput("Bildmodus", scene.FitMode, val => scene.FitMode = val.Trim());
 
                 Grid.SetColumn(startBox, 0);
                 Grid.SetColumn(durBox, 2);
-                Grid.SetColumn(transBox, 4);
-                Grid.SetColumn(fitBox, 6);
+                Grid.SetColumn(speedBox, 4);
+                Grid.SetColumn(transBox, 6);
                 timingGrid.Children.Add(startBox);
                 timingGrid.Children.Add(durBox);
+                timingGrid.Children.Add(speedBox);
                 timingGrid.Children.Add(transBox);
-                timingGrid.Children.Add(fitBox);
                 outer.Children.Add(timingGrid);
 
                 // Row 3: Overlay Title & Subtitle
@@ -489,6 +492,21 @@ namespace FunkenwerkCraft
 
         private void PreviewSingleScene(CraftSceneItem scene)
         {
+            if (string.Equals(scene.MediaType, "brand_outro", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(scene.FileName, "__BRAND_OUTRO__", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrWhiteSpace(_currentProject.LastRenderedPath) && File.Exists(_currentProject.LastRenderedPath))
+                {
+                    PlayMediaInStage(_currentProject.LastRenderedPath);
+                    StatusBannerTxt.Text = "Vorschau: Mystischer Marken-Abgang im fertigen Mastervideo";
+                }
+                else
+                {
+                    StatusBannerTxt.Text = "Marken-Abgang wird beim Rendern in 60 FPS generiert";
+                }
+                return;
+            }
+
             string full = CraftEngine.ResolveSceneMediaPath(_currentProject.Name, scene.FileName);
             if (!File.Exists(full))
             {
@@ -642,9 +660,11 @@ namespace FunkenwerkCraft
                     FileName = Path.GetFileName(dest),
                     MediaType = isImg ? "image" : "video",
                     StartSec = 0,
-                    DurationSec = isImg ? 2.8 : 3.4,
+                    DurationSec = isImg ? 2.8 : 2.2,
                     FitMode = "fill",
-                    Transition = "smoothleft"
+                    SpeedMode = isImg ? "linear" : "speed_ramp",
+                    SlowMoFactor = 0.42,
+                    Transition = "whip_zoom"
                 });
                 added++;
             }

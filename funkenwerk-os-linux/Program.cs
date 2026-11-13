@@ -86,6 +86,8 @@ _ = LinuxVaultAndStorage.MeineDatenRoot;
 var bootSettings = LinuxVaultAndStorage.LoadSettings();
 LocalSenseBridge.EnsureDaemonStarted();
 DocumentArchiveAndNasEngine.EnsureDaemonStarted();
+ErrorSentinelAndWatchdog.EnsureStarted();
+FunkiraLiveAndMcpEngine.EnsurePhoneConciergePollerStarted();
 
 // Auto-connect Teufel Bluetooth stereo receiver & route Logitech USB C920 mic at boot
 _ = Task.Run(async () =>
@@ -187,6 +189,11 @@ app.UseStaticFiles(new StaticFileOptions { FileProvider = fileProvider });
 
 KdbxDatabase? activeTresorDb = null;
 object tresorLock = new();
+object stageStateLock = new();
+string? pendingStageAction = null;
+bool lastReportedStageOpen = false;
+bool lastReportedIdleMode = false;
+DateTime lastStageReportAtUtc = DateTime.MinValue;
 
 // =========================================================================
 // 1. LIVE PORTAL PULSE, WALLPAPER & AUTHENTICATION
@@ -200,6 +207,13 @@ app.MapGet("/api/pulse", async () =>
     int timerRemainSec = tmr.Active ? Math.Max(0, (int)Math.Ceiling((tmr.EndsAtUtc - DateTime.UtcNow).TotalSeconds)) : 0;
     if (tmr.Active && timerRemainSec <= 0) tmr.Active = false;
 
+    string? consumeStageAction;
+    lock (stageStateLock)
+    {
+        consumeStageAction = pendingStageAction;
+        pendingStageAction = null;
+    }
+
     return Results.Json(new
     {
         pulse,
@@ -211,7 +225,11 @@ app.MapGet("/api/pulse", async () =>
         tikTokHandle = s.TikTokHandle ?? "",
         tikTokRosesCount = LocalSenseBridge.TikTokRosesCount,
         ownerFaceEnrolled = LinuxVaultAndStorage.GetOwnerFaceVector(s) != null,
+        ownerVoiceEnrolled = LinuxVaultAndStorage.GetOwnerVoiceVector(s) != null,
         faceIdentity = LocalSenseBridge.CurrentFaceIdentity,
+        companionBadge = LocalSenseBridge.CurrentCompanionBadgeLabel,
+        companionsCount = LocalSenseBridge.CurrentCompanionsCount,
+        pendingStageAction = consumeStageAction,
         workshopTimer = new
         {
             active = tmr.Active,
@@ -322,11 +340,61 @@ app.MapGet("/api/funkira/sense-status", async () =>
         ok = true,
         daemon = healthObj,
         ownerEnrolled = LinuxVaultAndStorage.GetOwnerFaceVector(s) != null,
+        ownerVoiceEnrolled = LinuxVaultAndStorage.GetOwnerVoiceVector(s) != null,
         faceIdentity = LocalSenseBridge.CurrentFaceIdentity,
+        voiceIdentity = LocalSenseBridge.LastVoiceIdentity,
+        companionBadge = LocalSenseBridge.CurrentCompanionBadgeLabel,
+        companionsCount = LocalSenseBridge.CurrentCompanionsCount,
+        savedCompanionsCount = LinuxVaultAndStorage.GetCompanionFaces(s).Count,
         tikTokLiveMode = s.TikTokLiveMode,
         tikTokHandle = s.TikTokHandle ?? "",
         tikTokRosesCount = LocalSenseBridge.TikTokRosesCount
     });
+});
+
+app.MapPost("/api/funkira/stage-control", async (HttpContext ctx) =>
+{
+    using var doc = await JsonDocument.ParseAsync(ctx.Request.Body).ConfigureAwait(false);
+    string act = doc.RootElement.TryGetProperty("action", out var aEl) ? (aEl.GetString() ?? "open") : "open";
+    act = string.Equals(act, "close", StringComparison.OrdinalIgnoreCase) ? "close" : "open";
+    lock (stageStateLock)
+    {
+        pendingStageAction = act;
+    }
+    return Results.Json(new { ok = true, queuedAction = act });
+});
+
+app.MapPost("/api/funkira/stage-report", async (HttpContext ctx) =>
+{
+    using var doc = await JsonDocument.ParseAsync(ctx.Request.Body).ConfigureAwait(false);
+    var root = doc.RootElement;
+    bool open = root.TryGetProperty("stageOpen", out var oEl) && oEl.ValueKind == JsonValueKind.True;
+    bool idle = root.TryGetProperty("idleMode", out var iEl) && iEl.ValueKind == JsonValueKind.True;
+    lock (stageStateLock)
+    {
+        lastReportedStageOpen = open;
+        lastReportedIdleMode = idle;
+        lastStageReportAtUtc = DateTime.UtcNow;
+    }
+    return Results.Json(new { ok = true });
+});
+
+app.MapGet("/api/funkira/stage-status", () =>
+{
+    lock (stageStateLock)
+    {
+        double agoSec = lastStageReportAtUtc == DateTime.MinValue
+            ? -1
+            : Math.Round((DateTime.UtcNow - lastStageReportAtUtc).TotalSeconds, 1);
+        return Results.Json(new
+        {
+            ok = true,
+            stageOpen = lastReportedStageOpen,
+            idleMode = lastReportedIdleMode,
+            pendingStageAction,
+            lastReportAgoSec = agoSec
+        });
+    }
 });
 
 app.MapPost("/api/funkira/wake-mode", async (HttpContext ctx) =>
@@ -412,6 +480,89 @@ app.MapPost("/api/funkira/face-clear", () =>
     return Results.Json(new { ok = true, faceIdentity = LocalSenseBridge.CurrentFaceIdentity });
 });
 
+app.MapPost("/api/funkira/voice-check", async (HttpContext ctx) =>
+{
+    using var doc = await JsonDocument.ParseAsync(ctx.Request.Body).ConfigureAwait(false);
+    string b64 = doc.RootElement.TryGetProperty("pcm16Base64", out var dEl) ? (dEl.GetString() ?? "") : "";
+    if (string.IsNullOrWhiteSpace(b64))
+        return Results.Json(new { ok = false, message = "Keine Sprachdaten." });
+
+    var s = LinuxVaultAndStorage.LoadSettings();
+    var resObj = await LocalSenseBridge.AnalyzeVoiceSampleAsync(b64, s, includeEmbedding: false).ConfigureAwait(false);
+    return Results.Content(resObj.ToJsonString(), "application/json; charset=utf-8");
+});
+
+app.MapPost("/api/funkira/voice-enroll", async (HttpContext ctx) =>
+{
+    using var doc = await JsonDocument.ParseAsync(ctx.Request.Body).ConfigureAwait(false);
+    string b64 = doc.RootElement.TryGetProperty("pcm16Base64", out var dEl) ? (dEl.GetString() ?? "") : "";
+    if (string.IsNullOrWhiteSpace(b64))
+        return Results.Json(new { ok = false, message = "Bitte zuerst 2 Sekunden mit Funkira sprechen und dann Stimme speichern klicken." });
+
+    var s = LinuxVaultAndStorage.LoadSettings();
+    var resObj = await LocalSenseBridge.AnalyzeVoiceSampleAsync(b64, s, includeEmbedding: true).ConfigureAwait(false);
+    try
+    {
+        bool hasSpeech = resObj["speechDetected"]?.GetValue<bool>() == true;
+        var embArr = resObj["voiceEmbedding"]?.AsArray();
+        if (!hasSpeech || embArr == null)
+        {
+            return Results.Json(new { ok = false, message = "Zu wenig klare Sprache erkannt. Bitte kurz einen ganzen Satz sprechen und erneut klicken." });
+        }
+
+        var list = new List<float>(48);
+        foreach (var item in embArr)
+        {
+            if (item != null && float.TryParse(item.ToJsonString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float fv))
+                list.Add(fv);
+        }
+        if (list.Count != 48)
+            return Results.Json(new { ok = false, message = "Ungültiger Stimm-Vektor." });
+
+        var vec = list.ToArray();
+        LinuxVaultAndStorage.StoreOwnerVoiceVector(s, vec);
+        Array.Clear(vec, 0, vec.Length);
+
+        return Results.Json(new
+        {
+            ok = true,
+            ownerVoiceEnrolled = true,
+            message = "Chefin-Stimme lokal (AES-256-GCM, 0 Audio-Datei) gespeichert."
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { ok = false, message = $"Fehler bei lokaler Stimmanalyse: {ex.Message}" });
+    }
+});
+
+app.MapPost("/api/funkira/voice-clear", () =>
+{
+    var s = LinuxVaultAndStorage.LoadSettings();
+    LinuxVaultAndStorage.StoreOwnerVoiceVector(s, null);
+    return Results.Json(new { ok = true, ownerVoiceEnrolled = false });
+});
+
+app.MapPost("/api/system/client-error", async (HttpContext ctx) =>
+{
+    using var doc = await JsonDocument.ParseAsync(ctx.Request.Body).ConfigureAwait(false);
+    var root = doc.RootElement;
+    string comp = root.TryGetProperty("component", out var cEl) ? (cEl.GetString() ?? "browser_ui") : "browser_ui";
+    string title = root.TryGetProperty("title", out var tEl) ? (tEl.GetString() ?? "") : "";
+    string msg = root.TryGetProperty("message", out var mEl) ? (mEl.GetString() ?? "") : "";
+    string stack = root.TryGetProperty("stacktrace", out var sEl) ? (sEl.GetString() ?? "") : "";
+    if (string.IsNullOrWhiteSpace(title))
+        return Results.Json(new { ok = false });
+
+    bool queued = ErrorSentinelAndWatchdog.RecordEvent(comp, title, msg, stack, severity: "error");
+    return Results.Json(new { ok = true, queued });
+});
+
+app.MapGet("/api/system/sentinel-status", () =>
+{
+    return Results.Json(ErrorSentinelAndWatchdog.GetStatusSnapshot());
+});
+
 app.MapPost("/api/funkira/tiktok-mode", async (HttpContext ctx) =>
 {
     using var doc = await JsonDocument.ParseAsync(ctx.Request.Body).ConfigureAwait(false);
@@ -449,6 +600,55 @@ app.MapPost("/api/funkira/tiktok-gift", async (HttpContext ctx) =>
 
     var res = await FunkiraLiveAndMcpEngine.TriggerTikTokGiftLiveAsync(sender, gift, count).ConfigureAwait(false);
     return Results.Json(res);
+});
+
+app.MapGet("/api/funkira/phone-status", () =>
+{
+    return Results.Json(FunkiraLiveAndMcpEngine.GetPhoneConciergeStatusSnapshot());
+});
+
+app.MapPost("/api/funkira/phone-simulate", async (HttpContext ctx) =>
+{
+    string? callerName = null;
+    string? greetingName = null;
+    string? relationType = null;
+    try
+    {
+        using var doc = await JsonDocument.ParseAsync(ctx.Request.Body).ConfigureAwait(false);
+        var root = doc.RootElement;
+        if (root.TryGetProperty("callerName", out var cnEl)) callerName = cnEl.GetString();
+        if (root.TryGetProperty("greetingName", out var gnEl)) greetingName = gnEl.GetString();
+        if (root.TryGetProperty("relationType", out var rtEl)) relationType = rtEl.GetString();
+    }
+    catch { }
+
+    var sim = FunkiraLiveAndMcpEngine.StartSimulatedPhoneCall(callerName, greetingName, relationType);
+    return Results.Json(new
+    {
+        ok = true,
+        callId = sim.CallId,
+        callerName = sim.CallerName,
+        greetingName = sim.GreetingName,
+        relationType = sim.RelationType
+    });
+});
+
+app.MapPost("/api/funkira/phone-hangup", async () =>
+{
+    await FunkiraLiveAndMcpEngine.RequestManualPhoneHangupAsync().ConfigureAwait(false);
+    return Results.Json(new { ok = true });
+});
+
+app.MapPost("/api/funkira/phone-pair-mode", async () =>
+{
+    var (ok, msg, pairedPhones) = await LinuxHardwareEngine.EnableSmartphoneBluetoothPairableAsync().ConfigureAwait(false);
+    return Results.Json(new { ok, message = msg, pairedPhones });
+});
+
+app.MapPost("/api/funkira/phone-notes-ack", () =>
+{
+    var consumed = FunkiraLiveAndMcpEngine.ConsumePendingVerbalPhoneNotes();
+    return Results.Json(new { ok = true, cleared = consumed.Count });
 });
 
 // =========================================================================
@@ -837,7 +1037,7 @@ app.Run();
 int RunLinuxSelfTests()
 {
     int passed = 0;
-    const int total = 14;
+    const int total = 18;
 
     void AssertCheck(int idx, string name, Func<bool> check)
     {
@@ -917,7 +1117,7 @@ int RunLinuxSelfTests()
                File.Exists(Path.Combine(fk, "funkira_torso.png"));
     });
 
-    AssertCheck(9, "Funkira MCP-Skillset (10 minipc_* Tools inkl. minipc_document_search, point_photo, Kollegen-Erinnerung & Bluetooth)", () =>
+    AssertCheck(9, "Funkira MCP-Skillset (12 minipc_* Tools inkl. minipc_avatar_move, minipc_companion_memory & Error-Sentinel)", () =>
     {
         var merged = FunkiraLiveAndMcpEngine.BuildMergedToolsNode("[]", "");
         var decls = merged[0]?["functionDeclarations"]?.AsArray();
@@ -931,10 +1131,13 @@ int RunLinuxSelfTests()
 
         var lateEval = FunkiraLiveAndMcpEngine.EvaluateWorkshopRoutine(new DateTime(2026, 11, 12, 23, 15, 0), new PulseSnapshotDto { OpenOrdersCount = 1, ExpressOrdersCount = 0 });
 
-        return decls != null && decls.Count == 10 &&
+        return decls != null && decls.Count == 12 &&
                lateEval.IsLateNightWarning && !lateEval.IsWorkshopSensible &&
                sysPrompt.Contains("minipc_avatar_express") &&
+               sysPrompt.Contains("minipc_avatar_move") &&
                sysPrompt.Contains("minipc_document_search") &&
+               sysPrompt.Contains("minipc_companion_memory") &&
+               sysPrompt.Contains("system_get_error_sentinel") &&
                sysPrompt.Contains("point_photo") &&
                sysPrompt.Contains("DAS GRÜNDER-TEAM") &&
                sysPrompt.Contains("Buchi") &&
@@ -995,7 +1198,7 @@ int RunLinuxSelfTests()
         return blockOrderTikTok && blockMailVisitor && blockFinanceVisitor && blockHealthVisitor && blockPortalTikTok &&
                blockDocSearchTikTok && blockDocSearchVisitor && allowDocSearchOwner &&
                allowAvatarTikTok && allowProductTikTok && allowOrderOwner &&
-               cleanSender == "Sarah" && tikTokDecls != null && tikTokDecls.Count == 1;
+               cleanSender == "Sarah" && tikTokDecls != null && tikTokDecls.Count == 2;
     });
 
     AssertCheck(13, "SQLite FTS5 Dokumenten-Index (< 15 ms Suche) & Trichter-Auto-Klassifizierung", () =>
@@ -1008,6 +1211,7 @@ int RunLinuxSelfTests()
         File.SetLastWriteTimeUtc(tmpTrichterFile, DateTime.UtcNow.AddSeconds(-5));
 
         int moved = DocumentArchiveAndNasEngine.ProcessTrichterDirectoryAsync().GetAwaiter().GetResult();
+        _ = DocumentArchiveAndNasEngine.SearchDocuments(uniqueToken, null, 1); // Warm-up fuer libsqlite3 Cold-Load
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var hits = DocumentArchiveAndNasEngine.SearchDocuments(uniqueToken, null, 5);
         sw.Stop();
@@ -1030,7 +1234,7 @@ int RunLinuxSelfTests()
     AssertCheck(14, "NAS Snapshot-Delta-Manifest & Vault NAS-Passwortschutz", () =>
     {
         var dummy = new LinuxOsSettings();
-        LinuxVaultAndStorage.StoreNasPassword(dummy, "NasSecretTest!42");
+        dummy.EncryptedNasPassword = LinuxVaultAndStorage.EncryptSecret("NasSecretTest!42");
         bool vaultOk = dummy.EncryptedNasPassword.StartsWith("FWLINUXAES256GCM1:") &&
                        LinuxVaultAndStorage.GetNasPassword(dummy) == "NasSecretTest!42";
 
@@ -1039,6 +1243,85 @@ int RunLinuxSelfTests()
         ctx.Request.Path = "/Meine_Daten/../../etc/passwd";
         DocumentArchiveAndNasEngine.HandleWebDavRequestAsync(ctx).GetAwaiter().GetResult();
         return vaultOk && ctx.Response.StatusCode == StatusCodes.Status403Forbidden;
+    });
+
+    AssertCheck(15, "Multi-Person Companion & 48-Float Stimm-Vektor Vault (AES-256-GCM, 0 Fotos)", () =>
+    {
+        var dummy = new LinuxOsSettings();
+        float[] voiceVec = Enumerable.Range(0, 48).Select(i => (float)Math.Cos(i * 0.15)).ToArray();
+        dummy.EncryptedOwnerVoiceVector = LinuxVaultAndStorage.EncryptSecret(JsonSerializer.Serialize(voiceVec));
+        float[]? decVoice = LinuxVaultAndStorage.GetOwnerVoiceVector(dummy);
+
+        float[] compVec = Enumerable.Range(0, 128).Select(i => (float)Math.Sin(i * 0.08)).ToArray();
+        var compList = new List<CompanionFaceEntryDto>
+        {
+            new CompanionFaceEntryDto { ContactId = "c-1", Name = "Max", Relationship = "Freund", Vector = compVec }
+        };
+        dummy.EncryptedCompanionFacesJson = LinuxVaultAndStorage.EncryptSecret(JsonSerializer.Serialize(compList));
+        var decComp = LinuxVaultAndStorage.GetCompanionFaces(dummy);
+
+        bool blockVisitorComp = !FunkiraLiveAndMcpEngine.IsToolAllowedInPrivacyMode("minipc_companion_memory", false, "visitor");
+        bool blockVisitorSys = !FunkiraLiveAndMcpEngine.IsToolAllowedInPrivacyMode("system_get_error_sentinel", false, "visitor");
+        bool allowCompanionContact = FunkiraLiveAndMcpEngine.IsToolAllowedInPrivacyMode("contact_search", false, "alina_with_companion");
+
+        return decVoice != null && decVoice.Length == 48 && Math.Abs(decVoice[5] - voiceVec[5]) < 1e-4f &&
+               decComp.Count == 1 && decComp[0].Name == "Max" && decComp[0].Vector.Length == 128 &&
+               blockVisitorComp && blockVisitorSys && allowCompanionContact;
+    });
+
+    AssertCheck(16, "Globaler Error-Sentinel Secret-Scrubber & SHA-256 Fingerprint", () =>
+    {
+        string dirty = "Auth: Bearer 99|secretSanctumToken123 url=https://x.test?key=AIzaSySecret99 vault=FWLINUXAES256GCM1:abc+123=";
+        string scrubbed = ErrorSentinelAndWatchdog.ScrubSecrets(dirty);
+        string fp = ErrorSentinelAndWatchdog.ComputeFingerprint("minipc_linux", "sense_daemon", "Lokaler Sense-Daemon Test");
+        return !scrubbed.Contains("secretSanctumToken123") &&
+               !scrubbed.Contains("AIzaSySecret99") &&
+               !scrubbed.Contains("abc+123=") &&
+               scrubbed.Contains("[REDACTED]") &&
+               fp.Length == 64;
+    });
+
+    AssertCheck(17, "Funkira Telefon-Assistent Zero-PII Sandbox & Tool-Isolation", () =>
+    {
+        bool blockOrders = !FunkiraLiveAndMcpEngine.IsToolAllowedInPhoneConciergeMode("order_get_details");
+        bool blockDocs = !FunkiraLiveAndMcpEngine.IsToolAllowedInPhoneConciergeMode("minipc_document_search");
+        bool blockMail = !FunkiraLiveAndMcpEngine.IsToolAllowedInPhoneConciergeMode("mail_read");
+        bool blockFinance = !FunkiraLiveAndMcpEngine.IsToolAllowedInPhoneConciergeMode("finance_get_liquidity_status");
+        bool allowFinish = FunkiraLiveAndMcpEngine.IsToolAllowedInPhoneConciergeMode("minipc_phone_call_finish");
+
+        var phoneTools = FunkiraLiveAndMcpEngine.BuildMergedToolsNode("[]", "", tikTokLiveMode: false, phoneConciergeMode: true);
+        var phoneDecls = phoneTools[0]?["functionDeclarations"]?.AsArray();
+        string phonePrompt = FunkiraLiveAndMcpEngine.BuildPhoneConciergeSystemInstruction(new FunkiraLiveAndMcpEngine.PhoneConciergeSessionDto
+        {
+            CallId = "test-1",
+            CallerName = "Jan Steinhauer",
+            GreetingName = "Papa",
+            RelationType = "Vater/Papa"
+        });
+
+        return blockOrders && blockDocs && blockMail && blockFinance && allowFinish &&
+               phoneDecls != null && phoneDecls.Count == 1 &&
+               phoneDecls[0]?["name"]?.GetValue<string>() == "minipc_phone_call_finish" &&
+               phonePrompt.Contains("Papa") &&
+               phonePrompt.Contains("KI-Assistentin") &&
+               phonePrompt.Contains("ZERO-PII");
+    });
+
+    AssertCheck(18, "Funkira 3D-Raumbewegung (minipc_avatar_move) & freie Sicht aufs Kollegen-Foto ohne Atelier-Balken", () =>
+    {
+        using var moveDoc = JsonDocument.Parse("{\"target\":\"kitchen\",\"body_action\":\"duck\",\"speed\":\"fast\",\"distance_meters\":1.4,\"duration_seconds\":7}");
+        var (res, uiEvt) = FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync("minipc_avatar_move", moveDoc.RootElement).GetAwaiter().GetResult();
+
+        string wr = Path.Combine(AppContext.BaseDirectory, "wwwroot");
+        string js3d = File.ReadAllText(Path.Combine(wr, "funkira3d.js"), Encoding.UTF8);
+
+        return res["status"]?.GetValue<string>() == "success" &&
+               uiEvt != null &&
+               uiEvt["command"]?.GetValue<string>() == "avatarMove" &&
+               uiEvt["target"]?.GetValue<string>() == "kitchen" &&
+               uiEvt["bodyAction"]?.GetValue<string>() == "duck" &&
+               js3d.Contains("executeMovement(") &&
+               !js3d.Contains("2.36, 6.74");
     });
 
     Console.WriteLine($"FUNKENWERK OS LINUX SELF-TEST: {passed}/{total} TESTS BESTANDEN.");

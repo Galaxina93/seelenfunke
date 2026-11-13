@@ -1,23 +1,42 @@
             initThreeJS() {
                 const container = document.getElementById('funki-canvas-container');
-                if (!container) return;
+                if (!container || typeof THREE === 'undefined') return;
 
+                if (t3.animationId) {
+                    cancelAnimationFrame(t3.animationId);
+                    t3.animationId = null;
+                }
                 container.innerHTML = '';
+
+                const vw = Math.max(window.innerWidth || 1280, 320);
+                const vh = Math.max(window.innerHeight || 720, 240);
 
                 t3.scene = new THREE.Scene();
 
-                t3.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1.0, 3000);
+                t3.camera = new THREE.PerspectiveCamera(50, vw / vh, 1.0, 3000);
                 t3.camera.position.z = 500;
                 t3.camera.position.y = 50;
                 t3.camera.lookAt(0, 0, 0);
+
+                if (t3.renderer) {
+                    try {
+                        const gl = t3.renderer.getContext && t3.renderer.getContext();
+                        if (gl && typeof gl.isContextLost === 'function' && gl.isContextLost()) {
+                            t3.renderer.dispose();
+                            t3.renderer = null;
+                        }
+                    } catch (e) {
+                        t3.renderer = null;
+                    }
+                }
 
                 if (!t3.renderer) {
                     t3.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: "high-performance" });
                     t3.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 0.75)); 
                 }
                 container.appendChild(t3.renderer.domElement);
-                t3.renderer.setSize(window.innerWidth, window.innerHeight);
-                t3.camera.aspect = window.innerWidth / window.innerHeight;
+                t3.renderer.setSize(vw, vh);
+                t3.camera.aspect = vw / vh;
                 t3.camera.updateProjectionMatrix();
 
                 // Bind OrbitControls directly to WebGLRenderer

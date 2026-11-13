@@ -77,6 +77,7 @@ class ManagementContactSeeder extends Seeder
                 'first_name' => 'Jan',
                 'last_name' => 'Steinhauer',
                 'is_favorite' => true,
+                'funkira_call_whitelist' => true,
                 'nickname' => 'Papa',
                 'relation_type' => 'Vater/Papa',
                 'avatar_path' => 'leitung/person_profiles/jan_steinhauer.jpg',

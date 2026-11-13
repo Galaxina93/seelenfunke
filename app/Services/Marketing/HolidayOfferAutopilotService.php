@@ -61,6 +61,11 @@ class HolidayOfferAutopilotService
         return $this->getGuardrailsStatus();
     }
 
+    public function getHolidayEventsDefinition(): array
+    {
+        return $this->getEventDefinitions();
+    }
+
     /**
      * Definiert für jedes Feiertags-/Saison-Event die optimale Manufaktur-Angebotsstrategie.
      */
@@ -582,7 +587,7 @@ class HolidayOfferAutopilotService
         ];
 
         // 1. Feiertags-Timeline & aktiven / nächsten Anlass berechnen
-        $definitions = $this->getHolidayEventsDefinition();
+        $definitions = $this->getEventDefinitions();
         $activeWindow = $this->resolveActiveOfferWindow($now);
         $upcomingHolidays = [];
 
@@ -605,7 +610,7 @@ class HolidayOfferAutopilotService
 
             $upcomingHolidays[] = [
                 'event_key' => $key,
-                'name' => $meta['name'],
+                'name' => $meta['name'] ?? $meta['label'] ?? ucfirst($key),
                 'badge_text' => $meta['badge_text'],
                 'discount_percent' => (int) $meta['discount_percent'],
                 'strategy_hint' => $meta['strategy_hint'],
@@ -614,7 +619,7 @@ class HolidayOfferAutopilotService
                 'event_date_formatted' => $eventDate->format('d.m.Y'),
                 'start_date_formatted' => $startDate->format('d.m.Y'),
                 'cutoff_date_formatted' => $endDate->format('d.m.Y'),
-                'window_formatted' => $startDate->format('d.m.') . ' – ' . $endDate->format('d.m.Y'),
+                'window_formatted' => $startDate->format('d.m.') . ' bis ' . $endDate->format('d.m.Y'),
                 'is_active_now' => $isActiveNow,
                 'days_until_start' => $daysUntilStart,
                 'days_until_event' => $daysUntilEvent,

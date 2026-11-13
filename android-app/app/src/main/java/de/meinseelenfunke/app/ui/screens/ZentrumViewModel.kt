@@ -66,6 +66,13 @@ class ZentrumViewModel : ViewModel() {
     private val _actionResult = MutableStateFlow<Result<String>?>(null)
     val actionResult: StateFlow<Result<String>?> = _actionResult.asStateFlow()
 
+    private val _trichterFeedback = MutableStateFlow<TrichterFeedback?>(null)
+    val trichterFeedback: StateFlow<TrichterFeedback?> = _trichterFeedback.asStateFlow()
+
+    fun clearTrichterFeedback() {
+        _trichterFeedback.value = null
+    }
+
     init {
         loadDashboardData()
     }
@@ -203,6 +210,95 @@ class ZentrumViewModel : ViewModel() {
             }.onFailure { error ->
                 _actionResult.value = Result.failure(error)
                 _isUploading.value = false
+            }
+        }
+    }
+
+    fun sendToMiniPcTrichter(
+        fileBytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+        customTitle: String?,
+        source: String = "android_zentrum"
+    ) {
+        if (fileBytes.isEmpty()) {
+            val msg = "Bitte zuerst eine Seite scannen oder Dateien wählen."
+            _trichterFeedback.value = TrichterFeedback(isSuccess = false, message = msg)
+            _actionResult.value = Result.failure(Exception(msg))
+            return
+        }
+        sendMultipleToMiniPcTrichter(
+            items = listOf(
+                TrichterUploadItem(
+                    bytes = fileBytes,
+                    fileName = fileName,
+                    mimeType = mimeType
+                )
+            ),
+            customTitle = customTitle,
+            source = source
+        )
+    }
+
+    fun sendMultipleToMiniPcTrichter(
+        items: List<TrichterUploadItem>,
+        customTitle: String?,
+        source: String = "android_zentrum"
+    ) {
+        val validItems = items.filter { it.bytes.isNotEmpty() }
+        if (validItems.isEmpty()) {
+            val msg = "Bitte zuerst eine Seite scannen oder Dateien wählen."
+            _trichterFeedback.value = TrichterFeedback(isSuccess = false, message = msg)
+            _actionResult.value = Result.failure(Exception(msg))
+            return
+        }
+
+        viewModelScope.launch {
+            _isUploading.value = true
+            _actionResult.value = null
+            _trichterFeedback.value = null
+            var successCount = 0
+            var lastSuccessMsg: String? = null
+            val errors = mutableListOf<String>()
+            val cleanBaseTitle = customTitle?.trim()?.takeIf { it.isNotEmpty() }
+
+            validItems.forEachIndexed { index, item ->
+                val itemTitle = when {
+                    cleanBaseTitle == null -> null
+                    validItems.size == 1 -> cleanBaseTitle
+                    else -> "$cleanBaseTitle (${index + 1}/${validItems.size})"
+                }
+                financeRepository.sendToMiniPcTrichter(
+                    fileBytes = item.bytes,
+                    fileName = item.fileName,
+                    mimeType = item.mimeType,
+                    customTitle = itemTitle,
+                    source = source
+                ).onSuccess { msg ->
+                    successCount++
+                    lastSuccessMsg = msg
+                }.onFailure { err ->
+                    errors.add("${item.fileName}: ${err.localizedMessage ?: "Fehler"}")
+                }
+            }
+
+            _isUploading.value = false
+            if (errors.isEmpty()) {
+                val summary = if (validItems.size == 1) {
+                    lastSuccessMsg ?: "Dokument erfolgreich im Eingang-Trichter abgelegt."
+                } else {
+                    "$successCount Dateien erfolgreich an den Eingang-Trichter gesendet."
+                }
+                _trichterFeedback.value = TrichterFeedback(isSuccess = true, message = summary)
+                _actionResult.value = Result.success(summary)
+            } else if (successCount > 0) {
+                val partialMsg = "$successCount/${validItems.size} übertragen. Fehler: ${errors.first()}"
+                _trichterFeedback.value = TrichterFeedback(isSuccess = false, message = partialMsg)
+                _actionResult.value = Result.failure(Exception(partialMsg))
+            } else {
+                val failMsg = errors.first()
+                _trichterFeedback.value = TrichterFeedback(isSuccess = false, message = failMsg)
+                _actionResult.value = Result.failure(Exception(failMsg))
             }
         }
     }

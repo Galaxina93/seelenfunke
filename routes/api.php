@@ -725,6 +725,9 @@ Route::middleware('auth:sanctum')->group(function () {
             'top_customers' => $topDisplayOnly,
             'active_routine' => $activeRoutinePayload,
             'pending_trichter_count' => \App\Services\System\MiniPcTrichterRelayService::countPending(),
+            'open_system_errors_count' => class_exists(\App\Models\System\SystemLog::class)
+                ? \App\Models\System\SystemLog::where('status', 'error')->where('started_at', '>=', now()->subHours(24))->count()
+                : 0,
             'world_state' => [
                 'season' => $season,
                 'occasion' => $occasion,
@@ -794,6 +797,135 @@ Route::middleware('auth:sanctum')->group(function () {
                 'deleted' => $deleted,
                 'remaining_count' => \App\Services\System\MiniPcTrichterRelayService::countPending(),
             ]);
+        });
+    });
+
+    // --- 2a-ter. Zentraler Ökosystem-Error-Sentinel (Portal, Android App, Werkstatt Mini-PC & Funkenwerk Windows) ---
+    Route::post('/system/error-ingest', function (\Illuminate\Http\Request $request) {
+        $user = $request->user();
+        if (!$user instanceof \App\Models\Admin\Admin) {
+            abort(403, 'Nur Administratoren dürfen System-Diagnosedaten einliefern.');
+        }
+
+        if ($request->bearerToken()) {
+            $pat = \Laravel\Sanctum\PersonalAccessToken::findToken((string) $request->bearerToken());
+            if (!$pat || (!$pat->can('*') && !$pat->can('ai:funkira') && !$pat->can('monitor:pulse'))) {
+                abort(403, 'Unzureichende Token-Berechtigung für Error-Sentinel.');
+            }
+        }
+
+        $rawEvents = $request->input('events');
+        if (!is_array($rawEvents)) {
+            $rawEvents = [$request->only([
+                'platform', 'component', 'severity', 'title', 'message', 'error_class',
+                'file', 'line', 'stack', 'fingerprint', 'occurrences', 'auto_healed',
+                'auto_heal_action', 'app_version', 'device', 'occurred_at', 'context',
+            ])];
+        }
+
+        $ingested = 0;
+        $ids = [];
+        foreach (array_slice($rawEvents, 0, 25) as $ev) {
+            if (!is_array($ev) || empty($ev['message'])) {
+                continue;
+            }
+            $log = \App\Services\System\SystemErrorLogger::recordCrossPlatformEvent($ev);
+            if ($log) {
+                $ingested++;
+                $ids[] = $log->id;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'ingested' => $ingested,
+            'log_ids' => $ids,
+        ], 200, ['Cache-Control' => 'no-store, private']);
+    })->middleware('throttle:60,1');
+
+    // --- 2a-quater. Funkira Telefon-Assistent Relay (Android Smartphone <-> Werkstatt Mini-PC, Zero-Twilio) ---
+    Route::prefix('system/phone-concierge')->middleware('throttle:120,1')->group(function () {
+        $authorizePhoneConcierge = function (\Illuminate\Http\Request $request) {
+            $user = $request->user();
+            if (!$user instanceof \App\Models\Admin\Admin) {
+                abort(403, 'Nur Administratoren dürfen den Funkira Telefon-Assistenten nutzen.');
+            }
+            if ($request->bearerToken()) {
+                $pat = \Laravel\Sanctum\PersonalAccessToken::findToken((string) $request->bearerToken());
+                if (!$pat || (!$pat->can('*') && !$pat->can('ai:funkira') && !$pat->can('monitor:pulse'))) {
+                    abort(403, 'Unzureichende Token-Berechtigung für Telefon-Assistent.');
+                }
+            }
+        };
+
+        Route::get('/config', function (\Illuminate\Http\Request $request) use ($authorizePhoneConcierge) {
+            $authorizePhoneConcierge($request);
+            return response()->json([
+                'success' => true,
+                'data' => \App\Services\System\FunkiraPhoneConciergeService::getConfigPayload(),
+            ], 200, ['Cache-Control' => 'no-store, private']);
+        });
+
+        Route::post('/config', function (\Illuminate\Http\Request $request) use ($authorizePhoneConcierge) {
+            $authorizePhoneConcierge($request);
+            $validated = $request->validate([
+                'enabled' => 'nullable|boolean',
+                'ring_delay_seconds' => 'nullable|integer|min:0|max:30',
+            ]);
+            $enabled = array_key_exists('enabled', $validated) ? (bool) $validated['enabled'] : null;
+            $delay = array_key_exists('ring_delay_seconds', $validated) ? (int) $validated['ring_delay_seconds'] : null;
+            return response()->json([
+                'success' => true,
+                'data' => \App\Services\System\FunkiraPhoneConciergeService::updateConfig($enabled, $delay),
+            ], 200, ['Cache-Control' => 'no-store, private']);
+        });
+
+        Route::post('/signal', function (\Illuminate\Http\Request $request) use ($authorizePhoneConcierge) {
+            $authorizePhoneConcierge($request);
+            $validated = $request->validate([
+                'call_id' => 'nullable|string|max:100',
+                'state' => 'required|string|in:ringing,accepted,cancelled,ended',
+                'is_simulation' => 'nullable|boolean',
+                'contact_id' => 'nullable|string|max:64',
+                'caller_name' => 'nullable|string|max:160',
+                'caller_nickname' => 'nullable|string|max:120',
+                'relation_type' => 'nullable|string|max:120',
+                'caller_phone' => 'nullable|string|max:80',
+                'system_instructions' => 'nullable|string|max:1500',
+                'audio_mode' => 'nullable|string|max:40',
+            ]);
+            $result = \App\Services\System\FunkiraPhoneConciergeService::signalCallState($validated);
+            return response()->json([
+                'success' => empty($result['rejected']),
+                'data' => $result,
+            ], 200, ['Cache-Control' => 'no-store, private']);
+        });
+
+        Route::get('/poll', function (\Illuminate\Http\Request $request) use ($authorizePhoneConcierge) {
+            $authorizePhoneConcierge($request);
+            return response()->json([
+                'success' => true,
+                'data' => \App\Services\System\FunkiraPhoneConciergeService::pollState(),
+            ], 200, ['Cache-Control' => 'no-store, private']);
+        });
+
+        Route::post('/complete', function (\Illuminate\Http\Request $request) use ($authorizePhoneConcierge) {
+            $authorizePhoneConcierge($request);
+            $validated = $request->validate([
+                'call_id' => 'nullable|string|max:100',
+                'is_simulation' => 'nullable|boolean',
+                'contact_id' => 'nullable|string|max:64',
+                'caller_name' => 'nullable|string|max:160',
+                'greeting_name' => 'nullable|string|max:120',
+                'summary' => 'required|string|max:1000',
+                'urgency' => 'nullable|string|in:hoch,mittel,niedrig',
+                'callback_requested' => 'nullable|boolean',
+            ]);
+            $result = \App\Services\System\FunkiraPhoneConciergeService::completeCall($validated);
+            return response()->json([
+                'success' => true,
+                'data' => $result,
+            ], 200, ['Cache-Control' => 'no-store, private']);
         });
     });
 

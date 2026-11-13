@@ -1412,6 +1412,8 @@ namespace FunkenwerkOSLinux
                     return (true, st.LastNasBackupResult, 0, 0);
                 }
 
+                bool wasCatchUp = st.NasBackupPendingCatchUp;
+
                 // 2. Connect to Synology NAS via SMB2/SMB3
                 string nasPass = LinuxVaultAndStorage.GetNasPassword(st);
                 var client = new SMB2Client();
@@ -1429,6 +1431,7 @@ namespace FunkenwerkOSLinux
                     st.NasBackupPendingCatchUp = true;
                     st.LastNasBackupResult = $"NAS ({st.NasHost}) gerade nicht erreichbar (wird automatisch nachgeholt)";
                     LinuxVaultAndStorage.SaveSettings(st);
+                    ErrorSentinelAndWatchdog.RecordEvent("nas_backup", "NAS SMB-Sicherung vorübergehend nicht erreichbar", st.LastNasBackupResult, severity: "warning");
                     return (false, st.LastNasBackupResult, 0, 0);
                 }
 
@@ -1445,6 +1448,7 @@ namespace FunkenwerkOSLinux
                             ? "Bitte einmalig NAS-Passwort (alina) in den Funkenwerk-Einstellungen hinterlegen."
                             : $"NAS-Anmeldung fehlgeschlagen ({loginStatus}).";
                         LinuxVaultAndStorage.SaveSettings(st);
+                        ErrorSentinelAndWatchdog.RecordEvent("nas_backup", "NAS SMB-Anmeldung fehlgeschlagen", st.LastNasBackupResult, severity: "error");
                         return (false, st.LastNasBackupResult, 0, 0);
                     }
 
@@ -1520,6 +1524,15 @@ namespace FunkenwerkOSLinux
                         st.LastNasBackupAt = GetBerlinNow().ToString("dd.MM.yyyy HH:mm");
                         st.LastNasBackupResult = $"✓ Gesichert ({copied} neu/geändert, {archivedDeletes} bereinigt in {sw.ElapsedMilliseconds} ms)";
                         LinuxVaultAndStorage.SaveSettings(st);
+                        if (wasCatchUp)
+                        {
+                            ErrorSentinelAndWatchdog.RecordEvent(
+                                "nas_backup",
+                                "NAS SMB-Sicherung vorübergehend nicht erreichbar",
+                                st.LastNasBackupResult,
+                                autoHealed: true,
+                                healSummary: $"Delta-NAS-Backup auf //{st.NasHost}/{st.NasShare} wurde erfolgreich automatisch nachgeholt ({copied} Dateien synchronisiert).");
+                        }
                         return (true, st.LastNasBackupResult, copied, archivedDeletes);
                     }
                     finally

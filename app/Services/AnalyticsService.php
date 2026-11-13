@@ -176,6 +176,20 @@ class AnalyticsService
         
         $status = $unresolvedLogsCount > 0 ? 'error' : 'success';
         $msg = $unresolvedLogsCount > 0 ? $unresolvedLogsCount . ' Fehler (letzte 48h)' : 'Alles fehlerfrei (48h)';
+        if ($unresolvedLogsCount > 0) {
+            $types = (clone $unresolvedLogsQuery)->select('type')->distinct()->pluck('type')->map(function ($t) {
+                return match ((string) $t) {
+                    'android' => 'Android',
+                    'minipc_linux' => 'Mini-PC',
+                    'windows_desktop' => 'Funkenwerk',
+                    'frontend_error' => 'Frontend',
+                    default => 'Portal',
+                };
+            })->unique()->values()->all();
+            if (!empty($types)) {
+                $msg = $unresolvedLogsCount . ' Fehler (' . implode(', ', array_slice($types, 0, 3)) . ')';
+            }
+        }
         if ($totalLogs === 0) { $msg = 'Keine System-Logs vorhanden'; $status = 'success'; }
 
         return [

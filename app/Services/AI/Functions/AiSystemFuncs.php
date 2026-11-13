@@ -22,6 +22,25 @@ trait AiSystemFuncs
 
         $schema = [
             [
+                'name' => 'system_get_error_sentinel',
+                'description' => 'Liest den zentralen plattformübergreifenden Ökosystem-Fehler-Sentinel (Laravel Portal, Android App, Werkstatt Mini-PC Linux & Funkenwerk Windows Suite) inklusive offener Fehler, 24h-Häufigkeitszähler (occurrences_count), Ursachen-Diagnose und erfolgter Selbstheilungen ([AUTO-GEHEILT]). Nutze dies sofort, wenn Alina fragt, ob irgendwo im System/auf dem Handy/Mini-PC ein Fehler vorliegt oder was automatisch repariert wurde.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'platform' => [
+                            'type' => 'string',
+                            'enum' => ['all', 'portal', 'android', 'minipc_linux', 'windows_desktop'],
+                            'description' => 'Optionaler Plattform-Filter (Standard: all).'
+                        ],
+                        'hours' => [
+                            'type' => 'integer',
+                            'description' => 'Zeitfenster in Stunden (Standard: 48).'
+                        ]
+                    ],
+                ],
+                'callable' => [self::class, 'executeGetErrorSentinel']
+            ],
+            [
                 'name' => 'system_read_clipboard',
                 'description' => 'Weist das Frontend an, den gesamten Inhalt aus dem Zwischenspeicher (Clipboard) des Users auszulesen. Das können Bilder (Screenshots) oder auch kopierte Texte sein. Nutze dies, wenn du den Zwischenspeicher des Users analysieren sollst.',
                 'parameters' => [
@@ -4532,6 +4551,72 @@ trait AiSystemFuncs
             '_frontend_events' => [
                 ['type' => 'dispatch', 'name' => 'write-clipboard', 'detail' => ['text' => $args['text']]]
             ]
+        ];
+    }
+
+    public static function executeGetErrorSentinel(array $args)
+    {
+        if ($denied = self::assertSystemStaffAccess()) {
+            return $denied;
+        }
+
+        if (!class_exists(\App\Models\System\SystemLog::class)) {
+            return ['status' => 'success', 'open_errors_count' => 0, 'items' => []];
+        }
+
+        $hours = max(1, min(336, (int) ($args['hours'] ?? 48)));
+        $platform = strtolower(trim((string) ($args['platform'] ?? 'all')));
+
+        $query = \App\Models\System\SystemLog::whereIn('status', ['error', 'warning'])
+            ->where('started_at', '>=', now()->subHours($hours))
+            ->orderByDesc('finished_at')
+            ->orderByDesc('id');
+
+        if ($platform !== '' && $platform !== 'all') {
+            if ($platform === 'portal') {
+                $query->whereIn('type', ['system', 'frontend_error', 'scheduler', 'websocket']);
+            } else {
+                $query->where('type', $platform);
+            }
+        }
+
+        $rows = $query->limit(25)->get();
+        $items = [];
+        $openErrors = 0;
+        $autoHealedCount = 0;
+
+        foreach ($rows as $row) {
+            $payload = is_array($row->payload) ? $row->payload : [];
+            $isAutoHealed = !empty($payload['auto_healed']);
+            if ($row->status === 'error') {
+                $openErrors++;
+            }
+            if ($isAutoHealed) {
+                $autoHealedCount++;
+            }
+
+            $items[] = [
+                'id' => $row->id,
+                'platform' => $payload['platform'] ?? $row->type,
+                'status' => $row->status,
+                'auto_healed' => $isAutoHealed,
+                'auto_heal_action' => $payload['auto_heal_action'] ?? null,
+                'occurrences' => (int) ($payload['occurrences_count'] ?? 1),
+                'title' => $row->title,
+                'message' => \Illuminate\Support\Str::limit((string) $row->message, 400),
+                'probable_cause' => $payload['diagnosis']['probable_cause'] ?? null,
+                'recommended_action' => $payload['diagnosis']['recommended_action'] ?? null,
+                'last_seen_at' => $row->finished_at ? $row->finished_at->format('d.m.Y H:i:s') : null,
+            ];
+        }
+
+        return [
+            'status' => 'success',
+            'window_hours' => $hours,
+            'open_errors_count' => $openErrors,
+            'auto_healed_count' => $autoHealedCount,
+            'total_entries' => count($items),
+            'items' => $items,
         ];
     }
 }

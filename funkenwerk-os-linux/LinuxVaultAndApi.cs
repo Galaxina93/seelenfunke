@@ -11,6 +11,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -28,6 +29,8 @@ namespace FunkenwerkOSLinux
         public string WallpaperMode { get; set; } = "AtelierVideo"; // "AtelierVideo" | "Kosmos"
         public string LastFunkiraSessionId { get; set; } = "";
         public string EncryptedOwnerFaceVector { get; set; } = "";
+        public string EncryptedOwnerVoiceVector { get; set; } = "";
+        public string EncryptedCompanionFacesJson { get; set; } = "";
         public bool TikTokLiveMode { get; set; } = false;
         public string TikTokHandle { get; set; } = "@mein_seelenfunke";
         public string NasHost { get; set; } = "192.168.188.33";
@@ -39,6 +42,15 @@ namespace FunkenwerkOSLinux
         public string LastNasBackupResult { get; set; } = "";
         public bool NasBackupPendingCatchUp { get; set; } = false;
         public List<NoteItemDto> Notes { get; set; } = new();
+    }
+
+    public sealed class CompanionFaceEntryDto
+    {
+        public string ContactId { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Relationship { get; set; } = "";
+        public float[] Vector { get; set; } = Array.Empty<float>();
+        public string SavedAt { get; set; } = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
     }
 
     public sealed class NoteItemDto
@@ -78,6 +90,7 @@ namespace FunkenwerkOSLinux
         public int ShopLevel { get; set; } = 1;
         public string ShopLevelTitle { get; set; } = "Gründer-Werkbank";
         public int PendingTrichterCount { get; set; }
+        public int OpenSystemErrorsCount { get; set; }
     }
 
     public sealed class LoginResultDto
@@ -371,6 +384,67 @@ namespace FunkenwerkOSLinux
             SaveSettings(settings);
         }
 
+        public static float[]? GetOwnerVoiceVector(LinuxOsSettings settings)
+        {
+            string dec = DecryptSecret(settings.EncryptedOwnerVoiceVector);
+            if (string.IsNullOrWhiteSpace(dec)) return null;
+            try
+            {
+                var vec = JsonSerializer.Deserialize<float[]>(dec);
+                return (vec != null && vec.Length == 48) ? vec : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public static void StoreOwnerVoiceVector(LinuxOsSettings settings, float[]? vector)
+        {
+            if (vector == null || vector.Length == 0)
+            {
+                settings.EncryptedOwnerVoiceVector = "";
+            }
+            else
+            {
+                settings.EncryptedOwnerVoiceVector = EncryptSecret(JsonSerializer.Serialize(vector));
+            }
+            SaveSettings(settings);
+        }
+
+        public static List<CompanionFaceEntryDto> GetCompanionFaces(LinuxOsSettings settings)
+        {
+            string dec = DecryptSecret(settings.EncryptedCompanionFacesJson);
+            if (string.IsNullOrWhiteSpace(dec)) return new List<CompanionFaceEntryDto>();
+            try
+            {
+                var list = JsonSerializer.Deserialize<List<CompanionFaceEntryDto>>(dec);
+                if (list == null) return new List<CompanionFaceEntryDto>();
+                return list.Where(x => x != null && !string.IsNullOrWhiteSpace(x.Name) && x.Vector != null && x.Vector.Length == 128).ToList();
+            }
+            catch
+            {
+                return new List<CompanionFaceEntryDto>();
+            }
+        }
+
+        public static void StoreCompanionFaces(LinuxOsSettings settings, List<CompanionFaceEntryDto>? companions)
+        {
+            if (companions == null || companions.Count == 0)
+            {
+                settings.EncryptedCompanionFacesJson = "";
+            }
+            else
+            {
+                var clean = companions
+                    .Where(x => x != null && !string.IsNullOrWhiteSpace(x.Name) && x.Vector != null && x.Vector.Length == 128)
+                    .Take(25)
+                    .ToList();
+                settings.EncryptedCompanionFacesJson = clean.Count == 0 ? "" : EncryptSecret(JsonSerializer.Serialize(clean));
+            }
+            SaveSettings(settings);
+        }
+
         public static string GetNasPassword(LinuxOsSettings settings)
         {
             return DecryptSecret(settings.EncryptedNasPassword);
@@ -394,6 +468,7 @@ namespace FunkenwerkOSLinux
         };
 
         private static readonly HttpClient Http = CreateHardenedClient();
+        internal static HttpClient SharedHttp => Http;
         private static readonly ConcurrentDictionary<string, (DateTime ExpiresUtc, string RawJson)> s_schemaCache = new(StringComparer.OrdinalIgnoreCase);
 
         private static bool s_initializedOrderTracking;
@@ -866,6 +941,7 @@ namespace FunkenwerkOSLinux
             int expressOrders = GetInt(root, "express_orders_count", 0);
             int openCarts = GetInt(root, "open_carts_count", 0);
             snap.PendingTrichterCount = Math.Max(0, GetInt(root, "pending_trichter_count", 0));
+            snap.OpenSystemErrorsCount = Math.Max(0, GetInt(root, "open_system_errors_count", 0));
             string latestOrderId = GetStr(root, "latest_order_id");
 
             if (openOrders < 0 && root.TryGetProperty("orders", out var ordNode))
@@ -997,6 +1073,395 @@ namespace FunkenwerkOSLinux
             if (p.ValueKind == JsonValueKind.Number && p.TryGetInt32(out int v)) return v;
             if (p.ValueKind == JsonValueKind.String && int.TryParse(p.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int sv)) return sv;
             return def;
+        }
+    }
+
+    public sealed class SentinelEventDto
+    {
+        public string Platform { get; set; } = "minipc_linux";
+        public string Severity { get; set; } = "error";
+        public string Component { get; set; } = "minipc";
+        public string Title { get; set; } = "";
+        public string Message { get; set; } = "";
+        public string Stacktrace { get; set; } = "";
+        public string Fingerprint { get; set; } = "";
+        public string AppVersion { get; set; } = "2.6.0";
+        public string Device { get; set; } = Environment.MachineName;
+        public bool AutoHealed { get; set; }
+        public string HealSummary { get; set; } = "";
+        public string OccurredAt { get; set; } = DateTime.UtcNow.ToString("O");
+        public Dictionary<string, string> Context { get; set; } = new();
+    }
+
+    public static class ErrorSentinelAndWatchdog
+    {
+        private static readonly object s_queueLock = new();
+        private static readonly ConcurrentDictionary<string, DateTime> s_recentFingerprints = new(StringComparer.Ordinal);
+        private static int s_started;
+        private static int s_flushing;
+        private static int s_totalSent;
+        private static int s_totalAutoHealed;
+        private static string s_lastFlushStatus = "Bereit";
+        private static DateTime s_lastFlushAtUtc = DateTime.MinValue;
+
+        private static string QueueFilePath => Path.Combine(LinuxVaultAndStorage.DataDir, "sentinel_queue.json");
+
+        public static string ScrubSecrets(string? input)
+        {
+            if (string.IsNullOrEmpty(input)) return "";
+            string s = input;
+            s = Regex.Replace(s, @"(?i)(Bearer\s+)[A-Za-z0-9\-._~+/=|]+", "$1[REDACTED]");
+            s = Regex.Replace(s, @"FWLINUXAES256GCM1:[A-Za-z0-9+/=]+", "FWLINUXAES256GCM1:[REDACTED]");
+            s = Regex.Replace(s, @"(?i)((?:api[_-]?key|token|password|passwd|secret|authorization)\s*[:=]\s*[""']?)([^\s""'&,;}{]+)", "$1[REDACTED]");
+            s = Regex.Replace(s, @"(?i)([?&](?:key|token|password|secret)=)[^&\s]+", "$1[REDACTED]");
+            if (s.Length > 4000) s = s.Substring(0, 4000);
+            return s;
+        }
+
+        public static string ComputeFingerprint(string platform, string component, string title)
+        {
+            string raw = $"{(platform ?? "minipc_linux").Trim().ToLowerInvariant()}|{(component ?? "general").Trim().ToLowerInvariant()}|{(title ?? "").Trim().ToLowerInvariant()}";
+            byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
+            return Convert.ToHexString(hash).ToLowerInvariant();
+        }
+
+        public static void EnsureStarted()
+        {
+            if (Interlocked.Exchange(ref s_started, 1) == 1) return;
+
+            AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            {
+                if (e.ExceptionObject is Exception ex)
+                {
+                    RecordException("runtime.unhandled", "Unbehandelte Ausnahme in FunkenwerkOSLinux", ex);
+                }
+            };
+
+            TaskScheduler.UnobservedTaskException += (_, e) =>
+            {
+                try
+                {
+                    RecordException("runtime.task", "Unbeobachtete Task-Ausnahme in FunkenwerkOSLinux", e.Exception);
+                    e.SetObserved();
+                }
+                catch { }
+            };
+
+            _ = Task.Run(FlushQueueAsync);
+
+            if (OperatingSystem.IsLinux())
+            {
+                _ = Task.Run(RunSelfHealWatchdogLoopAsync);
+            }
+        }
+
+        public static void RecordException(string component, string title, Exception ex, bool autoHealed = false, string? healSummary = null)
+        {
+            RecordEvent(
+                component: component,
+                title: $"{title}: {ex.GetType().Name}",
+                message: ex.Message,
+                stacktrace: ex.ToString(),
+                autoHealed: autoHealed,
+                healSummary: healSummary,
+                severity: autoHealed ? "warning" : "error");
+        }
+
+        public static bool RecordEvent(
+            string component,
+            string title,
+            string? message = null,
+            string? stacktrace = null,
+            bool autoHealed = false,
+            string? healSummary = null,
+            string severity = "error",
+            Dictionary<string, string>? context = null)
+        {
+            if (string.IsNullOrWhiteSpace(title)) return false;
+
+            string safeComponent = ScrubSecrets(component.Trim());
+            string safeTitle = ScrubSecrets(title.Trim());
+            string fp = ComputeFingerprint("minipc_linux", safeComponent, safeTitle);
+
+            // Throttle identical non-healed events within 3 minutes locally so loops never flood disk or API
+            string throttleKey = autoHealed ? (fp + ":healed") : fp;
+            if (s_recentFingerprints.TryGetValue(throttleKey, out var lastSeen) &&
+                (DateTime.UtcNow - lastSeen).TotalSeconds < 180)
+            {
+                return false;
+            }
+            s_recentFingerprints[throttleKey] = DateTime.UtcNow;
+
+            if (autoHealed)
+                Interlocked.Increment(ref s_totalAutoHealed);
+
+            var cleanCtx = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (context != null)
+            {
+                foreach (var kv in context)
+                {
+                    cleanCtx[ScrubSecrets(kv.Key)] = ScrubSecrets(kv.Value);
+                }
+            }
+
+            var item = new SentinelEventDto
+            {
+                Platform = "minipc_linux",
+                Severity = autoHealed ? "warning" : (string.IsNullOrWhiteSpace(severity) ? "error" : severity.Trim().ToLowerInvariant()),
+                Component = string.IsNullOrWhiteSpace(safeComponent) ? "minipc" : safeComponent,
+                Title = safeTitle,
+                Message = ScrubSecrets(message ?? safeTitle),
+                Stacktrace = ScrubSecrets(stacktrace ?? ""),
+                Fingerprint = fp,
+                AppVersion = "2.6.0",
+                Device = Environment.MachineName,
+                AutoHealed = autoHealed,
+                HealSummary = ScrubSecrets(healSummary ?? ""),
+                OccurredAt = DateTime.UtcNow.ToString("O"),
+                Context = cleanCtx
+            };
+
+            EnqueuePersistent(item);
+            _ = Task.Run(FlushQueueAsync);
+            return true;
+        }
+
+        private static List<SentinelEventDto> LoadQueueUnsafe()
+        {
+            try
+            {
+                if (!File.Exists(QueueFilePath)) return new List<SentinelEventDto>();
+                var loaded = JsonSerializer.Deserialize<List<SentinelEventDto>>(File.ReadAllText(QueueFilePath));
+                return loaded ?? new List<SentinelEventDto>();
+            }
+            catch
+            {
+                return new List<SentinelEventDto>();
+            }
+        }
+
+        private static void SaveQueueUnsafe(List<SentinelEventDto> list)
+        {
+            try
+            {
+                if (list.Count == 0)
+                {
+                    if (File.Exists(QueueFilePath)) File.Delete(QueueFilePath);
+                    return;
+                }
+                string json = JsonSerializer.Serialize(list);
+                File.WriteAllText(QueueFilePath, json, new UTF8Encoding(false));
+                LinuxVaultAndStorage.TryRestrictFilePermissions(QueueFilePath);
+            }
+            catch { }
+        }
+
+        private static void EnqueuePersistent(SentinelEventDto item)
+        {
+            lock (s_queueLock)
+            {
+                var list = LoadQueueUnsafe();
+                // Replace older queued event with identical fingerprint unless autoHealed changed
+                list.RemoveAll(x => x.Fingerprint == item.Fingerprint && x.AutoHealed == item.AutoHealed);
+                list.Add(item);
+                while (list.Count > 50)
+                    list.RemoveAt(0);
+                SaveQueueUnsafe(list);
+            }
+        }
+
+        public static async Task<bool> FlushQueueAsync()
+        {
+            if (Interlocked.Exchange(ref s_flushing, 1) == 1) return false;
+            try
+            {
+                List<SentinelEventDto> batch;
+                lock (s_queueLock)
+                {
+                    batch = LoadQueueUnsafe().Take(20).ToList();
+                }
+                if (batch.Count == 0) return true;
+
+                var settings = LinuxVaultAndStorage.LoadSettings();
+                string norm = (settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant() == "stage" ? "stage" : "live";
+                string bearer = LinuxVaultAndStorage.GetToken(settings, norm);
+                if (string.IsNullOrWhiteSpace(bearer))
+                {
+                    s_lastFlushStatus = "Wartet auf Server-Token";
+                    return false;
+                }
+
+                string url = $"{SeelenfunkeLinuxApiClient.ResolveBaseApiUrl(norm)}/system/error-ingest";
+                if (!SeelenfunkeLinuxApiClient.ValidateHttpsUrl(url)) return false;
+
+                var wireEvents = batch.Select(e => new
+                {
+                    platform = e.Platform,
+                    severity = e.Severity,
+                    component = e.Component,
+                    title = e.Title,
+                    message = e.Message,
+                    stacktrace = string.IsNullOrWhiteSpace(e.Stacktrace) ? null : e.Stacktrace,
+                    fingerprint = e.Fingerprint,
+                    app_version = e.AppVersion,
+                    device = e.Device,
+                    auto_healed = e.AutoHealed,
+                    heal_summary = string.IsNullOrWhiteSpace(e.HealSummary) ? null : e.HealSummary,
+                    occurred_at = e.OccurredAt,
+                    context = e.Context
+                }).ToList();
+
+                string payloadJson = JsonSerializer.Serialize(new { events = wireEvents });
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+                using var req = new HttpRequestMessage(HttpMethod.Post, url);
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                req.Content = new StringContent(payloadJson, new UTF8Encoding(false), "application/json");
+
+                using var resp = await SeelenfunkeLinuxApiClient.SharedHttp.SendAsync(req, cts.Token).ConfigureAwait(false);
+                if (resp.IsSuccessStatusCode)
+                {
+                    lock (s_queueLock)
+                    {
+                        var current = LoadQueueUnsafe();
+                        var sentSet = new HashSet<string>(batch.Select(b => b.Fingerprint + "|" + b.OccurredAt), StringComparer.Ordinal);
+                        current.RemoveAll(c => sentSet.Contains(c.Fingerprint + "|" + c.OccurredAt));
+                        SaveQueueUnsafe(current);
+                    }
+                    Interlocked.Add(ref s_totalSent, batch.Count);
+                    s_lastFlushAtUtc = DateTime.UtcNow;
+                    s_lastFlushStatus = $"Synchronisiert ({batch.Count} Ereignis(se))";
+                    return true;
+                }
+
+                s_lastFlushStatus = $"HTTP {(int)resp.StatusCode}";
+                return false;
+            }
+            catch (Exception ex)
+            {
+                s_lastFlushStatus = $"Offline-Puffer aktiv ({ScrubSecrets(ex.Message)})";
+                return false;
+            }
+            finally
+            {
+                Interlocked.Exchange(ref s_flushing, 0);
+            }
+        }
+
+        public static object GetStatusSnapshot()
+        {
+            int queued;
+            lock (s_queueLock)
+            {
+                queued = LoadQueueUnsafe().Count;
+            }
+            return new
+            {
+                ok = true,
+                queuedEvents = queued,
+                totalSent = s_totalSent,
+                totalAutoHealed = s_totalAutoHealed,
+                lastFlushStatus = s_lastFlushStatus,
+                lastFlushAtUtc = s_lastFlushAtUtc == DateTime.MinValue ? "" : s_lastFlushAtUtc.ToString("O")
+            };
+        }
+
+        private static async Task RunSelfHealWatchdogLoopAsync()
+        {
+            await Task.Delay(TimeSpan.FromSeconds(25)).ConfigureAwait(false);
+            int senseFailStreak = 0;
+            bool hadWebcamBefore = false;
+            bool webcamMissingReported = false;
+
+            while (true)
+            {
+                try
+                {
+                    // 1. Check Local Sense Daemon (:17701) & Self-Heal
+                    var health = await LocalSenseBridge.GetHealthAsync().ConfigureAwait(false);
+                    bool senseOk = health["ok"]?.GetValue<bool>() == true;
+                    if (!senseOk)
+                    {
+                        senseFailStreak++;
+                        if (senseFailStreak >= 2)
+                        {
+                            LocalSenseBridge.ForceRestartDaemon();
+                            await Task.Delay(3000).ConfigureAwait(false);
+                            var afterRestart = await LocalSenseBridge.GetHealthAsync().ConfigureAwait(false);
+                            bool recovered = afterRestart["ok"]?.GetValue<bool>() == true;
+                            senseFailStreak = 0;
+
+                            if (recovered)
+                            {
+                                RecordEvent(
+                                    component: "sense_daemon",
+                                    title: "Lokaler Sense-Daemon (Port 17701) reagierte nicht",
+                                    message: "Der Python-Sense-Prozess auf 127.0.0.1:17701 antwortete zweimal nicht auf Health-Checks.",
+                                    autoHealed: true,
+                                    healSummary: "funkira_local_sense.py wurde vom Mini-PC Watchdog automatisch neu gestartet und antwortet wieder.");
+                            }
+                            else
+                            {
+                                RecordEvent(
+                                    component: "sense_daemon",
+                                    title: "Lokaler Sense-Daemon (Port 17701) konnte nicht geheilt werden",
+                                    message: "Auch nach automatischem Neustart antwortet 127.0.0.1:17701 nicht auf Health-Checks.",
+                                    autoHealed: false,
+                                    severity: "error");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        senseFailStreak = 0;
+                    }
+
+                    // 2. Check Logitech USB C920 Webcam presence
+                    var cam = await LinuxHardwareEngine.DetectAndPrepareWebcamAsync(activateUsbMicDefault: false).ConfigureAwait(false);
+                    if (cam.HasCamera)
+                    {
+                        if (webcamMissingReported)
+                        {
+                            webcamMissingReported = false;
+                            RecordEvent(
+                                component: "usb_webcam",
+                                title: "Werkstatt-USB-Kamera getrennt",
+                                message: $"Kamera '{cam.CameraName}' ({cam.VideoDevice}) ist wieder verbunden.",
+                                autoHealed: true,
+                                healSummary: $"USB-Kamera ({cam.VideoDevice}) wieder erkannt und PipeWire-Routing reaktiviert.");
+                        }
+                        hadWebcamBefore = true;
+                    }
+                    else if (hadWebcamBefore && !webcamMissingReported)
+                    {
+                        webcamMissingReported = true;
+                        RecordEvent(
+                            component: "usb_webcam",
+                            title: "Werkstatt-USB-Kamera getrennt",
+                            message: "Die zuvor aktive USB-Kamera (/dev/video*) am Mini-PC wurde nicht mehr gefunden.",
+                            autoHealed: false,
+                            severity: "warning");
+                    }
+
+                    // 3. Auto-Heal Preferred Bluetooth Stereo (Teufel KB 43 CR 19) & Pairing-Mode Recovery
+                    var btHeal = await LinuxHardwareEngine.EnsurePreferredBluetoothConnectedWatchdogAsync().ConfigureAwait(false);
+                    if (btHeal.AutoHealedNow && !string.IsNullOrWhiteSpace(btHeal.Summary))
+                    {
+                        RecordEvent(
+                            component: "bluetooth_audio",
+                            title: "Teufel Bluetooth-Verbindung automatisch wiederhergestellt",
+                            message: btHeal.Summary,
+                            autoHealed: true,
+                            healSummary: btHeal.Summary);
+                    }
+
+                    // 4. Flush any pending offline queue items
+                    await FlushQueueAsync().ConfigureAwait(false);
+                }
+                catch { }
+
+                await Task.Delay(TimeSpan.FromSeconds(45)).ConfigureAwait(false);
+            }
         }
     }
 }

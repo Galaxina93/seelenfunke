@@ -43,7 +43,8 @@ Route::prefix('funki/contacts')->group(function () {
             'postal_code' => 'nullable|string|max:20',
             'city' => 'nullable|string|max:255',
             'country' => 'nullable|string|max:255',
-            'is_favorite' => 'boolean'
+            'is_favorite' => 'boolean',
+            'funkira_call_whitelist' => 'boolean'
         ]);
 
         $contact = ManagementContact::create($data);
@@ -72,7 +73,8 @@ Route::prefix('funki/contacts')->group(function () {
             'postal_code' => 'nullable|string|max:20',
             'city' => 'nullable|string|max:255',
             'country' => 'nullable|string|max:255',
-            'is_favorite' => 'boolean'
+            'is_favorite' => 'boolean',
+            'funkira_call_whitelist' => 'boolean'
         ]);
 
         $contact->update($data);
@@ -85,6 +87,14 @@ Route::prefix('funki/contacts')->group(function () {
         $contact = ManagementContact::findOrFail($id);
         $contact->update(['is_favorite' => $data['is_favorite']]);
         return response()->json(['success' => true]);
+    });
+
+    // 5b. Toggle Funkira Call Whitelist
+    Route::put('/{id}/call-whitelist', function (Request $request, $id) {
+        $data = $request->validate(['funkira_call_whitelist' => 'required|boolean']);
+        $contact = ManagementContact::findOrFail($id);
+        $contact->update(['funkira_call_whitelist' => $data['funkira_call_whitelist']]);
+        return response()->json(['success' => true, 'data' => $contact]);
     });
 
     // 6. Delete Contact

@@ -1,12 +1,18 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Security.Authentication;
+using System.Security.Cryptography;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using FluentFTP;
@@ -15,18 +21,53 @@ using Renci.SshNet;
 
 namespace FunkenwerkFtp
 {
-    public sealed class FileEntryItem
+    public sealed class FileEntryItem : INotifyPropertyChanged
     {
+        private bool _isDropTarget;
+
         public string Name { get; set; } = "";
         public string FullPath { get; set; } = "";
         public bool IsDirectory { get; set; }
+        public bool IsParentNav { get; set; }
         public long Size { get; set; }
         public DateTime Modified { get; set; }
         public string Permissions { get; set; } = "";
 
-        public string DisplayName => IsDirectory ? $"📁 {Name}" : $"📄 {Name}";
-        public string SizeFormatted => IsDirectory ? "<DIR>" : FormatBytes(Size);
-        public string ModifiedFormatted => Modified == DateTime.MinValue ? "-" : Modified.ToString("dd.MM.yyyy HH:mm");
+        public bool IsDropTarget
+        {
+            get => _isDropTarget;
+            set
+            {
+                if (_isDropTarget == value) return;
+                _isDropTarget = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsDropTarget)));
+            }
+        }
+
+        public string DisplayName
+        {
+            get
+            {
+                if (IsParentNav) return "↩ ..";
+                if (IsDirectory) return $"📁 {Name}";
+                if (FtpTextBufferCodec.IsImageFileName(Name)) return $"🖼 {Name}";
+                string ext = Path.GetExtension(Name);
+                if (string.Equals(ext, ".pdf", StringComparison.OrdinalIgnoreCase)) return $"📕 {Name}";
+                if (ext.Equals(".zip", StringComparison.OrdinalIgnoreCase) ||
+                    ext.Equals(".7z", StringComparison.OrdinalIgnoreCase) ||
+                    ext.Equals(".tar", StringComparison.OrdinalIgnoreCase) ||
+                    ext.Equals(".gz", StringComparison.OrdinalIgnoreCase) ||
+                    ext.Equals(".rar", StringComparison.OrdinalIgnoreCase))
+                    return $"📦 {Name}";
+                if (FtpTextBufferCodec.IsLikelyTextFileName(Name)) return $"📝 {Name}";
+                return $"📄 {Name}";
+            }
+        }
+
+        public string SizeFormatted => IsParentNav ? "" : (IsDirectory ? "<DIR>" : FormatBytes(Size));
+        public string ModifiedFormatted => (IsParentNav || Modified == DateTime.MinValue) ? "" : Modified.ToString("dd.MM.yyyy HH:mm");
+
+        public event PropertyChangedEventHandler? PropertyChanged;
 
         private static string FormatBytes(long bytes)
         {
@@ -47,22 +88,50 @@ namespace FunkenwerkFtp
 
         private SftpClient? _sftpClient;
         private AsyncFtpClient? _ftpClient;
+        private readonly SemaphoreSlim _remoteIoGate = new(1, 1);
         private string _activeProtocol = "SFTP";
         private string _lastPinnedFingerprint = "";
+
+        // Sorting state
+        private string _localSortColumn = "Name";
+        private bool _localSortAsc = true;
+        private string _remoteSortColumn = "Name";
+        private bool _remoteSortAsc = true;
+        private List<FileEntryItem> _localCurrentItems = new();
+        private List<FileEntryItem> _remoteCurrentItems = new();
+
+        // Drag & Drop state
         private Point _localDragStartPoint;
         private Point _remoteDragStartPoint;
+        private bool _localCanStartDrag;
+        private bool _remoteCanStartDrag;
+        private FileEntryItem? _localDeferredSingleSelect;
+        private FileEntryItem? _remoteDeferredSingleSelect;
         private bool _isDraggingInternal = false;
+        private FileEntryItem? _highlightedDropItem;
+
         private const string DRAG_FORMAT_REMOTE = "FunkenwerkFtp.RemoteItems";
         private const string DRAG_FORMAT_LOCAL = "FunkenwerkFtp.LocalItems";
+        private const long MAX_EXTERNAL_DRAG_STAGE_BYTES = 160L * 1024 * 1024; // 160 MB safety cap for synchronous Explorer drop
+
+        // External Live-Edit file watchers
+        private readonly List<FileSystemWatcher> _liveEditWatchers = new();
+        private readonly Dictionary<string, byte[]> _liveEditLastHashes = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, DateTime> _liveEditDebounceUtc = new(StringComparer.OrdinalIgnoreCase);
 
         public MainWindow()
         {
             InitializeComponent();
+            ApplyTheme();
+            DragStagingManager.PruneOldBatches(TimeSpan.FromMinutes(15));
             LoadProfilesIntoUi();
             string startLocal = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
             NavigateLocalDirectory(startLocal);
         }
 
+        // =====================================================================
+        // PROFILES & CONNECTION BAR
+        // =====================================================================
         private void LoadProfilesIntoUi()
         {
             _profiles = FunkenwerkFtpSecurity.LoadAndImportProfiles();
@@ -97,6 +166,15 @@ namespace FunkenwerkFtp
                 NavigateLocalDirectory(p.LocalDirectory);
         }
 
+        private void ConnectionInput_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter && !IsConnected())
+            {
+                e.Handled = true;
+                Connect_Click(ConnectBtn, new RoutedEventArgs());
+            }
+        }
+
         private void SelectProtocolItem(string proto)
         {
             foreach (ComboBoxItem item in ProtocolCombo.Items)
@@ -109,10 +187,8 @@ namespace FunkenwerkFtp
             }
         }
 
-        private string GetSelectedProtocol()
-        {
-            return (ProtocolCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "SFTP";
-        }
+        private string GetSelectedProtocol() =>
+            (ProtocolCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "SFTP";
 
         private void ProtocolCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -122,10 +198,7 @@ namespace FunkenwerkFtp
             else if (proto != "SFTP" && PortBox.Text == "22") PortBox.Text = "21";
         }
 
-        private string GetPasswordValue()
-        {
-            return _isPassVisible ? PassVisibleBox.Text : PassBox.Password;
-        }
+        private string GetPasswordValue() => _isPassVisible ? PassVisibleBox.Text : PassBox.Password;
 
         private void SetPasswordValue(string val)
         {
@@ -169,6 +242,7 @@ namespace FunkenwerkFtp
             if (dlg.ShowDialog() == true)
             {
                 _selectedPrivateKeyPath = dlg.FileName;
+                PickKeyBtn.ToolTip = $"SSH Key: {_selectedPrivateKeyPath}";
                 StatusText.Text = $"🔑 SSH-Key ausgewählt: {Path.GetFileName(_selectedPrivateKeyPath)}";
             }
         }
@@ -198,9 +272,13 @@ namespace FunkenwerkFtp
                 }
                 else
                 {
+                    string defaultName = string.IsNullOrWhiteSpace(user) ? host : $"{user}@{host}";
+                    string? chosenName = FtpModalDialogs.ShowInputPrompt(this, _isDarkMode, "Profilname speichern", defaultName, "Speichern");
+                    if (string.IsNullOrWhiteSpace(chosenName)) return;
+
                     var newProf = new FtpConnectionProfile
                     {
-                        Name = string.IsNullOrWhiteSpace(user) ? host : $"{user}@{host}",
+                        Name = chosenName,
                         Protocol = proto,
                         Host = host,
                         Port = port,
@@ -229,16 +307,67 @@ namespace FunkenwerkFtp
         private void DeleteProfile_Click(object sender, RoutedEventArgs e)
         {
             if (ProfilesCombo.SelectedItem is not FtpConnectionProfile current) return;
+            if (!FtpModalDialogs.ShowConfirmDialog(this, _isDarkMode, "Profil entfernen", $"Gespeichertes Profil '{current.Name}' wirklich entfernen?", "Entfernen", isDanger: true))
+                return;
+
             _profiles.Remove(current);
             FunkenwerkFtpSecurity.SaveProfiles(_profiles);
             ProfilesCombo.ItemsSource = null;
             ProfilesCombo.ItemsSource = _profiles;
             if (_profiles.Count > 0) ProfilesCombo.SelectedIndex = 0;
-            StatusText.Text = "Profil gelöscht.";
+            StatusText.Text = "Profil entfernt.";
         }
 
         // =====================================================================
-        // LOCAL FILESYSTEM BROWSER
+        // SORTING HELPERS
+        // =====================================================================
+        private static List<FileEntryItem> SortEntryList(IEnumerable<FileEntryItem> source, string column, bool asc)
+        {
+            var list = source.ToList();
+            var parentRow = list.FirstOrDefault(x => x.IsParentNav);
+            var rest = list.Where(x => !x.IsParentNav);
+
+            IOrderedEnumerable<FileEntryItem> ordered = rest.OrderByDescending(x => x.IsDirectory);
+            ordered = column switch
+            {
+                "Größe" => asc ? ordered.ThenBy(x => x.Size).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                               : ordered.ThenByDescending(x => x.Size).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+                "Geändert" => asc ? ordered.ThenBy(x => x.Modified).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                                  : ordered.ThenByDescending(x => x.Modified).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+                "Rechte" => asc ? ordered.ThenBy(x => x.Permissions, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                                : ordered.ThenByDescending(x => x.Permissions, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+                _ => asc ? ordered.ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                         : ordered.ThenByDescending(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            };
+
+            var final = new List<FileEntryItem>(list.Count);
+            if (parentRow != null) final.Add(parentRow);
+            final.AddRange(ordered);
+            return final;
+        }
+
+        private void LocalFilesList_ColumnHeaderClick(object sender, RoutedEventArgs e)
+        {
+            if (e.OriginalSource is not GridViewColumnHeader hdr || hdr.Column == null) return;
+            string col = hdr.Column.Header?.ToString() ?? "Name";
+            if (_localSortColumn == col) _localSortAsc = !_localSortAsc;
+            else { _localSortColumn = col; _localSortAsc = true; }
+            _localCurrentItems = SortEntryList(_localCurrentItems, _localSortColumn, _localSortAsc);
+            LocalFilesList.ItemsSource = _localCurrentItems;
+        }
+
+        private void RemoteFilesList_ColumnHeaderClick(object sender, RoutedEventArgs e)
+        {
+            if (e.OriginalSource is not GridViewColumnHeader hdr || hdr.Column == null) return;
+            string col = hdr.Column.Header?.ToString() ?? "Name";
+            if (_remoteSortColumn == col) _remoteSortAsc = !_remoteSortAsc;
+            else { _remoteSortColumn = col; _remoteSortAsc = true; }
+            _remoteCurrentItems = SortEntryList(_remoteCurrentItems, _remoteSortColumn, _remoteSortAsc);
+            RemoteFilesList.ItemsSource = _remoteCurrentItems;
+        }
+
+        // =====================================================================
+        // LOCAL FILESYSTEM BROWSER & ACTIONS
         // =====================================================================
         private void NavigateLocalDirectory(string path)
         {
@@ -250,8 +379,18 @@ namespace FunkenwerkFtp
 
                 var entries = new List<FileEntryItem>();
                 var di = new DirectoryInfo(full);
+                if (di.Parent != null)
+                {
+                    entries.Add(new FileEntryItem
+                    {
+                        Name = "..",
+                        FullPath = di.Parent.FullName,
+                        IsDirectory = true,
+                        IsParentNav = true
+                    });
+                }
 
-                foreach (var sub in di.GetDirectories().OrderBy(d => d.Name))
+                foreach (var sub in di.GetDirectories())
                 {
                     if ((sub.Attributes & FileAttributes.Hidden) != 0) continue;
                     entries.Add(new FileEntryItem
@@ -263,7 +402,7 @@ namespace FunkenwerkFtp
                     });
                 }
 
-                foreach (var file in di.GetFiles().OrderBy(f => f.Name))
+                foreach (var file in di.GetFiles())
                 {
                     if ((file.Attributes & FileAttributes.Hidden) != 0) continue;
                     entries.Add(new FileEntryItem
@@ -276,13 +415,20 @@ namespace FunkenwerkFtp
                     });
                 }
 
-                LocalFilesList.ItemsSource = entries;
+                _localCurrentItems = SortEntryList(entries, _localSortColumn, _localSortAsc);
+                LocalFilesList.ItemsSource = _localCurrentItems;
             }
             catch (Exception ex)
             {
                 StatusText.Text = $"⚠ Lokal: {ex.Message}";
             }
         }
+
+        private List<FileEntryItem> GetSelectedActionableLocalItems() =>
+            LocalFilesList.SelectedItems.Cast<FileEntryItem>().Where(x => !x.IsParentNav).ToList();
+
+        private List<FileEntryItem> GetSelectedActionableRemoteItems() =>
+            RemoteFilesList.SelectedItems.Cast<FileEntryItem>().Where(x => !x.IsParentNav).ToList();
 
         private void LocalUp_Click(object sender, RoutedEventArgs e)
         {
@@ -303,25 +449,170 @@ namespace FunkenwerkFtp
 
         private async void LocalFilesList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
+            if (IsInteractiveChromeElement(e.OriginalSource as DependencyObject)) return;
+            if (FindAncestor<ListViewItem>(e.OriginalSource as DependencyObject) == null) return;
+            await OpenSelectedLocalItemSmartAsync();
+        }
+
+        private async void MenuLocalOpen_Click(object sender, RoutedEventArgs e) => await OpenSelectedLocalItemSmartAsync();
+
+        private async Task OpenSelectedLocalItemSmartAsync()
+        {
             if (LocalFilesList.SelectedItem is not FileEntryItem item) return;
             if (item.IsDirectory)
             {
                 NavigateLocalDirectory(item.FullPath);
+                return;
             }
-            else if (IsConnected())
+
+            if (FtpTextBufferCodec.IsImageFileName(item.Name))
             {
-                await UploadSingleFileAsync(item.FullPath);
+                var imgs = _localCurrentItems.Where(x => !x.IsDirectory && FtpTextBufferCodec.IsImageFileName(x.Name)).ToList();
+                int startIdx = Math.Max(0, imgs.FindIndex(x => x.FullPath == item.FullPath));
+                FtpModalDialogs.ShowImageLightbox(
+                    this,
+                    _isDarkMode,
+                    imgs,
+                    startIdx,
+                    async imgItem => await File.ReadAllBytesAsync(imgItem.FullPath),
+                    IsConnected() ? async imgItem => await UploadSingleFileAsync(imgItem.FullPath) : null,
+                    "→ Auf Server hochladen");
+                return;
             }
+
+            if (FtpTextBufferCodec.IsLikelyTextFileName(item.Name) || (item.Size <= 512 * 1024 && await IsLocalFileTextAsync(item.FullPath)))
+            {
+                await OpenLocalFileInEditorAsync(item.FullPath);
+                return;
+            }
+
+            OpenLocalFileWithSystemDefault(item.FullPath);
         }
 
-        private void LocalMkdir_Click(object sender, RoutedEventArgs e)
+        private static async Task<bool> IsLocalFileTextAsync(string path)
         {
             try
             {
-                string baseDir = LocalPathBox.Text.Trim();
-                string newFolder = Path.Combine(baseDir, $"Neuer_Ordner_{DateTime.Now:HHmmss}");
-                Directory.CreateDirectory(newFolder);
+                await using var fs = File.OpenRead(path);
+                byte[] buf = new byte[(int)Math.Min(4096, fs.Length)];
+                int read = await fs.ReadAsync(buf, 0, buf.Length);
+                if (read < buf.Length) Array.Resize(ref buf, read);
+                return FtpTextBufferCodec.LooksLikeTextBytes(buf);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private async void LocalEdit_Click(object sender, RoutedEventArgs e)
+        {
+            var item = GetSelectedActionableLocalItems().FirstOrDefault(x => !x.IsDirectory);
+            if (item == null)
+            {
+                StatusText.Text = "⚠ Bitte eine lokale Datei zum Bearbeiten auswählen.";
+                return;
+            }
+            await OpenLocalFileInEditorAsync(item.FullPath);
+        }
+
+        private async Task OpenLocalFileInEditorAsync(string filePath)
+        {
+            try
+            {
+                if (!File.Exists(filePath)) return;
+                var fi = new FileInfo(filePath);
+                if (fi.Length > 15L * 1024 * 1024)
+                {
+                    if (!FtpModalDialogs.ShowConfirmDialog(this, _isDarkMode, "Große Datei öffnen",
+                            $"Die Datei '{fi.Name}' ist {fi.Length / (1024.0 * 1024):F1} MB groß. Trotzdem im Text-Editor öffnen?",
+                            "Öffnen", isDanger: false))
+                        return;
+                }
+
+                byte[] raw = await File.ReadAllBytesAsync(filePath);
+                if (!FtpTextBufferCodec.LooksLikeTextBytes(raw))
+                {
+                    if (!FtpModalDialogs.ShowConfirmDialog(this, _isDarkMode, "Binärdatei erkannt",
+                            $"'{fi.Name}' scheint eine Binärdatei zu sein. Trotzdem als Text öffnen?",
+                            "Trotzdem öffnen", isDanger: false))
+                        return;
+                }
+
+                var doc = FtpTextBufferCodec.Decode(raw, defaultUseCrLf: true);
+                Func<byte[], Task>? saveAndUpload = IsConnected()
+                    ? async bytes =>
+                    {
+                        await File.WriteAllBytesAsync(filePath, bytes);
+                        NavigateLocalDirectory(LocalPathBox.Text.Trim());
+                        await UploadSingleFileAsync(filePath);
+                    }
+                    : null;
+
+                var ed = new FtpFileEditorWindow(
+                    this,
+                    _isDarkMode,
+                    isRemote: false,
+                    fi.Name,
+                    filePath,
+                    doc,
+                    async bytes =>
+                    {
+                        await File.WriteAllBytesAsync(filePath, bytes);
+                        NavigateLocalDirectory(LocalPathBox.Text.Trim());
+                        StatusText.Text = $"✓ Lokal gespeichert: {fi.Name}";
+                    },
+                    saveAndUpload);
+                ed.Show();
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"⚠ Editor-Fehler: {ex.Message}";
+            }
+        }
+
+        private void MenuLocalOpenSystem_Click(object sender, RoutedEventArgs e)
+        {
+            var item = GetSelectedActionableLocalItems().FirstOrDefault();
+            if (item != null) OpenLocalFileWithSystemDefault(item.FullPath);
+        }
+
+        private void OpenLocalFileWithSystemDefault(string fullPath)
+        {
+            try
+            {
+                if (fullPath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                {
+                    string fwPdf = @"C:\Users\konta\Desktop\Funkenwerk Collection\Funkenwerk PDF\FunkenwerkPdf.exe";
+                    if (File.Exists(fwPdf))
+                    {
+                        Process.Start(new ProcessStartInfo { FileName = fwPdf, Arguments = $"\"{fullPath}\"", UseShellExecute = true });
+                        return;
+                    }
+                }
+                Process.Start(new ProcessStartInfo { FileName = fullPath, UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"⚠ Öffnen fehlgeschlagen: {ex.Message}";
+            }
+        }
+
+        private async void LocalNewFile_Click(object sender, RoutedEventArgs e)
+        {
+            string baseDir = LocalPathBox.Text.Trim();
+            if (!Directory.Exists(baseDir)) return;
+
+            string? fileName = FtpModalDialogs.ShowInputPrompt(this, _isDarkMode, "Neue lokale Datei erstellen", "neue-datei.txt", "Erstellen & Bearbeiten", selectFileNameStemOnly: true);
+            if (string.IsNullOrWhiteSpace(fileName)) return;
+
+            try
+            {
+                string safeTarget = FunkenwerkFtpSecurity.ValidateSafeLocalPath(baseDir, fileName);
+                if (!File.Exists(safeTarget))
+                    await File.WriteAllBytesAsync(safeTarget, Array.Empty<byte>());
                 NavigateLocalDirectory(baseDir);
+                await OpenLocalFileInEditorAsync(safeTarget);
             }
             catch (Exception ex)
             {
@@ -329,10 +620,132 @@ namespace FunkenwerkFtp
             }
         }
 
+        private void LocalMkdir_Click(object sender, RoutedEventArgs e)
+        {
+            string baseDir = LocalPathBox.Text.Trim();
+            if (!Directory.Exists(baseDir)) return;
+
+            string? folderName = FtpModalDialogs.ShowInputPrompt(this, _isDarkMode, "Neuen lokalen Ordner erstellen", "Neuer Ordner", "Erstellen");
+            if (string.IsNullOrWhiteSpace(folderName)) return;
+
+            try
+            {
+                string safeFolder = FunkenwerkFtpSecurity.ValidateSafeLocalPath(baseDir, folderName);
+                Directory.CreateDirectory(safeFolder);
+                NavigateLocalDirectory(baseDir);
+                StatusText.Text = $"✓ Lokaler Ordner erstellt: {folderName}";
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"⚠ {ex.Message}";
+            }
+        }
+
+        private void MenuLocalRename_Click(object sender, RoutedEventArgs e)
+        {
+            var item = GetSelectedActionableLocalItems().FirstOrDefault();
+            if (item == null) return;
+
+            string? newName = FtpModalDialogs.ShowInputPrompt(this, _isDarkMode, "Lokal umbenennen", item.Name, "Umbenennen", selectFileNameStemOnly: !item.IsDirectory);
+            if (string.IsNullOrWhiteSpace(newName) || string.Equals(newName, item.Name, StringComparison.Ordinal)) return;
+
+            try
+            {
+                string parentDir = Path.GetDirectoryName(item.FullPath) ?? LocalPathBox.Text.Trim();
+                string safeDest = FunkenwerkFtpSecurity.ValidateSafeLocalPath(parentDir, newName);
+                if (item.IsDirectory) Directory.Move(item.FullPath, safeDest);
+                else File.Move(item.FullPath, safeDest);
+                NavigateLocalDirectory(LocalPathBox.Text.Trim());
+                StatusText.Text = $"✓ Umbenannt in '{newName}'";
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"⚠ Umbenennen fehlgeschlagen: {ex.Message}";
+            }
+        }
+
+        private void MenuLocalDuplicate_Click(object sender, RoutedEventArgs e)
+        {
+            var item = GetSelectedActionableLocalItems().FirstOrDefault();
+            if (item == null) return;
+
+            try
+            {
+                string parentDir = Path.GetDirectoryName(item.FullPath) ?? LocalPathBox.Text.Trim();
+                string ext = item.IsDirectory ? "" : Path.GetExtension(item.Name);
+                string stem = item.IsDirectory ? item.Name : Path.GetFileNameWithoutExtension(item.Name);
+                string copyName = $"{stem}_Kopie{ext}";
+                int n = 2;
+                while (File.Exists(Path.Combine(parentDir, copyName)) || Directory.Exists(Path.Combine(parentDir, copyName)))
+                    copyName = $"{stem}_Kopie_{n++}{ext}";
+
+                string dest = Path.Combine(parentDir, copyName);
+                if (item.IsDirectory) CopyLocalDirectoryRecursive(item.FullPath, dest);
+                else File.Copy(item.FullPath, dest);
+
+                NavigateLocalDirectory(LocalPathBox.Text.Trim());
+                StatusText.Text = $"✓ Dupliziert: {copyName}";
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"⚠ Duplizieren fehlgeschlagen: {ex.Message}";
+            }
+        }
+
+        private void MenuLocalCopy_Click(object sender, RoutedEventArgs e)
+        {
+            var items = GetSelectedActionableLocalItems();
+            if (items.Count == 0) return;
+            var sc = new StringCollection();
+            foreach (var it in items) sc.Add(it.FullPath);
+            Clipboard.SetFileDropList(sc);
+            StatusText.Text = $"📋 {items.Count} Element(e) in Zwischenablage kopiert.";
+        }
+
+        private void MenuLocalPaste_Click(object sender, RoutedEventArgs e)
+        {
+            if (!Clipboard.ContainsFileDropList()) return;
+            string destDir = LocalPathBox.Text.Trim();
+            if (!Directory.Exists(destDir)) return;
+
+            var list = Clipboard.GetFileDropList();
+            int count = CopyExternalPathsIntoLocalDir(list.Cast<string>(), destDir);
+            NavigateLocalDirectory(destDir);
+            if (count > 0)
+                StatusText.Text = $"✓ {count} Element(e) lokal eingefügt.";
+        }
+
+        private void MenuLocalCopyPath_Click(object sender, RoutedEventArgs e)
+        {
+            var item = GetSelectedActionableLocalItems().FirstOrDefault();
+            string pathToCopy = item != null ? item.FullPath : LocalPathBox.Text.Trim();
+            Clipboard.SetText(pathToCopy);
+            StatusText.Text = $"🔗 Pfad kopiert: {pathToCopy}";
+        }
+
+        private void MenuLocalRevealExplorer_Click(object sender, RoutedEventArgs e)
+        {
+            var item = GetSelectedActionableLocalItems().FirstOrDefault();
+            try
+            {
+                if (item != null)
+                    Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{item.FullPath}\"") { UseShellExecute = true });
+                else
+                    Process.Start(new ProcessStartInfo("explorer.exe", $"\"{LocalPathBox.Text.Trim()}\"") { UseShellExecute = true });
+            }
+            catch { }
+        }
+
         private void LocalDelete_Click(object sender, RoutedEventArgs e)
         {
-            var selected = LocalFilesList.SelectedItems.Cast<FileEntryItem>().ToList();
+            var selected = GetSelectedActionableLocalItems();
             if (selected.Count == 0) return;
+
+            string msg = selected.Count == 1
+                ? $"Lokales Element '{selected[0].Name}' endgültig löschen?"
+                : $"{selected.Count} ausgewählte lokale Elemente endgültig löschen?";
+            if (!FtpModalDialogs.ShowConfirmDialog(this, _isDarkMode, "Lokal löschen", msg, "Löschen", isDanger: true))
+                return;
 
             foreach (var item in selected)
             {
@@ -341,9 +754,92 @@ namespace FunkenwerkFtp
                     if (item.IsDirectory) Directory.Delete(item.FullPath, true);
                     else File.Delete(item.FullPath);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    StatusText.Text = $"⚠ Löschen: {ex.Message}";
+                }
             }
             NavigateLocalDirectory(LocalPathBox.Text.Trim());
+            StatusText.Text = $"🗑 {selected.Count} lokale(s) Element(e) gelöscht.";
+        }
+
+        private void LocalFilesList_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+        {
+            var selected = GetSelectedActionableLocalItems();
+            bool hasSingle = selected.Count == 1;
+            bool hasAny = selected.Count > 0;
+            bool hasSingleFile = hasSingle && !selected[0].IsDirectory;
+
+            MenuLocalEdit.IsEnabled = hasSingleFile;
+            MenuLocalOpen.IsEnabled = hasSingle || (LocalFilesList.SelectedItem is FileEntryItem p && p.IsParentNav);
+            MenuLocalOpenSystem.IsEnabled = hasSingle;
+            MenuLocalUpload.IsEnabled = hasAny && IsConnected();
+            MenuLocalRename.IsEnabled = hasSingle;
+            MenuLocalDuplicate.IsEnabled = hasSingle;
+            MenuLocalCopy.IsEnabled = hasAny;
+            MenuLocalPaste.IsEnabled = Clipboard.ContainsFileDropList();
+            MenuLocalDelete.IsEnabled = hasAny;
+        }
+
+        private async void LocalFilesList_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.F4 && (Keyboard.Modifiers & ModifierKeys.Shift) != 0)
+            {
+                e.Handled = true;
+                LocalNewFile_Click(sender, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.F4)
+            {
+                e.Handled = true;
+                LocalEdit_Click(sender, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.F2)
+            {
+                e.Handled = true;
+                MenuLocalRename_Click(sender, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.F5)
+            {
+                e.Handled = true;
+                LocalRefresh_Click(sender, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.F7)
+            {
+                e.Handled = true;
+                LocalMkdir_Click(sender, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.Delete)
+            {
+                e.Handled = true;
+                LocalDelete_Click(sender, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.Back)
+            {
+                e.Handled = true;
+                LocalUp_Click(sender, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                await OpenSelectedLocalItemSmartAsync();
+            }
+            else if (e.Key == Key.C && (Keyboard.Modifiers & ModifierKeys.Control) != 0)
+            {
+                e.Handled = true;
+                MenuLocalCopy_Click(sender, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.V && (Keyboard.Modifiers & ModifierKeys.Control) != 0)
+            {
+                e.Handled = true;
+                MenuLocalPaste_Click(sender, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.A && (Keyboard.Modifiers & ModifierKeys.Control) != 0)
+            {
+                e.Handled = true;
+                LocalFilesList.SelectedItems.Clear();
+                foreach (var it in _localCurrentItems.Where(x => !x.IsParentNav))
+                    LocalFilesList.SelectedItems.Add(it);
+            }
         }
 
         // =====================================================================
@@ -461,7 +957,7 @@ namespace FunkenwerkFtp
                     _sftpClient = sftp;
                     OpenSshBtn.Visibility = Visibility.Visible;
                     ConnectBtn.Content = "TRENNEN";
-                    ConnectBtn.Background = new SolidColorBrush(Color.FromRgb(239, 68, 68));
+                    ConnectBtn.Background = BrushHex("#EF4444");
                     ConnectBtn.Foreground = Brushes.White;
                     StatusText.Text = $"🔒 SFTP Verbunden ({user}@{host}) · {_lastPinnedFingerprint}";
 
@@ -483,7 +979,7 @@ namespace FunkenwerkFtp
                     OpenSshBtn.Visibility = Visibility.Visible;
 
                     ConnectBtn.Content = "TRENNEN";
-                    ConnectBtn.Background = new SolidColorBrush(Color.FromRgb(239, 68, 68));
+                    ConnectBtn.Background = BrushHex("#EF4444");
                     ConnectBtn.Foreground = Brushes.White;
                     StatusText.Text = $"🔒 {_activeProtocol} Verbunden ({user}@{host}:{port})";
 
@@ -503,38 +999,62 @@ namespace FunkenwerkFtp
 
         private async Task DisconnectServerAsync()
         {
+            CleanupLiveEditWatchersAndFiles();
+
+            await _remoteIoGate.WaitAsync();
             try
             {
                 if (_sftpClient != null)
                 {
+                    var sftp = _sftpClient;
+                    _sftpClient = null;
                     await Task.Run(() =>
                     {
-                        try { _sftpClient.Disconnect(); } catch { }
-                        try { _sftpClient.Dispose(); } catch { }
+                        try { sftp.Disconnect(); } catch { }
+                        try { sftp.Dispose(); } catch { }
                     });
-                    _sftpClient = null;
                 }
                 if (_ftpClient != null)
                 {
-                    try { await _ftpClient.Disconnect(); } catch { }
-                    try { _ftpClient.Dispose(); } catch { }
+                    var ftp = _ftpClient;
                     _ftpClient = null;
+                    try { await ftp.Disconnect(); } catch { }
+                    try { ftp.Dispose(); } catch { }
                 }
             }
             catch { }
+            finally
+            {
+                _remoteIoGate.Release();
+            }
 
+            _remoteCurrentItems.Clear();
             RemoteFilesList.ItemsSource = null;
             OpenSshBtn.Visibility = Visibility.Collapsed;
             ConnectBtn.Content = "⚡ VERBINDEN";
-            ConnectBtn.Background = new SolidColorBrush(Color.FromRgb(197, 160, 89));
-            ConnectBtn.Foreground = new SolidColorBrush(Color.FromRgb(15, 17, 23));
+            ConnectBtn.Background = BrushHex("#C5A059");
+            ConnectBtn.Foreground = BrushHex("#0F1117");
             StatusText.Text = "🔒 Verbindung getrennt.";
         }
 
         private void OpenSsh_Click(object sender, RoutedEventArgs e)
         {
-            if (!IsConnected()) return;
+            string remoteDir = string.IsNullOrWhiteSpace(RemotePathBox.Text) ? "/" : RemotePathBox.Text.Trim();
+            LaunchSshInRemoteDirectory(remoteDir);
+        }
 
+        private void MenuRemoteOpenSshHere_Click(object sender, RoutedEventArgs e)
+        {
+            var selected = GetSelectedActionableRemoteItems().FirstOrDefault();
+            string targetDir = (selected != null && selected.IsDirectory)
+                ? selected.FullPath
+                : (string.IsNullOrWhiteSpace(RemotePathBox.Text) ? "/" : RemotePathBox.Text.Trim());
+            LaunchSshInRemoteDirectory(targetDir);
+        }
+
+        private void LaunchSshInRemoteDirectory(string remoteDir)
+        {
+            if (!IsConnected()) return;
             try
             {
                 string host = FunkenwerkFtpSecurity.SanitizeHost(HostBox.Text);
@@ -542,7 +1062,6 @@ namespace FunkenwerkFtp
                 if (port == 21) port = 22;
                 string user = UserBox.Text.Trim();
                 string pass = GetPasswordValue();
-                string remoteDir = string.IsNullOrWhiteSpace(RemotePathBox.Text) ? "/" : RemotePathBox.Text.Trim();
                 string profileName = (ProfilesCombo.SelectedItem as FtpConnectionProfile)?.Name ?? $"{user}@{host}";
 
                 FunkenwerkFtpSecurity.WriteSshHandoffTicket(
@@ -568,7 +1087,7 @@ namespace FunkenwerkFtp
                     return;
                 }
 
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                Process.Start(new ProcessStartInfo
                 {
                     FileName = sshExe,
                     Arguments = "--handoff",
@@ -584,21 +1103,50 @@ namespace FunkenwerkFtp
             }
         }
 
+        // =====================================================================
+        // REMOTE SERVER DIRECTORY & FILE OPERATIONS
+        // =====================================================================
+        private static string CombineRemotePath(string parentDir, string childName)
+        {
+            string cleanChild = (childName ?? "").Trim().TrimStart('/');
+            if (string.IsNullOrEmpty(parentDir) || parentDir == "/")
+                return "/" + cleanChild;
+            return parentDir.TrimEnd('/') + "/" + cleanChild;
+        }
+
+        private static string GetRemoteParentPath(string remotePath)
+        {
+            string cur = (remotePath ?? "").Trim().Replace('\\', '/').TrimEnd('/');
+            if (string.IsNullOrEmpty(cur) || cur == "/") return "/";
+            int idx = cur.LastIndexOf('/');
+            return idx <= 0 ? "/" : cur.Substring(0, idx);
+        }
+
         private async Task NavigateRemoteDirectoryAsync(string remotePath)
         {
             if (!IsConnected()) return;
+            await _remoteIoGate.WaitAsync();
             try
             {
                 string target = string.IsNullOrWhiteSpace(remotePath) ? "/" : remotePath.Replace('\\', '/');
+                if (target.Length > 1) target = target.TrimEnd('/');
                 var items = new List<FileEntryItem>();
+
+                if (target != "/")
+                {
+                    items.Add(new FileEntryItem
+                    {
+                        Name = "..",
+                        FullPath = GetRemoteParentPath(target),
+                        IsDirectory = true,
+                        IsParentNav = true
+                    });
+                }
 
                 if (_sftpClient != null && _sftpClient.IsConnected)
                 {
                     var listing = await Task.Run(() => _sftpClient.ListDirectory(target).ToList());
-                    foreach (var entry in listing
-                                 .Where(x => x.Name != "." && x.Name != "..")
-                                 .OrderByDescending(x => x.IsDirectory)
-                                 .ThenBy(x => x.Name))
+                    foreach (var entry in listing.Where(x => x.Name != "." && x.Name != ".."))
                     {
                         items.Add(new FileEntryItem
                         {
@@ -614,10 +1162,7 @@ namespace FunkenwerkFtp
                 else if (_ftpClient != null && _ftpClient.IsConnected)
                 {
                     var listing = await _ftpClient.GetListing(target);
-                    foreach (var entry in listing
-                                 .Where(x => x.Name != "." && x.Name != "..")
-                                 .OrderByDescending(x => x.Type == FtpObjectType.Directory)
-                                 .ThenBy(x => x.Name))
+                    foreach (var entry in listing.Where(x => x.Name != "." && x.Name != ".."))
                     {
                         items.Add(new FileEntryItem
                         {
@@ -632,11 +1177,16 @@ namespace FunkenwerkFtp
                 }
 
                 RemotePathBox.Text = target;
-                RemoteFilesList.ItemsSource = items;
+                _remoteCurrentItems = SortEntryList(items, _remoteSortColumn, _remoteSortAsc);
+                RemoteFilesList.ItemsSource = _remoteCurrentItems;
             }
             catch (Exception ex)
             {
                 StatusText.Text = $"⚠ Server-Verzeichnis: {ex.Message}";
+            }
+            finally
+            {
+                _remoteIoGate.Release();
             }
         }
 
@@ -657,18 +1207,11 @@ namespace FunkenwerkFtp
 
         private async void RemoteUp_Click(object sender, RoutedEventArgs e)
         {
-            string cur = RemotePathBox.Text.Trim().TrimEnd('/');
-            if (string.IsNullOrEmpty(cur) || cur == "/")
-            {
-                await NavigateRemoteDirectoryAsync("/");
-                return;
-            }
-            int idx = cur.LastIndexOf('/');
-            string parent = idx <= 0 ? "/" : cur.Substring(0, idx);
-            await NavigateRemoteDirectoryAsync(parent);
+            await NavigateRemoteDirectoryAsync(GetRemoteParentPath(RemotePathBox.Text));
         }
 
-        private async void RemoteRefresh_Click(object sender, RoutedEventArgs e) => await NavigateRemoteDirectoryAsync(RemotePathBox.Text.Trim());
+        private async void RemoteRefresh_Click(object sender, RoutedEventArgs e) =>
+            await NavigateRemoteDirectoryAsync(RemotePathBox.Text.Trim());
 
         private async void RemotePathBox_KeyDown(object sender, KeyEventArgs e)
         {
@@ -677,24 +1220,706 @@ namespace FunkenwerkFtp
 
         private async void RemoteFilesList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
+            if (IsInteractiveChromeElement(e.OriginalSource as DependencyObject)) return;
+            if (FindAncestor<ListViewItem>(e.OriginalSource as DependencyObject) == null) return;
+            await OpenSelectedRemoteItemSmartAsync();
+        }
+
+        private async void MenuRemoteOpen_Click(object sender, RoutedEventArgs e) => await OpenSelectedRemoteItemSmartAsync();
+
+        private async Task OpenSelectedRemoteItemSmartAsync()
+        {
             if (RemoteFilesList.SelectedItem is not FileEntryItem item) return;
             if (item.IsDirectory)
             {
                 await NavigateRemoteDirectoryAsync(item.FullPath);
+                return;
             }
-            else
+
+            if (FtpTextBufferCodec.IsImageFileName(item.Name))
             {
-                await DownloadSingleFileAsync(item);
+                var imgs = _remoteCurrentItems.Where(x => !x.IsDirectory && FtpTextBufferCodec.IsImageFileName(x.Name)).ToList();
+                int startIdx = Math.Max(0, imgs.FindIndex(x => x.FullPath == item.FullPath));
+                FtpModalDialogs.ShowImageLightbox(
+                    this,
+                    _isDarkMode,
+                    imgs,
+                    startIdx,
+                    DownloadRemoteBytesAsync,
+                    async imgItem => await DownloadSingleFileAsync(imgItem),
+                    "← Herunterladen");
+                return;
+            }
+
+            if (FtpTextBufferCodec.IsLikelyTextFileName(item.Name))
+            {
+                await OpenRemoteFileInEditorAsync(item);
+                return;
+            }
+
+            if (item.Size <= 256 * 1024 && !Path.HasExtension(item.Name))
+            {
+                await OpenRemoteFileInEditorAsync(item);
+                return;
+            }
+
+            await DownloadSingleFileAsync(item);
+        }
+
+        // =====================================================================
+        // REMOTE FILE EDITING (BUILT-IN STUDIO EDITOR + EXTERNAL AUTO-UPLOAD)
+        // =====================================================================
+        private async Task<byte[]> DownloadRemoteBytesAsync(FileEntryItem item)
+        {
+            await _remoteIoGate.WaitAsync();
+            try
+            {
+                using var ms = new MemoryStream();
+                if (_sftpClient != null && _sftpClient.IsConnected)
+                {
+                    await Task.Run(() => _sftpClient.DownloadFile(item.FullPath, ms));
+                }
+                else if (_ftpClient != null && _ftpClient.IsConnected)
+                {
+                    await _ftpClient.DownloadStream(ms, item.FullPath);
+                }
+                return ms.ToArray();
+            }
+            finally
+            {
+                _remoteIoGate.Release();
             }
         }
 
+        private async Task UploadBytesToRemoteFileAsync(string remoteFilePath, byte[] bytes, bool refreshListing)
+        {
+            if (!IsConnected())
+                throw new InvalidOperationException("Keine aktive Serververbindung.");
+
+            await _remoteIoGate.WaitAsync();
+            try
+            {
+                if (_sftpClient != null && _sftpClient.IsConnected)
+                {
+                    await Task.Run(() =>
+                    {
+                        using var ms = new MemoryStream(bytes, writable: false);
+                        _sftpClient.UploadFile(ms, remoteFilePath, canOverride: true);
+                    });
+                }
+                else if (_ftpClient != null && _ftpClient.IsConnected)
+                {
+                    using var ms = new MemoryStream(bytes, writable: false);
+                    await _ftpClient.UploadStream(ms, remoteFilePath, FtpRemoteExists.Overwrite, createRemoteDir: true);
+                }
+            }
+            finally
+            {
+                _remoteIoGate.Release();
+            }
+
+            if (refreshListing)
+                await NavigateRemoteDirectoryAsync(RemotePathBox.Text.Trim());
+        }
+
+        private async void RemoteEdit_Click(object sender, RoutedEventArgs e)
+        {
+            if (!IsConnected()) return;
+            var item = GetSelectedActionableRemoteItems().FirstOrDefault(x => !x.IsDirectory);
+            if (item == null)
+            {
+                StatusText.Text = "⚠ Bitte eine Server-Datei zum Bearbeiten auswählen.";
+                return;
+            }
+            await OpenRemoteFileInEditorAsync(item);
+        }
+
+        private async Task OpenRemoteFileInEditorAsync(FileEntryItem item)
+        {
+            if (!IsConnected() || item.IsDirectory) return;
+            try
+            {
+                if (item.Size > 15L * 1024 * 1024)
+                {
+                    if (!FtpModalDialogs.ShowConfirmDialog(this, _isDarkMode, "Große Server-Datei",
+                            $"'{item.Name}' ist {item.Size / (1024.0 * 1024):F1} MB groß. Trotzdem im Text-Editor laden?",
+                            "Laden", isDanger: false))
+                        return;
+                }
+
+                StatusText.Text = $"⏳ Lade '{item.Name}' in den Editor ...";
+                byte[] raw = await DownloadRemoteBytesAsync(item);
+
+                if (!FtpTextBufferCodec.LooksLikeTextBytes(raw))
+                {
+                    if (!FtpModalDialogs.ShowConfirmDialog(this, _isDarkMode, "Binärdatei erkannt",
+                            $"'{item.Name}' scheint eine Binärdatei zu sein. Trotzdem als Text öffnen?",
+                            "Trotzdem öffnen", isDanger: false))
+                    {
+                        StatusText.Text = "Abgebrochen.";
+                        return;
+                    }
+                }
+
+                // Default to LF (\n) for server files so Linux scripts & configs stay 100% clean
+                var doc = FtpTextBufferCodec.Decode(raw, defaultUseCrLf: false);
+                string remotePath = item.FullPath;
+
+                var ed = new FtpFileEditorWindow(
+                    this,
+                    _isDarkMode,
+                    isRemote: true,
+                    item.Name,
+                    remotePath,
+                    doc,
+                    async updatedBytes =>
+                    {
+                        await UploadBytesToRemoteFileAsync(remotePath, updatedBytes, refreshListing: true);
+                        StatusText.Text = $"✓ Auf Server gespeichert: {item.Name} ({DateTime.Now:HH:mm:ss})";
+                    });
+                StatusText.Text = $"✎ Bearbeite Server-Datei: {remotePath}";
+                ed.Show();
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"⚠ Server-Editor: {ex.Message}";
+            }
+        }
+
+        private async void MenuRemoteEditExternal_Click(object sender, RoutedEventArgs e)
+        {
+            if (!IsConnected()) return;
+            var item = GetSelectedActionableRemoteItems().FirstOrDefault(x => !x.IsDirectory);
+            if (item == null) return;
+
+            try
+            {
+                string liveRoot = Path.Combine(FunkenwerkFtpSecurity.VaultDir, "LiveEdit");
+                string subHash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(GetRemoteParentPath(item.FullPath))))[..12];
+                string stageDir = Path.Combine(liveRoot, subHash);
+                Directory.CreateDirectory(stageDir);
+
+                string localStageFile = FunkenwerkFtpSecurity.ValidateSafeLocalPath(stageDir, item.Name);
+                StatusText.Text = $"⏳ Bereite Live-Bearbeitung für '{item.Name}' vor ...";
+                byte[] content = await DownloadRemoteBytesAsync(item);
+                await File.WriteAllBytesAsync(localStageFile, content);
+                _liveEditLastHashes[localStageFile] = SHA256.HashData(content);
+
+                string remoteTarget = item.FullPath;
+                var watcher = new FileSystemWatcher(stageDir, item.Name)
+                {
+                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName,
+                    EnableRaisingEvents = true
+                };
+
+                async void OnExternalFileSaved(object s, FileSystemEventArgs fse)
+                {
+                    try
+                    {
+                        await Task.Delay(320); // Wait for IDE atomic write/rename completion
+                        if (!File.Exists(localStageFile)) return;
+
+                        lock (_liveEditDebounceUtc)
+                        {
+                            if (_liveEditDebounceUtc.TryGetValue(localStageFile, out var last) &&
+                                (DateTime.UtcNow - last).TotalMilliseconds < 250)
+                                return;
+                            _liveEditDebounceUtc[localStageFile] = DateTime.UtcNow;
+                        }
+
+                        byte[] newBytes = await ReadFileWithRetryAsync(localStageFile);
+                        byte[] newHash = SHA256.HashData(newBytes);
+                        if (_liveEditLastHashes.TryGetValue(localStageFile, out var prevHash) &&
+                            CryptographicOperations.FixedTimeEquals(prevHash, newHash))
+                            return;
+
+                        _liveEditLastHashes[localStageFile] = newHash;
+                        await Dispatcher.InvokeAsync(async () =>
+                        {
+                            if (!IsConnected()) return;
+                            try
+                            {
+                                await UploadBytesToRemoteFileAsync(remoteTarget, newBytes, refreshListing: true);
+                                StatusText.Text = $"✓ Auto-Upload auf Server gespeichert: {item.Name} ({DateTime.Now:HH:mm:ss})";
+                            }
+                            catch (Exception upEx)
+                            {
+                                StatusText.Text = $"⚠ Auto-Upload fehlgeschlagen: {upEx.Message}";
+                            }
+                        });
+                    }
+                    catch { }
+                }
+
+                watcher.Changed += OnExternalFileSaved;
+                watcher.Created += OnExternalFileSaved;
+                watcher.Renamed += (s, re) => OnExternalFileSaved(s, re);
+                _liveEditWatchers.Add(watcher);
+
+                LaunchExternalEditorSmart(localStageFile);
+                StatusText.Text = $"💻 Live-Sync aktiv für '{item.Name}' · Jedes Speichern lädt automatisch auf den Server hoch.";
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"⚠ Externer Editor: {ex.Message}";
+            }
+        }
+
+        private static async Task<byte[]> ReadFileWithRetryAsync(string path)
+        {
+            for (int attempt = 0; attempt < 5; attempt++)
+            {
+                try
+                {
+                    await using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    using var ms = new MemoryStream();
+                    await fs.CopyToAsync(ms);
+                    return ms.ToArray();
+                }
+                catch (IOException) when (attempt < 4)
+                {
+                    await Task.Delay(120);
+                }
+            }
+            return await File.ReadAllBytesAsync(path);
+        }
+
+        private static void LaunchExternalEditorSmart(string filePath)
+        {
+            string ext = Path.GetExtension(filePath);
+            bool hasUncommonExt = string.IsNullOrEmpty(ext) ||
+                                  ext.StartsWith(".env", StringComparison.OrdinalIgnoreCase) ||
+                                  ext.Equals(".htaccess", StringComparison.OrdinalIgnoreCase) ||
+                                  ext.Equals(".conf", StringComparison.OrdinalIgnoreCase) ||
+                                  ext.Equals(".blade", StringComparison.OrdinalIgnoreCase);
+
+            if (!hasUncommonExt)
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true });
+                    return;
+                }
+                catch { }
+            }
+
+            string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string progFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            string[] editorCandidates =
+            {
+                Path.Combine(localApp, "Programs", "Microsoft VS Code", "Code.exe"),
+                Path.Combine(progFiles, "Notepad++", "notepad++.exe"),
+                "notepad.exe"
+            };
+
+            string chosen = editorCandidates.FirstOrDefault(p => p == "notepad.exe" || File.Exists(p)) ?? "notepad.exe";
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = chosen,
+                Arguments = $"\"{filePath}\"",
+                UseShellExecute = true
+            });
+        }
+
+        private void CleanupLiveEditWatchersAndFiles()
+        {
+            foreach (var w in _liveEditWatchers)
+            {
+                try { w.EnableRaisingEvents = false; w.Dispose(); } catch { }
+            }
+            _liveEditWatchers.Clear();
+            _liveEditLastHashes.Clear();
+            _liveEditDebounceUtc.Clear();
+
+            try
+            {
+                string liveRoot = Path.Combine(FunkenwerkFtpSecurity.VaultDir, "LiveEdit");
+                if (Directory.Exists(liveRoot))
+                    Directory.Delete(liveRoot, recursive: true);
+            }
+            catch { }
+        }
+
+        // =====================================================================
+        // REMOTE CREATE / RENAME / DUPLICATE / CHMOD / CLIPBOARD / DELETE
+        // =====================================================================
+        private async void RemoteNewFile_Click(object sender, RoutedEventArgs e)
+        {
+            if (!IsConnected()) return;
+            string? fileName = FtpModalDialogs.ShowInputPrompt(this, _isDarkMode, "Neue Datei auf Server anlegen", "neue-datei.php", "Anlegen & Bearbeiten", selectFileNameStemOnly: true);
+            if (string.IsNullOrWhiteSpace(fileName)) return;
+
+            try
+            {
+                string cleanName = Path.GetFileName(fileName.Trim());
+                string remoteTarget = CombineRemotePath(RemotePathBox.Text.Trim(), cleanName);
+                await UploadBytesToRemoteFileAsync(remoteTarget, Array.Empty<byte>(), refreshListing: true);
+                var created = _remoteCurrentItems.FirstOrDefault(x => !x.IsDirectory && x.Name == cleanName)
+                              ?? new FileEntryItem { Name = cleanName, FullPath = remoteTarget, IsDirectory = false };
+                await OpenRemoteFileInEditorAsync(created);
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"⚠ Neue Datei: {ex.Message}";
+            }
+        }
+
+        private async void RemoteMkdir_Click(object sender, RoutedEventArgs e)
+        {
+            if (!IsConnected()) return;
+            string? folderName = FtpModalDialogs.ShowInputPrompt(this, _isDarkMode, "Neuen Ordner auf Server erstellen", "Neuer_Ordner", "Erstellen");
+            if (string.IsNullOrWhiteSpace(folderName)) return;
+
+            try
+            {
+                string newFolder = CombineRemotePath(RemotePathBox.Text.Trim(), folderName.Trim().Trim('/'));
+                await _remoteIoGate.WaitAsync();
+                try
+                {
+                    if (_sftpClient != null && _sftpClient.IsConnected)
+                        await Task.Run(() => _sftpClient.CreateDirectory(newFolder));
+                    else if (_ftpClient != null && _ftpClient.IsConnected)
+                        await _ftpClient.CreateDirectory(newFolder);
+                }
+                finally
+                {
+                    _remoteIoGate.Release();
+                }
+
+                await NavigateRemoteDirectoryAsync(RemotePathBox.Text.Trim());
+                StatusText.Text = $"✓ Server-Ordner erstellt: {folderName}";
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"⚠ {ex.Message}";
+            }
+        }
+
+        private async void MenuRemoteRename_Click(object sender, RoutedEventArgs e)
+        {
+            if (!IsConnected()) return;
+            var item = GetSelectedActionableRemoteItems().FirstOrDefault();
+            if (item == null) return;
+
+            string? input = FtpModalDialogs.ShowInputPrompt(this, _isDarkMode, "Auf Server umbenennen / verschieben", item.Name, "Übernehmen", selectFileNameStemOnly: !item.IsDirectory);
+            if (string.IsNullOrWhiteSpace(input) || string.Equals(input, item.Name, StringComparison.Ordinal)) return;
+
+            string destRemote = input.StartsWith("/", StringComparison.Ordinal)
+                ? input.Trim()
+                : CombineRemotePath(GetRemoteParentPath(item.FullPath), input.Trim());
+
+            await MoveRemoteEntryAsync(item, destRemote, refreshAfter: true);
+        }
+
+        private async Task MoveRemoteEntryAsync(FileEntryItem item, string destRemotePath, bool refreshAfter)
+        {
+            if (!IsConnected() || string.Equals(item.FullPath, destRemotePath, StringComparison.Ordinal)) return;
+            try
+            {
+                await _remoteIoGate.WaitAsync();
+                try
+                {
+                    if (_sftpClient != null && _sftpClient.IsConnected)
+                    {
+                        await Task.Run(() => _sftpClient.RenameFile(item.FullPath, destRemotePath));
+                    }
+                    else if (_ftpClient != null && _ftpClient.IsConnected)
+                    {
+                        if (item.IsDirectory) await _ftpClient.MoveDirectory(item.FullPath, destRemotePath);
+                        else await _ftpClient.MoveFile(item.FullPath, destRemotePath);
+                    }
+                }
+                finally
+                {
+                    _remoteIoGate.Release();
+                }
+
+                StatusText.Text = $"✓ Verschoben / umbenannt: {destRemotePath}";
+                if (refreshAfter)
+                    await NavigateRemoteDirectoryAsync(RemotePathBox.Text.Trim());
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"⚠ Verschieben fehlgeschlagen: {ex.Message}";
+            }
+        }
+
+        private async void MenuRemoteDuplicate_Click(object sender, RoutedEventArgs e)
+        {
+            if (!IsConnected()) return;
+            var item = GetSelectedActionableRemoteItems().FirstOrDefault(x => !x.IsDirectory);
+            if (item == null) return;
+
+            try
+            {
+                string ext = Path.GetExtension(item.Name);
+                string stem = Path.GetFileNameWithoutExtension(item.Name);
+                string copyName = $"{stem}_kopie{ext}";
+                int n = 2;
+                while (_remoteCurrentItems.Any(x => string.Equals(x.Name, copyName, StringComparison.OrdinalIgnoreCase)))
+                    copyName = $"{stem}_kopie_{n++}{ext}";
+
+                StatusText.Text = $"⏳ Dupliziere '{item.Name}' ...";
+                byte[] data = await DownloadRemoteBytesAsync(item);
+                string destPath = CombineRemotePath(GetRemoteParentPath(item.FullPath), copyName);
+                await UploadBytesToRemoteFileAsync(destPath, data, refreshListing: true);
+                StatusText.Text = $"✓ Auf Server dupliziert: {copyName}";
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"⚠ Duplizieren fehlgeschlagen: {ex.Message}";
+            }
+        }
+
+        private async void MenuRemoteChmod_Click(object sender, RoutedEventArgs e)
+        {
+            if (!IsConnected()) return;
+            var selected = GetSelectedActionableRemoteItems();
+            if (selected.Count == 0) return;
+
+            string label = selected.Count == 1 ? selected[0].Name : $"{selected.Count} Elemente";
+            bool anyDirs = selected.Any(x => x.IsDirectory);
+            var chmod = FtpModalDialogs.ShowChmodDialog(this, _isDarkMode, label, selected[0].Permissions, anyDirs);
+            if (chmod == null) return;
+
+            try
+            {
+                StatusText.Text = $"⏳ Setze Berechtigungen ({chmod.Value.OctalString}) ...";
+                await _remoteIoGate.WaitAsync();
+                try
+                {
+                    int intOctal = int.Parse(chmod.Value.OctalString);
+                    foreach (var it in selected)
+                    {
+                        await ApplyChmodInternalAsync(it.FullPath, it.IsDirectory, chmod.Value.OctalValue, intOctal, chmod.Value.Recursive);
+                    }
+                }
+                finally
+                {
+                    _remoteIoGate.Release();
+                }
+
+                await NavigateRemoteDirectoryAsync(RemotePathBox.Text.Trim());
+                StatusText.Text = $"✓ Berechtigungen auf {chmod.Value.OctalString} gesetzt.";
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"⚠ CHMOD fehlgeschlagen: {ex.Message}";
+            }
+        }
+
+        private async Task ApplyChmodInternalAsync(string remotePath, bool isDir, short octalShort, int octalDecimalDigits, bool recursive)
+        {
+            if (_sftpClient != null && _sftpClient.IsConnected)
+            {
+                await Task.Run(() => ApplySftpChmodSync(remotePath, isDir, octalShort, recursive));
+            }
+            else if (_ftpClient != null && _ftpClient.IsConnected)
+            {
+                await _ftpClient.Chmod(remotePath, octalDecimalDigits);
+                if (isDir && recursive)
+                {
+                    var subs = await _ftpClient.GetListing(remotePath);
+                    foreach (var sub in subs.Where(x => x.Name != "." && x.Name != ".."))
+                    {
+                        await ApplyChmodInternalAsync(sub.FullName, sub.Type == FtpObjectType.Directory, octalShort, octalDecimalDigits, true);
+                    }
+                }
+            }
+        }
+
+        private void ApplySftpChmodSync(string remotePath, bool isDir, short octalShort, bool recursive)
+        {
+            if (_sftpClient == null) return;
+            _sftpClient.ChangePermissions(remotePath, octalShort);
+            if (isDir && recursive)
+            {
+                foreach (var sub in _sftpClient.ListDirectory(remotePath).Where(x => x.Name != "." && x.Name != ".."))
+                {
+                    ApplySftpChmodSync(sub.FullName, sub.IsDirectory, octalShort, true);
+                }
+            }
+        }
+
+        private async void MenuRemotePasteUpload_Click(object sender, RoutedEventArgs e)
+        {
+            if (!IsConnected() || !Clipboard.ContainsFileDropList()) return;
+            var files = Clipboard.GetFileDropList().Cast<string>().ToArray();
+            if (files.Length == 0) return;
+
+            string targetDir = RemotePathBox.Text.Trim();
+            foreach (string p in files)
+                await UploadPathRecursiveAsync(p, targetDir);
+
+            await NavigateRemoteDirectoryAsync(RemotePathBox.Text.Trim());
+            StatusText.Text = $"✓ {files.Length} Element(e) aus Zwischenablage auf Server hochgeladen.";
+        }
+
+        private void MenuRemoteCopyPath_Click(object sender, RoutedEventArgs e)
+        {
+            var item = GetSelectedActionableRemoteItems().FirstOrDefault();
+            string pathToCopy = item != null ? item.FullPath : RemotePathBox.Text.Trim();
+            Clipboard.SetText(pathToCopy);
+            StatusText.Text = $"🔗 Server-Pfad kopiert: {pathToCopy}";
+        }
+
+        private async void RemoteDelete_Click(object sender, RoutedEventArgs e)
+        {
+            if (!IsConnected()) return;
+            var selected = GetSelectedActionableRemoteItems();
+            if (selected.Count == 0) return;
+
+            string msg = selected.Count == 1
+                ? $"Server-Element '{selected[0].Name}' endgültig vom Server löschen?"
+                : $"{selected.Count} ausgewählte Elemente endgültig vom Server löschen?";
+            if (!FtpModalDialogs.ShowConfirmDialog(this, _isDarkMode, "Auf Server löschen", msg, "Endgültig löschen", isDanger: true))
+                return;
+
+            foreach (var item in selected)
+            {
+                await DeleteRemoteRecursiveAsync(item.FullPath, item.IsDirectory);
+            }
+            await NavigateRemoteDirectoryAsync(RemotePathBox.Text.Trim());
+            StatusText.Text = $"🗑 {selected.Count} Server-Element(e) gelöscht.";
+        }
+
+        private async Task DeleteRemoteRecursiveAsync(string remotePath, bool isDir)
+        {
+            await _remoteIoGate.WaitAsync();
+            try
+            {
+                if (_sftpClient != null && _sftpClient.IsConnected)
+                {
+                    await Task.Run(() =>
+                    {
+                        if (isDir) DeleteSftpDirectorySync(remotePath);
+                        else _sftpClient.DeleteFile(remotePath);
+                    });
+                }
+                else if (_ftpClient != null && _ftpClient.IsConnected)
+                {
+                    if (isDir) await _ftpClient.DeleteDirectory(remotePath);
+                    else await _ftpClient.DeleteFile(remotePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"⚠ Löschen: {ex.Message}";
+            }
+            finally
+            {
+                _remoteIoGate.Release();
+            }
+        }
+
+        private void DeleteSftpDirectorySync(string path)
+        {
+            if (_sftpClient == null) return;
+            foreach (var sub in _sftpClient.ListDirectory(path).Where(x => x.Name != "." && x.Name != ".."))
+            {
+                if (sub.IsDirectory) DeleteSftpDirectorySync(sub.FullName);
+                else _sftpClient.DeleteFile(sub.FullName);
+            }
+            _sftpClient.DeleteDirectory(path);
+        }
+
+        private void RemoteFilesList_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+        {
+            bool connected = IsConnected();
+            var selected = GetSelectedActionableRemoteItems();
+            bool hasSingle = connected && selected.Count == 1;
+            bool hasAny = connected && selected.Count > 0;
+            bool hasSingleFile = hasSingle && !selected[0].IsDirectory;
+
+            MenuRemoteEdit.IsEnabled = hasSingleFile;
+            MenuRemoteEditExternal.IsEnabled = hasSingleFile;
+            MenuRemoteOpen.IsEnabled = hasSingle || (connected && RemoteFilesList.SelectedItem is FileEntryItem p && p.IsParentNav);
+            MenuRemoteDownload.IsEnabled = hasAny;
+            MenuRemoteNewFile.IsEnabled = connected;
+            MenuRemoteNewFolder.IsEnabled = connected;
+            MenuRemoteRename.IsEnabled = hasSingle;
+            MenuRemoteDuplicate.IsEnabled = hasSingleFile;
+            MenuRemoteChmod.IsEnabled = hasAny;
+            MenuRemotePasteUpload.IsEnabled = connected && Clipboard.ContainsFileDropList();
+            MenuRemoteCopyPath.IsEnabled = connected;
+            MenuRemoteOpenSsh.IsEnabled = connected;
+            MenuRemoteRefresh.IsEnabled = connected;
+            MenuRemoteDelete.IsEnabled = hasAny;
+        }
+
+        private async void RemoteFilesList_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (!IsConnected()) return;
+
+            if (e.Key == Key.F4 && (Keyboard.Modifiers & ModifierKeys.Shift) != 0)
+            {
+                e.Handled = true;
+                RemoteNewFile_Click(sender, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.F4)
+            {
+                e.Handled = true;
+                RemoteEdit_Click(sender, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.F2)
+            {
+                e.Handled = true;
+                MenuRemoteRename_Click(sender, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.F5)
+            {
+                e.Handled = true;
+                RemoteRefresh_Click(sender, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.F7)
+            {
+                e.Handled = true;
+                RemoteMkdir_Click(sender, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.Delete)
+            {
+                e.Handled = true;
+                RemoteDelete_Click(sender, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.Back)
+            {
+                e.Handled = true;
+                RemoteUp_Click(sender, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                await OpenSelectedRemoteItemSmartAsync();
+            }
+            else if (e.Key == Key.V && (Keyboard.Modifiers & ModifierKeys.Control) != 0)
+            {
+                e.Handled = true;
+                MenuRemotePasteUpload_Click(sender, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.C && (Keyboard.Modifiers & ModifierKeys.Control) != 0)
+            {
+                e.Handled = true;
+                MenuRemoteCopyPath_Click(sender, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.A && (Keyboard.Modifiers & ModifierKeys.Control) != 0)
+            {
+                e.Handled = true;
+                RemoteFilesList.SelectedItems.Clear();
+                foreach (var it in _remoteCurrentItems.Where(x => !x.IsParentNav))
+                    RemoteFilesList.SelectedItems.Add(it);
+            }
+        }
+
+        // =====================================================================
+        // RECURSIVE UPLOAD & DOWNLOAD TRANSFERS
+        // =====================================================================
         private async void UploadSelected_Click(object sender, RoutedEventArgs e)
         {
             if (!IsConnected()) return;
-            var selected = LocalFilesList.SelectedItems.Cast<FileEntryItem>().ToList();
+            var selected = GetSelectedActionableLocalItems();
             if (selected.Count == 0) return;
 
-            string remoteDir = RemotePathBox.Text.Trim().TrimEnd('/');
+            string remoteDir = RemotePathBox.Text.Trim();
             foreach (var item in selected)
             {
                 await UploadPathRecursiveAsync(item.FullPath, remoteDir);
@@ -715,7 +1940,7 @@ namespace FunkenwerkFtp
                 string dirName = Path.GetFileName(localPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
                 if (string.IsNullOrWhiteSpace(dirName)) return;
 
-                string targetRemoteDir = (string.IsNullOrEmpty(remoteParentDir) || remoteParentDir == "/" ? "" : remoteParentDir.TrimEnd('/')) + "/" + dirName;
+                string targetRemoteDir = CombineRemotePath(remoteParentDir, dirName);
                 await EnsureRemoteDirectoryExistsAsync(targetRemoteDir);
 
                 foreach (string file in Directory.GetFiles(localPath))
@@ -731,24 +1956,32 @@ namespace FunkenwerkFtp
 
         private async Task EnsureRemoteDirectoryExistsAsync(string remoteDir)
         {
-            if (_sftpClient != null && _sftpClient.IsConnected)
+            await _remoteIoGate.WaitAsync();
+            try
             {
-                await Task.Run(() =>
+                if (_sftpClient != null && _sftpClient.IsConnected)
                 {
-                    if (!_sftpClient.Exists(remoteDir))
-                        _sftpClient.CreateDirectory(remoteDir);
-                });
+                    await Task.Run(() =>
+                    {
+                        if (!_sftpClient.Exists(remoteDir))
+                            _sftpClient.CreateDirectory(remoteDir);
+                    });
+                }
+                else if (_ftpClient != null && _ftpClient.IsConnected)
+                {
+                    if (!await _ftpClient.DirectoryExists(remoteDir))
+                        await _ftpClient.CreateDirectory(remoteDir);
+                }
             }
-            else if (_ftpClient != null && _ftpClient.IsConnected)
+            finally
             {
-                if (!await _ftpClient.DirectoryExists(remoteDir))
-                    await _ftpClient.CreateDirectory(remoteDir);
+                _remoteIoGate.Release();
             }
         }
 
         private async Task UploadSingleFileAsync(string localFilePath)
         {
-            string remoteDir = RemotePathBox.Text.Trim().TrimEnd('/');
+            string remoteDir = RemotePathBox.Text.Trim();
             await UploadSingleFileToDirAsync(localFilePath, remoteDir, refreshAfter: true);
         }
 
@@ -758,31 +1991,38 @@ namespace FunkenwerkFtp
             try
             {
                 string fileName = Path.GetFileName(localFilePath);
-                string cleanRemoteDir = (remoteDir ?? "").Trim().TrimEnd('/');
-                string remoteTarget = (string.IsNullOrEmpty(cleanRemoteDir) ? "" : cleanRemoteDir) + "/" + fileName;
+                string remoteTarget = CombineRemotePath(remoteDir, fileName);
 
                 TransferProgressBar.Value = 10;
-                StatusText.Text = $"⬆ Lade hoch: {fileName} ...";
+                StatusText.Text = $"⬆ Lade hoch: {fileName} -> {remoteDir} ...";
 
-                if (_sftpClient != null && _sftpClient.IsConnected)
+                await _remoteIoGate.WaitAsync();
+                try
                 {
-                    long totalBytes = new FileInfo(localFilePath).Length;
-                    await Task.Run(() =>
+                    if (_sftpClient != null && _sftpClient.IsConnected)
                     {
-                        using var fs = File.OpenRead(localFilePath);
-                        _sftpClient.UploadFile(fs, remoteTarget, true, uploaded =>
+                        long totalBytes = new FileInfo(localFilePath).Length;
+                        await Task.Run(() =>
                         {
-                            if (totalBytes > 0)
+                            using var fs = new FileStream(localFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                            _sftpClient.UploadFile(fs, remoteTarget, true, uploaded =>
                             {
-                                double pct = (double)uploaded / totalBytes * 100.0;
-                                Dispatcher.InvokeAsync(() => TransferProgressBar.Value = pct);
-                            }
+                                if (totalBytes > 0)
+                                {
+                                    double pct = (double)uploaded / totalBytes * 100.0;
+                                    Dispatcher.InvokeAsync(() => TransferProgressBar.Value = pct);
+                                }
+                            });
                         });
-                    });
+                    }
+                    else if (_ftpClient != null && _ftpClient.IsConnected)
+                    {
+                        await _ftpClient.UploadFile(localFilePath, remoteTarget, FtpRemoteExists.Overwrite, true);
+                    }
                 }
-                else if (_ftpClient != null && _ftpClient.IsConnected)
+                finally
                 {
-                    await _ftpClient.UploadFile(localFilePath, remoteTarget, FtpRemoteExists.Overwrite, true);
+                    _remoteIoGate.Release();
                 }
 
                 TransferProgressBar.Value = 100;
@@ -799,7 +2039,7 @@ namespace FunkenwerkFtp
         private async void DownloadSelected_Click(object sender, RoutedEventArgs e)
         {
             if (!IsConnected()) return;
-            var selected = RemoteFilesList.SelectedItems.Cast<FileEntryItem>().ToList();
+            var selected = GetSelectedActionableRemoteItems();
             if (selected.Count == 0) return;
 
             string localBase = LocalPathBox.Text.Trim();
@@ -817,7 +2057,7 @@ namespace FunkenwerkFtp
 
         private async Task DownloadItemRecursiveAsync(FileEntryItem remoteItem, string localParentDir, bool refreshAfter)
         {
-            if (!IsConnected()) return;
+            if (!IsConnected() || remoteItem.IsParentNav) return;
             try
             {
                 string safeLocalTarget = FunkenwerkFtpSecurity.ValidateSafeLocalPath(localParentDir, remoteItem.Name);
@@ -825,36 +2065,52 @@ namespace FunkenwerkFtp
                 if (remoteItem.IsDirectory)
                 {
                     Directory.CreateDirectory(safeLocalTarget);
-                    if (_sftpClient != null && _sftpClient.IsConnected)
+                    var children = new List<FileEntryItem>();
+
+                    await _remoteIoGate.WaitAsync();
+                    try
                     {
-                        var subEntries = await Task.Run(() => _sftpClient.ListDirectory(remoteItem.FullPath)
-                            .Where(x => x.Name != "." && x.Name != "..")
-                            .ToList());
-                        foreach (var sub in subEntries)
+                        if (_sftpClient != null && _sftpClient.IsConnected)
                         {
-                            await DownloadItemRecursiveAsync(new FileEntryItem
+                            var subEntries = await Task.Run(() => _sftpClient.ListDirectory(remoteItem.FullPath)
+                                .Where(x => x.Name != "." && x.Name != "..")
+                                .ToList());
+                            foreach (var sub in subEntries)
                             {
-                                Name = sub.Name,
-                                FullPath = sub.FullName,
-                                IsDirectory = sub.IsDirectory,
-                                Size = sub.Length
-                            }, safeLocalTarget, refreshAfter: false);
+                                children.Add(new FileEntryItem
+                                {
+                                    Name = sub.Name,
+                                    FullPath = sub.FullName,
+                                    IsDirectory = sub.IsDirectory,
+                                    Size = sub.Length
+                                });
+                            }
+                        }
+                        else if (_ftpClient != null && _ftpClient.IsConnected)
+                        {
+                            var subEntries = await _ftpClient.GetListing(remoteItem.FullPath);
+                            foreach (var sub in subEntries.Where(x => x.Name != "." && x.Name != ".."))
+                            {
+                                children.Add(new FileEntryItem
+                                {
+                                    Name = sub.Name,
+                                    FullPath = sub.FullName,
+                                    IsDirectory = sub.Type == FtpObjectType.Directory,
+                                    Size = sub.Size
+                                });
+                            }
                         }
                     }
-                    else if (_ftpClient != null && _ftpClient.IsConnected)
+                    finally
                     {
-                        var subEntries = await _ftpClient.GetListing(remoteItem.FullPath);
-                        foreach (var sub in subEntries.Where(x => x.Name != "." && x.Name != ".."))
-                        {
-                            await DownloadItemRecursiveAsync(new FileEntryItem
-                            {
-                                Name = sub.Name,
-                                FullPath = sub.FullName,
-                                IsDirectory = sub.Type == FtpObjectType.Directory,
-                                Size = sub.Size
-                            }, safeLocalTarget, refreshAfter: false);
-                        }
+                        _remoteIoGate.Release();
                     }
+
+                    foreach (var child in children)
+                    {
+                        await DownloadItemRecursiveAsync(child, safeLocalTarget, refreshAfter: false);
+                    }
+
                     if (refreshAfter)
                         NavigateLocalDirectory(LocalPathBox.Text.Trim());
                     return;
@@ -863,22 +2119,30 @@ namespace FunkenwerkFtp
                 TransferProgressBar.Value = 10;
                 StatusText.Text = $"⬇ Lade herunter: {remoteItem.Name} ...";
 
-                if (_sftpClient != null && _sftpClient.IsConnected)
+                await _remoteIoGate.WaitAsync();
+                try
                 {
-                    long totalBytes = Math.Max(1, remoteItem.Size);
-                    await Task.Run(() =>
+                    if (_sftpClient != null && _sftpClient.IsConnected)
                     {
-                        using var fs = File.Create(safeLocalTarget);
-                        _sftpClient.DownloadFile(remoteItem.FullPath, fs, downloaded =>
+                        long totalBytes = Math.Max(1, remoteItem.Size);
+                        await Task.Run(() =>
                         {
-                            double pct = (double)downloaded / totalBytes * 100.0;
-                            Dispatcher.InvokeAsync(() => TransferProgressBar.Value = Math.Min(100, pct));
+                            using var fs = File.Create(safeLocalTarget);
+                            _sftpClient.DownloadFile(remoteItem.FullPath, fs, downloaded =>
+                            {
+                                double pct = (double)downloaded / totalBytes * 100.0;
+                                Dispatcher.InvokeAsync(() => TransferProgressBar.Value = Math.Min(100, pct));
+                            });
                         });
-                    });
+                    }
+                    else if (_ftpClient != null && _ftpClient.IsConnected)
+                    {
+                        await _ftpClient.DownloadFile(safeLocalTarget, remoteItem.FullPath, FtpLocalExists.Overwrite);
+                    }
                 }
-                else if (_ftpClient != null && _ftpClient.IsConnected)
+                finally
                 {
-                    await _ftpClient.DownloadFile(safeLocalTarget, remoteItem.FullPath, FtpLocalExists.Overwrite);
+                    _remoteIoGate.Release();
                 }
 
                 TransferProgressBar.Value = 100;
@@ -892,157 +2156,377 @@ namespace FunkenwerkFtp
             }
         }
 
-        private async void RemoteMkdir_Click(object sender, RoutedEventArgs e)
+        // Synchronous staging used ONLY when user drags remote item(s) out onto Windows Desktop / Explorer / PhpStorm
+        private string[]? StageRemoteItemsForExternalDropSync(List<FileEntryItem> items)
         {
-            if (!IsConnected()) return;
+            if (!IsConnected() || items.Count == 0) return null;
+
+            long approxBytes = items.Where(x => !x.IsDirectory).Sum(x => Math.Max(0, x.Size));
+            if (approxBytes > MAX_EXTERNAL_DRAG_STAGE_BYTES)
+            {
+                StatusText.Text = "⚠ Für sehr große Dateien (> 160 MB) bitte direkt in das linke LOKAL-Feld ziehen.";
+                return null;
+            }
+
+            if (!_remoteIoGate.Wait(TimeSpan.FromSeconds(15)))
+                return null;
+
             try
             {
-                string remoteDir = RemotePathBox.Text.Trim().TrimEnd('/');
-                string newFolder = (string.IsNullOrEmpty(remoteDir) ? "" : remoteDir) + $"/Ordner_{DateTime.Now:HHmmss}";
-                if (_sftpClient != null && _sftpClient.IsConnected)
-                    await Task.Run(() => _sftpClient.CreateDirectory(newFolder));
-                else if (_ftpClient != null && _ftpClient.IsConnected)
-                    await _ftpClient.CreateDirectory(newFolder);
+                string batchDir = DragStagingManager.CreateIsolatedBatchDir();
+                var staged = new List<string>(items.Count);
 
-                await NavigateRemoteDirectoryAsync(RemotePathBox.Text.Trim());
+                foreach (var it in items)
+                {
+                    if (it.IsParentNav) continue;
+                    string safeDest = FunkenwerkFtpSecurity.ValidateSafeLocalPath(batchDir, it.Name);
+                    StageSingleRemoteEntrySync(it.FullPath, it.IsDirectory, safeDest);
+                    if (File.Exists(safeDest) || Directory.Exists(safeDest))
+                        staged.Add(safeDest);
+                }
+
+                if (staged.Count > 0)
+                    StatusText.Text = $"✓ {staged.Count} Server-Element(e) per Drag & Drop bereitgestellt.";
+                return staged.ToArray();
             }
             catch (Exception ex)
             {
-                StatusText.Text = $"⚠ {ex.Message}";
+                StatusText.Text = $"⚠ Drag-Export fehlgeschlagen: {ex.Message}";
+                return null;
+            }
+            finally
+            {
+                _remoteIoGate.Release();
             }
         }
 
-        private async void RemoteDelete_Click(object sender, RoutedEventArgs e)
+        private void StageSingleRemoteEntrySync(string remotePath, bool isDir, string safeLocalDest)
         {
-            if (!IsConnected()) return;
-            var selected = RemoteFilesList.SelectedItems.Cast<FileEntryItem>().ToList();
-            foreach (var item in selected)
+            if (_sftpClient != null && _sftpClient.IsConnected)
             {
-                await DeleteRemoteRecursiveAsync(item.FullPath, item.IsDirectory);
-            }
-            await NavigateRemoteDirectoryAsync(RemotePathBox.Text.Trim());
-        }
-
-        private async Task DeleteRemoteRecursiveAsync(string remotePath, bool isDir)
-        {
-            try
-            {
-                if (_sftpClient != null && _sftpClient.IsConnected)
+                if (isDir)
                 {
-                    await Task.Run(() =>
+                    Directory.CreateDirectory(safeLocalDest);
+                    foreach (var sub in _sftpClient.ListDirectory(remotePath).Where(x => x.Name != "." && x.Name != ".."))
                     {
-                        if (isDir)
-                        {
-                            foreach (var sub in _sftpClient.ListDirectory(remotePath).Where(x => x.Name != "." && x.Name != ".."))
-                            {
-                                if (sub.IsDirectory)
-                                    DeleteSftpDirectorySync(sub.FullName);
-                                else
-                                    _sftpClient.DeleteFile(sub.FullName);
-                            }
-                            _sftpClient.DeleteDirectory(remotePath);
-                        }
-                        else
-                        {
-                            _sftpClient.DeleteFile(remotePath);
-                        }
-                    });
+                        string childLocal = FunkenwerkFtpSecurity.ValidateSafeLocalPath(safeLocalDest, sub.Name);
+                        StageSingleRemoteEntrySync(sub.FullName, sub.IsDirectory, childLocal);
+                    }
                 }
-                else if (_ftpClient != null && _ftpClient.IsConnected)
+                else
                 {
-                    if (isDir) await _ftpClient.DeleteDirectory(remotePath);
-                    else await _ftpClient.DeleteFile(remotePath);
+                    using var fs = File.Create(safeLocalDest);
+                    _sftpClient.DownloadFile(remotePath, fs);
                 }
             }
-            catch (Exception ex)
+            else if (_ftpClient != null && _ftpClient.IsConnected)
             {
-                StatusText.Text = $"⚠ Löschen: {ex.Message}";
+                // Run on thread-pool so UI thread never deadlocks async state machine
+                Task.Run(async () =>
+                {
+                    if (isDir)
+                    {
+                        Directory.CreateDirectory(safeLocalDest);
+                        var subs = await _ftpClient.GetListing(remotePath);
+                        foreach (var sub in subs.Where(x => x.Name != "." && x.Name != ".."))
+                        {
+                            string childLocal = FunkenwerkFtpSecurity.ValidateSafeLocalPath(safeLocalDest, sub.Name);
+                            StageSingleRemoteEntrySync(sub.FullName, sub.Type == FtpObjectType.Directory, childLocal);
+                        }
+                    }
+                    else
+                    {
+                        await _ftpClient.DownloadFile(safeLocalDest, remotePath, FtpLocalExists.Overwrite);
+                    }
+                }).GetAwaiter().GetResult();
             }
         }
 
-        private void DeleteSftpDirectorySync(string path)
+        // =====================================================================
+        // 6-WAY EFFORTLESS DRAG & DROP + SUBFOLDER ROW HIGHLIGHTING
+        // =====================================================================
+        private static T? FindAncestor<T>(DependencyObject? cur) where T : DependencyObject
         {
-            if (_sftpClient == null) return;
-            foreach (var sub in _sftpClient.ListDirectory(path).Where(x => x.Name != "." && x.Name != ".."))
+            while (cur != null)
             {
-                if (sub.IsDirectory) DeleteSftpDirectorySync(sub.FullName);
-                else _sftpClient.DeleteFile(sub.FullName);
+                if (cur is T match) return match;
+                cur = cur is Visual || cur is System.Windows.Media.Media3D.Visual3D
+                    ? VisualTreeHelper.GetParent(cur)
+                    : LogicalTreeHelper.GetParent(cur);
             }
-            _sftpClient.DeleteDirectory(path);
+            return null;
         }
 
-        // =====================================================================
-        // BIDIRECTIONAL DRAG & DROP (EXPLORER <-> LOKAL <-> SERVER)
-        // =====================================================================
+        private static bool IsInteractiveChromeElement(DependencyObject? src)
+        {
+            return FindAncestor<ScrollBar>(src) != null ||
+                   FindAncestor<Thumb>(src) != null ||
+                   FindAncestor<GridViewColumnHeader>(src) != null;
+        }
+
+        private void ClearDropTargetHighlight()
+        {
+            if (_highlightedDropItem != null)
+            {
+                _highlightedDropItem.IsDropTarget = false;
+                _highlightedDropItem = null;
+            }
+        }
+
+        private FileEntryItem? GetHoveredDirectoryRow(DragEventArgs e)
+        {
+            var lvi = FindAncestor<ListViewItem>(e.OriginalSource as DependencyObject);
+            if (lvi?.DataContext is FileEntryItem item && item.IsDirectory)
+                return item;
+            return null;
+        }
+
+        private void SetHighlightedDropRow(FileEntryItem? row)
+        {
+            if (ReferenceEquals(_highlightedDropItem, row)) return;
+            if (_highlightedDropItem != null)
+                _highlightedDropItem.IsDropTarget = false;
+            _highlightedDropItem = row;
+            if (_highlightedDropItem != null)
+                _highlightedDropItem.IsDropTarget = true;
+        }
+
+        private void RootGrid_PreviewDragOver(object sender, DragEventArgs e)
+        {
+            // Keep internal drags smooth while crossing the 14px splitter gap
+            if (e.Data.GetDataPresent(DRAG_FORMAT_REMOTE) || e.Data.GetDataPresent(DRAG_FORMAT_LOCAL) || e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                e.Effects = DragDropEffects.Copy;
+                e.Handled = true;
+            }
+        }
+
+        // --- LOKAL Mouse & Drag Initiation ---
         private void LocalFilesList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            _localDragStartPoint = e.GetPosition(null);
+            _localDeferredSingleSelect = null;
+            if (IsInteractiveChromeElement(e.OriginalSource as DependencyObject))
+            {
+                _localCanStartDrag = false;
+                return;
+            }
+
+            var lvi = FindAncestor<ListViewItem>(e.OriginalSource as DependencyObject);
+            if (lvi == null)
+            {
+                _localCanStartDrag = false;
+                if ((Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) == 0)
+                    LocalFilesList.SelectedItems.Clear();
+                return;
+            }
+
+            if (lvi.DataContext is FileEntryItem item)
+            {
+                if (item.IsParentNav)
+                {
+                    _localCanStartDrag = false;
+                    return;
+                }
+
+                _localDragStartPoint = e.GetPosition(null);
+                _localCanStartDrag = true;
+
+                // Preserve multi-selection on press so dragging multiple selected files drags ALL of them
+                if (lvi.IsSelected && LocalFilesList.SelectedItems.Count > 1 &&
+                    e.ClickCount == 1 && (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) == 0)
+                {
+                    _localDeferredSingleSelect = item;
+                    e.Handled = true;
+                }
+            }
+        }
+
+        private void LocalFilesList_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (_localDeferredSingleSelect != null && !_isDraggingInternal)
+            {
+                var target = _localDeferredSingleSelect;
+                _localDeferredSingleSelect = null;
+                LocalFilesList.SelectedItems.Clear();
+                LocalFilesList.SelectedItem = target;
+            }
+            _localCanStartDrag = false;
+        }
+
+        private void LocalFilesList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (IsInteractiveChromeElement(e.OriginalSource as DependencyObject)) return;
+            var lvi = FindAncestor<ListViewItem>(e.OriginalSource as DependencyObject);
+            if (lvi == null)
+            {
+                LocalFilesList.SelectedItems.Clear();
+            }
+            else if (!lvi.IsSelected)
+            {
+                LocalFilesList.SelectedItems.Clear();
+                lvi.IsSelected = true;
+            }
         }
 
         private void LocalFilesList_PreviewMouseMove(object sender, MouseEventArgs e)
         {
-            if (e.LeftButton != MouseButtonState.Pressed || _isDraggingInternal) return;
+            if (!_localCanStartDrag || e.LeftButton != MouseButtonState.Pressed || _isDraggingInternal) return;
             Point pos = e.GetPosition(null);
             Vector diff = _localDragStartPoint - pos;
-            if (Math.Abs(diff.X) <= 8 && Math.Abs(diff.Y) <= 8) return;
+            if (Math.Abs(diff.X) <= 6 && Math.Abs(diff.Y) <= 6) return;
 
-            var selected = LocalFilesList.SelectedItems.Cast<FileEntryItem>().ToList();
+            var selected = GetSelectedActionableLocalItems();
             if (selected.Count == 0) return;
 
             try
             {
                 _isDraggingInternal = true;
+                _localDeferredSingleSelect = null;
                 var data = new DataObject();
                 string[] paths = selected.Select(x => x.FullPath).ToArray();
                 data.SetData(DataFormats.FileDrop, paths);
                 data.SetData(DRAG_FORMAT_LOCAL, paths);
-                DragDrop.DoDragDrop(LocalFilesList, data, DragDropEffects.Copy);
+                DragDrop.DoDragDrop(LocalFilesList, data, DragDropEffects.Copy | DragDropEffects.Move);
             }
             catch { }
             finally
             {
                 _isDraggingInternal = false;
+                _localCanStartDrag = false;
+                ClearDropTargetHighlight();
+                ResetTileBorders();
             }
         }
 
+        // --- SERVER Mouse & Drag Initiation ---
         private void RemoteFilesList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            _remoteDragStartPoint = e.GetPosition(null);
+            _remoteDeferredSingleSelect = null;
+            if (IsInteractiveChromeElement(e.OriginalSource as DependencyObject))
+            {
+                _remoteCanStartDrag = false;
+                return;
+            }
+
+            var lvi = FindAncestor<ListViewItem>(e.OriginalSource as DependencyObject);
+            if (lvi == null)
+            {
+                _remoteCanStartDrag = false;
+                if ((Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) == 0)
+                    RemoteFilesList.SelectedItems.Clear();
+                return;
+            }
+
+            if (lvi.DataContext is FileEntryItem item)
+            {
+                if (item.IsParentNav)
+                {
+                    _remoteCanStartDrag = false;
+                    return;
+                }
+
+                _remoteDragStartPoint = e.GetPosition(null);
+                _remoteCanStartDrag = true;
+
+                if (lvi.IsSelected && RemoteFilesList.SelectedItems.Count > 1 &&
+                    e.ClickCount == 1 && (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) == 0)
+                {
+                    _remoteDeferredSingleSelect = item;
+                    e.Handled = true;
+                }
+            }
+        }
+
+        private void RemoteFilesList_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (_remoteDeferredSingleSelect != null && !_isDraggingInternal)
+            {
+                var target = _remoteDeferredSingleSelect;
+                _remoteDeferredSingleSelect = null;
+                RemoteFilesList.SelectedItems.Clear();
+                RemoteFilesList.SelectedItem = target;
+            }
+            _remoteCanStartDrag = false;
+        }
+
+        private void RemoteFilesList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (IsInteractiveChromeElement(e.OriginalSource as DependencyObject)) return;
+            var lvi = FindAncestor<ListViewItem>(e.OriginalSource as DependencyObject);
+            if (lvi == null)
+            {
+                RemoteFilesList.SelectedItems.Clear();
+            }
+            else if (!lvi.IsSelected)
+            {
+                RemoteFilesList.SelectedItems.Clear();
+                lvi.IsSelected = true;
+            }
         }
 
         private void RemoteFilesList_PreviewMouseMove(object sender, MouseEventArgs e)
         {
-            if (e.LeftButton != MouseButtonState.Pressed || _isDraggingInternal || !IsConnected()) return;
+            if (!_remoteCanStartDrag || e.LeftButton != MouseButtonState.Pressed || _isDraggingInternal || !IsConnected()) return;
             Point pos = e.GetPosition(null);
             Vector diff = _remoteDragStartPoint - pos;
-            if (Math.Abs(diff.X) <= 8 && Math.Abs(diff.Y) <= 8) return;
+            if (Math.Abs(diff.X) <= 6 && Math.Abs(diff.Y) <= 6) return;
 
-            var selected = RemoteFilesList.SelectedItems.Cast<FileEntryItem>().ToList();
+            var selected = GetSelectedActionableRemoteItems();
             if (selected.Count == 0) return;
 
             try
             {
                 _isDraggingInternal = true;
-                var data = new DataObject();
-                data.SetData(DRAG_FORMAT_REMOTE, selected);
-                DragDrop.DoDragDrop(RemoteFilesList, data, DragDropEffects.Copy);
+                _remoteDeferredSingleSelect = null;
+                var lazyData = new DelayedRemoteFileDropDataObject(
+                    DRAG_FORMAT_REMOTE,
+                    selected,
+                    () => StageRemoteItemsForExternalDropSync(selected));
+
+                DragDrop.DoDragDrop(RemoteFilesList, lazyData, DragDropEffects.Copy | DragDropEffects.Move);
             }
             catch { }
             finally
             {
                 _isDraggingInternal = false;
+                _remoteCanStartDrag = false;
+                ClearDropTargetHighlight();
+                ResetTileBorders();
             }
         }
 
+        // --- LOKAL Drop Target Handling ---
         private void LocalTile_PreviewDragOver(object sender, DragEventArgs e)
         {
+            var hoveredFolder = GetHoveredDirectoryRow(e);
+
+            // Same-pane drag inside LOKAL: allow moving into a subfolder or '..'
+            if (e.Data.GetDataPresent(DRAG_FORMAT_LOCAL) && e.Data.GetData(DRAG_FORMAT_LOCAL) is string[] localPaths)
+            {
+                if (hoveredFolder != null && !localPaths.Any(p => string.Equals(p, hoveredFolder.FullPath, StringComparison.OrdinalIgnoreCase)))
+                {
+                    SetHighlightedDropRow(hoveredFolder);
+                    LocalTileBorder.BorderBrush = BrushHex("#C5A059");
+                    e.Effects = DragDropEffects.Move;
+                }
+                else
+                {
+                    ClearDropTargetHighlight();
+                    e.Effects = DragDropEffects.None;
+                }
+                e.Handled = true;
+                return;
+            }
+
             if (e.Data.GetDataPresent(DRAG_FORMAT_REMOTE) || e.Data.GetDataPresent(DataFormats.FileDrop))
             {
-                e.Effects = DragDropEffects.Copy;
+                SetHighlightedDropRow(hoveredFolder);
                 LocalTileBorder.BorderBrush = BrushHex("#C5A059");
+                e.Effects = DragDropEffects.Copy;
             }
             else
             {
+                ClearDropTargetHighlight();
                 e.Effects = DragDropEffects.None;
             }
             e.Handled = true;
@@ -1050,75 +2534,168 @@ namespace FunkenwerkFtp
 
         private void LocalTile_DragLeave(object sender, DragEventArgs e)
         {
-            LocalTileBorder.BorderBrush = BrushHex(_isDarkMode ? "#242938" : "#E5E7EB");
+            ClearDropTargetHighlight();
+            ResetTileBorders();
         }
 
         private async void LocalTile_PreviewDrop(object sender, DragEventArgs e)
         {
-            LocalTileBorder.BorderBrush = BrushHex(_isDarkMode ? "#242938" : "#E5E7EB");
+            var targetFolderRow = GetHoveredDirectoryRow(e);
+            ClearDropTargetHighlight();
+            ResetTileBorders();
             e.Handled = true;
 
-            string localBase = LocalPathBox.Text.Trim();
-            if (string.IsNullOrWhiteSpace(localBase) || !Directory.Exists(localBase)) return;
+            string currentLocal = LocalPathBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(currentLocal) || !Directory.Exists(currentLocal)) return;
+            string destDir = targetFolderRow != null ? targetFolderRow.FullPath : currentLocal;
 
-            // 1. Dropped from SERVER pane -> Download to LOKAL
+            // 1. Same-pane move inside LOKAL onto a folder row or '..'
+            if (e.Data.GetDataPresent(DRAG_FORMAT_LOCAL) && e.Data.GetData(DRAG_FORMAT_LOCAL) is string[] movePaths)
+            {
+                if (targetFolderRow == null) return;
+                int moved = 0;
+                foreach (string src in movePaths)
+                {
+                    try
+                    {
+                        if (string.Equals(src, destDir, StringComparison.OrdinalIgnoreCase)) continue;
+                        string dest = Path.Combine(destDir, Path.GetFileName(src.TrimEnd(Path.DirectorySeparatorChar)));
+                        if (Directory.Exists(src)) Directory.Move(src, dest);
+                        else if (File.Exists(src)) File.Move(src, dest, overwrite: true);
+                        moved++;
+                    }
+                    catch (Exception ex)
+                    {
+                        StatusText.Text = $"⚠ Verschieben: {ex.Message}";
+                    }
+                }
+                NavigateLocalDirectory(currentLocal);
+                if (moved > 0)
+                    StatusText.Text = $"✓ {moved} Element(e) in '{targetFolderRow.Name}' verschoben.";
+                return;
+            }
+
+            // 2. Dropped from SERVER pane -> Download to LOKAL (or hovered LOKAL subfolder!)
             if (e.Data.GetDataPresent(DRAG_FORMAT_REMOTE) &&
                 e.Data.GetData(DRAG_FORMAT_REMOTE) is List<FileEntryItem> remoteItems)
             {
                 foreach (var item in remoteItems)
                 {
-                    await DownloadItemRecursiveAsync(item, localBase, refreshAfter: false);
+                    await DownloadItemRecursiveAsync(item, destDir, refreshAfter: false);
                 }
-                NavigateLocalDirectory(localBase);
+                NavigateLocalDirectory(currentLocal);
+                StatusText.Text = $"✓ {remoteItems.Count} Server-Element(e) nach '{destDir}' heruntergeladen.";
                 return;
             }
 
-            // 2. Dropped from Windows Explorer onto LOKAL pane
+            // 3. Dropped from Windows Explorer / Desktop onto LOKAL
             if (e.Data.GetDataPresent(DataFormats.FileDrop) &&
-                !e.Data.GetDataPresent(DRAG_FORMAT_LOCAL) &&
                 e.Data.GetData(DataFormats.FileDrop) is string[] droppedPaths &&
                 droppedPaths.Length > 0)
             {
-                // If user dropped a single directory from Explorer, navigate LOKAL into it; otherwise copy files into current LOKAL directory
-                if (droppedPaths.Length == 1 && Directory.Exists(droppedPaths[0]))
+                // If user dropped a folder directly onto LocalPathBox, navigate into it
+                if (e.OriginalSource is DependencyObject dObj && FindAncestor<TextBox>(dObj) == LocalPathBox &&
+                    droppedPaths.Length == 1 && Directory.Exists(droppedPaths[0]))
                 {
                     NavigateLocalDirectory(droppedPaths[0]);
                     StatusText.Text = $"📂 Lokales Verzeichnis geöffnet: {droppedPaths[0]}";
                     return;
                 }
 
-                int copied = 0;
-                foreach (string src in droppedPaths)
-                {
-                    try
-                    {
-                        if (File.Exists(src))
-                        {
-                            string dest = FunkenwerkFtpSecurity.ValidateSafeLocalPath(localBase, Path.GetFileName(src));
-                            if (!string.Equals(Path.GetFullPath(src), dest, StringComparison.OrdinalIgnoreCase))
-                            {
-                                File.Copy(src, dest, true);
-                                copied++;
-                            }
-                        }
-                    }
-                    catch { }
-                }
-                NavigateLocalDirectory(localBase);
+                int copied = CopyExternalPathsIntoLocalDir(droppedPaths, destDir);
+                NavigateLocalDirectory(currentLocal);
                 if (copied > 0)
-                    StatusText.Text = $"✓ {copied} Datei(en) in lokales Verzeichnis übernommen.";
+                    StatusText.Text = $"✓ {copied} Element(e) nach '{destDir}' übernommen.";
             }
         }
 
+        private static int CopyExternalPathsIntoLocalDir(IEnumerable<string> srcPaths, string destDir)
+        {
+            int count = 0;
+            foreach (string src in srcPaths)
+            {
+                try
+                {
+                    if (File.Exists(src))
+                    {
+                        string dest = FunkenwerkFtpSecurity.ValidateSafeLocalPath(destDir, Path.GetFileName(src));
+                        if (!string.Equals(Path.GetFullPath(src), dest, StringComparison.OrdinalIgnoreCase))
+                        {
+                            File.Copy(src, dest, overwrite: true);
+                            count++;
+                        }
+                    }
+                    else if (Directory.Exists(src))
+                    {
+                        string dirName = Path.GetFileName(src.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                        string destSub = FunkenwerkFtpSecurity.ValidateSafeLocalPath(destDir, dirName);
+                        if (!string.Equals(Path.GetFullPath(src), destSub, StringComparison.OrdinalIgnoreCase) &&
+                            !destSub.StartsWith(Path.GetFullPath(src) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                        {
+                            CopyLocalDirectoryRecursive(src, destSub);
+                            count++;
+                        }
+                    }
+                }
+                catch { }
+            }
+            return count;
+        }
+
+        private static void CopyLocalDirectoryRecursive(string srcDir, string destDir)
+        {
+            Directory.CreateDirectory(destDir);
+            foreach (string f in Directory.GetFiles(srcDir))
+            {
+                File.Copy(f, Path.Combine(destDir, Path.GetFileName(f)), overwrite: true);
+            }
+            foreach (string d in Directory.GetDirectories(srcDir))
+            {
+                CopyLocalDirectoryRecursive(d, Path.Combine(destDir, Path.GetFileName(d)));
+            }
+        }
+
+        // --- SERVER Drop Target Handling ---
         private void RemoteTile_PreviewDragOver(object sender, DragEventArgs e)
         {
-            if (IsConnected() && (e.Data.GetDataPresent(DataFormats.FileDrop) || e.Data.GetDataPresent(DRAG_FORMAT_LOCAL)))
+            if (!IsConnected())
             {
-                e.Effects = DragDropEffects.Copy;
+                ClearDropTargetHighlight();
+                e.Effects = DragDropEffects.None;
+                e.Handled = true;
+                return;
+            }
+
+            var hoveredFolder = GetHoveredDirectoryRow(e);
+
+            // Same-pane drag inside SERVER: move into hovered remote subfolder or '..'
+            if (e.Data.GetDataPresent(DRAG_FORMAT_REMOTE) &&
+                e.Data.GetData(DRAG_FORMAT_REMOTE) is List<FileEntryItem> remoteDragged)
+            {
+                if (hoveredFolder != null && !remoteDragged.Any(x => string.Equals(x.FullPath, hoveredFolder.FullPath, StringComparison.Ordinal)))
+                {
+                    SetHighlightedDropRow(hoveredFolder);
+                    RemoteTileBorder.BorderBrush = BrushHex("#C5A059");
+                    e.Effects = DragDropEffects.Move;
+                }
+                else
+                {
+                    ClearDropTargetHighlight();
+                    e.Effects = DragDropEffects.None;
+                }
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Data.GetDataPresent(DRAG_FORMAT_LOCAL) || e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                SetHighlightedDropRow(hoveredFolder);
                 RemoteTileBorder.BorderBrush = BrushHex("#C5A059");
+                e.Effects = DragDropEffects.Copy;
             }
             else
             {
+                ClearDropTargetHighlight();
                 e.Effects = DragDropEffects.None;
             }
             e.Handled = true;
@@ -1126,20 +2703,43 @@ namespace FunkenwerkFtp
 
         private void RemoteTile_DragLeave(object sender, DragEventArgs e)
         {
-            RemoteTileBorder.BorderBrush = BrushHex(_isDarkMode ? "#242938" : "#E5E7EB");
+            ClearDropTargetHighlight();
+            ResetTileBorders();
         }
 
         private async void RemoteTile_PreviewDrop(object sender, DragEventArgs e)
         {
-            RemoteTileBorder.BorderBrush = BrushHex(_isDarkMode ? "#242938" : "#E5E7EB");
+            var targetFolderRow = GetHoveredDirectoryRow(e);
+            ClearDropTargetHighlight();
+            ResetTileBorders();
             e.Handled = true;
 
             if (!IsConnected())
             {
-                StatusText.Text = "⚠ Bitte zuerst mit dem Server verbinden, bevor Dateien per Drag & Drop hochgeladen werden.";
+                StatusText.Text = "⚠ Bitte zuerst mit dem Server verbinden, bevor Dateien hochgeladen werden.";
                 return;
             }
 
+            string currentRemote = RemotePathBox.Text.Trim();
+            string targetRemoteDir = targetFolderRow != null ? targetFolderRow.FullPath : currentRemote;
+
+            // 1. Same-pane move inside SERVER onto a folder row or '..'
+            if (e.Data.GetDataPresent(DRAG_FORMAT_REMOTE) &&
+                e.Data.GetData(DRAG_FORMAT_REMOTE) is List<FileEntryItem> remoteDragged)
+            {
+                if (targetFolderRow == null) return;
+                foreach (var item in remoteDragged)
+                {
+                    if (string.Equals(item.FullPath, targetRemoteDir, StringComparison.Ordinal)) continue;
+                    string destPath = CombineRemotePath(targetRemoteDir, item.Name);
+                    await MoveRemoteEntryAsync(item, destPath, refreshAfter: false);
+                }
+                await NavigateRemoteDirectoryAsync(currentRemote);
+                StatusText.Text = $"✓ {remoteDragged.Count} Element(e) auf Server nach '{targetRemoteDir}' verschoben.";
+                return;
+            }
+
+            // 2. Upload from LOKAL or Windows Explorer / Desktop into targetRemoteDir
             string[]? paths = null;
             if (e.Data.GetDataPresent(DRAG_FORMAT_LOCAL))
                 paths = e.Data.GetData(DRAG_FORMAT_LOCAL) as string[];
@@ -1148,56 +2748,60 @@ namespace FunkenwerkFtp
 
             if (paths == null || paths.Length == 0) return;
 
-            string remoteDir = RemotePathBox.Text.Trim().TrimEnd('/');
             foreach (string p in paths)
             {
-                await UploadPathRecursiveAsync(p, remoteDir);
+                await UploadPathRecursiveAsync(p, targetRemoteDir);
             }
-            await NavigateRemoteDirectoryAsync(RemotePathBox.Text.Trim());
+            await NavigateRemoteDirectoryAsync(currentRemote);
+            StatusText.Text = $"✓ {paths.Length} Element(e) nach '{targetRemoteDir}' hochgeladen.";
         }
 
+        private void ResetTileBorders()
+        {
+            var sub = BrushHex(_isDarkMode ? "#242938" : "#E5E7EB");
+            LocalTileBorder.BorderBrush = sub;
+            RemoteTileBorder.BorderBrush = sub;
+        }
+
+        // =====================================================================
+        // 100 % LIGHT- & DARK-MODE CONSISTENCY
+        // =====================================================================
         private void ThemeToggle_Click(object sender, RoutedEventArgs e)
         {
             _isDarkMode = !_isDarkMode;
-            ThemeToggleBtn.Content = _isDarkMode ? "☀" : "🌙";
-
-            var rootBg = BrushHex(_isDarkMode ? "#0F1117" : "#F3F4F6");
-            var barBg = BrushHex(_isDarkMode ? "#12151E" : "#FFFFFF");
-            var tileBg = BrushHex(_isDarkMode ? "#141821" : "#FFFFFF");
-            var borderCol = BrushHex(_isDarkMode ? "#232734" : "#E5E7EB");
-            var inputBg = BrushHex(_isDarkMode ? "#181C26" : "#F9FAFB");
-            var textPrimary = BrushHex(_isDarkMode ? "#F9FAFB" : "#111827");
-
-            RootGrid.Background = rootBg;
-            TopBarBorder.Background = barBg;
-            TopBarBorder.BorderBrush = borderCol;
-            BottomBarBorder.Background = barBg;
-            BottomBarBorder.BorderBrush = borderCol;
-            LocalTileBorder.Background = tileBg;
-            LocalTileBorder.BorderBrush = borderCol;
-            RemoteTileBorder.Background = tileBg;
-            RemoteTileBorder.BorderBrush = borderCol;
-
-            foreach (var tb in new[] { HostBox, PortBox, UserBox, LocalPathBox, RemotePathBox })
-            {
-                tb.Background = inputBg;
-                tb.Foreground = textPrimary;
-                tb.BorderBrush = borderCol;
-            }
-            PassContainerBorder.Background = inputBg;
-            PassContainerBorder.BorderBrush = borderCol;
-            PassBox.Foreground = textPrimary;
-            PassVisibleBox.Foreground = textPrimary;
-            LocalFilesList.Foreground = textPrimary;
-            RemoteFilesList.Foreground = textPrimary;
+            ApplyTheme();
         }
 
-        private static SolidColorBrush BrushHex(string hex) =>
-            new((Color)ColorConverter.ConvertFromString(hex));
+        private void ApplyTheme()
+        {
+            ThemeToggleBtn.Content = _isDarkMode ? "☀" : "🌙";
+            var res = Application.Current.Resources;
 
-        private async void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+            res["FwBgRoot"] = BrushHex(_isDarkMode ? "#0F1117" : "#F3F4F6");
+            res["FwBgBar"] = BrushHex(_isDarkMode ? "#12151E" : "#FFFFFF");
+            res["FwBgTile"] = BrushHex(_isDarkMode ? "#141821" : "#FFFFFF");
+            res["FwBgInput"] = BrushHex(_isDarkMode ? "#181C26" : "#F9FAFB");
+            res["FwBgButton"] = BrushHex(_isDarkMode ? "#1D2230" : "#F3F4F6");
+            res["FwBgMenu"] = BrushHex(_isDarkMode ? "#161A24" : "#FFFFFF");
+            res["FwBgHover"] = BrushHex(_isDarkMode ? "#24C5A059" : "#1FC5A059");
+            res["FwBgSelected"] = BrushHex(_isDarkMode ? "#33C5A059" : "#2AC5A059");
+            res["FwBorderSubtle"] = BrushHex(_isDarkMode ? "#242938" : "#E5E7EB");
+            res["FwBorderStrong"] = BrushHex(_isDarkMode ? "#2D3343" : "#D1D5DB");
+            res["FwFgPrimary"] = BrushHex(_isDarkMode ? "#F9FAFB" : "#111827");
+            res["FwFgSecondary"] = BrushHex(_isDarkMode ? "#9CA3AF" : "#6B7280");
+        }
+
+        private static SolidColorBrush BrushHex(string hex)
+        {
+            var b = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+            b.Freeze();
+            return b;
+        }
+
+        private async void Window_Closing(object sender, CancelEventArgs e)
         {
             await DisconnectServerAsync();
+            DragStagingManager.PruneOldBatches(TimeSpan.Zero);
         }
     }
 }

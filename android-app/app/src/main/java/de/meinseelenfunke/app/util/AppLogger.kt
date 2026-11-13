@@ -34,6 +34,7 @@ object AppLogger {
                 Log.e(tag, message)
             }
         }
+        ErrorSentinelReporter.captureError(context, tag, message, throwable)
     }
 
     fun debug(context: Context?, tag: String, message: String) {

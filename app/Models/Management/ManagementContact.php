@@ -55,6 +55,7 @@ use HasFactory, HasUuids;
 
     protected $fillable = [
         'is_favorite',
+        'funkira_call_whitelist',
         'first_name',
         'last_name',
         'nickname',
@@ -75,7 +76,8 @@ use HasFactory, HasUuids;
     protected $casts = [
         'birthday' => 'date',
         'links' => 'array',
-        'is_favorite' => 'boolean'
+        'is_favorite' => 'boolean',
+        'funkira_call_whitelist' => 'boolean'
     ];
 
     /**
