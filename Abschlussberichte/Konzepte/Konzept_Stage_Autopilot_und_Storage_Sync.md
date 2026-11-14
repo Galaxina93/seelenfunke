@@ -2,7 +2,7 @@
 
 **Datum:** 14.11.2026  
 **System:** Mein Seelenfunke (`Lokal` -> `stage.mein-seelenfunke.de` via Git + Funkenwerk SFTP/SSH Zero-Secret Vault)  
-**Status:** Vollständig implementiert, gehärtet & live verifiziert (`SystemShopAssetManifestCommand`, `./funki stage-deploy`, `FunkenwerkMcp` `40/40` Selbsttests & `StageShopAssetManifestTest` grün)
+**Status:** Vollständig implementiert, gehärtet & live verifiziert (`SystemShopAssetManifestCommand`, `./funki stage-deploy`, `FunkenwerkMcp` `41/41` Selbsttests inkl. Ed25519-Key-Only-Zwang & `StageShopAssetManifestTest` grün)
 
 ---
 
@@ -30,7 +30,7 @@ Gemäß Inhaberin-Vorgabe bleiben Musik, Buchhaltungsdaten, interne Verwaltungsd
 1. **Git-Branch-Trennung:** `main` für Lokal & Stage, separater geschützter `production`-Branch für den Live-Server (`mein-seelenfunke.de`).
 2. **Primärer Bugfix-Autopilot (`./funki stage-deploy` & MCP-Preset `stage_deploy`):**
    * Für alle Code-, Logik-, Backend- und Mobile-UI-Fixes (inkl. per `npm run prod` gebauter `public/css/app.css` und `public/js/admin-bundle.js`).
-   * Dreifache Live-Sperre: Branch-Trennung, harte Pfadprüfung in `McpSecurityGuard.cs` auf `/home/p-g27wim/html/seelenfunke-stage` (`worker-stage-3`) sowie `.env`-Prüfung (`APP_URL=https://stage.mein-seelenfunke.de`).
+   * Vierfache Sicherheit: Branch-Trennung (`main` vs. `production`), harte Pfadprüfung in `McpSecurityGuard.cs` auf `/home/p-g27wim/html/seelenfunke-stage` (`worker-stage-3`), `.env`-Prüfung (`APP_URL=https://stage.mein-seelenfunke.de`) sowie **harter Ed25519-Key-Only-Zwang** (das gespeicherte Tresor-Passwort wird für Stage-Deploys und SFTP-Asset-Syncs nicht einmal im Arbeitsspeicher entschlüsselt; Passwort-Fallback ist hart abgeschaltet).
    * Ablauf auf Stage: `git pull --ff-only origin main` -> `composer install --no-dev` (falls `composer.lock` geändert) -> `php artisan migrate --force` (nicht-destruktiv; manuelles `./funki migrate fresh` durch Alina bleibt jederzeit unabhängig möglich) -> `optimize:clear` & `system:brain:generate` -> `./funki sync-worker` -> `./funki check`.
 3. **Sekundärer Reiner Shop-Asset-Sync (`php artisan system:shop-asset-manifest` & MCP `stage_sync_shop_assets`):**
    * Doppelte Positivliste (in PHP und hart im C#-Code von `FunkenwerkMcp`) nur für die 4 öffentlichen Shop-Asset-Pfade; alle anderen Ordner (`music`, `buchhaltung`, `leitung`, `agenten`, `support`, `private`, `system`) sind technisch gesperrt.

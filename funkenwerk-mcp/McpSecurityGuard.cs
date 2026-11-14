@@ -1233,7 +1233,10 @@ namespace FunkenwerkMcp
             }
         }
 
-        private static InternalResolvedSshCreds? ResolveProfileInternal(string profileName, string? overrideRemoteDir)
+        private static InternalResolvedSshCreds? ResolveProfileInternal(
+            string profileName,
+            string? overrideRemoteDir,
+            bool forceKeyOnlyNoPasswordDecrypt = false)
         {
             string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
 
@@ -1284,7 +1287,14 @@ namespace FunkenwerkMcp
                         ValidateSshEndpointParameters(host, port, user, remDir);
 
                         byte[]? pwdBytes = null;
-                        if (el.TryGetProperty("EncryptedPassword", out var ep) && !string.IsNullOrWhiteSpace(ep.GetString()))
+                        bool skipPasswordDecrypt = forceKeyOnlyNoPasswordDecrypt
+                            || (host.Equals(StageAllowedHost, StringComparison.OrdinalIgnoreCase)
+                                && !string.IsNullOrWhiteSpace(keyPath)
+                                && File.Exists(keyPath));
+
+                        if (!skipPasswordDecrypt
+                            && el.TryGetProperty("EncryptedPassword", out var ep)
+                            && !string.IsNullOrWhiteSpace(ep.GetString()))
                         {
                             pwdBytes = DecryptFtpOrSshVaultBytes(src.VaultDir, ep.GetString()!, src.Prefix, src.Entropy);
                         }
@@ -1542,7 +1552,7 @@ namespace FunkenwerkMcp
                 }
             }
 
-            using var creds = ResolveProfileInternal(profileName, safeSubdirectory)
+            using var creds = ResolveProfileInternal(profileName, safeSubdirectory, forceKeyOnlyNoPasswordDecrypt: isStageMutationPreset)
                 ?? throw new InvalidOperationException($"Profil '{profileName}' wurde nicht gefunden.");
 
             if (isStageMutationPreset)
@@ -1578,7 +1588,16 @@ namespace FunkenwerkMcp
                         keyFile = new PrivateKeyFile(creds.PrivateKeyPath);
                         authMethods.Add(new PrivateKeyAuthenticationMethod(creds.Username, keyFile));
                     }
-                    if (creds.PasswordUtf8 != null && creds.PasswordUtf8.Length > 0)
+                    if (isStageMutationPreset)
+                    {
+                        if (keyFile == null)
+                        {
+                            AppendAuditLog("ssh_exec_safe_readonly", $"{creds.Name}:{preset}", "DENY:stage_requires_ed25519_key");
+                            throw new UnauthorizedAccessException(
+                                "Stage-Autopilot erzwingt reine Ed25519-SSH-Key-Authentifizierung (Passwort-Fallback ist aus Sicherheitsgründen hart deaktiviert).");
+                        }
+                    }
+                    else if (creds.PasswordUtf8 != null && creds.PasswordUtf8.Length > 0)
                     {
                         authMethods.Add(new PasswordAuthenticationMethod(creds.Username, Encoding.UTF8.GetString(creds.PasswordUtf8)));
                     }
@@ -1716,7 +1735,7 @@ namespace FunkenwerkMcp
                 }
             }
 
-            using var creds = ResolveProfileInternal(profileName, StageWebRemoteDir)
+            using var creds = ResolveProfileInternal(profileName, StageWebRemoteDir, forceKeyOnlyNoPasswordDecrypt: true)
                 ?? throw new InvalidOperationException($"Profil '{profileName}' wurde nicht gefunden.");
 
             ValidateStageOnlyTarget(creds.Host, creds.RemoteDirectory, allowWorkerStage: false);
@@ -1741,12 +1760,12 @@ namespace FunkenwerkMcp
                         keyFile = new PrivateKeyFile(creds.PrivateKeyPath);
                         authMethods.Add(new PrivateKeyAuthenticationMethod(creds.Username, keyFile));
                     }
-                    if (creds.PasswordUtf8 != null && creds.PasswordUtf8.Length > 0)
+                    if (keyFile == null || authMethods.Count == 0)
                     {
-                        authMethods.Add(new PasswordAuthenticationMethod(creds.Username, Encoding.UTF8.GetString(creds.PasswordUtf8)));
+                        AppendAuditLog("stage_sync_shop_assets", creds.Name, "DENY:stage_requires_ed25519_key");
+                        throw new UnauthorizedAccessException(
+                            "Stage-Shop-Asset-Sync erzwingt reine Ed25519-SSH-Key-Authentifizierung (Passwort-Fallback ist aus Sicherheitsgründen hart deaktiviert).");
                     }
-                    if (authMethods.Count == 0)
-                        throw new InvalidOperationException("Keine gültige Authentifizierungsmethode im Tresor hinterlegt.");
 
                     bool VerifyPinnedKey(byte[] hostKeyBytes, string hostKeyName)
                     {
@@ -2016,6 +2035,17 @@ namespace FunkenwerkMcp
             }
         }
 
+        internal static (bool ProfileFound, bool HasEd25519Key, bool PasswordDecryptedInRam) InspectStageKeyOnlyModeForSelfTest(string profileName)
+        {
+            using var creds = ResolveProfileInternal(profileName, StageWebRemoteDir, forceKeyOnlyNoPasswordDecrypt: true);
+            if (creds == null)
+                return (false, false, false);
+
+            bool hasKey = !string.IsNullOrWhiteSpace(creds.PrivateKeyPath) && File.Exists(creds.PrivateKeyPath);
+            bool hasPwd = creds.PasswordUtf8 != null && creds.PasswordUtf8.Length > 0;
+            return (true, hasKey, hasPwd);
+        }
+
         public static SecurityAuditStatusDto RunSecuritySelfAudit()
         {
             bool dirAclOk = LockDownDirectoryAcl(McpDataDir);
@@ -2042,7 +2072,7 @@ namespace FunkenwerkMcp
                     "2. Dateisystem-Sandbox + Anti-Traversal + Symlink/ADS/DOS-Device-Blocker + %PDF- Magic-Header + Atomic-Write",
                     "3. Zero-Secret Vault-Bridge (DPAPI + PBKDF2-SHA512 + AES-256-GCM + ZeroMemory + 14-Pattern Outbound-DLP)",
                     "4. Prompt-Injection-Sanitizer + JSON-MaxDepth-24 + Bounded-Chunk-Reader (512 KB Limit)",
-                    "5. Fail-Closed SHA-256 SSH Host-Key-Pinning (Funkenwerk + OpenSSH HMAC) + Strikte Preset-Allowlist",
+                    "5. Fail-Closed SHA-256 SSH Host-Key-Pinning + Ed25519 Key-Only Stage-Autopilot (0 Passwort-Entschlüsselung im RAM)",
                     "6. SSRF-Schutz (AllowAutoRedirect=false, UseProxy=false, UserInfo-Block, TLS 1.2/1.3 Host-Pinning)",
                     "7. Sliding-Window Rate-Limiter (60 Calls/Min gesamt, 10 SSH-Calls/Min)",
                     "8. Manipulationssicheres SHA-256 Hash-Chain Security-Audit-Log + NTFS CurrentUser Ordner/Datei-ACL"

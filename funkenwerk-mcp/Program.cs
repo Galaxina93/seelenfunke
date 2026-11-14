@@ -2610,6 +2610,14 @@ namespace FunkenwerkMcp
                         livePresetRejected);
                 }
 
+                // 41. Stage Autopilot Enforces Strict Ed25519 Key-Only Mode (Zero Vault Password Decryption In RAM)
+                {
+                    var (found, hasKey, pwdInRam) = McpSecurityGuard.InspectStageKeyOnlyModeForSelfTest("Mittwald");
+                    bool keyOnlyOk = !found || (hasKey && !pwdInRam);
+                    AssertTest("41. Stage Autopilot Enforces Ed25519 Key-Only Mode (Zero Vault Password Decryption In RAM)",
+                        keyOnlyOk);
+                }
+
                 Console.WriteLine($"=== RESULT: {passed} PASSED, {failed} FAILED ===");
                 return failed == 0 ? 0 : 1;
             }
