@@ -33,7 +33,7 @@
             {{-- Hauptüberschrift --}}
             <h1 class="text-4xl sm:text-5xl md:text-6xl font-serif font-bold mb-6 leading-tight">
                 <span class="text-primary">Ein Funke, der bleibt.</span><br>
-                Personalisierte Unikate für die Ewigkeit.
+                Personalisierte Unikate für die Ewigkeit!
             </h1>
 
             {{-- Unterüberschrift (Volles Sortiment + Emotion + Live-3D-Konfigurator) --}}
